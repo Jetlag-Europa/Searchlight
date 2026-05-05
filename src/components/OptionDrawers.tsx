@@ -47,6 +47,7 @@ import {
     triggerLocalRefresh,
     useCustomStations,
 } from "@/lib/context";
+import { currentGameId, GAMES, switchToGame } from "@/lib/games";
 import {
     cn,
     compress,
@@ -95,6 +96,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const lastDefaultUnit = useRef($defaultUnit);
     const hasSyncedInitialUnit = useRef(false);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
+    const [isGamesOpen, setGamesOpen] = useState(false);
+    const $currentGameId = useStore(currentGameId);
 
     useEffect(() => {
         const currentDefault = $defaultUnit;
@@ -375,6 +378,49 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             >
                 Tutorial
             </Button>
+            <Drawer open={isGamesOpen} onOpenChange={setGamesOpen}>
+                <DrawerTrigger className="w-32" asChild>
+                    <Button className="w-32 shadow-md">Current Games</Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                    <div className="flex flex-col items-center gap-4 mb-4">
+                        <DrawerHeader>
+                            <DrawerTitle className="text-4xl font-semibold font-poppins">
+                                Current Games
+                            </DrawerTitle>
+                        </DrawerHeader>
+                        <p className="text-sm text-muted-foreground max-w-md text-center px-4">
+                            Loading a game clears every existing question
+                            and resets the map to the game&apos;s hiding zones.
+                        </p>
+                        <div className="flex flex-col gap-2 w-full max-w-md px-4">
+                            {GAMES.map((g) => {
+                                const active = $currentGameId === g.id;
+                                return (
+                                    <Button
+                                        key={g.id}
+                                        variant={
+                                            active ? "default" : "outline"
+                                        }
+                                        className="w-full"
+                                        onClick={() => {
+                                            switchToGame(g);
+                                            setGamesOpen(false);
+                                            toast.success(
+                                                `Loaded ${g.label}`,
+                                                { autoClose: 2000 },
+                                            );
+                                        }}
+                                    >
+                                        {g.label}
+                                        {active ? " (current)" : ""}
+                                    </Button>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </DrawerContent>
+            </Drawer>
             <Drawer open={isOptionsOpen} onOpenChange={setOptionsOpen}>
                 <DrawerTrigger className="w-24" asChild>
                     <Button

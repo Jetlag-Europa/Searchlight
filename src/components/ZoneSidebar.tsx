@@ -18,11 +18,6 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-r";
 import {
-    activateBundledStations,
-    BUNDLED_LUX_OPTION_LABEL,
-    BUNDLED_LUX_OPTION_VALUE,
-} from "@/lib/bootstrapCustomStations";
-import {
     animateMapMovements,
     autoZoom,
     customStations as customStationsAtom,
@@ -43,6 +38,12 @@ import {
     trainStations,
     useCustomStations as useCustomStationsAtom,
 } from "@/lib/context";
+import {
+    activateGameStations,
+    GAME_SENTINELS,
+    GAMES,
+    getGameBySentinel,
+} from "@/lib/games";
 import { cn } from "@/lib/utils";
 import {
     BLANK_GEOJSON,
@@ -113,18 +114,24 @@ export const ZoneSidebar = () => {
     const sidebarRef = useRef<HTMLDivElement>(null);
     const [importUrl, setImportUrl] = useState("");
 
-    // Initial value is `false` so a session that was reloaded with the
-    // sentinel already selected re-activates the bundled KML on mount.
-    const prevHadBundledOption = useRef(false);
+    // Track which game sentinels are currently selected. Newly added ones
+    // trigger the matching game's KML to load; if all game sentinels go
+    // away, drop out of custom-stations mode.
+    const prevGameSentinels = useRef<Set<string>>(new Set());
     useEffect(() => {
-        const has = $displayHidingZonesOptions.includes(
-            BUNDLED_LUX_OPTION_VALUE,
+        const current = new Set(
+            $displayHidingZonesOptions.filter((o) => GAME_SENTINELS.has(o)),
         );
-        const had = prevHadBundledOption.current;
-        prevHadBundledOption.current = has;
-        if (has && !had) {
-            activateBundledStations();
-        } else if (!has && had) {
+        const prev = prevGameSentinels.current;
+        prevGameSentinels.current = current;
+
+        for (const sentinel of current) {
+            if (!prev.has(sentinel)) {
+                const game = getGameBySentinel(sentinel);
+                if (game) activateGameStations(game);
+            }
+        }
+        if (prev.size > 0 && current.size === 0) {
             useCustomStationsAtom.set(false);
         }
     }, [$displayHidingZonesOptions]);
@@ -200,9 +207,10 @@ export const ZoneSidebar = () => {
             isLoading.set(true);
 
             const needsDefault = !useCustomStations || includeDefaultStations;
-            // Strip the bundled-KML sentinel before any Overpass call.
+            // Strip every game sentinel before any Overpass call — they're
+            // app-internal markers, not OSM tag selectors.
             const overpassOptions = $displayHidingZonesOptions.filter(
-                (o) => o !== BUNDLED_LUX_OPTION_VALUE,
+                (o) => !GAME_SENTINELS.has(o),
             );
             if (needsDefault && overpassOptions.length === 0) {
                 toast.error("At least one place type must be selected");
@@ -785,10 +793,10 @@ export const ZoneSidebar = () => {
                             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                                 <MultiSelect
                                     options={[
-                                        {
-                                            label: BUNDLED_LUX_OPTION_LABEL,
-                                            value: BUNDLED_LUX_OPTION_VALUE,
-                                        },
+                                        ...GAMES.map((g) => ({
+                                            label: g.optionLabel,
+                                            value: g.sentinelValue,
+                                        })),
                                         {
                                             label: "Railway Stations",
                                             value: "[railway=station]",

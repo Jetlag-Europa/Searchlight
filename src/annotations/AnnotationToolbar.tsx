@@ -100,11 +100,11 @@ export function AnnotationToolbar() {
             <Toggle
                 pressed={$drawingEnabled}
                 onPressedChange={(v) => drawingEnabled.set(v)}
-                aria-label="Drawing on/off"
-                title={$drawingEnabled ? "Drawing ON" : "Drawing OFF"}
+                aria-label="Pen mode on/off"
+                title={$drawingEnabled ? "Pen Mode: ON" : "Pen Mode: OFF"}
                 style={tapStyle}
                 className={cn(
-                    tapClass,
+                    "min-h-[44px] px-3 whitespace-nowrap",
                     "border border-border",
                     $drawingEnabled
                         ? "bg-primary text-primary-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
@@ -112,7 +112,7 @@ export function AnnotationToolbar() {
                 )}
                 variant="outline"
             >
-                {$drawingEnabled ? "ON" : "OFF"}
+                Pen Mode: {$drawingEnabled ? "ON" : "OFF"}
             </Toggle>
 
             {$drawingEnabled && (
