@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import * as L from "leaflet";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -40,10 +40,17 @@ function ensureStyleTag() {
     if (document.getElementById(ANNOT_STYLE_ID)) return;
     const tag = document.createElement("style");
     tag.id = ANNOT_STYLE_ID;
+    // .annot-drawing-active is toggled mid-stroke (between pointerdown/up).
+    // .annot-pen-mode is toggled whenever drawing is enabled — used to block
+    // marker/overlay clicks so a tap doesn't toggle a hiding-zone station.
     tag.textContent = `
 .annot-drawing-active, .annot-drawing-active * { touch-action: none !important; }
-.annot-drawing-active .leaflet-marker-icon,
-.annot-drawing-active .leaflet-marker-shadow { pointer-events: none !important; }
+.annot-pen-mode .leaflet-marker-pane,
+.annot-pen-mode .leaflet-overlay-pane,
+.annot-pen-mode .leaflet-marker-icon,
+.annot-pen-mode .leaflet-marker-shadow,
+.annot-pen-mode .leaflet-clickable,
+.annot-pen-mode .leaflet-interactive { pointer-events: none !important; }
 `;
     document.head.appendChild(tag);
 }
@@ -61,6 +68,21 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     activeRef.current = active;
 
     ensureStyleTag();
+
+    // Toggle the pen-mode class on the map container so marker / overlay
+    // clicks are suppressed while drawing is enabled.
+    useEffect(() => {
+        if (!map) return;
+        const container = map.getContainer();
+        if ($drawingEnabled) {
+            container.classList.add("annot-pen-mode");
+        } else {
+            container.classList.remove("annot-pen-mode");
+        }
+        return () => {
+            container.classList.remove("annot-pen-mode");
+        };
+    }, [map, $drawingEnabled]);
 
     const shouldCapture = useCallback(
         (e: PointerEvent): boolean => {
