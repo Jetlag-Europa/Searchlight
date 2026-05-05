@@ -23,12 +23,15 @@ import {
     defaultCustomQuestions,
     defaultUnit,
     disabledStations,
+    displayHidingZones,
     displayHidingZonesOptions,
+    displayHidingZonesStyle,
     followMe,
     hiderMode,
     hidingRadius,
     hidingRadiusUnits,
     hidingZone,
+    hidingZoneFocusedStationID,
     includeDefaultStations,
     leafletMapContext,
     mapGeoJSON,
@@ -283,6 +286,18 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 className,
             )}
         >
+            <Button
+                className="w-24 shadow-md"
+                onClick={() => {
+                    hidingZoneFocusedStationID.set("");
+                    if (!displayHidingZones.get()) {
+                        displayHidingZones.set(true);
+                    }
+                    displayHidingZonesStyle.set("zones");
+                }}
+            >
+                All Zones
+            </Button>
             <Button
                 className="shadow-md"
                 onClick={async () => {

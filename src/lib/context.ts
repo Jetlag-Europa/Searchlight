@@ -322,6 +322,10 @@ export const hidingZone = computed(
 );
 
 export const drawingQuestionKey = atom<number>(-1);
+// ID of the single hiding-zone the user has focused via a "View" button,
+// or "" for the all-zones overview. Lifted to a shared atom so the
+// bottom-bar "All Zones" button can clear it from outside the sidebar.
+export const hidingZoneFocusedStationID = atom<string>("");
 export const planningModeEnabled = persistentAtom<boolean>(
     "planningModeEnabled",
     false,

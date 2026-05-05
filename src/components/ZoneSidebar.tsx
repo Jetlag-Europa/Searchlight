@@ -32,6 +32,7 @@ import {
     displayHidingZonesStyle,
     hidingRadius,
     hidingRadiusUnits,
+    hidingZoneFocusedStationID,
     includeDefaultStations as includeDefaultStationsAtom,
     isLoading,
     leafletMapContext,
@@ -104,8 +105,8 @@ export const ZoneSidebar = () => {
     const mergeDuplicates = useStore(mergeDuplicatesAtom);
     const includeDefaultStations = useStore(includeDefaultStationsAtom);
     const $customStations = useStore(customStationsAtom);
-    const [hidingZoneModeStationID, setHidingZoneModeStationID] =
-        useState<string>("");
+    const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
+    const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
     const isStationSearchActive = stationSearch.trim().length > 0;
     const setStations = trainStations.set;
