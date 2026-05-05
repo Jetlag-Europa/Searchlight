@@ -9,6 +9,8 @@ import { useEffect, useMemo } from "react";
 import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 import { toast } from "react-toastify";
 
+import { AnnotationLayer } from "@/annotations";
+import { bootstrapDefaults } from "@/lib/bootstrapCustomStations";
 import {
     additionalMapGeoLocations,
     addQuestion,
@@ -395,6 +397,10 @@ export const Map = ({ className }: { className?: string }) => {
     );
 
     useEffect(() => {
+        bootstrapDefaults();
+    }, []);
+
+    useEffect(() => {
         if (!map) return;
 
         refreshQuestions(true);
@@ -531,5 +537,11 @@ export const Map = ({ className }: { className?: string }) => {
         }
     }, [$permanentOverlay, map]);
 
-    return displayMap;
+    return (
+        <>
+            {displayMap}
+            {/* ANNOTATION LAYER MOUNT — see src/annotations/ */}
+            <AnnotationLayer map={map} />
+        </>
+    );
 };

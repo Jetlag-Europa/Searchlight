@@ -18,6 +18,11 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-r";
 import {
+    activateBundledStations,
+    BUNDLED_LUX_OPTION_LABEL,
+    BUNDLED_LUX_OPTION_VALUE,
+} from "@/lib/bootstrapCustomStations";
+import {
     animateMapMovements,
     autoZoom,
     customStations as customStationsAtom,
@@ -107,6 +112,22 @@ export const ZoneSidebar = () => {
     const sidebarRef = useRef<HTMLDivElement>(null);
     const [importUrl, setImportUrl] = useState("");
 
+    // Initial value is `false` so a session that was reloaded with the
+    // sentinel already selected re-activates the bundled KML on mount.
+    const prevHadBundledOption = useRef(false);
+    useEffect(() => {
+        const has = $displayHidingZonesOptions.includes(
+            BUNDLED_LUX_OPTION_VALUE,
+        );
+        const had = prevHadBundledOption.current;
+        prevHadBundledOption.current = has;
+        if (has && !had) {
+            activateBundledStations();
+        } else if (!has && had) {
+            useCustomStationsAtom.set(false);
+        }
+    }, [$displayHidingZonesOptions]);
+
     const removeHidingZones = () => {
         if (!map) return;
 
@@ -178,7 +199,11 @@ export const ZoneSidebar = () => {
             isLoading.set(true);
 
             const needsDefault = !useCustomStations || includeDefaultStations;
-            if (needsDefault && $displayHidingZonesOptions.length === 0) {
+            // Strip the bundled-KML sentinel before any Overpass call.
+            const overpassOptions = $displayHidingZonesOptions.filter(
+                (o) => o !== BUNDLED_LUX_OPTION_VALUE,
+            );
+            if (needsDefault && overpassOptions.length === 0) {
                 toast.error("At least one place type must be selected");
                 isLoading.set(false);
                 return;
@@ -205,11 +230,11 @@ export const ZoneSidebar = () => {
                 // @ts-expect-error osmtogeojson always defines properties with an "id" string
                 places = osmtogeojson(
                     await findPlacesInZone(
-                        $displayHidingZonesOptions[0],
+                        overpassOptions[0],
                         "Finding stations. This may take a while. Do not press any buttons while this is processing. Don't worry, it will be cached.",
                         "nwr",
                         "center",
-                        $displayHidingZonesOptions.slice(1),
+                        overpassOptions.slice(1),
                     ),
                 ).features;
 
@@ -759,6 +784,10 @@ export const ZoneSidebar = () => {
                             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                                 <MultiSelect
                                     options={[
+                                        {
+                                            label: BUNDLED_LUX_OPTION_LABEL,
+                                            value: BUNDLED_LUX_OPTION_VALUE,
+                                        },
                                         {
                                             label: "Railway Stations",
                                             value: "[railway=station]",

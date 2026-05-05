@@ -18,6 +18,11 @@ export default defineConfig({
             },
         }),
         AstroPWA({
+            workbox: {
+                // Activate new builds on first reload instead of waiting two reloads.
+                skipWaiting: true,
+                clientsClaim: true,
+            },
             manifest: {
                 name: "Jet Lag Hide and Seek Map Generator",
                 short_name: "Map Generator",
@@ -47,6 +52,13 @@ export default defineConfig({
     devToolbar: {
         enabled: false,
     },
+    // TODO(annotations): if accessing dev server over Tailscale on iPad and
+    // HMR websocket fails, fill in your tailscale hostname below.
+    // vite: {
+    //     server: {
+    //         hmr: { host: "<your-tailscale-hostname>" },
+    //     },
+    // },
     site: "https://taibeled.github.io",
     base: "JetLagHideAndSeek",
 });

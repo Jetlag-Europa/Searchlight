@@ -23,19 +23,19 @@ export const mapGeoLocation = persistentAtom<OpenStreetMap>(
     "mapGeoLocation",
     {
         geometry: {
-            coordinates: [36.5748441, 139.2394179],
+            coordinates: [49.8158683, 6.1296751],
             type: "Point",
         },
         type: "Feature",
         properties: {
             osm_type: "R",
-            osm_id: 382313,
-            extent: [45.7112046, 122.7141754, 20.2145811, 154.205541],
-            country: "Japan",
+            osm_id: 2171347,
+            extent: [50.1827989, 5.7356988, 49.4478587, 6.5312481],
+            country: "Luxembourg",
             osm_key: "place",
-            countrycode: "JP",
+            countrycode: "LU",
             osm_value: "country",
-            name: "Japan",
+            name: "Luxembourg",
             type: "country",
         },
     },
@@ -169,13 +169,13 @@ export const animateMapMovements = persistentAtom<boolean>(
         decode: JSON.parse,
     },
 );
-export const hidingRadius = persistentAtom<number>("hidingRadius", 0.5, {
+export const hidingRadius = persistentAtom<number>("hidingRadius", 1, {
     encode: JSON.stringify,
     decode: JSON.parse,
 });
 export const hidingRadiusUnits = persistentAtom<Units>(
     "hidingRadiusUnits",
-    "miles",
+    "kilometers",
     {
         encode: JSON.stringify,
         decode: JSON.parse,
