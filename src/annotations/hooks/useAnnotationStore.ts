@@ -23,7 +23,7 @@ export const widthPreset = persistentAtom<StrokeWidthPreset>(
 
 export const drawingEnabled = persistentAtom<boolean>(
     "annot-drawing-enabled",
-    true,
+    false,
     { encode: JSON.stringify, decode: JSON.parse },
 );
 

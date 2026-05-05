@@ -1,3 +1,4 @@
+import { drawingEnabled } from "@/annotations/hooks/useAnnotationStore";
 import {
     customStations,
     defaultUnit,
@@ -63,6 +64,9 @@ export function bootstrapDefaults(): void {
     if (polyGeoJSON.get() !== null) {
         polyGeoJSON.set(null);
     }
+
+    // Pen mode starts off on every load so the user opts in per-session.
+    drawingEnabled.set(false);
 }
 
 let cached: CustomStation[] | null = null;
