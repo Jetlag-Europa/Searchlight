@@ -309,9 +309,17 @@ const customMatchingQuestionSchema = baseMatchingQuestionSchema.extend({
     geo: z.any(),
 });
 
+const luxAdminMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("lux-canton").describe("Same Canton (Luxembourg)"),
+        z.literal("lux-district").describe("Same District (Luxembourg)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
+    luxAdminMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),

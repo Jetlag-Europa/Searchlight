@@ -18,6 +18,7 @@ import {
 } from "@/lib/context";
 import {
     findAdminBoundary,
+    findLuxembourgDistrictBoundary,
     findPlacesInZone,
     LOCATION_FIRST_TAG,
     nearestToQuestion,
@@ -153,6 +154,33 @@ export const determineMatchingBoundary = _.memoize(
                 if (!boundary) {
                     toast.error("No boundary found for this zone");
                     throw new Error("No boundary found");
+                }
+                break;
+            }
+            case "lux-canton": {
+                boundary = await findAdminBoundary(
+                    question.lat,
+                    question.lng,
+                    6,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No canton found at this point — must be inside Luxembourg.",
+                    );
+                    throw new Error("No canton found");
+                }
+                break;
+            }
+            case "lux-district": {
+                boundary = await findLuxembourgDistrictBoundary(
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No district found at this point — must be inside Luxembourg.",
+                    );
+                    throw new Error("No district found");
                 }
                 break;
             }

@@ -144,15 +144,79 @@ export const findAdminBoundary = async (
     longitude: number,
     adminLevel: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
 ) => {
+    // boundary=administrative excludes religious / electoral / etc. relations
+    // that share an admin_level — e.g. the Archdiocese of Luxembourg is
+    // tagged admin_level=6 with boundary=religious_administration and
+    // would otherwise outrank Canton Luxembourg in the result order.
     const query = `
 [out:json];
 is_in(${latitude}, ${longitude})->.a;
-rel(pivot.a)["admin_level"="${adminLevel}"];
+rel(pivot.a)["admin_level"="${adminLevel}"]["boundary"="administrative"];
 out geom;
     `;
     const data = await getOverpassData(query, "Determining matching zone...");
     const geo = osmtogeojson(data);
     return geo.features?.[0];
+};
+
+// Luxembourg's three districts were abolished in 2015 and are no longer
+// stored as administrative relations in OSM, so we reconstruct them from
+// their constituent cantons (admin_level=6).
+const LUX_DISTRICT_BY_CANTON: Record<string, string> = {
+    Clervaux: "Diekirch",
+    Diekirch: "Diekirch",
+    Redange: "Diekirch",
+    Vianden: "Diekirch",
+    Wiltz: "Diekirch",
+    Echternach: "Grevenmacher",
+    Grevenmacher: "Grevenmacher",
+    Remich: "Grevenmacher",
+    Capellen: "Luxembourg",
+    "Esch-sur-Alzette": "Luxembourg",
+    Luxembourg: "Luxembourg",
+    Mersch: "Luxembourg",
+};
+
+const stripCantonPrefix = (name: string | undefined): string | undefined =>
+    name?.replace(/^Canton\s+/i, "").trim();
+
+export const findLuxembourgDistrictBoundary = async (
+    latitude: number,
+    longitude: number,
+) => {
+    const cantonFeature = await findAdminBoundary(latitude, longitude, 6);
+    if (!cantonFeature) return undefined;
+    const cantonName = stripCantonPrefix(cantonFeature.properties?.name);
+    if (!cantonName) return undefined;
+    const districtName = LUX_DISTRICT_BY_CANTON[cantonName];
+    if (!districtName) return undefined;
+
+    const siblingCantons = Object.entries(LUX_DISTRICT_BY_CANTON)
+        .filter(([, d]) => d === districtName)
+        .map(([c]) => c);
+
+    const query = `
+[out:json][timeout:60];
+rel["ISO3166-1"="LU"][admin_level=2];
+map_to_area->.lux;
+rel(area.lux)["admin_level"="6"]["boundary"="administrative"];
+out geom;
+    `;
+    const data = await getOverpassData(
+        query,
+        `Building Luxembourg ${districtName} district boundary...`,
+    );
+    const collection = osmtogeojson(data) as FeatureCollection<MultiPolygon>;
+    const memberFeatures = collection.features.filter((f) => {
+        const name = stripCantonPrefix(f.properties?.name);
+        return !!name && siblingCantons.includes(name);
+    });
+    if (memberFeatures.length === 0) return undefined;
+
+    return safeUnion({
+        type: "FeatureCollection",
+        features: memberFeatures,
+    });
 };
 
 export const fetchCoastline = async () => {
