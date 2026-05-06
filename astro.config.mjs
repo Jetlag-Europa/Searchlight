@@ -52,13 +52,12 @@ export default defineConfig({
     devToolbar: {
         enabled: false,
     },
-    // TODO(annotations): if accessing dev server over Tailscale on iPad and
-    // HMR websocket fails, fill in your tailscale hostname below.
-    // vite: {
-    //     server: {
-    //         hmr: { host: "<your-tailscale-hostname>" },
-    //     },
-    // },
+    // Astro plumbs server.allowedHosts through to Vite's preview/dev server
+    // (see astro/core/preview/static-preview-server.js). Adding hostnames
+    // here lets a reverse proxy forward requests with those Host headers.
+    server: {
+        allowedHosts: ["hideandseek.lucifersserver.com"],
+    },
     site: "https://taibeled.github.io",
     base: "JetLagHideAndSeek",
 });
