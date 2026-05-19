@@ -58,6 +58,6 @@ export default defineConfig({
     server: {
         allowedHosts: ["hideandseek.lucifersserver.com"],
     },
-    site: "https://taibeled.github.io",
-    base: "JetLagHideAndSeek",
+    site: "https://hideandseek.lucifersserver.com",
+    base: "/",
 });
