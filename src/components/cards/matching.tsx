@@ -226,7 +226,9 @@ export const MatchingQuestionComponent = ({
                             data.type === "library-full" ||
                             data.type === "golf_course-full" ||
                             data.type === "consulate-full" ||
-                            data.type === "park-full"
+                            data.type === "park-full" ||
+                            data.type === "lux-mountains" ||
+                            data.type === "lux-hospitals"
                         ) {
                             (data as any).geo = await findMatchingPlaces(data);
                         } else {
@@ -331,7 +333,9 @@ export const MatchingQuestionComponent = ({
                                         data.type === "library-full" ||
                                         data.type === "golf_course-full" ||
                                         data.type === "consulate-full" ||
-                                        data.type === "park-full"
+                                        data.type === "park-full" ||
+                                        data.type === "lux-mountains" ||
+                                        data.type === "lux-hospitals"
                                     ) {
                                         (data as any).geo =
                                             await findMatchingPlaces(data);

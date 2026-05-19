@@ -27,9 +27,15 @@ export const drawingEnabled = persistentAtom<boolean>(
     { encode: JSON.stringify, decode: JSON.parse },
 );
 
-export const allowFingerDrawing = persistentAtom<boolean>(
-    "annot-allow-finger",
+export const detectPencilOnly = persistentAtom<boolean>(
+    "annot-detect-pencil",
     false,
+    { encode: JSON.stringify, decode: JSON.parse },
+);
+
+export const penToolbarVisible = persistentAtom<boolean>(
+    "annot-toolbar-visible",
+    true,
     { encode: JSON.stringify, decode: JSON.parse },
 );
 

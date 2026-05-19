@@ -1,12 +1,13 @@
 import { useStore } from "@nanostores/react";
-import { Eraser, Hand, Pen, Trash2, X } from "lucide-react";
+import { Eraser, Pen, Pencil, Power, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import {
-    allowFingerDrawing,
     clearAllStrokes,
     color as colorStore,
+    detectPencilOnly,
     drawingEnabled,
+    penToolbarVisible,
     tool as toolStore,
     widthPreset as widthPresetStore,
 } from "@/annotations/hooks/useAnnotationStore";
@@ -85,15 +86,18 @@ export function AnnotationToolbar() {
     const $color = useStore(colorStore);
     const $width = useStore(widthPresetStore);
     const $drawingEnabled = useStore(drawingEnabled);
-    const $allowFinger = useStore(allowFingerDrawing);
+    const $detectPencil = useStore(detectPencilOnly);
+    const $visible = useStore(penToolbarVisible);
     const [confirmOpen, setConfirmOpen] = useState(false);
+
+    if (!$visible) return null;
 
     const setTool = (t: AnnotationTool) => toolStore.set(t);
     const setWidth = (w: StrokeWidthPreset) => widthPresetStore.set(w);
 
     return (
         <div
-            className="flex items-center gap-1.5 rounded-lg bg-background/95 p-1.5 shadow-lg border border-border backdrop-blur-sm"
+            className="flex flex-col items-center gap-1.5 rounded-lg bg-background/95 p-1.5 shadow-lg border border-border backdrop-blur-sm"
             style={tapStyle}
             data-annotation-toolbar
         >
@@ -104,7 +108,7 @@ export function AnnotationToolbar() {
                 title={$drawingEnabled ? "Pen Mode: ON" : "Pen Mode: OFF"}
                 style={tapStyle}
                 className={cn(
-                    "min-h-[44px] px-3 whitespace-nowrap",
+                    tapClass,
                     "border border-border",
                     $drawingEnabled
                         ? "bg-primary text-primary-foreground data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
@@ -112,12 +116,12 @@ export function AnnotationToolbar() {
                 )}
                 variant="outline"
             >
-                Pen Mode: {$drawingEnabled ? "ON" : "OFF"}
+                <Power />
             </Toggle>
 
             {$drawingEnabled && (
                 <>
-                    <div className="w-px h-8 bg-border" />
+                    <div className="h-px w-8 bg-border" />
 
                     <ToolButton
                         icon={<Pen />}
@@ -138,7 +142,7 @@ export function AnnotationToolbar() {
                         onClick={() => setTool("crossout")}
                     />
 
-                    <div className="w-px h-8 bg-border" />
+                    <div className="h-px w-8 bg-border" />
 
                     {PEN_COLORS.map((c) => (
                         <Swatch
@@ -152,7 +156,7 @@ export function AnnotationToolbar() {
                         />
                     ))}
 
-                    <div className="w-px h-8 bg-border" />
+                    <div className="h-px w-8 bg-border" />
 
                     <Button
                         type="button"
@@ -179,22 +183,22 @@ export function AnnotationToolbar() {
                         <span className="block w-5 h-[6px] bg-current rounded-full" />
                     </Button>
 
-                    <div className="w-px h-8 bg-border" />
+                    <div className="h-px w-8 bg-border" />
 
                     <Toggle
-                        pressed={$allowFinger}
-                        onPressedChange={(v) => allowFingerDrawing.set(v)}
-                        aria-label="Allow finger drawing"
+                        pressed={$detectPencil}
+                        onPressedChange={(v) => detectPencilOnly.set(v)}
+                        aria-label="Detect pencil only"
                         title={
-                            $allowFinger
-                                ? "Finger drawing ON"
-                                : "Finger drawing OFF (pen only)"
+                            $detectPencil
+                                ? "Detect Pencil: ON (stylus only)"
+                                : "Detect Pencil: OFF (finger or stylus)"
                         }
                         style={tapStyle}
                         className={cn(tapClass, "border border-border")}
                         variant="outline"
                     >
-                        <Hand />
+                        <Pencil />
                     </Toggle>
 
                     <Button

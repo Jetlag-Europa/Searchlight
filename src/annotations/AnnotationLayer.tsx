@@ -5,8 +5,8 @@ import { createPortal } from "react-dom";
 
 import {
     addStroke,
-    allowFingerDrawing,
     color as colorStore,
+    detectPencilOnly,
     drawingEnabled,
     removeStrokes,
     strokes as strokesStore,
@@ -60,7 +60,7 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     const $color = useStore(colorStore);
     const $widthPreset = useStore(widthPresetStore);
     const $drawingEnabled = useStore(drawingEnabled);
-    const $allowFinger = useStore(allowFingerDrawing);
+    const $detectPencil = useStore(detectPencilOnly);
     const $strokes = useStore(strokesStore);
 
     const [active, setActive] = useState<ActiveStrokeState | null>(null);
@@ -88,13 +88,13 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         (e: PointerEvent): boolean => {
             if (!map) return false;
             if (!$drawingEnabled) return false;
-            if (e.pointerType === "touch" && !$allowFinger) return false;
+            if (e.pointerType === "touch" && $detectPencil) return false;
             // Don't fight Leaflet over its own UI controls.
             const target = e.target as Element | null;
             if (target?.closest(".leaflet-control")) return false;
             return true;
         },
-        [map, $drawingEnabled, $allowFinger],
+        [map, $drawingEnabled, $detectPencil],
     );
 
     const onStart = useCallback(

@@ -27,6 +27,7 @@ import {
 } from "@/maps/api";
 import { holedMask, modifyMapData, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
+import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
 import type {
     APILocations,
     HomeGameMatchingQuestions,
@@ -66,6 +67,16 @@ export const findMatchingPlaces = async (question: MatchingQuestion) => {
         }
         case "custom-points": {
             return question.geo!;
+        }
+        case "lux-mountains": {
+            return LUX_MOUNTAINS.map((p) =>
+                turf.point([p.lon, p.lat], { name: p.name }),
+            );
+        }
+        case "lux-hospitals": {
+            return LUX_HOSPITALS.map((p) =>
+                turf.point([p.lon, p.lat], { name: p.name }),
+            );
         }
         case "aquarium-full":
         case "zoo-full":
@@ -254,7 +265,9 @@ export const determineMatchingBoundary = _.memoize(
             case "golf_course-full":
             case "consulate-full":
             case "park-full":
-            case "custom-points": {
+            case "custom-points":
+            case "lux-mountains":
+            case "lux-hospitals": {
                 const data = await findMatchingPlaces(question);
 
                 const voronoi = geoSpatialVoronoi(data);

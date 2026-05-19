@@ -2,6 +2,7 @@ import { useStore } from "@nanostores/react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
+import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
 import {
     Drawer,
     DrawerContent,
@@ -93,6 +94,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $alwaysUsePastebin = useStore(alwaysUsePastebin);
     const $followMe = useStore(followMe);
     const $customInitPref = useStore(customInitPreference);
+    const $penToolbarVisible = useStore(penToolbarVisible);
     const lastDefaultUnit = useRef($defaultUnit);
     const hasSyncedInitialUnit = useRef(false);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
@@ -739,6 +741,19 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     onCheckedChange={() =>
                                         allowGooglePlusCodes.set(
                                             !$allowGooglePlusCodes,
+                                        )
+                                    }
+                                />
+                            </div>
+                            <div className="flex flex-row items-center gap-2">
+                                <label className="text-2xl font-semibold font-poppins">
+                                    Show pen toolbar?
+                                </label>
+                                <Checkbox
+                                    checked={$penToolbarVisible}
+                                    onCheckedChange={() =>
+                                        penToolbarVisible.set(
+                                            !$penToolbarVisible,
                                         )
                                     }
                                 />

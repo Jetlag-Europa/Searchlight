@@ -316,10 +316,18 @@ const luxAdminMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const luxPointMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("lux-mountains").describe("Lux Mountains"),
+        z.literal("lux-hospitals").describe("Lux Hospitals"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
     luxAdminMatchingQuestionsSchema.describe(NO_GROUP),
+    luxPointMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
