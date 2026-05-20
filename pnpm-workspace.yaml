@@ -1,0 +1,8 @@
+packages:
+    - "apps/*"
+    - "packages/*"
+
+allowBuilds:
+    "@vaadin/vaadin-usage-statistics": true
+    esbuild: true
+    sharp: true

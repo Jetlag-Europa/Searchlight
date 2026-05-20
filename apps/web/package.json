@@ -1,5 +1,5 @@
 {
-    "name": "Jet Lag Hide and Seek Map Generator",
+    "name": "@taibled/web",
     "type": "module",
     "version": "0.0.1",
     "scripts": {
