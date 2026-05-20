@@ -1,8 +1,11 @@
 packages:
-    - "apps/*"
-    - "packages/*"
+  - "apps/*"
+  - "packages/*"
 
 allowBuilds:
-    "@vaadin/vaadin-usage-statistics": true
-    esbuild: true
-    sharp: true
+  "@vaadin/vaadin-usage-statistics": true
+  "@prisma/client": true
+  "@prisma/engines": true
+  esbuild: true
+  prisma: true
+  sharp: true
