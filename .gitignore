@@ -1,5 +1,7 @@
 # build output
 dist/
+apps/*/dist/
+packages/*/dist/
 
 # generated types
 .astro/

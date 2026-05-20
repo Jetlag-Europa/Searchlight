@@ -1,0 +1,16 @@
+{
+    "name": "@taibled/api",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "tsc"
+    },
+    "devDependencies": {
+        "@types/node": "^22.0.0",
+        "typescript": "^5.7.3"
+    },
+    "engines": {
+        "node": "<25"
+    }
+}
