@@ -26,5 +26,8 @@
     },
     "engines": {
         "node": "<25"
+    },
+    "prisma": {
+        "seed": "tsx prisma/seed.ts"
     }
 }
