@@ -56,7 +56,10 @@ export default defineConfig({
     // (see astro/core/preview/static-preview-server.js). Adding hostnames
     // here lets a reverse proxy forward requests with those Host headers.
     server: {
-        allowedHosts: ["hideandseek.lucifersserver.com"],
+        allowedHosts: [
+            "hideandseek.lucifersserver.com",
+            "dev.hideandseek.lucifersserver.com",
+        ],
     },
     site: "https://hideandseek.lucifersserver.com",
     base: "/",
