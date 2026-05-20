@@ -1,0 +1,89 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { Map } from "@/components/Map";
+import { PlacePicker } from "@/components/PlacePicker";
+import {
+    SidebarProvider as SidebarProviderL,
+    SidebarTrigger as SidebarTriggerL,
+} from "@/components/ui/sidebar-l";
+import {
+    SidebarProvider as SidebarProviderR,
+    SidebarTrigger as SidebarTriggerR,
+} from "@/components/ui/sidebar-r";
+import { QuestionSidebar } from "@/components/QuestionSidebar";
+import { ZoneSidebar } from "@/components/ZoneSidebar";
+import { OptionDrawers } from "@/components/OptionDrawers";
+import { TutorialDialog } from "@/components/TutorialDialog";
+import { AnnotationToolbar } from "@/annotations";
+import { AuthGuard } from "@/components/AuthGuard";
+---
+
+<Layout className="bg-jetlag">
+    <!--
+        Auth loading overlay — visible immediately (no JS required).
+        AuthGuard removes it once /me responds 200, so map content
+        is never visible to an unauthenticated visitor.
+    -->
+    <div
+        id="auth-loading-overlay"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
+    >
+        <div
+            class="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent"
+        >
+        </div>
+    </div>
+
+    <!-- AuthGuard fetches /me; on 401 redirects to /; on 200 removes the overlay and renders the user chip -->
+    <AuthGuard client:only="react" />
+
+    <SidebarProviderL client:load>
+        <SidebarProviderR client:load defaultOpen={false}>
+            <QuestionSidebar client:only />
+            <main class="flex flex-col flex-grow group">
+                <div
+                    class="flex justify-center"
+                    id="map-modal-dialog-container-leaflet"
+                >
+                    <div class="w-full h-full relative">
+                        <div
+                            class="absolute top-[72px] md:top-2 left-2 z-[1030] group-[.fullscreen]:hidden"
+                            data-tutorial-id="left-sidebar-trigger"
+                        >
+                            <SidebarTriggerL client:load />
+                        </div>
+                        <div
+                            class="absolute top-[72px] md:top-2 right-2 z-[1030] group-[.fullscreen]:hidden"
+                        >
+                            <SidebarTriggerR client:load />
+                        </div>
+                        <div
+                            class="flex flex-shrink max-w-fit z-[1030] absolute left-4 right-0 m-auto group-[.fullscreen]:hidden"
+                        >
+                            <PlacePicker
+                                client:only
+                                className="m-4 overflow-hidden"
+                            />
+                        </div>
+                        <div
+                            class="bottom-5 right-2 mx-auto mb-2 w-fit absolute z-[1030] group-[.fullscreen]:hidden"
+                        >
+                            <OptionDrawers client:load />
+                        </div>
+                        <div
+                            class="right-2 top-1/2 -translate-y-1/2 absolute z-[1030] group-[.fullscreen]:hidden max-h-[80vh] overflow-y-auto"
+                        >
+                            <AnnotationToolbar client:only />
+                        </div>
+                        <Map
+                            className="w-full group-[.fullscreen]:w-full group-[.fullscreen]:h-full"
+                            client:only
+                        />
+                    </div>
+                </div>
+            </main>
+            <ZoneSidebar client:only />
+            <TutorialDialog client:only />
+        </SidebarProviderR>
+    </SidebarProviderL>
+</Layout>
