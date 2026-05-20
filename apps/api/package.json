@@ -4,13 +4,30 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "build": "tsc"
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js"
+    },
+    "dependencies": {
+        "@fastify/cookie": "^11.0.2",
+        "@fastify/cors": "^10.0.2",
+        "@fastify/type-provider-typebox": "^5.0.0",
+        "@prisma/client": "^6.0.0",
+        "@sinclair/typebox": "^0.34.0",
+        "@taibled/shared": "workspace:*",
+        "arctic": "^3.0.0",
+        "fastify": "^5.2.2"
     },
     "devDependencies": {
         "@types/node": "^22.0.0",
+        "prisma": "^6.0.0",
+        "tsx": "^4.19.2",
         "typescript": "^5.7.3"
     },
     "engines": {
         "node": "<25"
+    },
+    "prisma": {
+        "seed": "tsx prisma/seed.ts"
     }
 }
