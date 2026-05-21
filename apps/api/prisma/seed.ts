@@ -14,6 +14,25 @@ const ROLE_PERMISSIONS = [
   { serverId: "1059625399979606166", discordRoleId: "1383202208799129731", permission: "server.admin" },
 ];
 
+const BRUSSELS_CITY_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [50.8503, 4.3517],
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 54094,
+    extent: [51.05, 4.0, 50.65, 4.70],
+    country: "Belgium",
+    osm_key: "place",
+    countrycode: "BE",
+    osm_value: "city",
+    name: "Brussels",
+    type: "city",
+  },
+};
+
 const LUXEMBOURG_COUNTRY_FEATURE = {
   type: "Feature",
   geometry: {
@@ -35,11 +54,20 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
 
 const GAMES = [
   {
-    serverId: "1190673594649415730", // JetLag EU — Luxembourg 2026 was an EU-organized season
+    serverId: "1190673594649415730", // JetLag EU
     name: "Luxembourg 2026",
     sentinelValue: "__bundled-luxembourg-2026__",
     kmlPath: "luxembourg-hiding-zones.kml",
     mapLocationJson: LUXEMBOURG_COUNTRY_FEATURE,
+    hidingRadius: 1,
+    hidingRadiusUnits: "kilometers",
+  },
+  {
+    serverId: "1190673594649415730", // JetLag EU
+    name: "Brussels 2026",
+    sentinelValue: "__bundled-brussels-2026__",
+    kmlPath: "brussels-hiding-zones.kml",
+    mapLocationJson: BRUSSELS_CITY_FEATURE,
     hidingRadius: 1,
     hidingRadiusUnits: "kilometers",
   },

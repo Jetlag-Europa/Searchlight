@@ -1,5 +1,5 @@
 import * as L from "leaflet";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 interface CaptureCallbacks {
     shouldCapture: (e: PointerEvent) => boolean;
@@ -17,6 +17,14 @@ export function usePointerCapture(
     map: L.Map | null,
     callbacks: CaptureCallbacks,
 ): void {
+    // Keep a ref so event listeners always call the latest callbacks without
+    // the effect needing to re-register. If the effect depended on `callbacks`
+    // directly, any dep change (color, tool, drawingEnabled, etc.) would tear
+    // down and re-add listeners mid-stroke, resetting activePointerId to null
+    // and causing pointerup to be silently ignored.
+    const cbRef = useRef(callbacks);
+    cbRef.current = callbacks;
+
     useEffect(() => {
         if (!map) return;
         const container = map.getContainer();
@@ -32,11 +40,11 @@ export function usePointerCapture(
                 // ignore
             }
             container.classList.remove(DRAW_ACTIVE_CLASS);
-            callbacks.onEnd(e, cancelled);
+            cbRef.current.onEnd(e, cancelled);
         };
 
         const onDown = (e: PointerEvent) => {
-            if (!callbacks.shouldCapture(e)) return;
+            if (!cbRef.current.shouldCapture(e)) return;
             if (activePointerId !== null) return;
 
             e.preventDefault();
@@ -61,7 +69,7 @@ export function usePointerCapture(
                 e.clientX - rect.left,
                 e.clientY - rect.top,
             ]);
-            callbacks.onStart(e, latlng);
+            cbRef.current.onStart(e, latlng);
         };
 
         const onMove = (e: PointerEvent) => {
@@ -83,7 +91,7 @@ export function usePointerCapture(
                     ev.clientY - rect.top,
                 ]),
             );
-            callbacks.onMove(sample, latlngs);
+            cbRef.current.onMove(sample, latlngs);
         };
 
         const onUp = (e: PointerEvent) => {
@@ -116,5 +124,5 @@ export function usePointerCapture(
                 // ignore
             }
         };
-    }, [map, callbacks]);
+    }, [map]); // only depends on map — callbacks are always current via cbRef
 }

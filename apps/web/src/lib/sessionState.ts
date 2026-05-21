@@ -2,6 +2,7 @@ import type { Questions } from "@/maps/schema";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
+import { randomUUID } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -27,7 +28,7 @@ export async function saveQuestionsToServer(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             questions: qs.map((q, i) => ({
-                clientUuid: crypto.randomUUID(),
+                clientUuid: randomUUID(),
                 ordinal: i,
                 payloadJson: q,
             })),

@@ -1,0 +1,57 @@
+STARTUP GUIDE
+=============
+
+## First time / after a fresh clone
+
+Run these once to set up the database:
+
+  cd TaibledFork/apps/api
+  DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx prisma migrate deploy
+  DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx tsx prisma/seed.ts
+
+This creates all tables and seeds servers, games, and role permissions.
+You only need to redo this if you wipe the Docker volume (see below).
+
+
+## Every time
+
+Run these three things, in order:
+
+1. Postgres (Docker) — from TaibledFork/:
+
+     docker compose up -d postgres
+
+   If you see "taibledfork-postgres-1" in `docker ps`, it's already running — skip this.
+   The database lives in a Docker named volume (taibledfork_postgres_data).
+   As long as you don't run `docker compose down -v` or `docker volume rm`, the data persists
+   across reboots, docker restarts, and even moving the project folder.
+
+2. API — from TaibledFork/apps/api/:
+
+     node --env-file=../../.env --watch --import tsx/esm src/index.ts
+
+3. Web — from TaibledFork/:
+
+     pnpm --filter web dev
+
+   Web runs at http://localhost:4321
+   API runs at http://localhost:3000
+
+
+## IMPORTANT — do NOT run these unless you mean to wipe the database
+
+  docker compose down -v          # destroys the volume and ALL data
+  docker volume rm taibledfork_postgres_data   # same
+
+`docker compose down` (without -v) is safe — it stops the container but keeps the volume.
+
+
+## If the API can't reach the database
+
+The docker-compose.override.yml exposes port 5433 to localhost (required for the local API).
+Make sure that file is present at TaibledFork/docker-compose.override.yml.
+If it got deleted, recreate it:
+
+  echo 'services:\n  postgres:\n    ports:\n      - "127.0.0.1:5433:5432"' > docker-compose.override.yml
+
+Then restart postgres: docker compose down postgres && docker compose up -d postgres

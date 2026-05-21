@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import * as L from "leaflet";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import {
@@ -15,6 +15,7 @@ import {
 } from "@/annotations/hooks/useAnnotationStore";
 import { usePointerCapture } from "@/annotations/hooks/usePointerCapture";
 import { SvgStrokeRenderer } from "@/annotations/render/SvgStrokeRenderer";
+import { randomUUID } from "@/lib/utils";
 import {
     CROSSOUT_COLOR,
     CROSSOUT_WIDTH_PIXELS,
@@ -115,13 +116,15 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
                     ),
                 );
                 // Eraser keeps an "active" sentinel so onMove knows to keep erasing.
-                setActive({
+                const eraserSentinel: ActiveStrokeState = {
                     points: [latlng],
                     color: "transparent",
                     widthMeters: 0,
                     tool: "pen",
                     createdAt: Date.now(),
-                });
+                };
+                activeRef.current = eraserSentinel;
+                setActive(eraserSentinel);
                 return;
             }
 
@@ -132,13 +135,15 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             const strokeColor = isCrossout ? CROSSOUT_COLOR : $color;
             const widthMeters = pixelsToMeters(map, widthPx, latlng.lat);
 
-            setActive({
+            const initial: ActiveStrokeState = {
                 points: [latlng],
                 color: strokeColor,
                 widthMeters,
                 tool: isCrossout ? "crossout" : "pen",
                 createdAt: Date.now(),
-            });
+            };
+            activeRef.current = initial;
+            setActive(initial);
         },
         [map, $tool, $color, $widthPreset],
     );
@@ -197,18 +202,13 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
                 color: cur.color,
                 widthMeters: cur.widthMeters,
                 createdAt: cur.createdAt,
-                clientUuid: crypto.randomUUID(),
+                clientUuid: randomUUID(),
             },
         };
         addStroke(feature);
     }, [$tool]);
 
-    const callbacks = useMemo(
-        () => ({ shouldCapture, onStart, onMove, onEnd }),
-        [shouldCapture, onStart, onMove, onEnd],
-    );
-
-    usePointerCapture(map, callbacks);
+    usePointerCapture(map, { shouldCapture, onStart, onMove, onEnd });
 
     if (!map) return null;
 

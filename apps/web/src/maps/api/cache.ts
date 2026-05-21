@@ -3,6 +3,10 @@ import { toast } from "react-toastify";
 
 import { CacheType } from "./types";
 
+// Cache API requires a secure context (HTTPS/localhost). On plain HTTP (e.g.
+// local network IP) it is undefined — callers already fall back to plain fetch.
+const cachesAvailable = typeof caches !== "undefined";
+
 const determineQuestionCache = _.memoize(() => caches.open(CacheType.CACHE));
 const determineZoneCache = _.memoize(() => caches.open(CacheType.ZONE_CACHE));
 const determinePermanentCache = _.memoize(() =>
@@ -12,6 +16,7 @@ const determinePermanentCache = _.memoize(() =>
 const inFlightFetches = new Map<string, Promise<Response>>();
 
 export const determineCache = async (cacheType: CacheType) => {
+    if (!cachesAvailable) throw new Error("Cache API unavailable (non-secure context)");
     switch (cacheType) {
         case CacheType.CACHE:
             return await determineQuestionCache();
@@ -71,7 +76,7 @@ export const cacheFetch = async (
             inFlightFetches.delete(inflightKey);
         }
     } catch (e) {
-        console.log(e); // Probably a caches not supported error
+        // Cache API unavailable (non-secure context) — fall through
 
         return fetch(url);
     }
@@ -86,6 +91,6 @@ export const clearCache = async (cacheType: CacheType = CacheType.CACHE) => {
             });
         });
     } catch (e) {
-        console.log(e); // Probably a caches not supported error
+        // Cache API unavailable (non-secure context) — fall through
     }
 };

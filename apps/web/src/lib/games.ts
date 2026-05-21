@@ -17,7 +17,6 @@ import {
     mapGeoLocation,
     permanentOverlay,
     polyGeoJSON,
-    questions,
     useCustomStations,
 } from "@/lib/context";
 import type { CustomStation, OpenStreetMap } from "@/maps/api";
@@ -40,6 +39,8 @@ export interface GameDefinition {
     mapLocation: OpenStreetMap;
     hidingRadius: number;
     hidingRadiusUnits: "miles" | "kilometers";
+    serverId: string;
+    serverName: string;
 }
 
 // Server-fetched games. Populated by fetchGames() when a session/server is known.
@@ -53,13 +54,20 @@ export const currentGameId = persistentAtom<string>("taibled-current-game-id", "
 export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
     gamesLoadingAtom.set(true);
     try {
-        const res = await fetch(`${API_BASE}/games?serverId=${serverId}`, {
-            credentials: "include",
-        });
-        if (!res.ok) throw new Error(`Failed to fetch games: ${res.status}`);
-        const data = await res.json() as { games: ServerGame[] };
+        const [gamesRes, serversRes] = await Promise.all([
+            fetch(`${API_BASE}/games?serverId=${serverId}`, { credentials: "include" }),
+            fetch(`${API_BASE}/servers`, { credentials: "include" }),
+        ]);
+        if (!gamesRes.ok) throw new Error(`Failed to fetch games: ${gamesRes.status}`);
+        const gamesData = await gamesRes.json() as { games: ServerGame[] };
 
-        const defs = data.games.map((g): GameDefinition => ({
+        let serverName = serverId;
+        if (serversRes.ok) {
+            const serversData = await serversRes.json() as { servers: Array<{ id: string; name: string }> };
+            serverName = serversData.servers.find((s) => s.id === serverId)?.name ?? serverId;
+        }
+
+        const defs = gamesData.games.map((g): GameDefinition => ({
             id: g.id,
             label: g.name,
             optionLabel: g.name,
@@ -68,6 +76,8 @@ export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
             mapLocation: g.mapLocationJson as OpenStreetMap,
             hidingRadius: g.hidingRadius,
             hidingRadiusUnits: g.hidingRadiusUnits,
+            serverId: g.serverId,
+            serverName,
         }));
 
         gamesAtom.set(defs);
@@ -138,7 +148,6 @@ export function activateGameStations(game: GameDefinition): void {
 }
 
 export function switchToGame(game: GameDefinition): void {
-    questions.set([]);
     additionalMapGeoLocations.set([]);
     hiderMode.set(false);
     disabledStations.set([]);
