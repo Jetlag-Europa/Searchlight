@@ -68,22 +68,23 @@ export const getOverpassData = async (
     return data;
 };
 
+const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
 export const determineGeoJSON = async (
     osmId: string,
     osmTypeLetter: "W" | "R" | "N",
 ): Promise<any> => {
-    const osmTypeMap: { [key: string]: string } = {
-        W: "way",
-        R: "relation",
-        N: "node",
-    };
-    const osmType = osmTypeMap[osmTypeLetter];
-    const query = `[out:json];${osmType}(${osmId});out geom;`;
-    const data = await getOverpassData(
-        query,
+    const url = `${API_BASE}/boundaries/${osmTypeLetter}/${osmId}`;
+    const response = await cacheFetch(
+        url,
         "Loading map data...",
         CacheType.PERMANENT_CACHE,
+        { credentials: "include" },
     );
+    if (!response.ok) {
+        throw new Error(`Boundary fetch failed: ${response.status}`);
+    }
+    const data = await response.json();
     const geo = osmtogeojson(data);
     return {
         ...geo,
@@ -463,17 +464,21 @@ export const determineMapBoundaries = async () => {
             data: await determineGeoJSON(
                 location.location.properties.osm_id.toString(),
                 location.location.properties.osm_type,
-            ),
+            ).catch(() => null),
         })),
     );
 
+    const addedFeatures = mapGeoDatum
+        .filter((x) => x.added && x.data)
+        .flatMap((x) => x.data!.features);
+
+    if (addedFeatures.length === 0) {
+        throw new Error("No boundary data returned from Overpass");
+    }
+
     let mapGeoData = turf.featureCollection([
         safeUnion(
-            turf.featureCollection(
-                mapGeoDatum
-                    .filter((x) => x.added)
-                    .flatMap((x) => x.data.features),
-            ) as any,
+            turf.featureCollection(addedFeatures) as any,
         ),
     ]);
 

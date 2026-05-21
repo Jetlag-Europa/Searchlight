@@ -187,3 +187,12 @@ model SessionQuestion {
 
   @@index([sessionId, ordinal])
 }
+
+model BoundaryCache {
+  osmId     String
+  osmType   String   // "W", "R", or "N"
+  geojson   Json
+  fetchedAt DateTime @default(now())
+
+  @@id([osmId, osmType])
+}

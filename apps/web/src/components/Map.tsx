@@ -157,17 +157,16 @@ export const Map = ({ className }: { className?: string }) => {
                 mapGeoData = polyGeoData;
                 mapGeoJSON.set(polyGeoData);
             } else {
-                await toast.promise(
-                    determineMapBoundaries()
-                        .then((x) => {
-                            mapGeoJSON.set(x);
-                            mapGeoData = x;
-                        })
-                        .catch((error) => console.log(error)),
-                    {
-                        error: "Error refreshing map data",
-                    },
-                );
+                try {
+                    const x = await toast.promise(determineMapBoundaries(), {
+                        error: "Couldn't load map boundaries — Overpass API may be slow. Try again.",
+                    });
+                    mapGeoJSON.set(x);
+                    mapGeoData = x;
+                } catch {
+                    isLoading.set(false);
+                    return;
+                }
             }
         }
 
@@ -404,7 +403,7 @@ export const Map = ({ className }: { className?: string }) => {
         if (!map) return;
 
         refreshQuestions(true);
-    }, [$questions, map, $hiderMode]);
+    }, [$questions, map, $hiderMode, $mapGeoLocation]);
 
     useEffect(() => {
         const intervalId = setInterval(async () => {

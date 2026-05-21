@@ -14,6 +14,7 @@ import {
     hidingRadiusUnits,
     hidingZoneFocusedStationID,
     includeDefaultStations,
+    mapGeoJSON,
     mapGeoLocation,
     permanentOverlay,
     polyGeoJSON,
@@ -117,6 +118,7 @@ async function loadGameStations(game: GameDefinition): Promise<CustomStation[]> 
 }
 
 export function applyGameDefaults(game: GameDefinition): void {
+    mapGeoJSON.set(null);
     mapGeoLocation.set(game.mapLocation);
     if (polyGeoJSON.get() !== null) {
         polyGeoJSON.set(null);

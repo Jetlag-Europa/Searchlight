@@ -31,6 +31,7 @@ export const cacheFetch = async (
     url: string,
     loadingText?: string,
     cacheType: CacheType = CacheType.CACHE,
+    fetchOptions?: RequestInit,
 ) => {
     try {
         const cache = await determineCache(cacheType);
@@ -52,7 +53,7 @@ export const cacheFetch = async (
         }
 
         const fetchAndMaybeCache = async () => {
-            const response = await fetch(url);
+            const response = await fetch(url, fetchOptions);
             if (response.ok) {
                 await cache.put(url, response.clone());
             } else {
@@ -78,7 +79,7 @@ export const cacheFetch = async (
     } catch (e) {
         // Cache API unavailable (non-secure context) — fall through
 
-        return fetch(url);
+        return fetch(url, fetchOptions);
     }
 };
 

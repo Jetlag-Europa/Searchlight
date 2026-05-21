@@ -1,6 +1,5 @@
 import { useStore } from "@nanostores/react";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
 import { toast } from "react-toastify";
 
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
@@ -49,7 +48,6 @@ import {
     triggerLocalRefresh,
     useCustomStations,
 } from "@/lib/context";
-import { currentGameId, gamesAtom, switchToGame } from "@/lib/games";
 import { InviteDrawer } from "@/components/InviteDrawer";
 import {
     cn,
@@ -100,10 +98,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const lastDefaultUnit = useRef($defaultUnit);
     const hasSyncedInitialUnit = useRef(false);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
-    const [isGamesOpen, setGamesOpen] = useState(false);
-    const [collapsedServers, setCollapsedServers] = useState<Set<string>>(new Set());
-    const $currentGameId = useStore(currentGameId);
-    const $games = useStore(gamesAtom);
 
     const handleClearAllCache = async () => {
         const ok = window.confirm(
@@ -422,86 +416,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 Tutorial
             </Button>
             <InviteDrawer />
-            <Drawer open={isGamesOpen} onOpenChange={setGamesOpen}>
-                <DrawerTrigger className="w-32" asChild>
-                    <Button className="w-32 shadow-md">Current Games</Button>
-                </DrawerTrigger>
-                <DrawerContent>
-                    <div className="flex flex-col items-center gap-4 mb-4">
-                        <DrawerHeader>
-                            <DrawerTitle className="text-4xl font-semibold font-poppins">
-                                Current Games
-                            </DrawerTitle>
-                        </DrawerHeader>
-                        <p className="text-sm text-muted-foreground max-w-md text-center px-4">
-                            Loading a game clears every existing question
-                            and resets the map to the game&apos;s hiding zones.
-                        </p>
-                        <div className="flex flex-col gap-3 w-full max-w-md px-4">
-                            {$games.length === 0 && (
-                                <p className="text-sm text-muted-foreground text-center">
-                                    No games loaded. Select a session first.
-                                </p>
-                            )}
-                            {Object.entries(
-                                $games.reduce<Record<string, { serverName: string; games: typeof $games }>>((acc, g) => {
-                                    if (!acc[g.serverId]) acc[g.serverId] = { serverName: g.serverName, games: [] };
-                                    acc[g.serverId].games.push(g);
-                                    return acc;
-                                }, {}),
-                            ).map(([serverId, { serverName, games }]) => {
-                                const isCollapsed = collapsedServers.has(serverId);
-                                return (
-                                    <div key={serverId} className="flex flex-col gap-1">
-                                        <button
-                                            className="flex items-center justify-between w-full text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground px-1 py-1 hover:text-foreground transition-colors"
-                                            onClick={() =>
-                                                setCollapsedServers((prev) => {
-                                                    const next = new Set(prev);
-                                                    if (next.has(serverId)) next.delete(serverId);
-                                                    else next.add(serverId);
-                                                    return next;
-                                                })
-                                            }
-                                        >
-                                            {serverName}
-                                            <ChevronDown
-                                                className={cn(
-                                                    "h-3.5 w-3.5 transition-transform",
-                                                    isCollapsed ? "" : "rotate-180",
-                                                )}
-                                            />
-                                        </button>
-                                        {!isCollapsed && (
-                                            <div className="flex flex-col gap-2">
-                                                {games.map((g) => {
-                                                    const active = $currentGameId === g.id;
-                                                    return (
-                                                        <Button
-                                                            key={g.id}
-                                                            variant={active ? "default" : "outline"}
-                                                            className="w-full"
-                                                            onClick={() => {
-                                                                questions.set([]);
-                                                                switchToGame(g);
-                                                                setGamesOpen(false);
-                                                                toast.success(`Loaded ${g.label}`, { autoClose: 2000 });
-                                                            }}
-                                                        >
-                                                            {g.label}
-                                                            {active ? " (current)" : ""}
-                                                        </Button>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-                </DrawerContent>
-            </Drawer>
             <Drawer open={isOptionsOpen} onOpenChange={setOptionsOpen}>
                 <DrawerTrigger className="w-24" asChild>
                     <Button
