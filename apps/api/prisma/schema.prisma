@@ -18,6 +18,7 @@ model User {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
   sessions              AuthSession[]
+  membershipCaches      ServerMembershipCache[]
 }
 
 model AuthSession {
@@ -30,4 +31,39 @@ model AuthSession {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model Server {
+  id        String   @id // Discord guild ID
+  name      String
+  iconUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  membershipCaches ServerMembershipCache[]
+  rolePermissions  RolePermission[]
+}
+
+model ServerMembershipCache {
+  userId   String
+  serverId String
+  roles    String[] // Discord role ID strings
+  cachedAt DateTime
+
+  user   User   @relation(fields: [userId],   references: [discordId])
+  server Server @relation(fields: [serverId], references: [id])
+
+  @@id([userId, serverId])
+}
+
+model RolePermission {
+  id            Int    @id @default(autoincrement())
+  serverId      String
+  discordRoleId String
+  permission    String
+
+  server Server @relation(fields: [serverId], references: [id])
+
+  @@unique([serverId, discordRoleId, permission])
+  @@index([serverId])
 }

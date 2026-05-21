@@ -1,5 +1,79 @@
 # Changelog
 
+## Phase 2 — Server registration + role mapping + permissions (2026-05-21)
+
+Adds the permission layer: four JetLag Discord servers seeded into the DB,
+membership caching with 5-minute TTL, role-to-permission mapping via the
+admin UI, and a `requirePermission` middleware ready for Phase 3 to gate
+game and session routes. Nothing new is gated yet — the machinery exists
+and is verified, but all routes remain open until Phase 3.
+
+### What landed
+
+**`packages/shared`**
+- New interfaces: `Server`, `ServerWithPermissions`, `ServersResponse`,
+  `DiscordRole`, `RolePermissionEntry`, `ServerRolesResponse`.
+
+**`apps/api`** — Prisma schema additions
+- `Server` — Discord guild metadata. Four JetLag servers seeded via
+  `prisma/seed.ts` (UK, EU, BNL, DE).
+- `ServerMembershipCache` — `(userId, serverId)` composite PK; stores
+  cached Discord role IDs with `cachedAt` timestamp, TTL 5 minutes.
+- `RolePermission` — `(serverId, discordRoleId, permission)` unique triple;
+  maps Discord roles to internal permission strings.
+
+**`apps/api`** — new library modules
+- `src/lib/session.ts` — extracts cookie-to-user session resolution used
+  by `GET /me` and all new routes. Replaces inline duplication.
+- `src/lib/permissions.ts` — `getUserPermissions(userId, serverId, accessToken,
+  forceRefresh?)`: checks `ServerMembershipCache`, falls back to
+  `GET /users/@me/guilds/{id}/member` on cache miss/expiry, returns a `Set<string>`
+  of permission strings. `forceRefresh=true` bypasses the cache (used by writes).
+- `src/lib/require-permission.ts` — `requirePermission(permission, getServerId,
+  forceRefresh?)`: Fastify `preHandler` factory; resolves session, checks guild
+  membership and role permissions, throws 403 on failure.
+
+**`apps/api`** — Discord client extensions
+- `discord.getGuildMember(guildId, accessToken)` — `GET /users/@me/guilds/{id}/member`
+  (user OAuth token, `guilds.members.read` scope); returns `null` on 404 (not a member).
+- `discord.getGuild(guildId, botToken)` — `GET /guilds/{id}` (bot token); returns
+  guild metadata including the full `roles[]` array with names and colours.
+
+**`apps/api`** — new routes (`GET/POST/DELETE /servers`)
+- `GET /servers` — lists all seeded servers with the authed user's permission
+  set for each (uses 5-min cache; first call per server hits Discord).
+- `GET /servers/:serverId/roles` — lists Discord roles (with names when
+  `DISCORD_BOT_TOKEN` is set) and current `RolePermission` mappings for that
+  server. Requires `server.admin`.
+- `POST /servers/:serverId/roles` — adds a `{ discordRoleId, permission }` mapping.
+  Requires `server.admin`; force-refreshes membership cache.
+- `DELETE /servers/:serverId/roles/:discordRoleId/permissions/:permission` — removes
+  a mapping. Requires `server.admin`; force-refreshes membership cache.
+
+**`apps/web`** — admin UI
+- `src/components/AdminPanel.tsx` — React component: fetches server list, shows
+  each server's roles as a table with permission checkboxes. Only servers where
+  the user holds `server.admin` show the management panel; others say "No admin
+  access". Role colour swatches from Discord role data.
+- `src/pages/admin.astro` — new page at `/admin`, auth-gated by the same
+  `AuthGuard` overlay pattern as `/map`.
+
+**`.env.example`** — `DISCORD_BOT_TOKEN` documented (optional; enables role
+name display in the admin UI; role IDs shown as fallback when absent).
+
+### Bootstrap steps (run once on the server)
+
+```bash
+# 1. Create the migration (requires DB running)
+pnpm --filter api exec prisma migrate dev --name phase-2-servers-roles-permissions
+
+# 2. Seed servers + initial role permissions
+#    Seeds: four JetLag servers + JetLag UK role 1383202208799129731 → server.admin
+pnpm --filter api exec prisma db seed
+```
+
+After that, use `/admin` to manage all further mappings via the UI.
+
 ## Phase 1 — Backend skeleton + Discord OAuth + user model (2026-05-21)
 
 Adds the Node backend, Discord login, server-side sessions, and an auth-gated

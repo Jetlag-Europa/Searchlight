@@ -98,6 +98,25 @@ export interface DiscordUser {
   avatar: string | null;
 }
 
+export interface DiscordGuildMember {
+  roles: string[]; // Discord role IDs
+  nick: string | null;
+}
+
+export interface DiscordRole {
+  id: string;
+  name: string;
+  color: number;
+  position: number;
+}
+
+export interface DiscordGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  roles: DiscordRole[];
+}
+
 export const discord = {
   async getCurrentUser(accessToken: string, logger?: FastifyBaseLogger): Promise<DiscordUser> {
     const res = await request(
@@ -109,5 +128,36 @@ export const discord = {
       throw new Error(`Discord /users/@me failed: ${res.status}`);
     }
     return res.json() as Promise<DiscordUser>;
+  },
+
+  // Returns null when the user is not a member of the guild.
+  async getGuildMember(
+    guildId: string,
+    accessToken: string,
+    logger?: FastifyBaseLogger,
+  ): Promise<DiscordGuildMember | null> {
+    const res = await request(
+      `/users/@me/guilds/${guildId}/member`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+      logger,
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new Error(`Discord /users/@me/guilds/${guildId}/member failed: ${res.status}`);
+    }
+    return res.json() as Promise<DiscordGuildMember>;
+  },
+
+  // Returns all roles for a guild. Requires a bot token — the bot must be in the guild.
+  async getGuildRoles(guildId: string, botToken: string, logger?: FastifyBaseLogger): Promise<DiscordRole[]> {
+    const res = await request(
+      `/guilds/${guildId}/roles`,
+      { headers: { Authorization: `Bot ${botToken}` } },
+      logger,
+    );
+    if (!res.ok) {
+      throw new Error(`Discord /guilds/${guildId}/roles failed: ${res.status}`);
+    }
+    return res.json() as Promise<DiscordRole[]>;
   },
 };

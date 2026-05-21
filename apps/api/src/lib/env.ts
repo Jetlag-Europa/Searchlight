@@ -12,6 +12,7 @@ export const env = {
   SESSION_COOKIE_SECRET: required("SESSION_COOKIE_SECRET"),
   SESSION_COOKIE_DOMAIN: process.env["SESSION_COOKIE_DOMAIN"],
   FRONTEND_ORIGIN: required("FRONTEND_ORIGIN"),
+  DISCORD_BOT_TOKEN: process.env["DISCORD_BOT_TOKEN"], // optional — enables role names in admin UI
   NODE_ENV: process.env["NODE_ENV"] ?? "development",
   PORT: parseInt(process.env["PORT"] ?? "3000", 10),
 };
