@@ -36,7 +36,7 @@ export async function authRoutes(app: FastifyInstance) {
 
     reply.setCookie("oauth_state", state, {
       httpOnly: true,
-      sameSite: "strict",
+      sameSite: "lax",
       maxAge: 600, // 10 minutes
       path: "/",
     });
