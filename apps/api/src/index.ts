@@ -7,6 +7,10 @@ import { env } from "./lib/env.js";
 import { authRoutes } from "./routes/auth.js";
 import { meRoute } from "./routes/me.js";
 import { serverRoutes } from "./routes/servers.js";
+import { gameRoutes } from "./routes/games.js";
+import { sessionRoutes } from "./routes/sessions.js";
+import { sessionContentRoutes } from "./routes/session-content.js";
+import { userRoutes } from "./routes/users.js";
 
 const app = Fastify({ logger: { level: "info" } }).withTypeProvider<TypeBoxTypeProvider>();
 
@@ -32,6 +36,10 @@ app.get(
 await app.register(authRoutes, { prefix: "/auth" });
 await app.register(meRoute);
 await app.register(serverRoutes, { prefix: "/servers" });
+await app.register(gameRoutes, { prefix: "/games" });
+await app.register(sessionRoutes, { prefix: "/sessions" });
+await app.register(sessionContentRoutes, { prefix: "/sessions" });
+await app.register(userRoutes, { prefix: "/users" });
 
 const address = await app.listen({ port: env.PORT, host: "0.0.0.0" });
 app.log.info(`Server listening on ${address}`);

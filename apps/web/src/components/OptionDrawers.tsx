@@ -48,7 +48,8 @@ import {
     triggerLocalRefresh,
     useCustomStations,
 } from "@/lib/context";
-import { currentGameId, GAMES, switchToGame } from "@/lib/games";
+import { currentGameId, gamesAtom, switchToGame } from "@/lib/games";
+import { InviteDrawer } from "@/components/InviteDrawer";
 import {
     cn,
     compress,
@@ -100,6 +101,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isGamesOpen, setGamesOpen] = useState(false);
     const $currentGameId = useStore(currentGameId);
+    const $games = useStore(gamesAtom);
 
     const handleClearAllCache = async () => {
         const ok = window.confirm(
@@ -417,6 +419,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             >
                 Tutorial
             </Button>
+            <InviteDrawer />
             <Drawer open={isGamesOpen} onOpenChange={setGamesOpen}>
                 <DrawerTrigger className="w-32" asChild>
                     <Button className="w-32 shadow-md">Current Games</Button>
@@ -433,7 +436,12 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                             and resets the map to the game&apos;s hiding zones.
                         </p>
                         <div className="flex flex-col gap-2 w-full max-w-md px-4">
-                            {GAMES.map((g) => {
+                            {$games.length === 0 && (
+                                <p className="text-sm text-muted-foreground text-center">
+                                    No games loaded. Select a session first.
+                                </p>
+                            )}
+                            {$games.map((g) => {
                                 const active = $currentGameId === g.id;
                                 return (
                                     <Button

@@ -1,10 +1,11 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom } from "nanostores";
 
+import { activeSessionId } from "@/lib/activeSession";
 import {
-    loadStrokes,
-    saveStrokesDebounced,
-} from "@/annotations/storage/localStorage";
+    deleteStrokeFromServer,
+    saveStrokeToServer,
+} from "@/annotations/storage/serverStore";
 import type {
     AnnotationTool,
     StrokeFeature,
@@ -39,23 +40,46 @@ export const penToolbarVisible = persistentAtom<boolean>(
     { encode: JSON.stringify, decode: JSON.parse },
 );
 
-export const strokes = atom<StrokeFeature[]>(loadStrokes());
-
-strokes.listen((value) => {
-    saveStrokesDebounced(value);
-});
+// Strokes are populated by the SessionManager when a session is loaded.
+// They are no longer backed by localStorage.
+export const strokes = atom<StrokeFeature[]>([]);
 
 export function addStroke(s: StrokeFeature): void {
     strokes.set([...strokes.get(), s]);
+
+    const sessionId = activeSessionId.get();
+    if (!sessionId) return;
+    saveStrokeToServer(sessionId, s).catch((err) => {
+        console.warn("[annotations] failed to save stroke to server:", err);
+    });
 }
 
 export function removeStrokes(predicate: (s: StrokeFeature) => boolean): void {
-    const next = strokes.get().filter((s) => !predicate(s));
-    if (next.length !== strokes.get().length) {
-        strokes.set(next);
+    const current = strokes.get();
+    const removed = current.filter(predicate);
+    const next = current.filter((s) => !predicate(s));
+    if (next.length === current.length) return;
+
+    strokes.set(next);
+
+    const sessionId = activeSessionId.get();
+    if (!sessionId) return;
+    for (const s of removed) {
+        deleteStrokeFromServer(sessionId, s.properties.clientUuid).catch((err) => {
+            console.warn("[annotations] failed to delete stroke from server:", err);
+        });
     }
 }
 
 export function clearAllStrokes(): void {
+    const current = strokes.get();
     strokes.set([]);
+
+    const sessionId = activeSessionId.get();
+    if (!sessionId) return;
+    for (const s of current) {
+        deleteStrokeFromServer(sessionId, s.properties.clientUuid).catch((err) => {
+            console.warn("[annotations] failed to delete stroke from server:", err);
+        });
+    }
 }

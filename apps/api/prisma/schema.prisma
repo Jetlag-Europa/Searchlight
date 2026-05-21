@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Visibility {
+  private
+  shared
+}
+
+enum ParticipantRole {
+  creator
+  member
+}
+
 model User {
   discordId             String       @id
   username              String
@@ -17,8 +27,14 @@ model User {
   discordTokenExpiresAt DateTime
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
+
   sessions              AuthSession[]
   membershipCaches      ServerMembershipCache[]
+  createdSessions       GameSession[]          @relation("SessionCreator")
+  sessionParticipants   SessionParticipant[]
+  receivedInvites       Invite[]               @relation("ReceivedInvites")
+  sentInvites           Invite[]               @relation("SentInvites")
+  strokes               Stroke[]
 }
 
 model AuthSession {
@@ -42,6 +58,8 @@ model Server {
 
   membershipCaches ServerMembershipCache[]
   rolePermissions  RolePermission[]
+  games            Game[]
+  gameSessions     GameSession[]
 }
 
 model ServerMembershipCache {
@@ -66,4 +84,106 @@ model RolePermission {
 
   @@unique([serverId, discordRoleId, permission])
   @@index([serverId])
+}
+
+model Game {
+  id                String      @id @default(cuid())
+  serverId          String
+  name              String
+  sentinelValue     String      @unique
+  kmlPath           String
+  mapLocationJson   Json
+  hidingRadius      Float
+  hidingRadiusUnits String      // "miles" | "kilometers"
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  server   Server        @relation(fields: [serverId], references: [id])
+  sessions GameSession[]
+
+  @@index([serverId])
+}
+
+model GameSession {
+  id         String          @id @default(cuid())
+  gameId     String
+  serverId   String
+  creatorId  String
+  name       String
+  visibility Visibility      @default(private)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  game         Game                 @relation(fields: [gameId],    references: [id])
+  server       Server               @relation(fields: [serverId],  references: [id])
+  creator      User                 @relation("SessionCreator",    fields: [creatorId], references: [discordId])
+  participants SessionParticipant[]
+  invites      Invite[]
+  strokes      Stroke[]
+  questions    SessionQuestion[]
+
+  @@index([serverId])
+  @@index([creatorId])
+}
+
+model SessionParticipant {
+  sessionId  String
+  userId     String
+  role       ParticipantRole
+  invitedAt  DateTime        @default(now())
+  acceptedAt DateTime?
+  revokedAt  DateTime?
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId],    references: [discordId])
+
+  @@id([sessionId, userId])
+  @@index([userId])
+}
+
+model Invite {
+  id              String    @id @default(cuid())
+  sessionId       String
+  invitedUserId   String
+  invitedByUserId String
+  createdAt       DateTime  @default(now())
+  acceptedAt      DateTime?
+  declinedAt      DateTime?
+  revokedAt       DateTime?
+
+  session     GameSession @relation(fields: [sessionId],       references: [id], onDelete: Cascade)
+  invitedUser User        @relation("ReceivedInvites",         fields: [invitedUserId],   references: [discordId])
+  invitedBy   User        @relation("SentInvites",             fields: [invitedByUserId], references: [discordId])
+
+  @@index([invitedUserId])
+  @@index([sessionId])
+}
+
+model Stroke {
+  id          String    @id @default(cuid())
+  sessionId   String
+  userId      String
+  payloadJson Json
+  clientUuid  String    @unique
+  createdAt   DateTime  @default(now())
+  deletedAt   DateTime?
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId],    references: [discordId])
+
+  @@index([sessionId])
+}
+
+model SessionQuestion {
+  id          String   @id @default(cuid())
+  sessionId   String
+  payloadJson Json
+  ordinal     Int
+  clientUuid  String   @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, ordinal])
 }

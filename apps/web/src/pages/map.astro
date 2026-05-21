@@ -16,6 +16,7 @@ import { OptionDrawers } from "@/components/OptionDrawers";
 import { TutorialDialog } from "@/components/TutorialDialog";
 import { AnnotationToolbar } from "@/annotations";
 import { AuthGuard } from "@/components/AuthGuard";
+import { SessionManager } from "@/components/SessionManager";
 ---
 
 <Layout className="bg-jetlag">
@@ -36,6 +37,9 @@ import { AuthGuard } from "@/components/AuthGuard";
 
     <!-- AuthGuard fetches /me; on 401 redirects to /; on 200 removes the overlay and renders the user chip -->
     <AuthGuard client:only="react" />
+
+    <!-- SessionManager shows blocking overlay until a session is selected, then persists session state -->
+    <SessionManager client:only="react" />
 
     <SidebarProviderL client:load>
         <SidebarProviderR client:load defaultOpen={false}>

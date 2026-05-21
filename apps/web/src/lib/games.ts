@@ -1,3 +1,4 @@
+import { atom } from "nanostores";
 import { persistentAtom } from "@nanostores/persistent";
 
 import {
@@ -21,6 +22,9 @@ import {
 } from "@/lib/context";
 import type { CustomStation, OpenStreetMap } from "@/maps/api";
 import { parseCustomStationsFromText } from "@/maps/api/importers";
+import type { Game as ServerGame } from "@taibled/shared";
+
+const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 const NORMALIZED_BASE = (import.meta.env.BASE_URL ?? "/").replace(
     /\/?$/,
@@ -30,69 +34,65 @@ const NORMALIZED_BASE = (import.meta.env.BASE_URL ?? "/").replace(
 export interface GameDefinition {
     id: string;
     label: string;
-    optionLabel: string; // shown in the "Select allowed places" dropdown
-    sentinelValue: string; // unique value used in displayHidingZonesOptions
-    kmlPath: string; // relative to BASE_URL
+    optionLabel: string;
+    sentinelValue: string;
+    kmlPath: string;
     mapLocation: OpenStreetMap;
     hidingRadius: number;
     hidingRadiusUnits: "miles" | "kilometers";
 }
 
-const LUXEMBOURG_COUNTRY: OpenStreetMap = {
-    type: "Feature",
-    geometry: {
-        type: "Point",
-        coordinates: [49.8158683, 6.1296751],
-    },
-    properties: {
-        osm_type: "R",
-        osm_id: 2171347,
-        extent: [50.1827989, 5.7356988, 49.4478587, 6.5312481],
-        country: "Luxembourg",
-        osm_key: "place",
-        countrycode: "LU",
-        osm_value: "country",
-        name: "Luxembourg",
-        type: "country",
-    },
-};
+// Server-fetched games. Populated by fetchGames() when a session/server is known.
+export const gamesAtom = atom<GameDefinition[]>([]);
+export const gamesLoadingAtom = atom<boolean>(false);
 
-export const LUXEMBOURG_2026: GameDefinition = {
-    id: "luxembourg-2026",
-    label: "Luxembourg 2026",
-    optionLabel: "Luxembourg 2026",
-    // Kept the original sentinel string so existing localStorage keeps working.
-    sentinelValue: "__bundled-luxembourg-2026__",
-    kmlPath: "luxembourg-hiding-zones.kml",
-    mapLocation: LUXEMBOURG_COUNTRY,
-    hidingRadius: 1,
-    hidingRadiusUnits: "kilometers",
-};
+// The ID of the currently active game (from the active session).
+// Legacy "current-game-id" key is intentionally not reused — IDs are now cuid strings from the DB.
+export const currentGameId = persistentAtom<string>("taibled-current-game-id", "");
 
-export const GAMES: readonly GameDefinition[] = [LUXEMBOURG_2026];
+export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
+    gamesLoadingAtom.set(true);
+    try {
+        const res = await fetch(`${API_BASE}/games?serverId=${serverId}`, {
+            credentials: "include",
+        });
+        if (!res.ok) throw new Error(`Failed to fetch games: ${res.status}`);
+        const data = await res.json() as { games: ServerGame[] };
 
-export const GAME_SENTINELS: ReadonlySet<string> = new Set(
-    GAMES.map((g) => g.sentinelValue),
-);
+        const defs = data.games.map((g): GameDefinition => ({
+            id: g.id,
+            label: g.name,
+            optionLabel: g.name,
+            sentinelValue: g.sentinelValue,
+            kmlPath: g.kmlPath,
+            mapLocation: g.mapLocationJson as OpenStreetMap,
+            hidingRadius: g.hidingRadius,
+            hidingRadiusUnits: g.hidingRadiusUnits,
+        }));
 
-export const currentGameId = persistentAtom<string>(
-    "current-game-id",
-    LUXEMBOURG_2026.id,
-);
+        gamesAtom.set(defs);
+        return defs;
+    } finally {
+        gamesLoadingAtom.set(false);
+    }
+}
+
+// Derive the sentinel set from the live games atom.
+export function getGameSentinels(): ReadonlySet<string> {
+    return new Set(gamesAtom.get().map((g) => g.sentinelValue));
+}
 
 export function getGameById(id: string): GameDefinition | undefined {
-    return GAMES.find((g) => g.id === id);
+    return gamesAtom.get().find((g) => g.id === id);
 }
 
 export function getGameBySentinel(value: string): GameDefinition | undefined {
-    return GAMES.find((g) => g.sentinelValue === value);
+    return gamesAtom.get().find((g) => g.sentinelValue === value);
 }
 
 const stationCache = new Map<string, CustomStation[]>();
 
-async function loadGameStations(
-    game: GameDefinition,
-): Promise<CustomStation[]> {
+async function loadGameStations(game: GameDefinition): Promise<CustomStation[]> {
     const cached = stationCache.get(game.id);
     if (cached) return cached;
     const url = `${NORMALIZED_BASE}${game.kmlPath}`;
@@ -106,8 +106,6 @@ async function loadGameStations(
     return stations;
 }
 
-// Sync-only settings that don't need a network round-trip. Safe to call from
-// bootstrap so a game's map location and radius are restored on every load.
 export function applyGameDefaults(game: GameDefinition): void {
     mapGeoLocation.set(game.mapLocation);
     if (polyGeoJSON.get() !== null) {
@@ -118,9 +116,6 @@ export function applyGameDefaults(game: GameDefinition): void {
     hidingRadiusUnits.set(game.hidingRadiusUnits);
 }
 
-// Loads the game's KML stations and switches the app into custom-stations
-// mode. Mode atoms are flipped synchronously so any concurrent reader sees
-// consistent state; stations populate when the fetch resolves.
 export function activateGameStations(game: GameDefinition): void {
     useCustomStations.set(true);
     includeDefaultStations.set(false);
@@ -142,9 +137,6 @@ export function activateGameStations(game: GameDefinition): void {
         });
 }
 
-// Full game switch: clears questions and ephemeral game state, applies the
-// new game's defaults, locks displayHidingZonesOptions to just this game's
-// sentinel, loads stations, turns on display, focuses the All Zones view.
 export function switchToGame(game: GameDefinition): void {
     questions.set([]);
     additionalMapGeoLocations.set([]);

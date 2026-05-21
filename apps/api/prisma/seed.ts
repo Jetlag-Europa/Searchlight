@@ -14,6 +14,37 @@ const ROLE_PERMISSIONS = [
   { serverId: "1059625399979606166", discordRoleId: "1383202208799129731", permission: "server.admin" },
 ];
 
+const LUXEMBOURG_COUNTRY_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [49.8158683, 6.1296751],
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 2171347,
+    extent: [50.1827989, 5.7356988, 49.4478587, 6.5312481],
+    country: "Luxembourg",
+    osm_key: "place",
+    countrycode: "LU",
+    osm_value: "country",
+    name: "Luxembourg",
+    type: "country",
+  },
+};
+
+const GAMES = [
+  {
+    serverId: "1190673594649415730", // JetLag EU — Luxembourg 2026 was an EU-organized season
+    name: "Luxembourg 2026",
+    sentinelValue: "__bundled-luxembourg-2026__",
+    kmlPath: "luxembourg-hiding-zones.kml",
+    mapLocationJson: LUXEMBOURG_COUNTRY_FEATURE,
+    hidingRadius: 1,
+    hidingRadiusUnits: "kilometers",
+  },
+];
+
 async function main() {
   for (const server of SERVERS) {
     await prisma.server.upsert({
@@ -31,6 +62,15 @@ async function main() {
       create: rp,
     });
     console.log(`Upserted role permission: ${rp.serverId} / ${rp.discordRoleId} → ${rp.permission}`);
+  }
+
+  for (const game of GAMES) {
+    await prisma.game.upsert({
+      where: { sentinelValue: game.sentinelValue },
+      update: { name: game.name },
+      create: game,
+    });
+    console.log(`Upserted game: ${game.name} (${game.sentinelValue})`);
   }
 }
 

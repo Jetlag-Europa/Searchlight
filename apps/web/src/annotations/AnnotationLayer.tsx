@@ -197,6 +197,7 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
                 color: cur.color,
                 widthMeters: cur.widthMeters,
                 createdAt: cur.createdAt,
+                clientUuid: crypto.randomUUID(),
             },
         };
         addStroke(feature);

@@ -9,6 +9,7 @@ export interface StrokeProperties {
     color: string;
     widthMeters: number;
     createdAt: number;
+    clientUuid: string;
 }
 
 export type StrokeFeature = Feature<LineString, StrokeProperties>;

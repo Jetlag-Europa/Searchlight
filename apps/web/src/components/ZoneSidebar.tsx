@@ -40,8 +40,8 @@ import {
 } from "@/lib/context";
 import {
     activateGameStations,
-    GAME_SENTINELS,
-    GAMES,
+    gamesAtom,
+    getGameSentinels,
     getGameBySentinel,
 } from "@/lib/games";
 import { cn } from "@/lib/utils";
@@ -107,6 +107,7 @@ export const ZoneSidebar = () => {
     const includeDefaultStations = useStore(includeDefaultStationsAtom);
     const $customStations = useStore(customStationsAtom);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
+    const $games = useStore(gamesAtom);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
     const isStationSearchActive = stationSearch.trim().length > 0;
@@ -119,8 +120,9 @@ export const ZoneSidebar = () => {
     // away, drop out of custom-stations mode.
     const prevGameSentinels = useRef<Set<string>>(new Set());
     useEffect(() => {
+        const gameSentinels = getGameSentinels();
         const current = new Set(
-            $displayHidingZonesOptions.filter((o) => GAME_SENTINELS.has(o)),
+            $displayHidingZonesOptions.filter((o) => gameSentinels.has(o)),
         );
         const prev = prevGameSentinels.current;
         prevGameSentinels.current = current;
@@ -210,7 +212,7 @@ export const ZoneSidebar = () => {
             // Strip every game sentinel before any Overpass call — they're
             // app-internal markers, not OSM tag selectors.
             const overpassOptions = $displayHidingZonesOptions.filter(
-                (o) => !GAME_SENTINELS.has(o),
+                (o) => !getGameSentinels().has(o),
             );
             if (needsDefault && overpassOptions.length === 0) {
                 toast.error("At least one place type must be selected");
@@ -793,7 +795,7 @@ export const ZoneSidebar = () => {
                             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                                 <MultiSelect
                                     options={[
-                                        ...GAMES.map((g) => ({
+                                        ...$games.map((g) => ({
                                             label: g.optionLabel,
                                             value: g.sentinelValue,
                                         })),

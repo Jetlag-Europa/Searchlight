@@ -1,0 +1,33 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { AuthGuard } from "@/components/AuthGuard";
+import { GameManager } from "@/components/GameManager";
+---
+
+<Layout>
+    <!--
+        Auth loading overlay — same pattern as /map and /admin.
+        AuthGuard removes it once /me responds 200.
+    -->
+    <div
+        id="auth-loading-overlay"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
+    >
+        <div
+            class="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent"
+        >
+        </div>
+    </div>
+
+    <AuthGuard client:only="react" />
+
+    <main class="container mx-auto max-w-4xl p-8">
+        <h1 class="text-2xl font-bold mb-2">Game Management</h1>
+        <p class="text-sm text-muted-foreground mb-8">
+            Manage game definitions for each JetLag server.
+            Only servers where you hold <code>games.create</code>, <code>games.edit</code>,
+            or <code>games.delete</code> permissions are shown.
+        </p>
+        <GameManager client:only="react" />
+    </main>
+</Layout>
