@@ -59,6 +59,7 @@ export default defineConfig({
         allowedHosts: [
             "hideandseek.lucifersserver.com",
             "dev.hideandseek.lucifersserver.com",
+            "devhideandseek.lucifersserver.com",
         ],
     },
     site: "https://hideandseek.lucifersserver.com",
