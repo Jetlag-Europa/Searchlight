@@ -141,7 +141,7 @@ export const Map = ({ className }: { className?: string }) => {
     const refreshQuestions = async (focus: boolean = false) => {
         if (!map) return;
 
-        if ($isLoading) return;
+        if (isLoading.get()) return;
 
         isLoading.set(true);
 
@@ -406,12 +406,12 @@ export const Map = ({ className }: { className?: string }) => {
     }, [$questions, map, $hiderMode, $mapGeoLocation]);
 
     useEffect(() => {
-        const intervalId = setInterval(async () => {
+        const intervalId = setInterval(() => {
             if (!map) return;
+            if (isLoading.get()) return;
             let layerCount = 0;
             map.eachLayer((layer: any) => {
                 if (layer.eliminationGeoJSON) {
-                    // Hopefully only geoJSON layers
                     layerCount++;
                 }
             });

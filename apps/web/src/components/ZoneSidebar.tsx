@@ -11,12 +11,12 @@ import { toast } from "react-toastify";
 import {
     Sidebar,
     SidebarContent,
-    SidebarContext,
     SidebarGroup,
     SidebarGroupContent,
     SidebarMenu,
     SidebarMenuItem,
 } from "@/components/ui/sidebar-r";
+import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
     animateMapMovements,
     autoZoom,

@@ -4,13 +4,13 @@ import { SidebarCloseIcon } from "lucide-react";
 import {
     Sidebar,
     SidebarContent,
-    SidebarContext,
     SidebarGroup,
     SidebarGroupContent,
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
+import { sidebarContextL as SidebarContext } from "@/lib/context";
 import {
     autoSave,
     isLoading,

@@ -1,7 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { atom } from "nanostores";
+import { sidebarContextL, type SidebarContextType } from "@/lib/context";
 import * as React from "react";
 import { TbMessage2Question } from "react-icons/tb";
 
@@ -30,25 +30,7 @@ const SIDEBAR_TUTORIAL_STEPS = [6];
 export const MENU_ITEM_CLASSNAME =
     "flex w-full items-center gap-2 overflow-hidden rounded-md p-2 text-left text-sm outline-none ring-sidebar-ring transition-[width,height,padding] hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 active:bg-sidebar-accent active:text-sidebar-accent-foreground disabled:pointer-events-none disabled:opacity-50 group-has-[[data-sidebar=menu-action]]/menu-item:pr-8 aria-disabled:pointer-events-none aria-disabled:opacity-50 data-[active=true]:bg-sidebar-accent data-[active=true]:font-medium data-[active=true]:text-sidebar-accent-foreground data-[state=open]:hover:bg-sidebar-accent data-[state=open]:hover:text-sidebar-accent-foreground group-data-[collapsible=icon]:!size-8 group-data-[collapsible=icon]:!p-2 [&>span:last-child]:truncate [&>svg]:size-4 [&>svg]:shrink-0";
 
-type SidebarContextType = {
-    state: "expanded" | "collapsed";
-    open: boolean;
-    setOpen: (open: boolean) => void;
-    openMobile: boolean;
-    setOpenMobile: (open: boolean) => void;
-    isMobile: boolean;
-    toggleSidebar: () => void;
-};
-
-export const SidebarContext = atom<SidebarContextType>({
-    state: "expanded",
-    open: true,
-    setOpen: () => {},
-    openMobile: false,
-    setOpenMobile: () => {},
-    isMobile: false,
-    toggleSidebar: () => {},
-});
+export const SidebarContext = sidebarContextL;
 
 const SidebarProvider = React.forwardRef<
     HTMLDivElement,
@@ -94,11 +76,21 @@ const SidebarProvider = React.forwardRef<
         );
 
         // Helper to toggle the sidebar.
+        // Uses _setOpen directly (not setOpen) so the functional updater always
+        // receives the current state — avoids the stale-closure bug where setOpen
+        // captures an old `open` value and toggles to the wrong state.
         const toggleSidebar = React.useCallback(() => {
-            return isMobile
-                ? setOpenMobile((open) => !open)
-                : setOpen((open) => !open);
-        }, [isMobile, setOpen, setOpenMobile]);
+            if (isMobile) {
+                setOpenMobile((o) => !o);
+            } else {
+                _setOpen((o) => {
+                    const next = !o;
+                    document.cookie = `${SIDEBAR_COOKIE_NAME}=${next}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
+                    if (setOpenProp) setOpenProp(next);
+                    return next;
+                });
+            }
+        }, [isMobile, setOpenMobile, setOpenProp]);
 
         // Adds a keyboard shortcut to toggle the sidebar.
         React.useEffect(() => {

@@ -398,3 +398,28 @@ export const allowGooglePlusCodes = persistentAtom<boolean>(
         decode: JSON.parse,
     },
 );
+
+// Shared sidebar context atoms — kept here so all islands (client:load and
+// client:only) resolve the same module instance and therefore the same atom.
+export type SidebarContextType = {
+    state: "expanded" | "collapsed";
+    open: boolean;
+    setOpen: (open: boolean) => void;
+    openMobile: boolean;
+    setOpenMobile: (open: boolean) => void;
+    isMobile: boolean;
+    toggleSidebar: () => void;
+};
+
+const _defaultSidebarCtx: SidebarContextType = {
+    state: "expanded",
+    open: true,
+    setOpen: () => {},
+    openMobile: false,
+    setOpenMobile: () => {},
+    isMobile: false,
+    toggleSidebar: () => {},
+};
+
+export const sidebarContextL = atom<SidebarContextType>({ ..._defaultSidebarCtx });
+export const sidebarContextR = atom<SidebarContextType>({ ..._defaultSidebarCtx });
