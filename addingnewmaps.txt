@@ -1,0 +1,101 @@
+HOW TO ADD A NEW MAP
+====================
+
+1. GET THE CORRECT OSM RELATION ID
+   Look up the city on Nominatim to get the right OSM relation ID:
+   https://nominatim.openstreetmap.org/search?city=CITYNAME&country=COUNTRY&format=json&limit=3
+
+   Check the "osm_type" (should be "relation") and "osm_id" in the response.
+   Also grab the "boundingbox" values — they go in the extent field (order: north, west, south, east).
+
+   Do NOT guess the OSM ID — wrong IDs silently return empty and break the map boundary load.
+
+
+2. PLACE THE KML FILE
+   Copy the .kml file to:
+     apps/web/public/<cityname>-hiding-zones.kml
+
+   Naming convention: lowercase, hyphens, no spaces.
+   Example: brno-hiding-zones.kml
+
+
+3. ADD THE GAME TO seed.ts
+   File: apps/api/prisma/seed.ts
+
+   a) Add a city feature constant above the GAMES array:
+
+      const CITYNAME_CITY_FEATURE = {
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [LAT, LON],        // from Nominatim lat/lon fields
+        },
+        properties: {
+          osm_type: "R",
+          osm_id: 123456,                 // from Nominatim osm_id
+          extent: [NORTH, WEST, SOUTH, EAST],  // from Nominatim boundingbox
+          country: "Country Name",
+          osm_key: "place",
+          countrycode: "XX",              // ISO 3166-1 alpha-2
+          osm_value: "city",
+          name: "City Name",
+          type: "city",
+        },
+      };
+
+   b) Add an entry to the GAMES array:
+
+      {
+        serverId: "DISCORD_SERVER_ID",    // see SERVERS list at top of seed.ts
+        name: "City Name YYYY",
+        sentinelValue: "__bundled-cityname-yyyy__",  // must be unique
+        kmlPath: "cityname-hiding-zones.kml",
+        mapLocationJson: CITYNAME_CITY_FEATURE,
+        hidingRadius: 400,               // confirm the correct radius
+        hidingRadiusUnits: "meters",     // "meters" or "kilometers"
+      },
+
+   Server IDs:
+     JetLag EU  — 1190673594649415730
+     JetLag UK  — 1059625399979606166
+     JetLag BNL — 1369664929975767120
+     JetLag DE  — 1333139120507064350
+
+
+4. RUN THE SEED
+   From the TaibledFork root:
+
+     DATABASE_URL="postgresql://taibled:devpassword@localhost:5433/taibled" \
+       pnpm --filter api exec prisma db seed
+
+   Note: the seed upsert only updates the game name on re-run, not other fields.
+   If you need to fix hidingRadius or mapLocationJson after seeding, update the
+   DB directly or use a Prisma one-liner (see step 5).
+
+
+5. FIXING A FIELD AFTER SEEDING
+   If you seeded with wrong values, update directly:
+
+     DATABASE_URL="postgresql://taibled:devpassword@localhost:5433/taibled" \
+       node --import tsx/esm -e "
+     import { PrismaClient } from '@prisma/client';
+     const prisma = new PrismaClient();
+     await prisma.game.update({
+       where: { sentinelValue: '__bundled-cityname-yyyy__' },
+       data: { hidingRadius: 400, hidingRadiusUnits: 'meters' },
+     });
+     await prisma.\$disconnect();
+     "
+
+   Also clear any stale boundary cache if you had a wrong OSM ID:
+
+     await prisma.boundaryCache.deleteMany({ where: { osmId: 'WRONG_ID' } });
+
+
+6. TEST BEFORE COMMITTING
+   Load the map in the browser and confirm:
+   - The city boundary loads without error
+   - The hiding zones appear correctly
+   - The hiding radius looks right on the map
+
+   Then ask to commit and push.
