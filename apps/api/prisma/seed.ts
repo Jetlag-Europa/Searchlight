@@ -22,8 +22,8 @@ const BRNO_CITY_FEATURE = {
   },
   properties: {
     osm_type: "R",
-    osm_id: 86469,
-    extent: [49.27, 16.47, 49.11, 16.74],
+    osm_id: 438171,
+    extent: [49.2943708, 16.4279898, 49.1098796, 16.7278346],
     country: "Czech Republic",
     osm_key: "place",
     countrycode: "CZ",
