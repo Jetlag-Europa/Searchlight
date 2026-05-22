@@ -38,6 +38,8 @@ function SessionPickerOverlay({
     const [newSessionVisibility, setNewSessionVisibility] = useState<"private" | "shared">("private");
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
     useEffect(() => {
         fetch(`${API_BASE}/servers`, { credentials: "include" })
@@ -80,6 +82,28 @@ function SessionPickerOverlay({
     useEffect(() => {
         if (selectedServerId) loadSessionsForServer(selectedServerId);
     }, [selectedServerId, loadSessionsForServer]);
+
+    const handleDeleteSession = async (sessionId: string) => {
+        if (confirmDeleteId !== sessionId) {
+            setConfirmDeleteId(sessionId);
+            return;
+        }
+        setDeletingId(sessionId);
+        setConfirmDeleteId(null);
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error(`${res.status}`);
+            setSessions((prev) => prev?.filter((s) => s.id !== sessionId) ?? null);
+            if (activeSessionId.get() === sessionId) clearActiveSession();
+        } catch (e: unknown) {
+            setError(`Failed to delete session: ${(e as Error).message}`);
+        } finally {
+            setDeletingId(null);
+        }
+    };
 
     const handleCreateSession = async () => {
         if (!newSessionName.trim() || !newSessionGameId) return;
@@ -151,18 +175,39 @@ function SessionPickerOverlay({
                         ) : (
                             <div className="space-y-2 mb-3 max-h-64 overflow-y-auto pr-1">
                                 {sessions.map((session) => (
-                                    <button
+                                    <div
                                         key={session.id}
-                                        onClick={() => onSessionSelected(session)}
-                                        className="w-full text-left border border-border rounded-lg p-3 hover:bg-accent hover:text-accent-foreground transition-colors"
+                                        className="flex items-center border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors group/row"
+                                        onMouseLeave={() => {
+                                            if (confirmDeleteId === session.id) setConfirmDeleteId(null);
+                                        }}
                                     >
-                                        <div className="font-medium text-sm">{session.name}</div>
-                                        <div className="text-xs text-muted-foreground mt-0.5">
-                                            {session.gameName} ·{" "}
-                                            <span className="capitalize">{session.visibility}</span> ·{" "}
-                                            <span className="capitalize">{session.role}</span>
-                                        </div>
-                                    </button>
+                                        <button
+                                            onClick={() => onSessionSelected(session)}
+                                            className="flex-1 text-left p-3 min-w-0"
+                                        >
+                                            <div className="font-medium text-sm truncate">{session.name}</div>
+                                            <div className="text-xs text-muted-foreground mt-0.5">
+                                                {session.gameName} ·{" "}
+                                                <span className="capitalize">{session.visibility}</span> ·{" "}
+                                                <span className="capitalize">{session.role}</span>
+                                            </div>
+                                        </button>
+                                        {session.role === "creator" && (
+                                            <button
+                                                onClick={() => handleDeleteSession(session.id)}
+                                                disabled={deletingId === session.id}
+                                                className={`shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors ${
+                                                    confirmDeleteId === session.id
+                                                        ? "text-destructive hover:bg-destructive/10 font-medium"
+                                                        : "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100"
+                                                }`}
+                                                title={confirmDeleteId === session.id ? "Click again to confirm" : "Delete session"}
+                                            >
+                                                {deletingId === session.id ? "…" : confirmDeleteId === session.id ? "Confirm?" : "✕"}
+                                            </button>
+                                        )}
+                                    </div>
                                 ))}
                             </div>
                         )}
