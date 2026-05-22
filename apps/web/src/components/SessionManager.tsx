@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useStore } from "@nanostores/react";
 import type { ServersResponse, SessionsResponse, GameSessionSummary } from "@taibled/shared";
-import { questions } from "@/lib/context";
+import { questions, sidebarContextR } from "@/lib/context";
 import {
     activeSessionId,
     activeSessionData,
@@ -254,8 +254,14 @@ function SessionChip({
     session: GameSessionSummary;
     onChangeSession: () => void;
 }) {
+    const sidebar = useStore(sidebarContextR);
+    const right = sidebar.open ? "calc(16rem + 3.5rem)" : "3.5rem";
+
     return (
-        <div className="fixed top-12 right-2 z-[1040] flex items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm">
+        <div
+            className="fixed top-10 z-[1041] flex items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm transition-[right] duration-200 ease-linear"
+            style={{ right }}
+        >
             <span className="font-medium truncate max-w-[140px]" title={session.name}>{session.name}</span>
             <button
                 onClick={onChangeSession}

@@ -1,4 +1,6 @@
+import { useStore } from "@nanostores/react";
 import type { User } from "@taibled/shared";
+import { sidebarContextR } from "@/lib/context";
 
 interface Props {
   user: User;
@@ -6,6 +8,9 @@ interface Props {
 }
 
 export function UserChip({ user, apiBase }: Props) {
+  const sidebar = useStore(sidebarContextR);
+  const right = sidebar.open ? "calc(16rem + 3.5rem)" : "3.5rem";
+
   async function handleLogout() {
     await fetch(`${apiBase}/auth/logout`, {
       method: "POST",
@@ -16,7 +21,10 @@ export function UserChip({ user, apiBase }: Props) {
   }
 
   return (
-    <div className="fixed top-2 right-14 z-[1031] flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-white text-sm backdrop-blur-sm">
+    <div
+      className="fixed top-2 z-[1041] flex items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-white text-sm backdrop-blur-sm transition-[right] duration-200 ease-linear"
+      style={{ right }}
+    >
       <img
         src={user.avatarUrl}
         alt={user.displayName}
