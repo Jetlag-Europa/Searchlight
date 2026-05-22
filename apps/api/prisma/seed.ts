@@ -14,6 +14,25 @@ const ROLE_PERMISSIONS = [
   { serverId: "1059625399979606166", discordRoleId: "1383202208799129731", permission: "server.admin" },
 ];
 
+const BRNO_CITY_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [49.1951, 16.6068],
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 86469,
+    extent: [49.27, 16.47, 49.11, 16.74],
+    country: "Czech Republic",
+    osm_key: "place",
+    countrycode: "CZ",
+    osm_value: "city",
+    name: "Brno",
+    type: "city",
+  },
+};
+
 const BRUSSELS_CITY_FEATURE = {
   type: "Feature",
   geometry: {
@@ -53,6 +72,15 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
 };
 
 const GAMES = [
+  {
+    serverId: "1190673594649415730", // JetLag EU
+    name: "Brno 2026",
+    sentinelValue: "__bundled-brno-2026__",
+    kmlPath: "brno-hiding-zones.kml",
+    mapLocationJson: BRNO_CITY_FEATURE,
+    hidingRadius: 1,
+    hidingRadiusUnits: "kilometers",
+  },
   {
     serverId: "1190673594649415730", // JetLag EU
     name: "Luxembourg 2026",
