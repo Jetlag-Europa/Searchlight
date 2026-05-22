@@ -39,6 +39,10 @@ export async function boundaryRoutes(app: FastifyInstance) {
                 where: { osmId_osmType: { osmId, osmType } },
             });
             if (cached) {
+                await prisma.boundaryCache.update({
+                    where: { osmId_osmType: { osmId, osmType } },
+                    data: { lastAccessedAt: new Date() },
+                });
                 return cached.geojson;
             }
 
