@@ -8,8 +8,8 @@
 
 set -euo pipefail
 
-BACKUP_DIR="/srv/WriteMap/backups"
-COMPOSE_DIR="/srv/WriteMap/TaibledFork"
+BACKUP_DIR="/Users/juleswitold/Dev/WriteMap/backups"
+COMPOSE_DIR="/Users/juleswitold/Dev/WriteMap/TaibledFork"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 FILENAME="writemap-${TIMESTAMP}.sql.gz"
 RETENTION_DAYS=30
