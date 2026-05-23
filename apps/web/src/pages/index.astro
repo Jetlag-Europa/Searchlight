@@ -4,6 +4,13 @@ import Layout from "@/layouts/Layout.astro";
 const apiBase = import.meta.env.PUBLIC_API_BASE;
 ---
 
+<script define:vars={{ apiBase }}>
+  // If the user already has a valid session, skip the login page entirely.
+  fetch(`${apiBase}/me`, { credentials: "include" })
+    .then((res) => { if (res.ok) window.location.replace("/map"); })
+    .catch(() => {});
+</script>
+
 <Layout>
     <main class="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-white">
         <div class="flex max-w-md flex-col items-center gap-8 text-center">
