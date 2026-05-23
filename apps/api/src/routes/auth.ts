@@ -18,12 +18,14 @@ function sessionCookieOptions(expiresAt: Date) {
   const isProd = env.NODE_ENV === "production";
   return {
     httpOnly: true,
-    sameSite: "lax" as const,
+    // SameSite=None is required when the frontend and API are on different subdomains
+    // (e.g. hideandseek.lucifersserver.com vs apihideandseek.lucifersserver.com).
+    // SameSite=Lax blocks cookies on cross-origin fetch, causing an infinite login loop.
+    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
     signed: true,
     expires: expiresAt,
     ...(isProd && {
       secure: true,
-      domain: env.SESSION_COOKIE_DOMAIN,
     }),
   };
 }
