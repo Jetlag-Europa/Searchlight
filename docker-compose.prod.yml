@@ -1,0 +1,9 @@
+# Production server ports — used by infra/deploy-prod.sh
+services:
+  api:
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  web:
+    ports:
+      - "127.0.0.1:8080:80"

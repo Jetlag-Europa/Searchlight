@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 RUN npm install -g pnpm@11.1.3
 WORKDIR /app
 

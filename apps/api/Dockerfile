@@ -1,5 +1,5 @@
 # Build stage
-FROM node:20-slim AS builder
+FROM node:22-slim AS builder
 RUN npm install -g pnpm@11.1.3
 WORKDIR /app
 
@@ -19,7 +19,7 @@ COPY apps/api/src ./apps/api/src
 RUN pnpm --filter api build
 
 # Runtime stage — only production deps + compiled output
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 RUN npm install -g pnpm@11.1.3
 WORKDIR /app
 

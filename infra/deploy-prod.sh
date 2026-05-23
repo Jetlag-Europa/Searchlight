@@ -9,6 +9,7 @@ COMPOSE_DIR="${SCRIPT_DIR}/.."
 docker compose \
   --project-name writemap \
   -f "${COMPOSE_DIR}/docker-compose.yml" \
+  -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
   up -d --build
 
 echo "Production stack updated."

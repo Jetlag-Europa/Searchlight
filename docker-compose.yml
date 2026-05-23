@@ -24,8 +24,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    ports:
-      - "127.0.0.1:3000:3000"
     env_file: .env
     networks:
       - internal
@@ -37,8 +35,6 @@ services:
       args:
         PUBLIC_API_BASE: ${PUBLIC_API_BASE}
     restart: unless-stopped
-    ports:
-      - "127.0.0.1:8080:80"
     networks:
       - internal
 
