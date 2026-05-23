@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Nightly Postgres backup for TaibledFork.
-# Run via cron from /srv/taibled — see DEPLOY.md for the cron line.
+# Nightly Postgres backup for WriteMap PRODUCTION stack.
+# Run via cron on the Mac mini — see DEPLOY.md for the cron line.
 #
 # TODO: encryption at rest is not implemented.
 # See PLAN.md "Open questions → backup retention and whether to encrypt
@@ -8,23 +8,26 @@
 
 set -euo pipefail
 
-BACKUP_DIR="/srv/taibled/backups"
-COMPOSE_DIR="/srv/taibled"
+BACKUP_DIR="/srv/WriteMap/backups"
+COMPOSE_DIR="/srv/WriteMap/TaibledFork"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
-FILENAME="taibled-${TIMESTAMP}.sql.gz"
+FILENAME="writemap-${TIMESTAMP}.sql.gz"
 RETENTION_DAYS=30
 
 mkdir -p "${BACKUP_DIR}"
 
 # Dump via the running Compose postgres service (no host port needed)
-docker compose -f "${COMPOSE_DIR}/docker-compose.yml" exec -T postgres \
+docker compose \
+  --project-name writemap \
+  -f "${COMPOSE_DIR}/docker-compose.yml" \
+  exec -T postgres \
   pg_dump -U "${POSTGRES_USER:-taibled}" taibled \
   | gzip > "${BACKUP_DIR}/${FILENAME}"
 
 echo "Backup written: ${BACKUP_DIR}/${FILENAME}"
 
 # 30-day retention: delete dumps older than RETENTION_DAYS
-find "${BACKUP_DIR}" -maxdepth 1 -name "taibled-*.sql.gz" \
+find "${BACKUP_DIR}" -maxdepth 1 -name "writemap-*.sql.gz" \
   -mtime "+${RETENTION_DAYS}" -delete
 
 echo "Retention: removed files older than ${RETENTION_DAYS} days"
