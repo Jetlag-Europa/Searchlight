@@ -16,6 +16,46 @@ const { className } = Astro.props;
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width" />
+        <!-- Storage migration: wipes TaibledOG legacy keys before nanostores initialises.
+             Must be the first script in <head> so it runs before any module/hydration scripts. -->
+        <script type="text/javascript">
+            (function () {
+                var VERSION = 'v2';
+                var SENTINEL = 'taibled-storage-version';
+                if (localStorage.getItem(SENTINEL) === VERSION) return;
+
+                var NAMED = [
+                    'mapGeoLocation','additionalMapGeoLocations','permanentOverlay','polyGeoJSON',
+                    'questions','defaultUnit','isHiderMode','displayHidingZones',
+                    'displayHidingZonesOptions','displayHidingZonesStyle','useCustomStations',
+                    'customStations','removeDuplicates','includeDefaultStations','animateMapMovements',
+                    'hidingRadius','hidingRadiusUnits','disabledStations','autoSave','customPresets',
+                    'planningModeEnabled','autoZoom','baseTileLayer','thunderforestApiKey','followMe',
+                    'defaultCustomQuestions','pastebinApiKey','alwaysUsePastebin','showTutorials',
+                    'customInitPreference','allowGooglePlusCodes',
+                    'current-game-id','taibled-current-game-id','taibled-active-session',
+                    'taibled-wiped','jetlag-annotations-v1'
+                ];
+                var PREFIXES = ['jetlag-', 'annot-'];
+
+                // Collect all prefix-matched keys first (can't mutate during iteration)
+                var allKeys = [];
+                for (var i = 0; i < localStorage.length; i++) { allKeys.push(localStorage.key(i)); }
+                var wiped = [];
+                allKeys.forEach(function(k) {
+                    if (!k) return;
+                    for (var p = 0; p < PREFIXES.length; p++) {
+                        if (k.startsWith(PREFIXES[p])) { localStorage.removeItem(k); wiped.push(k); return; }
+                    }
+                });
+                NAMED.forEach(function(k) {
+                    if (localStorage.getItem(k) !== null) { localStorage.removeItem(k); wiped.push(k); }
+                });
+
+                localStorage.setItem(SENTINEL, VERSION);
+                console.info('[taibled] storage migration ' + VERSION + ': wiped ' + wiped.length + ' key(s)', wiped);
+            })();
+        </script>
         <link
             rel="icon"
             type="image/x-icon"

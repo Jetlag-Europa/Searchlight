@@ -1,21 +1,10 @@
 import { useEffect, useState } from "react";
 import type { MeResponse } from "@taibled/shared";
+import { clearActiveSession } from "@/lib/activeSession";
 import { UserChip } from "./UserChip";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-function wipeLocalStorageOnce() {
-  if (localStorage.getItem("taibled-wiped") === "1") return;
-  const toDelete: string[] = [];
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i)!;
-    if (key.startsWith("jetlag-") || key.startsWith("annot-") || key === "current-game-id") {
-      toDelete.push(key);
-    }
-  }
-  toDelete.forEach((key) => localStorage.removeItem(key));
-  localStorage.setItem("taibled-wiped", "1");
-}
+const STORED_USER_KEY = "taibled-authed-user";
 
 export function AuthGuard() {
   const [user, setUser] = useState<MeResponse["user"] | null>(null);
@@ -32,7 +21,16 @@ export function AuthGuard() {
           return;
         }
         const data: MeResponse = await res.json();
-        wipeLocalStorageOnce();
+
+        // If a different user is now logged in (e.g. shared device, tab crash before logout),
+        // clear the previous user's game session so they don't inherit it.
+        const prevUser = localStorage.getItem(STORED_USER_KEY);
+        if (prevUser && prevUser !== data.user.discordId) {
+          console.info("[taibled] user changed", prevUser, "→", data.user.discordId, "— clearing active session");
+          clearActiveSession();
+        }
+        localStorage.setItem(STORED_USER_KEY, data.user.discordId);
+
         setUser(data.user);
         document.getElementById("auth-loading-overlay")?.remove();
       })

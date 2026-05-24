@@ -15,7 +15,6 @@ import {
     type Question,
     type Questions,
     questionSchema,
-    questionsSchema,
     type Units,
 } from "@/maps/schema";
 
@@ -70,10 +69,10 @@ export const polyGeoJSON = persistentAtom<FeatureCollection<
     decode: JSON.parse,
 });
 
-export const questions = persistentAtom<Questions>("questions", [], {
-    encode: JSON.stringify,
-    decode: (x) => questionsSchema.parse(JSON.parse(x)),
-});
+// Not persisted: questions are server-backed (Phase 3). SessionManager loads them
+// from the server on every session pick. Persisting them caused stale TaibledOG
+// data to corrupt the server copy via the debounced save-back.
+export const questions = atom<Questions>([]);
 export const addQuestion = (question: DeepPartial<Question>) =>
     questionModified(questions.get().push(questionSchema.parse(question)));
 // eslint-disable-next-line @typescript-eslint/no-unused-vars

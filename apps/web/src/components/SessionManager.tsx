@@ -348,9 +348,11 @@ export function SessionManager() {
             return;
         }
         setLoading(true);
+        console.info("[taibled:session] restoring stored session", storedId);
         fetch(`${API_BASE}/sessions/${storedId}`, { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) {
+                    console.warn("[taibled:session] stored session invalid (" + res.status + "), showing picker");
                     clearActiveSession();
                     setShowPicker(true);
                     return;
@@ -359,19 +361,21 @@ export function SessionManager() {
                 // Load session content (strokes + questions)
                 try {
                     const { questions: loadedQuestions } = await loadSessionContent(storedId);
+                    console.info("[taibled:session] loaded", loadedQuestions.length, "question(s) from server");
                     suppressNextSaveRef.current = true;
                     questions.set(loadedQuestions);
                     // Fetch games for the session's server and apply game defaults
                     const games = await fetchGames(data.serverId);
                     const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
-                    if (game) switchToGame(game);
-                } catch {
-                    // Content load failed; session is still valid, continue
+                    if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
+                } catch (e) {
+                    console.warn("[taibled:session] content load failed, continuing with empty state:", e);
                 }
                 setActiveSession(data);
                 setShowPicker(false);
             })
-            .catch(() => {
+            .catch((e) => {
+                console.warn("[taibled:session] session fetch error, showing picker:", e);
                 clearActiveSession();
                 setShowPicker(true);
             })
@@ -381,19 +385,21 @@ export function SessionManager() {
 
     const handleSessionSelected = useCallback(async (selected: GameSessionSummary) => {
         setLoading(true);
+        console.info("[taibled:session] selecting session", selected.id, selected.name);
         try {
             const [{ questions: loadedQuestions }, games] = await Promise.all([
                 loadSessionContent(selected.id),
                 fetchGames(selected.serverId),
             ]);
+            console.info("[taibled:session] loaded", loadedQuestions.length, "question(s) from server");
             suppressNextSaveRef.current = true;
             questions.set(loadedQuestions);
             const game = games.find((g) => g.id === selected.gameId);
-            if (game) switchToGame(game);
+            if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
             setActiveSession(selected);
             setShowPicker(false);
         } catch (e: unknown) {
-            console.warn("[SessionManager] failed to load session content:", e);
+            console.warn("[taibled:session] failed to load session content:", e);
             setActiveSession(selected);
             setShowPicker(false);
         } finally {

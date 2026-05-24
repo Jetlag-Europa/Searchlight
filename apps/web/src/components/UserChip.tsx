@@ -1,6 +1,7 @@
 import { useStore } from "@nanostores/react";
 import type { User } from "@taibled/shared";
 import { sidebarContextR } from "@/lib/context";
+import { clearActiveSession } from "@/lib/activeSession";
 
 interface Props {
   user: User;
@@ -17,6 +18,9 @@ export function UserChip({ user, apiBase }: Props) {
       credentials: "include",
       headers: { "X-CSRF": "1" },
     });
+    clearActiveSession();
+    localStorage.removeItem("taibled-authed-user");
+    console.info("[taibled] logged out — active session and user cleared");
     window.location.href = "/";
   }
 
