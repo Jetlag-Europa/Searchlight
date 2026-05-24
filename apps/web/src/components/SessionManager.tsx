@@ -14,7 +14,7 @@ import {
     getGameById,
     type GameDefinition,
 } from "@/lib/games";
-import { loadSessionContent, saveQuestionsDebounced } from "@/lib/sessionState";
+import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave } from "@/lib/sessionState";
 import { Button } from "@/components/ui/button";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -342,6 +342,8 @@ export function SessionManager() {
 
     // On mount: validate stored session or show picker
     useEffect(() => {
+        // Cancel any save scheduled from the initial render (empty questions + stale sessionId).
+        cancelPendingQuestionSave();
         const storedId = activeSessionId.get();
         if (!storedId) {
             setShowPicker(true);
@@ -384,6 +386,7 @@ export function SessionManager() {
     }, []);
 
     const handleSessionSelected = useCallback(async (selected: GameSessionSummary) => {
+        cancelPendingQuestionSave();
         setLoading(true);
         console.info("[taibled:session] selecting session", selected.id, selected.name);
         try {

@@ -40,6 +40,13 @@ export async function saveQuestionsToServer(
 let questionSaveTimer: ReturnType<typeof setTimeout> | null = null;
 const QUESTION_DEBOUNCE_MS = 500;
 
+export function cancelPendingQuestionSave(): void {
+    if (questionSaveTimer) {
+        clearTimeout(questionSaveTimer);
+        questionSaveTimer = null;
+    }
+}
+
 export function saveQuestionsDebounced(sessionId: string, qs: Questions): void {
     if (questionSaveTimer) clearTimeout(questionSaveTimer);
     questionSaveTimer = setTimeout(() => {
