@@ -16,9 +16,12 @@ const { className } = Astro.props;
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width" />
-        <!-- Storage migration: wipes TaibledOG legacy keys before nanostores initialises.
-             Must be the first script in <head> so it runs before any module/hydration scripts. -->
+        <!-- Force HTTPS + storage migration. Must be the first script in <head>. -->
         <script type="text/javascript">
+            // Redirect http → https (fixes mobile CORS loop caused by plain-HTTP origin).
+            if (location.protocol === 'http:' && !location.hostname.includes('localhost')) {
+                location.replace(location.href.replace('http:', 'https:'));
+            }
             (function () {
                 var VERSION = 'v2';
                 var SENTINEL = 'taibled-storage-version';

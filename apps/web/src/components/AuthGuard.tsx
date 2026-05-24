@@ -10,8 +10,16 @@ export function AuthGuard() {
   const [user, setUser] = useState<MeResponse["user"] | null>(null);
 
   useEffect(() => {
-    fetch(`${API_BASE}/me`, { credentials: "include" })
+    const controller = new AbortController();
+    const timeout = setTimeout(() => {
+      controller.abort();
+      console.warn("[taibled] /me timed out — redirecting to login");
+      window.location.href = "/";
+    }, 8000);
+
+    fetch(`${API_BASE}/me`, { credentials: "include", signal: controller.signal })
       .then(async (res) => {
+        clearTimeout(timeout);
         if (res.status === 401) {
           window.location.href = "/";
           return;
@@ -34,8 +42,11 @@ export function AuthGuard() {
         setUser(data.user);
         document.getElementById("auth-loading-overlay")?.remove();
       })
-      .catch(() => {
-        window.location.href = "/";
+      .catch((err) => {
+        clearTimeout(timeout);
+        if ((err as Error).name !== "AbortError") {
+          window.location.href = "/";
+        }
       });
   }, []);
 
