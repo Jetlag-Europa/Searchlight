@@ -35,6 +35,7 @@ import {
     planningModeEnabled,
     questionFinishedMapData,
     questions,
+    tierRadiusOverrides,
     trainStations,
     useCustomStations as useCustomStationsAtom,
 } from "@/lib/context";
@@ -107,6 +108,7 @@ export const ZoneSidebar = () => {
     const includeDefaultStations = useStore(includeDefaultStationsAtom);
     const $customStations = useStore(customStationsAtom);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
+    const $tierRadiusOverrides = useStore(tierRadiusOverrides);
     const $games = useStore(gamesAtom);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
@@ -234,6 +236,7 @@ export const ZoneSidebar = () => {
                             f.properties?.id ||
                             `${(f.geometry as any).coordinates[1]},${(f.geometry as any).coordinates[0]}`,
                         name: f.properties?.name,
+                        ...(f.properties?.tier ? { tier: f.properties.tier } : {}),
                     },
                 }));
             } else {
@@ -305,7 +308,8 @@ export const ZoneSidebar = () => {
 
             let circles = places
                 .map((place) => {
-                    const radius = $hidingRadius;
+                    const tier = (place.properties as any).tier as string | undefined;
+                    const radius = (tier && $tierRadiusOverrides[tier]) ? $tierRadiusOverrides[tier] : $hidingRadius;
                     const center = turf.getCoord(place);
                     const circle = turf.circle(center, radius, {
                         steps: 32,
@@ -481,6 +485,7 @@ export const ZoneSidebar = () => {
         $displayHidingZones,
         $displayHidingZonesOptions,
         $hidingRadius,
+        $tierRadiusOverrides,
         useCustomStations,
         includeDefaultStations,
         $customStations,

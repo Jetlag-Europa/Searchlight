@@ -15,6 +15,7 @@ const gameShape = Type.Object({
   mapLocationJson: Type.Unknown(),
   hidingRadius: Type.Number(),
   hidingRadiusUnits: Type.String(),
+  tierRadiusOverrides: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Number()), Type.Null()])),
 });
 
 async function assertServerMembership(

@@ -100,8 +100,10 @@ function parseKML(text: string): CustomStation[] {
         const lat = parseFloat(parts[1]);
         if (!isFinite(lat) || !isFinite(lng)) continue;
         const name = nameMatch ? nameMatch[1].trim() : undefined;
+        const tierMatch = pm.match(/<Data name="tier">\s*<value>([\s\S]*?)<\/value>/i);
+        const tier = tierMatch ? tierMatch[1].trim() : undefined;
         const id = `${lat},${lng}`;
-        stations.push({ id, name, lat, lng });
+        stations.push({ id, name, lat, lng, tier });
     }
     return stations;
 }
@@ -154,7 +156,7 @@ export function normalizeToStationFeatures(
     const features: StationPlace[] = stations.map((s) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-        properties: { id: s.id, name: s.name },
+        properties: { id: s.id, name: s.name, ...(s.tier ? { tier: s.tier } : {}) },
     }));
     return { type: "FeatureCollection", features };
 }

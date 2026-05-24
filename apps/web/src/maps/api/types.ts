@@ -51,6 +51,7 @@ export interface CustomStation {
     name?: string;
     lat: number;
     lng: number;
+    tier?: string;
 }
 
 export interface StationPlaceProperties {

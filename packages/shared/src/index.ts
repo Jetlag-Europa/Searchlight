@@ -55,6 +55,7 @@ export interface Game {
   mapLocationJson: unknown; // OpenStreetMap Feature JSON
   hidingRadius: number;
   hidingRadiusUnits: "miles" | "kilometers";
+  tierRadiusOverrides?: Record<string, number> | null;
 }
 
 export interface GamesResponse {

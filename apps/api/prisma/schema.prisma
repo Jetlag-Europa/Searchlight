@@ -95,6 +95,7 @@ model Game {
   mapLocationJson   Json
   hidingRadius      Float
   hidingRadiusUnits String      // "miles" | "kilometers"
+  tierRadiusOverrides Json?     // e.g. {"Train": 400} — values in same units as hidingRadiusUnits
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 

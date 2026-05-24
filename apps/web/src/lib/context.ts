@@ -320,6 +320,8 @@ export const hidingZone = computed(
     },
 );
 
+export const tierRadiusOverrides = atom<Record<string, number>>({});
+
 export const drawingQuestionKey = atom<number>(-1);
 // ID of the single hiding-zone the user has focused via a "View" button,
 // or "" for the all-zones overview. Lifted to a shared atom so the

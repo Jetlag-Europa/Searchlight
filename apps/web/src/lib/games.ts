@@ -18,6 +18,7 @@ import {
     mapGeoLocation,
     permanentOverlay,
     polyGeoJSON,
+    tierRadiusOverrides,
     useCustomStations,
 } from "@/lib/context";
 import type { CustomStation, OpenStreetMap } from "@/maps/api";
@@ -40,6 +41,7 @@ export interface GameDefinition {
     mapLocation: OpenStreetMap;
     hidingRadius: number;
     hidingRadiusUnits: "miles" | "kilometers";
+    tierRadiusOverrides?: Record<string, number> | null;
     serverId: string;
     serverName: string;
 }
@@ -77,6 +79,7 @@ export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
             mapLocation: g.mapLocationJson as OpenStreetMap,
             hidingRadius: g.hidingRadius,
             hidingRadiusUnits: g.hidingRadiusUnits,
+            tierRadiusOverrides: g.tierRadiusOverrides,
             serverId: g.serverId,
             serverName,
         }));
@@ -126,6 +129,7 @@ export function applyGameDefaults(game: GameDefinition): void {
     defaultUnit.set(game.hidingRadiusUnits);
     hidingRadius.set(game.hidingRadius);
     hidingRadiusUnits.set(game.hidingRadiusUnits);
+    tierRadiusOverrides.set(game.tierRadiusOverrides ?? {});
 }
 
 export function activateGameStations(game: GameDefinition): void {
