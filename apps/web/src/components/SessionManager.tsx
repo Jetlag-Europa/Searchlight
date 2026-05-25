@@ -234,7 +234,7 @@ function SessionPickerOverlay({
                                         onKeyDown={(e) => e.key === "Enter" && handleCreateSession()}
                                     />
                                 </div>
-                                {availableGames.length > 1 && (
+                                {availableGames.length >= 1 && (
                                     <div>
                                         <label className="text-xs text-muted-foreground block mb-1">Game</label>
                                         <select
