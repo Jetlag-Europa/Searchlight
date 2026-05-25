@@ -51,9 +51,42 @@ HOW TO ADD A NEW MAP
         sentinelValue: "__bundled-cityname-yyyy__",  // must be unique
         kmlPath: "cityname-hiding-zones.kml",
         mapLocationJson: CITYNAME_CITY_FEATURE,
-        hidingRadius: 400,               // confirm the correct radius
+        hidingRadius: 400,               // default radius for all stations
         hidingRadiusUnits: "meters",     // "meters" or "kilometers"
       },
+
+   c) PER-TIER RADIUS OVERRIDES (optional)
+      If different station types need different hiding zone sizes, add
+      tierRadiusOverrides to the game entry. The keys must exactly match
+      the tier values stored in the KML's <Data name="tier"> ExtendedData
+      fields. Values are in the same units as hidingRadiusUnits.
+
+      Example — Utrecht 2026 (Train: 400 m, Tram/Bus: 250 m):
+
+        hidingRadius: 250,               // fallback for any station with no override
+        hidingRadiusUnits: "meters",
+        tierRadiusOverrides: { Train: 400 },
+
+      How it works:
+      - When the hiding zones are generated, each station's tier is read
+        from its KML <Data name="tier"> field.
+      - If that tier has an entry in tierRadiusOverrides, that value is
+        used for the circle radius instead of hidingRadius.
+      - Stations with no tier, or a tier not in the overrides map, fall
+        back to hidingRadius.
+      - The radius slider in the UI only affects stations that use the
+        fallback hidingRadius — overridden tiers are always fixed.
+
+      KML tier format (Google My Maps ExtendedData):
+
+        <ExtendedData>
+          <Data name="tier">
+            <value>Train</value>
+          </Data>
+        </ExtendedData>
+
+      If your KML has no tier data, omit tierRadiusOverrides entirely (or
+      set it to null) and all stations will use hidingRadius.
 
    Server IDs:
      JetLag EU  — 1190673594649415730
@@ -63,14 +96,35 @@ HOW TO ADD A NEW MAP
 
 
 4. RUN THE SEED
-   From the TaibledFork root:
+   The API Docker image does not include tsx (dev dependency), so
+   `prisma db seed` does NOT work inside the container. Use raw SQL instead.
 
-     DATABASE_URL="postgresql://taibled:devpassword@localhost:5433/taibled" \
-       pnpm --filter api exec prisma db seed
+   Dev DB (via docker exec):
 
-   Note: the seed upsert only updates the game name on re-run, not other fields.
-   If you need to fix hidingRadius or mapLocationJson after seeding, update the
-   DB directly or use a Prisma one-liner (see step 5).
+     docker exec writemap-dev-postgres-1 psql -U taibled -d taibled -c "
+     INSERT INTO \"Game\" (id, \"serverId\", name, \"sentinelValue\", \"kmlPath\",
+       \"mapLocationJson\", \"hidingRadius\", \"hidingRadiusUnits\", \"updatedAt\",
+       \"tierRadiusOverrides\")
+     VALUES (
+       gen_random_uuid()::text,
+       'DISCORD_SERVER_ID',
+       'City Name YYYY',
+       '__bundled-cityname-yyyy__',
+       'cityname-hiding-zones.kml',
+       '{...mapLocationJson object as JSON string...}',
+       250,
+       'meters',
+       NOW(),
+       '{\"Train\": 400}'   -- or NULL if no tier overrides
+     )
+     ON CONFLICT (\"sentinelValue\") DO UPDATE
+       SET name = EXCLUDED.name, \"updatedAt\" = NOW();
+     "
+
+   Live DB: same command but use writemap-postgres-1.
+
+   Note: ON CONFLICT only updates the name. To fix other fields after
+   inserting, see step 5.
 
 
 5. FIXING A FIELD AFTER SEEDING
@@ -97,5 +151,8 @@ HOW TO ADD A NEW MAP
    - The city boundary loads without error
    - The hiding zones appear correctly
    - The hiding radius looks right on the map
+   - If using tierRadiusOverrides: visually confirm that overridden tiers
+     have larger/smaller circles than the default, and that moving the
+     radius slider does NOT change the overridden circles.
 
-   Then ask to commit and push.
+   Then commit and push (dev first, then replicate to live).
