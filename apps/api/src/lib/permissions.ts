@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import { discord } from "./discord-client.js";
 import prisma from "./prisma.js";
 
-const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 export async function getUserPermissions(
   userId: string,
