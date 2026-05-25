@@ -33,7 +33,7 @@ export async function serverRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const servers = await prisma.server.findMany({ orderBy: { name: "asc" } });
 
-      const result = await Promise.all(
+      const settled = await Promise.allSettled(
         servers.map(async (server) => {
           const perms = await getUserPermissions(
             user.discordId,
@@ -50,6 +50,15 @@ export async function serverRoutes(app: FastifyInstance) {
           };
         }),
       );
+
+      const result = settled
+        .filter((r) => {
+          if (r.status === "rejected") {
+            req.log.warn({ reason: String(r.reason) }, "Failed to resolve permissions for a server — skipping");
+          }
+          return r.status === "fulfilled";
+        })
+        .map((r) => (r as PromiseFulfilledResult<{ id: string; name: string; iconUrl: string | null; permissions: string[] }>).value);
 
       return { servers: result };
     },

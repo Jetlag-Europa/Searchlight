@@ -57,6 +57,8 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+const DISCORD_TIMEOUT_MS = 8000;
+
 async function request(
   path: string,
   init: RequestInit,
@@ -66,7 +68,19 @@ async function request(
   await acquireGlobal();
 
   const url = `${DISCORD_API}${path}`;
-  const res = await fetch(url, init);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DISCORD_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(url, { ...init, signal: controller.signal });
+  } catch (err: any) {
+    if (err?.name === "AbortError") {
+      throw new Error(`Discord request timed out after ${DISCORD_TIMEOUT_MS}ms: ${path}`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
 
   const bucketId = res.headers.get("X-RateLimit-Bucket");
   const remaining = parseInt(res.headers.get("X-RateLimit-Remaining") ?? "1", 10);
