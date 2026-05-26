@@ -52,25 +52,6 @@ const BRUSSELS_CITY_FEATURE = {
   },
 };
 
-const UTRECHT_CITY_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [52.0907006, 5.1215634],
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 419203,
-    extent: [52.1420506, 4.9700960, 52.0262820, 5.1951550],
-    country: "Netherlands",
-    osm_key: "place",
-    countrycode: "NL",
-    osm_value: "city",
-    name: "Utrecht",
-    type: "city",
-  },
-};
-
 const LUXEMBOURG_COUNTRY_FEATURE = {
   type: "Feature",
   geometry: {
@@ -91,16 +72,6 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
 };
 
 const GAMES = [
-  {
-    serverId: "1369664929975767120", // JetLag BNL
-    name: "Utrecht 2026",
-    sentinelValue: "__bundled-utrecht-2026__",
-    kmlPath: "utrecht-hiding-zones.kml",
-    mapLocationJson: UTRECHT_CITY_FEATURE,
-    hidingRadius: 250,
-    hidingRadiusUnits: "meters",
-    tierRadiusOverrides: { Train: 400 },
-  },
   {
     serverId: "1190673594649415730", // JetLag EU
     name: "Brno 2026",
