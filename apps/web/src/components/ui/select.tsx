@@ -132,11 +132,7 @@ const SelectContent = React.forwardRef<
     React.ElementRef<typeof SelectPrimitive.Content>,
     React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
 >(({ className, children, position = "popper", ...props }, ref) => (
-    <SelectPrimitive.Portal
-        container={document.querySelector(
-            "#map-modal-dialog-container-leaflet",
-        )}
-    >
+    <SelectPrimitive.Portal>
         <SelectPrimitive.Content
             ref={ref}
             className={cn(
@@ -146,6 +142,12 @@ const SelectContent = React.forwardRef<
                 className,
             )}
             position={position}
+            onWheel={(e) => {
+                const vp = e.currentTarget.querySelector<HTMLElement>(
+                    "[data-radix-select-viewport]",
+                );
+                if (vp) vp.scrollTop += e.deltaY;
+            }}
             {...props}
         >
             <SelectScrollUpButton />
@@ -153,7 +155,7 @@ const SelectContent = React.forwardRef<
                 className={cn(
                     "p-1",
                     position === "popper" &&
-                        "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)]",
+                        "max-h-72 w-full min-w-[var(--radix-select-trigger-width)]",
                 )}
             >
                 {children}
