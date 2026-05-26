@@ -5,6 +5,7 @@ import osmtogeojson from "osmtogeojson";
 import { toast } from "react-toastify";
 
 import {
+    gamePOIData,
     hiderMode,
     mapGeoJSON,
     mapGeoLocation,
@@ -138,7 +139,18 @@ export const determineMeasuringBoundary = async (
                 )!,
             ];
         }
-        case "airport":
+        case "airport": {
+            const airportOverride = gamePOIData.get()["airport"];
+            if (airportOverride?.length) {
+                console.info(`[taibled:poi] measuring airport → ${airportOverride.length} custom`);
+                return [
+                    turf.combine(
+                        turf.featureCollection(
+                            airportOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+                        ),
+                    ).features[0],
+                ];
+            }
             return [
                 turf.combine(
                     turf.featureCollection(
@@ -159,6 +171,7 @@ export const determineMeasuringBoundary = async (
                     ),
                 ).features[0],
             ];
+        }
         case "city":
             return [
                 turf.combine(
@@ -189,6 +202,18 @@ export const determineMeasuringBoundary = async (
         case "consulate-full":
         case "park-full": {
             const location = question.type.split("-full")[0] as APILocations;
+
+            const poiOverride = gamePOIData.get()[location];
+            if (poiOverride?.length) {
+                console.info(`[taibled:poi] measuring ${question.type} → ${poiOverride.length} custom ${location}`);
+                return [
+                    turf.combine(
+                        turf.featureCollection(
+                            poiOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+                        ),
+                    ).features[0],
+                ];
+            }
 
             const data = await findPlacesInZone(
                 `[${LOCATION_FIRST_TAG[location]}=${location}]`,
@@ -312,18 +337,33 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
             "park",
         ].includes(question.type)
     ) {
-        const questionNearest = await nearestToQuestion(
-            question as HomeGameMeasuringQuestions,
-        );
-        const hiderNearest = await nearestToQuestion({
-            lat: $hiderMode.latitude,
-            lng: $hiderMode.longitude,
-            hiderCloser: true,
-            type: (question as HomeGameMeasuringQuestions).type,
-            drag: false,
-            color: "black",
-            collapsed: false,
-        });
+        const poiOverride = gamePOIData.get()[(question as HomeGameMeasuringQuestions).type];
+
+        let questionNearest, hiderNearest;
+        if (poiOverride?.length) {
+            const pts = turf.featureCollection(
+                poiOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+            );
+            const seekerPt = turf.point([question.lng, question.lat]);
+            const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+            questionNearest = turf.nearestPoint(seekerPt, pts);
+            hiderNearest = turf.nearestPoint(hiderPt, pts);
+            questionNearest.properties.distanceToPoint = turf.distance(seekerPt, questionNearest);
+            hiderNearest.properties.distanceToPoint = turf.distance(hiderPt, hiderNearest);
+        } else {
+            questionNearest = await nearestToQuestion(
+                question as HomeGameMeasuringQuestions,
+            );
+            hiderNearest = await nearestToQuestion({
+                lat: $hiderMode.latitude,
+                lng: $hiderMode.longitude,
+                hiderCloser: true,
+                type: (question as HomeGameMeasuringQuestions).type,
+                drag: false,
+                color: "black",
+                collapsed: false,
+            });
+        }
 
         question.hiderCloser =
             questionNearest.properties.distanceToPoint >

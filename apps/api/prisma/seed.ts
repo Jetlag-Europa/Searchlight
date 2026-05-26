@@ -104,8 +104,8 @@ const GAMES = [
   {
     serverId: "1190673594649415730", // JetLag EU
     name: "Brno 2026",
-    sentinelValue: "__bundled-brno-2026__",
-    kmlPath: "brno-hiding-zones.kml",
+    sentinelValue: "__bundled-brno-2026-v2__",
+    kmlPath: "brno-poi-v2.kml",
     mapLocationJson: BRNO_CITY_FEATURE,
     hidingRadius: 400,
     hidingRadiusUnits: "meters",

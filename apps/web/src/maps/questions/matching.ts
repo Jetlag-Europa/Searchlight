@@ -11,6 +11,7 @@ import osmtogeojson from "osmtogeojson";
 import { toast } from "react-toastify";
 
 import {
+    gamePOIData,
     hiderMode,
     mapGeoJSON,
     mapGeoLocation,
@@ -34,7 +35,29 @@ import type {
     MatchingQuestion,
 } from "@/maps/schema";
 
+const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
+    "airport": "airport", "airport-full": "airport",
+    "aquarium": "aquarium", "aquarium-full": "aquarium",
+    "zoo": "zoo", "zoo-full": "zoo",
+    "theme_park": "theme_park", "theme_park-full": "theme_park",
+    "museum": "museum", "museum-full": "museum",
+    "hospital": "hospital", "hospital-full": "hospital",
+    "cinema": "cinema", "cinema-full": "cinema",
+    "library": "library", "library-full": "library",
+    "golf_course": "golf_course", "golf_course-full": "golf_course",
+    "park": "park", "park-full": "park",
+};
+
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
+    const overrideCategory = MATCHING_POI_TO_CATEGORY[question.type];
+    if (overrideCategory) {
+        const override = gamePOIData.get()[overrideCategory];
+        if (override?.length) {
+            console.info(`[taibled:poi] ${question.type} → ${override.length} custom ${overrideCategory}`);
+            return override.map((p) => turf.point([p.lon, p.lat], { name: p.name }));
+        }
+    }
+
     switch (question.type) {
         case "airport": {
             return _.uniqBy(
@@ -270,10 +293,18 @@ export const determineMatchingBoundary = _.memoize(
             case "lux-hospitals": {
                 const data = await findMatchingPlaces(question);
 
+                if (!data || data.length === 0) break;
+
+                if (data.length === 1) {
+                    boundary = turf.bboxPolygon([-180, -90, 180, 90]);
+                    break;
+                }
+
                 const voronoi = geoSpatialVoronoi(data);
                 const point = turf.point([question.lng, question.lat]);
 
                 for (const feature of voronoi.features) {
+                    if (!feature?.geometry) continue;
                     if (turf.booleanPointInPolygon(point, feature)) {
                         boundary = feature;
                         break;
@@ -334,18 +365,33 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "park",
         ].includes(question.type)
     ) {
-        const questionNearest = await nearestToQuestion(
-            question as HomeGameMatchingQuestions,
-        );
-        const hiderNearest = await nearestToQuestion({
-            lat: $hiderMode.latitude,
-            lng: $hiderMode.longitude,
-            same: true,
-            type: (question as HomeGameMatchingQuestions).type,
-            drag: false,
-            color: "black",
-            collapsed: false,
-        });
+        const poiCategory = MATCHING_POI_TO_CATEGORY[question.type];
+        const poiOverride = poiCategory ? gamePOIData.get()[poiCategory] : null;
+
+        let questionNearest, hiderNearest;
+        if (poiOverride?.length) {
+            const pts = turf.featureCollection(
+                poiOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+            );
+            questionNearest = turf.nearestPoint(turf.point([question.lng, question.lat]), pts);
+            hiderNearest = turf.nearestPoint(
+                turf.point([$hiderMode.longitude, $hiderMode.latitude]),
+                pts,
+            );
+        } else {
+            questionNearest = await nearestToQuestion(
+                question as HomeGameMatchingQuestions,
+            );
+            hiderNearest = await nearestToQuestion({
+                lat: $hiderMode.latitude,
+                lng: $hiderMode.longitude,
+                same: true,
+                type: (question as HomeGameMatchingQuestions).type,
+                drag: false,
+                color: "black",
+                collapsed: false,
+            });
+        }
 
         question.same =
             questionNearest.properties.name === hiderNearest.properties.name;
@@ -364,13 +410,22 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
         ]);
         const seekerPoint = turf.point([question.lng, question.lat]);
 
-        const places = osmtogeojson(
-            await findPlacesInZone(
-                "[railway=station]",
-                "Finding train stations. This may take a while. Do not press any buttons while this is processing. Don't worry, it will be cached.",
-                "node",
-            ),
-        ) as FeatureCollection<Point>;
+        const trainOverride = gamePOIData.get()["train_station"];
+        let places: FeatureCollection<Point>;
+        if (trainOverride?.length) {
+            console.info(`[taibled:poi] train stations → ${trainOverride.length} custom`);
+            places = turf.featureCollection(
+                trainOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+            ) as FeatureCollection<Point>;
+        } else {
+            places = osmtogeojson(
+                await findPlacesInZone(
+                    "[railway=station]",
+                    "Finding train stations. This may take a while. Do not press any buttons while this is processing. Don't worry, it will be cached.",
+                    "node",
+                ),
+            ) as FeatureCollection<Point>;
+        }
 
         const nearestHiderTrainStation = turf.nearestPoint(hiderPoint, places);
         const nearestSeekerTrainStation = turf.nearestPoint(

@@ -1,10 +1,27 @@
 import * as turf from "@turf/turf";
+import type { FeatureCollection, Point } from "geojson";
 
-import { hiderMode } from "@/lib/context";
+import { gamePOIData, hiderMode } from "@/lib/context";
 import { findTentacleLocations } from "@/maps/api";
 import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
+
+export async function getLocationsForTentacleQuestion(
+    question: TentacleQuestion,
+): Promise<FeatureCollection<Point>> {
+    const override = gamePOIData.get()[question.locationType];
+    if (override?.length) {
+        const center = turf.point([question.lng, question.lat]);
+        const radiusMeters = turf.convertLength(question.radius, question.unit, "meters");
+        const nearby = override
+            .map((p) => turf.point([p.lon, p.lat], { name: p.name }))
+            .filter((pt) => turf.distance(center, pt, { units: "meters" }) <= radiusMeters);
+        console.info(`[taibled:poi] tentacle ${question.locationType} → ${nearby.length} custom within radius`);
+        return turf.featureCollection(nearby) as FeatureCollection<Point>;
+    }
+    return findTentacleLocations(question);
+}
 
 const filterPointsWithinRadius = (
     points: any,
@@ -52,7 +69,7 @@ export const adjustPerTentacle = async (
     const rawPoints =
         question.locationType === "custom"
             ? turf.featureCollection(question.places)
-            : await findTentacleLocations(question);
+            : await getLocationsForTentacleQuestion(question);
 
     const points =
         question.locationType === "custom"
@@ -98,7 +115,7 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
     const rawPoints =
         question.locationType === "custom"
             ? turf.featureCollection(question.places)
-            : await findTentacleLocations(question);
+            : await getLocationsForTentacleQuestion(question);
 
     const points =
         question.locationType === "custom"
@@ -150,7 +167,7 @@ export const tentaclesPlanningPolygon = async (question: TentacleQuestion) => {
     const rawPoints =
         question.locationType === "custom"
             ? turf.featureCollection(question.places)
-            : await findTentacleLocations(question);
+            : await getLocationsForTentacleQuestion(question);
 
     const points =
         question.locationType === "custom"

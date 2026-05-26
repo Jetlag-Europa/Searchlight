@@ -108,6 +108,54 @@ function parseKML(text: string): CustomStation[] {
     return stations;
 }
 
+export function parseGPX(text: string): CustomStation[] {
+    const stations: CustomStation[] = [];
+    const wptRegex = /<wpt\b([^>]*)>([\s\S]*?)<\/wpt>/gi;
+    let match;
+    while ((match = wptRegex.exec(text)) !== null) {
+        const attrs = match[1];
+        const body = match[2];
+        const lat = parseFloat(attrs.match(/lat="([^"]+)"/)?.[1] ?? "");
+        const lon = parseFloat(attrs.match(/lon="([^"]+)"/)?.[1] ?? "");
+        if (!isFinite(lat) || !isFinite(lon)) continue;
+        const nameMatch = body.match(/<name>([\s\S]*?)<\/name>/i);
+        const name = nameMatch ? nameMatch[1].trim() : undefined;
+        stations.push({ id: `${lat},${lon}`, name, lat, lng: lon });
+    }
+    return stations;
+}
+
+export function parseKMLFolderPOI(
+    text: string,
+    folderCategoryMap: Record<string, string>,
+): Record<string, Array<{ name: string; lat: number; lon: number }>> {
+    const result: Record<string, Array<{ name: string; lat: number; lon: number }>> = {};
+    const folderBlocks = text.split(/<Folder>/i).slice(1);
+    for (const block of folderBlocks) {
+        const folderNameMatch = block.match(/<name>([\s\S]*?)<\/name>/i);
+        if (!folderNameMatch) continue;
+        const folderName = folderNameMatch[1].trim();
+        const category = folderCategoryMap[folderName];
+        if (!category || category === "administrative" || category === "water") continue;
+        const placemarks = block.split(/<Placemark[\s>]/i).slice(1);
+        for (const pm of placemarks) {
+            const coordsMatch = pm.match(
+                /<Point>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>[\s\S]*?<\/Point>/i,
+            );
+            if (!coordsMatch) continue;
+            const parts = coordsMatch[1].trim().split(/\s+/)[0].split(",");
+            const lon = parseFloat(parts[0]);
+            const lat = parseFloat(parts[1]);
+            if (!isFinite(lat) || !isFinite(lon)) continue;
+            const nameMatch = pm.match(/<name>([\s\S]*?)<\/name>/i);
+            const name = nameMatch ? nameMatch[1].trim() : "";
+            if (!result[category]) result[category] = [];
+            result[category].push({ name, lat, lon });
+        }
+    }
+    return result;
+}
+
 export function parseCustomStationsFromText(
     text: string,
     contentTypeHint?: string,

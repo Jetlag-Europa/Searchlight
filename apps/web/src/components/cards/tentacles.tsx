@@ -22,6 +22,7 @@ import {
 } from "@/lib/context";
 import { cn, mapToObj } from "@/lib/utils";
 import { findTentacleLocations } from "@/maps/api";
+import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
 import {
     determineUnionizedStrings,
     NO_GROUP,
@@ -118,7 +119,7 @@ export const TentacleQuestionComponent = ({
                     value={data.locationType}
                     onValueChange={async (value) => {
                         if (value === "custom") {
-                            const priorLocations = await findTentacleLocations(
+                            const priorLocations = await getLocationsForTentacleQuestion(
                                 data as TraditionalTentacleQuestion,
                             );
 
@@ -211,7 +212,7 @@ export const TentacleQuestionComponent = ({
                                 ? Promise.resolve(
                                       turf.featureCollection(data.places),
                                   )
-                                : findTentacleLocations(data)
+                                : getLocationsForTentacleQuestion(data)
                         }
                         disabled={!data.drag || $isLoading}
                     />
