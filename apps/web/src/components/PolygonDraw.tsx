@@ -77,7 +77,7 @@ const TentacleMarker = ({
                     },
                 }}
             />
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
                 <div className="flex flex-col gap-2">
                     <Input
                         className="text-center !text-2xl font-bold font-poppins mt-3"
@@ -143,7 +143,7 @@ const MatchingPointMarker = ({
                     },
                 }}
             />
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
                 <div className="flex flex-col gap-2">
                     <SidebarMenu>
                         <LatitudeLongitude
@@ -201,7 +201,7 @@ const MeasuringPointMarker = ({
                     },
                 }}
             />
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
                 <div className="flex flex-col gap-2">
                     <SidebarMenu>
                         <LatitudeLongitude

@@ -99,7 +99,7 @@ export const QuestionCard = ({
                                         <VscShare />
                                     </Button>
                                 </DialogTrigger>
-                                <DialogContent>
+                                <DialogContent aria-describedby={undefined}>
                                     <DialogHeader>
                                         <DialogTitle className="text-2xl">
                                             Share this Question!
@@ -198,7 +198,7 @@ export const QuestionCard = ({
                                         <VscTrash />
                                     </Button>
                                 </AlertDialogTrigger>
-                                <AlertDialogContent>
+                                <AlertDialogContent aria-describedby={undefined}>
                                     <AlertDialogHeader>
                                         <AlertDialogTitle>
                                             Are you absolutely sure?

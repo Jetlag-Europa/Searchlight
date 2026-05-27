@@ -27,7 +27,7 @@ const PresetsDialog: React.FC<Props> = ({
                     {triggerLabel}
                 </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent aria-describedby={undefined}>
                 <DialogTitle>Custom Presets</DialogTitle>
                 <CustomPresets data={data} presetTypeHint={presetTypeHint} />
             </DialogContent>

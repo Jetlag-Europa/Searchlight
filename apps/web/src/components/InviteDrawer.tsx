@@ -8,11 +8,12 @@ import {
     DrawerTrigger,
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_INTERVAL_MS = 30_000;
 
-export function InviteDrawer() {
+export function InviteDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
     const [invites, setInvites] = useState<InviteSummary[]>([]);
     const [loading, setLoading] = useState(false);
     const [open, setOpen] = useState(false);
@@ -70,13 +71,12 @@ export function InviteDrawer() {
     };
 
     return (
-        <Drawer open={open} onOpenChange={setOpen}>
+        <Drawer open={open} onOpenChange={(v) => { setOpen(v); if (v) onOpen?.(); }}>
             <DrawerTrigger asChild>
                 <Button
                     variant="outline"
                     size="sm"
-                    className="relative"
-                    style={{ touchAction: "manipulation" }}
+                    className={cn("relative", className)}
                 >
                     Invites
                     {invites.length > 0 && (
@@ -86,7 +86,7 @@ export function InviteDrawer() {
                     )}
                 </Button>
             </DrawerTrigger>
-            <DrawerContent>
+            <DrawerContent aria-describedby={undefined}>
                 <DrawerHeader>
                     <DrawerTitle>Pending Invites</DrawerTitle>
                 </DrawerHeader>

@@ -1,4 +1,5 @@
 import { useStore } from "@nanostores/react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
@@ -98,6 +99,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const lastDefaultUnit = useRef($defaultUnit);
     const hasSyncedInitialUnit = useRef(false);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
+    const [isNavOpen, setNavOpen] = useState(false);
 
     const handleClearAllCache = async () => {
         const ok = window.confirm(
@@ -320,15 +322,12 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     };
 
     return (
-        <div
-            className={cn(
-                "flex justify-end gap-2 max-[412px]:!mb-4 max-[340px]:flex-col",
-                className,
-            )}
-        >
+        <div className={cn("flex flex-col items-end gap-2", className)}>
+            {/* Always-visible All Zones button */}
             <Button
-                className="w-24 shadow-md"
+                className="w-32 shadow-md"
                 onClick={() => {
+                    setNavOpen(false);
                     hidingZoneFocusedStationID.set("");
                     if (!displayHidingZones.get()) {
                         displayHidingZones.set(true);
@@ -336,11 +335,18 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                     displayHidingZonesStyle.set("zones");
                 }}
             >
-                All Zones
+                Deselect Zone
             </Button>
+
+            {/* Collapsible section — stays mounted, animates height */}
+            <div className={cn("grid transition-all duration-200 w-32", isNavOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+                <div className="min-h-0 overflow-hidden flex flex-col gap-2 pt-0 pb-0">
+
+            {/* Share — hidden but kept in DOM */}
             <Button
-                className="shadow-md"
+                className="w-full shadow-md hidden"
                 onClick={async () => {
+                    setNavOpen(false);
                     const hidingZoneString = JSON.stringify($hidingZone);
                     let compressedData;
                     try {
@@ -408,24 +414,25 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 Share
             </Button>
             <Button
-                className="w-24 shadow-md"
+                className="w-full shadow-md"
                 onClick={() => {
+                    setNavOpen(false);
                     showTutorial.set(true);
                 }}
             >
                 Tutorial
             </Button>
-            <InviteDrawer />
-            <Drawer open={isOptionsOpen} onOpenChange={setOptionsOpen}>
-                <DrawerTrigger className="w-24" asChild>
+            <InviteDrawer className="w-full" onOpen={() => setNavOpen(false)} />
+            <Drawer open={isOptionsOpen} onOpenChange={(open) => { setOptionsOpen(open); if (open) setNavOpen(false); }}>
+                <DrawerTrigger className="w-full" asChild>
                     <Button
-                        className="w-24 shadow-md"
+                        className="w-full shadow-md"
                         data-tutorial-id="option-questions-button"
                     >
                         Options
                     </Button>
                 </DrawerTrigger>
-                <DrawerContent>
+                <DrawerContent aria-describedby={undefined}>
                     <div className="flex flex-col items-center gap-4 mb-4">
                         <DrawerHeader>
                             <DrawerTitle className="text-4xl font-semibold font-poppins">
@@ -802,6 +809,16 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                     </div>
                 </DrawerContent>
             </Drawer>
+                </div>
+            </div>
+
+            <Button
+                className="w-32 shadow-md"
+                onClick={() => setNavOpen((v) => !v)}
+            >
+                {isNavOpen ? <ChevronDown className="mr-2 h-4 w-4" /> : <ChevronUp className="mr-2 h-4 w-4" />}
+                Menu
+            </Button>
         </div>
     );
 };

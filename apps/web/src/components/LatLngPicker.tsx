@@ -399,7 +399,7 @@ export const LatitudeLongitude = ({
                                     <EditIcon />
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent>
+                            <DialogContent aria-describedby={undefined}>
                                 <DialogHeader>
                                     <DialogTitle className="text-2xl">
                                         Update {label}
