@@ -234,9 +234,9 @@ export const determineMatchingBoundary = _.memoize(
                 break;
             }
             case "brno-district": {
-                // Brno city districts (části města) are admin_level=10 in OSM.
+                // Brno city districts (části města) are admin_level=9 in OSM.
                 // Result is cached server-side in BoundaryCache — Overpass only called on first hit per district.
-                boundary = await findBoundaryFromAPI(question.lat, question.lng, 10);
+                boundary = await findBoundaryFromAPI(question.lat, question.lng, 9);
                 if (!boundary) {
                     toast.error(
                         "No district found at this point — must be inside Brno.",
