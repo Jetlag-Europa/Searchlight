@@ -2,6 +2,7 @@
 // Never call https://discord.com/api/v10/* from anywhere else.
 
 import type { FastifyBaseLogger } from "fastify";
+import { env } from "./env.js";
 
 const DISCORD_API = "https://discord.com/api/v10";
 const GLOBAL_RATE = 50; // req/sec
@@ -145,19 +146,20 @@ export const discord = {
   },
 
   // Returns null when the user is not a member of the guild.
+  // Uses the bot token so OAuth only needs the identify scope.
   async getGuildMember(
     guildId: string,
-    accessToken: string,
+    userId: string,
     logger?: FastifyBaseLogger,
   ): Promise<DiscordGuildMember | null> {
     const res = await request(
-      `/users/@me/guilds/${guildId}/member`,
-      { headers: { Authorization: `Bearer ${accessToken}` } },
+      `/guilds/${guildId}/members/${userId}`,
+      { headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` } },
       logger,
     );
     if (res.status === 404) return null;
     if (!res.ok) {
-      throw new Error(`Discord /users/@me/guilds/${guildId}/member failed: ${res.status}`);
+      throw new Error(`Discord /guilds/${guildId}/members/${userId} failed: ${res.status}`);
     }
     return res.json() as Promise<DiscordGuildMember>;
   },

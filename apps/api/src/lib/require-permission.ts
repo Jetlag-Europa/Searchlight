@@ -20,7 +20,6 @@ export function requirePermission(
     const perms = await getUserPermissions(
       user.discordId,
       serverId,
-      user.discordAccessToken,
       forceRefresh,
       req.log,
     );

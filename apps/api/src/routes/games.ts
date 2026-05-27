@@ -21,7 +21,6 @@ const gameShape = Type.Object({
 async function assertServerMembership(
   userId: string,
   serverId: string,
-  accessToken: string,
   logger: import("fastify").FastifyBaseLogger,
 ): Promise<void> {
   const cached = await prisma.serverMembershipCache.findUnique({
@@ -29,7 +28,7 @@ async function assertServerMembership(
   });
   if (cached) return; // any cache entry (even empty roles) means we fetched membership
 
-  const member = await discord.getGuildMember(serverId, accessToken, logger);
+  const member = await discord.getGuildMember(serverId, userId, logger);
   if (!member) {
     throw Object.assign(new Error("Not a member of this server"), { statusCode: 403 });
   }
@@ -60,7 +59,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const server = await prisma.server.findUnique({ where: { id: serverId } });
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
 
-      await assertServerMembership(user.discordId, serverId, user.discordAccessToken, req.log);
+      await assertServerMembership(user.discordId, serverId, req.log);
 
       const games = await prisma.game.findMany({
         where: { serverId },
@@ -106,7 +105,6 @@ export async function gameRoutes(app: FastifyInstance) {
       const perms = await getUserPermissions(
         user.discordId,
         body.serverId,
-        user.discordAccessToken,
         true,
         req.log,
       );
@@ -147,7 +145,6 @@ export async function gameRoutes(app: FastifyInstance) {
       const perms = await getUserPermissions(
         user.discordId,
         game.serverId,
-        user.discordAccessToken,
         true,
         req.log,
       );
@@ -178,7 +175,6 @@ export async function gameRoutes(app: FastifyInstance) {
       const perms = await getUserPermissions(
         user.discordId,
         game.serverId,
-        user.discordAccessToken,
         true,
         req.log,
       );

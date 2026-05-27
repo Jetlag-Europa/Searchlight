@@ -7,11 +7,10 @@ const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 export async function getUserPermissions(
   userId: string,
   serverId: string,
-  accessToken: string,
   forceRefresh = false,
   logger?: FastifyBaseLogger,
 ): Promise<Set<string>> {
-  const roleIds = await resolveRoleIds(userId, serverId, accessToken, forceRefresh, logger);
+  const roleIds = await resolveRoleIds(userId, serverId, forceRefresh, logger);
 
   if (roleIds.length === 0) return new Set();
 
@@ -26,7 +25,6 @@ export async function getUserPermissions(
 async function resolveRoleIds(
   userId: string,
   serverId: string,
-  accessToken: string,
   forceRefresh: boolean,
   logger?: FastifyBaseLogger,
 ): Promise<string[]> {
@@ -38,16 +36,15 @@ async function resolveRoleIds(
       return cached.roles;
     }
   }
-  return fetchAndCacheRoles(userId, serverId, accessToken, logger);
+  return fetchAndCacheRoles(userId, serverId, logger);
 }
 
 async function fetchAndCacheRoles(
   userId: string,
   serverId: string,
-  accessToken: string,
   logger?: FastifyBaseLogger,
 ): Promise<string[]> {
-  const member = await discord.getGuildMember(serverId, accessToken, logger);
+  const member = await discord.getGuildMember(serverId, userId, logger);
   const roles = member?.roles ?? [];
 
   await prisma.serverMembershipCache.upsert({

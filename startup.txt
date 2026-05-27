@@ -38,6 +38,24 @@ Run these three things, in order:
    API runs at http://localhost:3000
 
 
+## Deploying to production
+
+Pull the latest code into the prod clone, then rebuild just the web container:
+
+  cd /Users/juleswitold/Dev/WriteMap/TaibledFork
+  git pull origin master
+  docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build web
+
+The --project-name writemap flag is required. Without it Docker names containers
+after the directory (taibledfork-*) instead of (writemap-*) and creates a port conflict.
+
+To rebuild everything (api + web):
+
+  docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+The deploy script (infra/deploy-prod.sh) does the same thing and also runs `docker compose ps` at the end.
+
+
 ## IMPORTANT — do NOT run these unless you mean to wipe the database
 
   docker compose down -v          # destroys the volume and ALL data

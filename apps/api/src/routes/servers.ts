@@ -38,7 +38,6 @@ export async function serverRoutes(app: FastifyInstance) {
           const perms = await getUserPermissions(
             user.discordId,
             server.id,
-            user.discordAccessToken,
             false,
             req.log,
           );
