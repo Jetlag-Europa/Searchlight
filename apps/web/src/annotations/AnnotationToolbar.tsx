@@ -116,7 +116,7 @@ export function AnnotationToolbar() {
                 )}
                 variant="outline"
             >
-                <Power />
+                {$drawingEnabled ? <Power /> : <Pencil />}
             </Toggle>
 
             {$drawingEnabled && (
