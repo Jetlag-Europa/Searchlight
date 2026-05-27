@@ -1,46 +1,53 @@
 STARTUP GUIDE
 =============
 
-Everything runs from /Users/juleswitold/Dev/WriteMap-Dev/TaibledFork/ — this is
-the working directory for both local dev and the two Docker stacks (dev + prod).
-All docker compose commands below must be run from that directory.
+Two separate git clones, one per stack:
 
+  Dev clone:  /Users/juleswitold/Dev/WriteMap-Dev/TaibledFork/
+              devhideandseek.lucifersserver.com  /  apidevhideandseek.lucifersserver.com
 
-## Two Docker stacks
+  Prod clone: /Users/juleswitold/Dev/WriteMap/TaibledFork/
+              hideandseek.lucifersserver.com  /  apihideandseek.lucifersserver.com
 
-Both stacks run in parallel from the same directory, kept separate by project name:
-
-  Stack       Project name    Compose files                              Env file    Ports
-  ─────────── ─────────────── ──────────────────────────────────────── ─────────── ──────────────
-  Dev         writemap-dev    docker-compose.yml + docker-compose.dev.yml   .env      API :3100, Web :8180
-  Prod        writemap        docker-compose.yml + docker-compose.prod.yml  .env.prod API :3000, Web :8080
-
-The --project-name flag is required. Without it Docker names containers after the
-directory (taibledfork-*) and conflicts with whichever stack is already running.
+Each clone has its own .env with the URLs for that environment. Never run the prod
+docker compose command from the dev clone or vice versa — they use different .env files
+and would bake the wrong URLs into the containers.
 
 
 ## Rebuilding after a code change
 
-Rebuild and restart just the API (most common):
+Always cd into the correct clone first, then:
 
-  Dev:
-    docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d --build api
-
-  Prod:
-    docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build api
-
-Rebuild everything (api + web):
-
-  Dev:
+  Dev (from /Users/juleswitold/Dev/WriteMap-Dev/TaibledFork/):
     docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
-  Prod:
+  Prod (from /Users/juleswitold/Dev/WriteMap/TaibledFork/):
     docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
-If Docker's layer cache is stale and not picking up your source changes, add --no-cache:
+To rebuild only the API (faster, skips rebuilding the web container):
+
+  Dev:  docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d --build api
+  Prod: docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build api
+
+The --project-name flag is required. Without it Docker names containers after the
+directory (taibledfork-*) and conflicts with the other running stack.
+
+If Docker's layer cache is stale and not picking up source changes, add --no-cache to
+the build step:
 
   docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml build --no-cache api
   docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d api
+
+
+## Typical deploy workflow
+
+1. Edit code and commit in the dev clone (WriteMap-Dev/TaibledFork).
+2. Push to GitHub.
+3. Test on devhideandseek.lucifersserver.com.
+4. When happy, pull into the prod clone and rebuild:
+     cd /Users/juleswitold/Dev/WriteMap/TaibledFork
+     git pull
+     docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 
 ## Checking logs
@@ -51,40 +58,28 @@ If Docker's layer cache is stale and not picking up your source changes, add --n
   docker logs writemap-web-1     --tail 30 -f
 
 
-## Environment files
-
-  .env       — dev stack values (apidevhideandseek / devhideandseek URLs)
-  .env.prod  — prod stack values (apihideandseek / hideandseek URLs)
-
-Both are gitignored. If .env.prod is missing, create it from .env and swap the URLs:
-  sed -e 's|apidevhideandseek|apihideandseek|g' -e 's|devhideandseek|hideandseek|g' .env > .env.prod
-
-
 ## Local Vite dev (no Docker, fastest iteration)
 
-Run these three things in order from TaibledFork/:
+Run from the dev clone (WriteMap-Dev/TaibledFork/):
 
-1. Postgres — already running via Docker (either stack's postgres will do):
-
+1. Make sure the dev Postgres is running:
      docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
 
-2. API — from TaibledFork/apps/api/:
-
+2. API — from apps/api/:
      node --env-file=../../.env --watch --import tsx/esm src/index.ts
 
 3. Web — from TaibledFork/:
-
      pnpm --filter web dev
 
    Web: http://localhost:4321    API: http://localhost:3000
 
-HMR applies only to the Vite dev server. Changes do NOT hot-reload in the Docker
+HMR applies only to the Vite dev server. Changes do NOT hot-reload in Docker
 stacks — you must rebuild the container to see them.
 
 
 ## First time / after a fresh clone
 
-Run once to create tables and seed initial data:
+Run once per clone to create tables and seed initial data:
 
   cd apps/api
   DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx prisma migrate deploy
