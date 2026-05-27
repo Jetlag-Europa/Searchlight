@@ -1,30 +1,72 @@
 STARTUP GUIDE
 =============
 
-## First time / after a fresh clone
-
-Run these once to set up the database:
-
-  cd TaibledFork/apps/api
-  DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx prisma migrate deploy
-  DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx tsx prisma/seed.ts
-
-This creates all tables and seeds servers, games, and role permissions.
-You only need to redo this if you wipe the Docker volume (see below).
+Everything runs from /Users/juleswitold/Dev/WriteMap-Dev/TaibledFork/ — this is
+the working directory for both local dev and the two Docker stacks (dev + prod).
+All docker compose commands below must be run from that directory.
 
 
-## Every time
+## Two Docker stacks
 
-Run these three things, in order:
+Both stacks run in parallel from the same directory, kept separate by project name:
 
-1. Postgres (Docker) — from TaibledFork/:
+  Stack       Project name    Compose files                              Env file    Ports
+  ─────────── ─────────────── ──────────────────────────────────────── ─────────── ──────────────
+  Dev         writemap-dev    docker-compose.yml + docker-compose.dev.yml   .env      API :3100, Web :8180
+  Prod        writemap        docker-compose.yml + docker-compose.prod.yml  .env.prod API :3000, Web :8080
 
-     docker compose up -d postgres
+The --project-name flag is required. Without it Docker names containers after the
+directory (taibledfork-*) and conflicts with whichever stack is already running.
 
-   If you see "taibledfork-postgres-1" in `docker ps`, it's already running — skip this.
-   The database lives in a Docker named volume (taibledfork_postgres_data).
-   As long as you don't run `docker compose down -v` or `docker volume rm`, the data persists
-   across reboots, docker restarts, and even moving the project folder.
+
+## Rebuilding after a code change
+
+Rebuild and restart just the API (most common):
+
+  Dev:
+    docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d --build api
+
+  Prod:
+    docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build api
+
+Rebuild everything (api + web):
+
+  Dev:
+    docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+
+  Prod:
+    docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+If Docker's layer cache is stale and not picking up your source changes, add --no-cache:
+
+  docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml build --no-cache api
+  docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d api
+
+
+## Checking logs
+
+  docker logs writemap-dev-api-1 --tail 30 -f
+  docker logs writemap-api-1     --tail 30 -f
+  docker logs writemap-dev-web-1 --tail 30 -f
+  docker logs writemap-web-1     --tail 30 -f
+
+
+## Environment files
+
+  .env       — dev stack values (apidevhideandseek / devhideandseek URLs)
+  .env.prod  — prod stack values (apihideandseek / hideandseek URLs)
+
+Both are gitignored. If .env.prod is missing, create it from .env and swap the URLs:
+  sed -e 's|apidevhideandseek|apihideandseek|g' -e 's|devhideandseek|hideandseek|g' .env > .env.prod
+
+
+## Local Vite dev (no Docker, fastest iteration)
+
+Run these three things in order from TaibledFork/:
+
+1. Postgres — already running via Docker (either stack's postgres will do):
+
+     docker compose --project-name writemap-dev -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
 
 2. API — from TaibledFork/apps/api/:
 
@@ -34,42 +76,36 @@ Run these three things, in order:
 
      pnpm --filter web dev
 
-   Web runs at http://localhost:4321
-   API runs at http://localhost:3000
+   Web: http://localhost:4321    API: http://localhost:3000
+
+HMR applies only to the Vite dev server. Changes do NOT hot-reload in the Docker
+stacks — you must rebuild the container to see them.
 
 
-## Deploying to production
+## First time / after a fresh clone
 
-Pull the latest code into the prod clone, then rebuild just the web container:
+Run once to create tables and seed initial data:
 
-  cd /Users/juleswitold/Dev/WriteMap/TaibledFork
-  git pull origin master
-  docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build web
+  cd apps/api
+  DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx prisma migrate deploy
+  DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2-) npx tsx prisma/seed.ts
 
-The --project-name writemap flag is required. Without it Docker names containers
-after the directory (taibledfork-*) instead of (writemap-*) and creates a port conflict.
-
-To rebuild everything (api + web):
-
-  docker compose --project-name writemap -f docker-compose.yml -f docker-compose.prod.yml up -d --build
-
-The deploy script (infra/deploy-prod.sh) does the same thing and also runs `docker compose ps` at the end.
+Only needed again if you wipe the Docker volume (see below).
 
 
 ## IMPORTANT — do NOT run these unless you mean to wipe the database
 
-  docker compose down -v          # destroys the volume and ALL data
-  docker volume rm taibledfork_postgres_data   # same
+  docker compose --project-name writemap-dev down -v   # wipes dev DB
+  docker compose --project-name writemap down -v       # wipes prod DB
 
-`docker compose down` (without -v) is safe — it stops the container but keeps the volume.
+`down` without `-v` is safe — stops containers but keeps the volume and all data.
+
+Volume names:
+  writemap-dev_postgres_data   (dev)
+  writemap_postgres_data       (prod)
 
 
-## If the API can't reach the database
+## Verify the stacks are healthy
 
-The docker-compose.override.yml exposes port 5433 to localhost (required for the local API).
-Make sure that file is present at TaibledFork/docker-compose.override.yml.
-If it got deleted, recreate it:
-
-  echo 'services:\n  postgres:\n    ports:\n      - "127.0.0.1:5433:5432"' > docker-compose.override.yml
-
-Then restart postgres: docker compose down postgres && docker compose up -d postgres
+  curl https://apidevhideandseek.lucifersserver.com/health   # → {"ok":true}
+  curl https://apihideandseek.lucifersserver.com/health      # → {"ok":true}
