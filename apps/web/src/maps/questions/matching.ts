@@ -17,6 +17,21 @@ import {
     mapGeoLocation,
     polyGeoJSON,
 } from "@/lib/context";
+
+const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+// Calls the backend boundary endpoint which handles Overpass + DB caching.
+// Returns a GeoJSON Feature (same shape as findAdminBoundary).
+const findBoundaryFromAPI = async (lat: number, lng: number, adminLevel: number) => {
+    const res = await fetch(
+        `${API_BASE}/boundaries/by-point?lat=${lat}&lng=${lng}&adminLevel=${adminLevel}`,
+        { credentials: "include" },
+    );
+    if (!res.ok) throw new Error(`Boundary API error: ${res.status}`);
+    const data = await res.json();
+    const geo = osmtogeojson(data as object);
+    return geo.features?.[0];
+};
 import {
     findAdminBoundary,
     findLuxembourgDistrictBoundary,
@@ -215,6 +230,18 @@ export const determineMatchingBoundary = _.memoize(
                         "No district found at this point — must be inside Luxembourg.",
                     );
                     throw new Error("No district found");
+                }
+                break;
+            }
+            case "brno-district": {
+                // Brno city districts (části města) are admin_level=10 in OSM.
+                // Result is cached server-side in BoundaryCache — Overpass only called on first hit per district.
+                boundary = await findBoundaryFromAPI(question.lat, question.lng, 10);
+                if (!boundary) {
+                    toast.error(
+                        "No district found at this point — must be inside Brno.",
+                    );
+                    throw new Error("No Brno district found");
                 }
                 break;
             }

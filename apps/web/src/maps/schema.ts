@@ -323,15 +323,33 @@ const luxPointMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("brno-district").describe("Same District (Brno)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
     luxAdminMatchingQuestionsSchema.describe(NO_GROUP),
     luxPointMatchingQuestionsSchema.describe(NO_GROUP),
+    brnoMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
 ]);
+
+// Maps a question type value to the game sentinel it requires.
+// Types listed here are hidden in the selector unless that game is active.
+// Add new game-specific types here as they are introduced.
+export const GAME_GATED_TYPES: Record<string, string> = {
+    "lux-canton":    "__bundled-luxembourg-2026__",
+    "lux-district":  "__bundled-luxembourg-2026__",
+    "lux-mountains": "__bundled-luxembourg-2026__",
+    "lux-hospitals": "__bundled-luxembourg-2026__",
+    "brno-district": "__bundled-brno-2026-v2__",
+};
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
     hiderCloser: z.boolean().default(true),

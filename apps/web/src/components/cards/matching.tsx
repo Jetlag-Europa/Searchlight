@@ -23,6 +23,7 @@ import {
     questions,
     triggerLocalRefresh,
 } from "@/lib/context";
+import { currentGameId, gamesAtom } from "@/lib/games";
 import { cn } from "@/lib/utils";
 import {
     determineMatchingBoundary,
@@ -30,6 +31,7 @@ import {
 } from "@/maps/questions/matching";
 import {
     determineUnionizedStrings,
+    GAME_GATED_TYPES,
     type MatchingQuestion,
     matchingQuestionSchema,
     NO_GROUP,
@@ -55,6 +57,9 @@ export const MatchingQuestionComponent = ({
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
     const $customInitPref = useStore(customInitPreference);
+    const $currentGameId = useStore(currentGameId);
+    const $games = useStore(gamesAtom);
+    const activeGameSentinel = $games.find((g) => g.id === $currentGameId)?.sentinelValue ?? "";
     const [customDialogOpen, setCustomDialogOpen] = React.useState(false);
     const [pendingCustomType, setPendingCustomType] = React.useState<
         "custom-zone" | "custom-points" | null
@@ -250,6 +255,10 @@ export const MatchingQuestionComponent = ({
                             .flatMap((x) =>
                                 determineUnionizedStrings(x.shape.type),
                             )
+                            .filter((x) => {
+                                const requiredSentinel = GAME_GATED_TYPES[(x._def as any).value];
+                                return !requiredSentinel || requiredSentinel === activeGameSentinel;
+                            })
                             .map((x) => [(x._def as any).value, x.description]),
                     )}
                     groups={matchingQuestionSchema.options
