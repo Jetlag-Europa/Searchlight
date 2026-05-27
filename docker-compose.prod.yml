@@ -7,7 +7,11 @@ services:
   api:
     ports:
       - "3000:3000"
+    env_file: .env.prod
 
   web:
     ports:
       - "8080:80"
+    build:
+      args:
+        PUBLIC_API_BASE: https://apihideandseek.lucifersserver.com
