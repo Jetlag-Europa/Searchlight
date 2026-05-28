@@ -29,6 +29,7 @@ import {
     displayHidingZonesOptions,
     displayHidingZonesStyle,
     followMe,
+    showZoneNames,
     hiderMode,
     hidingRadius,
     hidingRadiusUnits,
@@ -98,6 +99,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $penToolbarVisible = useStore(penToolbarVisible);
     const lastDefaultUnit = useRef($defaultUnit);
     const hasSyncedInitialUnit = useRef(false);
+    const $showZoneNames = useStore(showZoneNames);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
 
@@ -412,6 +414,15 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 data-tutorial-id="share-questions-button"
             >
                 Share
+            </Button>
+            <Button
+                className="w-full shadow-md"
+                variant={$showZoneNames ? "default" : "outline"}
+                onClick={() => {
+                    showZoneNames.set(!$showZoneNames);
+                }}
+            >
+                Zone Labels
             </Button>
             <Button
                 className="w-full shadow-md"

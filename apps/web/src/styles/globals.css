@@ -180,3 +180,20 @@ div.leaflet-control-attribution.leaflet-control {
 [data-tutorial-active="true"] [role="dialog"] {
     position: fixed !important;
 }
+
+/* Zone name labels — permanent Leaflet tooltips on hiding zone polygons */
+.zone-name-label {
+    background: rgba(255, 255, 255, 0.85);
+    border: none;
+    border-radius: 4px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+    color: #1a1a1a;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+.zone-name-label::before {
+    display: none;
+}

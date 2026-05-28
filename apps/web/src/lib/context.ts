@@ -117,6 +117,10 @@ export const displayHidingZonesOptions = persistentAtom<string[]>(
 export const displayHidingZonesStyle = persistentAtom<
     "zones" | "stations" | "no-overlap" | "no-display"
 >("displayHidingZonesStyle", "zones");
+export const showZoneNames = persistentAtom<boolean>("showZoneNames", false, {
+    encode: JSON.stringify,
+    decode: JSON.parse,
+});
 export const questionFinishedMapData = atom<any>(null);
 
 export const trainStations = atom<StationCircle[]>([]);

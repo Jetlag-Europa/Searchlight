@@ -35,6 +35,7 @@ import {
     planningModeEnabled,
     questionFinishedMapData,
     questions,
+    showZoneNames,
     tierRadiusOverrides,
     trainStations,
     useCustomStations as useCustomStationsAtom,
@@ -109,6 +110,7 @@ export const ZoneSidebar = () => {
     const $customStations = useStore(customStationsAtom);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
     const $tierRadiusOverrides = useStore(tierRadiusOverrides);
+    const $showZoneNames = useStore(showZoneNames);
     const $games = useStore(gamesAtom);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
@@ -166,17 +168,35 @@ export const ZoneSidebar = () => {
                 fillColor: "green",
                 fillOpacity: 0.2,
             },
-            onEachFeature: nonOverlappingStations
-                ? (feature, layer) => {
-                      layer.on("click", async () => {
-                          if (!map) return;
-
-                          setHidingZoneModeStationID(
-                              feature.properties.properties.id,
-                          );
-                      });
-                  }
-                : undefined,
+            onEachFeature: (feature, layer) => {
+                if (nonOverlappingStations) {
+                    layer.on("click", async () => {
+                        if (!map) return;
+                        setHidingZoneModeStationID(
+                            feature.properties.properties.id,
+                        );
+                    });
+                }
+                if (
+                    $showZoneNames &&
+                    (feature.geometry?.type === "Polygon" ||
+                        feature.geometry?.type === "MultiPolygon")
+                ) {
+                    const name =
+                        feature.properties?.properties?.["name:en"] ||
+                        feature.properties?.properties?.name ||
+                        feature.properties?.["name:en"] ||
+                        feature.properties?.name ||
+                        "";
+                    if (name) {
+                        (layer as L.Polygon).bindTooltip(name, {
+                            permanent: true,
+                            direction: "center",
+                            className: "zone-name-label",
+                        });
+                    }
+                }
+            },
             pointToLayer(geoJsonPoint, latlng) {
                 const marker = L.marker(latlng, {
                     icon: L.divIcon({
@@ -538,6 +558,7 @@ export const ZoneSidebar = () => {
         $displayHidingZonesStyle,
         $hidingRadius,
         $questionFinishedMapData,
+        $showZoneNames,
         hidingZoneModeStationID,
         stations,
     ]);
