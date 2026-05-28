@@ -18,6 +18,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { activeSessionData } from "@/lib/activeSession";
+import { pendingSessionLoad } from "@/lib/context";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_INTERVAL_MS = 30_000;
@@ -50,14 +51,18 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, []);
 
-    const handleAccept = async (inviteId: string) => {
+    const handleAccept = async (invite: InviteSummary) => {
         setActionLoading(true);
         try {
-            const res = await fetch(`${API_BASE}/sessions/invites/${inviteId}/accept`, {
+            const res = await fetch(`${API_BASE}/sessions/invites/${invite.id}/accept`, {
                 method: "POST",
                 credentials: "include",
             });
-            if (res.ok) setInvites((prev) => prev.filter((i) => i.id !== inviteId));
+            if (res.ok) {
+                setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+                setOpen(false);
+                pendingSessionLoad.set(invite.sessionId);
+            }
         } finally {
             setActionLoading(false);
         }
@@ -302,7 +307,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                     <div className="flex gap-2 shrink-0">
                                         <Button
                                             size="sm"
-                                            onClick={() => handleAccept(invite.id)}
+                                            onClick={() => handleAccept(invite)}
                                             disabled={actionLoading}
                                         >
                                             Accept

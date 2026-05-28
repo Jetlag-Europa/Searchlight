@@ -441,3 +441,7 @@ export const pendingEventCount = atom<number>(0);
 
 export type PresenceUser = { userId: string; displayName: string; avatarUrl: string };
 export const connectedUsers = atom<PresenceUser[]>([]);
+
+// ── Cross-island session load request ─────────────────────────────────────────
+// InviteDrawer sets this to a sessionId; SessionManager listens and loads it.
+export const pendingSessionLoad = atom<string | null>(null);

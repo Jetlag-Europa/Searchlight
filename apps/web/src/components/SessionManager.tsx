@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useStore } from "@nanostores/react";
 import type { ServersResponse, SessionsResponse, GameSessionSummary } from "@taibled/shared";
-import { questions, sidebarContextR } from "@/lib/context";
+import { questions, sidebarContextR, pendingSessionLoad } from "@/lib/context";
 import {
     activeSessionId,
     activeSessionData,
@@ -479,6 +479,22 @@ export function SessionManager() {
         setActiveSession(selected);
         setShowPicker(false);
     }, []);
+
+    // Listen for invite-accept session loads from InviteDrawer (separate island).
+    useEffect(() => {
+        return pendingSessionLoad.listen(async (sessionId) => {
+            if (!sessionId) return;
+            pendingSessionLoad.set(null);
+            try {
+                const res = await fetch(`${API_BASE}/sessions/${sessionId}`, { credentials: "include" });
+                if (!res.ok) return;
+                const data: GameSessionSummary = await res.json();
+                await handleSessionSelected(data);
+            } catch (e) {
+                console.warn("[taibled:session] invite-triggered load failed:", e);
+            }
+        });
+    }, [handleSessionSelected]);
 
     if (loading) {
         return (
