@@ -49,6 +49,8 @@ function SessionPickerOverlay({
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [leavingId, setLeavingId] = useState<string | null>(null);
+    const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
 
     useEffect(() => {
         fetch(`${API_BASE}/servers`, { credentials: "include" })
@@ -111,6 +113,28 @@ function SessionPickerOverlay({
             setError(`Failed to delete session: ${(e as Error).message}`);
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    const handleLeaveSession = async (sessionId: string) => {
+        if (confirmLeaveId !== sessionId) {
+            setConfirmLeaveId(sessionId);
+            return;
+        }
+        setLeavingId(sessionId);
+        setConfirmLeaveId(null);
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${sessionId}/leave`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error(`${res.status}`);
+            setSessions((prev) => prev?.filter((s) => s.id !== sessionId) ?? null);
+            if (activeSessionId.get() === sessionId) clearActiveSession();
+        } catch (e: unknown) {
+            setError(`Failed to leave session: ${(e as Error).message}`);
+        } finally {
+            setLeavingId(null);
         }
     };
 
@@ -189,6 +213,7 @@ function SessionPickerOverlay({
                                         className="flex items-center border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors group/row"
                                         onMouseLeave={() => {
                                             if (confirmDeleteId === session.id) setConfirmDeleteId(null);
+                                            if (confirmLeaveId === session.id) setConfirmLeaveId(null);
                                         }}
                                     >
                                         <button
@@ -214,6 +239,20 @@ function SessionPickerOverlay({
                                                 title={confirmDeleteId === session.id ? "Click again to confirm" : "Delete session"}
                                             >
                                                 {deletingId === session.id ? "…" : confirmDeleteId === session.id ? "Confirm?" : "✕"}
+                                            </button>
+                                        )}
+                                        {session.role === "member" && (
+                                            <button
+                                                onClick={() => handleLeaveSession(session.id)}
+                                                disabled={leavingId === session.id}
+                                                className={`shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors ${
+                                                    confirmLeaveId === session.id
+                                                        ? "text-destructive hover:bg-destructive/10 font-medium"
+                                                        : "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100"
+                                                }`}
+                                                title={confirmLeaveId === session.id ? "Click again to confirm" : "Leave session"}
+                                            >
+                                                {leavingId === session.id ? "…" : confirmLeaveId === session.id ? "Confirm?" : "Leave"}
                                             </button>
                                         )}
                                     </div>

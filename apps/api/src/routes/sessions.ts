@@ -495,6 +495,30 @@ export async function sessionRoutes(app: FastifyInstance) {
     },
   );
 
+  // DELETE /sessions/:sessionId/leave — participant leaves a shared session
+  app.delete(
+    "/:sessionId/leave",
+    {
+      schema: { params: Type.Object({ sessionId: Type.String() }) },
+    },
+    async (req, reply) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+
+      const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
+      if (isCreator) throw forbidden("Session creator cannot leave — delete the session instead");
+
+      await prisma.sessionParticipant.update({
+        where: { sessionId_userId: { sessionId, userId: user.discordId } },
+        data: { revokedAt: new Date() },
+      });
+
+      req.log.info({ sessionId, userId: user.discordId }, "[sessions] participant left session");
+      void session;
+      return reply.status(204).send();
+    },
+  );
+
   // DELETE /sessions/:sessionId/invites/:inviteId — revoke invite (creator only)
   app.delete(
     "/:sessionId/invites/:inviteId",
