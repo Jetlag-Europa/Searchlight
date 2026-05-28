@@ -103,43 +103,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
 
-    const handleClearAllCache = async () => {
-        const ok = window.confirm(
-            "This wipes ALL local data — saved games, custom stations, OSM cache, " +
-                "annotations, settings — and reloads the page. You'll be back to a " +
-                "fresh first-time-user state. Continue?",
-        );
-        if (!ok) return;
-
-        if (typeof caches !== "undefined") {
-            try {
-                const keys = await caches.keys();
-                await Promise.all(keys.map((k) => caches.delete(k)));
-            } catch (e) {
-                console.warn("[clear] caches:", e);
-            }
-        }
-        try {
-            localStorage.clear();
-        } catch (e) {
-            console.warn("[clear] localStorage:", e);
-        }
-        try {
-            sessionStorage.clear();
-        } catch (e) {
-            console.warn("[clear] sessionStorage:", e);
-        }
-        if ("serviceWorker" in navigator) {
-            try {
-                const regs = await navigator.serviceWorker.getRegistrations();
-                await Promise.all(regs.map((r) => r.unregister()));
-            } catch (e) {
-                console.warn("[clear] sw unregister:", e);
-            }
-        }
-        window.location.reload();
-    };
-
     useEffect(() => {
         const currentDefault = $defaultUnit;
 
@@ -799,23 +762,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     )}
                                 </SidebarMenu>
                             )}
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <Label className="text-center">
-                                Reset everything
-                            </Label>
-                            <p className="text-xs text-muted-foreground text-center max-w-md">
-                                Wipes all saved data, OSM cache, annotations,
-                                settings, and the registered service worker,
-                                then reloads. Use this to hand a clean install
-                                to another player.
-                            </p>
-                            <Button
-                                variant="destructive"
-                                className="w-full max-w-[280px]"
-                                onClick={handleClearAllCache}
-                            >
-                                Clear All Cache
-                            </Button>
                         </div>
                     </div>
                 </DrawerContent>

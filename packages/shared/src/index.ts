@@ -198,4 +198,35 @@ export interface QuestionsResponse {
 
 export interface ReplaceQuestionsBody {
   questions: QuestionRecord[];
+  replacementId?: string;
+}
+
+// ── Presence ─────────────────────────────────────────────────────────────────
+
+export interface PresenceUser {
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+}
+
+export type PresenceEvent =
+  | { type: "presence.snapshot"; payloadJson: { users: PresenceUser[] } }
+  | { type: "presence.join"; payloadJson: PresenceUser }
+  | { type: "presence.leave"; payloadJson: { userId: string } };
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+export interface EventRecord {
+  id: string;
+  sessionId: string;
+  userId: string;
+  type: string;
+  payloadJson: unknown;
+  clientUuid: string;
+  clientCreatedAt: string;
+  serverReceivedAt: string;
+}
+
+export interface EventsResponse {
+  events: EventRecord[];
 }

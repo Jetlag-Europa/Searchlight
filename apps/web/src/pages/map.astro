@@ -17,6 +17,7 @@ import { TutorialDialog } from "@/components/TutorialDialog";
 import { AnnotationToolbar } from "@/annotations";
 import { AuthGuard } from "@/components/AuthGuard";
 import { SessionManager } from "@/components/SessionManager";
+import { SyncIndicator } from "@/components/SyncIndicator";
 ---
 
 <Layout className="bg-jetlag">
@@ -41,6 +42,9 @@ import { SessionManager } from "@/components/SessionManager";
 
     <!-- SessionManager shows blocking overlay until a session is selected, then persists session state -->
     <SessionManager client:only="react" />
+
+    <!-- SyncIndicator shows offline/syncing/synced status -->
+    <SyncIndicator client:only="react" />
 
     <SidebarProviderL client:load>
         <SidebarProviderR client:load defaultOpen={false}>

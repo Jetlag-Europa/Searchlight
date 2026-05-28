@@ -430,3 +430,18 @@ const _defaultSidebarCtx: SidebarContextType = {
 
 export const sidebarContextL = atom<SidebarContextType>({ ..._defaultSidebarCtx });
 export const sidebarContextR = atom<SidebarContextType>({ ..._defaultSidebarCtx });
+
+// ── Sync status ───────────────────────────────────────────────────────────────
+
+export type SyncStatus = "synced" | "syncing" | "offline" | "live";
+export const syncStatus = atom<SyncStatus>("synced");
+export const pendingEventCount = atom<number>(0);
+
+// ── Presence ─────────────────────────────────────────────────────────────────
+
+export type PresenceUser = { userId: string; displayName: string; avatarUrl: string };
+export const connectedUsers = atom<PresenceUser[]>([]);
+
+// ── Cross-island session load request ─────────────────────────────────────────
+// InviteDrawer sets this to a sessionId; SessionManager listens and loads it.
+export const pendingSessionLoad = atom<string | null>(null);

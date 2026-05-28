@@ -35,6 +35,7 @@ model User {
   receivedInvites       Invite[]               @relation("ReceivedInvites")
   sentInvites           Invite[]               @relation("SentInvites")
   strokes               Stroke[]
+  events                Event[]
 }
 
 model AuthSession {
@@ -123,6 +124,7 @@ model GameSession {
   invites      Invite[]
   strokes      Stroke[]
   questions    SessionQuestion[]
+  events       Event[]
 
   @@index([serverId])
   @@index([creatorId])
@@ -188,6 +190,22 @@ model SessionQuestion {
   session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, ordinal])
+}
+
+model Event {
+  id               String   @id @default(cuid())
+  sessionId        String
+  userId           String
+  type             String   // "stroke.create" | "stroke.delete" | "questions.replace"
+  payloadJson      Json
+  clientUuid       String   @unique
+  clientCreatedAt  DateTime
+  serverReceivedAt DateTime @default(now())
+
+  session GameSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [discordId])
+
+  @@index([sessionId, serverReceivedAt])
 }
 
 model BoundaryCache {

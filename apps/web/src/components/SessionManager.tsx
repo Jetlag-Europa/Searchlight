@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useStore } from "@nanostores/react";
 import type { ServersResponse, SessionsResponse, GameSessionSummary } from "@taibled/shared";
-import { questions, sidebarContextR } from "@/lib/context";
+import { questions, sidebarContextR, pendingSessionLoad } from "@/lib/context";
 import {
     activeSessionId,
     activeSessionData,
@@ -15,6 +15,15 @@ import {
     type GameDefinition,
 } from "@/lib/games";
 import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave } from "@/lib/sessionState";
+import { shouldSuppressQuestionSave } from "@/lib/questionSaveSuppress";
+import {
+    getCachedSession,
+    getPendingEvents,
+    applyPendingEventsToState,
+} from "@/lib/eventQueue";
+import { startSyncManager, flushPendingEvents } from "@/lib/syncManager";
+import { startSSE, stopSSE } from "@/lib/sseManager";
+import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { Button } from "@/components/ui/button";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -40,6 +49,8 @@ function SessionPickerOverlay({
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [leavingId, setLeavingId] = useState<string | null>(null);
+    const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
 
     useEffect(() => {
         fetch(`${API_BASE}/servers`, { credentials: "include" })
@@ -102,6 +113,28 @@ function SessionPickerOverlay({
             setError(`Failed to delete session: ${(e as Error).message}`);
         } finally {
             setDeletingId(null);
+        }
+    };
+
+    const handleLeaveSession = async (sessionId: string) => {
+        if (confirmLeaveId !== sessionId) {
+            setConfirmLeaveId(sessionId);
+            return;
+        }
+        setLeavingId(sessionId);
+        setConfirmLeaveId(null);
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${sessionId}/leave`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error(`${res.status}`);
+            setSessions((prev) => prev?.filter((s) => s.id !== sessionId) ?? null);
+            if (activeSessionId.get() === sessionId) clearActiveSession();
+        } catch (e: unknown) {
+            setError(`Failed to leave session: ${(e as Error).message}`);
+        } finally {
+            setLeavingId(null);
         }
     };
 
@@ -180,6 +213,7 @@ function SessionPickerOverlay({
                                         className="flex items-center border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors group/row"
                                         onMouseLeave={() => {
                                             if (confirmDeleteId === session.id) setConfirmDeleteId(null);
+                                            if (confirmLeaveId === session.id) setConfirmLeaveId(null);
                                         }}
                                     >
                                         <button
@@ -205,6 +239,20 @@ function SessionPickerOverlay({
                                                 title={confirmDeleteId === session.id ? "Click again to confirm" : "Delete session"}
                                             >
                                                 {deletingId === session.id ? "…" : confirmDeleteId === session.id ? "Confirm?" : "✕"}
+                                            </button>
+                                        )}
+                                        {session.role === "member" && (
+                                            <button
+                                                onClick={() => handleLeaveSession(session.id)}
+                                                disabled={leavingId === session.id}
+                                                className={`shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors ${
+                                                    confirmLeaveId === session.id
+                                                        ? "text-destructive hover:bg-destructive/10 font-medium"
+                                                        : "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100"
+                                                }`}
+                                                title={confirmLeaveId === session.id ? "Click again to confirm" : "Leave session"}
+                                            >
+                                                {leavingId === session.id ? "…" : confirmLeaveId === session.id ? "Confirm?" : "Leave"}
                                             </button>
                                         )}
                                     </div>
@@ -337,20 +385,40 @@ export function SessionManager() {
             suppressNextSaveRef.current = false;
             return;
         }
+        if (shouldSuppressQuestionSave()) {
+            console.info("[taibled:session] suppressing save — questions were set by SSE");
+            return;
+        }
         saveQuestionsDebounced(sessionId, currentQuestions);
     }, [sessionId, currentQuestions]);
 
-    // On mount: validate stored session or show picker
+    // On mount: start sync manager and restore or show picker
     useEffect(() => {
-        // Cancel any save scheduled from the initial render (empty questions + stale sessionId).
+        startSyncManager();
         cancelPendingQuestionSave();
         const storedId = activeSessionId.get();
         if (!storedId) {
             setShowPicker(true);
-            return;
+            return () => stopSSE();
         }
-        setLoading(true);
-        console.info("[taibled:session] restoring stored session", storedId);
+
+        // Try local cache first for instant paint; validate session in background.
+        const cached = getCachedSession(storedId);
+        if (cached) {
+            const pending = getPendingEvents(storedId).filter((e) => e.status === "pending");
+            const derived = applyPendingEventsToState(
+                { strokes: cached.strokes, questions: cached.questions },
+                pending,
+            );
+            suppressNextSaveRef.current = true;
+            strokes.set(derived.strokes);
+            questions.set(derived.questions);
+            console.info("[taibled:session] restored from cache:", storedId, `(${pending.length} pending)`);
+        } else {
+            setLoading(true);
+        }
+
+        console.info("[taibled:session] validating stored session", storedId);
         fetch(`${API_BASE}/sessions/${storedId}`, { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) {
@@ -360,35 +428,71 @@ export function SessionManager() {
                     return;
                 }
                 const data: GameSessionSummary = await res.json();
-                // Load session content (strokes + questions)
-                try {
-                    const { questions: loadedQuestions } = await loadSessionContent(storedId);
-                    console.info("[taibled:session] loaded", loadedQuestions.length, "question(s) from server");
-                    suppressNextSaveRef.current = true;
-                    questions.set(loadedQuestions);
-                    // Fetch games for the session's server and apply game defaults
-                    const games = await fetchGames(data.serverId);
-                    const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
-                    if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
-                } catch (e) {
-                    console.warn("[taibled:session] content load failed, continuing with empty state:", e);
-                }
+                const games = await fetchGames(data.serverId);
+                const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
+                if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
+
                 setActiveSession(data);
                 setShowPicker(false);
+
+                // Always reconcile from server: flush pending first so server has the
+                // latest state, then load authoritative content. On cache hit this runs
+                // in the background (user already sees painted state); on cache miss this
+                // is the first paint. Errors are swallowed so cached state is preserved
+                // when offline.
+                try {
+                    await flushPendingEvents(storedId);
+                    const { questions: serverQs } = await loadSessionContent(storedId);
+                    console.info("[taibled:session] reconciled", serverQs.length, "question(s) from server");
+                    suppressNextSaveRef.current = true;
+                    questions.set(serverQs);
+                    startSSE(storedId);
+                } catch (e) {
+                    console.warn(
+                        cached
+                            ? "[taibled:session] background reconcile failed, keeping cached state"
+                            : "[taibled:session] content load failed",
+                        e,
+                    );
+                }
             })
             .catch((e) => {
-                console.warn("[taibled:session] session fetch error, showing picker:", e);
-                clearActiveSession();
-                setShowPicker(true);
+                console.warn("[taibled:session] session fetch error:", e);
+                if (!cached) {
+                    clearActiveSession();
+                    setShowPicker(true);
+                } else {
+                    // We have cached state — stay in it, just skip picker.
+                    setShowPicker(false);
+                }
             })
             .finally(() => setLoading(false));
+
+        return () => stopSSE();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleSessionSelected = useCallback(async (selected: GameSessionSummary) => {
+        stopSSE();
         cancelPendingQuestionSave();
-        setLoading(true);
         console.info("[taibled:session] selecting session", selected.id, selected.name);
+
+        // Check local cache for instant paint.
+        const cached = getCachedSession(selected.id);
+        if (cached) {
+            const pending = getPendingEvents(selected.id).filter((e) => e.status === "pending");
+            const derived = applyPendingEventsToState(
+                { strokes: cached.strokes, questions: cached.questions },
+                pending,
+            );
+            suppressNextSaveRef.current = true;
+            strokes.set(derived.strokes);
+            questions.set(derived.questions);
+            console.info("[taibled:session] painted from cache, loading server state in background");
+        } else {
+            setLoading(true);
+        }
+
         try {
             const [{ questions: loadedQuestions }, games] = await Promise.all([
                 loadSessionContent(selected.id),
@@ -399,16 +503,37 @@ export function SessionManager() {
             questions.set(loadedQuestions);
             const game = games.find((g) => g.id === selected.gameId);
             if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
-            setActiveSession(selected);
-            setShowPicker(false);
+            // Flush any pending events for this session, then start live channel.
+            flushPendingEvents(selected.id).catch(() => {});
+            startSSE(selected.id);
         } catch (e: unknown) {
             console.warn("[taibled:session] failed to load session content:", e);
-            setActiveSession(selected);
-            setShowPicker(false);
+            if (!cached) {
+                // No cache and no server — leave atoms empty, still enter session.
+            }
         } finally {
             setLoading(false);
         }
+
+        setActiveSession(selected);
+        setShowPicker(false);
     }, []);
+
+    // Listen for invite-accept session loads from InviteDrawer (separate island).
+    useEffect(() => {
+        return pendingSessionLoad.listen(async (sessionId) => {
+            if (!sessionId) return;
+            pendingSessionLoad.set(null);
+            try {
+                const res = await fetch(`${API_BASE}/sessions/${sessionId}`, { credentials: "include" });
+                if (!res.ok) return;
+                const data: GameSessionSummary = await res.json();
+                await handleSessionSelected(data);
+            } catch (e) {
+                console.warn("[taibled:session] invite-triggered load failed:", e);
+            }
+        });
+    }, [handleSessionSelected]);
 
     if (loading) {
         return (

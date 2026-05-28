@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { broadcast } from "../lib/broadcaster.js";
 
 function notFound(msg = "Not found") {
   return Object.assign(new Error(msg), { statusCode: 404 });
@@ -78,6 +79,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
 
       const { clientUuid, payloadJson } = req.body as { clientUuid: string; payloadJson: unknown };
 
+      const existing = await prisma.stroke.findUnique({ where: { clientUuid } });
       const stroke = await prisma.stroke.upsert({
         where: { clientUuid },
         update: {},
@@ -88,6 +90,36 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           clientUuid,
         },
       });
+
+      if (!existing) {
+        req.log.info({ sessionId, clientUuid }, "[events] new stroke — writing event and broadcasting");
+        prisma.event.upsert({
+          where: { clientUuid: `stroke-create-${clientUuid}` },
+          update: {},
+          create: {
+            sessionId,
+            userId: user.discordId,
+            type: "stroke.create",
+            payloadJson: payloadJson as object,
+            clientUuid: `stroke-create-${clientUuid}`,
+            clientCreatedAt: new Date(),
+          },
+        }).then((e) => {
+          req.log.info({ sessionId, eventId: e.id, clientUuid }, "[events] stroke.create event saved, broadcasting");
+          broadcast(sessionId, {
+            id: e.id,
+            sessionId: e.sessionId,
+            userId: e.userId,
+            type: e.type,
+            payloadJson: e.payloadJson,
+            clientUuid: e.clientUuid,
+            clientCreatedAt: e.clientCreatedAt.toISOString(),
+            serverReceivedAt: e.serverReceivedAt.toISOString(),
+          });
+        }).catch((e: unknown) => req.log.warn({ err: e }, "[events] stroke.create write failed"));
+      } else {
+        req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write");
+      }
 
       return reply.status(201).send({
         id: stroke.id,
@@ -116,6 +148,32 @@ export async function sessionContentRoutes(app: FastifyInstance) {
         where: { clientUuid, sessionId, deletedAt: null },
         data: { deletedAt: new Date() },
       });
+
+      req.log.info({ sessionId, clientUuid }, "[events] stroke.delete — writing event and broadcasting");
+      prisma.event.upsert({
+        where: { clientUuid: `stroke-delete-${clientUuid}` },
+        update: {},
+        create: {
+          sessionId,
+          userId: user.discordId,
+          type: "stroke.delete",
+          payloadJson: { clientUuid },
+          clientUuid: `stroke-delete-${clientUuid}`,
+          clientCreatedAt: new Date(),
+        },
+      }).then((e) => {
+        req.log.info({ sessionId, eventId: e.id, clientUuid }, "[events] stroke.delete event saved, broadcasting");
+        broadcast(sessionId, {
+          id: e.id,
+          sessionId: e.sessionId,
+          userId: e.userId,
+          type: e.type,
+          payloadJson: e.payloadJson,
+          clientUuid: e.clientUuid,
+          clientCreatedAt: e.clientCreatedAt.toISOString(),
+          serverReceivedAt: e.serverReceivedAt.toISOString(),
+        });
+      }).catch((e: unknown) => req.log.warn({ err: e }, "[events] stroke.delete write failed"));
 
       return reply.status(204).send();
     },
@@ -163,6 +221,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
               payloadJson: Type.Unknown(),
             }),
           ),
+          replacementId: Type.Optional(Type.String()),
         }),
       },
     },
@@ -171,7 +230,10 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await assertParticipant(sessionId, user.discordId);
 
-      const incoming = (req.body as { questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }> }).questions;
+      const { questions: incoming, replacementId } = req.body as {
+        questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }>;
+        replacementId?: string;
+      };
 
       await prisma.$transaction([
         prisma.sessionQuestion.deleteMany({ where: { sessionId } }),
@@ -184,6 +246,36 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           })),
         }),
       ]);
+
+      if (replacementId) {
+        req.log.info({ sessionId, replacementId, questionCount: incoming.length }, "[events] questions.replace — writing event and broadcasting");
+        prisma.event.upsert({
+          where: { clientUuid: `questions-replace-${replacementId}` },
+          update: {},
+          create: {
+            sessionId,
+            userId: user.discordId,
+            type: "questions.replace",
+            payloadJson: { replacementId, questions: incoming } as object,
+            clientUuid: `questions-replace-${replacementId}`,
+            clientCreatedAt: new Date(),
+          },
+        }).then((e) => {
+          req.log.info({ sessionId, eventId: e.id, replacementId }, "[events] questions.replace event saved, broadcasting");
+          broadcast(sessionId, {
+            id: e.id,
+            sessionId: e.sessionId,
+            userId: e.userId,
+            type: e.type,
+            payloadJson: e.payloadJson,
+            clientUuid: e.clientUuid,
+            clientCreatedAt: e.clientCreatedAt.toISOString(),
+            serverReceivedAt: e.serverReceivedAt.toISOString(),
+          });
+        }).catch((e: unknown) => req.log.warn({ err: e }, "[events] questions.replace write failed"));
+      } else {
+        req.log.info({ sessionId }, "[events] questions.replace — no replacementId, skipping event write");
+      }
 
       return reply.status(204).send();
     },
