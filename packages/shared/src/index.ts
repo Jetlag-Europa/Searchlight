@@ -201,6 +201,19 @@ export interface ReplaceQuestionsBody {
   replacementId?: string;
 }
 
+// ── Presence ─────────────────────────────────────────────────────────────────
+
+export interface PresenceUser {
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
+}
+
+export type PresenceEvent =
+  | { type: "presence.snapshot"; payloadJson: { users: PresenceUser[] } }
+  | { type: "presence.join"; payloadJson: PresenceUser }
+  | { type: "presence.leave"; payloadJson: { userId: string } };
+
 // ── Events ────────────────────────────────────────────────────────────────────
 
 export interface EventRecord {

@@ -436,3 +436,8 @@ export const sidebarContextR = atom<SidebarContextType>({ ..._defaultSidebarCtx 
 export type SyncStatus = "synced" | "syncing" | "offline" | "live";
 export const syncStatus = atom<SyncStatus>("synced");
 export const pendingEventCount = atom<number>(0);
+
+// ── Presence ─────────────────────────────────────────────────────────────────
+
+export type PresenceUser = { userId: string; displayName: string; avatarUrl: string };
+export const connectedUsers = atom<PresenceUser[]>([]);

@@ -1,5 +1,6 @@
 import type { EventRecord } from "@taibled/shared";
-import { questions, syncStatus } from "@/lib/context";
+import { questions, syncStatus, connectedUsers } from "@/lib/context";
+import type { PresenceUser } from "@/lib/context";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { getPendingEvents, getCachedSession, setCachedSession } from "@/lib/eventQueue";
 import { suppressNextQuestionSave } from "@/lib/questionSaveSuppress";
@@ -68,6 +69,25 @@ function handleServerEvent(event: EventRecord): void {
     }
 }
 
+function handlePresenceEvent(type: string, payloadJson: unknown): void {
+    if (type === "presence.snapshot") {
+        const { users } = payloadJson as { users: PresenceUser[] };
+        console.info("[taibled:sse] presence.snapshot:", users.length, "user(s)");
+        connectedUsers.set(users);
+    } else if (type === "presence.join") {
+        const user = payloadJson as PresenceUser;
+        const current = connectedUsers.get();
+        if (!current.find((u) => u.userId === user.userId)) {
+            console.info("[taibled:sse] presence.join:", user.displayName);
+            connectedUsers.set([...current, user]);
+        }
+    } else if (type === "presence.leave") {
+        const { userId } = payloadJson as { userId: string };
+        console.info("[taibled:sse] presence.leave:", userId);
+        connectedUsers.set(connectedUsers.get().filter((u) => u.userId !== userId));
+    }
+}
+
 async function gapFill(sessionId: string): Promise<void> {
     if (!lastServerEventAt) {
         console.info("[taibled:sse] gap fill skipped — no lastServerEventAt");
@@ -119,8 +139,12 @@ export function startSSE(sessionId: string): void {
     source.onmessage = (e: MessageEvent) => {
         console.info("[taibled:sse] raw message received, length:", (e.data as string).length);
         try {
-            const event = JSON.parse(e.data as string) as EventRecord;
-            handleServerEvent(event);
+            const parsed = JSON.parse(e.data as string) as { type: string; payloadJson: unknown };
+            if (parsed.type.startsWith("presence.")) {
+                handlePresenceEvent(parsed.type, parsed.payloadJson);
+                return;
+            }
+            handleServerEvent(parsed as unknown as EventRecord);
         } catch (err) {
             console.warn("[taibled:sse] failed to parse SSE message:", err, "raw:", e.data);
         }
@@ -143,6 +167,7 @@ export function stopSSE(): void {
         eventSource = null;
     }
     if (syncStatus.get() === "live") syncStatus.set("synced");
+    connectedUsers.set([]);
     currentSessionId = null;
     lastServerEventAt = null;
     hadError = false;

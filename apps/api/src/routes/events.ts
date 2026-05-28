@@ -2,7 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { subscribe } from "../lib/broadcaster.js";
+import { subscribe, addPresence, removePresence, getPresence } from "../lib/broadcaster.js";
+import type { PresenceUser } from "@taibled/shared";
 import { env } from "../lib/env.js";
 
 async function assertParticipant(sessionId: string, userId: string) {
@@ -71,7 +72,17 @@ export async function eventRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await assertParticipant(sessionId, user.discordId);
 
-      req.log.info({ sessionId, userId: user.discordId }, "[sse] client connected");
+      const userRecord = await prisma.user.findUnique({
+        where: { discordId: user.discordId },
+        select: { displayName: true, avatarUrl: true },
+      });
+      const presenceUser: PresenceUser = {
+        userId: user.discordId,
+        displayName: userRecord?.displayName ?? user.discordId,
+        avatarUrl: userRecord?.avatarUrl ?? "",
+      };
+
+      req.log.info({ sessionId, userId: user.discordId, displayName: presenceUser.displayName }, "[sse] client connected");
 
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
@@ -85,9 +96,17 @@ export async function eventRoutes(app: FastifyInstance) {
       req.log.info({ sessionId, userId: user.discordId }, "[sse] headers sent, stream open");
 
       const unsubscribe = subscribe(sessionId, (event) => {
-        req.log.info({ sessionId, eventType: event.type, clientUuid: event.clientUuid }, "[sse] pushing event to client");
+        req.log.info({ sessionId, eventType: event.type }, "[sse] pushing event to client");
         reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
       });
+
+      // Send current presence roster to this client before registering them
+      const snapshot = getPresence(sessionId);
+      req.log.info({ sessionId, presenceCount: snapshot.length }, "[sse] sending presence snapshot");
+      reply.raw.write(`data: ${JSON.stringify({ type: "presence.snapshot", payloadJson: { users: snapshot } })}\n\n`);
+
+      // Register presence — broadcasts presence.join to all subscribers including this client
+      addPresence(sessionId, presenceUser);
 
       const keepAlive = setInterval(() => {
         req.log.debug({ sessionId }, "[sse] ping");
@@ -97,6 +116,7 @@ export async function eventRoutes(app: FastifyInstance) {
       req.raw.on("close", () => {
         req.log.info({ sessionId, userId: user.discordId }, "[sse] client disconnected");
         unsubscribe();
+        removePresence(sessionId, user.discordId);
         clearInterval(keepAlive);
       });
 
