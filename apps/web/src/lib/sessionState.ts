@@ -3,8 +3,22 @@ import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
 import { randomUUID } from "@/lib/utils";
+import {
+    enqueueEvent,
+    markEventSynced,
+    getPendingEvents,
+    setCachedSession,
+    getCachedSession,
+} from "@/lib/eventQueue";
+import { syncStatus, pendingEventCount } from "@/lib/context";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+function refreshSyncCounts(sessionId: string): void {
+    const count = getPendingEvents(sessionId).filter((e) => e.status === "pending").length;
+    pendingEventCount.set(count);
+    if (count === 0) syncStatus.set("synced");
+}
 
 // ── Questions ────────────────────────────────────────────────────────────────
 
@@ -14,7 +28,6 @@ export async function loadQuestionsFromServer(sessionId: string): Promise<Questi
     });
     if (!res.ok) throw new Error(`Failed to load questions: ${res.status}`);
     const data = await res.json() as { questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }> };
-    // The server stores question objects as payloadJson; trust the shape.
     return data.questions.map((q) => q.payloadJson) as unknown as Questions;
 }
 
@@ -22,19 +35,41 @@ export async function saveQuestionsToServer(
     sessionId: string,
     qs: Questions,
 ): Promise<void> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-        method: "PUT",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-            questions: qs.map((q, i) => ({
-                clientUuid: randomUUID(),
-                ordinal: i,
-                payloadJson: q,
-            })),
-        }),
+    const replacementId = randomUUID();
+    const mappedQuestions = qs.map((q, i) => ({
+        clientUuid: randomUUID(),
+        ordinal: i,
+        payloadJson: q,
+    }));
+
+    const event = enqueueEvent({
+        sessionId,
+        type: "questions.replace",
+        payloadJson: { replacementId, questions: mappedQuestions },
+        clientUuid: `questions-replace-${replacementId}`,
+        clientCreatedAt: Date.now(),
     });
-    if (!res.ok) throw new Error(`Failed to save questions: ${res.status}`);
+    refreshSyncCounts(sessionId);
+
+    try {
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ replacementId, questions: mappedQuestions }),
+        });
+        if (!res.ok) throw new Error(`Failed to save questions: ${res.status}`);
+        markEventSynced(sessionId, event.localId);
+        // Keep the cache in sync so offline reloads see the current state.
+        const cachedState = getCachedSession(sessionId);
+        if (cachedState) {
+            setCachedSession({ ...cachedState, questions: qs, lastSyncedAt: Date.now() });
+        }
+        refreshSyncCounts(sessionId);
+    } catch (e) {
+        if (!navigator.onLine) syncStatus.set("offline");
+        throw e;
+    }
 }
 
 let questionSaveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -69,6 +104,15 @@ export async function loadSessionContent(sessionId: string): Promise<{
     ]);
 
     strokes.set(loadedStrokes);
+
+    // Cache the freshly loaded server state for offline-first reloads.
+    setCachedSession({
+        sessionId,
+        strokes: loadedStrokes,
+        questions: loadedQuestions,
+        lastSyncedAt: Date.now(),
+        lastServerEventAt: new Date().toISOString(),
+    });
 
     return { strokes: loadedStrokes, questions: loadedQuestions };
 }

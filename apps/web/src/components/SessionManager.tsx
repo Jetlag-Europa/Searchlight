@@ -15,6 +15,13 @@ import {
     type GameDefinition,
 } from "@/lib/games";
 import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave } from "@/lib/sessionState";
+import {
+    getCachedSession,
+    getPendingEvents,
+    applyPendingEventsToState,
+} from "@/lib/eventQueue";
+import { startSyncManager, flushPendingEvents } from "@/lib/syncManager";
+import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { Button } from "@/components/ui/button";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -340,17 +347,33 @@ export function SessionManager() {
         saveQuestionsDebounced(sessionId, currentQuestions);
     }, [sessionId, currentQuestions]);
 
-    // On mount: validate stored session or show picker
+    // On mount: start sync manager and restore or show picker
     useEffect(() => {
-        // Cancel any save scheduled from the initial render (empty questions + stale sessionId).
+        startSyncManager();
         cancelPendingQuestionSave();
         const storedId = activeSessionId.get();
         if (!storedId) {
             setShowPicker(true);
             return;
         }
-        setLoading(true);
-        console.info("[taibled:session] restoring stored session", storedId);
+
+        // Try local cache first for instant paint; validate session in background.
+        const cached = getCachedSession(storedId);
+        if (cached) {
+            const pending = getPendingEvents(storedId).filter((e) => e.status === "pending");
+            const derived = applyPendingEventsToState(
+                { strokes: cached.strokes, questions: cached.questions },
+                pending,
+            );
+            suppressNextSaveRef.current = true;
+            strokes.set(derived.strokes);
+            questions.set(derived.questions);
+            console.info("[taibled:session] restored from cache:", storedId, `(${pending.length} pending)`);
+        } else {
+            setLoading(true);
+        }
+
+        console.info("[taibled:session] validating stored session", storedId);
         fetch(`${API_BASE}/sessions/${storedId}`, { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) {
@@ -360,26 +383,42 @@ export function SessionManager() {
                     return;
                 }
                 const data: GameSessionSummary = await res.json();
-                // Load session content (strokes + questions)
-                try {
-                    const { questions: loadedQuestions } = await loadSessionContent(storedId);
-                    console.info("[taibled:session] loaded", loadedQuestions.length, "question(s) from server");
-                    suppressNextSaveRef.current = true;
-                    questions.set(loadedQuestions);
-                    // Fetch games for the session's server and apply game defaults
-                    const games = await fetchGames(data.serverId);
-                    const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
-                    if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
-                } catch (e) {
-                    console.warn("[taibled:session] content load failed, continuing with empty state:", e);
-                }
+                const games = await fetchGames(data.serverId);
+                const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
+                if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
+
                 setActiveSession(data);
                 setShowPicker(false);
+
+                // Always reconcile from server: flush pending first so server has the
+                // latest state, then load authoritative content. On cache hit this runs
+                // in the background (user already sees painted state); on cache miss this
+                // is the first paint. Errors are swallowed so cached state is preserved
+                // when offline.
+                try {
+                    await flushPendingEvents(storedId);
+                    const { questions: serverQs } = await loadSessionContent(storedId);
+                    console.info("[taibled:session] reconciled", serverQs.length, "question(s) from server");
+                    suppressNextSaveRef.current = true;
+                    questions.set(serverQs);
+                } catch (e) {
+                    console.warn(
+                        cached
+                            ? "[taibled:session] background reconcile failed, keeping cached state"
+                            : "[taibled:session] content load failed",
+                        e,
+                    );
+                }
             })
             .catch((e) => {
-                console.warn("[taibled:session] session fetch error, showing picker:", e);
-                clearActiveSession();
-                setShowPicker(true);
+                console.warn("[taibled:session] session fetch error:", e);
+                if (!cached) {
+                    clearActiveSession();
+                    setShowPicker(true);
+                } else {
+                    // We have cached state — stay in it, just skip picker.
+                    setShowPicker(false);
+                }
             })
             .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -387,8 +426,24 @@ export function SessionManager() {
 
     const handleSessionSelected = useCallback(async (selected: GameSessionSummary) => {
         cancelPendingQuestionSave();
-        setLoading(true);
         console.info("[taibled:session] selecting session", selected.id, selected.name);
+
+        // Check local cache for instant paint.
+        const cached = getCachedSession(selected.id);
+        if (cached) {
+            const pending = getPendingEvents(selected.id).filter((e) => e.status === "pending");
+            const derived = applyPendingEventsToState(
+                { strokes: cached.strokes, questions: cached.questions },
+                pending,
+            );
+            suppressNextSaveRef.current = true;
+            strokes.set(derived.strokes);
+            questions.set(derived.questions);
+            console.info("[taibled:session] painted from cache, loading server state in background");
+        } else {
+            setLoading(true);
+        }
+
         try {
             const [{ questions: loadedQuestions }, games] = await Promise.all([
                 loadSessionContent(selected.id),
@@ -399,15 +454,19 @@ export function SessionManager() {
             questions.set(loadedQuestions);
             const game = games.find((g) => g.id === selected.gameId);
             if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
-            setActiveSession(selected);
-            setShowPicker(false);
+            // Flush any pending events for this session.
+            flushPendingEvents(selected.id).catch(() => {});
         } catch (e: unknown) {
             console.warn("[taibled:session] failed to load session content:", e);
-            setActiveSession(selected);
-            setShowPicker(false);
+            if (!cached) {
+                // No cache and no server — leave atoms empty, still enter session.
+            }
         } finally {
             setLoading(false);
         }
+
+        setActiveSession(selected);
+        setShowPicker(false);
     }, []);
 
     if (loading) {

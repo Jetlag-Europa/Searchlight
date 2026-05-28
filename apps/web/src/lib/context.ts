@@ -430,3 +430,9 @@ const _defaultSidebarCtx: SidebarContextType = {
 
 export const sidebarContextL = atom<SidebarContextType>({ ..._defaultSidebarCtx });
 export const sidebarContextR = atom<SidebarContextType>({ ..._defaultSidebarCtx });
+
+// ── Sync status ───────────────────────────────────────────────────────────────
+
+export type SyncStatus = "synced" | "syncing" | "offline";
+export const syncStatus = atom<SyncStatus>("synced");
+export const pendingEventCount = atom<number>(0);

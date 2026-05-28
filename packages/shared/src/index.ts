@@ -198,4 +198,22 @@ export interface QuestionsResponse {
 
 export interface ReplaceQuestionsBody {
   questions: QuestionRecord[];
+  replacementId?: string;
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+
+export interface EventRecord {
+  id: string;
+  sessionId: string;
+  userId: string;
+  type: string;
+  payloadJson: unknown;
+  clientUuid: string;
+  clientCreatedAt: string;
+  serverReceivedAt: string;
+}
+
+export interface EventsResponse {
+  events: EventRecord[];
 }

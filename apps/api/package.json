@@ -7,6 +7,7 @@
         "dev": "node --env-file=../../.env --watch --import tsx/esm src/index.ts",
         "build": "tsc",
         "start": "node dist/index.js",
+        "test": "vitest run",
         "postinstall": "prisma generate"
     },
     "dependencies": {
@@ -23,7 +24,8 @@
     "devDependencies": {
         "@types/node": "^22.0.0",
         "tsx": "^4.19.2",
-        "typescript": "^5.7.3"
+        "typescript": "^5.7.3",
+        "vitest": "^3.1.4"
     },
     "engines": {
         "node": "<25"
