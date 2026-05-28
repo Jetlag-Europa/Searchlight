@@ -77,6 +77,8 @@ export const ThermometerQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            enabled={data.enabled ?? true}
+            setEnabled={(v) => questionModified((data.enabled = v))}
         >
             <LatitudeLongitude
                 latitude={data.latA}

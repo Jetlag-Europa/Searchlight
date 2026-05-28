@@ -195,6 +195,8 @@ export const MatchingQuestionComponent = ({
             }}
             locked={!data.drag}
             setLocked={(locked) => questionModified((data.drag = !locked))}
+            enabled={data.enabled ?? true}
+            setEnabled={(v) => questionModified((data.enabled = v))}
         >
             <CustomInitDialog
                 open={customDialogOpen}

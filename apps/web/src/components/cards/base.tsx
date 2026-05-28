@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import { LockIcon, UnlockIcon } from "lucide-react";
+import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { useRef, useState } from "react";
 import { VscChevronDown, VscShare, VscTrash } from "react-icons/vsc";
 
@@ -42,6 +42,8 @@ export const QuestionCard = ({
     collapsed,
     locked,
     setLocked,
+    enabled,
+    setEnabled,
     setCollapsed,
 }: {
     children: React.ReactNode;
@@ -52,6 +54,8 @@ export const QuestionCard = ({
     collapsed?: boolean;
     locked?: boolean;
     setLocked?: (locked: boolean) => void;
+    enabled?: boolean;
+    setEnabled?: (enabled: boolean) => void;
     setCollapsed?: (collapsed: boolean) => void;
 }) => {
     const [isCollapsed, setIsCollapsed] = useState(collapsed ?? false);
@@ -68,7 +72,7 @@ export const QuestionCard = ({
 
     return (
         <>
-            <SidebarGroup className={className}>
+            <SidebarGroup className={cn(className, enabled === false && "opacity-50")}>
                 <div className="relative">
                     <button
                         onClick={toggleCollapse}
@@ -245,6 +249,16 @@ export const QuestionCard = ({
                                     disabled={$isLoading}
                                 >
                                     {locked ? <LockIcon /> : <UnlockIcon />}
+                                </Button>
+                            )}
+                            {enabled !== undefined && (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setEnabled!(!enabled)}
+                                    disabled={$isLoading}
+                                >
+                                    {enabled ? <EyeIcon /> : <EyeOffIcon />}
                                 </Button>
                             )}
                         </div>

@@ -30,6 +30,7 @@ import type { Question, Questions } from "./schema";
 export * from "./geo-utils";
 
 export const hiderifyQuestion = async (question: Question) => {
+    if (question.data.enabled === false) return null;
     if (question.data.drag) {
         switch (question.id) {
             case "radius":
@@ -122,6 +123,7 @@ export async function applyQuestionsToMapGeoData(
                 planningModeCallback(planningPolygon, question);
             }
         }
+        if (question.data.enabled === false) continue;
         if (planningModeEnabled && question.data.drag) {
             continue;
         }

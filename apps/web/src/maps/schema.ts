@@ -99,6 +99,7 @@ const ordinaryBaseQuestionSchema = z.object({
     drag: z.boolean().default(true),
     color: iconColorSchema.default(randomColor),
     collapsed: z.boolean().default(false),
+    enabled: z.boolean().default(true),
 });
 
 const getDefaultUnit = () => {

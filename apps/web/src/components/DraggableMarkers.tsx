@@ -217,6 +217,7 @@ export const DraggableMarkers = () => {
             )}
             {$questions.map((question) => {
                 if (!question.data) return null;
+                if (question.data.enabled === false) return null;
                 if (!question.data.drag) return null;
                 if (
                     question.id === "matching" &&
