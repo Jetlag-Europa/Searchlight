@@ -170,14 +170,6 @@ export const Map = ({ className }: { className?: string }) => {
             }
         }
 
-        if ($hiderMode !== false) {
-            for (const question of $questions) {
-                await hiderifyQuestion(question);
-            }
-
-            triggerLocalRefresh.set(Math.random()); // Refresh the question sidebar with new information but not this map
-        }
-
         map.eachLayer((layer: any) => {
             if (layer.questionKey || layer.questionKey === 0) {
                 map.removeLayer(layer);
@@ -185,6 +177,14 @@ export const Map = ({ className }: { className?: string }) => {
         });
 
         try {
+            if ($hiderMode !== false) {
+                for (const question of $questions) {
+                    await hiderifyQuestion(question);
+                }
+
+                triggerLocalRefresh.set(Math.random()); // Refresh the question sidebar with new information but not this map
+            }
+
             mapGeoData = await applyQuestionsToMapGeoData(
                 $questions,
                 mapGeoData,
