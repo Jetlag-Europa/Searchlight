@@ -16,6 +16,7 @@ const gameShape = Type.Object({
   hidingRadius: Type.Number(),
   hidingRadiusUnits: Type.String(),
   tierRadiusOverrides: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Number()), Type.Null()])),
+  size: Type.String(),
 });
 
 async function assertServerMembership(
@@ -83,6 +84,7 @@ export async function gameRoutes(app: FastifyInstance) {
           mapLocationJson: Type.Unknown(),
           hidingRadius: Type.Number({ minimum: 0 }),
           hidingRadiusUnits: Type.Union([Type.Literal("miles"), Type.Literal("kilometers")]),
+          size: Type.Optional(Type.Union([Type.Literal("small"), Type.Literal("medium"), Type.Literal("large")])),
         }),
         response: { 201: gameShape },
       },
@@ -97,6 +99,7 @@ export async function gameRoutes(app: FastifyInstance) {
         mapLocationJson: unknown;
         hidingRadius: number;
         hidingRadiusUnits: "miles" | "kilometers";
+        size?: "small" | "medium" | "large";
       };
 
       const server = await prisma.server.findUnique({ where: { id: body.serverId } });
@@ -131,6 +134,7 @@ export async function gameRoutes(app: FastifyInstance) {
           hidingRadiusUnits: Type.Optional(
             Type.Union([Type.Literal("miles"), Type.Literal("kilometers")]),
           ),
+          size: Type.Optional(Type.Union([Type.Literal("small"), Type.Literal("medium"), Type.Literal("large")])),
         }),
         response: { 200: gameShape },
       },
@@ -152,7 +156,7 @@ export async function gameRoutes(app: FastifyInstance) {
         throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
       }
 
-      const body = req.body as { name?: string; hidingRadius?: number; hidingRadiusUnits?: string };
+      const body = req.body as { name?: string; hidingRadius?: number; hidingRadiusUnits?: string; size?: string };
       return prisma.game.update({ where: { id: gameId }, data: body });
     },
   );

@@ -56,6 +56,7 @@ export interface Game {
   hidingRadius: number;
   hidingRadiusUnits: "miles" | "kilometers";
   tierRadiusOverrides?: Record<string, number> | null;
+  size: "small" | "medium" | "large";
 }
 
 export interface GamesResponse {
@@ -70,12 +71,14 @@ export interface CreateGameBody {
   mapLocationJson: unknown;
   hidingRadius: number;
   hidingRadiusUnits: "miles" | "kilometers";
+  size?: "small" | "medium" | "large";
 }
 
 export interface UpdateGameBody {
   name?: string;
   hidingRadius?: number;
   hidingRadiusUnits?: "miles" | "kilometers";
+  size?: "small" | "medium" | "large";
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────

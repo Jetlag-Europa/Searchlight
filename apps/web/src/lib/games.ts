@@ -48,6 +48,16 @@ export interface GameDefinition {
     hidingZoneKmlPath?: string | null;
     serverId: string;
     serverName: string;
+    size: "small" | "medium" | "large";
+}
+
+export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
+    switch (size) {
+        case "large": return 11;
+        case "medium": return 13;
+        case "small": return 17;
+        default: return 13;
+    }
 }
 
 const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
@@ -113,6 +123,7 @@ export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
             hidingZoneKmlPath: GAME_HIDING_ZONE_KML_PATHS[g.sentinelValue] ?? null,
             serverId: g.serverId,
             serverName,
+            size: (g.size as "small" | "medium" | "large") ?? "medium",
         }));
 
         gamesAtom.set(defs);

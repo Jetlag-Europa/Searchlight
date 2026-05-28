@@ -197,3 +197,6 @@ div.leaflet-control-attribution.leaflet-control {
 .zone-name-label::before {
     display: none;
 }
+.zone-labels-hidden .zone-name-label {
+    display: none !important;
+}

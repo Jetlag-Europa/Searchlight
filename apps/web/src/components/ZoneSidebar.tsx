@@ -42,9 +42,11 @@ import {
 } from "@/lib/context";
 import {
     activateGameStations,
+    currentGameId,
     gamesAtom,
     getGameSentinels,
     getGameBySentinel,
+    zoneLabelMinZoom,
 } from "@/lib/games";
 import { cn } from "@/lib/utils";
 import {
@@ -112,6 +114,7 @@ export const ZoneSidebar = () => {
     const $tierRadiusOverrides = useStore(tierRadiusOverrides);
     const $showZoneNames = useStore(showZoneNames);
     const $games = useStore(gamesAtom);
+    const $currentGameId = useStore(currentGameId);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
     const isStationSearchActive = stationSearch.trim().length > 0;
@@ -141,6 +144,33 @@ export const ZoneSidebar = () => {
             useCustomStationsAtom.set(false);
         }
     }, [$displayHidingZonesOptions]);
+
+    // Hide zone name labels when zoomed out too far to avoid overlap
+    const activeGame = $games.find((g) => g.id === $currentGameId);
+    const LABEL_MIN_ZOOM = zoneLabelMinZoom(activeGame?.size);
+    useEffect(() => {
+        if (!map || !$showZoneNames) {
+            map?.getContainer().classList.remove("zone-labels-hidden");
+            return;
+        }
+
+        const container = map.getContainer();
+        const update = () => {
+            if (map.getZoom() < LABEL_MIN_ZOOM) {
+                container.classList.add("zone-labels-hidden");
+            } else {
+                container.classList.remove("zone-labels-hidden");
+            }
+        };
+
+        map.on("zoomend", update);
+        update();
+
+        return () => {
+            map.off("zoomend", update);
+            container.classList.remove("zone-labels-hidden");
+        };
+    }, [map, $showZoneNames]);
 
     const removeHidingZones = () => {
         if (!map) return;

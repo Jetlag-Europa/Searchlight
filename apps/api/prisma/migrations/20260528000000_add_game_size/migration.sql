@@ -1,0 +1,1 @@
+ALTER TABLE "Game" ADD COLUMN "size" TEXT NOT NULL DEFAULT 'medium';
