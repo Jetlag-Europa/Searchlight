@@ -15,12 +15,14 @@ import {
     type GameDefinition,
 } from "@/lib/games";
 import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave } from "@/lib/sessionState";
+import { shouldSuppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
     getCachedSession,
     getPendingEvents,
     applyPendingEventsToState,
 } from "@/lib/eventQueue";
 import { startSyncManager, flushPendingEvents } from "@/lib/syncManager";
+import { startSSE, stopSSE } from "@/lib/sseManager";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { Button } from "@/components/ui/button";
 
@@ -344,6 +346,10 @@ export function SessionManager() {
             suppressNextSaveRef.current = false;
             return;
         }
+        if (shouldSuppressQuestionSave()) {
+            console.info("[taibled:session] suppressing save — questions were set by SSE");
+            return;
+        }
         saveQuestionsDebounced(sessionId, currentQuestions);
     }, [sessionId, currentQuestions]);
 
@@ -354,7 +360,7 @@ export function SessionManager() {
         const storedId = activeSessionId.get();
         if (!storedId) {
             setShowPicker(true);
-            return;
+            return () => stopSSE();
         }
 
         // Try local cache first for instant paint; validate session in background.
@@ -401,6 +407,7 @@ export function SessionManager() {
                     console.info("[taibled:session] reconciled", serverQs.length, "question(s) from server");
                     suppressNextSaveRef.current = true;
                     questions.set(serverQs);
+                    startSSE(storedId);
                 } catch (e) {
                     console.warn(
                         cached
@@ -421,10 +428,13 @@ export function SessionManager() {
                 }
             })
             .finally(() => setLoading(false));
+
+        return () => stopSSE();
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleSessionSelected = useCallback(async (selected: GameSessionSummary) => {
+        stopSSE();
         cancelPendingQuestionSave();
         console.info("[taibled:session] selecting session", selected.id, selected.name);
 
@@ -454,8 +464,9 @@ export function SessionManager() {
             questions.set(loadedQuestions);
             const game = games.find((g) => g.id === selected.gameId);
             if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
-            // Flush any pending events for this session.
+            // Flush any pending events for this session, then start live channel.
             flushPendingEvents(selected.id).catch(() => {});
+            startSSE(selected.id);
         } catch (e: unknown) {
             console.warn("[taibled:session] failed to load session content:", e);
             if (!cached) {

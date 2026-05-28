@@ -14,6 +14,15 @@ export function SyncIndicator() {
         );
     }
 
+    if (status === "live") {
+        return (
+            <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[1041] flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs bg-background/90 border border-border shadow-sm backdrop-blur-sm">
+                <span className="h-2 w-2 rounded-full bg-green-500" />
+                <span className="text-muted-foreground">Live</span>
+            </div>
+        );
+    }
+
     if (status === "syncing") {
         return (
             <div className="fixed top-2 left-1/2 -translate-x-1/2 z-[1041] flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs bg-background/90 border border-border shadow-sm backdrop-blur-sm">

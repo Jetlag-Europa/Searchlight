@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { broadcast } from "../lib/broadcaster.js";
 
 function notFound(msg = "Not found") {
   return Object.assign(new Error(msg), { statusCode: 404 });
@@ -91,6 +92,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       });
 
       if (!existing) {
+        req.log.info({ sessionId, clientUuid }, "[events] new stroke — writing event and broadcasting");
         prisma.event.upsert({
           where: { clientUuid: `stroke-create-${clientUuid}` },
           update: {},
@@ -102,7 +104,21 @@ export async function sessionContentRoutes(app: FastifyInstance) {
             clientUuid: `stroke-create-${clientUuid}`,
             clientCreatedAt: new Date(),
           },
+        }).then((e) => {
+          req.log.info({ sessionId, eventId: e.id, clientUuid }, "[events] stroke.create event saved, broadcasting");
+          broadcast(sessionId, {
+            id: e.id,
+            sessionId: e.sessionId,
+            userId: e.userId,
+            type: e.type,
+            payloadJson: e.payloadJson,
+            clientUuid: e.clientUuid,
+            clientCreatedAt: e.clientCreatedAt.toISOString(),
+            serverReceivedAt: e.serverReceivedAt.toISOString(),
+          });
         }).catch((e: unknown) => req.log.warn({ err: e }, "[events] stroke.create write failed"));
+      } else {
+        req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write");
       }
 
       return reply.status(201).send({
@@ -133,6 +149,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
         data: { deletedAt: new Date() },
       });
 
+      req.log.info({ sessionId, clientUuid }, "[events] stroke.delete — writing event and broadcasting");
       prisma.event.upsert({
         where: { clientUuid: `stroke-delete-${clientUuid}` },
         update: {},
@@ -144,6 +161,18 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           clientUuid: `stroke-delete-${clientUuid}`,
           clientCreatedAt: new Date(),
         },
+      }).then((e) => {
+        req.log.info({ sessionId, eventId: e.id, clientUuid }, "[events] stroke.delete event saved, broadcasting");
+        broadcast(sessionId, {
+          id: e.id,
+          sessionId: e.sessionId,
+          userId: e.userId,
+          type: e.type,
+          payloadJson: e.payloadJson,
+          clientUuid: e.clientUuid,
+          clientCreatedAt: e.clientCreatedAt.toISOString(),
+          serverReceivedAt: e.serverReceivedAt.toISOString(),
+        });
       }).catch((e: unknown) => req.log.warn({ err: e }, "[events] stroke.delete write failed"));
 
       return reply.status(204).send();
@@ -219,6 +248,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       ]);
 
       if (replacementId) {
+        req.log.info({ sessionId, replacementId, questionCount: incoming.length }, "[events] questions.replace — writing event and broadcasting");
         prisma.event.upsert({
           where: { clientUuid: `questions-replace-${replacementId}` },
           update: {},
@@ -230,7 +260,21 @@ export async function sessionContentRoutes(app: FastifyInstance) {
             clientUuid: `questions-replace-${replacementId}`,
             clientCreatedAt: new Date(),
           },
+        }).then((e) => {
+          req.log.info({ sessionId, eventId: e.id, replacementId }, "[events] questions.replace event saved, broadcasting");
+          broadcast(sessionId, {
+            id: e.id,
+            sessionId: e.sessionId,
+            userId: e.userId,
+            type: e.type,
+            payloadJson: e.payloadJson,
+            clientUuid: e.clientUuid,
+            clientCreatedAt: e.clientCreatedAt.toISOString(),
+            serverReceivedAt: e.serverReceivedAt.toISOString(),
+          });
         }).catch((e: unknown) => req.log.warn({ err: e }, "[events] questions.replace write failed"));
+      } else {
+        req.log.info({ sessionId }, "[events] questions.replace — no replacementId, skipping event write");
       }
 
       return reply.status(204).send();

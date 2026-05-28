@@ -247,4 +247,32 @@ describe("GET /sessions/:sessionId/events", () => {
     });
     expect(res.statusCode).toBe(403);
   });
+
+  // ── GET /sessions/:sessionId/stream (SSE) ──────────────────────────────────
+  // Auth and access-control only — failure paths complete before reply.hijack().
+  test("stream: 401 without auth cookie", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/stream`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test("stream: 403 when user is not a participant", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION2_ID}/stream`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test("stream: 404 for a session that does not exist", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/nonexistent-stream-id/stream`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(404);
+  });
 });
