@@ -14,6 +14,7 @@ import { userRoutes } from "./routes/users.js";
 import { boundaryRoutes } from "./routes/boundaries.js";
 import { eventRoutes } from "./routes/events.js";
 import { linkRoutes } from "./routes/links.js";
+import { feedbackRoutes } from "./routes/feedback.js";
 
 const app = Fastify({ logger: { level: "info" } }).withTypeProvider<TypeBoxTypeProvider>();
 
@@ -46,6 +47,7 @@ await app.register(userRoutes, { prefix: "/users" });
 await app.register(boundaryRoutes, { prefix: "/boundaries" });
 await app.register(eventRoutes, { prefix: "/sessions" });
 await app.register(linkRoutes, { prefix: "/links" });
+await app.register(feedbackRoutes, { prefix: "/feedback" });
 
 const address = await app.listen({ port: env.PORT, host: "0.0.0.0" });
 app.log.info(`Server listening on ${address}`);

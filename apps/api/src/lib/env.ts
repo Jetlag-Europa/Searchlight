@@ -15,4 +15,5 @@ export const env = {
   DISCORD_BOT_TOKEN: required("DISCORD_BOT_TOKEN"),
   NODE_ENV: process.env["NODE_ENV"] ?? "development",
   PORT: parseInt(process.env["PORT"] ?? "3000", 10),
+  ADMIN_DISCORD_IDS: process.env["ADMIN_DISCORD_IDS"] ?? "",
 };

@@ -397,6 +397,9 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             >
                 Tutorial
             </Button>
+            <a href="/feedback" className="w-full" onClick={() => setNavOpen(false)}>
+                <Button className="w-full shadow-md">Feedback</Button>
+            </a>
             <ShareDrawer className="w-full shadow-md" onOpen={() => setNavOpen(false)} />
             <InviteDrawer className="w-full" onOpen={() => setNavOpen(false)} />
             <Drawer open={isOptionsOpen} onOpenChange={(open) => { setOptionsOpen(open); if (open) setNavOpen(false); }}>

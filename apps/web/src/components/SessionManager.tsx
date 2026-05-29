@@ -428,6 +428,13 @@ export function SessionManager() {
             return () => stopSSE();
         }
 
+        const returnTo = localStorage.getItem("taibled-return-to");
+        if (returnTo) {
+            localStorage.removeItem("taibled-return-to");
+            window.location.href = returnTo;
+            return () => stopSSE();
+        }
+
         const storedId = activeSessionId.get();
         if (!storedId) {
             setShowPicker(true);
