@@ -16,4 +16,5 @@ export const env = {
   NODE_ENV: process.env["NODE_ENV"] ?? "development",
   PORT: parseInt(process.env["PORT"] ?? "3000", 10),
   ADMIN_DISCORD_IDS: process.env["ADMIN_DISCORD_IDS"] ?? "",
+  DISCORD_FEEDBACK_WEBHOOK_URL: process.env["DISCORD_FEEDBACK_WEBHOOK_URL"],
 };

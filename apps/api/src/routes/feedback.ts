@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { env } from "../lib/env.js";
+import { postNewFeedbackWebhook, updateBugReproduceWebhook, postBugFixedWebhook } from "../lib/discord-webhook.js";
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
@@ -144,6 +145,15 @@ export async function feedbackRoutes(app: FastifyInstance) {
         return created;
       });
 
+      // Fire webhook and store the Discord message ID (fire-and-forget)
+      postNewFeedbackWebhook(feedback, user.displayName)
+        .then((messageId) => {
+          if (messageId) {
+            return prisma.feedback.update({ where: { id: feedback.id }, data: { discordMessageId: messageId } });
+          }
+        })
+        .catch((err) => req.log.warn({ err }, "[webhook] Failed to post feedback webhook"));
+
       return reply.status(201).send({ id: feedback.id });
     },
   );
@@ -177,23 +187,39 @@ export async function feedbackRoutes(app: FastifyInstance) {
       const { id } = req.params as { id: string };
       const { voteType } = req.body as { voteType: "up" | "down" };
 
-      const feedback = await prisma.feedback.findUnique({ where: { id } });
+      const feedback = await prisma.feedback.findUnique({
+        where: { id },
+        include: { user: { select: { displayName: true } } },
+      });
       if (!feedback || feedback.status === "closed") throw notFound();
 
       const existing = await prisma.feedbackVote.findUnique({
         where: { feedbackId_userId: { feedbackId: id, userId: user.discordId } },
       });
 
+      let newUserVote: "up" | "down" | null;
       if (existing) {
         if (existing.voteType === voteType) {
           await prisma.feedbackVote.delete({ where: { id: existing.id } });
-          return reply.status(200).send({ userVote: null });
+          newUserVote = null;
+        } else {
+          await prisma.feedbackVote.update({ where: { id: existing.id }, data: { voteType } });
+          newUserVote = voteType;
         }
-        await prisma.feedbackVote.update({ where: { id: existing.id }, data: { voteType } });
-        return reply.status(200).send({ userVote: voteType });
+      } else {
+        await prisma.feedbackVote.create({ data: { feedbackId: id, userId: user.discordId, voteType } });
+        newUserVote = voteType;
       }
-      await prisma.feedbackVote.create({ data: { feedbackId: id, userId: user.discordId, voteType } });
-      return reply.status(200).send({ userVote: voteType });
+
+      // Update the Discord embed reproduce count for bugs (fire-and-forget)
+      if (feedback.type === "bug" && feedback.discordMessageId) {
+        const messageId = feedback.discordMessageId;
+        prisma.feedbackVote.count({ where: { feedbackId: id, voteType: "up" } })
+          .then((count) => updateBugReproduceWebhook(messageId, feedback, count, feedback.user.displayName))
+          .catch((err) => req.log.warn({ err }, "[webhook] Failed to update bug reproduce count"));
+      }
+
+      return reply.status(200).send({ userVote: newUserVote });
     },
   );
 
@@ -217,6 +243,13 @@ export async function feedbackRoutes(app: FastifyInstance) {
       if (!feedback) throw notFound();
 
       await prisma.feedback.update({ where: { id }, data: { status } });
+
+      // Notify Discord when a bug is closed/fixed (fire-and-forget)
+      if (status === "closed" && feedback.type === "bug") {
+        postBugFixedWebhook(feedback.title, user.displayName)
+          .catch((err) => req.log.warn({ err }, "[webhook] Failed to post bug fixed webhook"));
+      }
+
       return reply.status(204).send();
     },
   );
