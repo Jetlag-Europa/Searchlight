@@ -18,7 +18,6 @@ function envLabel(): string {
   return env.FRONTEND_ORIGIN.includes("dev.") ? "Dev" : "Live";
 }
 
-
 function bugEmbed(
   feedback: { title: string; description: string; severity: string | null },
   reproduceCount: number,
@@ -46,6 +45,8 @@ function bugEmbed(
 
 function featureEmbed(
   feedback: { title: string; description: string },
+  upvoteCount: number,
+  downvoteCount: number,
   authorName: string,
 ) {
   return {
@@ -55,6 +56,8 @@ function featureEmbed(
     fields: [
       { name: "Title", value: feedback.title, inline: false },
       { name: "Description", value: truncate(feedback.description, 500), inline: false },
+      { name: "▲ Upvotes", value: String(upvoteCount), inline: true },
+      { name: "▼ Downvotes", value: String(downvoteCount), inline: true },
       { name: "​", value: `[🔗 View Feedback Page](${feedbackUrl()})`, inline: false },
     ],
     footer: { text: `Submitted by ${authorName} · ${envLabel()}` },
@@ -76,6 +79,15 @@ function bugFixedEmbed(feedbackTitle: string, closedByName: string) {
   };
 }
 
+async function patchWebhookMessage(messageId: string, body: object): Promise<void> {
+  const res = await fetch(`${env.DISCORD_FEEDBACK_WEBHOOK_URL}/messages/${messageId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Webhook PATCH failed: ${res.status}`);
+}
+
 export async function postNewFeedbackWebhook(
   feedback: { type: string; title: string; description: string; severity: string | null },
   authorName: string,
@@ -84,12 +96,12 @@ export async function postNewFeedbackWebhook(
 
   const embed = feedback.type === "bug"
     ? bugEmbed(feedback, 0, authorName)
-    : featureEmbed(feedback, authorName);
+    : featureEmbed(feedback, 0, 0, authorName);
 
   const res = await fetch(`${env.DISCORD_FEEDBACK_WEBHOOK_URL}?wait=true`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ embeds: [embed]}),
+    body: JSON.stringify({ embeds: [embed] }),
   });
 
   if (!res.ok) throw new Error(`Webhook POST failed: ${res.status}`);
@@ -105,14 +117,18 @@ export async function updateBugReproduceWebhook(
   authorName: string,
 ): Promise<void> {
   if (!env.DISCORD_FEEDBACK_WEBHOOK_URL) return;
+  await patchWebhookMessage(messageId, { embeds: [bugEmbed(feedback, reproduceCount, authorName)] });
+}
 
-  const res = await fetch(`${env.DISCORD_FEEDBACK_WEBHOOK_URL}/messages/${messageId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ embeds: [bugEmbed(feedback, reproduceCount, authorName)]}),
-  });
-
-  if (!res.ok) throw new Error(`Webhook PATCH failed: ${res.status}`);
+export async function updateFeatureVoteWebhook(
+  messageId: string,
+  feedback: { title: string; description: string },
+  upvoteCount: number,
+  downvoteCount: number,
+  authorName: string,
+): Promise<void> {
+  if (!env.DISCORD_FEEDBACK_WEBHOOK_URL) return;
+  await patchWebhookMessage(messageId, { embeds: [featureEmbed(feedback, upvoteCount, downvoteCount, authorName)] });
 }
 
 export async function postBugFixedWebhook(feedbackTitle: string, closedByName: string): Promise<void> {
@@ -121,7 +137,7 @@ export async function postBugFixedWebhook(feedbackTitle: string, closedByName: s
   const res = await fetch(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ embeds: [bugFixedEmbed(feedbackTitle, closedByName)]}),
+    body: JSON.stringify({ embeds: [bugFixedEmbed(feedbackTitle, closedByName)] }),
   });
 
   if (!res.ok) throw new Error(`Webhook POST failed: ${res.status}`);

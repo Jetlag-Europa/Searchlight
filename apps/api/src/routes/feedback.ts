@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { env } from "../lib/env.js";
-import { postNewFeedbackWebhook, updateBugReproduceWebhook, postBugFixedWebhook } from "../lib/discord-webhook.js";
+import { postNewFeedbackWebhook, updateBugReproduceWebhook, updateFeatureVoteWebhook, postBugFixedWebhook } from "../lib/discord-webhook.js";
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
@@ -211,12 +211,22 @@ export async function feedbackRoutes(app: FastifyInstance) {
         newUserVote = voteType;
       }
 
-      // Update the Discord embed reproduce count for bugs (fire-and-forget)
-      if (feedback.type === "bug" && feedback.discordMessageId) {
+      // Update the Discord embed vote counts (fire-and-forget)
+      if (feedback.discordMessageId) {
         const messageId = feedback.discordMessageId;
-        prisma.feedbackVote.count({ where: { feedbackId: id, voteType: "up" } })
-          .then((count) => updateBugReproduceWebhook(messageId, feedback, count, feedback.user.displayName))
-          .catch((err) => req.log.warn({ err }, "[webhook] Failed to update bug reproduce count"));
+        const authorName = feedback.user.displayName;
+        if (feedback.type === "bug") {
+          prisma.feedbackVote.count({ where: { feedbackId: id, voteType: "up" } })
+            .then((count) => updateBugReproduceWebhook(messageId, feedback, count, authorName))
+            .catch((err) => req.log.warn({ err }, "[webhook] Failed to update bug reproduce count"));
+        } else {
+          Promise.all([
+            prisma.feedbackVote.count({ where: { feedbackId: id, voteType: "up" } }),
+            prisma.feedbackVote.count({ where: { feedbackId: id, voteType: "down" } }),
+          ])
+            .then(([up, down]) => updateFeatureVoteWebhook(messageId, feedback, up, down, authorName))
+            .catch((err) => req.log.warn({ err }, "[webhook] Failed to update feature vote counts"));
+        }
       }
 
       return reply.status(200).send({ userVote: newUserVote });
