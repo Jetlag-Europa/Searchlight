@@ -210,13 +210,11 @@ export async function sessionRoutes(app: FastifyInstance) {
       }
 
       if (invite.inviteType === "fork") {
-        const [originalSession, questions] = await Promise.all([
+        const [originalSession, snapshot] = await Promise.all([
           prisma.gameSession.findUniqueOrThrow({ where: { id: invite.sessionId } }),
-          prisma.sessionQuestion.findMany({
-            where: { sessionId: invite.sessionId },
-            orderBy: { ordinal: "asc" },
-          }),
+          prisma.inviteSnapshot.findUnique({ where: { inviteId } }),
         ]);
+        const questions = (snapshot?.questions ?? []) as Array<{ payloadJson: object; ordinal: number; clientUuid: string }>;
 
         const newSession = await prisma.$transaction(async (tx) => {
           const created = await tx.gameSession.create({
@@ -232,7 +230,7 @@ export async function sessionRoutes(app: FastifyInstance) {
             await tx.sessionQuestion.createMany({
               data: questions.map((q) => ({
                 sessionId: created.id,
-                payloadJson: q.payloadJson as object,
+                payloadJson: q.payloadJson,
                 ordinal: q.ordinal,
                 clientUuid: `fork-${created.id}-${q.clientUuid}`,
               })),
@@ -524,14 +522,27 @@ export async function sessionRoutes(app: FastifyInstance) {
       });
       if (existing) throw conflict("An active invite already exists for this user");
 
-      const invite = await prisma.invite.create({
-        data: {
-          sessionId,
-          invitedUserId,
-          invitedByUserId: user.discordId,
-          inviteType,
-        },
-      });
+      let invite;
+      if (inviteType === "fork") {
+        const questions = await prisma.sessionQuestion.findMany({
+          where: { sessionId },
+          orderBy: { ordinal: "asc" },
+          select: { payloadJson: true, ordinal: true, clientUuid: true },
+        });
+        invite = await prisma.$transaction(async (tx) => {
+          const created = await tx.invite.create({
+            data: { sessionId, invitedUserId, invitedByUserId: user.discordId, inviteType },
+          });
+          await tx.inviteSnapshot.create({
+            data: { inviteId: created.id, questions },
+          });
+          return created;
+        });
+      } else {
+        invite = await prisma.invite.create({
+          data: { sessionId, invitedUserId, invitedByUserId: user.discordId, inviteType },
+        });
+      }
 
       return reply.status(201).send({ id: invite.id, createdAt: invite.createdAt.toISOString() });
     },

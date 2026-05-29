@@ -156,12 +156,22 @@ model Invite {
   declinedAt      DateTime?
   revokedAt       DateTime?
 
-  session     GameSession @relation(fields: [sessionId],       references: [id], onDelete: Cascade)
-  invitedUser User        @relation("ReceivedInvites",         fields: [invitedUserId],   references: [discordId])
-  invitedBy   User        @relation("SentInvites",             fields: [invitedByUserId], references: [discordId])
+  session     GameSession     @relation(fields: [sessionId],       references: [id], onDelete: Cascade)
+  invitedUser User            @relation("ReceivedInvites",         fields: [invitedUserId],   references: [discordId])
+  invitedBy   User            @relation("SentInvites",             fields: [invitedByUserId], references: [discordId])
+  snapshot    InviteSnapshot?
 
   @@index([invitedUserId])
   @@index([sessionId])
+}
+
+model InviteSnapshot {
+  id        String   @id @default(cuid())
+  inviteId  String   @unique
+  questions Json     // Array of { payloadJson, ordinal, clientUuid }
+  createdAt DateTime @default(now())
+
+  invite Invite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
 }
 
 model Stroke {
