@@ -389,7 +389,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 Zone Labels
             </Button>
             <Button
-                className="w-full shadow-md"
+                className="w-full shadow-md hidden"
                 onClick={() => {
                     setNavOpen(false);
                     showTutorial.set(true);

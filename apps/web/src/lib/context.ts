@@ -382,7 +382,7 @@ export const alwaysUsePastebin = persistentAtom<boolean>(
     },
 );
 
-export const showTutorial = persistentAtom<boolean>("showTutorials", true, {
+export const showTutorial = persistentAtom<boolean>("showTutorials", false, {
     encode: JSON.stringify,
     decode: JSON.parse,
 });
