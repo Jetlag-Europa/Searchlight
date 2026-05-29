@@ -150,6 +150,7 @@ model Invite {
   sessionId       String
   invitedUserId   String
   invitedByUserId String
+  inviteType      String    @default("join") // "join" | "fork"
   createdAt       DateTime  @default(now())
   acceptedAt      DateTime?
   declinedAt      DateTime?

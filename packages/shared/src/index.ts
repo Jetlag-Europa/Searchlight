@@ -131,6 +131,7 @@ export interface InviteSummary {
   sessionName: string;
   gameName: string;
   invitedByDisplayName: string;
+  inviteType: "join" | "fork";
   createdAt: string;
 }
 
@@ -140,6 +141,11 @@ export interface PendingInvitesResponse {
 
 export interface SendInviteBody {
   invitedUserId: string;
+  inviteType?: "join" | "fork";
+}
+
+export interface ForkAcceptResponse {
+  sessionId: string;
 }
 
 export interface SessionInviteDetail {

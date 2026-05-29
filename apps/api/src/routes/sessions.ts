@@ -183,6 +183,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           sessionName: i.session.name,
           gameName: i.session.game.name,
           invitedByDisplayName: i.invitedBy.displayName,
+          inviteType: i.inviteType as "join" | "fork",
           createdAt: i.createdAt.toISOString(),
         })),
       };
@@ -206,6 +207,43 @@ export async function sessionRoutes(app: FastifyInstance) {
       if (invite.invitedUserId !== user.discordId) throw forbidden();
       if (invite.revokedAt || invite.declinedAt || invite.acceptedAt) {
         throw conflict("Invite is no longer pending");
+      }
+
+      if (invite.inviteType === "fork") {
+        const [originalSession, questions] = await Promise.all([
+          prisma.gameSession.findUniqueOrThrow({ where: { id: invite.sessionId } }),
+          prisma.sessionQuestion.findMany({
+            where: { sessionId: invite.sessionId },
+            orderBy: { ordinal: "asc" },
+          }),
+        ]);
+
+        const newSession = await prisma.$transaction(async (tx) => {
+          const created = await tx.gameSession.create({
+            data: {
+              gameId: originalSession.gameId,
+              serverId: originalSession.serverId,
+              creatorId: user.discordId,
+              name: `Copy of ${originalSession.name}`,
+              visibility: "private",
+            },
+          });
+          if (questions.length > 0) {
+            await tx.sessionQuestion.createMany({
+              data: questions.map((q) => ({
+                sessionId: created.id,
+                payloadJson: q.payloadJson as object,
+                ordinal: q.ordinal,
+                clientUuid: `fork-${created.id}-${q.clientUuid}`,
+              })),
+            });
+          }
+          await tx.invite.update({ where: { id: inviteId }, data: { acceptedAt: new Date() } });
+          return created;
+        });
+
+        req.log.info({ inviteId, newSessionId: newSession.id, userId: user.discordId }, "[invites] fork invite accepted — new session created");
+        return reply.status(200).send({ sessionId: newSession.id });
       }
 
       await prisma.$transaction([
@@ -460,13 +498,16 @@ export async function sessionRoutes(app: FastifyInstance) {
     {
       schema: {
         params: Type.Object({ sessionId: Type.String() }),
-        body: Type.Object({ invitedUserId: Type.String({ minLength: 1 }) }),
+        body: Type.Object({
+          invitedUserId: Type.String({ minLength: 1 }),
+          inviteType: Type.Optional(Type.Union([Type.Literal("join"), Type.Literal("fork")])),
+        }),
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      const { invitedUserId } = req.body as { invitedUserId: string };
+      const { invitedUserId, inviteType = "join" } = req.body as { invitedUserId: string; inviteType?: "join" | "fork" };
 
       const { isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (!isCreator) throw forbidden("Only the creator can send invites");
@@ -488,6 +529,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           sessionId,
           invitedUserId,
           invitedByUserId: user.discordId,
+          inviteType,
         },
       });
 

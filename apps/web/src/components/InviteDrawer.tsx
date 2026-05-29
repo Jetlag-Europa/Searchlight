@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/drawer";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { activeSessionData } from "@/lib/activeSession";
+import { activeSessionData, setActiveSession } from "@/lib/activeSession";
 import { pendingSessionLoad } from "@/lib/context";
+import type { GameSessionSummary, ForkAcceptResponse } from "@taibled/shared";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_INTERVAL_MS = 30_000;
@@ -61,7 +62,12 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             if (res.ok) {
                 setInvites((prev) => prev.filter((i) => i.id !== invite.id));
                 setOpen(false);
-                pendingSessionLoad.set(invite.sessionId);
+                if (invite.inviteType === "fork") {
+                    const { sessionId } = await res.json() as ForkAcceptResponse;
+                    pendingSessionLoad.set(sessionId);
+                } else {
+                    pendingSessionLoad.set(invite.sessionId);
+                }
             }
         } finally {
             setActionLoading(false);
@@ -122,6 +128,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
     const [searching, setSearching] = useState(false);
     const [invitingId, setInvitingId] = useState<string | null>(null);
+    const [pendingInviteUser, setPendingInviteUser] = useState<UserSearchResult | null>(null);
 
     useEffect(() => {
         const q = query.trim();
@@ -150,15 +157,28 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         return () => clearTimeout(t);
     }, [query, session, isCreator, sentInvites]);
 
-    const handleInvite = async (invitedUserId: string) => {
+    const handleInvite = async (invitedUser: UserSearchResult, inviteType: "join" | "fork") => {
         if (!session) return;
-        setInvitingId(invitedUserId);
+        setInvitingId(invitedUser.discordId);
+        setPendingInviteUser(null);
         try {
+            if (inviteType === "join" && session.visibility === "private") {
+                const patchRes = await fetch(`${API_BASE}/sessions/${session.id}`, {
+                    method: "PATCH",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ visibility: "shared" }),
+                });
+                if (patchRes.ok) {
+                    const updated = await patchRes.json() as GameSessionSummary;
+                    setActiveSession(updated);
+                }
+            }
             const res = await fetch(`${API_BASE}/sessions/${session.id}/invites`, {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ invitedUserId }),
+                body: JSON.stringify({ invitedUserId: invitedUser.discordId, inviteType }),
             });
             if (res.ok) {
                 setQuery("");
@@ -181,6 +201,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         } else {
             setQuery("");
             setSearchResults([]);
+            setPendingInviteUser(null);
         }
     };
 
@@ -234,13 +255,34 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                                 <p className="text-sm font-medium truncate">{u.displayName}</p>
                                                 <p className="text-xs text-muted-foreground">@{u.username}</p>
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                disabled={invitingId === u.discordId}
-                                                onClick={() => handleInvite(u.discordId)}
-                                            >
-                                                {invitingId === u.discordId ? "…" : "Invite"}
-                                            </Button>
+                                            {invitingId === u.discordId ? (
+                                                <span className="text-sm text-muted-foreground shrink-0">…</span>
+                                            ) : pendingInviteUser?.discordId === u.discordId ? (
+                                                <div className="flex gap-1.5 shrink-0">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        className="text-xs"
+                                                        onClick={() => handleInvite(u, "fork")}
+                                                    >
+                                                        Private copy
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        className="text-xs"
+                                                        onClick={() => handleInvite(u, "join")}
+                                                    >
+                                                        Share live
+                                                    </Button>
+                                                </div>
+                                            ) : (
+                                                <Button
+                                                    size="sm"
+                                                    onClick={() => setPendingInviteUser(u)}
+                                                >
+                                                    Invite
+                                                </Button>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
@@ -299,9 +341,14 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                     className="border border-border rounded-lg p-3 flex items-center justify-between gap-3"
                                 >
                                     <div className="min-w-0">
-                                        <p className="text-sm font-medium truncate">{invite.sessionName}</p>
+                                        <p className="text-sm font-medium truncate">
+                                            {invite.inviteType === "fork"
+                                                ? `Private copy of ${invite.sessionName}`
+                                                : invite.sessionName}
+                                        </p>
                                         <p className="text-xs text-muted-foreground mt-0.5">
                                             {invite.gameName} · from {invite.invitedByDisplayName}
+                                            {invite.inviteType === "fork" ? " · your own copy" : ""}
                                         </p>
                                     </div>
                                     <div className="flex gap-2 shrink-0">
@@ -310,7 +357,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                             onClick={() => handleAccept(invite)}
                                             disabled={actionLoading}
                                         >
-                                            Accept
+                                            {invite.inviteType === "fork" ? "Get copy" : "Accept"}
                                         </Button>
                                         <Button
                                             size="sm"
