@@ -1067,13 +1067,49 @@
     <Folder>
       <name>9</name>
       <Placemark>
-        <name>Brno-Řečkovice</name>
+        <name>Brno-Starý Lískovec</name>
         <ExtendedData>
           <Data name="type">
             <value>Train</value>
           </Data>
           <Data name="id_obj">
             <value>8281</value>
+          </Data>
+        </ExtendedData>
+        <Point><coordinates>16.5716539,49.16220535</coordinates></Point>
+      </Placemark>
+      <Placemark>
+        <name>Brno-Slatina</name>
+        <ExtendedData>
+          <Data name="type">
+            <value>Train</value>
+          </Data>
+          <Data name="id_obj">
+            <value>8282</value>
+          </Data>
+        </ExtendedData>
+        <Point><coordinates>16.6819323,49.16971934</coordinates></Point>
+      </Placemark>
+      <Placemark>
+        <name>Brno-Chrlice</name>
+        <ExtendedData>
+          <Data name="type">
+            <value>Train</value>
+          </Data>
+          <Data name="id_obj">
+            <value>8283</value>
+          </Data>
+        </ExtendedData>
+        <Point><coordinates>16.65718185,49.132077</coordinates></Point>
+      </Placemark>
+      <Placemark>
+        <name>Brno-Řečkovice</name>
+        <ExtendedData>
+          <Data name="type">
+            <value>Train</value>
+          </Data>
+          <Data name="id_obj">
+            <value>8284</value>
           </Data>
         </ExtendedData>
         <Point><coordinates>16.5904154,49.2507192</coordinates></Point>
@@ -1085,10 +1121,10 @@
             <value>Train</value>
           </Data>
           <Data name="id_obj">
-            <value>8282</value>
+            <value>8285</value>
           </Data>
         </ExtendedData>
-        <Point><coordinates>16.626631,49.220693</coordinates></Point>
+        <Point><coordinates>16.62663125,49.22069305</coordinates></Point>
       </Placemark>
       <Placemark>
         <name>Brno hl.n.</name>
@@ -1097,7 +1133,7 @@
             <value>Train</value>
           </Data>
           <Data name="id_obj">
-            <value>8283</value>
+            <value>8286</value>
           </Data>
         </ExtendedData>
         <Point><coordinates>16.61190839,49.1902874</coordinates></Point>
@@ -1109,7 +1145,7 @@
             <value>Train</value>
           </Data>
           <Data name="id_obj">
-            <value>8284</value>
+            <value>8287</value>
           </Data>
         </ExtendedData>
         <Point><coordinates>16.63608865,49.204424775</coordinates></Point>
@@ -1121,7 +1157,7 @@
             <value>Train</value>
           </Data>
           <Data name="id_obj">
-            <value>8285</value>
+            <value>8288</value>
           </Data>
         </ExtendedData>
         <Point><coordinates>16.59649596,49.2311319</coordinates></Point>
@@ -1133,28 +1169,22 @@
             <value>Train</value>
           </Data>
           <Data name="id_obj">
-            <value>8286</value>
+            <value>8289</value>
           </Data>
         </ExtendedData>
         <Point><coordinates>16.60678115,49.16682925</coordinates></Point>
       </Placemark>
       <Placemark>
-        <name>Brno - Chrlice</name>
+        <name>Brno-Černovice</name>
         <ExtendedData>
+          <Data name="type">
+            <value>Train</value>
+          </Data>
           <Data name="id_obj">
-            <value>new_1779716023921</value>
+            <value>8290</value>
           </Data>
         </ExtendedData>
-        <Point><coordinates>16.6568784029774,49.13205229493354</coordinates></Point>
-      </Placemark>
-      <Placemark>
-        <name>Brno - Starý Liskovec</name>
-        <ExtendedData>
-          <Data name="id_obj">
-            <value>new_1779716235248</value>
-          </Data>
-        </ExtendedData>
-        <Point><coordinates>16.570411266747634,49.16218704495423</coordinates></Point>
+        <Point><coordinates>16.63142493,49.18894314</coordinates></Point>
       </Placemark>
     </Folder>
     <Folder>
