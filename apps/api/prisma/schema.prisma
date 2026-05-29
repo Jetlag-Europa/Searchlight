@@ -36,6 +36,7 @@ model User {
   sentInvites           Invite[]               @relation("SentInvites")
   strokes               Stroke[]
   events                Event[]
+  createdLinks          SessionLink[]          @relation("CreatedLinks")
 }
 
 model AuthSession {
@@ -125,6 +126,7 @@ model GameSession {
   strokes      Stroke[]
   questions    SessionQuestion[]
   events       Event[]
+  links        SessionLink[]
 
   @@index([serverId])
   @@index([creatorId])
@@ -172,6 +174,31 @@ model InviteSnapshot {
   createdAt DateTime @default(now())
 
   invite Invite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+}
+
+model SessionLink {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  sessionId   String
+  createdById String
+  linkType    String    // "join" | "fork"
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  session   GameSession  @relation(fields: [sessionId],   references: [id], onDelete: Cascade)
+  createdBy User         @relation("CreatedLinks", fields: [createdById], references: [discordId])
+  snapshot  LinkSnapshot?
+
+  @@index([sessionId])
+}
+
+model LinkSnapshot {
+  id        String   @id @default(cuid())
+  linkId    String   @unique
+  questions Json     // Array of { payloadJson, ordinal, clientUuid }
+  createdAt DateTime @default(now())
+
+  link SessionLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
 }
 
 model Stroke {

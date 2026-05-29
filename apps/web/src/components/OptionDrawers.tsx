@@ -51,6 +51,7 @@ import {
     useCustomStations,
 } from "@/lib/context";
 import { InviteDrawer } from "@/components/InviteDrawer";
+import { ShareDrawer } from "@/components/ShareDrawer";
 import {
     cn,
     compress,
@@ -374,7 +375,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                         }
                     });
                 }}
-                data-tutorial-id="share-questions-button"
+                data-tutorial-id="share-old"
             >
                 Share
             </Button>
@@ -396,6 +397,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             >
                 Tutorial
             </Button>
+            <ShareDrawer className="w-full shadow-md" onOpen={() => setNavOpen(false)} />
             <InviteDrawer className="w-full" onOpen={() => setNavOpen(false)} />
             <Drawer open={isOptionsOpen} onOpenChange={(open) => { setOptionsOpen(open); if (open) setNavOpen(false); }}>
                 <DrawerTrigger className="w-full" asChild>

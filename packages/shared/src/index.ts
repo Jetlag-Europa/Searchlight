@@ -153,11 +153,42 @@ export interface SessionInviteDetail {
   invitedUserId: string;
   invitedUserDisplayName: string;
   invitedByUserId: string;
+  inviteType: "join" | "fork";
   createdAt: string;
 }
 
 export interface SessionInvitesResponse {
   invites: SessionInviteDetail[];
+}
+
+// ── Session links ─────────────────────────────────────────────────────────────
+
+export interface SessionLinkSummary {
+  id: string;
+  token: string;
+  linkType: "join" | "fork";
+  createdAt: string;
+}
+
+export interface SessionLinksResponse {
+  links: SessionLinkSummary[];
+}
+
+export interface CreateLinkResponse {
+  id: string;
+  token: string;
+}
+
+export interface LinkInfoResponse {
+  valid: boolean;
+  sessionName?: string;
+  gameName?: string;
+  linkType?: "join" | "fork";
+}
+
+export interface RedeemLinkResponse {
+  sessionId: string;
+  linkType: "join" | "fork";
 }
 
 // ── User search ───────────────────────────────────────────────────────────────

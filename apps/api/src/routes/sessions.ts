@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
+import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 
@@ -484,6 +485,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           invitedUserId: i.invitedUserId,
           invitedUserDisplayName: i.invitedUser.displayName,
           invitedByUserId: i.invitedByUserId,
+          inviteType: i.inviteType as "join" | "fork",
           createdAt: i.createdAt.toISOString(),
         })),
       };
@@ -591,6 +593,103 @@ export async function sessionRoutes(app: FastifyInstance) {
       if (!invite || invite.sessionId !== sessionId) throw notFound("Invite not found");
 
       await prisma.invite.update({ where: { id: inviteId }, data: { revokedAt: new Date() } });
+      return reply.status(204).send();
+    },
+  );
+
+  // POST /sessions/:sessionId/links — create a share/invite link (creator only)
+  app.post(
+    "/:sessionId/links",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String() }),
+        body: Type.Object({
+          linkType: Type.Union([Type.Literal("join"), Type.Literal("fork")]),
+        }),
+      },
+    },
+    async (req, reply) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+      const { linkType } = req.body as { linkType: "join" | "fork" };
+      const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
+      if (!isCreator) throw forbidden("Only the creator can create links");
+
+      const token = randomBytes(16).toString("hex");
+
+      if (linkType === "fork") {
+        const questions = await prisma.sessionQuestion.findMany({
+          where: { sessionId },
+          orderBy: { ordinal: "asc" },
+          select: { payloadJson: true, ordinal: true, clientUuid: true },
+        });
+        const link = await prisma.$transaction(async (tx) => {
+          const created = await tx.sessionLink.create({
+            data: { token, sessionId, createdById: user.discordId, linkType },
+          });
+          await tx.linkSnapshot.create({ data: { linkId: created.id, questions } });
+          return created;
+        });
+        req.log.info({ sessionId, linkId: link.id }, "[links] fork link created");
+        return reply.status(201).send({ id: link.id, token: link.token });
+      }
+
+      // join: promote to shared if private
+      if (session.visibility === "private") {
+        await prisma.gameSession.update({ where: { id: sessionId }, data: { visibility: "shared" } });
+      }
+      const link = await prisma.sessionLink.create({
+        data: { token, sessionId, createdById: user.discordId, linkType },
+      });
+      req.log.info({ sessionId, linkId: link.id }, "[links] join link created");
+      return reply.status(201).send({ id: link.id, token: link.token });
+    },
+  );
+
+  // GET /sessions/:sessionId/links — list active links (creator only)
+  app.get(
+    "/:sessionId/links",
+    { schema: { params: Type.Object({ sessionId: Type.String() }) } },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+      const { isCreator } = await resolveParticipant(sessionId, user.discordId);
+      if (!isCreator) throw forbidden("Only the creator can view links");
+
+      const links = await prisma.sessionLink.findMany({
+        where: { sessionId, revokedAt: null },
+        orderBy: { createdAt: "desc" },
+      });
+
+      return {
+        links: links.map((l) => ({
+          id: l.id,
+          token: l.token,
+          linkType: l.linkType as "join" | "fork",
+          createdAt: l.createdAt.toISOString(),
+        })),
+      };
+    },
+  );
+
+  // DELETE /sessions/:sessionId/links/:linkId — revoke a link (creator only)
+  app.delete(
+    "/:sessionId/links/:linkId",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String(), linkId: Type.String() }),
+      },
+    },
+    async (req, reply) => {
+      const { user } = await resolveSession(req);
+      const { sessionId, linkId } = req.params as { sessionId: string; linkId: string };
+      const { isCreator } = await resolveParticipant(sessionId, user.discordId);
+      if (!isCreator) throw forbidden("Only the creator can revoke links");
+
+      const link = await prisma.sessionLink.findUnique({ where: { id: linkId } });
+      if (!link || link.sessionId !== sessionId) throw notFound("Link not found");
+
+      await prisma.sessionLink.update({ where: { id: linkId }, data: { revokedAt: new Date() } });
       return reply.status(204).send();
     },
   );

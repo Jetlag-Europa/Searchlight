@@ -396,6 +396,38 @@ export function SessionManager() {
     useEffect(() => {
         startSyncManager();
         cancelPendingQuestionSave();
+
+        // Handle pending link from /join page
+        const pendingToken = localStorage.getItem("taibled-pending-link");
+        const pendingLinkSession = localStorage.getItem("taibled-pending-link-session");
+        if (pendingToken) {
+            localStorage.removeItem("taibled-pending-link");
+            setLoading(true);
+            fetch(`${API_BASE}/links/${pendingToken}/redeem`, { method: "POST", credentials: "include" })
+                .then(async (res) => {
+                    if (!res.ok) throw new Error(`${res.status}`);
+                    const { sessionId: redeemedId } = await res.json() as { sessionId: string };
+                    const sessRes = await fetch(`${API_BASE}/sessions/${redeemedId}`, { credentials: "include" });
+                    if (!sessRes.ok) throw new Error("session fetch failed");
+                    setLoading(false);
+                    await handleSessionSelected(await sessRes.json() as GameSessionSummary);
+                })
+                .catch(() => { setLoading(false); setShowPicker(true); });
+            return () => stopSSE();
+        }
+        if (pendingLinkSession) {
+            localStorage.removeItem("taibled-pending-link-session");
+            setLoading(true);
+            fetch(`${API_BASE}/sessions/${pendingLinkSession}`, { credentials: "include" })
+                .then(async (res) => {
+                    if (!res.ok) throw new Error(`${res.status}`);
+                    setLoading(false);
+                    await handleSessionSelected(await res.json() as GameSessionSummary);
+                })
+                .catch(() => { setLoading(false); setShowPicker(true); });
+            return () => stopSSE();
+        }
+
         const storedId = activeSessionId.get();
         if (!storedId) {
             setShowPicker(true);

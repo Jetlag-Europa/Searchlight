@@ -1,0 +1,107 @@
+---
+import Layout from "@/layouts/Layout.astro";
+const apiBase = import.meta.env.PUBLIC_API_BASE;
+---
+
+<Layout>
+    <main class="flex min-h-screen flex-col items-center justify-center bg-background px-4 text-white">
+        <div id="loading" class="flex flex-col items-center gap-4">
+            <div class="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
+        </div>
+
+        <div id="invalid" class="hidden flex-col items-center gap-6 text-center max-w-md">
+            <div class="flex flex-col gap-2">
+                <h1 class="text-3xl font-bold tracking-tight">Session no longer active</h1>
+                <p class="text-white/60">This game session has ended or the link has been revoked.</p>
+            </div>
+            <a href="/" class="text-sm text-white/50 hover:text-white/80 underline">Go to home</a>
+        </div>
+
+        <div id="valid" class="hidden flex-col items-center gap-8 text-center max-w-md w-full">
+            <div class="flex flex-col gap-2">
+                <p id="link-label" class="text-sm text-white/50 uppercase tracking-widest"></p>
+                <h1 id="session-name" class="text-3xl font-bold tracking-tight"></h1>
+                <p id="game-name" class="text-lg text-white/60"></p>
+            </div>
+
+            <button
+                id="redeem-btn"
+                class="flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg transition-opacity hover:opacity-90 active:opacity-75 disabled:opacity-50 w-full max-w-xs"
+            >
+                <span id="redeem-label"></span>
+            </button>
+
+            <a href="/" class="text-sm text-white/40 hover:text-white/70 underline">Not you? Log in with a different account</a>
+        </div>
+    </main>
+</Layout>
+
+<script define:vars={{ apiBase }}>
+    const $ = (id) => document.getElementById(id);
+
+    function showEl(id) { $(id).classList.remove("hidden"); $(id).classList.add("flex"); }
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get("token");
+
+    if (!token) {
+        $("loading").classList.add("hidden");
+        showEl("invalid");
+    } else {
+        Promise.all([
+            fetch(`${apiBase}/links/${token}`).then((r) => r.json()),
+            fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+        ]).then(([linkInfo, me]) => {
+            $("loading").classList.add("hidden");
+
+            if (!linkInfo.valid) {
+                showEl("invalid");
+                return;
+            }
+
+            $("session-name").textContent = linkInfo.sessionName;
+            $("game-name").textContent = linkInfo.gameName;
+
+            if (linkInfo.linkType === "fork") {
+                $("link-label").textContent = "Shared with you";
+                $("redeem-label").textContent = me ? "Get your copy" : "Log in to get your copy";
+            } else {
+                $("link-label").textContent = "You're invited to join";
+                $("redeem-label").textContent = me ? "Join session" : "Log in to join";
+            }
+
+            showEl("valid");
+
+            $("redeem-btn").addEventListener("click", async () => {
+                $("redeem-btn").disabled = true;
+                $("redeem-label").textContent = "…";
+
+                if (!me) {
+                    localStorage.setItem("taibled-pending-link", token);
+                    window.location.href = `${apiBase}/auth/discord/login`;
+                    return;
+                }
+
+                try {
+                    const res = await fetch(`${apiBase}/links/${token}/redeem`, {
+                        method: "POST",
+                        credentials: "include",
+                    });
+                    if (!res.ok) {
+                        if (res.status === 404) { $("loading").classList.add("hidden"); showEl("invalid"); return; }
+                        throw new Error(`${res.status}`);
+                    }
+                    const { sessionId } = await res.json();
+                    localStorage.setItem("taibled-pending-link-session", sessionId);
+                    window.location.href = "/map";
+                } catch {
+                    $("redeem-btn").disabled = false;
+                    $("redeem-label").textContent = linkInfo.linkType === "fork" ? "Get your copy" : "Join session";
+                }
+            });
+        }).catch(() => {
+            $("loading").classList.add("hidden");
+            showEl("invalid");
+        });
+    }
+</script>

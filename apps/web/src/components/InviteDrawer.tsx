@@ -7,6 +7,9 @@ import type {
     SessionInvitesResponse,
     UserSearchResult,
     UserSearchResponse,
+    SessionLinkSummary,
+    SessionLinksResponse,
+    CreateLinkResponse,
 } from "@taibled/shared";
 import {
     Drawer,
@@ -23,6 +26,33 @@ import type { GameSessionSummary, ForkAcceptResponse } from "@taibled/shared";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_INTERVAL_MS = 30_000;
+
+function TabBar({
+    active,
+    onChange,
+}: {
+    active: "user" | "link";
+    onChange: (t: "user" | "link") => void;
+}) {
+    return (
+        <div className="flex border-b border-border mb-4">
+            {(["user", "link"] as const).map((t) => (
+                <button
+                    key={t}
+                    onClick={() => onChange(t)}
+                    className={cn(
+                        "px-4 py-2 text-sm font-medium capitalize transition-colors",
+                        active === t
+                            ? "border-b-2 border-primary text-foreground"
+                            : "text-muted-foreground hover:text-foreground",
+                    )}
+                >
+                    {t === "user" ? "Send to user" : "Link"}
+                </button>
+            ))}
+        </div>
+    );
+}
 
 export function InviteDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
     const session = useStore(activeSessionData);
@@ -51,6 +81,8 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         timerRef.current = setInterval(fetchInvites, POLL_INTERVAL_MS);
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, []);
+
+    const [open, setOpen] = useState(false);
 
     const handleAccept = async (invite: InviteSummary) => {
         setActionLoading(true);
@@ -87,7 +119,9 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         }
     };
 
-    // ── Sent invites (creator view) ───────────────────────────────────────────
+    const [activeTab, setActiveTab] = useState<"user" | "link">("user");
+
+    // ── User tab ──────────────────────────────────────────────────────────────
     const [sentInvites, setSentInvites] = useState<SessionInviteDetail[]>([]);
     const [loadingSent, setLoadingSent] = useState(false);
     const [revokingId, setRevokingId] = useState<string | null>(null);
@@ -101,7 +135,8 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             });
             if (!res.ok) return;
             const data: SessionInvitesResponse = await res.json();
-            setSentInvites(data.invites);
+            // Only show join invites here; fork invites are in ShareDrawer
+            setSentInvites(data.invites.filter((i) => i.inviteType === "join"));
         } catch {
             // non-critical
         } finally {
@@ -123,19 +158,14 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         }
     };
 
-    // ── User search ───────────────────────────────────────────────────────────
     const [query, setQuery] = useState("");
     const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
     const [searching, setSearching] = useState(false);
     const [invitingId, setInvitingId] = useState<string | null>(null);
-    const [pendingInviteUser, setPendingInviteUser] = useState<UserSearchResult | null>(null);
 
     useEffect(() => {
         const q = query.trim();
-        if (!q || !session || !isCreator) {
-            setSearchResults([]);
-            return;
-        }
+        if (!q || !session || !isCreator) { setSearchResults([]); return; }
         const t = setTimeout(async () => {
             setSearching(true);
             try {
@@ -145,7 +175,6 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                 );
                 if (!res.ok) return;
                 const data: UserSearchResponse = await res.json();
-                // Filter out users who already have a pending sent invite.
                 const alreadyInvited = new Set(sentInvites.map((i) => i.invitedUserId));
                 setSearchResults(data.users.filter((u) => !alreadyInvited.has(u.discordId)));
             } catch {
@@ -157,12 +186,11 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         return () => clearTimeout(t);
     }, [query, session, isCreator, sentInvites]);
 
-    const handleInvite = async (invitedUser: UserSearchResult, inviteType: "join" | "fork") => {
+    const handleInvite = async (invitedUser: UserSearchResult) => {
         if (!session) return;
         setInvitingId(invitedUser.discordId);
-        setPendingInviteUser(null);
         try {
-            if (inviteType === "join" && session.visibility === "private") {
+            if (session.visibility === "private") {
                 const patchRes = await fetch(`${API_BASE}/sessions/${session.id}`, {
                     method: "PATCH",
                     credentials: "include",
@@ -178,7 +206,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ invitedUserId: invitedUser.discordId, inviteType }),
+                body: JSON.stringify({ invitedUserId: invitedUser.discordId, inviteType: "join" }),
             });
             if (res.ok) {
                 setQuery("");
@@ -190,18 +218,96 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         }
     };
 
-    // ── Drawer open/close ─────────────────────────────────────────────────────
-    const [open, setOpen] = useState(false);
+    // ── Link tab ──────────────────────────────────────────────────────────────
+    const [links, setLinks] = useState<SessionLinkSummary[]>([]);
+    const [loadingLinks, setLoadingLinks] = useState(false);
+    const [creatingLink, setCreatingLink] = useState(false);
+    const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+    const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
 
+    const fetchLinks = useCallback(async () => {
+        if (!session || !isCreator) return;
+        setLoadingLinks(true);
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
+                credentials: "include",
+            });
+            if (!res.ok) return;
+            const data: SessionLinksResponse = await res.json();
+            setLinks(data.links.filter((l) => l.linkType === "join"));
+        } catch {
+            // non-critical
+        } finally {
+            setLoadingLinks(false);
+        }
+    }, [session, isCreator]);
+
+    const handleCreateLink = async () => {
+        if (!session) return;
+        setCreatingLink(true);
+        try {
+            if (session.visibility === "private") {
+                const patchRes = await fetch(`${API_BASE}/sessions/${session.id}`, {
+                    method: "PATCH",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ visibility: "shared" }),
+                });
+                if (patchRes.ok) {
+                    const updated = await patchRes.json() as GameSessionSummary;
+                    setActiveSession(updated);
+                }
+            }
+            const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ linkType: "join" }),
+            });
+            if (res.ok) {
+                const data: CreateLinkResponse = await res.json();
+                const url = `${window.location.origin}/join?token=${data.token}`;
+                await navigator.clipboard.writeText(url).catch(() => {});
+                await fetchLinks();
+                setCopiedLinkId(data.id);
+                setTimeout(() => setCopiedLinkId(null), 2000);
+            }
+        } finally {
+            setCreatingLink(false);
+        }
+    };
+
+    const handleRevokeLink = async (linkId: string) => {
+        if (!session) return;
+        setRevokingLinkId(linkId);
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${session.id}/links/${linkId}`, {
+                method: "DELETE",
+                credentials: "include",
+            });
+            if (res.ok) setLinks((prev) => prev.filter((l) => l.id !== linkId));
+        } finally {
+            setRevokingLinkId(null);
+        }
+    };
+
+    const copyLink = async (token: string, linkId: string) => {
+        const url = `${window.location.origin}/join?token=${token}`;
+        await navigator.clipboard.writeText(url).catch(() => {});
+        setCopiedLinkId(linkId);
+        setTimeout(() => setCopiedLinkId(null), 2000);
+    };
+
+    // ── Drawer open/close ─────────────────────────────────────────────────────
     const handleOpenChange = (v: boolean) => {
         setOpen(v);
         if (v) {
             onOpen?.();
             fetchSentInvites();
+            fetchLinks();
         } else {
             setQuery("");
             setSearchResults([]);
-            setPendingInviteUser(null);
         }
     };
 
@@ -210,7 +316,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     return (
         <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerTrigger asChild>
-                <Button variant="outline" size="sm" className={cn("relative", className)}>
+                <Button className={cn("relative", className)}>
                     Invites
                     {totalBadge > 0 && (
                         <span className="absolute -top-1.5 -right-1.5 h-4 w-4 flex items-center justify-center bg-destructive text-destructive-foreground text-[10px] font-bold rounded-full">
@@ -224,105 +330,142 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                     <DrawerTitle>Invites</DrawerTitle>
                 </DrawerHeader>
 
-                <div className="px-4 pb-6 space-y-5 max-h-[70vh] overflow-y-auto">
+                <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto">
                     {/* ── Send invite section (creator only) ── */}
                     {isCreator && session && (
-                        <div className="space-y-3">
-                            <p className="text-sm font-medium">
+                        <>
+                            <p className="text-sm font-medium mb-3">
                                 Invite to <span className="text-foreground">{session.name}</span>
                             </p>
+                            <TabBar active={activeTab} onChange={setActiveTab} />
 
-                            <input
-                                type="text"
-                                placeholder="Search by name or username…"
-                                className="w-full border border-input rounded-md px-3 py-1.5 text-sm bg-background"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                            />
+                            {activeTab === "user" && (
+                                <div className="space-y-3">
+                                    <p className="text-xs text-muted-foreground">
+                                        Invite someone to join your live session.
+                                    </p>
 
-                            {searching && (
-                                <p className="text-xs text-muted-foreground">Searching…</p>
-                            )}
+                                    <input
+                                        type="text"
+                                        placeholder="Search by name or username…"
+                                        className="w-full border border-input rounded-md px-3 py-1.5 text-sm bg-background"
+                                        value={query}
+                                        onChange={(e) => setQuery(e.target.value)}
+                                    />
 
-                            {searchResults.length > 0 && (
-                                <div className="space-y-1.5">
-                                    {searchResults.map((u) => (
-                                        <div
-                                            key={u.discordId}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                        >
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium truncate">{u.displayName}</p>
-                                                <p className="text-xs text-muted-foreground">@{u.username}</p>
-                                            </div>
-                                            {invitingId === u.discordId ? (
-                                                <span className="text-sm text-muted-foreground shrink-0">…</span>
-                                            ) : pendingInviteUser?.discordId === u.discordId ? (
-                                                <div className="flex gap-1.5 shrink-0">
+                                    {searching && <p className="text-xs text-muted-foreground">Searching…</p>}
+
+                                    {searchResults.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            {searchResults.map((u) => (
+                                                <div
+                                                    key={u.discordId}
+                                                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                                                >
+                                                    <div className="min-w-0">
+                                                        <p className="text-sm font-medium truncate">{u.displayName}</p>
+                                                        <p className="text-xs text-muted-foreground">@{u.username}</p>
+                                                    </div>
                                                     <Button
                                                         size="sm"
-                                                        variant="outline"
-                                                        className="text-xs"
-                                                        onClick={() => handleInvite(u, "fork")}
+                                                        disabled={invitingId === u.discordId}
+                                                        onClick={() => handleInvite(u)}
                                                     >
-                                                        Private copy
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        className="text-xs"
-                                                        onClick={() => handleInvite(u, "join")}
-                                                    >
-                                                        Share live
+                                                        {invitingId === u.discordId ? "…" : "Invite"}
                                                     </Button>
                                                 </div>
-                                            ) : (
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => setPendingInviteUser(u)}
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    {!searching && query.trim().length > 0 && searchResults.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">No users found.</p>
+                                    )}
+
+                                    {loadingSent && sentInvites.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">Loading…</p>
+                                    )}
+                                    {sentInvites.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Pending</p>
+                                            {sentInvites.map((inv) => (
+                                                <div
+                                                    key={inv.id}
+                                                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
                                                 >
-                                                    Invite
-                                                </Button>
-                                            )}
+                                                    <p className="text-sm truncate">{inv.invitedUserDisplayName}</p>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="ghost"
+                                                        disabled={revokingId === inv.id}
+                                                        onClick={() => handleRevoke(inv.id)}
+                                                        className="text-muted-foreground hover:text-destructive shrink-0"
+                                                    >
+                                                        {revokingId === inv.id ? "…" : "Revoke"}
+                                                    </Button>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             )}
 
-                            {!searching && query.trim().length > 0 && searchResults.length === 0 && (
-                                <p className="text-xs text-muted-foreground">No users found.</p>
-                            )}
-
-                            {/* Pending sent invites */}
-                            {loadingSent && sentInvites.length === 0 && (
-                                <p className="text-xs text-muted-foreground">Loading sent invites…</p>
-                            )}
-                            {sentInvites.length > 0 && (
-                                <div className="space-y-1.5">
-                                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
-                                        Pending
+                            {activeTab === "link" && (
+                                <div className="space-y-3">
+                                    <p className="text-xs text-muted-foreground">
+                                        Anyone with this link can join your live session.
                                     </p>
-                                    {sentInvites.map((inv) => (
-                                        <div
-                                            key={inv.id}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                        >
-                                            <p className="text-sm truncate">{inv.invitedUserDisplayName}</p>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={revokingId === inv.id}
-                                                onClick={() => handleRevoke(inv.id)}
-                                                className="text-muted-foreground hover:text-destructive shrink-0"
-                                            >
-                                                {revokingId === inv.id ? "…" : "Revoke"}
-                                            </Button>
+
+                                    <Button
+                                        className="w-full"
+                                        disabled={creatingLink}
+                                        onClick={handleCreateLink}
+                                    >
+                                        {creatingLink ? "Creating…" : "Create invite link"}
+                                    </Button>
+
+                                    {loadingLinks && links.length === 0 && (
+                                        <p className="text-xs text-muted-foreground">Loading…</p>
+                                    )}
+                                    {links.length > 0 && (
+                                        <div className="space-y-1.5">
+                                            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Active links</p>
+                                            {links.map((l) => (
+                                                <div
+                                                    key={l.id}
+                                                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                                                >
+                                                    <p className="text-xs text-muted-foreground truncate">
+                                                        Created {new Date(l.createdAt).toLocaleDateString()}
+                                                    </p>
+                                                    <div className="flex gap-1.5 shrink-0">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="text-xs"
+                                                            onClick={() => copyLink(l.token, l.id)}
+                                                        >
+                                                            {copiedLinkId === l.id ? "Copied!" : "Copy"}
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            disabled={revokingLinkId === l.id}
+                                                            onClick={() => handleRevokeLink(l.id)}
+                                                            className="text-muted-foreground hover:text-destructive"
+                                                        >
+                                                            {revokingLinkId === l.id ? "…" : "Revoke"}
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    )}
                                 </div>
                             )}
 
-                            <div className="border-t border-border" />
-                        </div>
+                            <div className="border-t border-border mt-4 mb-4" />
+                        </>
                     )}
 
                     {/* ── Incoming invites section ── */}
