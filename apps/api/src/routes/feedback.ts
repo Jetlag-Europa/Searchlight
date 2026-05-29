@@ -23,12 +23,15 @@ function mapItem(
     id: string; type: string; title: string; description: string;
     severity: string | null; status: string; createdAt: Date;
     user: { discordId: string; displayName: string; avatarUrl: string };
-    votes: { userId: string; user: { discordId: string; displayName: string } }[];
+    votes: { userId: string; voteType: string; user: { discordId: string; displayName: string } }[];
     images: { id: string }[];
   },
   viewerUserId: string | null,
   includeVoters = false,
 ) {
+  const upvotes = i.votes.filter((v) => v.voteType === "up");
+  const downvotes = i.votes.filter((v) => v.voteType === "down");
+  const viewerVote = viewerUserId ? (i.votes.find((v) => v.userId === viewerUserId)?.voteType ?? null) : null;
   return {
     id: i.id,
     type: i.type as "bug" | "feature",
@@ -37,9 +40,10 @@ function mapItem(
     severity: i.severity ?? undefined,
     status: i.status as "open" | "closed",
     author: { discordId: i.user.discordId, displayName: i.user.displayName, avatarUrl: i.user.avatarUrl },
-    voteCount: i.votes.length,
-    hasVoted: viewerUserId ? i.votes.some((v) => v.userId === viewerUserId) : false,
-    ...(includeVoters && { voters: i.votes.map((v) => ({ discordId: v.user.discordId, displayName: v.user.displayName })) }),
+    upvoteCount: upvotes.length,
+    downvoteCount: downvotes.length,
+    userVote: viewerVote as "up" | "down" | null,
+    ...(includeVoters && { voters: upvotes.map((v) => ({ discordId: v.user.discordId, displayName: v.user.displayName })) }),
     imageIds: i.images.map((img) => img.id),
     createdAt: i.createdAt.toISOString(),
   };
@@ -47,7 +51,7 @@ function mapItem(
 
 const include = {
   user: { select: { discordId: true, displayName: true, avatarUrl: true } },
-  votes: { select: { userId: true, user: { select: { discordId: true, displayName: true } } } },
+  votes: { select: { userId: true, voteType: true, user: { select: { discordId: true, displayName: true } } } },
   images: { select: { id: true } },
 } as const;
 
@@ -159,13 +163,19 @@ export async function feedbackRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /feedback/:id/vote — toggle vote/reproduce (auth required)
+  // POST /feedback/:id/vote — cast/toggle/switch vote (auth required)
   app.post(
     "/:id/vote",
-    { schema: { params: Type.Object({ id: Type.String() }) } },
+    {
+      schema: {
+        params: Type.Object({ id: Type.String() }),
+        body: Type.Object({ voteType: Type.Union([Type.Literal("up"), Type.Literal("down")]) }),
+      },
+    },
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { id } = req.params as { id: string };
+      const { voteType } = req.body as { voteType: "up" | "down" };
 
       const feedback = await prisma.feedback.findUnique({ where: { id } });
       if (!feedback || feedback.status === "closed") throw notFound();
@@ -175,11 +185,15 @@ export async function feedbackRoutes(app: FastifyInstance) {
       });
 
       if (existing) {
-        await prisma.feedbackVote.delete({ where: { id: existing.id } });
-        return reply.status(200).send({ voted: false });
+        if (existing.voteType === voteType) {
+          await prisma.feedbackVote.delete({ where: { id: existing.id } });
+          return reply.status(200).send({ userVote: null });
+        }
+        await prisma.feedbackVote.update({ where: { id: existing.id }, data: { voteType } });
+        return reply.status(200).send({ userVote: voteType });
       }
-      await prisma.feedbackVote.create({ data: { feedbackId: id, userId: user.discordId } });
-      return reply.status(200).send({ voted: true });
+      await prisma.feedbackVote.create({ data: { feedbackId: id, userId: user.discordId, voteType } });
+      return reply.status(200).send({ userVote: voteType });
     },
   );
 

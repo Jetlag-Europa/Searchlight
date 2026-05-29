@@ -85,7 +85,7 @@ function FeedbackCard({
     item: FeedbackItem;
     me: Me | null;
     isAdmin: boolean;
-    onVote: (id: string) => void;
+    onVote: (id: string, voteType: "up" | "down") => void;
     onToggleStatus: (id: string, status: "open" | "closed") => void;
     onImageClick: (src: string) => void;
     votingId: string | null;
@@ -95,9 +95,6 @@ function FeedbackCard({
     const long = item.description.length > 280;
     const displayDesc = long && !expanded ? item.description.slice(0, 280) + "…" : item.description;
 
-    const voteLabel = item.type === "bug"
-        ? `✓ Reproduces${item.voteCount > 0 ? ` · ${item.voteCount}` : ""}`
-        : `▲ Upvote${item.voteCount > 0 ? ` · ${item.voteCount}` : ""}`;
 
     return (
         <div className={cn(
@@ -171,16 +168,38 @@ function FeedbackCard({
                             {togglingId === item.id ? "…" : item.status === "open" ? "Close" : "Reopen"}
                         </Button>
                     )}
-                    {item.status === "open" && (
+                    {item.status === "open" && item.type === "bug" && (
                         <Button
                             size="sm"
-                            variant={item.hasVoted ? "default" : "outline"}
-                            disabled={!me || votingId === item.id}
-                            onClick={() => me ? onVote(item.id) : loginRedirect()}
+                            variant={item.userVote === "up" ? "default" : "outline"}
+                            disabled={!me || votingId === `${item.id}-up`}
+                            onClick={() => me ? onVote(item.id, "up") : loginRedirect()}
                             className="text-xs"
                         >
-                            {votingId === item.id ? "…" : voteLabel}
+                            {votingId === `${item.id}-up` ? "…" : `✓ Reproduces${item.upvoteCount > 0 ? ` · ${item.upvoteCount}` : ""}`}
                         </Button>
+                    )}
+                    {item.status === "open" && item.type === "feature" && (
+                        <div className="flex gap-1.5">
+                            <Button
+                                size="sm"
+                                variant={item.userVote === "up" ? "default" : "outline"}
+                                disabled={!me || votingId === `${item.id}-up`}
+                                onClick={() => me ? onVote(item.id, "up") : loginRedirect()}
+                                className="text-xs"
+                            >
+                                {votingId === `${item.id}-up` ? "…" : `▲${item.upvoteCount > 0 ? ` ${item.upvoteCount}` : ""}`}
+                            </Button>
+                            <Button
+                                size="sm"
+                                variant={item.userVote === "down" ? "destructive" : "outline"}
+                                disabled={!me || votingId === `${item.id}-down`}
+                                onClick={() => me ? onVote(item.id, "down") : loginRedirect()}
+                                className="text-xs"
+                            >
+                                {votingId === `${item.id}-down` ? "…" : `▼${item.downvoteCount > 0 ? ` ${item.downvoteCount}` : ""}`}
+                            </Button>
+                        </div>
                     )}
                 </div>
             </div>
@@ -450,22 +469,28 @@ export function FeedbackPage({ isAdmin = false }: { isAdmin?: boolean }) {
         }
     };
 
-    const handleVote = async (id: string) => {
+    const handleVote = async (id: string, voteType: "up" | "down") => {
         if (!me) return loginRedirect();
-        setVotingId(id);
+        setVotingId(`${id}-${voteType}`);
         try {
             const res = await fetch(`${API_BASE}/feedback/${id}/vote`, {
                 method: "POST",
                 credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ voteType }),
             });
             if (!res.ok) return;
-            const { voted } = await res.json() as { voted: boolean };
+            const { userVote } = await res.json() as { userVote: "up" | "down" | null };
             setItems((prev) =>
-                prev.map((item) =>
-                    item.id === id
-                        ? { ...item, hasVoted: voted, voteCount: item.voteCount + (voted ? 1 : -1) }
-                        : item,
-                ),
+                prev.map((item) => {
+                    if (item.id !== id) return item;
+                    let { upvoteCount, downvoteCount } = item;
+                    if (item.userVote === "up") upvoteCount--;
+                    if (item.userVote === "down") downvoteCount--;
+                    if (userVote === "up") upvoteCount++;
+                    if (userVote === "down") downvoteCount++;
+                    return { ...item, userVote, upvoteCount, downvoteCount };
+                }),
             );
         } finally {
             setVotingId(null);

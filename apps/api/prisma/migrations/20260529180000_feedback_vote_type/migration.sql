@@ -1,0 +1,1 @@
+ALTER TABLE "FeedbackVote" ADD COLUMN "voteType" TEXT NOT NULL DEFAULT 'up';

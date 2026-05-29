@@ -205,8 +205,9 @@ export interface FeedbackItem {
     displayName: string;
     avatarUrl: string;
   };
-  voteCount: number;
-  hasVoted: boolean;
+  upvoteCount: number;
+  downvoteCount: number;
+  userVote: "up" | "down" | null;
   voters?: { discordId: string; displayName: string }[];
   imageIds: string[];
   createdAt: string;

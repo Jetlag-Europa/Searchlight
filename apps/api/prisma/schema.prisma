@@ -272,6 +272,7 @@ model FeedbackVote {
   id         String   @id @default(cuid())
   feedbackId String
   userId     String
+  voteType   String   @default("up") // "up" | "down"
   createdAt  DateTime @default(now())
 
   feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
