@@ -18,6 +18,17 @@ import {
     save,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
 import {
@@ -104,15 +115,38 @@ export const QuestionSidebar = () => {
                             </AddQuestionDialog>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <a
-                                href="https://github.com/taibeled/JetLagHideAndSeek"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                            >
-                                <SidebarMenuButton className="bg-emerald-600 transition-colors">
-                                    Star this on GitHub! It&apos;s free :)
-                                </SidebarMenuButton>
-                            </a>
+                            <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                    <SidebarMenuButton
+                                        className="bg-red-600 hover:bg-red-700 transition-colors"
+                                        disabled={$isLoading}
+                                    >
+                                        Delete All Questions
+                                    </SidebarMenuButton>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent aria-describedby={undefined}>
+                                    <AlertDialogHeader>
+                                        <AlertDialogTitle>
+                                            Are you absolutely sure?
+                                        </AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                            This action cannot be undone. This
+                                            will permanently delete all
+                                            questions.
+                                        </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                        <AlertDialogCancel>
+                                            Cancel
+                                        </AlertDialogCancel>
+                                        <AlertDialogAction
+                                            onClick={() => questions.set([])}
+                                        >
+                                            Delete All Questions
+                                        </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                </AlertDialogContent>
+                            </AlertDialog>
                         </SidebarMenuItem>
                         {!$autoSave && (
                             <SidebarMenuItem>

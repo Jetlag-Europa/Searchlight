@@ -219,13 +219,6 @@ export const QuestionCard = ({
                                         </AlertDialogCancel>
                                         <AlertDialogAction
                                             onClick={() => {
-                                                questions.set([]);
-                                            }}
-                                        >
-                                            Delete All Questions
-                                        </AlertDialogAction>
-                                        <AlertDialogAction
-                                            onClick={() => {
                                                 questions.set(
                                                     $questions.filter(
                                                         (q) =>
@@ -234,7 +227,6 @@ export const QuestionCard = ({
                                                     ),
                                                 );
                                             }}
-                                            className="mb-2 sm:mb-0"
                                         >
                                             Delete Question
                                         </AlertDialogAction>
