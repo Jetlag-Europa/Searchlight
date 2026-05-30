@@ -602,6 +602,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     }
                                 />
                             </div>
+                            {/* Planning mode — hidden for now, functionality preserved for future use
                             <div className="flex flex-row items-center gap-2">
                                 <label className="text-2xl font-semibold font-poppins">
                                     Enable planning mode?
@@ -611,25 +612,21 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     onCheckedChange={() => {
                                         if ($planningMode === true) {
                                             const map = leafletMapContext.get();
-
                                             if (map) {
                                                 map.eachLayer((layer: any) => {
-                                                    if (
-                                                        layer.questionKey ||
-                                                        layer.questionKey === 0
-                                                    ) {
+                                                    if (layer.questionKey || layer.questionKey === 0) {
                                                         map.removeLayer(layer);
                                                     }
                                                 });
                                             }
                                         } else {
-                                            questions.set([...questions.get()]); // I think that this should always be auto-saved
+                                            questions.set([...questions.get()]);
                                         }
-
                                         planningModeEnabled.set(!$planningMode);
                                     }}
                                 />
                             </div>
+                            */}
                             <div className="flex flex-row items-center gap-2">
                                 <label className="text-2xl font-semibold font-poppins">
                                     Auto save?
