@@ -188,7 +188,7 @@ export const autoSave = persistentAtom<boolean>("autoSave", true, {
     encode: JSON.stringify,
     decode: JSON.parse,
 });
-export const warningAlarm = persistentAtom<boolean>("warningAlarm", true, {
+export const warningAlarm = persistentAtom<boolean>("warningAlarm2", false, {
     encode: JSON.stringify,
     decode: JSON.parse,
 });
