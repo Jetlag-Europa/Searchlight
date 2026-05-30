@@ -75,10 +75,42 @@ export async function saveQuestionsToServer(
 let questionSaveTimer: ReturnType<typeof setTimeout> | null = null;
 const QUESTION_DEBOUNCE_MS = 500;
 
+// ── Hider mode ────────────────────────────────────────────────────────────────
+
+let hiderSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function saveHiderModeToServer(
+    sessionId: string,
+    mode: false | { latitude: number; longitude: number },
+): void {
+    if (hiderSaveTimer) clearTimeout(hiderSaveTimer);
+    hiderSaveTimer = setTimeout(() => {
+        hiderSaveTimer = null;
+        const body = mode === false
+            ? { hiderLat: null, hiderLng: null }
+            : { hiderLat: mode.latitude, hiderLng: mode.longitude };
+        fetch(`${API_BASE}/sessions/${sessionId}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        }).catch((err) => {
+            console.warn("[sessionState] failed to save hider mode:", err);
+        });
+    }, 800);
+}
+
 export function cancelPendingQuestionSave(): void {
     if (questionSaveTimer) {
         clearTimeout(questionSaveTimer);
         questionSaveTimer = null;
+    }
+}
+
+export function cancelPendingHiderSave(): void {
+    if (hiderSaveTimer) {
+        clearTimeout(hiderSaveTimer);
+        hiderSaveTimer = null;
     }
 }
 

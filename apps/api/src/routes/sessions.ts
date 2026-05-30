@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { broadcast } from "../lib/broadcaster.js";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -93,6 +94,8 @@ export async function sessionRoutes(app: FastifyInstance) {
           visibility: s.visibility,
           role: s.participants[0]?.role ?? "creator",
           createdAt: s.createdAt.toISOString(),
+          hiderLat: s.hiderLat,
+          hiderLng: s.hiderLng,
         })),
       };
     },
@@ -151,6 +154,8 @@ export async function sessionRoutes(app: FastifyInstance) {
         visibility: session.visibility,
         role: "creator",
         createdAt: session.createdAt.toISOString(),
+        hiderLat: null,
+        hiderLng: null,
       });
     },
   );
@@ -329,6 +334,8 @@ export async function sessionRoutes(app: FastifyInstance) {
         visibility: session.visibility,
         role: session.creatorId === user.discordId ? "creator" : "member",
         createdAt: session.createdAt.toISOString(),
+        hiderLat: session.hiderLat,
+        hiderLng: session.hiderLng,
         participants: allParticipants.map((p) => ({
           userId: p.userId,
           displayName: p.user.displayName,
@@ -351,6 +358,8 @@ export async function sessionRoutes(app: FastifyInstance) {
           visibility: Type.Optional(
             Type.Union([Type.Literal("private"), Type.Literal("shared")]),
           ),
+          hiderLat: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+          hiderLng: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
         }),
       },
     },
@@ -358,14 +367,31 @@ export async function sessionRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
       const { isCreator } = await resolveParticipant(sessionId, user.discordId);
-      if (!isCreator) throw forbidden("Only the creator can update the session");
 
-      const body = req.body as { name?: string; visibility?: "private" | "shared" };
+      const body = req.body as {
+        name?: string;
+        visibility?: "private" | "shared";
+        hiderLat?: number | null;
+        hiderLng?: number | null;
+      };
+
+      // name and visibility are creator-only; hiderLat/hiderLng any participant can update
+      if ((body.name !== undefined || body.visibility !== undefined) && !isCreator) {
+        throw forbidden("Only the creator can update the session name or visibility");
+      }
+
       const updated = await prisma.gameSession.update({
         where: { id: sessionId },
         data: body,
         include: { game: { select: { name: true } } },
       });
+
+      if (body.hiderLat !== undefined || body.hiderLng !== undefined) {
+        broadcast(sessionId, {
+          type: "hider.update",
+          payloadJson: { hiderLat: updated.hiderLat, hiderLng: updated.hiderLng },
+        });
+      }
 
       return {
         id: updated.id,
@@ -374,8 +400,10 @@ export async function sessionRoutes(app: FastifyInstance) {
         serverId: updated.serverId,
         name: updated.name,
         visibility: updated.visibility,
-        role: "creator",
+        role: isCreator ? "creator" : "member",
         createdAt: updated.createdAt.toISOString(),
+        hiderLat: updated.hiderLat,
+        hiderLng: updated.hiderLng,
       };
     },
   );

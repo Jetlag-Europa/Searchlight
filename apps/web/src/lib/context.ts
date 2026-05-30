@@ -87,16 +87,8 @@ export const questionModified = (..._: any[]) => {
 export const leafletMapContext = atom<Map | null>(null);
 
 export const defaultUnit = persistentAtom<Units>("defaultUnit", "miles");
-export const hiderMode = persistentAtom<
-    | false
-    | {
-          latitude: number;
-          longitude: number;
-      }
->("isHiderMode", false, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
-});
+// Not persisted to localStorage — the DB is the source of truth (restored on session load).
+export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
 export const displayHidingZones = persistentAtom<boolean>(
     "displayHidingZones",

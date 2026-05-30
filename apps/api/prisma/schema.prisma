@@ -117,6 +117,8 @@ model GameSession {
   creatorId  String
   name       String
   visibility Visibility      @default(private)
+  hiderLat   Float?
+  hiderLng   Float?
   createdAt  DateTime        @default(now())
   updatedAt  DateTime        @updatedAt
 

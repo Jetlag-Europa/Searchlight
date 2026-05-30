@@ -94,6 +94,8 @@ export interface GameSessionSummary {
   visibility: SessionVisibility;
   role: "creator" | "member";
   createdAt: string;
+  hiderLat: number | null;
+  hiderLng: number | null;
 }
 
 export interface SessionParticipantDetail {
@@ -121,6 +123,8 @@ export interface CreateSessionBody {
 export interface UpdateSessionBody {
   name?: string;
   visibility?: SessionVisibility;
+  hiderLat?: number | null;
+  hiderLng?: number | null;
 }
 
 // ── Invites ───────────────────────────────────────────────────────────────────
@@ -280,6 +284,11 @@ export type PresenceEvent =
   | { type: "presence.snapshot"; payloadJson: { users: PresenceUser[] } }
   | { type: "presence.join"; payloadJson: PresenceUser }
   | { type: "presence.leave"; payloadJson: { userId: string } };
+
+export interface HiderUpdateEvent {
+  type: "hider.update";
+  payloadJson: { hiderLat: number | null; hiderLng: number | null };
+}
 
 // ── Events ────────────────────────────────────────────────────────────────────
 

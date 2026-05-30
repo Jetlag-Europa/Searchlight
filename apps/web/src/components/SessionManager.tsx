@@ -14,8 +14,10 @@ import {
     getGameById,
     type GameDefinition,
 } from "@/lib/games";
-import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave } from "@/lib/sessionState";
+import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave, cancelPendingHiderSave, saveHiderModeToServer } from "@/lib/sessionState";
 import { shouldSuppressQuestionSave } from "@/lib/questionSaveSuppress";
+import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
+import { hiderMode } from "@/lib/context";
 import {
     getCachedSession,
     getPendingEvents,
@@ -372,10 +374,13 @@ export function SessionManager() {
     const sessionId = useStore(activeSessionId);
     const session = useStore(activeSessionData);
     const currentQuestions = useStore(questions);
+    const currentHiderMode = useStore(hiderMode);
     const [showPicker, setShowPicker] = useState(false);
     const [loading, setLoading] = useState(false);
     // Prevents saving questions immediately after we just loaded them from the server.
     const suppressNextSaveRef = useRef(false);
+    // Start suppressed: always wait for the server load before allowing any hider saves.
+    const suppressNextHiderSaveRef = useRef(true);
 
     // Debounce-save questions whenever they change (while a session is active).
     // Skip the first fire after a server load to avoid overwriting fresh server data.
@@ -391,6 +396,20 @@ export function SessionManager() {
         }
         saveQuestionsDebounced(sessionId, currentQuestions);
     }, [sessionId, currentQuestions]);
+
+    // Debounce-save hider mode whenever it changes (while a session is active).
+    useEffect(() => {
+        if (!sessionId) return;
+        if (suppressNextHiderSaveRef.current) {
+            suppressNextHiderSaveRef.current = false;
+            return;
+        }
+        if (shouldSuppressHiderSave()) {
+            console.info("[taibled:session] suppressing hider save — was set by SSE");
+            return;
+        }
+        saveHiderModeToServer(sessionId, currentHiderMode);
+    }, [sessionId, currentHiderMode]);
 
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
@@ -471,6 +490,8 @@ export function SessionManager() {
                 const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
                 if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
 
+                cancelPendingHiderSave();
+                suppressNextHiderSaveRef.current = true;
                 setActiveSession(data);
                 setShowPicker(false);
 
@@ -485,6 +506,12 @@ export function SessionManager() {
                     console.info("[taibled:session] reconciled", serverQs.length, "question(s) from server");
                     suppressNextSaveRef.current = true;
                     questions.set(serverQs);
+                    suppressNextHiderSaveRef.current = true;
+                    hiderMode.set(
+                        data.hiderLat != null && data.hiderLng != null
+                            ? { latitude: data.hiderLat, longitude: data.hiderLng }
+                            : false,
+                    );
                     startSSE(storedId);
                 } catch (e) {
                     console.warn(
@@ -540,6 +567,12 @@ export function SessionManager() {
             console.info("[taibled:session] loaded", loadedQuestions.length, "question(s) from server");
             suppressNextSaveRef.current = true;
             questions.set(loadedQuestions);
+            suppressNextHiderSaveRef.current = true;
+            hiderMode.set(
+                selected.hiderLat != null && selected.hiderLng != null
+                    ? { latitude: selected.hiderLat, longitude: selected.hiderLng }
+                    : false,
+            );
             const game = games.find((g) => g.id === selected.gameId);
             if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
             // Flush any pending events for this session, then start live channel.
@@ -554,9 +587,11 @@ export function SessionManager() {
             setLoading(false);
         }
 
-        // Suppress the save effect that fires when sessionId changes — questions
-        // were just loaded from the server so there's nothing new to write back.
+        // Suppress save effects that fire when sessionId changes — state was just
+        // loaded from the server so there's nothing new to write back.
         suppressNextSaveRef.current = true;
+        cancelPendingHiderSave();
+        suppressNextHiderSaveRef.current = true;
         setActiveSession(selected);
         setShowPicker(false);
     }, []);

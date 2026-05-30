@@ -1,9 +1,10 @@
 import type { EventRecord } from "@taibled/shared";
-import { questions, syncStatus, connectedUsers } from "@/lib/context";
+import { questions, syncStatus, connectedUsers, hiderMode } from "@/lib/context";
 import type { PresenceUser } from "@/lib/context";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { getPendingEvents, getCachedSession, setCachedSession } from "@/lib/eventQueue";
 import { suppressNextQuestionSave } from "@/lib/questionSaveSuppress";
+import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 
@@ -142,6 +143,17 @@ export function startSSE(sessionId: string): void {
             const parsed = JSON.parse(e.data as string) as { type: string; payloadJson: unknown };
             if (parsed.type.startsWith("presence.")) {
                 handlePresenceEvent(parsed.type, parsed.payloadJson);
+                return;
+            }
+            if (parsed.type === "hider.update") {
+                const { hiderLat, hiderLng } = parsed.payloadJson as { hiderLat: number | null; hiderLng: number | null };
+                console.info("[taibled:sse] applying hider.update", { hiderLat, hiderLng });
+                suppressNextHiderSave();
+                hiderMode.set(
+                    hiderLat != null && hiderLng != null
+                        ? { latitude: hiderLat, longitude: hiderLng }
+                        : false,
+                );
                 return;
             }
             handleServerEvent(parsed as unknown as EventRecord);
