@@ -1,5 +1,4 @@
 import { atom } from "nanostores";
-import { persistentAtom } from "@nanostores/persistent";
 
 import {
     additionalMapGeoLocations,
@@ -88,9 +87,14 @@ const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
 export const gamesAtom = atom<GameDefinition[]>([]);
 export const gamesLoadingAtom = atom<boolean>(false);
 
-// The ID of the currently active game (from the active session).
-// Legacy "current-game-id" key is intentionally not reused — IDs are now cuid strings from the DB.
-export const currentGameId = persistentAtom<string>("taibled-current-game-id", "");
+const GAME_SS_KEY = "taibled-current-game-id";
+
+// Tab-local game ID — sessionStorage so each tab tracks its own game independently.
+export const currentGameId = atom<string>(
+    typeof sessionStorage !== "undefined"
+        ? (sessionStorage.getItem(GAME_SS_KEY) ?? "")
+        : ""
+);
 
 export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
     gamesLoadingAtom.set(true);
@@ -246,5 +250,6 @@ export function switchToGame(game: GameDefinition): void {
     displayHidingZones.set(true);
     displayHidingZonesStyle.set("zones");
 
+    sessionStorage.setItem(GAME_SS_KEY, game.id);
     currentGameId.set(game.id);
 }

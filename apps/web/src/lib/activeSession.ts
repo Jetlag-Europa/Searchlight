@@ -1,19 +1,27 @@
 import { atom } from "nanostores";
-import { persistentAtom } from "@nanostores/persistent";
 import type { GameSessionSummary } from "@taibled/shared";
 
-// Persisted session ID — survives page reload. Cleared when session is gone or invalid.
-export const activeSessionId = persistentAtom<string>("taibled-active-session", "");
+const SS_KEY = "taibled-active-session";
+
+// Tab-local session ID — sessionStorage so each tab tracks its own session
+// independently. Survives reload within the tab; invisible to other tabs.
+export const activeSessionId = atom<string>(
+    typeof sessionStorage !== "undefined"
+        ? (sessionStorage.getItem(SS_KEY) ?? "")
+        : ""
+);
 
 // Full session detail for the currently active session (in-memory only).
 export const activeSessionData = atom<GameSessionSummary | null>(null);
 
 export function setActiveSession(session: GameSessionSummary): void {
-  activeSessionId.set(session.id);
-  activeSessionData.set(session);
+    sessionStorage.setItem(SS_KEY, session.id);
+    activeSessionId.set(session.id);
+    activeSessionData.set(session);
 }
 
 export function clearActiveSession(): void {
-  activeSessionId.set("");
-  activeSessionData.set(null);
+    sessionStorage.removeItem(SS_KEY);
+    activeSessionId.set("");
+    activeSessionData.set(null);
 }

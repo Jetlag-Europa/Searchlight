@@ -41,6 +41,7 @@ export const mapGeoLocation = persistentAtom<OpenStreetMap>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 
@@ -49,6 +50,7 @@ export const additionalMapGeoLocations = persistentAtom<
 >("additionalMapGeoLocations", [], {
     encode: JSON.stringify,
     decode: JSON.parse,
+    listen: false,
 });
 export const permanentOverlay = persistentAtom<FeatureCollection | null>(
     "permanentOverlay",
@@ -56,6 +58,7 @@ export const permanentOverlay = persistentAtom<FeatureCollection | null>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 
@@ -67,6 +70,7 @@ export const polyGeoJSON = persistentAtom<FeatureCollection<
 > | null>("polyGeoJSON", null, {
     encode: JSON.stringify,
     decode: JSON.parse,
+    listen: false,
 });
 
 // Not persisted: questions are server-backed (Phase 3). SessionManager loads them
@@ -86,7 +90,7 @@ export const questionModified = (..._: any[]) => {
 
 export const leafletMapContext = atom<Map | null>(null);
 
-export const defaultUnit = persistentAtom<Units>("defaultUnit", "miles");
+export const defaultUnit = persistentAtom<Units>("defaultUnit", "miles", { listen: false });
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).
 export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
@@ -96,6 +100,7 @@ export const displayHidingZones = persistentAtom<boolean>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const displayHidingZonesOptions = persistentAtom<string[]>(
@@ -104,11 +109,12 @@ export const displayHidingZonesOptions = persistentAtom<string[]>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const displayHidingZonesStyle = persistentAtom<
     "zones" | "stations" | "no-overlap" | "no-display"
->("displayHidingZonesStyle", "zones");
+>("displayHidingZonesStyle", "zones", { listen: false });
 export const showZoneNames = persistentAtom<boolean>("showZoneNames", false, {
     encode: JSON.stringify,
     decode: JSON.parse,
@@ -130,6 +136,7 @@ export const useCustomStations = persistentAtom<boolean>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const customStations = persistentAtom<CustomStation[]>(
@@ -138,6 +145,7 @@ export const customStations = persistentAtom<CustomStation[]>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const mergeDuplicates = persistentAtom<boolean>(
@@ -154,6 +162,7 @@ export const includeDefaultStations = persistentAtom<boolean>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const animateMapMovements = persistentAtom<boolean>(
@@ -167,6 +176,7 @@ export const animateMapMovements = persistentAtom<boolean>(
 export const hidingRadius = persistentAtom<number>("hidingRadius", 1, {
     encode: JSON.stringify,
     decode: JSON.parse,
+    listen: false,
 });
 export const hidingRadiusUnits = persistentAtom<Units>(
     "hidingRadiusUnits",
@@ -174,6 +184,7 @@ export const hidingRadiusUnits = persistentAtom<Units>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const disabledStations = persistentAtom<string[]>(
@@ -182,6 +193,7 @@ export const disabledStations = persistentAtom<string[]>(
     {
         encode: JSON.stringify,
         decode: JSON.parse,
+        listen: false,
     },
 );
 export const autoSave = persistentAtom<boolean>("autoSave", true, {
