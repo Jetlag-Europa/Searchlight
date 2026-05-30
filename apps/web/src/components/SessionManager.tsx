@@ -554,6 +554,9 @@ export function SessionManager() {
             setLoading(false);
         }
 
+        // Suppress the save effect that fires when sessionId changes — questions
+        // were just loaded from the server so there's nothing new to write back.
+        suppressNextSaveRef.current = true;
         setActiveSession(selected);
         setShowPicker(false);
     }, []);
