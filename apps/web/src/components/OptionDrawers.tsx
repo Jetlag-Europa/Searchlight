@@ -18,6 +18,7 @@ import {
     animateMapMovements,
     autoSave,
     autoZoom,
+    warningAlarm,
     baseTileLayer,
     customInitPreference,
     customPresets,
@@ -87,6 +88,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $defaultUnit = useStore(defaultUnit);
     const $animateMapMovements = useStore(animateMapMovements);
     const $autoZoom = useStore(autoZoom);
+    const $warningAlarm = useStore(warningAlarm);
     const $hiderMode = useStore(hiderMode);
     const $autoSave = useStore(autoSave);
     const $hidingZone = useStore(hidingZone);
@@ -636,6 +638,17 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     checked={$autoSave}
                                     onCheckedChange={() =>
                                         autoSave.set(!$autoSave)
+                                    }
+                                />
+                            </div>
+                            <div className="flex flex-row items-center gap-2">
+                                <label className="text-2xl font-semibold font-poppins text-red-400">
+                                    Warning alarm?
+                                </label>
+                                <Checkbox
+                                    checked={$warningAlarm}
+                                    onCheckedChange={() =>
+                                        warningAlarm.set(!$warningAlarm)
                                     }
                                 />
                             </div>

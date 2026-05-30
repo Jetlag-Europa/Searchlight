@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes warning-flash {
+    0%, 100% { background-color: rgba(220, 38, 38, 0.55); }
+    50%       { background-color: rgba(220, 38, 38, 0); }
+}
+
+.warning-flash {
+    animation: warning-flash 0.4s ease-in-out infinite;
+}
+
 html,
 body {
     margin: 0;

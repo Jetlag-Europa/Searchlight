@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useStore } from "@nanostores/react";
 import { SidebarCloseIcon } from "lucide-react";
 
@@ -17,6 +18,7 @@ import {
     questions,
     save,
     triggerLocalRefresh,
+    warningAlarm,
 } from "@/lib/context";
 import {
     AlertDialog,
@@ -44,8 +46,33 @@ export const QuestionSidebar = () => {
     const $questions = useStore(questions);
     const $autoSave = useStore(autoSave);
     const $isLoading = useStore(isLoading);
+    const $warningAlarm = useStore(warningAlarm);
+    const [alarmActive, setAlarmActive] = useState(false);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+
+    const startAlarm = () => {
+        if (!$warningAlarm) return;
+        setAlarmActive(true);
+        const audio = new Audio("/Mountain%20Audio%20-%20Alarm.mp3");
+        audio.loop = true;
+        audio.play().catch(() => {});
+        audioRef.current = audio;
+    };
+
+    const stopAlarm = () => {
+        setAlarmActive(false);
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current.currentTime = 0;
+            audioRef.current = null;
+        }
+    };
 
     return (
+        <>
+        {alarmActive && (
+            <div className="warning-flash fixed inset-0 z-[1039] pointer-events-none" />
+        )}
         <Sidebar>
             <div className="flex items-center justify-between">
                 <h2 className="ml-4 mt-4 font-poppins text-2xl">Questions</h2>
@@ -115,7 +142,7 @@ export const QuestionSidebar = () => {
                             </AddQuestionDialog>
                         </SidebarMenuItem>
                         <SidebarMenuItem>
-                            <AlertDialog>
+                            <AlertDialog onOpenChange={(open) => open ? startAlarm() : stopAlarm()}>
                                 <AlertDialogTrigger asChild>
                                     <SidebarMenuButton
                                         className="bg-red-600 hover:bg-red-700 transition-colors"
@@ -163,5 +190,6 @@ export const QuestionSidebar = () => {
                 </SidebarGroupContent>
             </SidebarGroup>
         </Sidebar>
+        </>
     );
 };

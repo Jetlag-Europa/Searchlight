@@ -188,6 +188,10 @@ export const autoSave = persistentAtom<boolean>("autoSave", true, {
     encode: JSON.stringify,
     decode: JSON.parse,
 });
+export const warningAlarm = persistentAtom<boolean>("warningAlarm", true, {
+    encode: JSON.stringify,
+    decode: JSON.parse,
+});
 export const save = () => {
     questions.set([...questions.get()]);
     const $hiderMode = hiderMode.get();
