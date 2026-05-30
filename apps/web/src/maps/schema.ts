@@ -350,6 +350,7 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "lux-mountains": "__bundled-luxembourg-2026__",
     "lux-hospitals": "__bundled-luxembourg-2026__",
     "brno-district": "__bundled-brno-2026-v2__",
+    "brno-water":    "__bundled-brno-2026-v2__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -433,8 +434,13 @@ const customMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
     geo: z.any(),
 });
 
+const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.literal("brno-water").describe("Body of Water (Brno)"),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
+    brnoMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

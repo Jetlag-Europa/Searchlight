@@ -172,6 +172,17 @@ export const determineMeasuringBoundary = async (
                 ).features[0],
             ];
         }
+        case "brno-water": {
+            const waterPOI = gamePOIData.get()["water"];
+            if (!waterPOI?.length) return [turf.multiPolygon([])];
+            return [
+                turf.combine(
+                    turf.featureCollection(
+                        waterPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+                    ),
+                ).features[0],
+            ];
+        }
         case "city":
             return [
                 turf.combine(

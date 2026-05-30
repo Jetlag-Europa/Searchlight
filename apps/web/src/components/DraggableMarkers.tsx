@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { Marker } from "react-leaflet";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
     autoSave,
     hiderMode,
@@ -84,6 +84,7 @@ const ColoredMarker = ({
                 }}
             />
             <DialogContent aria-describedby={undefined} className="!bg-[hsl(var(--sidebar-background))] !text-white">
+                <DialogTitle className="sr-only">Question</DialogTitle>
                 {questionKey === -1 && $hiderMode !== false && (
                     <>
                         <h2 className="text-center text-2xl font-bold font-poppins">

@@ -136,7 +136,7 @@ export function parseKMLFolderPOI(
         if (!folderNameMatch) continue;
         const folderName = folderNameMatch[1].trim();
         const category = folderCategoryMap[folderName];
-        if (!category || category === "administrative" || category === "water") continue;
+        if (!category || category === "administrative") continue;
         const placemarks = block.split(/<Placemark[\s>]/i).slice(1);
         for (const pm of placemarks) {
             const coordsMatch = pm.match(

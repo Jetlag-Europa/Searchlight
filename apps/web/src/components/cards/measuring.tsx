@@ -23,9 +23,11 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
+import { currentGameId, gamesAtom } from "@/lib/games";
 import { determineMeasuringBoundary } from "@/maps/questions/measuring";
 import {
     determineUnionizedStrings,
+    GAME_GATED_TYPES,
     type MeasuringQuestion,
     measuringQuestionSchema,
     NO_GROUP,
@@ -51,6 +53,9 @@ export const MeasuringQuestionComponent = ({
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
     const $customInitPref = useStore(customInitPreference);
+    const $currentGameId = useStore(currentGameId);
+    const $games = useStore(gamesAtom);
+    const activeGameSentinel = $games.find((g) => g.id === $currentGameId)?.sentinelValue ?? "";
     const [customDialogOpen, setCustomDialogOpen] = React.useState(false);
     const label = `Measuring
     ${
@@ -178,6 +183,10 @@ export const MeasuringQuestionComponent = ({
                             .flatMap((x) =>
                                 determineUnionizedStrings(x.shape.type),
                             )
+                            .filter((x) => {
+                                const requiredSentinel = GAME_GATED_TYPES[(x._def as any).value];
+                                return !requiredSentinel || requiredSentinel === activeGameSentinel;
+                            })
                             .map((x) => [(x._def as any).value, x.description]),
                     )}
                     groups={measuringQuestionSchema.options
