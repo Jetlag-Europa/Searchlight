@@ -90,16 +90,24 @@ const parseCoordinatesFromText = (
     return { lat: null, lng: null };
 };
 
+export interface LocalLocation {
+    name: string;
+    lat: number;
+    lng: number;
+}
+
 const LatLngEditForm = ({
     latitude,
     longitude,
     onChange,
     disabled,
+    localLocations,
 }: {
     latitude: number;
     longitude: number;
     onChange: (lat: number | null, lng: number | null) => void;
     disabled?: boolean;
+    localLocations?: LocalLocation[];
 }) => {
     const [inputValue, setInputValue] = useState("");
     const debouncedValue = useDebounce<string>(inputValue);
@@ -109,7 +117,16 @@ const LatLngEditForm = ({
     const $allowGooglePlusCodes = useStore(allowGooglePlusCodes);
     const googlePlusCodesRef = useRef<HTMLInputElement>(null);
 
+    const localResults: LocalLocation[] = localLocations
+        ? debouncedValue.trim() === ""
+            ? []
+            : localLocations.filter((loc) =>
+                  loc.name.toLowerCase().includes(debouncedValue.toLowerCase()),
+              )
+        : [];
+
     useEffect(() => {
+        if (localLocations) return;
         if (debouncedValue === "") {
             setResults([]);
             return;
@@ -126,7 +143,7 @@ const LatLngEditForm = ({
                     setLoading(false);
                 });
         }
-    }, [debouncedValue]);
+    }, [debouncedValue, localLocations]);
 
     const _latlngLabels = results.map((r) => determineName(r));
     const _latlngLabelCounts: Record<string, number> = {};
@@ -147,38 +164,61 @@ const LatLngEditForm = ({
         <>
             <Command shouldFilter={false}>
                 <CommandInput
-                    placeholder="Search place..."
+                    placeholder={localLocations ? "Search hiding location..." : "Search place..."}
                     onKeyUp={(x) => setInputValue(x.currentTarget.value)}
                     disabled={disabled}
                 />
                 <CommandList>
-                    <CommandEmpty>
-                        {loading
-                            ? "Loading..."
-                            : error
-                              ? "Error loading places."
-                              : "No locations found."}
-                    </CommandEmpty>
-                    <CommandGroup>
-                        {results.map((result) => (
-                            <CommandItem
-                                key={`${result.properties.osm_id}${result.properties.name}`}
-                                onSelect={() => {
-                                    const coords = result.geometry.coordinates;
-                                    onChange(coords[0], coords[1]);
-                                }}
-                                className="cursor-pointer"
-                            >
-                                {(() => {
-                                    const _key = `${result.properties.osm_id}${result.properties.name}`;
-                                    return (
-                                        _latlngLabelByKey[_key] ||
-                                        determineName(result)
-                                    );
-                                })()}
-                            </CommandItem>
-                        ))}
-                    </CommandGroup>
+                    {localLocations ? (
+                        <>
+                            <CommandEmpty>
+                                {debouncedValue.trim() === ""
+                                    ? "Type to search hiding locations."
+                                    : "No hiding locations found."}
+                            </CommandEmpty>
+                            <CommandGroup>
+                                {localResults.map((loc) => (
+                                    <CommandItem
+                                        key={`${loc.name}-${loc.lat}-${loc.lng}`}
+                                        onSelect={() => onChange(loc.lat, loc.lng)}
+                                        className="cursor-pointer"
+                                    >
+                                        {loc.name}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </>
+                    ) : (
+                        <>
+                            <CommandEmpty>
+                                {loading
+                                    ? "Loading..."
+                                    : error
+                                      ? "Error loading places."
+                                      : "No locations found."}
+                            </CommandEmpty>
+                            <CommandGroup>
+                                {results.map((result) => (
+                                    <CommandItem
+                                        key={`${result.properties.osm_id}${result.properties.name}`}
+                                        onSelect={() => {
+                                            const coords = result.geometry.coordinates;
+                                            onChange(coords[0], coords[1]);
+                                        }}
+                                        className="cursor-pointer"
+                                    >
+                                        {(() => {
+                                            const _key = `${result.properties.osm_id}${result.properties.name}`;
+                                            return (
+                                                _latlngLabelByKey[_key] ||
+                                                determineName(result)
+                                            );
+                                        })()}
+                                    </CommandItem>
+                                ))}
+                            </CommandGroup>
+                        </>
+                    )}
                 </CommandList>
             </Command>
             <div className="flex gap-2 items-center">
@@ -319,6 +359,7 @@ export const LatitudeLongitude = ({
     children,
     disabled,
     inlineEdit = false,
+    localLocations,
 }: {
     latitude: number;
     longitude: number;
@@ -329,6 +370,7 @@ export const LatitudeLongitude = ({
     children?: React.ReactNode;
     disabled?: boolean;
     inlineEdit?: boolean;
+    localLocations?: LocalLocation[];
 }) => {
     const $isLoading = useStore(isLoading);
 
@@ -386,6 +428,7 @@ export const LatitudeLongitude = ({
                                 longitude={longitude}
                                 onChange={onChange}
                                 disabled={disabled}
+                                localLocations={localLocations}
                             />
                         </div>
                     ) : (
@@ -410,6 +453,7 @@ export const LatitudeLongitude = ({
                                     longitude={longitude}
                                     onChange={onChange}
                                     disabled={disabled}
+                                    localLocations={localLocations}
                                 />
                                 <DialogFooter>
                                     <DialogClose asChild>

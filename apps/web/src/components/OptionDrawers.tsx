@@ -37,6 +37,7 @@ import {
     hidingZone,
     hidingZoneFocusedStationID,
     includeDefaultStations,
+    trainStations,
     leafletMapContext,
     mapGeoJSON,
     mapGeoLocation,
@@ -63,7 +64,8 @@ import {
 } from "@/lib/utils";
 import { questionsSchema } from "@/maps/schema";
 
-import { LatitudeLongitude } from "./LatLngPicker";
+import { LatitudeLongitude, type LocalLocation } from "./LatLngPicker";
+import { extractStationLabel } from "@/maps/geo-utils";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { Input } from "./ui/input";
@@ -90,6 +92,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $autoZoom = useStore(autoZoom);
     const $warningAlarm = useStore(warningAlarm);
     const $hiderMode = useStore(hiderMode);
+    const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
     const $hidingZone = useStore(hidingZone);
     const $planningMode = useStore(planningModeEnabled);
@@ -737,6 +740,13 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         latitude={$hiderMode.latitude}
                                         longitude={$hiderMode.longitude}
                                         inlineEdit
+                                        localLocations={$trainStations.length > 0
+                                            ? ($trainStations.map((s) => {
+                                                const name = extractStationLabel(s.properties) as string;
+                                                const coords = s.properties.geometry.coordinates as [number, number];
+                                                return { name, lat: coords[1], lng: coords[0] } satisfies LocalLocation;
+                                              }).filter((loc) => loc.name))
+                                            : undefined}
                                         onChange={(latitude, longitude) => {
                                             $hiderMode.latitude =
                                                 latitude ?? $hiderMode.latitude;

@@ -11,11 +11,13 @@ import {
     questionModified,
     questions,
     save,
+    trainStations,
     triggerLocalRefresh,
 } from "@/lib/context";
 import type { ICON_COLORS } from "@/maps/api";
+import { extractStationLabel } from "@/maps/geo-utils";
 
-import { LatitudeLongitude } from "./LatLngPicker";
+import { LatitudeLongitude, type LocalLocation } from "./LatLngPicker";
 import {
     MatchingQuestionComponent,
     MeasuringQuestionComponent,
@@ -45,7 +47,17 @@ const ColoredMarker = ({
 }) => {
     const $questions = useStore(questions);
     const $hiderMode = useStore(hiderMode);
+    const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
+    const hiderLocalLocations: LocalLocation[] | undefined = $trainStations.length > 0
+        ? $trainStations
+            .map((s) => {
+                const name = extractStationLabel(s.properties) as string;
+                const coords = s.properties.geometry.coordinates as [number, number];
+                return { name, lat: coords[1], lng: coords[0] };
+            })
+            .filter((loc) => loc.name)
+        : undefined;
     const [open, setOpen] = useState(false);
 
     return (
@@ -95,6 +107,7 @@ const ColoredMarker = ({
                                 latitude={$hiderMode.latitude}
                                 longitude={$hiderMode.longitude}
                                 inlineEdit
+                                localLocations={hiderLocalLocations}
                                 onChange={(latitude, longitude) => {
                                     hiderMode.set({
                                         latitude:
