@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar-l";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
+    autoLockQuestions,
     customInitPreference,
     displayHidingZones,
     drawingQuestionKey,
@@ -279,6 +280,7 @@ export const MeasuringQuestionComponent = ({
                     if (lng !== null) {
                         data.lng = lng;
                     }
+                    if (autoLockQuestions.get()) data.drag = false;
                     questionModified();
                 }}
                 disabled={!data.drag || $isLoading}

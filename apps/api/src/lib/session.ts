@@ -9,6 +9,7 @@ export interface ResolvedUser {
   discordAccessToken: string;
   discordRefreshToken: string;
   discordTokenExpiresAt: Date;
+  preferences?: unknown;
 }
 
 const unauthorized = () => Object.assign(new Error("Unauthorized"), { statusCode: 401 });

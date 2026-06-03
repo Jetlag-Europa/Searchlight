@@ -4,7 +4,6 @@ import { atom } from "nanostores";
 import {
     additionalMapGeoLocations,
     customStations,
-    defaultUnit,
     disabledStations,
     displayHidingZones,
     displayHidingZonesOptions,
@@ -224,7 +223,6 @@ export function applyGameDefaults(game: GameDefinition): void {
     if (polyGeoJSON.get() !== null) {
         polyGeoJSON.set(null);
     }
-    defaultUnit.set(game.hidingRadiusUnits);
     hidingRadius.set(game.hidingRadius);
     hidingRadiusUnits.set(game.hidingRadiusUnits);
     tierRadiusOverrides.set(game.tierRadiusOverrides ?? {});

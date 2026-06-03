@@ -413,6 +413,14 @@ export const allowGooglePlusCodes = persistentAtom<boolean>(
         decode: JSON.parse,
     },
 );
+export const autoLockQuestions = persistentAtom<boolean>(
+    "autoLockQuestions",
+    false,
+    {
+        encode: JSON.stringify,
+        decode: JSON.parse,
+    },
+);
 
 // Shared sidebar context atoms — kept here so all islands (client:load and
 // client:only) resolve the same module instance and therefore the same atom.

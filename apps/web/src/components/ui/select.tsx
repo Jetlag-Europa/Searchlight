@@ -37,10 +37,25 @@ const Select = <T extends string>({
         mapObj(options, (value, children) => (
             <SelectItem key={value} {...{ ...rest, value, children }} />
         ));
+    // Resolve the display label for the current value so SelectValue shows the
+    // correct text even before the user has opened the dropdown (Radix only
+    // captures item text after first open; passing children bypasses that).
+    const currentLabel: string | undefined = (() => {
+        if (options && rest.value in options) return options[rest.value as T];
+        if (groups) {
+            for (const groupValue of Object.values(groups)) {
+                const opts = ("options" in groupValue && typeof groupValue.options === "object")
+                    ? groupValue.options
+                    : (groupValue as Options<T>);
+                if (rest.value in opts) return (opts as Options<T>)[rest.value as T];
+            }
+        }
+        return undefined;
+    })();
     return (
         <SelectPrimitive.Root {...rest}>
             <SelectTrigger {...{ className }}>
-                <SelectValue {...{ placeholder }} />
+                <SelectValue placeholder={placeholder}>{currentLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>
                 {options && <Options {...{ options }} />}

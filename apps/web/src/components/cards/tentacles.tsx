@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sidebar-l";
 import { UnitSelect } from "@/components/UnitSelect";
 import {
+    autoLockQuestions,
     drawingQuestionKey,
     hiderMode,
     isLoading,
@@ -182,6 +183,7 @@ export const TentacleQuestionComponent = ({
                     if (lng !== null) {
                         data.lng = lng;
                     }
+                    if (autoLockQuestions.get()) data.drag = false;
                     questionModified();
                 }}
                 disabled={!data.drag || $isLoading}

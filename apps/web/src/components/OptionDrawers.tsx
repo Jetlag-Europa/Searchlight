@@ -15,6 +15,7 @@ import {
     additionalMapGeoLocations,
     allowGooglePlusCodes,
     alwaysUsePastebin,
+    autoLockQuestions,
     animateMapMovements,
     autoSave,
     autoZoom,
@@ -100,6 +101,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $pastebinApiKey = useStore(pastebinApiKey);
     const $alwaysUsePastebin = useStore(alwaysUsePastebin);
+    const $autoLockQuestions = useStore(autoLockQuestions);
     const $followMe = useStore(followMe);
     const $customInitPref = useStore(customInitPreference);
     const $penToolbarVisible = useStore(penToolbarVisible);
@@ -402,7 +404,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             >
                 Tutorial
             </Button>
-            <a href="/feedback" className="w-full" onClick={() => setNavOpen(false)}>
+            <a href="/feedback" target="_blank" rel="noopener noreferrer" className="w-full" onClick={() => setNavOpen(false)}>
                 <Button className="w-full shadow-md">Feedback</Button>
             </a>
             <ShareDrawer className="w-full shadow-md" onOpen={() => setNavOpen(false)} />
@@ -710,6 +712,17 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         penToolbarVisible.set(
                                             !$penToolbarVisible,
                                         )
+                                    }
+                                />
+                            </div>
+                            <div className="flex flex-row items-center gap-2">
+                                <label className="text-2xl font-semibold font-poppins">
+                                    Auto-lock questions?
+                                </label>
+                                <Checkbox
+                                    checked={$autoLockQuestions}
+                                    onCheckedChange={() =>
+                                        autoLockQuestions.set(!$autoLockQuestions)
                                     }
                                 />
                             </div>

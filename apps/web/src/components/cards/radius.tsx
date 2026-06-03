@@ -10,6 +10,7 @@ import {
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
 import {
+    autoLockQuestions,
     hiderMode,
     isLoading,
     questionModified,
@@ -92,6 +93,7 @@ export const RadiusQuestionComponent = ({
                     if (lng !== null) {
                         data.lng = lng;
                     }
+                    if (autoLockQuestions.get()) data.drag = false;
                     questionModified();
                 }}
                 disabled={!data.drag || $isLoading}

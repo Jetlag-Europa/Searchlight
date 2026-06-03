@@ -4,7 +4,7 @@ import { distance, point } from "@turf/turf";
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { defaultUnit } from "@/lib/context";
+import { autoLockQuestions, defaultUnit } from "@/lib/context";
 import {
     hiderMode,
     isLoading,
@@ -88,6 +88,7 @@ export const ThermometerQuestionComponent = ({
                 onChange={(lat, lng) => {
                     if (lat !== null) data.latA = lat;
                     if (lng !== null) data.lngA = lng;
+                    if (autoLockQuestions.get()) data.drag = false;
                     questionModified();
                 }}
                 disabled={!data.drag || $isLoading}
@@ -101,6 +102,7 @@ export const ThermometerQuestionComponent = ({
                 onChange={(lat, lng) => {
                     if (lat !== null) data.latB = lat;
                     if (lng !== null) data.lngB = lng;
+                    if (autoLockQuestions.get()) data.drag = false;
                     questionModified();
                 }}
                 disabled={!data.drag || $isLoading}

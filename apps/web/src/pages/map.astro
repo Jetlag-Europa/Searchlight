@@ -18,6 +18,7 @@ import { AnnotationToolbar } from "@/annotations";
 import { AuthGuard } from "@/components/AuthGuard";
 import { SessionManager } from "@/components/SessionManager";
 import { SyncIndicator } from "@/components/SyncIndicator";
+import { PreferencesSync } from "@/components/PreferencesSync";
 ---
 
 <Layout className="bg-jetlag">
@@ -42,6 +43,9 @@ import { SyncIndicator } from "@/components/SyncIndicator";
 
     <!-- SessionManager shows blocking overlay until a session is selected, then persists session state -->
     <SessionManager client:only="react" />
+
+    <!-- PreferencesSync loads user preferences from server and saves changes back -->
+    <PreferencesSync client:only="react" />
 
     <!-- SyncIndicator shows offline/syncing/synced status -->
     <SyncIndicator client:only="react" />

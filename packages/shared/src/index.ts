@@ -7,8 +7,27 @@ export interface User {
   avatarUrl: string;
 }
 
+export interface UserPreferences {
+  defaultUnit?: string;
+  customInitPreference?: string;
+  baseTileLayer?: string;
+  thunderforestApiKey?: string;
+  pastebinApiKey?: string;
+  animateMapMovements?: boolean;
+  alwaysUsePastebin?: boolean;
+  autoSave?: boolean;
+  warningAlarm?: boolean;
+  autoZoom?: boolean;
+  defaultCustomQuestions?: boolean;
+  allowGooglePlusCodes?: boolean;
+  penToolbarVisible?: boolean;
+  showZoneNames?: boolean;
+  autoLockQuestions?: boolean;
+}
+
 export interface MeResponse {
   user: User;
+  preferences: UserPreferences;
 }
 
 // ── Servers / Roles ───────────────────────────────────────────────────────────
