@@ -81,9 +81,7 @@ function SessionPickerOverlay({
             const data: SessionsResponse = await sessRes.json();
             setSessions(data.sessions);
             setAvailableGames(games);
-            if (games.length > 0 && !newSessionGameId) {
-                setNewSessionGameId(games[0].id);
-            }
+            setNewSessionGameId(games.length > 0 ? games[0].id : "");
         } catch (e: unknown) {
             setError(`Failed to load sessions: ${(e as Error).message}`);
         } finally {
@@ -284,7 +282,7 @@ function SessionPickerOverlay({
                                         onKeyDown={(e) => e.key === "Enter" && handleCreateSession()}
                                     />
                                 </div>
-                                {availableGames.length >= 1 && (
+                                {availableGames.length >= 1 ? (
                                     <div>
                                         <label className="text-xs text-muted-foreground block mb-1">Game</label>
                                         <select
@@ -297,6 +295,10 @@ function SessionPickerOverlay({
                                             ))}
                                         </select>
                                     </div>
+                                ) : (
+                                    <p className="text-xs text-muted-foreground italic">
+                                        No games available for this server — sessions cannot be created.
+                                    </p>
                                 )}
                                 <div>
                                     <label className="text-xs text-muted-foreground block mb-1">Visibility</label>
@@ -319,7 +321,7 @@ function SessionPickerOverlay({
                                     <Button
                                         size="sm"
                                         onClick={handleCreateSession}
-                                        disabled={creatingSession || !newSessionName.trim()}
+                                        disabled={creatingSession || !newSessionName.trim() || !newSessionGameId}
                                     >
                                         {creatingSession ? "Creating…" : "Create"}
                                     </Button>
