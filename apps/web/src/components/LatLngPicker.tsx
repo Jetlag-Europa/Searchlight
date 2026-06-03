@@ -165,7 +165,8 @@ const LatLngEditForm = ({
             <Command shouldFilter={false}>
                 <CommandInput
                     placeholder={localLocations ? "Search hiding location..." : "Search place..."}
-                    onKeyUp={(x) => setInputValue(x.currentTarget.value)}
+                    value={inputValue}
+                    onValueChange={setInputValue}
                     disabled={disabled}
                 />
                 <CommandList>
@@ -180,7 +181,10 @@ const LatLngEditForm = ({
                                 {localResults.map((loc) => (
                                     <CommandItem
                                         key={`${loc.name}-${loc.lat}-${loc.lng}`}
-                                        onSelect={() => onChange(loc.lat, loc.lng)}
+                                        onSelect={() => {
+                                            onChange(loc.lat, loc.lng);
+                                            setInputValue("");
+                                        }}
                                         className="cursor-pointer"
                                     >
                                         {loc.name}
@@ -204,6 +208,7 @@ const LatLngEditForm = ({
                                         onSelect={() => {
                                             const coords = result.geometry.coordinates;
                                             onChange(coords[0], coords[1]);
+                                            setInputValue("");
                                         }}
                                         className="cursor-pointer"
                                     >
