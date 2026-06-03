@@ -52,6 +52,25 @@ const PARIS_CITY_FEATURE = {
   },
 };
 
+const BUCHAREST_CITY_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [44.4268, 26.1025], // [lat, lng] — Leaflet LatLngTuple
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 1246893,
+    extent: [44.5455, 25.9700, 44.3300, 26.2900],
+    country: "Romania",
+    osm_key: "place",
+    countrycode: "RO",
+    osm_value: "city",
+    name: "Bucharest",
+    type: "city",
+  },
+};
+
 const BRUSSELS_CITY_FEATURE = {
   type: "Feature",
   geometry: {
@@ -91,6 +110,17 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
 };
 
 const GAMES = [
+  {
+    serverId: "1190673594649415730", // JetLag EU
+    name: "Bucharest 2026",
+    sentinelValue: "__bundled-bucharest-2026__",
+    kmlPath: "bucharest-stations.kml",
+    mapLocationJson: BUCHAREST_CITY_FEATURE,
+    hidingRadius: 350,
+    hidingRadiusUnits: "meters",
+    tierRadiusOverrides: { "Metro": 350, "Tram": 250 },
+    size: "medium",
+  },
   {
     serverId: "1190673594649415730", // JetLag EU
     name: "Paris",
