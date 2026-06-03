@@ -1,3 +1,4 @@
+import type { FeatureCollection } from "geojson";
 import { atom } from "nanostores";
 
 import {
@@ -9,7 +10,7 @@ import {
     displayHidingZonesOptions,
     displayHidingZonesStyle,
     gamePOIData,
-    hiderMode,
+
     hidingRadius,
     hidingRadiusUnits,
     hidingZoneFocusedStationID,
@@ -45,6 +46,7 @@ export interface GameDefinition {
     kmlPOIFolders?: Record<string, string> | null;
     hidingZoneGpxPaths?: string[] | null;
     hidingZoneKmlPath?: string | null;
+    hidingZoneGeoJsonPath?: string | null;
     serverId: string;
     serverName: string;
     size: "small" | "medium" | "large";
@@ -125,6 +127,7 @@ export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
             kmlPOIFolders: GAME_KML_POI_FOLDERS[g.sentinelValue] ?? null,
             hidingZoneGpxPaths: GAME_HIDING_ZONE_GPX_PATHS[g.sentinelValue] ?? null,
             hidingZoneKmlPath: GAME_HIDING_ZONE_KML_PATHS[g.sentinelValue] ?? null,
+            hidingZoneGeoJsonPath: g.hidingZoneGeoJsonPath ?? null,
             serverId: g.serverId,
             serverName,
             size: (g.size as "small" | "medium" | "large") ?? "medium",
@@ -185,6 +188,19 @@ async function loadGameStations(game: GameDefinition): Promise<CustomStation[]> 
     return stations;
 }
 
+async function loadGamePolyGeoJSON(game: GameDefinition): Promise<void> {
+    if (!game.hidingZoneGeoJsonPath) return;
+    const url = `${NORMALIZED_BASE}${game.hidingZoneGeoJsonPath}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+        console.warn("[taibled:zones] poly GeoJSON fetch failed for", game.id, res.status);
+        return;
+    }
+    const geojson = await res.json() as FeatureCollection;
+    polyGeoJSON.set(geojson);
+    console.info("[taibled:zones] loaded polygon zone for", game.label);
+}
+
 async function loadGamePOI(game: GameDefinition): Promise<void> {
     if (!game.kmlPOIFolders) return;
     const url = `${NORMALIZED_BASE}${game.kmlPath}`;
@@ -204,6 +220,7 @@ async function loadGamePOI(game: GameDefinition): Promise<void> {
 export function applyGameDefaults(game: GameDefinition): void {
     mapGeoJSON.set(null);
     mapGeoLocation.set(game.mapLocation);
+    // Polygon-based games load polyGeoJSON async; clear it now so old polygon doesn't linger until the new one arrives
     if (polyGeoJSON.get() !== null) {
         polyGeoJSON.set(null);
     }
@@ -237,7 +254,6 @@ export function activateGameStations(game: GameDefinition): void {
 
 export function switchToGame(game: GameDefinition): void {
     additionalMapGeoLocations.set([]);
-    hiderMode.set(false);
     disabledStations.set([]);
     permanentOverlay.set(null);
     hidingZoneFocusedStationID.set("");
@@ -245,7 +261,17 @@ export function switchToGame(game: GameDefinition): void {
     applyGameDefaults(game);
 
     displayHidingZonesOptions.set([game.sentinelValue]);
-    activateGameStations(game);
+
+    if (game.hidingZoneGeoJsonPath) {
+        // Polygon-based game: the GeoJSON boundary IS the hiding zone; no KML stations needed
+        useCustomStations.set(true);
+        includeDefaultStations.set(false);
+        customStations.set([]);
+        loadGamePolyGeoJSON(game).catch((e) => console.warn("[games] loadGamePolyGeoJSON failed", e));
+    } else {
+        activateGameStations(game);
+    }
+
     loadGamePOI(game).catch((e) => console.warn("[games] loadGamePOI failed", e));
     displayHidingZones.set(true);
     displayHidingZonesStyle.set("zones");

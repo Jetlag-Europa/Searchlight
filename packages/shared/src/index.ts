@@ -57,6 +57,7 @@ export interface Game {
   hidingRadiusUnits: "miles" | "kilometers";
   tierRadiusOverrides?: Record<string, number> | null;
   size: "small" | "medium" | "large";
+  hidingZoneGeoJsonPath?: string | null;
 }
 
 export interface GamesResponse {

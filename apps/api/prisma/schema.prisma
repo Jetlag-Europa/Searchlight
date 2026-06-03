@@ -91,16 +91,17 @@ model RolePermission {
 }
 
 model Game {
-  id                String      @id @default(cuid())
-  serverId          String
-  name              String
-  sentinelValue     String      @unique
-  kmlPath           String
-  mapLocationJson   Json
-  hidingRadius      Float
-  hidingRadiusUnits String      // "miles" | "kilometers"
-  tierRadiusOverrides Json?     // e.g. {"Train": 400} — values in same units as hidingRadiusUnits
-  size              String      @default("medium") // "small" | "medium" | "large"
+  id                    String      @id @default(cuid())
+  serverId              String
+  name                  String
+  sentinelValue         String      @unique
+  kmlPath               String
+  mapLocationJson       Json
+  hidingRadius          Float
+  hidingRadiusUnits     String      // "miles" | "kilometers"
+  tierRadiusOverrides   Json?       // e.g. {"Train": 400} — values in same units as hidingRadiusUnits
+  size                  String      @default("medium") // "small" | "medium" | "large"
+  hidingZoneGeoJsonPath String?     // path to a GeoJSON polygon file served by the web app; sets polyGeoJSON on game switch
   createdAt         DateTime    @default(now())
   updatedAt         DateTime    @updatedAt
 

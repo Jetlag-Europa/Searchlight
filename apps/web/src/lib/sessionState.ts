@@ -89,6 +89,7 @@ export function saveHiderModeToServer(
         const body = mode === false
             ? { hiderLat: null, hiderLng: null }
             : { hiderLat: mode.latitude, hiderLng: mode.longitude };
+        console.info("[sessionState] saving hider mode for", sessionId, body);
         fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
             credentials: "include",
@@ -112,6 +113,31 @@ export function cancelPendingHiderSave(): void {
         clearTimeout(hiderSaveTimer);
         hiderSaveTimer = null;
     }
+}
+
+// Fire any pending hider save immediately. keepalive:true means the browser
+// will honour the request even if the page is unloading (beforeunload case).
+export function flushHiderSave(
+    sessionId: string,
+    mode: false | { latitude: number; longitude: number },
+): void {
+    if (!hiderSaveTimer) return;
+    clearTimeout(hiderSaveTimer);
+    hiderSaveTimer = null;
+    const body =
+        mode === false
+            ? { hiderLat: null, hiderLng: null }
+            : { hiderLat: mode.latitude, hiderLng: mode.longitude };
+    console.info("[sessionState] flushing hider save for", sessionId, body);
+    fetch(`${API_BASE}/sessions/${sessionId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        keepalive: true,
+    }).catch((err) => {
+        console.warn("[sessionState] failed to flush hider mode save:", err);
+    });
 }
 
 export function saveQuestionsDebounced(sessionId: string, qs: Questions): void {

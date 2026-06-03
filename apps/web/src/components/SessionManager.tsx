@@ -14,7 +14,7 @@ import {
     getGameById,
     type GameDefinition,
 } from "@/lib/games";
-import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave, cancelPendingHiderSave, saveHiderModeToServer } from "@/lib/sessionState";
+import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave, cancelPendingHiderSave, saveHiderModeToServer, flushHiderSave } from "@/lib/sessionState";
 import { shouldSuppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { hiderMode } from "@/lib/context";
@@ -402,14 +402,30 @@ export function SessionManager() {
         if (!sessionId) return;
         if (suppressNextHiderSaveRef.current) {
             suppressNextHiderSaveRef.current = false;
+            console.info("[taibled:session] hider save suppressed by ref", { sessionId, hiderMode: currentHiderMode });
             return;
         }
         if (shouldSuppressHiderSave()) {
-            console.info("[taibled:session] suppressing hider save — was set by SSE");
+            console.info("[taibled:session] hider save suppressed by SSE counter", { sessionId, hiderMode: currentHiderMode });
             return;
         }
+        console.info("[taibled:session] queuing hider save", { sessionId, hiderMode: currentHiderMode });
         saveHiderModeToServer(sessionId, currentHiderMode);
     }, [sessionId, currentHiderMode]);
+
+    // Flush any pending hider save when the tab closes so the debounce timer
+    // isn't killed by the browser before it fires.
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            const id = activeSessionId.get();
+            if (id) {
+                console.info("[taibled:session] beforeunload — flushing hider save for", id);
+                flushHiderSave(id, hiderMode.get());
+            }
+        };
+        window.addEventListener("beforeunload", handleBeforeUnload);
+        return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+    }, []);
 
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
@@ -491,7 +507,8 @@ export function SessionManager() {
                 if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
 
                 cancelPendingHiderSave();
-                suppressNextHiderSaveRef.current = true;
+                // storedId === data.id always here (we fetched by storedId), so
+                // activeSessionId won't change — no suppress needed for sessionId effect.
                 setActiveSession(data);
                 setShowPicker(false);
 
@@ -506,12 +523,17 @@ export function SessionManager() {
                     console.info("[taibled:session] reconciled", serverQs.length, "question(s) from server");
                     suppressNextSaveRef.current = true;
                     questions.set(serverQs);
-                    suppressNextHiderSaveRef.current = true;
-                    hiderMode.set(
+                    const newHiderMode =
                         data.hiderLat != null && data.hiderLng != null
                             ? { latitude: data.hiderLat, longitude: data.hiderLng }
-                            : false,
-                    );
+                            : false;
+                    // Only suppress if the atom will actually change. If both old and new
+                    // are false, nanostores won't fire and the ref would stay true forever,
+                    // silently swallowing the next legit user-initiated hider save.
+                    if (newHiderMode !== false || hiderMode.get() !== false) {
+                        suppressNextHiderSaveRef.current = true;
+                    }
+                    hiderMode.set(newHiderMode);
                     startSSE(storedId);
                 } catch (e) {
                     console.warn(
@@ -541,6 +563,14 @@ export function SessionManager() {
     const handleSessionSelected = useCallback(async (selected: GameSessionSummary) => {
         stopSSE();
         cancelPendingQuestionSave();
+
+        // Flush any pending hider save for the outgoing session immediately so it
+        // isn't silently dropped by the 800ms debounce when switching sessions.
+        const outgoingId = activeSessionId.get();
+        if (outgoingId) {
+            flushHiderSave(outgoingId, hiderMode.get());
+        }
+
         console.info("[taibled:session] selecting session", selected.id, selected.name);
 
         // Check local cache for instant paint.
@@ -567,14 +597,16 @@ export function SessionManager() {
             console.info("[taibled:session] loaded", loadedQuestions.length, "question(s) from server");
             suppressNextSaveRef.current = true;
             questions.set(loadedQuestions);
-            suppressNextHiderSaveRef.current = true;
-            hiderMode.set(
-                selected.hiderLat != null && selected.hiderLng != null
-                    ? { latitude: selected.hiderLat, longitude: selected.hiderLng }
-                    : false,
-            );
             const game = games.find((g) => g.id === selected.gameId);
             if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
+            const newHiderMode =
+                selected.hiderLat != null && selected.hiderLng != null
+                    ? { latitude: selected.hiderLat, longitude: selected.hiderLng }
+                    : false;
+            if (newHiderMode !== false || hiderMode.get() !== false) {
+                suppressNextHiderSaveRef.current = true;
+            }
+            hiderMode.set(newHiderMode);
             // Flush any pending events for this session, then start live channel.
             flushPendingEvents(selected.id).catch(() => {});
             startSSE(selected.id);
@@ -591,7 +623,11 @@ export function SessionManager() {
         // loaded from the server so there's nothing new to write back.
         suppressNextSaveRef.current = true;
         cancelPendingHiderSave();
-        suppressNextHiderSaveRef.current = true;
+        // Only suppress the sessionId-change hider effect if the session is
+        // actually changing — same-session re-selects don't fire the effect.
+        if (activeSessionId.get() !== selected.id) {
+            suppressNextHiderSaveRef.current = true;
+        }
         setActiveSession(selected);
         setShowPicker(false);
     }, []);

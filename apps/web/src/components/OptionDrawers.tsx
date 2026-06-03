@@ -718,22 +718,13 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     checked={!!$hiderMode}
                                     onCheckedChange={() => {
                                         if ($hiderMode === false) {
-                                            const $leafletMapContext =
-                                                leafletMapContext.get();
-
-                                            if ($leafletMapContext) {
-                                                const center =
-                                                    $leafletMapContext.getCenter();
-                                                hiderMode.set({
-                                                    latitude: center.lat,
-                                                    longitude: center.lng,
-                                                });
-                                            } else {
-                                                hiderMode.set({
-                                                    latitude: 0,
-                                                    longitude: 0,
-                                                });
-                                            }
+                                            const coords =
+                                                mapGeoLocation.get().geometry
+                                                    .coordinates;
+                                            hiderMode.set({
+                                                latitude: coords[0],
+                                                longitude: coords[1],
+                                            });
                                         } else {
                                             hiderMode.set(false);
                                         }

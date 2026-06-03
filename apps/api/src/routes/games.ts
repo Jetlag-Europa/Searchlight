@@ -17,6 +17,7 @@ const gameShape = Type.Object({
   hidingRadiusUnits: Type.String(),
   tierRadiusOverrides: Type.Optional(Type.Union([Type.Record(Type.String(), Type.Number()), Type.Null()])),
   size: Type.String(),
+  hidingZoneGeoJsonPath: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
 async function assertServerMembership(

@@ -33,6 +33,25 @@ const BRNO_CITY_FEATURE = {
   },
 };
 
+const PARIS_CITY_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [48.8566, 2.3522],
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 71525,
+    extent: [49.0, 2.0, 48.6, 2.7],
+    country: "France",
+    osm_key: "place",
+    countrycode: "FR",
+    osm_value: "city",
+    name: "Paris",
+    type: "city",
+  },
+};
+
 const BRUSSELS_CITY_FEATURE = {
   type: "Feature",
   geometry: {
@@ -72,6 +91,17 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
 };
 
 const GAMES = [
+  {
+    serverId: "1190673594649415730", // JetLag EU
+    name: "Paris",
+    sentinelValue: "__bundled-paris-0.1__",
+    kmlPath: "paris-hiding-zone.geojson",
+    mapLocationJson: PARIS_CITY_FEATURE,
+    hidingRadius: 1,
+    hidingRadiusUnits: "kilometers",
+    hidingZoneGeoJsonPath: "paris-hiding-zone.geojson",
+    size: "large",
+  },
   {
     serverId: "1190673594649415730", // JetLag EU
     name: "Brno 2026",
