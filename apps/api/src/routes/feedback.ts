@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { env } from "../lib/env.js";
-import { postNewFeedbackWebhook, updateBugReproduceWebhook, updateFeatureVoteWebhook, postBugFixedWebhook } from "../lib/discord-webhook.js";
+import { postNewFeedbackWebhook, updateBugReproduceWebhook, updateFeatureVoteWebhook, postBugFixedWebhook, postFeatureClosedWebhook } from "../lib/discord-webhook.js";
 
 const MAX_IMAGES = 3;
 const MAX_IMAGE_BYTES = 3 * 1024 * 1024;
@@ -22,7 +22,7 @@ function forbidden(msg = "Forbidden") {
 function mapItem(
   i: {
     id: string; type: string; title: string; description: string;
-    severity: string | null; status: string; createdAt: Date;
+    severity: string | null; status: string; resolution: string | null; createdAt: Date;
     user: { discordId: string; displayName: string; avatarUrl: string };
     votes: { userId: string; voteType: string; user: { discordId: string; displayName: string } }[];
     images: { id: string }[];
@@ -40,6 +40,7 @@ function mapItem(
     description: i.description,
     severity: i.severity ?? undefined,
     status: i.status as "open" | "closed",
+    resolution: (i.resolution ?? null) as "added" | "denied" | null,
     author: { discordId: i.user.discordId, displayName: i.user.displayName, avatarUrl: i.user.avatarUrl },
     upvoteCount: upvotes.length,
     downvoteCount: downvotes.length,
@@ -239,7 +240,10 @@ export async function feedbackRoutes(app: FastifyInstance) {
     {
       schema: {
         params: Type.Object({ id: Type.String() }),
-        body: Type.Object({ status: Type.Union([Type.Literal("open"), Type.Literal("closed")]) }),
+        body: Type.Object({
+          status: Type.Union([Type.Literal("open"), Type.Literal("closed")]),
+          resolution: Type.Optional(Type.Union([Type.Literal("added"), Type.Literal("denied")])),
+        }),
       },
     },
     async (req, reply) => {
@@ -247,17 +251,29 @@ export async function feedbackRoutes(app: FastifyInstance) {
       if (!isAdmin(user.discordId)) throw forbidden("Admin only");
 
       const { id } = req.params as { id: string };
-      const { status } = req.body as { status: "open" | "closed" };
+      const { status, resolution } = req.body as { status: "open" | "closed"; resolution?: "added" | "denied" };
 
       const feedback = await prisma.feedback.findUnique({ where: { id } });
       if (!feedback) throw notFound();
 
-      await prisma.feedback.update({ where: { id }, data: { status } });
+      await prisma.feedback.update({
+        where: { id },
+        data: {
+          status,
+          // Clear resolution when reopening; set it when closing with a resolution provided
+          resolution: status === "open" ? null : (resolution ?? feedback.resolution),
+        },
+      });
 
-      // Notify Discord when a bug is closed/fixed (fire-and-forget)
-      if (status === "closed" && feedback.type === "bug") {
-        postBugFixedWebhook(feedback.title, user.displayName)
-          .catch((err) => req.log.warn({ err }, "[webhook] Failed to post bug fixed webhook"));
+      // Notify Discord on close (fire-and-forget)
+      if (status === "closed") {
+        if (feedback.type === "bug") {
+          postBugFixedWebhook(feedback.title, user.displayName)
+            .catch((err) => req.log.warn({ err }, "[webhook] Failed to post bug fixed webhook"));
+        } else if (feedback.type === "feature" && resolution) {
+          postFeatureClosedWebhook(feedback.title, resolution, user.displayName)
+            .catch((err) => req.log.warn({ err }, "[webhook] Failed to post feature closed webhook"));
+        }
       }
 
       return reply.status(204).send();

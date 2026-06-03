@@ -24,6 +24,19 @@ function readAsBase64(file: File): Promise<string> {
     });
 }
 
+function ResolutionBadge({ resolution }: { resolution: "added" | "denied" }) {
+    return (
+        <span className={cn(
+            "text-xs font-medium px-2 py-0.5 rounded-full border",
+            resolution === "added"
+                ? "bg-green-500/15 text-green-400 border-green-500/30"
+                : "bg-red-500/15 text-red-400 border-red-500/30",
+        )}>
+            {resolution === "added" ? "Added" : "Denied"}
+        </span>
+    );
+}
+
 function TypeBadge({ type }: { type: "bug" | "feature" }) {
     return (
         <span className={cn(
@@ -105,9 +118,9 @@ function FeedbackCard({
                 <TypeBadge type={item.type} />
                 {item.type === "bug" && item.severity && <SeverityBadge severity={item.severity} />}
                 {item.status === "closed" && (
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground border-border">
-                        Closed
-                    </span>
+                    item.type === "feature" && item.resolution
+                        ? <ResolutionBadge resolution={item.resolution} />
+                        : <span className="text-xs font-medium px-2 py-0.5 rounded-full border bg-muted/30 text-muted-foreground border-border">Closed</span>
                 )}
                 <span className="text-sm font-semibold leading-snug">{item.title}</span>
             </div>
@@ -398,6 +411,7 @@ export function FeedbackPage({ isAdmin = false }: { isAdmin?: boolean }) {
     const [formError, setFormError] = useState<string | null>(null);
     const [votingId, setVotingId] = useState<string | null>(null);
     const [togglingId, setTogglingId] = useState<string | null>(null);
+    const [pendingFeatureClose, setPendingFeatureClose] = useState<string | null>(null);
     const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
     const [showClosed, setShowClosed] = useState(false);
 
@@ -497,22 +511,39 @@ export function FeedbackPage({ isAdmin = false }: { isAdmin?: boolean }) {
         }
     };
 
-    const handleToggleStatus = async (id: string, newStatus: "open" | "closed") => {
+    const handleToggleStatus = (id: string, newStatus: "open" | "closed") => {
+        const item = items.find((i) => i.id === id);
+        // Features being closed need a resolution — show the dialog instead of patching immediately
+        if (newStatus === "closed" && item?.type === "feature") {
+            setPendingFeatureClose(id);
+            return;
+        }
+        doToggleStatus(id, newStatus, undefined);
+    };
+
+    const doToggleStatus = async (id: string, newStatus: "open" | "closed", resolution: "added" | "denied" | undefined) => {
         setTogglingId(id);
         try {
             const res = await fetch(`${API_BASE}/feedback/${id}/status`, {
                 method: "PATCH",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ status: newStatus }),
+                body: JSON.stringify({ status: newStatus, ...(resolution && { resolution }) }),
             });
             if (!res.ok) return;
             setItems((prev) =>
-                prev.map((item) => item.id === id ? { ...item, status: newStatus } : item),
+                prev.map((item) => item.id === id ? { ...item, status: newStatus, resolution: resolution ?? item.resolution } : item),
             );
         } finally {
             setTogglingId(null);
         }
+    };
+
+    const handleFeatureResolution = (resolution: "added" | "denied") => {
+        if (!pendingFeatureClose) return;
+        const id = pendingFeatureClose;
+        setPendingFeatureClose(null);
+        doToggleStatus(id, "closed", resolution);
     };
 
     const cardProps = { me, isAdmin, onVote: handleVote, onToggleStatus: handleToggleStatus, onImageClick: setLightboxSrc, votingId, togglingId };
@@ -624,6 +655,20 @@ export function FeedbackPage({ isAdmin = false }: { isAdmin?: boolean }) {
             </div>
 
             {lightboxSrc && <Lightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />}
+
+            {pendingFeatureClose && (
+                <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setPendingFeatureClose(null)}>
+                    <div className="bg-card border border-border rounded-xl p-6 max-w-sm w-full space-y-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+                        <h2 className="text-base font-semibold">Close feature request</h2>
+                        <p className="text-sm text-muted-foreground">Was this feature added or denied?</p>
+                        <div className="flex gap-3 justify-end">
+                            <Button variant="outline" size="sm" onClick={() => setPendingFeatureClose(null)}>Cancel</Button>
+                            <Button variant="destructive" size="sm" onClick={() => handleFeatureResolution("denied")}>Denied</Button>
+                            <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={() => handleFeatureResolution("added")}>Added</Button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

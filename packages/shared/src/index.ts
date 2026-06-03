@@ -224,6 +224,7 @@ export interface FeedbackItem {
   description: string;
   severity?: "low" | "medium" | "high";
   status: "open" | "closed";
+  resolution?: "added" | "denied" | null;
   author: {
     discordId: string;
     displayName: string;

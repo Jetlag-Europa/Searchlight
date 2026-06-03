@@ -65,6 +65,21 @@ function featureEmbed(
   };
 }
 
+function featureClosedEmbed(feedbackTitle: string, resolution: "added" | "denied", closedByName: string) {
+  const added = resolution === "added";
+  return {
+    title: added ? "✅ Feature Added" : "❌ Feature Denied",
+    url: feedbackUrl(),
+    color: added ? 0x57f287 : 0xed4245,
+    fields: [
+      { name: "Title", value: feedbackTitle, inline: false },
+      { name: "​", value: `[🔗 View Feedback Page](${feedbackUrl()})`, inline: false },
+    ],
+    footer: { text: `Marked as ${added ? "added" : "denied"} by ${closedByName} · ${envLabel()}` },
+    timestamp: new Date().toISOString(),
+  };
+}
+
 function bugFixedEmbed(feedbackTitle: string, closedByName: string) {
   return {
     title: "✅ Bug Fixed",
@@ -129,6 +144,18 @@ export async function updateFeatureVoteWebhook(
 ): Promise<void> {
   if (!env.DISCORD_FEEDBACK_WEBHOOK_URL) return;
   await patchWebhookMessage(messageId, { embeds: [featureEmbed(feedback, upvoteCount, downvoteCount, authorName)] });
+}
+
+export async function postFeatureClosedWebhook(feedbackTitle: string, resolution: "added" | "denied", closedByName: string): Promise<void> {
+  if (!env.DISCORD_FEEDBACK_WEBHOOK_URL) return;
+
+  const res = await fetch(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ embeds: [featureClosedEmbed(feedbackTitle, resolution, closedByName)] }),
+  });
+
+  if (!res.ok) throw new Error(`Webhook POST failed: ${res.status}`);
 }
 
 export async function postBugFixedWebhook(feedbackTitle: string, closedByName: string): Promise<void> {

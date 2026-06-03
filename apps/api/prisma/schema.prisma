@@ -260,6 +260,7 @@ model Feedback {
   description String
   severity    String?   // "low" | "medium" | "high" (bugs only)
   status             String    @default("open") // "open" | "closed"
+  resolution         String?   // "added" | "denied" (features only, set on close)
   discordMessageId   String?
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
