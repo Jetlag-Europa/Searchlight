@@ -108,6 +108,7 @@ const ColoredMarker = ({
                                 longitude={$hiderMode.longitude}
                                 inlineEdit
                                 localLocations={hiderLocalLocations}
+                                onResultSelect={() => setOpen(false)}
                                 onChange={(latitude, longitude) => {
                                     hiderMode.set({
                                         latitude:

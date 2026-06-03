@@ -102,12 +102,14 @@ const LatLngEditForm = ({
     onChange,
     disabled,
     localLocations,
+    onResultSelect,
 }: {
     latitude: number;
     longitude: number;
     onChange: (lat: number | null, lng: number | null) => void;
     disabled?: boolean;
     localLocations?: LocalLocation[];
+    onResultSelect?: () => void;
 }) => {
     const [inputValue, setInputValue] = useState("");
     const debouncedValue = useDebounce<string>(inputValue);
@@ -184,6 +186,7 @@ const LatLngEditForm = ({
                                         onSelect={() => {
                                             onChange(loc.lat, loc.lng);
                                             setInputValue("");
+                                            onResultSelect?.();
                                         }}
                                         className="cursor-pointer"
                                     >
@@ -209,6 +212,7 @@ const LatLngEditForm = ({
                                             const coords = result.geometry.coordinates;
                                             onChange(coords[0], coords[1]);
                                             setInputValue("");
+                                            onResultSelect?.();
                                         }}
                                         className="cursor-pointer"
                                     >
@@ -365,6 +369,7 @@ export const LatitudeLongitude = ({
     disabled,
     inlineEdit = false,
     localLocations,
+    onResultSelect,
 }: {
     latitude: number;
     longitude: number;
@@ -376,6 +381,7 @@ export const LatitudeLongitude = ({
     disabled?: boolean;
     inlineEdit?: boolean;
     localLocations?: LocalLocation[];
+    onResultSelect?: () => void;
 }) => {
     const $isLoading = useStore(isLoading);
 
@@ -434,6 +440,7 @@ export const LatitudeLongitude = ({
                                 onChange={onChange}
                                 disabled={disabled}
                                 localLocations={localLocations}
+                                onResultSelect={onResultSelect}
                             />
                         </div>
                     ) : (
@@ -459,6 +466,7 @@ export const LatitudeLongitude = ({
                                     onChange={onChange}
                                     disabled={disabled}
                                     localLocations={localLocations}
+                                    onResultSelect={onResultSelect}
                                 />
                                 <DialogFooter>
                                     <DialogClose asChild>
