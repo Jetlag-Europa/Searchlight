@@ -183,6 +183,7 @@ export const determineMeasuringBoundary = async (
         case "sl-theme_park":
         case "sl-hospital":
         case "sl-airport":
+        case "sl-consulate":
         case "buch-museum":
         case "buch-park":
         case "buch-library":
@@ -197,7 +198,7 @@ export const determineMeasuringBoundary = async (
                 "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
                 "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
                 "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
-                "sl-hospital": "hospital", "sl-airport": "airport",
+                "sl-hospital": "hospital", "sl-airport": "airport", "sl-consulate": "consulate",
                 "buch-museum": "museum", "buch-park": "park", "buch-library": "library",
                 "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
                 "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
@@ -391,7 +392,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
         "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
         "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
-        "sl-hospital": "hospital", "sl-airport": "airport",
+        "sl-hospital": "hospital", "sl-airport": "airport", "sl-consulate": "consulate",
         "buch-museum": "museum", "buch-park": "park", "buch-library": "library",
         "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
         "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",

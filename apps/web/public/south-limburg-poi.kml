@@ -316,6 +316,21 @@
     </Placemark>
   </Folder>
   <Folder>
+    <name>consulate</name>
+    <Placemark>
+      <name>Consulate of Belgium</name>
+      <Point><coordinates>5.6908477,50.8478932,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulate General of The Russian Federation</name>
+      <Point><coordinates>5.6918844,50.8478558,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulate of Luxembourg</name>
+      <Point><coordinates>5.6921556,50.8481416,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
     <name>golf_course</name>
     <Placemark>
       <name>Het Rijk van Margraten</name>
@@ -332,10 +347,6 @@
     <Placemark>
       <name>Golfclub Meerssen</name>
       <Point><coordinates>5.7449654,50.8970604,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Limburg Course</name>
-      <Point><coordinates>5.6469406,50.8564933,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Golfbaan Brunssummerheide</name>
@@ -772,26 +783,6 @@
       <Point><coordinates>5.7079762,50.8038502,0</coordinates></Point>
     </Placemark>
     <Placemark>
-      <name>Fun Valley</name>
-      <Point><coordinates>5.7045603,50.804482,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Fun Valley</name>
-      <Point><coordinates>5.7082342,50.8041154,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Mondo Verde</name>
-      <Point><coordinates>6.0312487,50.889987,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Mondo Verde</name>
-      <Point><coordinates>6.0298202,50.8905606,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Fun Valley</name>
-      <Point><coordinates>5.7054401,50.8055746,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
       <name>Sprookjesbos Valkenburg</name>
       <Point><coordinates>5.8335525,50.8570753,0</coordinates></Point>
     </Placemark>
@@ -802,6 +793,10 @@
     <Placemark>
       <name>Attractiepark Kabelbaan Valkenburg</name>
       <Point><coordinates>5.8323905,50.8592179,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderstad Heerlen</name>
+      <Point><coordinates>5.9624999,50.893004,0</coordinates></Point>
     </Placemark>
   </Folder>
   <Folder>
@@ -819,16 +814,12 @@
       <Point><coordinates>6.0495187,50.8696348,0</coordinates></Point>
     </Placemark>
     <Placemark>
-      <name>Volière</name>
-      <Point><coordinates>5.6907051,50.8437084,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Stichting Dierenpark</name>
-      <Point><coordinates>5.6896604,50.8435388,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
       <name>Boerderij Daalhoeve</name>
       <Point><coordinates>5.6529076,50.8431931,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dierenpark Aambos</name>
+      <Point><coordinates>5.9877165,50.8846358,0</coordinates></Point>
     </Placemark>
   </Folder>
   </Document>

@@ -66,6 +66,7 @@ const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
         "airport":    "airport",
         "camping":    "camping",
         "cinema":     "cinema",
+        "consulate":  "consulate",
         "golf_course":"golf_course",
         "hospital":   "hospital",
         "library":    "library",

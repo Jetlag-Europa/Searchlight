@@ -346,6 +346,7 @@ const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
         z.literal("sl-theme_park").describe("Nearest Amusement Park (South Limburg)"),
         z.literal("sl-hospital").describe("Nearest Hospital (South Limburg)"),
         z.literal("sl-airport").describe("Nearest Airport (South Limburg)"),
+        z.literal("sl-consulate").describe("Nearest Foreign Consulate (South Limburg)"),
     ]),
 });
 
@@ -406,6 +407,7 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "sl-theme_park":             "__bundled-south-limburg-2026__",
     "sl-hospital":               "__bundled-south-limburg-2026__",
     "sl-airport":                "__bundled-south-limburg-2026__",
+    "sl-consulate":              "__bundled-south-limburg-2026__",
     "camping":                   "__bundled-south-limburg-2026__",
     "mill":                      "__bundled-south-limburg-2026__",
     "mountain":                  "__bundled-south-limburg-2026__",
@@ -522,6 +524,7 @@ const southLimburgMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend(
         z.literal("sl-theme_park").describe("Nearest Amusement Park (South Limburg)"),
         z.literal("sl-hospital").describe("Nearest Hospital (South Limburg)"),
         z.literal("sl-airport").describe("Nearest Airport (South Limburg)"),
+        z.literal("sl-consulate").describe("Nearest Foreign Consulate (South Limburg)"),
     ]),
 });
 

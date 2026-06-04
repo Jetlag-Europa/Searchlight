@@ -73,6 +73,7 @@ const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
     "sl-theme_park": "theme_park",
     "sl-hospital": "hospital",
     "sl-airport": "airport",
+    "sl-consulate": "consulate",
     "buch-museum": "museum",
     "buch-park": "park",
     "buch-library": "library",
@@ -373,6 +374,7 @@ export const determineMatchingBoundary = _.memoize(
             case "sl-theme_park":
             case "sl-hospital":
             case "sl-airport":
+            case "sl-consulate":
             case "buch-museum":
             case "buch-park":
             case "buch-library":
