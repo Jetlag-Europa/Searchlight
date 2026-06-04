@@ -158,6 +158,7 @@ const GAMES = [
     mapLocationJson: PARIS_CITY_FEATURE,
     hidingRadius: 400,
     hidingRadiusUnits: "meters",
+    tierRadiusOverrides: { "Outer": 750 },
     size: "large",
   },
   {
@@ -211,7 +212,14 @@ async function main() {
   for (const game of GAMES) {
     await prisma.game.upsert({
       where: { sentinelValue: game.sentinelValue },
-      update: { name: game.name, kmlPath: game.kmlPath },
+      update: {
+        name: game.name,
+        kmlPath: game.kmlPath,
+        hidingRadius: game.hidingRadius,
+        hidingRadiusUnits: game.hidingRadiusUnits,
+        tierRadiusOverrides: game.tierRadiusOverrides ?? null,
+        hidingZoneGeoJsonPath: game.hidingZoneGeoJsonPath ?? null,
+      },
       create: game,
     });
     console.log(`Upserted game: ${game.name} (${game.sentinelValue})`);

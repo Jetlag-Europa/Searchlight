@@ -17,7 +17,7 @@
       <name>Ablon</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -83,7 +83,7 @@
       <name>Antony</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -116,7 +116,7 @@
       <name>Argenteuil</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -149,7 +149,7 @@
       <name>Asnières - Gennevilliers - Les Courtilles</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -182,7 +182,7 @@
       <name>Athis-Mons</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -215,7 +215,7 @@
       <name>Aulnay-sous-Bois</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -281,7 +281,7 @@
       <name>Aéroport d'Orly</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -347,7 +347,7 @@
       <name>Basilique de Saint-Denis</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -391,7 +391,7 @@
       <name>Bellevue</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -424,7 +424,7 @@
       <name>Billancourt</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -446,7 +446,7 @@
       <name>Bièvres</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -468,7 +468,7 @@
       <name>Bobigny - Pablo Picasso</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -490,7 +490,7 @@
       <name>Bois-Colombes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -512,7 +512,7 @@
       <name>Boissy-Saint-Léger</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -534,7 +534,7 @@
       <name>Bondy</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -578,7 +578,7 @@
       <name>Bougival</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -600,7 +600,7 @@
       <name>Boulogne Jean Jaurès</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -611,7 +611,7 @@
       <name>Boulogne Pont de Saint-Cloud</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -622,7 +622,7 @@
       <name>Bourg-la-Reine</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -655,7 +655,7 @@
       <name>Bry-sur-Marne</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -677,7 +677,7 @@
       <name>Bécon les Bruyères</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -765,7 +765,7 @@
       <name>Cernay</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -776,7 +776,7 @@
       <name>Champ de Courses d'Enghien</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -787,7 +787,7 @@
       <name>Champigny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -853,7 +853,7 @@
       <name>Chatou-Croissy</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -864,7 +864,7 @@
       <name>Chaville - Vélizy</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -875,7 +875,7 @@
       <name>Chaville Rive Droite</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -886,7 +886,7 @@
       <name>Chaville Rive Gauche</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -897,7 +897,7 @@
       <name>Chelles - Gournay</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -919,7 +919,7 @@
       <name>Chemin d'Antony</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -941,7 +941,7 @@
       <name>Chevilly-Larue (Marché International)</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -952,7 +952,7 @@
       <name>Choisy-le-Roi</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -963,7 +963,7 @@
       <name>Christ de Saclay</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1084,7 +1084,7 @@
       <name>Colombes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1150,7 +1150,7 @@
       <name>Cormeilles-en-Parisis</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1172,7 +1172,7 @@
       <name>Coteaux Beauclair</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1194,7 +1194,7 @@
       <name>Courbevoie</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1249,7 +1249,7 @@
       <name>Créteil - L'Échat</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1260,7 +1260,7 @@
       <name>Créteil - Préfecture</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1271,7 +1271,7 @@
       <name>Créteil - Université</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1282,7 +1282,7 @@
       <name>Créteil Pompadour</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1326,7 +1326,7 @@
       <name>Deuil - Montmagny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1337,7 +1337,7 @@
       <name>Domont</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1348,7 +1348,7 @@
       <name>Drancy</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1403,7 +1403,7 @@
       <name>Enghien-les-Bains</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1414,7 +1414,7 @@
       <name>Ermont - Eaubonne</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1425,7 +1425,7 @@
       <name>Ermont Halte</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1436,7 +1436,7 @@
       <name>Esplanade de la Défense</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1502,7 +1502,7 @@
       <name>Fontaine Michalon</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1513,7 +1513,7 @@
       <name>Fontenay-aux-Roses</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1524,7 +1524,7 @@
       <name>Fontenay-sous-Bois</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1535,7 +1535,7 @@
       <name>Fort d'Aubervilliers</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1546,7 +1546,7 @@
       <name>Franconville - Le Plessis-Bouchard</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1568,7 +1568,7 @@
       <name>Gabriel Péri</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1579,7 +1579,7 @@
       <name>Gagny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1612,7 +1612,7 @@
       <name>Garches - Marnes-la-Coquette</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1645,7 +1645,7 @@
       <name>Gare d'Epinay-sur-Seine</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1656,7 +1656,7 @@
       <name>Gare d'Épinay - Villetaneuse</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1667,7 +1667,7 @@
       <name>Gare de Chenay Gagny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1678,7 +1678,7 @@
       <name>Gare de Juvisy</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1711,7 +1711,7 @@
       <name>Gare de Maisons Alfort Alfortville</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1722,7 +1722,7 @@
       <name>Gare de Maisons-Laffitte</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1733,7 +1733,7 @@
       <name>Gare de Meudon</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1744,7 +1744,7 @@
       <name>Gare de Montreuil</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1755,7 +1755,7 @@
       <name>Gare de Nogent le Perreux</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1777,7 +1777,7 @@
       <name>Gare de Petit Jouy les Loges</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1788,7 +1788,7 @@
       <name>Gare de Pierrefitte Stains</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1810,7 +1810,7 @@
       <name>Gare de Rosny - Bois-Perrier</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1821,7 +1821,7 @@
       <name>Gare de Rosny sous Bois</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1832,7 +1832,7 @@
       <name>Gare de Rungis la Fraternelle</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1843,7 +1843,7 @@
       <name>Gare de Saint-Cloud</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1854,7 +1854,7 @@
       <name>Gare de Saint-Denis</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1865,7 +1865,7 @@
       <name>Gare de Saint-Leu la Foret</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1876,7 +1876,7 @@
       <name>Gare de Sannois</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1887,7 +1887,7 @@
       <name>Gare de Sarcelles - Saint-Brice</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1909,7 +1909,7 @@
       <name>Gare de Sèvres - Rive Gauche</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1931,7 +1931,7 @@
       <name>Gare de Vauboyen</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1942,7 +1942,7 @@
       <name>Gare de Vaucresson</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1953,7 +1953,7 @@
       <name>Gare de Versailles Chantiers</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1964,7 +1964,7 @@
       <name>Gare de Versailles Château - Rive Gauche</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1975,7 +1975,7 @@
       <name>Gare de Villiers-le-Bel Gonesse Arnouville</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1986,7 +1986,7 @@
       <name>Gare des Ardoines</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -1997,7 +1997,7 @@
       <name>Gare des Grésillons</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2008,7 +2008,7 @@
       <name>Gare des Saules</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2019,7 +2019,7 @@
       <name>Gare des Yvris Noisy-le-Grand</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2030,7 +2030,7 @@
       <name>Gare du Raincy Villemomble</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2041,7 +2041,7 @@
       <name>Gare du Stade</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2052,7 +2052,7 @@
       <name>Gare du Val d'Argenteuil</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2063,7 +2063,7 @@
       <name>Gare du Vert de Maisons</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2074,7 +2074,7 @@
       <name>Garges - Sarcelles</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2096,7 +2096,7 @@
       <name>Gennevilliers</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2151,7 +2151,7 @@
       <name>Gros Noyer Saint-Prix</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2162,7 +2162,7 @@
       <name>Groslay</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2184,7 +2184,7 @@
       <name>Herblay</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2206,7 +2206,7 @@
       <name>Houilles - Carrières-sur-Seine</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2239,7 +2239,7 @@
       <name>Igny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2261,7 +2261,7 @@
       <name>Issy</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2327,7 +2327,7 @@
       <name>Joinville-le-Pont</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2349,7 +2349,7 @@
       <name>Jouy-en-Josas</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2382,7 +2382,7 @@
       <name>L'Haÿ-les-Roses</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2393,7 +2393,7 @@
       <name>La Barre Ormesson</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2404,7 +2404,7 @@
       <name>La Celle-Saint-Cloud</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2426,7 +2426,7 @@
       <name>La Courneuve - 8 Mai 1945</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2437,7 +2437,7 @@
       <name>La Courneuve - Aubervilliers</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2448,7 +2448,7 @@
       <name>La Croix de Berny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2459,7 +2459,7 @@
       <name>La Dhuys</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2470,7 +2470,7 @@
       <name>La Défense</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2492,7 +2492,7 @@
       <name>La Frette - Montigny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2503,7 +2503,7 @@
       <name>La Garenne-Colombes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2525,7 +2525,7 @@
       <name>La Varenne - Chennevières</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2569,7 +2569,7 @@
       <name>Le Blanc-Mesnil</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2580,7 +2580,7 @@
       <name>Le Bourget</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2602,7 +2602,7 @@
       <name>Le Parc de Saint-Maur</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2613,7 +2613,7 @@
       <name>Le Val d'Or</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2624,7 +2624,7 @@
       <name>Le Vésinet - Le Pecq</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2635,7 +2635,7 @@
       <name>Le Vésinet-Centre</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2657,7 +2657,7 @@
       <name>Les Agnettes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2668,7 +2668,7 @@
       <name>Les Baconnets</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2679,7 +2679,7 @@
       <name>Les Boullereaux Champigny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2712,7 +2712,7 @@
       <name>Les Vallées</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2745,7 +2745,7 @@
       <name>Louveciennes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2767,7 +2767,7 @@
       <name>Lozère</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2899,7 +2899,7 @@
       <name>Maisons-Alfort - Les Juilliottes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2910,7 +2910,7 @@
       <name>Maisons-Alfort - Stade</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2976,7 +2976,7 @@
       <name>Marcel Sembat</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -2987,7 +2987,7 @@
       <name>Marly-le-Roi</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3009,7 +3009,7 @@
       <name>Massy - Palaiseau</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3020,7 +3020,7 @@
       <name>Massy - Verrières</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3031,7 +3031,7 @@
       <name>Meudon Val Fleury</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3075,7 +3075,7 @@
       <name>Montgeron - Crosne</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3086,7 +3086,7 @@
       <name>Montigny - Beauchamp</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3097,7 +3097,7 @@
       <name>Montreuil - Hôpital</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3119,7 +3119,7 @@
       <name>Nanterre - Préfecture</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3130,7 +3130,7 @@
       <name>Nanterre - Université</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3141,7 +3141,7 @@
       <name>Nanterre-Ville</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3174,7 +3174,7 @@
       <name>Neuilly-Plaisance</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3185,7 +3185,7 @@
       <name>Nogent-sur-Marne</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3196,7 +3196,7 @@
       <name>Noisy - Champs</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3207,7 +3207,7 @@
       <name>Noisy le Sec</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3218,7 +3218,7 @@
       <name>Noisy-le-Grand - Mont d'Est</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3262,7 +3262,7 @@
       <name>Orly Ville</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3295,7 +3295,7 @@
       <name>Palaiseau</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3306,7 +3306,7 @@
       <name>Palaiseau - Villebon</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3317,7 +3317,7 @@
       <name>Parc de Sceaux</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3328,7 +3328,7 @@
       <name>Parc des Expositions</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3427,7 +3427,7 @@
       <name>Pointe du Lac</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3438,7 +3438,7 @@
       <name>Polytechnique</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3493,7 +3493,7 @@
       <name>Pont de Rungis Aéroport d'Orly</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3504,7 +3504,7 @@
       <name>Pont de Sèvres</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3526,7 +3526,7 @@
       <name>Porchefontaine</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3735,7 +3735,7 @@
       <name>Puteaux</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3823,7 +3823,7 @@
       <name>Robinson</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3834,7 +3834,7 @@
       <name>Romainville - Carnot</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3889,7 +3889,7 @@
       <name>Rueil-Malmaison</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3911,7 +3911,7 @@
       <name>Saint-Cyr</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3922,7 +3922,7 @@
       <name>Saint-Denis - Porte de Paris</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3933,7 +3933,7 @@
       <name>Saint-Denis - Université</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3966,7 +3966,7 @@
       <name>Saint-Germain-en-Laye</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3977,7 +3977,7 @@
       <name>Saint-Gratien</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -3999,7 +3999,7 @@
       <name>Saint-Maur - Créteil</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4021,7 +4021,7 @@
       <name>Sartrouville</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4032,7 +4032,7 @@
       <name>Savigny-sur-Orge</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4043,7 +4043,7 @@
       <name>Sceaux</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4065,7 +4065,7 @@
       <name>Sevran - Beaudottes</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4076,7 +4076,7 @@
       <name>Sevran - Livry</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4098,7 +4098,7 @@
       <name>Sucy - Bonneuil</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4120,7 +4120,7 @@
       <name>Suresnes Mont Valérien</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4142,7 +4142,7 @@
       <name>Sèvres - Ville-d'Avray</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4164,7 +4164,7 @@
       <name>Taverny</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4230,7 +4230,7 @@
       <name>Val de Fontenay</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4252,7 +4252,7 @@
       <name>Vaucelles</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4274,7 +4274,7 @@
       <name>Versailles Rive Droite</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4285,7 +4285,7 @@
       <name>Vert-Galant</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4307,7 +4307,7 @@
       <name>Vigneux-sur-Seine</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4329,7 +4329,7 @@
       <name>Villejuif - Louis Aragon</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Metro</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4362,7 +4362,7 @@
       <name>Villeneuve Triage</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4373,7 +4373,7 @@
       <name>Villeneuve-Saint-Georges</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4384,7 +4384,7 @@
       <name>Villeneuve-le-Roi</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4395,7 +4395,7 @@
       <name>Villepinte</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4417,7 +4417,7 @@
       <name>Villiers-sur-Marne - Le Plessis-Trévise</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4428,7 +4428,7 @@
       <name>Viroflay - Rive Droite</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4439,7 +4439,7 @@
       <name>Viroflay - Rive Gauche</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4450,7 +4450,7 @@
       <name>Viry-Châtillon</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4483,7 +4483,7 @@
       <name>Yerres</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4505,7 +4505,7 @@
       <name>Écouen - Ézanville</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
@@ -4527,7 +4527,7 @@
       <name>Épinay-sur-Orge</name>
       <ExtendedData>
         <Data name="tier">
-          <value>Rail</value>
+          <value>Outer</value>
         </Data>
       </ExtendedData>
       <Point>
