@@ -1,0 +1,4538 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Paris 2026 Stations</name>
+    <Placemark>
+      <name>Abbesses</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3383946352,48.8843927180,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ablon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4197658895,48.7257178101,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Aimé Césaire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3780359959,48.9083831298,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Alexandre Dumas</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3945914187,48.8561990973,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Alma - Marceau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3011043524,48.8646471479,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Alésia</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3271926251,48.8281521577,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Anatole France</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2849816963,48.8922066176,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Antony</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3007564022,48.7544783684,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Anvers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3441548403,48.8828685688,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Arcueil Cachan</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3280947868,48.7986438067,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Argenteuil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2579574516,48.9468775764,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Argentine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2900952097,48.8752755808,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Arts et Métiers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3565081436,48.8652996126,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Asnières - Gennevilliers - Les Courtilles</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2841109387,48.9307369761,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Asnières-sur-Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2828319582,48.9056926069,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Assemblée Nationale</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3205758366,48.8610719395,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Athis-Mons</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4037847089,48.7126284256,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Auber</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3296459188,48.8722749694,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Aubervilliers - Pantin - Quatre Chemins</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3922205712,48.9037570604,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Aulnay-sous-Bois</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4959260812,48.9320219240,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Avenue Foch</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2747915011,48.8698327372,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Avenue Henri Martin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2721888828,48.8654101241,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Avenue du Président Kennedy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2796656389,48.8535388914,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Avenue Émile Zola</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2950189971,48.8470380137,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Avron</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3980666385,48.8516164580,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Aéroport d'Orly</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3625135571,48.7276608759,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bagneux</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3222070183,48.7933130817,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bagneux - Lucie Aubrac</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3174994409,48.8035304692,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Balard</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2785093588,48.8366507923,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Barbara</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3174992240,48.8097902543,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Barbès - Rochechouart</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3496299279,48.8834020605,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Basilique de Saint-Denis</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3593256869,48.9365763894,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bastille</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3690404333,48.8528923867,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bel-Air</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4008671320,48.8414273322,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Belleville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3766971639,48.8720795547,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bellevue</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2293541910,48.8190669688,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bercy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3794765873,48.8401850918,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque François Mitterrand</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3764873712,48.8299257659,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Billancourt</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2379659732,48.8318305128,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bir-Hakeim</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2892963571,48.8538842772,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bièvres</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2162966830,48.7508508463,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Blanche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3324843754,48.8837663545,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bobigny - Pablo Picasso</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4493013366,48.9063667950,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bobigny-Pantin - Raymond Queneau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4262775958,48.8956378979,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bois-Colombes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2715815014,48.9141502294,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Boissière</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2900328376,48.8668483434,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Boissy-Saint-Léger</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5045461931,48.7520529743,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bolivar</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3741248712,48.8807896630,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bondy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4791350805,48.8941347990,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bonne Nouvelle</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3484961225,48.8704814458,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Botzaris</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3889081112,48.8794361016,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Boucicaut</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2879184311,48.8410241610,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bougival</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1319667419,48.8537906948,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Boulainvilliers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2747524395,48.8569717481,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Boulogne Jean Jaurès</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2390777807,48.8419915753,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Boulogne Pont de Saint-Cloud</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2283125898,48.8406724820,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bourg-la-Reine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3124695996,48.7802070077,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bourse</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3406519668,48.8687387370,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Brochant</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3201088931,48.8905855806,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bry-sur-Marne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5256396687,48.8451978378,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Buttes Chaumont</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3816329215,48.8784229711,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bécon les Bruyères</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2691083573,48.9056546178,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Bérault</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4289728467,48.8454500083,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cadet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3443838838,48.8760483801,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cambronne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3028987869,48.8474933970,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Campo-Formio</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3587419567,48.8355429337,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cardinal Lemoine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3513280017,48.8467000352,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Carrefour Pleyel</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3426217635,48.9189766866,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Censier - Daubenton</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3516265726,48.8402262485,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cernay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2570055817,48.9851221465,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Champ de Courses d'Enghien</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2911417989,48.9796948748,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Champigny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5104801171,48.8068059248,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Champs-Élysées - Clemenceau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3143149129,48.8676284549,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chardon Lagache</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2669054759,48.8450882992,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Charenton - Écoles</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4138447096,48.8214807332,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Charles Michels</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2856243418,48.8463617235,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Charonne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3847823964,48.8549394434,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chatou-Croissy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1559123385,48.8851968471,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chaville - Vélizy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1833390156,48.7995591984,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chaville Rive Droite</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1886442275,48.8129785318,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chaville Rive Gauche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1893663836,48.8050686532,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chelles - Gournay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5832653525,48.8740471421,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chemin Vert</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3680950854,48.8570873678,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chemin d'Antony</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3126637599,48.7479006459,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chevaleret</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3680951238,48.8349451679,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Chevilly-Larue (Marché International)</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3674425092,48.7584929154,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Choisy-le-Roi</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4110784984,48.7637168515,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Christ de Saclay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1617244877,48.7297385606,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Château Landon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3620179355,48.8784414557,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Château Rouge</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3495819680,48.8872419306,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Château d'Eau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3560517414,48.8724469176,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Vincennes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4387524697,48.8445609601,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Châtelet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3473717628,48.8582644566,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Châtillon - Montrouge</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3015954590,48.8107282078,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cité Universitaire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3389735448,48.8213825814,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Clamart</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2731951457,48.8142329492,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Clichy - Levallois</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2973367694,48.8973789279,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cluny - La Sorbonne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3448963012,48.8510268769,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Colombes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2592847710,48.9239492472,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Colonel Fabien</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3704675748,48.8776498085,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Concorde</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3232815149,48.8663169732,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Convention</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2963913865,48.8371350538,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Corentin Cariou</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3822915572,48.8946726600,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Corentin Celton</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2789586605,48.8268232951,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cormeilles-en-Parisis</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1929768295,48.9685936273,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Corvisart</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3506112259,48.8298600133,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Coteaux Beauclair</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4673647804,48.8821221269,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Cour Saint-Emilion</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3866178502,48.8333193038,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Courbevoie</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2492922420,48.8986072626,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Courcelles</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3032943624,48.8792652541,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Couronnes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3804113288,48.8692569321,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Crimée</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3770380600,48.8908143456,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Croix de Chavaux</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4358546127,48.8579925851,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Créteil - L'Échat</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4493695956,48.7966108301,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Créteil - Préfecture</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4593051693,48.7797565268,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Créteil - Université</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4505291963,48.7899156860,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Créteil Pompadour</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4350942579,48.7709832010,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Danube</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3932284712,48.8819492149,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Daumesnil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3955736061,48.8396739314,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Denfert-Rochereau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3321281604,48.8339223230,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Deuil - Montmagny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3384992767,48.9759861850,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Domont</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3367616088,49.0329427919,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Drancy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4551533256,48.9328731708,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Dugommier</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3895997701,48.8390365283,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Duroc</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3161249555,48.8472482083,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ecole Vétérinaire de Maisons-Alfort</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4223227517,48.8147586840,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Edgar Quinet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3252865779,48.8409035017,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Enghien-les-Bains</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3070272719,48.9727510153,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ermont - Eaubonne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2707633331,48.9803280926,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ermont Halte</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2631154011,48.9907351873,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Esplanade de la Défense</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2500587373,48.8880089459,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Etienne Marcel</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3489761969,48.8637030120,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Europe</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3221859195,48.8787531640,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Exelmans</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2598008451,48.8425802763,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Faidherbe - Chaligny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3840285664,48.8501105441,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Filles du Calvaire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3665956946,48.8630421114,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Fontaine Michalon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2959599072,48.7429912904,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Fontenay-aux-Roses</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2929904093,48.7875404851,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Fontenay-sous-Bois</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4636112179,48.8437576606,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort d'Aubervilliers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4041878218,48.9147077529,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Franconville - Le Plessis-Bouchard</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2341708178,48.9937103031,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Front Populaire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3657920240,48.9066642028,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gabriel Péri</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2943347306,48.9165886451,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gagny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5253031126,48.8836428943,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gallieni</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4159299614,48.8651277005,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gambetta</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3973531026,48.8648827129,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Garches - Marnes-la-Coquette</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1868350180,48.8381762420,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare Montparnasse</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3180581659,48.8392121730,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare d'Austerlitz</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3643953946,48.8422823670,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare d'Epinay-sur-Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3024904236,48.9541639015,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare d'Épinay - Villetaneuse</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3288672106,48.9583833005,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Chenay Gagny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5526266604,48.8772599670,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Juvisy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3832281372,48.6894716387,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de La Plaine - Stade de France</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3626650554,48.9182621235,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Lyon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3725197828,48.8442498881,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Maisons Alfort Alfortville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4266499661,48.8020065521,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Maisons-Laffitte</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1442576933,48.9460434108,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Meudon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2425292956,48.8144563196,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Montreuil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1526578031,48.8060417774,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Nogent le Perreux</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4937387088,48.8396709904,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Pantin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4004258935,48.8977764240,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Petit Jouy les Loges</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1465251984,48.7704214489,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Pierrefitte Stains</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3716994640,48.9637819316,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Rosa Parks</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3734492303,48.8965386363,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Rosny - Bois-Perrier</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4810758596,48.8826994489,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Rosny sous Bois</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4857956495,48.8702596815,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Rungis la Fraternelle</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3527782034,48.7402824987,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Saint-Cloud</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2175244610,48.8459626809,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Saint-Denis</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3454436382,48.9349276279,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Saint-Leu la Foret</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2430494355,49.0151415604,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Sannois</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2638686566,48.9707448264,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Sarcelles - Saint-Brice</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3685475223,48.9960168922,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Stade de France Saint-Denis</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3504252927,48.9175893602,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Sèvres - Rive Gauche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2145944337,48.8211159859,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Vanves - Malakoff</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2919526877,48.8183118127,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Vauboyen</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1920541782,48.7591336152,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Vaucresson</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1525716362,48.8367871900,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Versailles Chantiers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1354815587,48.7955697446,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Versailles Château - Rive Gauche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1298191266,48.7999910100,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare de Villiers-le-Bel Gonesse Arnouville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4162251374,48.9938753463,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare des Ardoines</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4095372840,48.7827722917,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare des Grésillons</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3140555417,48.9203903257,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare des Saules</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4173373057,48.7453884623,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare des Yvris Noisy-le-Grand</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5798154719,48.8231923036,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare du Raincy Villemomble</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5129072431,48.8889530161,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare du Stade</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2607537221,48.9315248028,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare du Val d'Argenteuil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2328622071,48.9507259369,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gare du Vert de Maisons</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4321771465,48.7889428091,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Garges - Sarcelles</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3908621140,48.9770009097,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Garibaldi</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3314859001,48.9052455914,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gennevilliers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3079141910,48.9328102871,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gentilly</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3410288842,48.8151701951,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>George V</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3003358531,48.8721342152,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Glacière</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3434382367,48.8311159476,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Goncourt</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3709216362,48.8699718705,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Gros Noyer Saint-Prix</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2596645648,48.9960464790,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Groslay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3535315564,48.9843232468,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Guy Môquet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3274832586,48.8930014419,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Herblay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1621980809,48.9900999355,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Hoche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4032119888,48.8912893939,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Houilles - Carrières-sur-Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1851847795,48.9202037502,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital Bicêtre</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3500149505,48.8099444810,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôtel de Ville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3529566557,48.8571053972,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Igny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2307669155,48.7408441014,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Invalides</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3146326604,48.8610920114,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Issy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2579112966,48.8193015753,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Issy - Val de Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2640326669,48.8304468202,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ivry-sur-Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3918686564,48.8138971511,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Jacques Bonsergent</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3610239020,48.8706209263,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Jasmin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2679332916,48.8524334187,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Javel</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2780780448,48.8471348484,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Joinville-le-Pont</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4640380641,48.8211316485,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Jourdain</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3893253789,48.8752473486,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Jouy-en-Josas</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1644415387,48.7647285437,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Jules Joffrin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3443200294,48.8924922682,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Kléber</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2933259180,48.8713016120,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>L'Haÿ-les-Roses</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3550320321,48.7753266843,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Barre Ormesson</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3166753065,48.9661967988,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Celle-Saint-Cloud</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1381892625,48.8426113970,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Chapelle</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3604041693,48.8843864108,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Courneuve - 8 Mai 1945</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4102214036,48.9202457966,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Courneuve - Aubervilliers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3861852493,48.9241988736,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Croix de Berny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3042393178,48.7615772595,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Dhuys</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4651161820,48.8780111917,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Défense</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2382511098,48.8915587324,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Fourche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3258160923,48.8869306068,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Frette - Montigny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1802873664,48.9798743672,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Garenne-Colombes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2398971272,48.9096006918,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Tour-Maubourg</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3105887899,48.8576692296,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>La Varenne - Chennevières</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5131139423,48.7952326335,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Lamarck - Caulaincourt</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3385838244,48.8896818100,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Laplace</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3341912590,48.8082834669,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Laumière</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3793909894,48.8851338481,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Blanc-Mesnil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4753415283,48.9322213454,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Bourget</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4259632015,48.9306460782,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Kremlin-Bicêtre</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3621304138,48.8102525728,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Parc de Saint-Maur</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4865164959,48.8053473292,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Val d'Or</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2165325465,48.8565057936,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Vésinet - Le Pecq</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1222317961,48.8979097702,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Vésinet-Centre</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1342799593,48.8901057231,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ledru-Rollin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3760330685,48.8512652545,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Les Agnettes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2862504202,48.9230247506,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Les Baconnets</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2880748069,48.7397964602,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Les Boullereaux Champigny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5118639517,48.8247990012,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Les Gobelins</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3524168019,48.8358416223,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Les Sablons</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2722776753,48.8809513564,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Les Vallées</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2571396431,48.9136118909,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Liberté</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4064094591,48.8260803219,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Louise Michel</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2881680068,48.8884933817,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Louveciennes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1225598155,48.8612498563,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Louvre - Rivoli</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3401628635,48.8610736174,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Lozère</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2128274005,48.7058816550,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Luxembourg</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3397486347,48.8453595995,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mabillon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3351428193,48.8528437383,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie d'Aubervilliers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3808510233,48.9137305859,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie d'Issy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2735581680,48.8243442877,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie d'Ivry</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3834980536,48.8112100934,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie de Clichy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3052830209,48.9039543484,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie de Montreuil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4414386665,48.8623131309,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie de Montrouge</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3196193991,48.8184544562,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie de Saint-Ouen</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3337919528,48.9115985793,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Mairie des Lilas</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4162978208,48.8797436500,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison Blanche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3584129462,48.8221495061,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Maisons-Alfort - Les Juilliottes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4457883064,48.8031058504,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Maisons-Alfort - Stade</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4348195334,48.8089184785,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Malakoff - Plateau de Vanves</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2982402992,48.8222522140,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Malakoff - Rue Étienne Dolet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2969724637,48.8152655238,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Malesherbes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3094384103,48.8827632940,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Maraîchers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4060385448,48.8527310205,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Marcadet - Poissonniers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3495451670,48.8912796991,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Marcel Sembat</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2435830486,48.8335929822,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Marly-le-Roi</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.0966614615,48.8714449092,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Marx Dormoy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3598084781,48.8905795786,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Massy - Palaiseau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2586269368,48.7249020667,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Massy - Verrières</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2740549976,48.7348549814,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Meudon Val Fleury</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2408940669,48.8075655454,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Michel Bizot</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4022804271,48.8370005539,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Miromesnil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3146768238,48.8736921020,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Montgallet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3904000136,48.8440050757,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Montgeron - Crosne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4612371765,48.7086202607,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Montigny - Beauchamp</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1964155204,49.0076894964,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Montreuil - Hôpital</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4546692358,48.8782698292,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée d'Orsay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3266930224,48.8602431364,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Nanterre - Préfecture</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2230322773,48.8958182260,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Nanterre - Université</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2136246093,48.9011662978,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Nanterre-Ville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1952039509,48.8950498742,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Nation</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3961626392,48.8482208013,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Neuilly - Porte Maillot</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2826692429,48.8779023566,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Neuilly-Plaisance</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5145203490,48.8525548350,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Nogent-sur-Marne</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4717505637,48.8342157445,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Noisy - Champs</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5800130896,48.8428469377,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Noisy le Sec</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4599497125,48.8967072775,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Noisy-le-Grand - Mont d'Est</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5498912856,48.8407948059,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Notre-Dame-de-Lorette</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3379007718,48.8760441748,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Notre-Dame-des-Champs</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3286958055,48.8450777456,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Olympiades</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3670342709,48.8269441550,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Orly Ville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4032078728,48.7417137233,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Ourcq</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3866765356,48.8871499028,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Palais Royal - Musée du Louvre</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3353026916,48.8627464898,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Palaiseau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2453690504,48.7166158113,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Palaiseau - Villebon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2372952378,48.7081138943,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Parc de Sceaux</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3099566534,48.7695523763,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Parc des Expositions</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5144834565,48.9735183937,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Parmentier</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3746806764,48.8651621112,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Passy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2858394189,48.8575150896,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pasteur</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3127926514,48.8424827183,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pelleport</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4016063613,48.8684204680,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pereire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2976831860,48.8848443227,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pernety</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3180154546,48.8338336930,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Picpus</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4012482695,48.8450176772,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pierre et Marie Curie</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3772468860,48.8158365010,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pointe du Lac</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4643173127,48.7687613643,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Polytechnique</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2011841497,48.7153387723,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont Cardinet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3151908649,48.8881023899,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont Marie (Cité des Arts)</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3573499684,48.8534147493,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont de Levallois - Bécon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2801801985,48.8971871038,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont de Neuilly</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2606895444,48.8846306002,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont de Rungis Aéroport d'Orly</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3733189260,48.7483243453,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont de Sèvres</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2305185728,48.8296872644,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pont du Garigliano - Hôpital Européen G. Pompidou</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2706114679,48.8387462370,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porchefontaine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1517488179,48.7964610346,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Port Royal</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3371374178,48.8400344166,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte d'Auteuil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2582639186,48.8481288612,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte d'Ivry</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3695112543,48.8214890355,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte d'Orléans</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3256237604,48.8233946026,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Bagnolet</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4088234091,48.8643283699,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Champerret</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2918481473,48.8857362667,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Clichy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3134040002,48.8943334843,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Clignancourt</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3446240991,48.8975256313,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Pantin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3921229723,48.8884592113,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Saint-Cloud</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2570461929,48.8379584056,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Saint-Ouen</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3290483407,48.8974978373,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Vanves</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3048327738,48.8273452440,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Versailles</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2877417091,48.8325195325,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de Vincennes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4079949837,48.8472636656,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de la Chapelle</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3592485423,48.8974024227,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte de la Villette</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3858690331,48.8978026923,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Porte des Lilas</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4067923249,48.8769000148,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Pré-Saint-Gervais</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3985807707,48.8801595807,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Puteaux</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2336142398,48.8832012737,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Père Lachaise</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3861570463,48.8629641743,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Quai de la Gare</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3728250137,48.8370026295,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Quai de la Rapée</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3658846508,48.8464273255,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Rambuteau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3532739486,48.8611901569,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Raspail</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3304144712,48.8390661288,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Richard-Lenoir</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3719501401,48.8598596674,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Robespierre</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4229730865,48.8556738085,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Robinson</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2812979160,48.7802124432,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Romainville - Carnot</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4406774446,48.8835742379,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Rue Saint-Maur</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3804863323,48.8641310802,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Rue de la Pompe</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2778858980,48.8639517089,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Rue des Boulets</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3891047050,48.8522140733,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Rue du Bac</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3256727585,48.8558755320,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Rueil-Malmaison</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1721864900,48.8876217928,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Augustin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3210135978,48.8745466129,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Cyr</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.0737292300,48.7986340832,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Denis - Porte de Paris</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3561729251,48.9299227504,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Denis - Université</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3645912814,48.9457950671,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Fargeau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4044981832,48.8718433722,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-François-Xavier</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3145077831,48.8519358636,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Germain-en-Laye</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.0950482115,48.8987282012,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Gratien</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2859942491,48.9635720463,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Mandé</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4190018282,48.8463643093,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Maur - Créteil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4728379696,48.8061691845,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Saint-Ouen</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3227559547,48.9051695699,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sartrouville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1571466431,48.9375913574,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Savigny-sur-Orge</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3523960943,48.6763004696,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sceaux</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2979752977,48.7812379990,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Serge Gainsbourg</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4271626632,48.8812080705,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sevran - Beaudottes</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5246173026,48.9471164912,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sevran - Livry</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5356001086,48.9365122258,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Stalingrad</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3673737549,48.8842795364,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sucy - Bonneuil</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5074596203,48.7719600585,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sully - Morland</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3617517381,48.8512079125,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Suresnes Mont Valérien</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2209279568,48.8716437159,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sèvres - Babylone</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3261268780,48.8510283119,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sèvres - Ville-d'Avray</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2007772713,48.8272437358,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Sèvres-Lecourbe</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3095296104,48.8456476826,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Taverny</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2222929005,49.0249273719,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Temple</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3615893783,48.8666848322,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Tolbiac</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3573184392,48.8261368617,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Trocadéro</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2868398798,48.8630880611,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Tuileries</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3290488947,48.8646451895,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Télégraphe</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3986480900,48.8755103842,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Val de Fontenay</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4889110371,48.8541659313,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Vaneau</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3212894798,48.8487975384,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Vaucelles</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2295325992,49.0217368382,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Vaugirard</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3010745157,48.8394379181,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Versailles Rive Droite</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1370082901,48.8094240451,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Vert-Galant</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5663891872,48.9441948880,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Victor Hugo</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.2859020006,48.8698545716,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Vigneux-sur-Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4135420291,48.7079186333,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villejuif - Gustave Roussy</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3492293618,48.7932384316,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villejuif - Louis Aragon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3678390118,48.7875371710,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villejuif Léo Lagrange</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3639317476,48.8043531803,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villejuif Paul Vaillant-Couturier</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3681955838,48.7963082212,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villeneuve Triage</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4386039992,48.7444937717,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villeneuve-Saint-Georges</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4464059126,48.7295185847,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villeneuve-le-Roi</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4262937726,48.7397491946,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villepinte</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5127432176,48.9624416180,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villiers</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3158150926,48.8810731831,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Villiers-sur-Marne - Le Plessis-Trévise</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.5425116593,48.8231394363,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Viroflay - Rive Droite</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1675610329,48.8054404508,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Viroflay - Rive Gauche</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.1715170874,48.8006920498,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Viry-Châtillon</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3871257580,48.6758589010,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Vitry-sur-Seine</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4025933146,48.8001906082,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Voltaire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3800316941,48.8576624344,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Yerres</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4826362782,48.7064843187,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>École Militaire</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3064410394,48.8548617551,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Écouen - Ézanville</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3621540639,49.0231800778,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Église de Pantin</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Metro</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.4130749996,48.8932446942,0</coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Épinay-sur-Orge</name>
+      <ExtendedData>
+        <Data name="tier">
+          <value>Rail</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>2.3327468266,48.6695718267,0</coordinates>
+      </Point>
+    </Placemark>
+  </Document>
+</kml>

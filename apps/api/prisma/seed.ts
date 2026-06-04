@@ -152,13 +152,12 @@ const GAMES = [
   },
   {
     serverId: "1190673594649415730", // JetLag EU
-    name: "Paris",
-    sentinelValue: "__bundled-paris-0.1__",
-    kmlPath: "paris-hiding-zone.geojson",
+    name: "Paris 2026",
+    sentinelValue: "__bundled-paris-2026__",
+    kmlPath: "paris-stations.kml",
     mapLocationJson: PARIS_CITY_FEATURE,
-    hidingRadius: 1,
-    hidingRadiusUnits: "kilometers",
-    hidingZoneGeoJsonPath: "paris-hiding-zone.geojson",
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
     size: "large",
   },
   {

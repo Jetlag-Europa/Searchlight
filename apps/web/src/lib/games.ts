@@ -113,11 +113,13 @@ const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
     "__bundled-south-limburg-2026__": "south-limburg-stations.kml",
     "__bundled-brno-2026-v2__": "brno-stations-v2.kml",
     "__bundled-bucharest-2026__": "bucharest-stations.kml",
+    "__bundled-paris-2026__": "paris-stations.kml",
 };
 
 const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> = {
     "__bundled-south-limburg-2026__": "south-limburg-border.geojson",
     "__bundled-bucharest-2026__": "bucharest-border.geojson",
+    "__bundled-paris-2026__": "paris-border.geojson",
 };
 
 // Server-fetched games. Populated by fetchGames() when a session/server is known.
