@@ -62,6 +62,17 @@ const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
     "golf_course": "golf_course", "golf_course-full": "golf_course",
     "park": "park", "park-full": "park",
     "covrigarie": "covrigarie",
+    "sl-camping": "camping",
+    "sl-mill": "mill",
+    "sl-mountain": "mountain",
+    "sl-library": "library",
+    "sl-museum": "museum",
+    "sl-golf_course": "golf_course",
+    "sl-cinema": "cinema",
+    "sl-zoo": "zoo",
+    "sl-theme_park": "theme_park",
+    "sl-hospital": "hospital",
+    "sl-airport": "airport",
 };
 
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
@@ -246,6 +257,28 @@ export const determineMatchingBoundary = _.memoize(
                 }
                 break;
             }
+            case "south-limburg-postcode": {
+                const res = await fetch(import.meta.env.BASE_URL + "south-limburg-postcodes.geojson");
+                const fc = await res.json();
+                const pt = turf.point([question.lng, question.lat]);
+                boundary = fc.features.find((f: any) => turf.booleanPointInPolygon(pt, f));
+                if (!boundary) {
+                    toast.error("No postcode found at this point — must be inside the game area.");
+                    throw new Error("No South Limburg postcode found");
+                }
+                break;
+            }
+            case "south-limburg-municipality": {
+                const res = await fetch(import.meta.env.BASE_URL + "south-limburg-municipalities.geojson");
+                const fc = await res.json();
+                const pt = turf.point([question.lng, question.lat]);
+                boundary = fc.features.find((f: any) => turf.booleanPointInPolygon(pt, f));
+                if (!boundary) {
+                    toast.error("No municipality found at this point — must be inside the game area.");
+                    throw new Error("No South Limburg municipality found");
+                }
+                break;
+            }
             case "bucharest-sector": {
                 // Sectors are bundled locally (bucharest-sectors.geojson) — no Overpass needed.
                 const sectorsRes = await fetch(import.meta.env.BASE_URL + "bucharest-sectors.geojson");
@@ -319,6 +352,17 @@ export const determineMatchingBoundary = _.memoize(
 
                 break;
             }
+            case "sl-camping":
+            case "sl-mill":
+            case "sl-mountain":
+            case "sl-library":
+            case "sl-museum":
+            case "sl-golf_course":
+            case "sl-cinema":
+            case "sl-zoo":
+            case "sl-theme_park":
+            case "sl-hospital":
+            case "sl-airport":
             case "covrigarie":
             case "airport":
             case "major-city":

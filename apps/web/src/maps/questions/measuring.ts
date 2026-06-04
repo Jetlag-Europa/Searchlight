@@ -172,6 +172,34 @@ export const determineMeasuringBoundary = async (
                 ).features[0],
             ];
         }
+        case "sl-camping":
+        case "sl-mill":
+        case "sl-mountain":
+        case "sl-library":
+        case "sl-museum":
+        case "sl-golf_course":
+        case "sl-cinema":
+        case "sl-zoo":
+        case "sl-theme_park":
+        case "sl-hospital":
+        case "sl-airport": {
+            const catMap: Record<string, string> = {
+                "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
+                "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
+                "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
+                "sl-hospital": "hospital", "sl-airport": "airport",
+            };
+            const slPOI = gamePOIData.get()[catMap[question.type]];
+            if (!slPOI?.length) return false;
+            console.info(`[taibled:poi] measuring ${question.type} → ${slPOI.length} custom`);
+            return [
+                turf.combine(
+                    turf.featureCollection(
+                        slPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+                    ),
+                ).features[0],
+            ];
+        }
         case "covrigarie": {
             const covrPOI = gamePOIData.get()["covrigarie"];
             if (!covrPOI?.length) return false;
@@ -342,6 +370,25 @@ export const adjustPerMeasuring = async (
 export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
     const $hiderMode = hiderMode.get();
     if ($hiderMode === false) {
+        return question;
+    }
+
+    if (["sl-camping", "sl-mill", "sl-mountain", "sl-library", "sl-museum", "sl-golf_course", "sl-cinema", "sl-zoo", "sl-theme_park", "sl-hospital", "sl-airport"].includes(question.type)) {
+        const catMap: Record<string, string> = {
+            "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
+            "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
+            "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
+            "sl-hospital": "hospital", "sl-airport": "airport",
+        };
+        const slPOI = gamePOIData.get()[catMap[question.type]];
+        if (slPOI?.length) {
+            const pts = turf.featureCollection(slPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })));
+            const seekerPt = turf.point([question.lng, question.lat]);
+            const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+            const qn = turf.nearestPoint(seekerPt, pts);
+            const hn = turf.nearestPoint(hiderPt, pts);
+            question.hiderCloser = turf.distance(seekerPt, qn) > turf.distance(hiderPt, hn);
+        }
         return question;
     }
 

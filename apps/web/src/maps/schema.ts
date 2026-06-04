@@ -128,6 +128,10 @@ const tentacleLocationsOne = z.union([
     z.literal("cinema").describe("Movie Theaters"),
     z.literal("library").describe("Libraries"),
     z.literal("covrigarie").describe("Covrigarie (Bucharest)"),
+    z.literal("camping").describe("Campings (South Limburg)"),
+    z.literal("mill").describe("Mills (South Limburg)"),
+    z.literal("mountain").describe("Mountains (South Limburg)"),
+    z.literal("golf_course").describe("Golf Courses (South Limburg)"),
 ]);
 
 const apiLocationSchema = z.union([
@@ -325,6 +329,24 @@ const luxPointMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("south-limburg-postcode").describe("1st Admin Division (South Limburg)"),
+        z.literal("south-limburg-municipality").describe("2nd Admin Division (South Limburg)"),
+        z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
+        z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
+        z.literal("sl-mountain").describe("Nearest Mountain (South Limburg)"),
+        z.literal("sl-library").describe("Nearest Library (South Limburg)"),
+        z.literal("sl-museum").describe("Nearest Museum (South Limburg)"),
+        z.literal("sl-golf_course").describe("Nearest Golf Course (South Limburg)"),
+        z.literal("sl-cinema").describe("Nearest Cinema (South Limburg)"),
+        z.literal("sl-zoo").describe("Nearest Zoo (South Limburg)"),
+        z.literal("sl-theme_park").describe("Nearest Amusement Park (South Limburg)"),
+        z.literal("sl-hospital").describe("Nearest Hospital (South Limburg)"),
+        z.literal("sl-airport").describe("Nearest Airport (South Limburg)"),
+    ]),
+});
+
 const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("brno-district").describe("Same District (Brno)"),
@@ -343,6 +365,7 @@ export const matchingQuestionSchema = z.union([
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
     luxAdminMatchingQuestionsSchema.describe(NO_GROUP),
     luxPointMatchingQuestionsSchema.describe(NO_GROUP),
+    southLimburgMatchingQuestionsSchema.describe(NO_GROUP),
     brnoMatchingQuestionsSchema.describe(NO_GROUP),
     bucharestMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
@@ -354,14 +377,31 @@ export const matchingQuestionSchema = z.union([
 // Types listed here are hidden in the selector unless that game is active.
 // Add new game-specific types here as they are introduced.
 export const GAME_GATED_TYPES: Record<string, string> = {
-    "lux-canton":       "__bundled-luxembourg-2026__",
-    "lux-district":     "__bundled-luxembourg-2026__",
-    "lux-mountains":    "__bundled-luxembourg-2026__",
-    "lux-hospitals":    "__bundled-luxembourg-2026__",
-    "brno-district":    "__bundled-brno-2026-v2__",
-    "brno-water":       "__bundled-brno-2026-v2__",
-    "bucharest-sector": "__bundled-bucharest-2026__",
-    "covrigarie":       "__bundled-bucharest-2026__",
+    "lux-canton":                "__bundled-luxembourg-2026__",
+    "lux-district":              "__bundled-luxembourg-2026__",
+    "lux-mountains":             "__bundled-luxembourg-2026__",
+    "lux-hospitals":             "__bundled-luxembourg-2026__",
+    "south-limburg-postcode":    "__bundled-south-limburg-2026__",
+    "south-limburg-municipality":"__bundled-south-limburg-2026__",
+    "sl-camping":                "__bundled-south-limburg-2026__",
+    "sl-mill":                   "__bundled-south-limburg-2026__",
+    "sl-mountain":               "__bundled-south-limburg-2026__",
+    "sl-library":                "__bundled-south-limburg-2026__",
+    "sl-museum":                 "__bundled-south-limburg-2026__",
+    "sl-golf_course":            "__bundled-south-limburg-2026__",
+    "sl-cinema":                 "__bundled-south-limburg-2026__",
+    "sl-zoo":                    "__bundled-south-limburg-2026__",
+    "sl-theme_park":             "__bundled-south-limburg-2026__",
+    "sl-hospital":               "__bundled-south-limburg-2026__",
+    "sl-airport":                "__bundled-south-limburg-2026__",
+    "camping":                   "__bundled-south-limburg-2026__",
+    "mill":                      "__bundled-south-limburg-2026__",
+    "mountain":                  "__bundled-south-limburg-2026__",
+    "golf_course":               "__bundled-south-limburg-2026__",
+    "brno-district":             "__bundled-brno-2026-v2__",
+    "brno-water":                "__bundled-brno-2026-v2__",
+    "bucharest-sector":          "__bundled-bucharest-2026__",
+    "covrigarie":                "__bundled-bucharest-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -445,6 +485,22 @@ const customMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
     geo: z.any(),
 });
 
+const southLimburgMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
+        z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
+        z.literal("sl-mountain").describe("Nearest Mountain (South Limburg)"),
+        z.literal("sl-library").describe("Nearest Library (South Limburg)"),
+        z.literal("sl-museum").describe("Nearest Museum (South Limburg)"),
+        z.literal("sl-golf_course").describe("Nearest Golf Course (South Limburg)"),
+        z.literal("sl-cinema").describe("Nearest Cinema (South Limburg)"),
+        z.literal("sl-zoo").describe("Nearest Zoo (South Limburg)"),
+        z.literal("sl-theme_park").describe("Nearest Amusement Park (South Limburg)"),
+        z.literal("sl-hospital").describe("Nearest Hospital (South Limburg)"),
+        z.literal("sl-airport").describe("Nearest Airport (South Limburg)"),
+    ]),
+});
+
 const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.literal("brno-water").describe("Body of Water (Brno)"),
 });
@@ -455,6 +511,7 @@ const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
+    southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
     brnoMeasuringQuestionsSchema.describe(NO_GROUP),
     bucharestMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),

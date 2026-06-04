@@ -62,6 +62,19 @@ export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
 }
 
 const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
+    "__bundled-south-limburg-2026__": {
+        "airport":    "airport",
+        "camping":    "camping",
+        "cinema":     "cinema",
+        "golf_course":"golf_course",
+        "hospital":   "hospital",
+        "library":    "library",
+        "mill":       "mill",
+        "mountain":   "mountain",
+        "museum":     "museum",
+        "theme_park": "theme_park",
+        "zoo":        "zoo",
+    },
     "__bundled-brno-2026-v2__": {
         "5": "museum",
         "9": "train_station",
@@ -96,11 +109,13 @@ const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
 const GAME_HIDING_ZONE_GPX_PATHS: Record<string, string[]> = {};
 
 const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
+    "__bundled-south-limburg-2026__": "south-limburg-stations.kml",
     "__bundled-brno-2026-v2__": "brno-stations-v2.kml",
     "__bundled-bucharest-2026__": "bucharest-stations.kml",
 };
 
 const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> = {
+    "__bundled-south-limburg-2026__": "south-limburg-border.geojson",
     "__bundled-bucharest-2026__": "bucharest-border.geojson",
 };
 

@@ -52,6 +52,25 @@ const PARIS_CITY_FEATURE = {
   },
 };
 
+const SOUTH_LIMBURG_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [50.8474, 5.8666],
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 47772,
+    extent: [50.9434, 5.6389, 50.7504, 6.0942],
+    country: "Netherlands",
+    osm_key: "place",
+    countrycode: "NL",
+    osm_value: "region",
+    name: "South Limburg",
+    type: "region",
+  },
+};
+
 const BUCHAREST_CITY_FEATURE = {
   type: "Feature",
   geometry: {
@@ -110,6 +129,16 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
 };
 
 const GAMES = [
+  {
+    serverId: "1369664929975767120", // JetLag BNL
+    name: "South Limburg 2026",
+    sentinelValue: "__bundled-south-limburg-2026__",
+    kmlPath: "south-limburg-poi.kml",
+    mapLocationJson: SOUTH_LIMBURG_FEATURE,
+    hidingRadius: 500,
+    hidingRadiusUnits: "meters",
+    size: "medium",
+  },
   {
     serverId: "1190673594649415730", // JetLag EU
     name: "Bucharest 2026",
