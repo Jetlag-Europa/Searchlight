@@ -73,6 +73,16 @@ const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
     "sl-theme_park": "theme_park",
     "sl-hospital": "hospital",
     "sl-airport": "airport",
+    "buch-museum": "museum",
+    "buch-park": "park",
+    "buch-library": "library",
+    "buch-hospital": "hospital",
+    "buch-cinema": "cinema",
+    "buch-train_station": "train_station",
+    "buch-zoo": "zoo",
+    "buch-golf_course": "golf_course",
+    "buch-airport": "airport",
+    "buch-consulate": "consulate",
 };
 
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
@@ -363,6 +373,16 @@ export const determineMatchingBoundary = _.memoize(
             case "sl-theme_park":
             case "sl-hospital":
             case "sl-airport":
+            case "buch-museum":
+            case "buch-park":
+            case "buch-library":
+            case "buch-hospital":
+            case "buch-cinema":
+            case "buch-train_station":
+            case "buch-zoo":
+            case "buch-golf_course":
+            case "buch-airport":
+            case "buch-consulate":
             case "covrigarie":
             case "airport":
             case "major-city":

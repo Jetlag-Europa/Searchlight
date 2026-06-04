@@ -128,6 +128,8 @@ const tentacleLocationsOne = z.union([
     z.literal("cinema").describe("Movie Theaters"),
     z.literal("library").describe("Libraries"),
     z.literal("covrigarie").describe("Covrigarie (Bucharest)"),
+    z.literal("train_station").describe("Railway Stations (Bucharest)"),
+    z.literal("park").describe("Parks (Bucharest)"),
     z.literal("camping").describe("Campings (South Limburg)"),
     z.literal("mill").describe("Mills (South Limburg)"),
     z.literal("mountain").describe("Mountains (South Limburg)"),
@@ -357,6 +359,16 @@ const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("bucharest-sector").describe("1st Admin Division (Bucharest)"),
         z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
+        z.literal("buch-museum").describe("Nearest Museum (Bucharest)"),
+        z.literal("buch-park").describe("Nearest Park (Bucharest)"),
+        z.literal("buch-library").describe("Nearest Library (Bucharest)"),
+        z.literal("buch-hospital").describe("Nearest Hospital (Bucharest)"),
+        z.literal("buch-cinema").describe("Nearest Cinema (Bucharest)"),
+        z.literal("buch-train_station").describe("Nearest Railway Station (Bucharest)"),
+        z.literal("buch-zoo").describe("Nearest Zoo (Bucharest)"),
+        z.literal("buch-golf_course").describe("Nearest Golf Course (Bucharest)"),
+        z.literal("buch-airport").describe("Nearest Airport (Bucharest)"),
+        z.literal("buch-consulate").describe("Nearest Foreign Consulate (Bucharest)"),
     ]),
 });
 
@@ -402,6 +414,18 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "brno-water":                "__bundled-brno-2026-v2__",
     "bucharest-sector":          "__bundled-bucharest-2026__",
     "covrigarie":                "__bundled-bucharest-2026__",
+    "buch-museum":               "__bundled-bucharest-2026__",
+    "buch-park":                 "__bundled-bucharest-2026__",
+    "buch-library":              "__bundled-bucharest-2026__",
+    "buch-hospital":             "__bundled-bucharest-2026__",
+    "buch-cinema":               "__bundled-bucharest-2026__",
+    "buch-train_station":        "__bundled-bucharest-2026__",
+    "buch-zoo":                  "__bundled-bucharest-2026__",
+    "buch-golf_course":          "__bundled-bucharest-2026__",
+    "buch-airport":              "__bundled-bucharest-2026__",
+    "buch-consulate":            "__bundled-bucharest-2026__",
+    "train_station":             "__bundled-bucharest-2026__",
+    "park":                      "__bundled-bucharest-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -506,7 +530,19 @@ const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 });
 
 const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
+    type: z.union([
+        z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
+        z.literal("buch-museum").describe("Nearest Museum (Bucharest)"),
+        z.literal("buch-park").describe("Nearest Park (Bucharest)"),
+        z.literal("buch-library").describe("Nearest Library (Bucharest)"),
+        z.literal("buch-hospital").describe("Nearest Hospital (Bucharest)"),
+        z.literal("buch-cinema").describe("Nearest Cinema (Bucharest)"),
+        z.literal("buch-train_station").describe("Nearest Railway Station (Bucharest)"),
+        z.literal("buch-zoo").describe("Nearest Zoo (Bucharest)"),
+        z.literal("buch-golf_course").describe("Nearest Golf Course (Bucharest)"),
+        z.literal("buch-airport").describe("Nearest Airport (Bucharest)"),
+        z.literal("buch-consulate").describe("Nearest Foreign Consulate (Bucharest)"),
+    ]),
 });
 
 export const measuringQuestionSchema = z.union([

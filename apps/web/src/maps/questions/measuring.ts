@@ -182,12 +182,26 @@ export const determineMeasuringBoundary = async (
         case "sl-zoo":
         case "sl-theme_park":
         case "sl-hospital":
-        case "sl-airport": {
+        case "sl-airport":
+        case "buch-museum":
+        case "buch-park":
+        case "buch-library":
+        case "buch-hospital":
+        case "buch-cinema":
+        case "buch-train_station":
+        case "buch-zoo":
+        case "buch-golf_course":
+        case "buch-airport":
+        case "buch-consulate": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
                 "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
                 "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
                 "sl-hospital": "hospital", "sl-airport": "airport",
+                "buch-museum": "museum", "buch-park": "park", "buch-library": "library",
+                "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
+                "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
+                "buch-consulate": "consulate",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -373,13 +387,18 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
-    if (["sl-camping", "sl-mill", "sl-mountain", "sl-library", "sl-museum", "sl-golf_course", "sl-cinema", "sl-zoo", "sl-theme_park", "sl-hospital", "sl-airport"].includes(question.type)) {
-        const catMap: Record<string, string> = {
-            "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
-            "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
-            "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
-            "sl-hospital": "hospital", "sl-airport": "airport",
-        };
+    const GAME_POI_TYPE_MAP: Record<string, string> = {
+        "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
+        "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
+        "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
+        "sl-hospital": "hospital", "sl-airport": "airport",
+        "buch-museum": "museum", "buch-park": "park", "buch-library": "library",
+        "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
+        "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
+        "buch-consulate": "consulate",
+    };
+    if (question.type in GAME_POI_TYPE_MAP) {
+        const catMap = GAME_POI_TYPE_MAP;
         const slPOI = gamePOIData.get()[catMap[question.type]];
         if (slPOI?.length) {
             const pts = turf.featureCollection(slPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })));
