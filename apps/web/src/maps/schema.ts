@@ -286,7 +286,6 @@ const homeGameMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
         z.literal("golf_course").describe("Golf Course Question"),
         z.literal("consulate").describe("Foreign Consulate Question"),
         z.literal("park").describe("Park Question"),
-        z.literal("covrigarie").describe("Covrigarie Question (Bucharest)"),
     ]),
 });
 
@@ -335,6 +334,7 @@ const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
 const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("bucharest-sector").describe("1st Admin Division (Bucharest)"),
+        z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
     ]),
 });
 

@@ -185,7 +185,6 @@ export const determineMatchingBoundary = _.memoize(
             case "golf_course":
             case "consulate":
             case "park":
-            case "covrigarie":
             case "same-first-letter-station":
             case "same-length-station":
             case "same-train-line": {
@@ -320,6 +319,7 @@ export const determineMatchingBoundary = _.memoize(
 
                 break;
             }
+            case "covrigarie":
             case "airport":
             case "major-city":
             case "aquarium-full":
@@ -408,7 +408,6 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "golf_course",
             "consulate",
             "park",
-            "covrigarie",
         ].includes(question.type)
     ) {
         const poiCategory = MATCHING_POI_TO_CATEGORY[question.type];
