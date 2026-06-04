@@ -127,6 +127,7 @@ const tentacleLocationsOne = z.union([
     z.literal("hospital").describe("Hospitals"),
     z.literal("cinema").describe("Movie Theaters"),
     z.literal("library").describe("Libraries"),
+    z.literal("covrigarie").describe("Covrigarie (Bucharest)"),
 ]);
 
 const apiLocationSchema = z.union([
@@ -285,6 +286,7 @@ const homeGameMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
         z.literal("golf_course").describe("Golf Course Question"),
         z.literal("consulate").describe("Foreign Consulate Question"),
         z.literal("park").describe("Park Question"),
+        z.literal("covrigarie").describe("Covrigarie Question (Bucharest)"),
     ]),
 });
 
@@ -330,12 +332,19 @@ const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("bucharest-sector").describe("1st Admin Division (Bucharest)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
     luxAdminMatchingQuestionsSchema.describe(NO_GROUP),
     luxPointMatchingQuestionsSchema.describe(NO_GROUP),
     brnoMatchingQuestionsSchema.describe(NO_GROUP),
+    bucharestMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -345,12 +354,14 @@ export const matchingQuestionSchema = z.union([
 // Types listed here are hidden in the selector unless that game is active.
 // Add new game-specific types here as they are introduced.
 export const GAME_GATED_TYPES: Record<string, string> = {
-    "lux-canton":    "__bundled-luxembourg-2026__",
-    "lux-district":  "__bundled-luxembourg-2026__",
-    "lux-mountains": "__bundled-luxembourg-2026__",
-    "lux-hospitals": "__bundled-luxembourg-2026__",
-    "brno-district": "__bundled-brno-2026-v2__",
-    "brno-water":    "__bundled-brno-2026-v2__",
+    "lux-canton":       "__bundled-luxembourg-2026__",
+    "lux-district":     "__bundled-luxembourg-2026__",
+    "lux-mountains":    "__bundled-luxembourg-2026__",
+    "lux-hospitals":    "__bundled-luxembourg-2026__",
+    "brno-district":    "__bundled-brno-2026-v2__",
+    "brno-water":       "__bundled-brno-2026-v2__",
+    "bucharest-sector": "__bundled-bucharest-2026__",
+    "covrigarie":       "__bundled-bucharest-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -438,9 +449,14 @@ const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.literal("brno-water").describe("Body of Water (Brno)"),
 });
 
+const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     brnoMeasuringQuestionsSchema.describe(NO_GROUP),
+    bucharestMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

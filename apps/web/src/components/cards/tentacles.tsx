@@ -22,10 +22,12 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn, mapToObj } from "@/lib/utils";
+import { currentGameId, gamesAtom } from "@/lib/games";
 import { findTentacleLocations } from "@/maps/api";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
 import {
     determineUnionizedStrings,
+    GAME_GATED_TYPES,
     NO_GROUP,
     type TentacleQuestion,
     tentacleQuestionSchema,
@@ -48,6 +50,9 @@ export const TentacleQuestionComponent = ({
     const $questions = useStore(questions);
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
+    const $currentGameId = useStore(currentGameId);
+    const $games = useStore(gamesAtom);
+    const activeGameSentinel = $games.find((g) => g.id === $currentGameId)?.sentinelValue ?? "";
     const label = `Tentacles
     ${
         $questions
@@ -102,6 +107,10 @@ export const TentacleQuestionComponent = ({
                             .flatMap((x) =>
                                 determineUnionizedStrings(x.shape.locationType),
                             )
+                            .filter((x) => {
+                                const requiredSentinel = GAME_GATED_TYPES[(x._def as any).value];
+                                return !requiredSentinel || requiredSentinel === activeGameSentinel;
+                            })
                             .map((x) => [(x._def as any).value, x.description]),
                     )}
                     groups={Object.fromEntries(

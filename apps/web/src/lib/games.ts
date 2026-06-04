@@ -77,6 +77,20 @@ const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
         "25": "water",
         "26": "administrative",
     },
+    "__bundled-bucharest-2026__": {
+        "cinema":       "cinema",
+        "consulate":    "consulate",
+        "covrigarie":   "covrigarie",
+        "hospital":     "hospital",
+        "library":      "library",
+        "museum":       "museum",
+        "park":         "park",
+        "zoo":          "zoo",
+        "golf_course":  "golf_course",
+        "theme_park":   "theme_park",
+        "train_station":"train_station",
+        "airport":      "airport",
+    },
 };
 
 const GAME_HIDING_ZONE_GPX_PATHS: Record<string, string[]> = {};

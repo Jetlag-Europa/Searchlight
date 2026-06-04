@@ -114,7 +114,7 @@ const GAMES = [
     serverId: "1190673594649415730", // JetLag EU
     name: "Bucharest 2026",
     sentinelValue: "__bundled-bucharest-2026__",
-    kmlPath: "bucharest-stations.kml",
+    kmlPath: "bucharest-poi.kml",
     mapLocationJson: BUCHAREST_CITY_FEATURE,
     hidingRadius: 350,
     hidingRadiusUnits: "meters",
@@ -183,7 +183,7 @@ async function main() {
   for (const game of GAMES) {
     await prisma.game.upsert({
       where: { sentinelValue: game.sentinelValue },
-      update: { name: game.name },
+      update: { name: game.name, kmlPath: game.kmlPath },
       create: game,
     });
     console.log(`Upserted game: ${game.name} (${game.sentinelValue})`);

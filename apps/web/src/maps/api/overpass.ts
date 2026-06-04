@@ -300,27 +300,24 @@ export const findPlacesInZone = async (
     let query = "";
     const $polyGeoJSON = polyGeoJSON.get();
     if ($polyGeoJSON) {
+        // Simplify before encoding into the URL poly: filter — complex boundaries
+        // (e.g. 1000+ point city outlines) produce URLs too long for Overpass GET.
+        // 0.005° ≈ 500 m, accurate enough for zone filtering.
+        const simplified = turf.simplify($polyGeoJSON as any, { tolerance: 0.005, highQuality: false }) as typeof $polyGeoJSON;
+        const polyStr = turf
+            .getCoords(simplified.features)
+            .flatMap((polygon: any) => polygon.geometry.coordinates)
+            .flat()
+            .map((coord: number[]) => [coord[1], coord[0]].join(" "))
+            .join(" ");
         query = `
 [out:json]${timeoutDuration != 0 ? `[timeout:${timeoutDuration}]` : ""};
 (
-${searchType}${filter}(poly:"${turf
-            .getCoords($polyGeoJSON.features)
-            .flatMap((polygon) => polygon.geometry.coordinates)
-            .flat()
-            .map((coord) => [coord[1], coord[0]].join(" "))
-            .join(" ")}");
+${searchType}${filter}(poly:"${polyStr}");
 ${
     alternatives.length > 0
         ? alternatives
-              .map(
-                  (alternative) =>
-                      `${searchType}${alternative}(poly:"${turf
-                          .getCoords($polyGeoJSON.features)
-                          .flatMap((polygon) => polygon.geometry.coordinates)
-                          .flat()
-                          .map((coord) => [coord[1], coord[0]].join(" "))
-                          .join(" ")}");`,
-              )
+              .map((alternative) => `${searchType}${alternative}(poly:"${polyStr}");`)
               .join("\n")
         : ""
 }

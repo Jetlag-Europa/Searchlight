@@ -172,6 +172,18 @@ export const determineMeasuringBoundary = async (
                 ).features[0],
             ];
         }
+        case "covrigarie": {
+            const covrPOI = gamePOIData.get()["covrigarie"];
+            if (!covrPOI?.length) return false;
+            console.info(`[taibled:poi] measuring covrigarie → ${covrPOI.length} custom`);
+            return [
+                turf.combine(
+                    turf.featureCollection(
+                        covrPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
+                    ),
+                ).features[0],
+            ];
+        }
         case "brno-water": {
             const waterPOI = gamePOIData.get()["water"];
             if (!waterPOI?.length) return [turf.multiPolygon([])];
@@ -346,6 +358,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
             "golf_course",
             "consulate",
             "park",
+            "covrigarie",
         ].includes(question.type)
     ) {
         const poiOverride = gamePOIData.get()[(question as HomeGameMeasuringQuestions).type];

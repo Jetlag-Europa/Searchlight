@@ -61,6 +61,7 @@ const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
     "library": "library", "library-full": "library",
     "golf_course": "golf_course", "golf_course-full": "golf_course",
     "park": "park", "park-full": "park",
+    "covrigarie": "covrigarie",
 };
 
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
@@ -184,6 +185,7 @@ export const determineMatchingBoundary = _.memoize(
             case "golf_course":
             case "consulate":
             case "park":
+            case "covrigarie":
             case "same-first-letter-station":
             case "same-length-station":
             case "same-train-line": {
@@ -242,6 +244,22 @@ export const determineMatchingBoundary = _.memoize(
                         "No district found at this point — must be inside Brno.",
                     );
                     throw new Error("No Brno district found");
+                }
+                break;
+            }
+            case "bucharest-sector": {
+                // Sectors are bundled locally (bucharest-sectors.geojson) — no Overpass needed.
+                const sectorsRes = await fetch(import.meta.env.BASE_URL + "bucharest-sectors.geojson");
+                const sectorsFC = await sectorsRes.json();
+                const seekPt = turf.point([question.lng, question.lat]);
+                boundary = sectorsFC.features.find((f: any) =>
+                    turf.booleanPointInPolygon(seekPt, f),
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No sector found at this point — must be inside Bucharest.",
+                    );
+                    throw new Error("No Bucharest sector found");
                 }
                 break;
             }
@@ -390,6 +408,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "golf_course",
             "consulate",
             "park",
+            "covrigarie",
         ].includes(question.type)
     ) {
         const poiCategory = MATCHING_POI_TO_CATEGORY[question.type];
