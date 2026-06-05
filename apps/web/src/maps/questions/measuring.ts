@@ -2,6 +2,29 @@ import * as turf from "@turf/turf";
 import type { Feature, MultiPolygon } from "geojson";
 import _ from "lodash";
 import osmtogeojson from "osmtogeojson";
+
+const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+// Front-end cache — keyed by adminLevel + rounded coords (~100 m grid).
+const boundaryFetchCache = new Map<string, any>();
+
+const findBoundaryFromAPI = async (lat: number, lng: number, adminLevel: number) => {
+    const cacheKey = `${adminLevel}-${lat.toFixed(3)}-${lng.toFixed(3)}`;
+    if (boundaryFetchCache.has(cacheKey)) {
+        console.info(`[taibled:boundary] cache hit level=${adminLevel} key=${cacheKey}`);
+        return boundaryFetchCache.get(cacheKey);
+    }
+    const res = await fetch(
+        `${API_BASE}/boundaries/by-point?lat=${lat}&lng=${lng}&adminLevel=${adminLevel}`,
+        { credentials: "include" },
+    );
+    if (!res.ok) throw new Error(`Boundary API error: ${res.status}`);
+    const data = await res.json();
+    const geo = osmtogeojson(data as object);
+    const feature = geo.features?.[0];
+    if (feature) boundaryFetchCache.set(cacheKey, feature);
+    return feature;
+};
 import { toast } from "react-toastify";
 
 import {
@@ -172,6 +195,14 @@ export const determineMeasuringBoundary = async (
                 ).features[0],
             ];
         }
+        case "bern-canton": {
+            const bernCantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
+            if (!bernCantonBoundary) {
+                toast.error("No canton found at this point — must be inside the game area.");
+                return false;
+            }
+            return [bernCantonBoundary];
+        }
         case "sl-camping":
         case "sl-mill":
         case "sl-mountain":
@@ -193,7 +224,17 @@ export const determineMeasuringBoundary = async (
         case "buch-zoo":
         case "buch-golf_course":
         case "buch-airport":
-        case "buch-consulate": {
+        case "buch-consulate":
+        case "bern-cinema":
+        case "bern-library":
+        case "bern-museum":
+        case "bern-mountain":
+        case "bern-park":
+        case "bern-zoo":
+        case "bern-hospital":
+        case "bern-consulate":
+        case "bern-theme_park":
+        case "bern-airport": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
                 "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
@@ -203,6 +244,10 @@ export const determineMeasuringBoundary = async (
                 "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
                 "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
                 "buch-consulate": "consulate",
+                "bern-cinema": "cinema", "bern-library": "library", "bern-museum": "museum",
+                "bern-mountain": "mountain", "bern-park": "park", "bern-zoo": "zoo",
+                "bern-hospital": "hospital", "bern-consulate": "consulate", "bern-theme_park": "theme_park",
+                "bern-airport": "airport",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -388,6 +433,19 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
+    if (question.type === "bern-canton") {
+        const cantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
+        if (!cantonBoundary) return question;
+        // explode handles Polygon, MultiPolygon, and any other geometry type
+        const borderPts = turf.explode(cantonBoundary as any);
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
+        question.hiderCloser = (hiderNearest.properties.distanceToPoint ?? Infinity) < (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
     const GAME_POI_TYPE_MAP: Record<string, string> = {
         "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
         "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
@@ -397,6 +455,10 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
         "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
         "buch-consulate": "consulate",
+        "bern-cinema": "cinema", "bern-library": "library", "bern-museum": "museum",
+        "bern-mountain": "mountain", "bern-park": "park", "bern-zoo": "zoo",
+        "bern-hospital": "hospital", "bern-consulate": "consulate", "bern-theme_park": "theme_park",
+        "bern-airport": "airport",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

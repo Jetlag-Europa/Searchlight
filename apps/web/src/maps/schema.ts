@@ -134,6 +134,8 @@ const tentacleLocationsOne = z.union([
     z.literal("mill").describe("Mills (South Limburg)"),
     z.literal("mountain").describe("Mountains (South Limburg)"),
     z.literal("golf_course").describe("Golf Courses (South Limburg)"),
+    z.literal("bern-mountain").describe("Mountains (Bern)"),
+    z.literal("bern-park").describe("Parks (Bern)"),
 ]);
 
 const apiLocationSchema = z.union([
@@ -356,6 +358,23 @@ const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const bernMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("bern-canton").describe("Same Swiss Canton"),
+        z.literal("bern-bezirk").describe("Same Bezirk"),
+        z.literal("bern-cinema").describe("Nearest Cinema (Bern)"),
+        z.literal("bern-library").describe("Nearest Library (Bern)"),
+        z.literal("bern-museum").describe("Nearest Museum (Bern)"),
+        z.literal("bern-mountain").describe("Nearest Mountain (Bern)"),
+        z.literal("bern-park").describe("Nearest Park (Bern)"),
+        z.literal("bern-zoo").describe("Nearest Zoo (Bern)"),
+        z.literal("bern-hospital").describe("Nearest Hospital (Bern)"),
+        z.literal("bern-consulate").describe("Nearest Foreign Consulate (Bern)"),
+        z.literal("bern-theme_park").describe("Nearest Amusement Park (Bern)"),
+        z.literal("bern-airport").describe("Nearest Airport (Bern)"),
+    ]),
+});
+
 const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("bucharest-sector").describe("1st Admin Division (Bucharest)"),
@@ -381,6 +400,7 @@ export const matchingQuestionSchema = z.union([
     southLimburgMatchingQuestionsSchema.describe(NO_GROUP),
     brnoMatchingQuestionsSchema.describe(NO_GROUP),
     bucharestMatchingQuestionsSchema.describe(NO_GROUP),
+    bernMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -428,6 +448,18 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "buch-consulate":            "__bundled-bucharest-2026__",
     "train_station":             "__bundled-bucharest-2026__",
     "park":                      "__bundled-bucharest-2026__",
+    "bern-canton":               "__bundled-bern-2026__",
+    "bern-bezirk":               "__bundled-bern-2026__",
+    "bern-cinema":               "__bundled-bern-2026__",
+    "bern-library":              "__bundled-bern-2026__",
+    "bern-museum":               "__bundled-bern-2026__",
+    "bern-mountain":             "__bundled-bern-2026__",
+    "bern-park":                 "__bundled-bern-2026__",
+    "bern-zoo":                  "__bundled-bern-2026__",
+    "bern-hospital":             "__bundled-bern-2026__",
+    "bern-consulate":            "__bundled-bern-2026__",
+    "bern-theme_park":           "__bundled-bern-2026__",
+    "bern-airport":              "__bundled-bern-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -532,6 +564,22 @@ const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.literal("brno-water").describe("Body of Water (Brno)"),
 });
 
+const bernMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("bern-canton").describe("Canton Border Question (Bern)"),
+        z.literal("bern-cinema").describe("Nearest Cinema (Bern)"),
+        z.literal("bern-library").describe("Nearest Library (Bern)"),
+        z.literal("bern-museum").describe("Nearest Museum (Bern)"),
+        z.literal("bern-mountain").describe("Nearest Mountain (Bern)"),
+        z.literal("bern-park").describe("Nearest Park (Bern)"),
+        z.literal("bern-zoo").describe("Nearest Zoo (Bern)"),
+        z.literal("bern-hospital").describe("Nearest Hospital (Bern)"),
+        z.literal("bern-consulate").describe("Nearest Foreign Consulate (Bern)"),
+        z.literal("bern-theme_park").describe("Nearest Amusement Park (Bern)"),
+        z.literal("bern-airport").describe("Nearest Airport (Bern)"),
+    ]),
+});
+
 const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
         z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
@@ -553,6 +601,7 @@ export const measuringQuestionSchema = z.union([
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
     brnoMeasuringQuestionsSchema.describe(NO_GROUP),
     bucharestMeasuringQuestionsSchema.describe(NO_GROUP),
+    bernMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

@@ -7,10 +7,17 @@ import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
 
+// Maps prefixed tentacle location types to their gamePOIData category key.
+const TENTACLE_POI_CATMAP: Record<string, string> = {
+    "bern-mountain": "mountain",
+    "bern-park":     "park",
+};
+
 export async function getLocationsForTentacleQuestion(
     question: TentacleQuestion,
 ): Promise<FeatureCollection<Point>> {
-    const override = gamePOIData.get()[question.locationType];
+    const categoryKey = TENTACLE_POI_CATMAP[question.locationType] ?? question.locationType;
+    const override = gamePOIData.get()[categoryKey];
     if (override?.length) {
         const center = turf.point([question.lng, question.lat]);
         const radiusMeters = turf.convertLength(question.radius, question.unit, "meters");

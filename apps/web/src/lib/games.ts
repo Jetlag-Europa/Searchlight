@@ -91,6 +91,18 @@ const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
         "25": "water",
         "26": "administrative",
     },
+    "__bundled-bern-2026__": {
+        "airport":    "airport",
+        "cinema":     "cinema",
+        "consulate":  "consulate",
+        "hospital":   "hospital",
+        "library":    "library",
+        "mountain":   "mountain",
+        "museum":     "museum",
+        "park":       "park",
+        "theme_park": "theme_park",
+        "zoo":        "zoo",
+    },
     "__bundled-bucharest-2026__": {
         "cinema":       "cinema",
         "consulate":    "consulate",
@@ -110,6 +122,7 @@ const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
 const GAME_HIDING_ZONE_GPX_PATHS: Record<string, string[]> = {};
 
 const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
+    "__bundled-bern-2026__": "bern-canton-stations.kml",
     "__bundled-south-limburg-2026__": "south-limburg-stations.kml",
     "__bundled-brno-2026-v2__": "brno-stations-v2.kml",
     "__bundled-bucharest-2026__": "bucharest-stations.kml",
@@ -117,6 +130,7 @@ const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
 };
 
 const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> = {
+    "__bundled-bern-2026__": "bern-canton-border.geojson",
     "__bundled-south-limburg-2026__": "south-limburg-border.geojson",
     "__bundled-bucharest-2026__": "bucharest-border.geojson",
     "__bundled-paris-2026__": "paris-border.geojson",

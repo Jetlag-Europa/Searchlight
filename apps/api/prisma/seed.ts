@@ -7,6 +7,7 @@ const SERVERS = [
   { id: "1190673594649415730", name: "JetLag EU" },
   { id: "1369664929975767120", name: "JetLag BNL" },
   { id: "1333139120507064350", name: "JetLag DE" },
+  { id: "1458858559952523305", name: "JetLag CH" },
 ];
 
 const ROLE_PERMISSIONS = [
@@ -87,6 +88,25 @@ const BUCHAREST_CITY_FEATURE = {
     osm_value: "city",
     name: "Bucharest",
     type: "city",
+  },
+};
+
+const ESPACE_MITTELLAND_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [46.9155, 7.4747], // [lat, lng] — Leaflet LatLngTuple
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 17537858,
+    extent: [47.5045, 6.4327, 46.3265, 8.4552],
+    country: "Switzerland",
+    osm_key: "place",
+    countrycode: "CH",
+    osm_value: "region",
+    name: "Espace Mittelland",
+    type: "region",
   },
 };
 
@@ -178,6 +198,16 @@ const GAMES = [
     mapLocationJson: LUXEMBOURG_COUNTRY_FEATURE,
     hidingRadius: 1,
     hidingRadiusUnits: "kilometers",
+  },
+  {
+    serverId: "1458858559952523305", // JetLag CH
+    name: "Espace Mittelland 2026",
+    sentinelValue: "__bundled-bern-2026__",
+    kmlPath: "bern-canton-poi.kml",
+    mapLocationJson: ESPACE_MITTELLAND_FEATURE,
+    hidingRadius: 500,
+    hidingRadiusUnits: "meters",
+    size: "large",
   },
   {
     serverId: "1190673594649415730", // JetLag EU

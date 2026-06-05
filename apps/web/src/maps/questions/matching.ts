@@ -20,9 +20,18 @@ import {
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
+// Front-end cache for boundary lookups — keyed by adminLevel + rounded coords (~100 m grid).
+// Avoids repeated backend/Overpass calls for the same canton or Bezirk.
+const boundaryFetchCache = new Map<string, any>();
+
 // Calls the backend boundary endpoint which handles Overpass + DB caching.
 // Returns a GeoJSON Feature (same shape as findAdminBoundary).
 const findBoundaryFromAPI = async (lat: number, lng: number, adminLevel: number) => {
+    const cacheKey = `${adminLevel}-${lat.toFixed(3)}-${lng.toFixed(3)}`;
+    if (boundaryFetchCache.has(cacheKey)) {
+        console.info(`[taibled:boundary] cache hit level=${adminLevel} key=${cacheKey}`);
+        return boundaryFetchCache.get(cacheKey);
+    }
     const res = await fetch(
         `${API_BASE}/boundaries/by-point?lat=${lat}&lng=${lng}&adminLevel=${adminLevel}`,
         { credentials: "include" },
@@ -30,7 +39,9 @@ const findBoundaryFromAPI = async (lat: number, lng: number, adminLevel: number)
     if (!res.ok) throw new Error(`Boundary API error: ${res.status}`);
     const data = await res.json();
     const geo = osmtogeojson(data as object);
-    return geo.features?.[0];
+    const feature = geo.features?.[0];
+    if (feature) boundaryFetchCache.set(cacheKey, feature);
+    return feature;
 };
 import {
     findAdminBoundary,
@@ -84,6 +95,16 @@ const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
     "buch-golf_course": "golf_course",
     "buch-airport": "airport",
     "buch-consulate": "consulate",
+    "bern-cinema":     "cinema",
+    "bern-library":    "library",
+    "bern-museum":     "museum",
+    "bern-mountain":   "mountain",
+    "bern-park":       "park",
+    "bern-zoo":        "zoo",
+    "bern-hospital":   "hospital",
+    "bern-consulate":  "consulate",
+    "bern-theme_park": "theme_park",
+    "bern-airport":    "airport",
 };
 
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
@@ -268,6 +289,28 @@ export const determineMatchingBoundary = _.memoize(
                 }
                 break;
             }
+            case "bern-canton": {
+                // Swiss cantons are admin_level=4 in OSM.
+                boundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
+                if (!boundary) {
+                    toast.error(
+                        "No canton found at this point — must be inside the game area.",
+                    );
+                    throw new Error("No Swiss canton found");
+                }
+                break;
+            }
+            case "bern-bezirk": {
+                // Swiss districts (Bezirke / Verwaltungskreise) are admin_level=6 in OSM.
+                boundary = await findBoundaryFromAPI(question.lat, question.lng, 6);
+                if (!boundary) {
+                    toast.error(
+                        "No Bezirk found at this point — must be inside the game area.",
+                    );
+                    throw new Error("No Swiss Bezirk found");
+                }
+                break;
+            }
             case "south-limburg-postcode": {
                 const res = await fetch(import.meta.env.BASE_URL + "south-limburg-postcodes.geojson");
                 const fc = await res.json();
@@ -385,6 +428,16 @@ export const determineMatchingBoundary = _.memoize(
             case "buch-golf_course":
             case "buch-airport":
             case "buch-consulate":
+            case "bern-cinema":
+            case "bern-library":
+            case "bern-museum":
+            case "bern-mountain":
+            case "bern-park":
+            case "bern-zoo":
+            case "bern-hospital":
+            case "bern-consulate":
+            case "bern-theme_park":
+            case "bern-airport":
             case "covrigarie":
             case "airport":
             case "major-city":
