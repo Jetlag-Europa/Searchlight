@@ -449,24 +449,6 @@
       </Point>
     </Placemark>
     <Placemark>
-      <name>Partij, Partijerweg/Rijksweg</name>
-      <description><![CDATA[description: <br>type: Bus]]></description>
-      <styleUrl>#icon-1739-F9A825</styleUrl>
-      <ExtendedData>
-        <Data name="description">
-          <value/>
-        </Data>
-        <Data name="tier">
-          <value>Bus</value>
-        </Data>
-      </ExtendedData>
-      <Point>
-        <coordinates>
-          5.917275,50.810572,0
-        </coordinates>
-      </Point>
-    </Placemark>
-    <Placemark>
       <name>Wahlwiller, Wahlwiller</name>
       <description><![CDATA[description: <br>type: Bus]]></description>
       <styleUrl>#icon-1739-F9A825</styleUrl>
@@ -985,6 +967,24 @@
       <Point>
         <coordinates>
           5.8402181,50.7746536,0
+        </coordinates>
+      </Point>
+    </Placemark>
+    <Placemark>
+      <name>Wittem, Sinselbeek</name>
+      <description><![CDATA[description: <br>type: Bus]]></description>
+      <styleUrl>#icon-1739-F9A825</styleUrl>
+      <ExtendedData>
+        <Data name="description">
+          <value/>
+        </Data>
+        <Data name="tier">
+          <value>Bus</value>
+        </Data>
+      </ExtendedData>
+      <Point>
+        <coordinates>
+          5.9176588,50.8112679,0
         </coordinates>
       </Point>
     </Placemark>
