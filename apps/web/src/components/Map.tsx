@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils";
 import { applyQuestionsToMapGeoData, holedMask } from "@/maps";
 import { hiderifyQuestion } from "@/maps";
 import { clearCache, determineMapBoundaries } from "@/maps/api";
+import { currentGameId, getGameById } from "@/lib/games";
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
@@ -127,6 +128,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $isLoading = useStore(isLoading);
     const $followMe = useStore(followMe);
     const $permanentOverlay = useStore(permanentOverlay);
+    const $polyGeoJSON = useStore(polyGeoJSON);
     const map = useStore(leafletMapContext);
 
     const followMeMarkerRef = useMemo(
@@ -150,23 +152,31 @@ export const Map = ({ className }: { className?: string }) => {
         }
 
         let mapGeoData = mapGeoJSON.get();
+        const polyGeoData = polyGeoJSON.get();
 
-        if (!mapGeoData) {
-            const polyGeoData = polyGeoJSON.get();
-            if (polyGeoData) {
-                mapGeoData = polyGeoData;
-                mapGeoJSON.set(polyGeoData);
-            } else {
-                try {
-                    const x = await toast.promise(determineMapBoundaries(), {
-                        error: "Couldn't load map boundaries — Overpass API may be slow. Try again.",
-                    });
-                    mapGeoJSON.set(x);
-                    mapGeoData = x;
-                } catch {
-                    isLoading.set(false);
-                    return;
-                }
+        // Custom boundary (polyGeoJSON) always wins — if it has arrived, apply it
+        // even if mapGeoJSON was already set from a previous Overpass fetch.
+        if (polyGeoData) {
+            mapGeoData = polyGeoData;
+            if (mapGeoJSON.get() !== polyGeoData) mapGeoJSON.set(polyGeoData);
+        } else if (!mapGeoData) {
+            // No custom boundary loaded yet. If the active game expects one, bail out —
+            // loadMapBoundaryGeoJSON / loadGamePolyGeoJSON will set polyGeoJSON when done,
+            // which changes $polyGeoJSON and re-triggers this effect with the real boundary.
+            const activeGame = getGameById(currentGameId.get());
+            if (activeGame?.mapBoundaryGeoJsonPath || activeGame?.hidingZoneGeoJsonPath) {
+                isLoading.set(false);
+                return;
+            }
+            try {
+                const x = await toast.promise(determineMapBoundaries(), {
+                    error: "Couldn't load map boundaries — Overpass API may be slow. Try again.",
+                });
+                mapGeoJSON.set(x);
+                mapGeoData = x;
+            } catch {
+                isLoading.set(false);
+                return;
             }
         }
 
@@ -403,7 +413,7 @@ export const Map = ({ className }: { className?: string }) => {
         if (!map) return;
 
         refreshQuestions(true);
-    }, [$questions, map, $hiderMode, $mapGeoLocation]);
+    }, [$questions, map, $hiderMode, $mapGeoLocation, $polyGeoJSON]);
 
     useEffect(() => {
         const intervalId = setInterval(() => {
