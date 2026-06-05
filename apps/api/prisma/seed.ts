@@ -158,7 +158,7 @@ const GAMES = [
     mapLocationJson: PARIS_CITY_FEATURE,
     hidingRadius: 400,
     hidingRadiusUnits: "meters",
-    tierRadiusOverrides: { "Outer": 750 },
+    tierRadiusOverrides: { "Outer": 600 },
     size: "large",
   },
   {
