@@ -398,6 +398,38 @@ out ${outType};
     return data;
 };
 
+export const findInternationalBordersInZone = async () => {
+    const $polyGeoJSON = polyGeoJSON.get();
+    let query: string;
+
+    if ($polyGeoJSON) {
+        const simplified = turf.simplify($polyGeoJSON as any, { tolerance: 0.005, highQuality: false });
+        const polyStr = turf
+            .getCoords(simplified.features)
+            .flatMap((p: any) => p.geometry.coordinates)
+            .flat()
+            .map((c: number[]) => [c[1], c[0]].join(" "))
+            .join(" ");
+        query = `
+[out:json][timeout:60];
+relation["boundary"="administrative"]["admin_level"="2"](poly:"${polyStr}")->.countries;
+way(r.countries)(poly:"${polyStr}");
+out geom;
+`;
+    } else {
+        const osmId = mapGeoLocation.get().properties.osm_id;
+        query = `
+[out:json][timeout:60];
+relation(${osmId});map_to_area->.region;
+relation["boundary"="administrative"]["admin_level"="2"](area.region)->.countries;
+way(r.countries)(area.region);
+out geom;
+`;
+    }
+
+    return getOverpassData(query, "Finding international borders...", CacheType.ZONE_CACHE);
+};
+
 export const findPlacesSpecificInZone = async (
     location: `${QuestionSpecificLocation}`,
 ) => {

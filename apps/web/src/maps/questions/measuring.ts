@@ -37,6 +37,7 @@ import {
 } from "@/lib/context";
 import {
     fetchCoastline,
+    findInternationalBordersInZone,
     findPlacesInZone,
     findPlacesSpecificInZone,
     LOCATION_FIRST_TAG,
@@ -194,6 +195,18 @@ export const determineMeasuringBoundary = async (
                     ),
                 ).features[0],
             ];
+        }
+        case "international-border": {
+            const data = await findInternationalBordersInZone();
+            const features = osmtogeojson(data as object).features.filter(
+                (f: any) => f.geometry.type === "LineString" || f.geometry.type === "MultiLineString",
+            );
+            if (!features.length) {
+                toast.error("No international borders found in this game area.");
+                return false;
+            }
+            console.info(`[taibled:border] international-border → ${features.length} border segments`);
+            return [turf.combine(turf.featureCollection(features as any)).features[0]];
         }
         case "bern-canton": {
             const bernCantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
@@ -430,6 +443,27 @@ export const adjustPerMeasuring = async (
 export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
     const $hiderMode = hiderMode.get();
     if ($hiderMode === false) {
+        return question;
+    }
+
+    if (question.type === "international-border") {
+        const data = await findInternationalBordersInZone();
+        const features = osmtogeojson(data as object).features.filter(
+            (f: any) => f.geometry.type === "LineString" || f.geometry.type === "MultiLineString",
+        );
+        if (!features.length) return question;
+        const combined = turf.simplify(
+            turf.combine(turf.featureCollection(features as any)).features[0] as any,
+            { tolerance: 0.005 },
+        );
+        const borderPts = turf.explode(combined as any);
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt  = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest  = turf.nearestPoint(hiderPt,  borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
         return question;
     }
 

@@ -480,6 +480,9 @@ const ordinaryMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
                 .literal("highspeed-measure-shinkansen")
                 .describe("High-Speed Rail Question"),
             z
+                .literal("international-border")
+                .describe("International Border Question"),
+            z
                 .literal("aquarium-full")
                 .describe("Aquarium Question (Small+Medium Games)"),
             z.literal("zoo-full").describe("Zoo Question (Small+Medium Games)"),
