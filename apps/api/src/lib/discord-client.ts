@@ -24,16 +24,26 @@ function refillGlobal() {
   globalLastRefill = now;
 }
 
-async function acquireGlobal(): Promise<void> {
-  refillGlobal();
-  if (globalTokens >= 1) {
+// Serialized queue for the global token bucket. Acquisitions are chained so
+// concurrent callers each wait their turn for a token instead of racing — a
+// burst (e.g. a cache-cold stampede of membership lookups) is metered to
+// GLOBAL_RATE/sec rather than overshooting it and risking a 429 / IP ban.
+let globalQueue: Promise<void> = Promise.resolve();
+
+function acquireGlobal(): Promise<void> {
+  const next = globalQueue.then(async () => {
+    refillGlobal();
+    if (globalTokens < 1) {
+      // Wait just long enough for one token to accrue, then re-check.
+      const waitMs = ((1 - globalTokens) / GLOBAL_RATE) * 1000;
+      await sleep(waitMs);
+      refillGlobal();
+    }
     globalTokens -= 1;
-    return;
-  }
-  const waitMs = ((1 - globalTokens) / GLOBAL_RATE) * 1000;
-  await sleep(waitMs);
-  globalTokens = 0;
-  globalLastRefill = Date.now();
+  });
+  // Keep the chain alive even if a waiter rejects (it shouldn't, but be safe).
+  globalQueue = next.catch(() => {});
+  return next;
 }
 
 async function acquireBucket(bucketId: string): Promise<void> {

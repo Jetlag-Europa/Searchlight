@@ -8,7 +8,7 @@ const forbidden = () => Object.assign(new Error("Forbidden"), { statusCode: 403 
 export function requirePermission(
   permission: string,
   getServerId: (req: FastifyRequest) => string,
-  forceRefresh = false,
+  privileged = false,
 ) {
   return async (req: FastifyRequest, _reply: FastifyReply) => {
     const { user } = await resolveSession(req);
@@ -20,7 +20,7 @@ export function requirePermission(
     const perms = await getUserPermissions(
       user.discordId,
       serverId,
-      forceRefresh,
+      privileged,
       req.log,
     );
 

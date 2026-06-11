@@ -1,16 +1,22 @@
 import type { FastifyBaseLogger } from "fastify";
 import { discord } from "./discord-client.js";
 import prisma from "./prisma.js";
+import type { GameVisibilityGate } from "./game-gates.js";
 
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+// Discord roles are cached per (user, server). Normal reads tolerate a stale
+// cache for up to DEFAULT_TTL_MS. Permission-gated requests (`privileged`) use
+// the much shorter PRIVILEGED_TTL_MS so role/permission changes take effect
+// within ~1 minute, without forcing a Discord call on every such request.
+const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
+const PRIVILEGED_TTL_MS = 60 * 1000; // 1 minute
 
 export async function getUserPermissions(
   userId: string,
   serverId: string,
-  forceRefresh = false,
+  privileged = false,
   logger?: FastifyBaseLogger,
 ): Promise<Set<string>> {
-  const roleIds = await resolveRoleIds(userId, serverId, forceRefresh, logger);
+  const roleIds = await getUserRoleIds(userId, serverId, privileged, logger);
 
   if (roleIds.length === 0) return new Set();
 
@@ -22,19 +28,36 @@ export async function getUserPermissions(
   return new Set(rows.map((r) => r.permission));
 }
 
-async function resolveRoleIds(
+// TEMPORARY (see game-gates.ts): returns true if the user holds the gate's
+// required role in the gate's guild. Delete when the invite system lands.
+export async function userPassesGameGate(
+  userId: string,
+  gate: GameVisibilityGate,
+  logger?: FastifyBaseLogger,
+): Promise<boolean> {
+  // Visibility is permission-gated, so use the short (privileged) TTL — role
+  // changes propagate within ~1 minute.
+  const roles = await getUserRoleIds(userId, gate.requireGuildId, true, logger);
+  const passed = roles.includes(gate.requireRoleId);
+  logger?.info(
+    { userId, sentinel: gate.sentinelValue, passed },
+    `[taibled:game-gate] ${passed ? "pass" : "deny"} ${gate.sentinelValue}`,
+  );
+  return passed;
+}
+
+export async function getUserRoleIds(
   userId: string,
   serverId: string,
-  forceRefresh: boolean,
+  privileged: boolean,
   logger?: FastifyBaseLogger,
 ): Promise<string[]> {
-  if (!forceRefresh) {
-    const cached = await prisma.serverMembershipCache.findUnique({
-      where: { userId_serverId: { userId, serverId } },
-    });
-    if (cached && Date.now() - cached.cachedAt.getTime() < CACHE_TTL_MS) {
-      return cached.roles;
-    }
+  const ttl = privileged ? PRIVILEGED_TTL_MS : DEFAULT_TTL_MS;
+  const cached = await prisma.serverMembershipCache.findUnique({
+    where: { userId_serverId: { userId, serverId } },
+  });
+  if (cached && Date.now() - cached.cachedAt.getTime() < ttl) {
+    return cached.roles;
   }
   return fetchAndCacheRoles(userId, serverId, logger);
 }

@@ -105,6 +105,15 @@ const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
     "bern-consulate":  "consulate",
     "bern-theme_park": "theme_park",
     "bern-airport":    "airport",
+    "rotterdam-library":     "library",
+    "rotterdam-museum":      "museum",
+    "rotterdam-hospital":    "hospital",
+    "rotterdam-zoo":         "zoo",
+    "rotterdam-cinema":      "cinema",
+    "rotterdam-golf_course": "golf_course",
+    "rotterdam-consulate":   "consulate",
+    "rotterdam-theme_park":  "theme_park",
+    "rotterdam-airport":     "airport",
 };
 
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
@@ -333,6 +342,18 @@ export const determineMatchingBoundary = _.memoize(
                 }
                 break;
             }
+            case "rotterdam-municipality": {
+                // Municipalities are bundled locally (exter-rotterdam-municipalities.geojson) — no Overpass.
+                const res = await fetch(import.meta.env.BASE_URL + "exter-rotterdam-municipalities.geojson");
+                const fc = await res.json();
+                const pt = turf.point([question.lng, question.lat]);
+                boundary = fc.features.find((f: any) => turf.booleanPointInPolygon(pt, f));
+                if (!boundary) {
+                    toast.error("No municipality found at this point — must be inside the game area.");
+                    throw new Error("No Rotterdam municipality found");
+                }
+                break;
+            }
             case "bucharest-sector": {
                 // Sectors are bundled locally (bucharest-sectors.geojson) — no Overpass needed.
                 const sectorsRes = await fetch(import.meta.env.BASE_URL + "bucharest-sectors.geojson");
@@ -438,6 +459,15 @@ export const determineMatchingBoundary = _.memoize(
             case "bern-consulate":
             case "bern-theme_park":
             case "bern-airport":
+            case "rotterdam-library":
+            case "rotterdam-museum":
+            case "rotterdam-hospital":
+            case "rotterdam-zoo":
+            case "rotterdam-cinema":
+            case "rotterdam-golf_course":
+            case "rotterdam-consulate":
+            case "rotterdam-theme_park":
+            case "rotterdam-airport":
             case "covrigarie":
             case "airport":
             case "major-city":

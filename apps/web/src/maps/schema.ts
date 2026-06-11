@@ -392,6 +392,21 @@ const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const exterRotterdamMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
+        z.literal("rotterdam-library").describe("Nearest Library (Rotterdam)"),
+        z.literal("rotterdam-museum").describe("Nearest Museum (Rotterdam)"),
+        z.literal("rotterdam-hospital").describe("Nearest Hospital (Rotterdam)"),
+        z.literal("rotterdam-zoo").describe("Nearest Zoo (Rotterdam)"),
+        z.literal("rotterdam-cinema").describe("Nearest Cinema (Rotterdam)"),
+        z.literal("rotterdam-golf_course").describe("Nearest Golf Course (Rotterdam)"),
+        z.literal("rotterdam-consulate").describe("Nearest Foreign Consulate (Rotterdam)"),
+        z.literal("rotterdam-theme_park").describe("Nearest Amusement Park (Rotterdam)"),
+        z.literal("rotterdam-airport").describe("Nearest Airport (Rotterdam)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -401,6 +416,7 @@ export const matchingQuestionSchema = z.union([
     brnoMatchingQuestionsSchema.describe(NO_GROUP),
     bucharestMatchingQuestionsSchema.describe(NO_GROUP),
     bernMatchingQuestionsSchema.describe(NO_GROUP),
+    exterRotterdamMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -460,6 +476,18 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "bern-consulate":            "__bundled-bern-2026__",
     "bern-theme_park":           "__bundled-bern-2026__",
     "bern-airport":              "__bundled-bern-2026__",
+    "rotterdam-municipality":    "__bundled-exter-rotterdam-2026__",
+    "rotterdam-rail":            "__bundled-exter-rotterdam-2026__",
+    "rotterdam-coastline":       "__bundled-exter-rotterdam-2026__",
+    "rotterdam-library":         "__bundled-exter-rotterdam-2026__",
+    "rotterdam-museum":          "__bundled-exter-rotterdam-2026__",
+    "rotterdam-hospital":        "__bundled-exter-rotterdam-2026__",
+    "rotterdam-zoo":             "__bundled-exter-rotterdam-2026__",
+    "rotterdam-cinema":          "__bundled-exter-rotterdam-2026__",
+    "rotterdam-golf_course":     "__bundled-exter-rotterdam-2026__",
+    "rotterdam-consulate":       "__bundled-exter-rotterdam-2026__",
+    "rotterdam-theme_park":      "__bundled-exter-rotterdam-2026__",
+    "rotterdam-airport":         "__bundled-exter-rotterdam-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -599,12 +627,29 @@ const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const exterRotterdamMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("rotterdam-rail").describe("Distance to High-Speed Rail (Rotterdam)"),
+        z.literal("rotterdam-coastline").describe("Distance to Coast (Rotterdam)"),
+        z.literal("rotterdam-library").describe("Nearest Library (Rotterdam)"),
+        z.literal("rotterdam-museum").describe("Nearest Museum (Rotterdam)"),
+        z.literal("rotterdam-hospital").describe("Nearest Hospital (Rotterdam)"),
+        z.literal("rotterdam-zoo").describe("Nearest Zoo (Rotterdam)"),
+        z.literal("rotterdam-cinema").describe("Nearest Cinema (Rotterdam)"),
+        z.literal("rotterdam-golf_course").describe("Nearest Golf Course (Rotterdam)"),
+        z.literal("rotterdam-consulate").describe("Nearest Foreign Consulate (Rotterdam)"),
+        z.literal("rotterdam-theme_park").describe("Nearest Amusement Park (Rotterdam)"),
+        z.literal("rotterdam-airport").describe("Nearest Airport (Rotterdam)"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
     brnoMeasuringQuestionsSchema.describe(NO_GROUP),
     bucharestMeasuringQuestionsSchema.describe(NO_GROUP),
     bernMeasuringQuestionsSchema.describe(NO_GROUP),
+    exterRotterdamMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

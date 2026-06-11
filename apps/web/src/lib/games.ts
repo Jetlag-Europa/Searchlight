@@ -117,6 +117,17 @@ const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
         "train_station":"train_station",
         "airport":      "airport",
     },
+    "__bundled-exter-rotterdam-2026__": {
+        "library":     "library",
+        "museum":      "museum",
+        "hospital":    "hospital",
+        "zoo":         "zoo",
+        "cinema":      "cinema",
+        "golf_course": "golf_course",
+        "consulate":   "consulate",
+        "theme_park":  "theme_park",
+        "airport":     "airport",
+    },
 };
 
 const GAME_HIDING_ZONE_GPX_PATHS: Record<string, string[]> = {};
@@ -127,6 +138,7 @@ const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
     "__bundled-brno-2026-v2__": "brno-stations-v2.kml",
     "__bundled-bucharest-2026__": "bucharest-stations.kml",
     "__bundled-paris-2026__": "paris-stations.kml",
+    "__bundled-exter-rotterdam-2026__": "exter-rotterdam-stations.kml",
 };
 
 const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> = {
@@ -134,6 +146,7 @@ const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> = {
     "__bundled-south-limburg-2026__": "south-limburg-border.geojson",
     "__bundled-bucharest-2026__": "bucharest-border.geojson",
     "__bundled-paris-2026__": "paris-border.geojson",
+    "__bundled-exter-rotterdam-2026__": "exter-rotterdam-border.geojson",
 };
 
 // Server-fetched games. Populated by fetchGames() when a session/server is known.

@@ -1,0 +1,465 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Exter Rotterdam 26 POIs</name>
+  <Folder>
+    <name>airport</name>
+    <Placemark>
+      <name>Rotterdam The Hague Airport</name>
+      <Point><coordinates>4.433831,51.9514653,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>cinema</name>
+    <Placemark>
+      <name>Pathé Schouwburgplein</name>
+      <Point><coordinates>4.473251,51.920928,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis Spijkenisse</name>
+      <Point><coordinates>4.320877,51.853205,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>LantarenVenster</name>
+      <Point><coordinates>4.487022,51.904854,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinerama</name>
+      <Point><coordinates>4.478744,51.917068,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>KINO</name>
+      <Point><coordinates>4.469393,51.917129,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vue Cinemas</name>
+      <Point><coordinates>4.339911,51.909976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé de Kuip</name>
+      <Point><coordinates>4.523108,51.896861,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé Schiedam</name>
+      <Point><coordinates>4.405059,51.924392,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Filmhuis Cano</name>
+      <Point><coordinates>4.472478,51.927464,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>consulate</name>
+    <Placemark>
+      <name>Consulaat-Generaal van Marokko</name>
+      <Point><coordinates>4.476416,51.907052,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat-Generaal van Turkije</name>
+      <Point><coordinates>4.479689,51.91723,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat van Cyprus</name>
+      <Point><coordinates>4.474647,51.923439,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat-Generaal van Angola</name>
+      <Point><coordinates>4.457049,51.914252,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat-Generaal van Cuba</name>
+      <Point><coordinates>4.468505,51.92356,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>golf_course</name>
+    <Placemark>
+      <name>Rhoon Golfcenter</name>
+      <Point><coordinates>4.45285,51.837835,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfbaan Kralingen</name>
+      <Point><coordinates>4.531482,51.933459,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Broekpolder</name>
+      <Point><coordinates>4.317557,51.937467,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Capelle</name>
+      <Point><coordinates>4.592721,51.94202,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfpark Rotterdam</name>
+      <Point><coordinates>4.403068,51.950777,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfcenter Seve</name>
+      <Point><coordinates>4.463462,51.943901,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfbaan Schinkelshoek</name>
+      <Point><coordinates>4.304282,51.910102,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>hospital</name>
+    <Placemark>
+      <name>Erasmus Medisch Centrum</name>
+      <Point><coordinates>4.46811,51.911287,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ikazia Ziekenhuis</name>
+      <Point><coordinates>4.49358,51.886002,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maasstad Ziekenhuis</name>
+      <Point><coordinates>4.535445,51.879482,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Franciscus Gasthuis</name>
+      <Point><coordinates>4.463677,51.94187,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Franciscus Vlietland</name>
+      <Point><coordinates>4.380291,51.922307,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Spijkenisse Medisch Centrum</name>
+      <Point><coordinates>4.337961,51.846468,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Het Oogziekenhuis</name>
+      <Point><coordinates>4.480033,51.915032,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>IJsselland Ziekenhuis</name>
+      <Point><coordinates>4.562682,51.938664,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Franciscus Maassluis</name>
+      <Point><coordinates>4.24255,51.930404,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>library</name>
+    <Placemark>
+      <name>Bibliotheek Maassluis</name>
+      <Point><coordinates>4.237707,51.928873,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Vlaardingen Holy</name>
+      <Point><coordinates>4.350516,51.929434,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Delfshaven</name>
+      <Point><coordinates>4.44148,51.912525,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Schiebroek</name>
+      <Point><coordinates>4.471692,51.960024,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Ommoord</name>
+      <Point><coordinates>4.543085,51.961204,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Capelle Centrum</name>
+      <Point><coordinates>4.588564,51.931742,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centrale Bibliotheek</name>
+      <Point><coordinates>4.487128,51.922354,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Barendrecht Carnisselande</name>
+      <Point><coordinates>4.50184,51.848599,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Ridderkerk Slikkerveer</name>
+      <Point><coordinates>4.604296,51.884916,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Ridderkerk Centrum</name>
+      <Point><coordinates>4.599531,51.871673,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Bibliotheek Schiedam - Noord</name>
+      <Point><coordinates>4.378136,51.934428,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Rozenburg</name>
+      <Point><coordinates>4.2469,51.904914,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Barendrecht het Kruispunt</name>
+      <Point><coordinates>4.536715,51.856262,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek de Boekenberg</name>
+      <Point><coordinates>4.324798,51.849788,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Hoogvliet</name>
+      <Point><coordinates>4.357307,51.865394,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Poortugaal</name>
+      <Point><coordinates>4.388463,51.856679,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Zevenkamp</name>
+      <Point><coordinates>4.570948,51.965662,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Portland</name>
+      <Point><coordinates>4.471762,51.857186,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Vlaardingen Kindcentrum PWA</name>
+      <Point><coordinates>4.312388,51.908443,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Vlaardingen Centrum</name>
+      <Point><coordinates>4.339715,51.909142,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Het Lage Land</name>
+      <Point><coordinates>4.547449,51.941363,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jeugdbibliotheek De Klinker</name>
+      <Point><coordinates>4.365728,51.942946,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Bibliotheek Schiedam - Hof in Zuid</name>
+      <Point><coordinates>4.403166,51.904673,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Charlois</name>
+      <Point><coordinates>4.467091,51.893778,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Lombardijen</name>
+      <Point><coordinates>4.526393,51.877396,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Overschie</name>
+      <Point><coordinates>4.429086,51.935093,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Bibliotheek Schiedam - De Korenbeurs</name>
+      <Point><coordinates>4.396383,51.917618,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Feijenoord</name>
+      <Point><coordinates>4.507369,51.88943,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Afrikaanderwijk</name>
+      <Point><coordinates>4.502558,51.90096,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Beverwaard</name>
+      <Point><coordinates>4.566207,51.892058,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek IJsselmonde</name>
+      <Point><coordinates>4.547967,51.888283,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Kralingen</name>
+      <Point><coordinates>4.499606,51.926985,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Krimpen</name>
+      <Point><coordinates>4.591322,51.915567,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>University Library</name>
+      <Point><coordinates>4.527303,51.918452,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Nesselande</name>
+      <Point><coordinates>4.582311,51.980357,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Library Erasmus MC</name>
+      <Point><coordinates>4.471188,51.911025,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Oude Noorden</name>
+      <Point><coordinates>4.483124,51.938243,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name><![CDATA[Kinderbibliotheek Capelle 's-Gravenland]]></name>
+      <Point><coordinates>4.562331,51.914206,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Zuidplein</name>
+      <Point><coordinates>4.487267,51.887414,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Pernis</name>
+      <Point><coordinates>4.387762,51.884938,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Slinge</name>
+      <Point><coordinates>4.478588,51.873468,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>museum</name>
+    <Placemark>
+      <name>Wereldmuseum Rotterdam</name>
+      <Point><coordinates>4.480495,51.907883,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mariniersmuseum</name>
+      <Point><coordinates>4.491564,51.918716,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stoomdepot SSN</name>
+      <Point><coordinates>4.507329,51.944286,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Natuurhistorisch Museum Rotterdam</name>
+      <Point><coordinates>4.472471,51.910773,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stedelijk Museum Schiedam</name>
+      <Point><coordinates>4.398148,51.916027,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fenix</name>
+      <Point><coordinates>4.484317,51.902084,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maritiem Museum</name>
+      <Point><coordinates>4.481887,51.917627,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Havenmuseum</name>
+      <Point><coordinates>4.482486,51.915636,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum Rotterdam 1940-1945 NU</name>
+      <Point><coordinates>4.458131,51.908916,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Villa Zebra</name>
+      <Point><coordinates>4.496755,51.911246,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum Oud Overschie</name>
+      <Point><coordinates>4.418774,51.938464,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kunstinstituut Melly</name>
+      <Point><coordinates>4.47708,51.915395,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kijk Kubus</name>
+      <Point><coordinates>4.490331,51.920325,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum Vlaardingen</name>
+      <Point><coordinates>4.345225,51.905735,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Streekmuseum Jan Anderson</name>
+      <Point><coordinates>4.350349,51.918267,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dutch Pinball Museum</name>
+      <Point><coordinates>4.448844,51.908007,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rotterdams Openbaar Vervoer Museum</name>
+      <Point><coordinates>4.484064,51.944736,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Molenmuseum De Walvisch</name>
+      <Point><coordinates>4.395145,51.915678,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nationaal Sleepvaartmuseum</name>
+      <Point><coordinates>4.253277,51.921578,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum voor de verweesde Stadssculptuur</name>
+      <Point><coordinates>4.437337,51.932581,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum Boijmans Van Beuningen</name>
+      <Point><coordinates>4.473001,51.914365,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nederlands Fotomuseum</name>
+      <Point><coordinates>4.495146,51.902684,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>KunstHAL</name>
+      <Point><coordinates>4.473414,51.910797,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>theme_park</name>
+    <Placemark>
+      <name>Plaswijckpark</name>
+      <Point><coordinates>4.483165,51.956273,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Miniworld Rotterdam</name>
+      <Point><coordinates>4.465126,51.922832,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Albrandswaard Avonturen Park</name>
+      <Point><coordinates>4.420302,51.845408,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Spelen bij Beelen</name>
+      <Point><coordinates>4.473233,51.894065,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>zoo</name>
+    <Placemark>
+      <name>Diergaarde Blijdorp</name>
+      <Point><coordinates>4.447495,51.926703,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stadsboerderij De Kooi</name>
+      <Point><coordinates>4.516885,51.871393,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name><![CDATA[Kinderboerderij 't Hoefblad]]></name>
+      <Point><coordinates>4.386988,51.930562,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Trotse Pauw</name>
+      <Point><coordinates>4.330842,51.846602,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Oedenstee</name>
+      <Point><coordinates>4.35749,51.867772,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Kraal</name>
+      <Point><coordinates>4.505978,51.939646,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Wilgenhof</name>
+      <Point><coordinates>4.478501,51.953263,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij de Molenwei</name>
+      <Point><coordinates>4.466864,51.881927,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Heij</name>
+      <Point><coordinates>4.424105,51.887438,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  </Document>
+</kml>

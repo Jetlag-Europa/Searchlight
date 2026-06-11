@@ -2,9 +2,10 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { getUserPermissions } from "../lib/permissions.js";
+import { getUserPermissions, userPassesGameGate } from "../lib/permissions.js";
 import { requirePermission } from "../lib/require-permission.js";
 import { discord } from "../lib/discord-client.js";
+import { VIRTUAL_SERVER_IDS, gateForSentinel } from "../lib/game-gates.js";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -61,14 +62,29 @@ export async function gameRoutes(app: FastifyInstance) {
       const server = await prisma.server.findUnique({ where: { id: serverId } });
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
 
-      await assertServerMembership(user.discordId, serverId, req.log);
+      // Virtual servers (e.g. Home Games) have no Discord guild — skip the
+      // membership check; their games are gated individually below.
+      if (!VIRTUAL_SERVER_IDS.has(serverId)) {
+        await assertServerMembership(user.discordId, serverId, req.log);
+      }
 
       const games = await prisma.game.findMany({
         where: { serverId },
         orderBy: { name: "asc" },
       });
 
-      return { games };
+      // TEMPORARY per-game visibility gate (see lib/game-gates.ts): drop any
+      // gated game the user isn't allowed to see.
+      const visible = [];
+      for (const game of games) {
+        const gate = gateForSentinel(game.sentinelValue);
+        if (gate && !(await userPassesGameGate(user.discordId, gate, req.log))) {
+          continue;
+        }
+        visible.push(game);
+      }
+
+      return { games: visible };
     },
   );
 

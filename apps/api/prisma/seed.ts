@@ -8,6 +8,9 @@ const SERVERS = [
   { id: "1369664929975767120", name: "JetLag BNL" },
   { id: "1333139120507064350", name: "JetLag DE" },
   { id: "1458858559952523305", name: "JetLag CH" },
+  // Virtual server — no real Discord guild. Visible to everyone; its games are
+  // gated per-game (see apps/api/src/lib/game-gates.ts).
+  { id: "home-games", name: "Home Games" },
 ];
 
 const ROLE_PERMISSIONS = [
@@ -148,7 +151,36 @@ const LUXEMBOURG_COUNTRY_FEATURE = {
   },
 };
 
+const ROTTERDAM_FEATURE = {
+  type: "Feature",
+  geometry: {
+    type: "Point",
+    coordinates: [51.9244, 4.4777], // [lat, lng] — Leaflet LatLngTuple
+  },
+  properties: {
+    osm_type: "R",
+    osm_id: 324431,
+    extent: [52.0045, 3.9408, 51.7828, 4.6473], // [maxLat, minLng, minLat, maxLng]
+    country: "Netherlands",
+    osm_key: "place",
+    countrycode: "NL",
+    osm_value: "city",
+    name: "Rotterdam",
+    type: "city",
+  },
+};
+
 const GAMES = [
+  {
+    serverId: "home-games",
+    name: "Exter Rotterdam 26",
+    sentinelValue: "__bundled-exter-rotterdam-2026__",
+    kmlPath: "exter-rotterdam-poi.kml",
+    mapLocationJson: ROTTERDAM_FEATURE,
+    hidingRadius: 250,
+    hidingRadiusUnits: "meters",
+    size: "medium",
+  },
   {
     serverId: "1369664929975767120", // JetLag BNL
     name: "South Limburg 2026",

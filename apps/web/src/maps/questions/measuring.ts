@@ -216,6 +216,19 @@ export const determineMeasuringBoundary = async (
             }
             return [bernCantonBoundary];
         }
+        case "rotterdam-rail":
+        case "rotterdam-coastline": {
+            // Bundled local LineString (HSL high-speed rail / Kustlijn coastline).
+            const file =
+                question.type === "rotterdam-rail"
+                    ? "exter-rotterdam-hsl.geojson"
+                    : "exter-rotterdam-coastline.geojson";
+            const res = await fetch(import.meta.env.BASE_URL + file);
+            const fc = await res.json();
+            if (!fc.features?.length) return false;
+            console.info(`[taibled:line] measuring ${question.type} → ${fc.features.length} line feature(s)`);
+            return [turf.combine(turf.featureCollection(fc.features)).features[0]];
+        }
         case "sl-camping":
         case "sl-mill":
         case "sl-mountain":
@@ -228,6 +241,15 @@ export const determineMeasuringBoundary = async (
         case "sl-hospital":
         case "sl-airport":
         case "sl-consulate":
+        case "rotterdam-library":
+        case "rotterdam-museum":
+        case "rotterdam-hospital":
+        case "rotterdam-zoo":
+        case "rotterdam-cinema":
+        case "rotterdam-golf_course":
+        case "rotterdam-consulate":
+        case "rotterdam-theme_park":
+        case "rotterdam-airport":
         case "buch-museum":
         case "buch-park":
         case "buch-library":
@@ -261,6 +283,9 @@ export const determineMeasuringBoundary = async (
                 "bern-mountain": "mountain", "bern-park": "park", "bern-zoo": "zoo",
                 "bern-hospital": "hospital", "bern-consulate": "consulate", "bern-theme_park": "theme_park",
                 "bern-airport": "airport",
+                "rotterdam-library": "library", "rotterdam-museum": "museum", "rotterdam-hospital": "hospital",
+                "rotterdam-zoo": "zoo", "rotterdam-cinema": "cinema", "rotterdam-golf_course": "golf_course",
+                "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -480,6 +505,26 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
+    if (question.type === "rotterdam-rail" || question.type === "rotterdam-coastline") {
+        const file =
+            question.type === "rotterdam-rail"
+                ? "exter-rotterdam-hsl.geojson"
+                : "exter-rotterdam-coastline.geojson";
+        const res = await fetch(import.meta.env.BASE_URL + file);
+        const fc = await res.json();
+        if (!fc.features?.length) return question;
+        const combined = turf.combine(turf.featureCollection(fc.features)).features[0];
+        const linePts = turf.explode(combined as any);
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, linePts);
+        const hiderNearest = turf.nearestPoint(hiderPt, linePts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
     const GAME_POI_TYPE_MAP: Record<string, string> = {
         "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
         "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
@@ -493,6 +538,9 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "bern-mountain": "mountain", "bern-park": "park", "bern-zoo": "zoo",
         "bern-hospital": "hospital", "bern-consulate": "consulate", "bern-theme_park": "theme_park",
         "bern-airport": "airport",
+        "rotterdam-library": "library", "rotterdam-museum": "museum", "rotterdam-hospital": "hospital",
+        "rotterdam-zoo": "zoo", "rotterdam-cinema": "cinema", "rotterdam-golf_course": "golf_course",
+        "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;
