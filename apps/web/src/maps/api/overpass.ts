@@ -32,10 +32,19 @@ export const getOverpassData = async (
 ) => {
     const encodedQuery = encodeURIComponent(query);
     const primaryUrl = `${OVERPASS_API}?data=${encodedQuery}`;
-    let response = await cacheFetch(primaryUrl, loadingText, cacheType);
 
-    if (!response.ok) {
-        // Try the fallback, but store the result under the primary URL key so future requests are served from cache without needing to fail-over again.
+    // A CORS or network error throws an exception rather than returning a non-ok
+    // response, so we catch here to ensure the fallback runs in both cases.
+    let response: Response | null = null;
+    try {
+        response = await cacheFetch(primaryUrl, loadingText, cacheType);
+    } catch {
+        // Primary threw (CORS / network) — fall through to fallback below.
+    }
+
+    if (!response?.ok) {
+        // Try the fallback, but store the result under the primary URL key so
+        // future requests are served from cache without needing to fail-over again.
         try {
             const fallbackResponse = await cacheFetch(
                 `${OVERPASS_API_FALLBACK}?data=${encodedQuery}`,
@@ -49,16 +58,16 @@ export const getOverpassData = async (
             response = fallbackResponse;
         } catch {
             toast.error(
-                `Could not load data from Overpass: ${response.status} ${response.statusText}`,
+                `Could not load data from Overpass: ${response?.status ?? "network error"} ${response?.statusText ?? ""}`.trimEnd(),
                 { toastId: "overpass-error" },
             );
             return { elements: [] };
         }
     }
 
-    if (!response.ok) {
+    if (!response?.ok) {
         toast.error(
-            `Could not load data from Overpass: ${response.status} ${response.statusText}`,
+            `Could not load data from Overpass: ${response?.status} ${response?.statusText}`,
             { toastId: "overpass-error" },
         );
         return { elements: [] };
