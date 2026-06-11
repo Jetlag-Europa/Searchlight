@@ -428,29 +428,34 @@ export const determineMeasuringBoundary = async (
     }
 };
 
-const bufferedDeterminer = _.memoize(
-    async (question: MeasuringQuestion) => {
-        const placeData = await determineMeasuringBoundary(question);
+// Manual memoize so we can skip caching `false` results — a `false` means the
+// POI/boundary data wasn't loaded yet (gamePOIData still empty on first render).
+// _.memoize would cache that `false` permanently, causing the question to stay
+// invisible even after the data loads. By not caching `false` we allow the next
+// refresh (triggered by the gamePOIData nanostore subscription in Map.tsx) to
+// re-run and get the real result.
+const _bufferedCache = new Map<string, any>();
+const bufferedDeterminer = async (question: MeasuringQuestion) => {
+    const key = JSON.stringify({
+        type: question.type,
+        lat: question.lat,
+        lng: question.lng,
+        entirety: polyGeoJSON.get() ? polyGeoJSON.get() : mapGeoLocation.get(),
+        geo: (question as any).geo,
+    });
+    if (_bufferedCache.has(key)) return _bufferedCache.get(key);
 
-        if (placeData === false || placeData === undefined) return false;
+    const placeData = await determineMeasuringBoundary(question);
+    if (placeData === false || placeData === undefined) return false;
 
-        return arcBufferToPoint(
-            turf.featureCollection(placeData as any),
-            question.lat,
-            question.lng,
-        );
-    },
-    (question) =>
-        JSON.stringify({
-            type: question.type,
-            lat: question.lat,
-            lng: question.lng,
-            entirety: polyGeoJSON.get()
-                ? polyGeoJSON.get()
-                : mapGeoLocation.get(),
-            geo: (question as any).geo,
-        }),
-);
+    const result = arcBufferToPoint(
+        turf.featureCollection(placeData as any),
+        question.lat,
+        question.lng,
+    );
+    _bufferedCache.set(key, result);
+    return result;
+};
 
 export const adjustPerMeasuring = async (
     question: MeasuringQuestion,

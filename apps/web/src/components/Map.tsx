@@ -18,6 +18,7 @@ import {
     autoZoom,
     baseTileLayer,
     followMe,
+    gamePOIData,
     hiderMode,
     isLoading,
     leafletMapContext,
@@ -129,6 +130,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $followMe = useStore(followMe);
     const $permanentOverlay = useStore(permanentOverlay);
     const $polyGeoJSON = useStore(polyGeoJSON);
+    const $gamePOIData = useStore(gamePOIData);
     const map = useStore(leafletMapContext);
 
     const followMeMarkerRef = useMemo(
@@ -413,7 +415,7 @@ export const Map = ({ className }: { className?: string }) => {
         if (!map) return;
 
         refreshQuestions(true);
-    }, [$questions, map, $hiderMode, $mapGeoLocation, $polyGeoJSON]);
+    }, [$questions, map, $hiderMode, $mapGeoLocation, $polyGeoJSON, $gamePOIData]);
 
     useEffect(() => {
         const intervalId = setInterval(() => {
