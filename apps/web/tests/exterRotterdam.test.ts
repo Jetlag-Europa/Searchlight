@@ -122,19 +122,13 @@ describe("Exter Rotterdam 26 — measuring line geojson", () => {
 });
 
 describe("Exter Rotterdam 26 — question type gating", () => {
+    // Only types with no generic equivalent are gated — POI categories (library,
+    // museum, hospital, etc.) use the standard question types which already check
+    // gamePOIData first and automatically use custom POIs when available.
     const expectedGated = [
         "rotterdam-municipality",
         "rotterdam-rail",
         "rotterdam-coastline",
-        "rotterdam-library",
-        "rotterdam-museum",
-        "rotterdam-hospital",
-        "rotterdam-zoo",
-        "rotterdam-cinema",
-        "rotterdam-golf_course",
-        "rotterdam-consulate",
-        "rotterdam-theme_park",
-        "rotterdam-airport",
     ];
 
     it("gates every rotterdam-* type to the Rotterdam sentinel", () => {

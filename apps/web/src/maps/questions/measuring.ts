@@ -232,60 +232,12 @@ export const determineMeasuringBoundary = async (
         case "sl-camping":
         case "sl-mill":
         case "sl-mountain":
-        case "sl-library":
-        case "sl-museum":
-        case "sl-golf_course":
-        case "sl-cinema":
-        case "sl-zoo":
-        case "sl-theme_park":
-        case "sl-hospital":
-        case "sl-airport":
-        case "sl-consulate":
-        case "rotterdam-library":
-        case "rotterdam-museum":
-        case "rotterdam-hospital":
-        case "rotterdam-zoo":
-        case "rotterdam-cinema":
-        case "rotterdam-golf_course":
-        case "rotterdam-consulate":
-        case "rotterdam-theme_park":
-        case "rotterdam-airport":
-        case "buch-museum":
-        case "buch-park":
-        case "buch-library":
-        case "buch-hospital":
-        case "buch-cinema":
         case "buch-train_station":
-        case "buch-zoo":
-        case "buch-golf_course":
-        case "buch-airport":
-        case "buch-consulate":
-        case "bern-cinema":
-        case "bern-library":
-        case "bern-museum":
-        case "bern-mountain":
-        case "bern-park":
-        case "bern-zoo":
-        case "bern-hospital":
-        case "bern-consulate":
-        case "bern-theme_park":
-        case "bern-airport": {
+        case "bern-mountain": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
-                "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
-                "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
-                "sl-hospital": "hospital", "sl-airport": "airport", "sl-consulate": "consulate",
-                "buch-museum": "museum", "buch-park": "park", "buch-library": "library",
-                "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
-                "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
-                "buch-consulate": "consulate",
-                "bern-cinema": "cinema", "bern-library": "library", "bern-museum": "museum",
-                "bern-mountain": "mountain", "bern-park": "park", "bern-zoo": "zoo",
-                "bern-hospital": "hospital", "bern-consulate": "consulate", "bern-theme_park": "theme_park",
-                "bern-airport": "airport",
-                "rotterdam-library": "library", "rotterdam-museum": "museum", "rotterdam-hospital": "hospital",
-                "rotterdam-zoo": "zoo", "rotterdam-cinema": "cinema", "rotterdam-golf_course": "golf_course",
-                "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
+                "buch-train_station": "train_station",
+                "bern-mountain": "mountain",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;

@@ -340,15 +340,6 @@ const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
         z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
         z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
         z.literal("sl-mountain").describe("Nearest Mountain (South Limburg)"),
-        z.literal("sl-library").describe("Nearest Library (South Limburg)"),
-        z.literal("sl-museum").describe("Nearest Museum (South Limburg)"),
-        z.literal("sl-golf_course").describe("Nearest Golf Course (South Limburg)"),
-        z.literal("sl-cinema").describe("Nearest Cinema (South Limburg)"),
-        z.literal("sl-zoo").describe("Nearest Zoo (South Limburg)"),
-        z.literal("sl-theme_park").describe("Nearest Amusement Park (South Limburg)"),
-        z.literal("sl-hospital").describe("Nearest Hospital (South Limburg)"),
-        z.literal("sl-airport").describe("Nearest Airport (South Limburg)"),
-        z.literal("sl-consulate").describe("Nearest Foreign Consulate (South Limburg)"),
     ]),
 });
 
@@ -362,16 +353,7 @@ const bernMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("bern-canton").describe("Same Swiss Canton"),
         z.literal("bern-bezirk").describe("Same Bezirk"),
-        z.literal("bern-cinema").describe("Nearest Cinema (Bern)"),
-        z.literal("bern-library").describe("Nearest Library (Bern)"),
-        z.literal("bern-museum").describe("Nearest Museum (Bern)"),
         z.literal("bern-mountain").describe("Nearest Mountain (Bern)"),
-        z.literal("bern-park").describe("Nearest Park (Bern)"),
-        z.literal("bern-zoo").describe("Nearest Zoo (Bern)"),
-        z.literal("bern-hospital").describe("Nearest Hospital (Bern)"),
-        z.literal("bern-consulate").describe("Nearest Foreign Consulate (Bern)"),
-        z.literal("bern-theme_park").describe("Nearest Amusement Park (Bern)"),
-        z.literal("bern-airport").describe("Nearest Airport (Bern)"),
     ]),
 });
 
@@ -379,32 +361,12 @@ const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("bucharest-sector").describe("1st Admin Division (Bucharest)"),
         z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
-        z.literal("buch-museum").describe("Nearest Museum (Bucharest)"),
-        z.literal("buch-park").describe("Nearest Park (Bucharest)"),
-        z.literal("buch-library").describe("Nearest Library (Bucharest)"),
-        z.literal("buch-hospital").describe("Nearest Hospital (Bucharest)"),
-        z.literal("buch-cinema").describe("Nearest Cinema (Bucharest)"),
         z.literal("buch-train_station").describe("Nearest Railway Station (Bucharest)"),
-        z.literal("buch-zoo").describe("Nearest Zoo (Bucharest)"),
-        z.literal("buch-golf_course").describe("Nearest Golf Course (Bucharest)"),
-        z.literal("buch-airport").describe("Nearest Airport (Bucharest)"),
-        z.literal("buch-consulate").describe("Nearest Foreign Consulate (Bucharest)"),
     ]),
 });
 
 const exterRotterdamMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
-        z.literal("rotterdam-library").describe("Nearest Library (Rotterdam)"),
-        z.literal("rotterdam-museum").describe("Nearest Museum (Rotterdam)"),
-        z.literal("rotterdam-hospital").describe("Nearest Hospital (Rotterdam)"),
-        z.literal("rotterdam-zoo").describe("Nearest Zoo (Rotterdam)"),
-        z.literal("rotterdam-cinema").describe("Nearest Cinema (Rotterdam)"),
-        z.literal("rotterdam-golf_course").describe("Nearest Golf Course (Rotterdam)"),
-        z.literal("rotterdam-consulate").describe("Nearest Foreign Consulate (Rotterdam)"),
-        z.literal("rotterdam-theme_park").describe("Nearest Amusement Park (Rotterdam)"),
-        z.literal("rotterdam-airport").describe("Nearest Airport (Rotterdam)"),
-    ]),
+    type: z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
 });
 
 export const matchingQuestionSchema = z.union([
@@ -426,68 +388,42 @@ export const matchingQuestionSchema = z.union([
 // Types listed here are hidden in the selector unless that game is active.
 // Add new game-specific types here as they are introduced.
 export const GAME_GATED_TYPES: Record<string, string> = {
+    // Luxembourg
     "lux-canton":                "__bundled-luxembourg-2026__",
     "lux-district":              "__bundled-luxembourg-2026__",
     "lux-mountains":             "__bundled-luxembourg-2026__",
     "lux-hospitals":             "__bundled-luxembourg-2026__",
+    // South Limburg — admin + POI categories with no generic equivalent
     "south-limburg-postcode":    "__bundled-south-limburg-2026__",
     "south-limburg-municipality":"__bundled-south-limburg-2026__",
     "sl-camping":                "__bundled-south-limburg-2026__",
     "sl-mill":                   "__bundled-south-limburg-2026__",
     "sl-mountain":               "__bundled-south-limburg-2026__",
-    "sl-library":                "__bundled-south-limburg-2026__",
-    "sl-museum":                 "__bundled-south-limburg-2026__",
-    "sl-golf_course":            "__bundled-south-limburg-2026__",
-    "sl-cinema":                 "__bundled-south-limburg-2026__",
-    "sl-zoo":                    "__bundled-south-limburg-2026__",
-    "sl-theme_park":             "__bundled-south-limburg-2026__",
-    "sl-hospital":               "__bundled-south-limburg-2026__",
-    "sl-airport":                "__bundled-south-limburg-2026__",
-    "sl-consulate":              "__bundled-south-limburg-2026__",
+    // Tentacle-only types unique to South Limburg
     "camping":                   "__bundled-south-limburg-2026__",
     "mill":                      "__bundled-south-limburg-2026__",
     "mountain":                  "__bundled-south-limburg-2026__",
     "golf_course":               "__bundled-south-limburg-2026__",
+    // Brno
     "brno-district":             "__bundled-brno-2026-v2__",
     "brno-water":                "__bundled-brno-2026-v2__",
+    // Bucharest — admin + types with no generic equivalent
     "bucharest-sector":          "__bundled-bucharest-2026__",
     "covrigarie":                "__bundled-bucharest-2026__",
-    "buch-museum":               "__bundled-bucharest-2026__",
-    "buch-park":                 "__bundled-bucharest-2026__",
-    "buch-library":              "__bundled-bucharest-2026__",
-    "buch-hospital":             "__bundled-bucharest-2026__",
-    "buch-cinema":               "__bundled-bucharest-2026__",
     "buch-train_station":        "__bundled-bucharest-2026__",
-    "buch-zoo":                  "__bundled-bucharest-2026__",
-    "buch-golf_course":          "__bundled-bucharest-2026__",
-    "buch-airport":              "__bundled-bucharest-2026__",
-    "buch-consulate":            "__bundled-bucharest-2026__",
+    // Tentacle-only types unique to Bucharest
     "train_station":             "__bundled-bucharest-2026__",
     "park":                      "__bundled-bucharest-2026__",
+    // Bern — admin + types with no generic equivalent
     "bern-canton":               "__bundled-bern-2026__",
     "bern-bezirk":               "__bundled-bern-2026__",
-    "bern-cinema":               "__bundled-bern-2026__",
-    "bern-library":              "__bundled-bern-2026__",
-    "bern-museum":               "__bundled-bern-2026__",
     "bern-mountain":             "__bundled-bern-2026__",
+    // Tentacle-only types unique to Bern
     "bern-park":                 "__bundled-bern-2026__",
-    "bern-zoo":                  "__bundled-bern-2026__",
-    "bern-hospital":             "__bundled-bern-2026__",
-    "bern-consulate":            "__bundled-bern-2026__",
-    "bern-theme_park":           "__bundled-bern-2026__",
-    "bern-airport":              "__bundled-bern-2026__",
+    // Rotterdam — admin + geometry types with no generic equivalent
     "rotterdam-municipality":    "__bundled-exter-rotterdam-2026__",
     "rotterdam-rail":            "__bundled-exter-rotterdam-2026__",
     "rotterdam-coastline":       "__bundled-exter-rotterdam-2026__",
-    "rotterdam-library":         "__bundled-exter-rotterdam-2026__",
-    "rotterdam-museum":          "__bundled-exter-rotterdam-2026__",
-    "rotterdam-hospital":        "__bundled-exter-rotterdam-2026__",
-    "rotterdam-zoo":             "__bundled-exter-rotterdam-2026__",
-    "rotterdam-cinema":          "__bundled-exter-rotterdam-2026__",
-    "rotterdam-golf_course":     "__bundled-exter-rotterdam-2026__",
-    "rotterdam-consulate":       "__bundled-exter-rotterdam-2026__",
-    "rotterdam-theme_park":      "__bundled-exter-rotterdam-2026__",
-    "rotterdam-airport":         "__bundled-exter-rotterdam-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -579,15 +515,6 @@ const southLimburgMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend(
         z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
         z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
         z.literal("sl-mountain").describe("Nearest Mountain (South Limburg)"),
-        z.literal("sl-library").describe("Nearest Library (South Limburg)"),
-        z.literal("sl-museum").describe("Nearest Museum (South Limburg)"),
-        z.literal("sl-golf_course").describe("Nearest Golf Course (South Limburg)"),
-        z.literal("sl-cinema").describe("Nearest Cinema (South Limburg)"),
-        z.literal("sl-zoo").describe("Nearest Zoo (South Limburg)"),
-        z.literal("sl-theme_park").describe("Nearest Amusement Park (South Limburg)"),
-        z.literal("sl-hospital").describe("Nearest Hospital (South Limburg)"),
-        z.literal("sl-airport").describe("Nearest Airport (South Limburg)"),
-        z.literal("sl-consulate").describe("Nearest Foreign Consulate (South Limburg)"),
     ]),
 });
 
@@ -598,32 +525,14 @@ const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 const bernMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
         z.literal("bern-canton").describe("Canton Border Question (Bern)"),
-        z.literal("bern-cinema").describe("Nearest Cinema (Bern)"),
-        z.literal("bern-library").describe("Nearest Library (Bern)"),
-        z.literal("bern-museum").describe("Nearest Museum (Bern)"),
         z.literal("bern-mountain").describe("Nearest Mountain (Bern)"),
-        z.literal("bern-park").describe("Nearest Park (Bern)"),
-        z.literal("bern-zoo").describe("Nearest Zoo (Bern)"),
-        z.literal("bern-hospital").describe("Nearest Hospital (Bern)"),
-        z.literal("bern-consulate").describe("Nearest Foreign Consulate (Bern)"),
-        z.literal("bern-theme_park").describe("Nearest Amusement Park (Bern)"),
-        z.literal("bern-airport").describe("Nearest Airport (Bern)"),
     ]),
 });
 
 const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
         z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
-        z.literal("buch-museum").describe("Nearest Museum (Bucharest)"),
-        z.literal("buch-park").describe("Nearest Park (Bucharest)"),
-        z.literal("buch-library").describe("Nearest Library (Bucharest)"),
-        z.literal("buch-hospital").describe("Nearest Hospital (Bucharest)"),
-        z.literal("buch-cinema").describe("Nearest Cinema (Bucharest)"),
         z.literal("buch-train_station").describe("Nearest Railway Station (Bucharest)"),
-        z.literal("buch-zoo").describe("Nearest Zoo (Bucharest)"),
-        z.literal("buch-golf_course").describe("Nearest Golf Course (Bucharest)"),
-        z.literal("buch-airport").describe("Nearest Airport (Bucharest)"),
-        z.literal("buch-consulate").describe("Nearest Foreign Consulate (Bucharest)"),
     ]),
 });
 
@@ -631,15 +540,6 @@ const exterRotterdamMeasuringQuestionsSchema = baseMeasuringQuestionSchema.exten
     type: z.union([
         z.literal("rotterdam-rail").describe("Distance to High-Speed Rail (Rotterdam)"),
         z.literal("rotterdam-coastline").describe("Distance to Coast (Rotterdam)"),
-        z.literal("rotterdam-library").describe("Nearest Library (Rotterdam)"),
-        z.literal("rotterdam-museum").describe("Nearest Museum (Rotterdam)"),
-        z.literal("rotterdam-hospital").describe("Nearest Hospital (Rotterdam)"),
-        z.literal("rotterdam-zoo").describe("Nearest Zoo (Rotterdam)"),
-        z.literal("rotterdam-cinema").describe("Nearest Cinema (Rotterdam)"),
-        z.literal("rotterdam-golf_course").describe("Nearest Golf Course (Rotterdam)"),
-        z.literal("rotterdam-consulate").describe("Nearest Foreign Consulate (Rotterdam)"),
-        z.literal("rotterdam-theme_park").describe("Nearest Amusement Park (Rotterdam)"),
-        z.literal("rotterdam-airport").describe("Nearest Airport (Rotterdam)"),
     ]),
 });
 
