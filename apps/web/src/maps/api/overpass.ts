@@ -25,42 +25,51 @@ import type {
 } from "./types";
 import { CacheType } from "./types";
 
+// POST helper so the query goes in the request body, avoiding URI-too-long (414)
+// on large polygons. Cache key is still the GET URL for deduplication.
+const overpassPost = (baseUrl: string, query: string): Promise<Response> =>
+    fetch(baseUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: `data=${encodeURIComponent(query)}`,
+    });
+
 export const getOverpassData = async (
     query: string,
     loadingText?: string,
     cacheType: CacheType = CacheType.CACHE,
 ) => {
-    const encodedQuery = encodeURIComponent(query);
-    const primaryUrl = `${OVERPASS_API}?data=${encodedQuery}`;
+    // Use the GET URL only as a cache key — actual requests use POST so large
+    // poly: filters don't hit the URI-too-long (414) limit on either server.
+    const cacheKey = `${OVERPASS_API}?data=${encodeURIComponent(query)}`;
 
-    // A CORS or network error throws an exception rather than returning a non-ok
-    // response, so we catch here to ensure the fallback runs in both cases.
+    try {
+        const cache = await determineCache(cacheType);
+        const cached = await cache.match(cacheKey);
+        if (cached?.ok) return await cached.clone().json();
+    } catch {
+        // Cache API unavailable — proceed to fetch.
+    }
+
+    const doFetch = (baseUrl: string) =>
+        loadingText
+            ? toast.promise(overpassPost(baseUrl, query), { pending: loadingText })
+            : overpassPost(baseUrl, query);
+
     let response: Response | null = null;
     try {
-        response = await cacheFetch(primaryUrl, loadingText, cacheType);
+        response = await doFetch(OVERPASS_API);
     } catch {
-        // Primary threw (CORS / network) — fall through to fallback below.
+        // Primary threw (CORS / network) — try fallback.
     }
 
     if (!response?.ok) {
-        // Try the fallback, but store the result under the primary URL key so
-        // future requests are served from cache without needing to fail-over again.
         try {
-            const fallbackResponse = await cacheFetch(
-                `${OVERPASS_API_FALLBACK}?data=${encodedQuery}`,
-                loadingText,
-                cacheType,
-            );
-            if (fallbackResponse.ok) {
-                const cache = await determineCache(cacheType);
-                await cache.put(primaryUrl, fallbackResponse.clone());
-            }
-            response = fallbackResponse;
+            response = await doFetch(OVERPASS_API_FALLBACK);
         } catch {
-            toast.error(
-                `Could not load data from Overpass: ${response?.status ?? "network error"} ${response?.statusText ?? ""}`.trimEnd(),
-                { toastId: "overpass-error" },
-            );
+            toast.error("Could not load data from Overpass (network error)", {
+                toastId: "overpass-error",
+            });
             return { elements: [] };
         }
     }
@@ -73,8 +82,14 @@ export const getOverpassData = async (
         return { elements: [] };
     }
 
-    const data = await response.json();
-    return data;
+    try {
+        const cache = await determineCache(cacheType);
+        await cache.put(cacheKey, response.clone());
+    } catch {
+        // Cache API unavailable — fine, result still returned below.
+    }
+
+    return await response.json();
 };
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
