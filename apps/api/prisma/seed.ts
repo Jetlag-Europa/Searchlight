@@ -177,7 +177,7 @@ const GAMES = [
     sentinelValue: "__bundled-exter-rotterdam-2026__",
     kmlPath: "exter-rotterdam-poi.kml",
     mapLocationJson: ROTTERDAM_FEATURE,
-    hidingRadius: 250,
+    hidingRadius: 300,
     hidingRadiusUnits: "meters",
     size: "medium",
   },
