@@ -1,6 +1,6 @@
-import type { EventRecord, PresenceEvent, HiderUpdateEvent, PresenceUser } from "@taibled/shared";
+import type { EventRecord, PresenceEvent, HiderUpdateEvent, PlanningToggleEvent, PresenceUser } from "@taibled/shared";
 
-type AnySSEEvent = EventRecord | PresenceEvent | HiderUpdateEvent;
+type AnySSEEvent = EventRecord | PresenceEvent | HiderUpdateEvent | PlanningToggleEvent;
 type Listener = (event: AnySSEEvent) => void;
 
 const listeners = new Map<string, Set<Listener>>();

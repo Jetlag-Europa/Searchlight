@@ -336,6 +336,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         createdAt: session.createdAt.toISOString(),
         hiderLat: session.hiderLat,
         hiderLng: session.hiderLng,
+        planningModeEnabled: session.planningModeEnabled,
         participants: allParticipants.map((p) => ({
           userId: p.userId,
           displayName: p.user.displayName,
@@ -360,6 +361,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           ),
           hiderLat: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
           hiderLng: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+          planningModeEnabled: Type.Optional(Type.Boolean()),
         }),
       },
     },
@@ -373,6 +375,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         visibility?: "private" | "shared";
         hiderLat?: number | null;
         hiderLng?: number | null;
+        planningModeEnabled?: boolean;
       };
 
       // name and visibility are creator-only; hiderLat/hiderLng any participant can update
@@ -393,6 +396,13 @@ export async function sessionRoutes(app: FastifyInstance) {
         });
       }
 
+      if (body.planningModeEnabled !== undefined) {
+        broadcast(sessionId, {
+          type: "planning.toggle",
+          payloadJson: { planningModeEnabled: updated.planningModeEnabled },
+        });
+      }
+
       return {
         id: updated.id,
         gameId: updated.gameId,
@@ -404,6 +414,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         createdAt: updated.createdAt.toISOString(),
         hiderLat: updated.hiderLat,
         hiderLng: updated.hiderLng,
+        planningModeEnabled: updated.planningModeEnabled,
       };
     },
   );

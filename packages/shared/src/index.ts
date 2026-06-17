@@ -116,6 +116,7 @@ export interface GameSessionSummary {
   createdAt: string;
   hiderLat: number | null;
   hiderLng: number | null;
+  planningModeEnabled: boolean;
 }
 
 export interface SessionParticipantDetail {
@@ -309,6 +310,11 @@ export type PresenceEvent =
 export interface HiderUpdateEvent {
   type: "hider.update";
   payloadJson: { hiderLat: number | null; hiderLng: number | null };
+}
+
+export interface PlanningToggleEvent {
+  type: "planning.toggle";
+  payloadJson: { planningModeEnabled: boolean };
 }
 
 // ── Events ────────────────────────────────────────────────────────────────────

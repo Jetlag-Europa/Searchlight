@@ -341,14 +341,7 @@ export const drawingQuestionKey = atom<number>(-1);
 // or "" for the all-zones overview. Lifted to a shared atom so the
 // bottom-bar "All Zones" button can clear it from outside the sidebar.
 export const hidingZoneFocusedStationID = atom<string>("");
-export const planningModeEnabled = persistentAtom<boolean>(
-    "planningModeEnabled",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
+export const planningModeEnabled = atom<boolean>(false);
 export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
     encode: JSON.stringify,
     decode: JSON.parse,

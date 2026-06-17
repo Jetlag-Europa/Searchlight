@@ -1,10 +1,11 @@
 import type { EventRecord } from "@taibled/shared";
-import { questions, syncStatus, connectedUsers, hiderMode } from "@/lib/context";
+import { questions, syncStatus, connectedUsers, hiderMode, planningModeEnabled } from "@/lib/context";
 import type { PresenceUser } from "@/lib/context";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { getPendingEvents, getCachedSession, setCachedSession } from "@/lib/eventQueue";
 import { suppressNextQuestionSave } from "@/lib/questionSaveSuppress";
 import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
+import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 
@@ -154,6 +155,13 @@ export function startSSE(sessionId: string): void {
                         ? { latitude: hiderLat, longitude: hiderLng }
                         : false,
                 );
+                return;
+            }
+            if (parsed.type === "planning.toggle") {
+                const { planningModeEnabled: enabled } = parsed.payloadJson as { planningModeEnabled: boolean };
+                console.info("[taibled:sse] applying planning.toggle", enabled);
+                suppressNextPlanningModeSave();
+                planningModeEnabled.set(enabled);
                 return;
             }
             handleServerEvent(parsed as unknown as EventRecord);

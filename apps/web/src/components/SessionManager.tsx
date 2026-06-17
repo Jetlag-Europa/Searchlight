@@ -14,10 +14,11 @@ import {
     getGameById,
     type GameDefinition,
 } from "@/lib/games";
-import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave, cancelPendingHiderSave, saveHiderModeToServer, flushHiderSave } from "@/lib/sessionState";
+import { loadSessionContent, saveQuestionsDebounced, cancelPendingQuestionSave, cancelPendingHiderSave, saveHiderModeToServer, flushHiderSave, savePlanningModeToServer, cancelPendingPlanningModeSave } from "@/lib/sessionState";
 import { shouldSuppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
-import { hiderMode } from "@/lib/context";
+import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { hiderMode, planningModeEnabled } from "@/lib/context";
 import {
     getCachedSession,
     getPendingEvents,
@@ -377,12 +378,15 @@ export function SessionManager() {
     const session = useStore(activeSessionData);
     const currentQuestions = useStore(questions);
     const currentHiderMode = useStore(hiderMode);
+    const currentPlanningMode = useStore(planningModeEnabled);
     const [showPicker, setShowPicker] = useState(false);
     const [loading, setLoading] = useState(false);
     // Prevents saving questions immediately after we just loaded them from the server.
     const suppressNextSaveRef = useRef(false);
     // Start suppressed: always wait for the server load before allowing any hider saves.
     const suppressNextHiderSaveRef = useRef(true);
+    // Start suppressed: always wait for the server load before allowing planning mode saves.
+    const suppressNextPlanningModeRef = useRef(true);
 
     // Debounce-save questions whenever they change (while a session is active).
     // Skip the first fire after a server load to avoid overwriting fresh server data.
@@ -414,6 +418,22 @@ export function SessionManager() {
         console.info("[taibled:session] queuing hider save", { sessionId, hiderMode: currentHiderMode });
         saveHiderModeToServer(sessionId, currentHiderMode);
     }, [sessionId, currentHiderMode]);
+
+    // Debounce-save planning mode whenever it changes (while a session is active).
+    useEffect(() => {
+        if (!sessionId) return;
+        if (suppressNextPlanningModeRef.current) {
+            suppressNextPlanningModeRef.current = false;
+            console.info("[taibled:session] planning mode save suppressed by ref", { sessionId, planningModeEnabled: currentPlanningMode });
+            return;
+        }
+        if (shouldSuppressPlanningModeSave()) {
+            console.info("[taibled:session] planning mode save suppressed by SSE counter", { sessionId, planningModeEnabled: currentPlanningMode });
+            return;
+        }
+        console.info("[taibled:session] queuing planning mode save", { sessionId, planningModeEnabled: currentPlanningMode });
+        savePlanningModeToServer(sessionId, currentPlanningMode);
+    }, [sessionId, currentPlanningMode]);
 
     // Flush any pending hider save when the tab closes so the debounce timer
     // isn't killed by the browser before it fires.
@@ -509,6 +529,7 @@ export function SessionManager() {
                 if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
 
                 cancelPendingHiderSave();
+                cancelPendingPlanningModeSave();
                 // storedId === data.id always here (we fetched by storedId), so
                 // activeSessionId won't change — no suppress needed for sessionId effect.
                 setActiveSession(data);
@@ -536,6 +557,11 @@ export function SessionManager() {
                         suppressNextHiderSaveRef.current = true;
                     }
                     hiderMode.set(newHiderMode);
+                    const newPlanningMode = data.planningModeEnabled ?? false;
+                    if (planningModeEnabled.get() !== newPlanningMode) {
+                        suppressNextPlanningModeRef.current = true;
+                    }
+                    planningModeEnabled.set(newPlanningMode);
                     startSSE(storedId);
                 } catch (e) {
                     console.warn(
@@ -609,6 +635,11 @@ export function SessionManager() {
                 suppressNextHiderSaveRef.current = true;
             }
             hiderMode.set(newHiderMode);
+            const newPlanningMode = selected.planningModeEnabled ?? false;
+            if (planningModeEnabled.get() !== newPlanningMode) {
+                suppressNextPlanningModeRef.current = true;
+            }
+            planningModeEnabled.set(newPlanningMode);
             // Flush any pending events for this session, then start live channel.
             flushPendingEvents(selected.id).catch(() => {});
             startSSE(selected.id);
@@ -625,10 +656,12 @@ export function SessionManager() {
         // loaded from the server so there's nothing new to write back.
         suppressNextSaveRef.current = true;
         cancelPendingHiderSave();
+        cancelPendingPlanningModeSave();
         // Only suppress the sessionId-change hider effect if the session is
         // actually changing — same-session re-selects don't fire the effect.
         if (activeSessionId.get() !== selected.id) {
             suppressNextHiderSaveRef.current = true;
+            suppressNextPlanningModeRef.current = true;
         }
         setActiveSession(selected);
         setShowPicker(false);

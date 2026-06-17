@@ -101,6 +101,33 @@ export function saveHiderModeToServer(
     }, 800);
 }
 
+// ── Planning mode ─────────────────────────────────────────────────────────────
+
+let planningModeSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+export function savePlanningModeToServer(sessionId: string, enabled: boolean): void {
+    if (planningModeSaveTimer) clearTimeout(planningModeSaveTimer);
+    planningModeSaveTimer = setTimeout(() => {
+        planningModeSaveTimer = null;
+        console.info("[sessionState] saving planningModeEnabled for", sessionId, enabled);
+        fetch(`${API_BASE}/sessions/${sessionId}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ planningModeEnabled: enabled }),
+        }).catch((err) => {
+            console.warn("[sessionState] failed to save planningModeEnabled:", err);
+        });
+    }, 300);
+}
+
+export function cancelPendingPlanningModeSave(): void {
+    if (planningModeSaveTimer) {
+        clearTimeout(planningModeSaveTimer);
+        planningModeSaveTimer = null;
+    }
+}
+
 export function cancelPendingQuestionSave(): void {
     if (questionSaveTimer) {
         clearTimeout(questionSaveTimer);
