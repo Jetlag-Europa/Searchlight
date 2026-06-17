@@ -187,8 +187,12 @@ export const findMatchingPlaces = async (question: MatchingQuestion) => {
     }
 };
 
-export const determineMatchingBoundary = _.memoize(
-    async (question: MatchingQuestion) => {
+// Manual memoize so we can skip caching undefined/false results — those mean
+// POI data (gamePOIData) wasn't loaded yet on first render. _.memoize would
+// permanently cache the empty result; skipping it lets the next refresh
+// (triggered by the gamePOIData subscription in Map.tsx) retry with real data.
+const _matchingBoundaryCache = new Map<string, any>();
+const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
         let boundary;
 
         switch (question.type) {
@@ -475,19 +479,24 @@ export const determineMatchingBoundary = _.memoize(
         }
 
         return boundary;
-    },
-    (question: MatchingQuestion & { geo?: unknown; cat?: unknown }) =>
-        JSON.stringify({
-            type: question.type,
-            lat: question.lat,
-            lng: question.lng,
-            cat: question.cat,
-            geo: question.geo,
-            entirety: polyGeoJSON.get()
-                ? polyGeoJSON.get()
-                : mapGeoLocation.get(),
-        }),
-);
+};
+
+export const determineMatchingBoundary = async (
+    question: MatchingQuestion & { geo?: unknown; cat?: unknown },
+) => {
+    const key = JSON.stringify({
+        type: question.type,
+        lat: question.lat,
+        lng: question.lng,
+        cat: question.cat,
+        geo: question.geo,
+        entirety: polyGeoJSON.get() ? polyGeoJSON.get() : mapGeoLocation.get(),
+    });
+    if (_matchingBoundaryCache.has(key)) return _matchingBoundaryCache.get(key);
+    const result = await determineMatchingBoundaryInner(question);
+    if (result !== undefined && result !== false) _matchingBoundaryCache.set(key, result);
+    return result;
+};
 
 export const adjustPerMatching = async (
     question: MatchingQuestion,
