@@ -27,13 +27,18 @@ import {
     permanentOverlay,
     planningModeEnabled,
     polyGeoJSON,
+    perQuestionMapData,
     questionFinishedMapData,
     questions,
     thunderforestApiKey,
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
-import { applyQuestionsToMapGeoData, holedMask } from "@/maps";
+import {
+    applyQuestionsToMapGeoData,
+    computePerQuestionRegions,
+    holedMask,
+} from "@/maps";
 import { hiderifyQuestion } from "@/maps";
 import { clearCache, determineMapBoundaries } from "@/maps/api";
 import { currentGameId, getGameById } from "@/lib/games";
@@ -196,6 +201,20 @@ export const Map = ({ className }: { className?: string }) => {
 
                 triggerLocalRefresh.set(Math.random()); // Refresh the question sidebar with new information but not this map
             }
+
+            // Per-question standalone regions (dodge-aware hiding zone survival).
+            // Computed from the full base boundary BEFORE it gets folded into the
+            // combined elimination area below.
+            const perQuestionRegions = await computePerQuestionRegions(
+                $questions,
+                mapGeoData,
+                planningModeEnabled.get(),
+            );
+            perQuestionMapData.set(perQuestionRegions);
+            console.info(
+                "[taibled:dodge] per-question regions",
+                perQuestionRegions.length,
+            );
 
             mapGeoData = await applyQuestionsToMapGeoData(
                 $questions,

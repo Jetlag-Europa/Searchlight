@@ -121,6 +121,11 @@ export const showZoneNames = persistentAtom<boolean>("showZoneNames", false, {
 });
 export const questionFinishedMapData = atom<any>(null);
 
+// Per-question standalone "still-possible" regions, used for dodge-aware hiding
+// zone survival (a zone survives if it overlaps EACH question's region
+// independently). See computePerQuestionRegions / DissapearingAct.
+export const perQuestionMapData = atom<{ question: any; region: any }[]>([]);
+
 export const trainStations = atom<StationCircle[]>([]);
 onSet(trainStations, ({ newValue }) => {
     newValue.sort((a, b) => {

@@ -32,6 +32,7 @@ import {
     isLoading,
     leafletMapContext,
     mergeDuplicates as mergeDuplicatesAtom,
+    perQuestionMapData,
     planningModeEnabled,
     questionFinishedMapData,
     questions,
@@ -98,6 +99,7 @@ let buttonJustClicked = false;
 export const ZoneSidebar = () => {
     const $displayHidingZones = useStore(displayHidingZones);
     const $questionFinishedMapData = useStore(questionFinishedMapData);
+    const $perQuestionMapData = useStore(perQuestionMapData);
     const $displayHidingZonesOptions = useStore(displayHidingZonesOptions);
     const $displayHidingZonesStyle = useStore(displayHidingZonesStyle);
     const $hidingRadius = useStore(hidingRadius);
@@ -350,11 +352,25 @@ export const ZoneSidebar = () => {
                 );
             }
 
-            const unionized = safeUnion(
-                turf.simplify($questionFinishedMapData, {
-                    tolerance: 0.001,
-                }),
-            );
+            // Dodge-aware survival: a hider may move within their zone, so a zone
+            // is valid as long as it overlaps EACH question's still-possible region
+            // independently — not the (intersected) combined area. Two questions
+            // that can each be dodged from a different edge of the same zone used to
+            // wipe the zone off the map entirely. See DissapearingAct.
+            //
+            // Each region is unioned to a single feature for booleanIntersects. A
+            // null region means that question eliminates everywhere → drop all.
+            // Questions that pass through unchanged (e.g. mcdonalds/seven11,
+            // same-*-station — handled by the dedicated filters below) yield the
+            // full boundary here, so this test keeps them and the filters refine.
+            const questionRegions = $perQuestionMapData.map(({ region }) => {
+                if (!region || !region.features?.length) return null;
+                try {
+                    return safeUnion(region);
+                } catch {
+                    return region.features[0] ?? null;
+                }
+            });
 
             let circles = places
                 .map((place) => {
@@ -369,9 +385,11 @@ export const ZoneSidebar = () => {
 
                     return circle;
                 })
-                .filter((circle) => {
-                    return !turf.booleanWithin(circle, unionized);
-                });
+                .filter((circle) =>
+                    questionRegions.every((region) =>
+                        region ? turf.booleanIntersects(circle, region) : false,
+                    ),
+                );
 
             for (const question of questions.get()) {
                 if (planningModeEnabled.get() && question.data.drag) {
@@ -532,6 +550,7 @@ export const ZoneSidebar = () => {
         }
     }, [
         $questionFinishedMapData,
+        $perQuestionMapData,
         $displayHidingZones,
         $displayHidingZonesOptions,
         $hidingRadius,
