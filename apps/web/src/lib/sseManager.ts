@@ -6,6 +6,7 @@ import { getPendingEvents, getCachedSession, setCachedSession } from "@/lib/even
 import { suppressNextQuestionSave } from "@/lib/questionSaveSuppress";
 import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
 import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { hasPendingHiderSave, hasPendingPlanningModeSave } from "@/lib/sessionState";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 
@@ -148,6 +149,10 @@ export function startSSE(sessionId: string): void {
             }
             if (parsed.type === "hider.update") {
                 const { hiderLat, hiderLng } = parsed.payloadJson as { hiderLat: number | null; hiderLng: number | null };
+                if (hasPendingHiderSave()) {
+                    console.info("[taibled:sse] hider.update ignored — local save pending", { hiderLat, hiderLng });
+                    return;
+                }
                 console.info("[taibled:sse] applying hider.update", { hiderLat, hiderLng });
                 suppressNextHiderSave();
                 hiderMode.set(
@@ -159,6 +164,10 @@ export function startSSE(sessionId: string): void {
             }
             if (parsed.type === "planning.toggle") {
                 const { planningModeEnabled: enabled } = parsed.payloadJson as { planningModeEnabled: boolean };
+                if (hasPendingPlanningModeSave()) {
+                    console.info("[taibled:sse] planning.toggle ignored — local save pending", { enabled });
+                    return;
+                }
                 console.info("[taibled:sse] applying planning.toggle", enabled);
                 suppressNextPlanningModeSave();
                 planningModeEnabled.set(enabled);

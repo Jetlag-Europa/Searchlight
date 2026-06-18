@@ -78,6 +78,11 @@ const QUESTION_DEBOUNCE_MS = 500;
 // ── Hider mode ────────────────────────────────────────────────────────────────
 
 let hiderSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let hiderPatchInFlight = 0;
+
+export function hasPendingHiderSave(): boolean {
+    return hiderSaveTimer !== null || hiderPatchInFlight > 0;
+}
 
 export function saveHiderModeToServer(
     sessionId: string,
@@ -90,6 +95,7 @@ export function saveHiderModeToServer(
             ? { hiderLat: null, hiderLng: null }
             : { hiderLat: mode.latitude, hiderLng: mode.longitude };
         console.info("[sessionState] saving hider mode for", sessionId, body);
+        hiderPatchInFlight++;
         fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
             credentials: "include",
@@ -97,6 +103,8 @@ export function saveHiderModeToServer(
             body: JSON.stringify(body),
         }).catch((err) => {
             console.warn("[sessionState] failed to save hider mode:", err);
+        }).finally(() => {
+            hiderPatchInFlight--;
         });
     }, 800);
 }
@@ -104,12 +112,18 @@ export function saveHiderModeToServer(
 // ── Planning mode ─────────────────────────────────────────────────────────────
 
 let planningModeSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let planningPatchInFlight = 0;
+
+export function hasPendingPlanningModeSave(): boolean {
+    return planningModeSaveTimer !== null || planningPatchInFlight > 0;
+}
 
 export function savePlanningModeToServer(sessionId: string, enabled: boolean): void {
     if (planningModeSaveTimer) clearTimeout(planningModeSaveTimer);
     planningModeSaveTimer = setTimeout(() => {
         planningModeSaveTimer = null;
         console.info("[sessionState] saving planningModeEnabled for", sessionId, enabled);
+        planningPatchInFlight++;
         fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
             credentials: "include",
@@ -117,6 +131,8 @@ export function savePlanningModeToServer(sessionId: string, enabled: boolean): v
             body: JSON.stringify({ planningModeEnabled: enabled }),
         }).catch((err) => {
             console.warn("[sessionState] failed to save planningModeEnabled:", err);
+        }).finally(() => {
+            planningPatchInFlight--;
         });
     }, 300);
 }
@@ -156,6 +172,7 @@ export function flushHiderSave(
             ? { hiderLat: null, hiderLng: null }
             : { hiderLat: mode.latitude, hiderLng: mode.longitude };
     console.info("[sessionState] flushing hider save for", sessionId, body);
+    hiderPatchInFlight++;
     fetch(`${API_BASE}/sessions/${sessionId}`, {
         method: "PATCH",
         credentials: "include",
@@ -164,6 +181,8 @@ export function flushHiderSave(
         keepalive: true,
     }).catch((err) => {
         console.warn("[sessionState] failed to flush hider mode save:", err);
+    }).finally(() => {
+        hiderPatchInFlight--;
     });
 }
 
