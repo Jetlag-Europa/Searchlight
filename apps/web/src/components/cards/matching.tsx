@@ -36,6 +36,7 @@ import {
     type MatchingQuestion,
     matchingQuestionSchema,
     NO_GROUP,
+    type ZoneMatchingQuestions,
 } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
@@ -94,10 +95,10 @@ export const MatchingQuestionComponent = ({
                                 9: "OSM Zone 9",
                                 10: "OSM Zone 10",
                             }}
-                            value={data.cat.adminLevel.toString()}
+                            value={(data as ZoneMatchingQuestions).cat.adminLevel.toString()}
                             onValueChange={(value) =>
                                 questionModified(
-                                    (data.cat.adminLevel = parseInt(value) as
+                                    ((data as ZoneMatchingQuestions).cat.adminLevel = parseInt(value) as
                                         | 2
                                         | 3
                                         | 4

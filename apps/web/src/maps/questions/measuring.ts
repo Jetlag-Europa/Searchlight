@@ -317,7 +317,7 @@ export const determineMeasuringBoundary = async (
             }
 
             const data = await findPlacesInZone(
-                `[${LOCATION_FIRST_TAG[location]}=${location}]`,
+                `[${LOCATION_FIRST_TAG[location as keyof typeof LOCATION_FIRST_TAG]}=${location}]`,
                 `Finding ${prettifyLocation(location, true).toLowerCase()}...`,
                 "nwr",
                 "center",
@@ -554,6 +554,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
                 drag: false,
                 color: "black",
                 collapsed: false,
+                enabled: true,
             });
         }
 

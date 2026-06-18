@@ -27,7 +27,7 @@ export async function getLocationsForTentacleQuestion(
         console.info(`[taibled:poi] tentacle ${question.locationType} → ${nearby.length} custom within radius`);
         return turf.featureCollection(nearby) as FeatureCollection<Point>;
     }
-    return findTentacleLocations(question);
+    return findTentacleLocations(question as Exclude<TentacleQuestion, { locationType: "custom" }>);
 }
 
 const filterPointsWithinRadius = (

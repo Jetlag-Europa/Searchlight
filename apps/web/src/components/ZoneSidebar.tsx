@@ -1281,7 +1281,7 @@ async function selectionProcess(
                 question.data.type === "consulate" ||
                 question.data.type === "park")
         ) {
-            const nearestQuestion = await nearestToQuestion(question.data);
+            const nearestQuestion = await nearestToQuestion(question.data as Parameters<typeof nearestToQuestion>[0]);
 
             let radius = 30;
 
@@ -1301,6 +1301,7 @@ async function selectionProcess(
                         drag: false,
                         color: "black",
                         collapsed: false,
+                        enabled: true,
                     },
                     "Finding matching locations to hiding zone...",
                 );

@@ -22,7 +22,8 @@ export const ICON_COLORS = {
 };
 
 export const LOCATION_FIRST_TAG: {
-    [key in APILocations]:
+    [key in "aquarium" | "hospital" | "peak" | "museum" | "theme_park" | "zoo"
+           | "cinema" | "library" | "golf_course" | "consulate" | "park"]:
         | "amenity"
         | "tourism"
         | "leisure"

@@ -1,4 +1,4 @@
-import type { FeatureCollection } from "geojson";
+import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import { atom } from "nanostores";
 
 import {
@@ -205,7 +205,7 @@ export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
             if (def.mapBoundaryGeoJsonPath && !mapBoundaryCache.has(def.id)) {
                 fetch(`${NORMALIZED_BASE}${def.mapBoundaryGeoJsonPath}`)
                     .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-                    .then((geojson: FeatureCollection) => {
+                    .then((geojson: FeatureCollection<Polygon | MultiPolygon>) => {
                         mapBoundaryCache.set(def.id, geojson);
                         console.info("[taibled:boundary] pre-cached boundary for", def.label);
                     })
@@ -233,7 +233,7 @@ export function getGameBySentinel(value: string): GameDefinition | undefined {
 }
 
 const stationCache = new Map<string, CustomStation[]>();
-const mapBoundaryCache = new Map<string, FeatureCollection>();
+const mapBoundaryCache = new Map<string, FeatureCollection<Polygon | MultiPolygon>>();
 
 async function loadGameStations(game: GameDefinition): Promise<CustomStation[]> {
     const cached = stationCache.get(game.id);
@@ -276,7 +276,7 @@ async function loadGamePolyGeoJSON(game: GameDefinition): Promise<void> {
         console.warn("[taibled:zones] poly GeoJSON fetch failed for", game.id, res.status);
         return;
     }
-    const geojson = await res.json() as FeatureCollection;
+    const geojson = await res.json() as FeatureCollection<Polygon | MultiPolygon>;
     polyGeoJSON.set(geojson);
     console.info("[taibled:zones] loaded polygon zone for", game.label);
 }
@@ -295,7 +295,7 @@ async function loadMapBoundaryGeoJSON(game: GameDefinition): Promise<void> {
         console.warn("[taibled:boundary] boundary GeoJSON fetch failed for", game.id, res.status);
         return;
     }
-    const geojson = await res.json() as FeatureCollection;
+    const geojson = await res.json() as FeatureCollection<Polygon | MultiPolygon>;
     mapBoundaryCache.set(game.id, geojson);
     polyGeoJSON.set(geojson);
     console.info("[taibled:boundary] loaded custom map boundary for", game.label);

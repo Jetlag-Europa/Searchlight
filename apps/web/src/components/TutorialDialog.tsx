@@ -269,6 +269,7 @@ const tutorialSteps: TutorialStep[] = [
                                 unit: "miles",
                                 color: "blue",
                                 within: false,
+                                enabled: true,
                             }}
                         />
                     </SidebarMenu>
@@ -320,6 +321,7 @@ const tutorialSteps: TutorialStep[] = [
                                 colorA: "red",
                                 colorB: "blue",
                                 warmer: false,
+                                enabled: true,
                             }}
                         />
                     </SidebarMenu>
@@ -367,6 +369,7 @@ const tutorialSteps: TutorialStep[] = [
                                 color: "red",
                                 locationType: "theme_park",
                                 location: false,
+                                enabled: true,
                             }}
                         />
                     </SidebarMenu>
@@ -416,6 +419,7 @@ const tutorialSteps: TutorialStep[] = [
                                 color: "blue",
                                 same: true,
                                 type: "airport",
+                                enabled: true,
                             }}
                         />
                     </SidebarMenu>
@@ -498,6 +502,7 @@ const tutorialSteps: TutorialStep[] = [
                                 color: "green",
                                 hiderCloser: true,
                                 type: "coastline",
+                                enabled: true,
                             }}
                         />
                     </SidebarMenu>

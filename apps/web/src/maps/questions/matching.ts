@@ -57,8 +57,10 @@ import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
 import type {
     APILocations,
+    CustomMatchingQuestion,
     HomeGameMatchingQuestions,
     MatchingQuestion,
+    ZoneMatchingQuestions,
 } from "@/maps/schema";
 
 const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
@@ -123,7 +125,7 @@ export const findMatchingPlaces = async (question: MatchingQuestion) => {
             );
         }
         case "custom-points": {
-            return question.geo!;
+            return (question as CustomMatchingQuestion).geo!;
         }
         case "lux-mountains": {
             return LUX_MOUNTAINS.map((p) =>
@@ -149,7 +151,7 @@ export const findMatchingPlaces = async (question: MatchingQuestion) => {
             const location = question.type.split("-full")[0] as APILocations;
 
             const data = await findPlacesInZone(
-                `[${LOCATION_FIRST_TAG[location]}=${location}]`,
+                `[${LOCATION_FIRST_TAG[location as keyof typeof LOCATION_FIRST_TAG]}=${location}]`,
                 `Finding ${prettifyLocation(location, true).toLowerCase()}...`,
                 "nwr",
                 "center",
@@ -195,7 +197,7 @@ const _matchingBoundaryCache = new Map<string, any>();
 const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
         let boundary;
 
-        switch (question.type) {
+        switch (question.type as string) {
             case "aquarium":
             case "zoo":
             case "theme_park":
@@ -213,14 +215,14 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 return false;
             }
             case "custom-zone": {
-                boundary = question.geo;
+                boundary = (question as CustomMatchingQuestion).geo;
                 break;
             }
             case "zone": {
                 boundary = await findAdminBoundary(
                     question.lat,
                     question.lng,
-                    question.cat.adminLevel,
+                    (question as ZoneMatchingQuestions).cat.adminLevel,
                 );
 
                 if (!boundary) {
@@ -341,10 +343,11 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 break;
             }
             case "letter-zone": {
+                const zoneQ = question as ZoneMatchingQuestions;
                 const zone = await findAdminBoundary(
                     question.lat,
                     question.lng,
-                    question.cat.adminLevel,
+                    zoneQ.cat.adminLevel,
                 );
 
                 if (!zone) {
@@ -370,12 +373,12 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 boundary = turf.featureCollection(
                     osmtogeojson(
                         await findPlacesInZone(
-                            `[admin_level=${question.cat.adminLevel}]["name:en"~"^${letter}.+"]`, // Regex is faster than filtering afterward
+                            `[admin_level=${zoneQ.cat.adminLevel}]["name:en"~"^${letter}.+"]`, // Regex is faster than filtering afterward
                             `Finding zones that start with the same letter (${letter})...`,
                             "relation",
                             "geom",
                             [
-                                `[admin_level=${question.cat.adminLevel}]["name"~"^${letter}.+"]`,
+                                `[admin_level=${zoneQ.cat.adminLevel}]["name"~"^${letter}.+"]`,
                             ], // Regex is faster than filtering afterward
                         ),
                     ).features.filter(
@@ -559,6 +562,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
                 drag: false,
                 color: "black",
                 collapsed: false,
+                enabled: true,
             });
         }
 

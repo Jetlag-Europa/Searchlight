@@ -46,6 +46,22 @@ export const prettifyLocation = (
             return "Foreign Consulate";
         case "park":
             return "Park";
+        case "covrigarie":
+            return "Covrigarie";
+        case "train_station":
+            return "Train Station";
+        case "camping":
+            return "Camping";
+        case "mill":
+            return "Mill";
+        case "mountain":
+            return "Mountain";
+        case "bern-mountain":
+            return "Mountain";
+        case "bern-park":
+            return "Park";
+        default:
+            return location;
     }
 };
 

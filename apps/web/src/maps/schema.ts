@@ -77,6 +77,7 @@ const thermometerQuestionSchema = z
         /** Note that drag is now synonymous with unlocked */
         drag: z.boolean().default(true),
         collapsed: z.boolean().default(false),
+        enabled: z.boolean().default(true),
     })
     .transform((question) => {
         if (question.colorA === question.colorB) {
@@ -344,9 +345,7 @@ const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
 });
 
 const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("brno-district").describe("Same District (Brno)"),
-    ]),
+    type: z.literal("brno-district").describe("Same District (Brno)"),
 });
 
 const bernMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({

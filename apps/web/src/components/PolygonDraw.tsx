@@ -324,7 +324,7 @@ export const PolygonDraw = () => {
             const geoJSON = turf.combine(turf.featureCollection(geoJSONs))
                 .features[0];
 
-            question.data.geo = geoJSON;
+            (question.data as CustomMatchingQuestion).geo = geoJSON;
             if (featureRef.current) {
                 Object.values(featureRef.current._layers).map((layer: any) => {
                     if (!layer.options.isSpecial) {
@@ -345,7 +345,7 @@ export const PolygonDraw = () => {
             );
             const geoJSON = turf.featureCollection(geoJSONs);
 
-            question.data.geo = _.uniqBy(
+            (question.data as CustomMatchingQuestion).geo = _.uniqBy(
                 geoJSON.features as CustomTentacleQuestion["places"],
                 (x) => x.geometry.coordinates.join(","),
             ); // Sometimes keys are duplicated
@@ -369,7 +369,7 @@ export const PolygonDraw = () => {
             );
             const geoJSON = turf.featureCollection(geoJSONs);
 
-            question.data.geo = turf.featureCollection(
+            (question.data as CustomMeasuringQuestion).geo = turf.featureCollection(
                 _.uniqBy(
                     geoJSON.features as CustomTentacleQuestion["places"],
                     (x) => x.geometry.coordinates.join(","),
@@ -406,7 +406,7 @@ export const PolygonDraw = () => {
             {question &&
                 question.id === "matching" &&
                 question.data.type === "custom-points" &&
-                question.data.geo.map((x: any) => (
+                (question.data as CustomMatchingQuestion).geo.map((x: any) => (
                     <MatchingPointMarker
                         key={x.geometry.coordinates.join(",")}
                         point={x}
@@ -416,7 +416,7 @@ export const PolygonDraw = () => {
                 question.id === "measuring" &&
                 question.data.type === "custom-measure" &&
                 turf
-                    .flatten(question.data.geo)
+                    .flatten((question.data as CustomMeasuringQuestion).geo)
                     .features.filter((x: any) => turf.getType(x) === "Point")
                     .map((x: any) => (
                         <MeasuringPointMarker
@@ -428,7 +428,7 @@ export const PolygonDraw = () => {
                 question.id === "measuring" &&
                 question.data.type === "custom-measure" &&
                 turf
-                    .flatten(question.data.geo)
+                    .flatten((question.data as CustomMeasuringQuestion).geo)
                     .features.filter((x: any) => turf.getType(x) === "Polygon")
                     .map((x: any) => (
                         <Polygon
@@ -445,7 +445,7 @@ export const PolygonDraw = () => {
                 question.id === "measuring" &&
                 question.data.type === "custom-measure" &&
                 turf
-                    .flatten(question.data.geo)
+                    .flatten((question.data as CustomMeasuringQuestion).geo)
                     .features.filter(
                         (x: any) => turf.getType(x) === "LineString",
                     )
@@ -463,10 +463,10 @@ export const PolygonDraw = () => {
             {question &&
                 question.id === "matching" &&
                 question.data.type === "custom-zone" &&
-                question.data.geo &&
-                (question.data.geo.type === "FeatureCollection"
-                    ? turf.flatten(question.data.geo)
-                    : turf.flatten(turf.featureCollection([question.data.geo]))
+                (question.data as CustomMatchingQuestion).geo &&
+                ((question.data as CustomMatchingQuestion).geo.type === "FeatureCollection"
+                    ? turf.flatten((question.data as CustomMatchingQuestion).geo)
+                    : turf.flatten(turf.featureCollection([(question.data as CustomMatchingQuestion).geo]))
                 ).features.map((x: any) => (
                     <Polygon
                         key={JSON.stringify(x)}

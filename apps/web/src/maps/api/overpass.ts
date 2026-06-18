@@ -124,7 +124,7 @@ export const findTentacleLocations = async (
 ) => {
     const query = `
 [out:json][timeout:25];
-nwr["${LOCATION_FIRST_TAG[question.locationType]}"="${question.locationType}"](around:${turf.convertLength(
+nwr["${LOCATION_FIRST_TAG[question.locationType as keyof typeof LOCATION_FIRST_TAG]}"="${question.locationType}"](around:${turf.convertLength(
         question.radius,
         question.unit,
         "meters",
@@ -494,6 +494,7 @@ export const nearestToQuestion = async (
                 drag: false,
                 color: "black",
                 collapsed: false,
+                enabled: true,
             },
             "Finding matching locations...",
         );
