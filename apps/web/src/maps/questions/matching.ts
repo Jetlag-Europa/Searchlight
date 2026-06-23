@@ -265,7 +265,8 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
-            case "bern-bezirk": {
+            case "bern-bezirk":
+            case "zurich-bezirk": {
                 // Swiss districts (Bezirke / Verwaltungskreise) are admin_level=6 in OSM.
                 boundary = await findBoundaryFromAPI(question.lat, question.lng, 6);
                 if (!boundary) {

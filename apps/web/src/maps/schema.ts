@@ -369,6 +369,10 @@ const exterRotterdamMatchingQuestionsSchema = baseMatchingQuestionSchema.extend(
     type: z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
 });
 
+const zurichMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.literal("zurich-bezirk").describe("Same Bezirk (Zürich)"),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -379,6 +383,7 @@ export const matchingQuestionSchema = z.union([
     bucharestMatchingQuestionsSchema.describe(NO_GROUP),
     bernMatchingQuestionsSchema.describe(NO_GROUP),
     exterRotterdamMatchingQuestionsSchema.describe(NO_GROUP),
+    zurichMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -423,6 +428,10 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "rotterdam-municipality":    "__bundled-exter-rotterdam-2026__",
     "rotterdam-rail":            "__bundled-exter-rotterdam-2026__",
     "rotterdam-coastline":       "__bundled-exter-rotterdam-2026__",
+    // Zürich — Bezirk match + canton/lake-coast measuring
+    "zurich-bezirk":             "__bundled-zurich-2026__",
+    "zurich-canton":             "__bundled-zurich-2026__",
+    "zurich-coastline":          "__bundled-zurich-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -542,6 +551,13 @@ const exterRotterdamMeasuringQuestionsSchema = baseMeasuringQuestionSchema.exten
     ]),
 });
 
+const zurichMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("zurich-canton").describe("Canton Border Question (Zürich)"),
+        z.literal("zurich-coastline").describe("Distance to Lake Zürich Coast"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -549,6 +565,7 @@ export const measuringQuestionSchema = z.union([
     bucharestMeasuringQuestionsSchema.describe(NO_GROUP),
     bernMeasuringQuestionsSchema.describe(NO_GROUP),
     exterRotterdamMeasuringQuestionsSchema.describe(NO_GROUP),
+    zurichMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

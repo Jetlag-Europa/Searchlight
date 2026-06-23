@@ -209,21 +209,26 @@ export const determineMeasuringBoundary = async (
             console.info(`[taibled:border] international-border → ${features.length} border segments`);
             return [turf.combine(turf.featureCollection(features as any)).features[0]];
         }
-        case "bern-canton": {
-            const bernCantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
-            if (!bernCantonBoundary) {
+        case "bern-canton":
+        case "zurich-canton": {
+            // Swiss cantons are admin_level=4 in OSM.
+            const cantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
+            if (!cantonBoundary) {
                 toast.error("No canton found at this point — must be inside the game area.");
                 return false;
             }
-            return [bernCantonBoundary];
+            return [cantonBoundary];
         }
         case "rotterdam-rail":
-        case "rotterdam-coastline": {
-            // Bundled local LineString (HSL high-speed rail / Kustlijn coastline).
+        case "rotterdam-coastline":
+        case "zurich-coastline": {
+            // Bundled local LineString (HSL high-speed rail / coastline / lake coast).
             const file =
                 question.type === "rotterdam-rail"
                     ? "exter-rotterdam-hsl.geojson"
-                    : "exter-rotterdam-coastline.geojson";
+                    : question.type === "rotterdam-coastline"
+                      ? "exter-rotterdam-coastline.geojson"
+                      : "zurich-lake-coast.geojson";
             const res = await fetch(import.meta.env.BASE_URL + file);
             const fc = await res.json();
             if (!fc.features?.length) return false;
@@ -450,7 +455,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
-    if (question.type === "bern-canton") {
+    if (question.type === "bern-canton" || question.type === "zurich-canton") {
         const cantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
         if (!cantonBoundary) return question;
         // explode handles Polygon, MultiPolygon, and any other geometry type
@@ -463,11 +468,17 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
-    if (question.type === "rotterdam-rail" || question.type === "rotterdam-coastline") {
+    if (
+        question.type === "rotterdam-rail" ||
+        question.type === "rotterdam-coastline" ||
+        question.type === "zurich-coastline"
+    ) {
         const file =
             question.type === "rotterdam-rail"
                 ? "exter-rotterdam-hsl.geojson"
-                : "exter-rotterdam-coastline.geojson";
+                : question.type === "rotterdam-coastline"
+                  ? "exter-rotterdam-coastline.geojson"
+                  : "zurich-lake-coast.geojson";
         const res = await fetch(import.meta.env.BASE_URL + file);
         const fc = await res.json();
         if (!fc.features?.length) return question;

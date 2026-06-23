@@ -183,6 +183,16 @@ const BRUSSELS_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+const ZURICH_CANTON_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [47.4133024, 8.656394] },
+  properties: {
+    osm_type: "R", osm_id: 1690227, extent: [47.6944697, 8.3576934, 47.1594376, 8.984951],
+    country: "Switzerland", osm_key: "place", countrycode: "CH",
+    osm_value: "region", name: "Zürich", type: "region",
+  },
+};
+
 // Discord server ids (mirror of SERVERS in seed.ts).
 const SERVER = {
   UK: "1059625399979606166",
@@ -315,6 +325,23 @@ export const GAME_REGISTRY: GameManifest[] = [
     hidingRadiusUnits: "kilometers",
     osm: BRUSSELS_CITY_FEATURE,
     kmlPath: "brussels-hiding-zones.kml",
+  },
+  {
+    sentinel: "__bundled-zurich-2026__",
+    name: "Zurich 2026",
+    serverId: SERVER.CH,
+    size: "large",
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
+    osm: ZURICH_CANTON_FEATURE,
+    kmlPath: "zurich-poi.kml",
+    stationsKml: "zurich-stations.kml",
+    boundaryGeoJson: "zurich-border.geojson",
+    // POI folders use canonical category names → identity mapping.
+    poiFolders: {},
+    // Hide the generic (sea) coastline measuring question — Zurich is landlocked;
+    // use the custom "Distance to Lake Zürich Coast" (zurich-coastline) instead.
+    hiddenQuestionTypes: ["coastline"],
   },
 ];
 
