@@ -460,6 +460,41 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                         break;
                     }
                 }
+
+                if (!boundary) {
+                    // geoSpatialVoronoi (spherical voronoi reprojected through
+                    // Mercator) produces overlapping/gappy cells for tightly
+                    // clustered POIs — e.g. 3 consulates within ~150 m — so the
+                    // pin can land in no cell and the question silently stops
+                    // cropping. Fall back to a planar voronoi clipped to a bbox
+                    // covering the game area, the POIs and the pin, which tiles
+                    // cleanly.
+                    let [minX, minY, maxX, maxY] = turf.bbox(
+                        turf.featureCollection([...data, point]),
+                    );
+                    const poly = polyGeoJSON.get();
+                    if (poly) {
+                        const [pa, pb, pc, pd] = turf.bbox(poly as any);
+                        minX = Math.min(minX, pa);
+                        minY = Math.min(minY, pb);
+                        maxX = Math.max(maxX, pc);
+                        maxY = Math.max(maxY, pd);
+                    }
+                    const padX = (maxX - minX) * 0.1 || 0.1;
+                    const padY = (maxY - minY) * 0.1 || 0.1;
+                    const planar = turf.voronoi(turf.featureCollection(data), {
+                        bbox: [minX - padX, minY - padY, maxX + padX, maxY + padY],
+                    });
+                    for (const feature of planar.features ?? []) {
+                        if (
+                            feature?.geometry &&
+                            turf.booleanPointInPolygon(point, feature)
+                        ) {
+                            boundary = feature;
+                            break;
+                        }
+                    }
+                }
                 break;
             }
         }
