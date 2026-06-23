@@ -3,9 +3,18 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 
-const OVERPASS_PRIMARY = "https://overpass-api.de/api/interpreter";
-const OVERPASS_FALLBACK = "https://overpass.kumi.systems/api/interpreter";
 const OVERPASS_TIMEOUT_MS = 30_000;
+
+// Overpass endpoints tried in order. A self-hosted instance (set OVERPASS_URL,
+// e.g. http://host.docker.internal:12345/api/interpreter) is tried first — the
+// public servers regularly time out on the is_in/admin-boundary queries the
+// Bezirk/canton questions need, which surfaced as 502s. Public servers remain as
+// fallback.
+const OVERPASS_URLS = [
+    process.env.OVERPASS_URL,
+    "https://overpass-api.de/api/interpreter",
+    "https://overpass.kumi.systems/api/interpreter",
+].filter((u): u is string => Boolean(u));
 
 const OSM_TYPE_MAP: Record<string, string> = {
     W: "way",
@@ -15,14 +24,16 @@ const OSM_TYPE_MAP: Record<string, string> = {
 
 async function overpassFetch(query: string): Promise<Response | null> {
     const encoded = encodeURIComponent(query);
-    const opts = {
-        headers: { "User-Agent": "TaibledFork/1.0" },
-        signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
-    };
-    const primary = await fetch(`${OVERPASS_PRIMARY}?data=${encoded}`, opts).catch(() => null);
-    if (primary?.ok) return primary;
-    const fallback = await fetch(`${OVERPASS_FALLBACK}?data=${encoded}`, opts).catch(() => null);
-    return fallback?.ok ? fallback : null;
+    for (const url of OVERPASS_URLS) {
+        // Fresh signal per attempt — a timed-out signal would otherwise instantly
+        // abort the next endpoint.
+        const res = await fetch(`${url}?data=${encoded}`, {
+            headers: { "User-Agent": "TaibledFork/1.0" },
+            signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
+        }).catch(() => null);
+        if (res?.ok) return res;
+    }
+    return null;
 }
 
 export async function boundaryRoutes(app: FastifyInstance) {
