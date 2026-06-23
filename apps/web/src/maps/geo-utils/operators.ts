@@ -15,7 +15,7 @@ import type {
 
 import { BLANK_GEOJSON } from "@/maps/api";
 
-export { geoSpatialVoronoi } from "@/maps/geo-utils/voronoi";
+export { geoSpatialVoronoi, geoSpatialVoronoiSafe } from "@/maps/geo-utils/voronoi";
 
 export const safeUnion = (input: FeatureCollection<Polygon | MultiPolygon>) => {
     if (input.features.length === 0) throw new Error("safeUnion: no features");

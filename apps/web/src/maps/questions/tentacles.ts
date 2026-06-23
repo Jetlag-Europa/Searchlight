@@ -1,12 +1,32 @@
 import * as turf from "@turf/turf";
-import type { FeatureCollection, Point } from "geojson";
+import type { BBox, FeatureCollection, Point } from "geojson";
 
 import { hiderMode } from "@/lib/context";
 import { customPOIPoints, resolveCategory } from "@/lib/poiOverride";
 import { findTentacleLocations } from "@/maps/api";
 import { arcBuffer, safeUnion } from "@/maps/geo-utils";
-import { geoSpatialVoronoi } from "@/maps/geo-utils";
+import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
+
+// A bbox covering the tentacle's POIs and its radius circle, used to clip the
+// planar-Voronoi fallback in geoSpatialVoronoiSafe (which kicks in only when the
+// spherical Voronoi is degenerate for tightly-clustered POIs).
+function tentacleVoronoiBbox(
+    points: FeatureCollection<Point>,
+    question: TentacleQuestion,
+): BBox {
+    const circle = turf.buffer(turf.point([question.lng, question.lat]), question.radius * 1.15, {
+        units: question.unit,
+    });
+    const fc = turf.featureCollection([
+        ...points.features,
+        ...(circle ? [circle] : []),
+    ] as never);
+    const [a, b, c, d] = turf.bbox(fc);
+    const px = (c - a) * 0.1 || 0.1;
+    const py = (d - b) * 0.1 || 0.1;
+    return [a - px, b - py, c + px, d + py];
+}
 
 // Promise cache for Overpass-backed tentacle lookups.
 // getLocationsForTentacleQuestion is called up to 3-4× per refresh (per-question
@@ -118,7 +138,7 @@ export const adjustPerTentacle = async (
               )
             : rawPoints;
 
-    const voronoi = geoSpatialVoronoi(points);
+    const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
 
     const correctPolygon = voronoi.features.find((feature: any) => {
         if (!question.location) return false;
@@ -164,7 +184,7 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
               )
             : rawPoints;
 
-    const voronoi = geoSpatialVoronoi(points);
+    const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
 
     const hider = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
     const location = turf.point([question.lng, question.lat]);
@@ -179,17 +199,18 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
 
     let correctLocation: any = null;
 
-    const correctPolygon = voronoi.features.find(
-        (feature: any, index: number) => {
-            const pointIn =
-                turf.booleanPointInPolygon(hider, feature.geometry) || false;
+    // Use the cell's own `site` rather than indexing into points — the planar
+    // fallback in geoSpatialVoronoiSafe may drop null cells, so cell order no
+    // longer lines up with the input points. Both Voronoi paths set properties.site.
+    const correctPolygon = voronoi.features.find((feature: any) => {
+        const pointIn =
+            turf.booleanPointInPolygon(hider, feature.geometry) || false;
 
-            if (pointIn) {
-                correctLocation = points.features[index];
-            }
-            return pointIn;
-        },
-    );
+        if (pointIn) {
+            correctLocation = feature.properties.site;
+        }
+        return pointIn;
+    });
 
     if (!correctPolygon) {
         return question;
@@ -216,7 +237,7 @@ export const tentaclesPlanningPolygon = async (question: TentacleQuestion) => {
               )
             : rawPoints;
 
-    const voronoi = geoSpatialVoronoi(points);
+    const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
     const circle = await arcBuffer(
         turf.featureCollection([turf.point([question.lng, question.lat])]),
         question.radius,
