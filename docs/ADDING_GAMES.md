@@ -71,6 +71,27 @@ Copy into `apps/web/public/` with lowercase, hyphenated names:
   `apps/web/src/maps/api/importers.ts`). Folders named `administrative`/`water`
   are skipped.
 
+#### GeoJSON format requirements (learned the hard way)
+
+When converting KML polygons (boundary, municipalities, postcodes) to GeoJSON:
+
+- **Every `.geojson` must be a `FeatureCollection`** — including the single-polygon
+  `*-border.geojson`. The client sets `polyGeoJSON` from the border and treats it
+  as a FeatureCollection (`.features[…]`); a bare `Feature` throws on the
+  custom-boundary path and the error is **silently swallowed** by the try/catch in
+  `adjustMapGeoDataForQuestion` — boundary/admin questions then fail to eliminate
+  hiding zones with no visible error. (Generators like shapely emit a bare Feature
+  by default — wrap it.)
+- **Wind rings CCW** (GeoJSON RFC 7946: exterior counterclockwise, holes clockwise).
+  shapely keeps the source orientation and KML is often clockwise; rewind with
+  `shapely.geometry.polygon.orient(geom, 1.0)` or `turf.rewind`. (turf's PIP and
+  intersect are winding-agnostic, but be spec-correct.)
+- **Mountains go in a folder named `mountain`** (the question type is internally
+  `peak`); station-name questions use the `train_station` category.
+- After generating, replicate the masking in node with the project's `@turf/turf`
+  (`turf.intersect(featureCollection([border, zone]))`) and confirm a sane,
+  non-empty area before declaring it done — don't rely on point-in-polygon alone.
+
 ### 3. Add ONE manifest to `GAME_REGISTRY`
 
 Edit `packages/shared/src/games.ts`. A standard POI game:

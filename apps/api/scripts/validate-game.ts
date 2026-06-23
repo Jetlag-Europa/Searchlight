@@ -32,6 +32,17 @@ function folderNames(kml: string): string[] {
     .filter(Boolean);
 }
 
+// Signed area (shoelace); positive = clockwise in lon/lat order.
+function ringIsCW(ring: number[][]): boolean {
+  let sum = 0;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [x1, y1] = ring[i];
+    const [x2, y2] = ring[i + 1];
+    sum += (x2 - x1) * (y2 + y1);
+  }
+  return sum > 0;
+}
+
 function tierValues(kml: string): Set<string> {
   const out = new Set<string>();
   const re = /<Data name="tier">\s*<value>([\s\S]*?)<\/value>/gi;
@@ -82,19 +93,27 @@ function validate(g: GameManifest): string[] {
     }
   }
 
-  // Boundary GeoJSON parses to a polygon.
+  // Boundary GeoJSON: must be a FeatureCollection of Polygon/MultiPolygon, CCW.
   if (g.boundaryGeoJson) {
     const txt = read(g.boundaryGeoJson);
     if (txt) {
       try {
         const geo = JSON.parse(txt);
-        const t = geo.type === "FeatureCollection"
-          ? geo.features?.[0]?.geometry?.type
-          : geo.type === "Feature"
-            ? geo.geometry?.type
-            : geo.type;
-        if (!["Polygon", "MultiPolygon"].includes(t)) {
-          errors.push(`boundary ${g.boundaryGeoJson} is not a Polygon/MultiPolygon (got ${t})`);
+        // Every game's border is a FeatureCollection; the client treats it as
+        // one (polyGeoJSON.features). A bare Feature silently breaks masking.
+        if (geo.type !== "FeatureCollection") {
+          errors.push(`boundary ${g.boundaryGeoJson} must be a FeatureCollection (got ${geo.type})`);
+        }
+        const geom = geo.type === "FeatureCollection"
+          ? geo.features?.[0]?.geometry
+          : geo.type === "Feature" ? geo.geometry : geo;
+        if (!["Polygon", "MultiPolygon"].includes(geom?.type)) {
+          errors.push(`boundary ${g.boundaryGeoJson} is not a Polygon/MultiPolygon (got ${geom?.type})`);
+        } else {
+          const ring = geom.type === "Polygon" ? geom.coordinates[0] : geom.coordinates[0][0];
+          if (ring && ringIsCW(ring)) {
+            warn.push(`boundary ${g.boundaryGeoJson} exterior ring is clockwise; GeoJSON wants CCW (turf.rewind / shapely.orient)`);
+          }
         }
       } catch (e) {
         errors.push(`boundary ${g.boundaryGeoJson} is not valid JSON: ${(e as Error).message}`);
