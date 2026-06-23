@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import type { Feature, MultiPolygon } from "geojson";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
 import _ from "lodash";
 import osmtogeojson from "osmtogeojson";
 
@@ -217,7 +217,17 @@ export const determineMeasuringBoundary = async (
                 toast.error("No canton found at this point — must be inside the game area.");
                 return false;
             }
-            return [cantonBoundary];
+            // Measure distance to the canton BORDER (the ring), not the filled
+            // polygon: a geodesic polygon→point distance is 0 when the seeker is
+            // inside the canton, which collapses the buffer and renders nothing.
+            // Simplify first — the raw OSM canton ring is ~8k points, and the
+            // geodesic buffer over that is slow; ~55 m tolerance is plenty here.
+            const simplifiedCanton = turf.simplify(
+                cantonBoundary as Feature<Polygon | MultiPolygon>,
+                { tolerance: 0.0005, highQuality: false },
+            );
+            const line = turf.polygonToLine(simplifiedCanton);
+            return line.type === "FeatureCollection" ? line.features : [line];
         }
         case "rotterdam-rail":
         case "rotterdam-coastline":
