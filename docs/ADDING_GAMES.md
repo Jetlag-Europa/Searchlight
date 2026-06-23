@@ -130,6 +130,13 @@ Variations:
   `poiFolders`.
 - **Role-gated game** (e.g. Home Games): add
   `gate: { requireGuildId: "…", requireRoleId: "…" }`.
+- **Hide a question type for this game:** add
+  `hiddenQuestionTypes: ["airport", …]`. Use this when a POI's only real-world
+  feature sits outside the play area but Overpass still matches it (e.g. an
+  aerodrome polygon overlapping the boundary even though its centre is outside) —
+  removing the POI from the KML is not enough. The type is dropped from the
+  matching/measuring/tentacle pickers for this game only; already-added questions
+  are unaffected.
 
 > `poiFolders` is the trigger for POI loading. Use `{}` for a canonical POI KML;
 > only games with a `poiFolders`/POI file load POIs.
