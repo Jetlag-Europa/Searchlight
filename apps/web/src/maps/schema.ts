@@ -340,7 +340,8 @@ const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
         z.literal("south-limburg-municipality").describe("2nd Admin Division (South Limburg)"),
         z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
         z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
-        z.literal("sl-mountain").describe("Nearest Mountain (South Limburg)"),
+        // Mountain uses the generic "Mountain" question, which auto-uses the
+        // game's custom mountain POIs — no game-prefixed duplicate needed.
     ]),
 });
 
@@ -397,7 +398,6 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "south-limburg-municipality":"__bundled-south-limburg-2026__",
     "sl-camping":                "__bundled-south-limburg-2026__",
     "sl-mill":                   "__bundled-south-limburg-2026__",
-    "sl-mountain":               "__bundled-south-limburg-2026__",
     // Tentacle-only types unique to South Limburg
     "camping":                   "__bundled-south-limburg-2026__",
     "mill":                      "__bundled-south-limburg-2026__",
@@ -513,7 +513,7 @@ const southLimburgMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend(
     type: z.union([
         z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
         z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
-        z.literal("sl-mountain").describe("Nearest Mountain (South Limburg)"),
+        // Mountain uses the generic "Mountain" question (auto-uses custom POIs).
     ]),
 });
 

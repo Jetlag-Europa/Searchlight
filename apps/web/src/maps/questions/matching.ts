@@ -386,7 +386,6 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             }
             case "sl-camping":
             case "sl-mill":
-            case "sl-mountain":
             case "sl-library":
             case "sl-museum":
             case "sl-golf_course":

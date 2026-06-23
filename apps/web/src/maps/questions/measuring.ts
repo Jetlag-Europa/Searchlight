@@ -232,11 +232,10 @@ export const determineMeasuringBoundary = async (
         }
         case "sl-camping":
         case "sl-mill":
-        case "sl-mountain":
         case "buch-train_station":
         case "bern-mountain": {
             const catMap: Record<string, string> = {
-                "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
+                "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
                 "bern-mountain": "mountain",
             };
@@ -485,7 +484,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
     }
 
     const GAME_POI_TYPE_MAP: Record<string, string> = {
-        "sl-camping": "camping", "sl-mill": "mill", "sl-mountain": "mountain",
+        "sl-camping": "camping", "sl-mill": "mill",
         "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
         "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
         "sl-hospital": "hospital", "sl-airport": "airport", "sl-consulate": "consulate",

@@ -45,7 +45,6 @@ const CATEGORY_ALIASES: Record<string, string> = {
     peak: "mountain",
     "sl-camping": "camping",
     "sl-mill": "mill",
-    "sl-mountain": "mountain",
     "buch-train_station": "train_station",
     "bern-mountain": "mountain",
     "bern-park": "park",
