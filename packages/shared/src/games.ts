@@ -106,6 +106,16 @@ const ROTTERDAM_FEATURE: GameOSMFeature = {
   },
 };
 
+const SOUTH_LIMBURG_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [50.8474, 5.8666] },
+  properties: {
+    osm_type: "R", osm_id: 47772, extent: [50.9434, 5.6389, 50.7504, 6.0942],
+    country: "Netherlands", osm_key: "place", countrycode: "NL",
+    osm_value: "region", name: "South Limburg", type: "region",
+  },
+};
+
 const BUCHAREST_CITY_FEATURE: GameOSMFeature = {
   type: "Feature",
   geometry: { type: "Point", coordinates: [44.4268, 26.1025] },
@@ -195,7 +205,20 @@ export const GAME_REGISTRY: GameManifest[] = [
     },
     gate: { requireGuildId: SERVER.EU, requireRoleId: "1514353477231312966" },
   },
-  // South Limburg 2026 removed — to be re-imported. See docs/ADDING_GAMES.md.
+  {
+    sentinel: "__bundled-south-limburg-2026__",
+    name: "South Limburg 2026",
+    serverId: SERVER.BNL,
+    size: "medium",
+    hidingRadius: 500,
+    hidingRadiusUnits: "meters",
+    osm: SOUTH_LIMBURG_FEATURE,
+    kmlPath: "south-limburg-poi.kml",
+    stationsKml: "south-limburg-stations.kml",
+    boundaryGeoJson: "south-limburg-border.geojson",
+    // Folders in the POI KML use canonical category names → identity mapping.
+    poiFolders: {},
+  },
   {
     sentinel: "__bundled-bucharest-2026__",
     name: "Bucharest 2026",

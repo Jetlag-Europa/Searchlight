@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+<name>South Limburg POI</name>
+<Folder><name>airport</name>
+<Placemark><name>Maastricht Aachen Airport</name><Point><coordinates>5.7700666,50.9120332</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>camping</name>
+<Placemark><name>NTKC De Heerkuil</name><Point><coordinates>5.7766334,50.7907502</coordinates></Point></Placemark>
+<Placemark><name>Minicamping Rosenhof</name><Point><coordinates>5.7674476,50.8056778</coordinates></Point></Placemark>
+<Placemark><name>Camping Colmont</name><Point><coordinates>5.93564,50.8529565</coordinates></Point></Placemark>
+<Placemark><name>Camping De Bosrand</name><Point><coordinates>5.7476871,50.7849609</coordinates></Point></Placemark>
+<Placemark><name>Camping De Cauberg</name><Point><coordinates>5.819077,50.857176</coordinates></Point></Placemark>
+<Placemark><name>Camping Vinkenhof</name><Point><coordinates>5.8725072,50.8493674</coordinates></Point></Placemark>
+<Placemark><name>Watersportvereniging Randwijck</name><Point><coordinates>5.7002433,50.8303174</coordinates></Point></Placemark>
+<Placemark><name>Camping De Boskant</name><Point><coordinates>5.7387978,50.9113441</coordinates></Point></Placemark>
+<Placemark><name>EuroParcs Poort van Maastricht</name><Point><coordinates>5.7713743,50.8581607</coordinates></Point></Placemark>
+<Placemark><name>Hubertus Hoeve</name><Point><coordinates>5.8666957,50.8692109</coordinates></Point></Placemark>
+<Placemark><name>Camping Oosterberg</name><Point><coordinates>5.8954716,50.7708314</coordinates></Point></Placemark>
+<Placemark><name>Boerderijcamping Hoeve Helberg</name><Point><coordinates>5.9063157,50.7590412</coordinates></Point></Placemark>
+<Placemark><name>Hoeve Camping Lingberg</name><Point><coordinates>5.9312796,50.767404</coordinates></Point></Placemark>
+<Placemark><name>Camping Alleleijn</name><Point><coordinates>5.9068067,50.7556463</coordinates></Point></Placemark>
+<Placemark><name>Camping Hoeve De Gastmolen</name><Point><coordinates>6.0085613,50.7805782</coordinates></Point></Placemark>
+<Placemark><name>Camping De Oosterdriessen</name><Point><coordinates>5.7058986,50.8003652</coordinates></Point></Placemark>
+<Placemark><name>Camping Cottesserhoeve</name><Point><coordinates>5.9420522,50.7605052</coordinates></Point></Placemark>
+<Placemark><name>Camping Bovenste Bos</name><Point><coordinates>5.9093821,50.7577827</coordinates></Point></Placemark>
+<Placemark><name>Camping Klein Kullen</name><Point><coordinates>5.9112009,50.7571296</coordinates></Point></Placemark>
+<Placemark><name>Vandenbooren Camping</name><Point><coordinates>5.953794,50.7894087</coordinates></Point></Placemark>
+<Placemark><name>Camping Rozenhof</name><Point><coordinates>5.929276,50.7705636</coordinates></Point></Placemark>
+<Placemark><name>Gullikers</name><Point><coordinates>5.9171215,50.7644621</coordinates></Point></Placemark>
+<Placemark><name>Camping Groenendaal</name><Point><coordinates>5.8657224,50.80012</coordinates></Point></Placemark>
+<Placemark><name>Welkom</name><Point><coordinates>5.8464696,50.7757713</coordinates></Point></Placemark>
+<Placemark><name>Landgoed Moerslag</name><Point><coordinates>5.7573562,50.7844778</coordinates></Point></Placemark>
+<Placemark><name>Bruisterbosch</name><Point><coordinates>5.8054329,50.8063433</coordinates></Point></Placemark>
+<Placemark><name>'t Bakhuis</name><Point><coordinates>5.8697973,50.8320925</coordinates></Point></Placemark>
+<Placemark><name>De Linde</name><Point><coordinates>5.8296403,50.8432114</coordinates></Point></Placemark>
+<Placemark><name>Geul en Bos</name><Point><coordinates>5.7697578,50.8781845</coordinates></Point></Placemark>
+<Placemark><name>Boerderijcamping de Limburgerhof</name><Point><coordinates>6.048927,50.9072409</coordinates></Point></Placemark>
+<Placemark><name>Op Gen Beukelskoel</name><Point><coordinates>5.9002592,50.8645093</coordinates></Point></Placemark>
+<Placemark><name>Camping La Dolce Vita</name><Point><coordinates>5.8954873,50.8635292</coordinates></Point></Placemark>
+<Placemark><name>Camping Valkenburg - Maastricht</name><Point><coordinates>5.8312955,50.8806595</coordinates></Point></Placemark>
+<Placemark><name>Camping Voncken</name><Point><coordinates>5.9268226,50.7728844</coordinates></Point></Placemark>
+<Placemark><name>Camping Osebos</name><Point><coordinates>5.8690946,50.8082191</coordinates></Point></Placemark>
+<Placemark><name>'t Geuldal</name><Point><coordinates>5.7713891,50.8735515</coordinates></Point></Placemark>
+<Placemark><name>EuroParcs Gulperberg</name><Point><coordinates>5.897289,50.8087821</coordinates></Point></Placemark>
+<Placemark><name>Hitjesvijver</name><Point><coordinates>5.9573292,50.9216885</coordinates></Point></Placemark>
+<Placemark><name>Camping de Watertoren</name><Point><coordinates>6.0740102,50.910932</coordinates></Point></Placemark>
+<Placemark><name>In den Hof</name><Point><coordinates>5.9724517,50.9046109</coordinates></Point></Placemark>
+<Placemark><name>De Gele Anemoon</name><Point><coordinates>5.8784965,50.8413137</coordinates></Point></Placemark>
+<Placemark><name>Camping 't Zinkviooltje</name><Point><coordinates>5.9260771,50.7615589</coordinates></Point></Placemark>
+<Placemark><name>De Gronselenput</name><Point><coordinates>5.8773889,50.8427699</coordinates></Point></Placemark>
+<Placemark><name>Hoeve Bellet</name><Point><coordinates>5.9374014,50.7625769</coordinates></Point></Placemark>
+<Placemark><name>Mescherhei</name><Point><coordinates>5.7499767,50.7748896</coordinates></Point></Placemark>
+<Placemark><name>Riva Recreatie</name><Point><coordinates>5.7552576,50.7777972</coordinates></Point></Placemark>
+<Placemark><name>Thomma J H</name><Point><coordinates>5.7440464,50.8415227</coordinates></Point></Placemark>
+<Placemark><name>De Grensheuvel</name><Point><coordinates>5.8016944,50.7719383</coordinates></Point></Placemark>
+<Placemark><name>De Kersengaard</name><Point><coordinates>5.7616046,50.7835712</coordinates></Point></Placemark>
+<Placemark><name>Waalheimerfarm</name><Point><coordinates>5.8679489,50.8672481</coordinates></Point></Placemark>
+<Placemark><name>Boerderijcamping Schrouff</name><Point><coordinates>5.9783376,50.7769354</coordinates></Point></Placemark>
+<Placemark><name>Heuvelland Oaze</name><Point><coordinates>5.881589,50.7685911</coordinates></Point></Placemark>
+<Placemark><name>Mooidal Boutique Park</name><Point><coordinates>5.7716655,50.8786607</coordinates></Point></Placemark>
+<Placemark><name>Gene Zijde</name><Point><coordinates>5.9336091,50.7662878</coordinates></Point></Placemark>
+<Placemark><name>De Kloostermuur</name><Point><coordinates>5.8431259,50.7755798</coordinates></Point></Placemark>
+<Placemark><name>Camping Op d'r Lubosch</name><Point><coordinates>5.8882317,50.8598358</coordinates></Point></Placemark>
+<Placemark><name>Camping Tergracht</name><Point><coordinates>5.9244066,50.7617659</coordinates></Point></Placemark>
+<Placemark><name>Gerardushoeve</name><Point><coordinates>5.8981791,50.8036688</coordinates></Point></Placemark>
+<Placemark><name>Boerderijcamping 't Gasthoes</name><Point><coordinates>5.7787996,50.8450781</coordinates></Point></Placemark>
+<Placemark><name>Geulhof</name><Point><coordinates>5.9196474,50.7927078</coordinates></Point></Placemark>
+<Placemark><name>Hoeve Kroonen</name><Point><coordinates>5.8652943,50.8527571</coordinates></Point></Placemark>
+<Placemark><name>Heyenrade</name><Point><coordinates>5.8707778,50.7744639</coordinates></Point></Placemark>
+<Placemark><name>Minicamping Boerderij Berghemmerhof</name><Point><coordinates>5.8935224,50.8048546</coordinates></Point></Placemark>
+<Placemark><name>Hof van Libeek</name><Point><coordinates>5.7646451,50.7853322</coordinates></Point></Placemark>
+<Placemark><name>Hoeve De Ploeg</name><Point><coordinates>5.683435,50.871607</coordinates></Point></Placemark>
+<Placemark><name>Beckers</name><Point><coordinates>5.8023964,50.8144365</coordinates></Point></Placemark>
+<Placemark><name>De Krekelberg</name><Point><coordinates>5.9200364,50.8400136</coordinates></Point></Placemark>
+<Placemark><name>Trintelen</name><Point><coordinates>5.9461627,50.8439695</coordinates></Point></Placemark>
+<Placemark><name>Ransdalerveld</name><Point><coordinates>5.891262,50.8607366</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>cinema</name>
+<Placemark><name>Lumière</name><Point><coordinates>5.6911022,50.8566802</coordinates></Point></Placemark>
+<Placemark><name>Quatro Cinema</name><Point><coordinates>5.9785607,50.8871445</coordinates></Point></Placemark>
+<Placemark><name>Filmhuis De Spiegel/Royal</name><Point><coordinates>5.9753954,50.8898919</coordinates></Point></Placemark>
+<Placemark><name>Vue</name><Point><coordinates>6.0032082,50.8578752</coordinates></Point></Placemark>
+<Placemark><name>Pathé Maastricht</name><Point><coordinates>5.6897105,50.8558595</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>consulate</name>
+<Placemark><name>Consulate of Belgium</name><Point><coordinates>5.6908477,50.8478932</coordinates></Point></Placemark>
+<Placemark><name>Consulate General of The Russian Federation</name><Point><coordinates>5.6918844,50.8478558</coordinates></Point></Placemark>
+<Placemark><name>Consulate of Luxembourg</name><Point><coordinates>5.6921556,50.8481416</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>golf_course</name>
+<Placemark><name>Het Rijk van Margraten</name><Point><coordinates>5.7572728,50.8384653</coordinates></Point></Placemark>
+<Placemark><name>Golf Club Hoog Vaals</name><Point><coordinates>5.9999196,50.7704188</coordinates></Point></Placemark>
+<Placemark><name>Championship Course</name><Point><coordinates>5.6459659,50.8523392</coordinates></Point></Placemark>
+<Placemark><name>Golfclub Meerssen</name><Point><coordinates>5.7449654,50.8970604</coordinates></Point></Placemark>
+<Placemark><name>Golfbaan Brunssummerheide</name><Point><coordinates>6.0104751,50.9363162</coordinates></Point></Placemark>
+<Placemark><name>De Zuid Limburgse Golf &amp; Country Club Wittem</name><Point><coordinates>5.8942187,50.7915617</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>hospital</name>
+<Placemark><name>Zuyderland</name><Point><coordinates>5.9763214,50.8702694</coordinates></Point></Placemark>
+<Placemark><name>Maastricht UMC+</name><Point><coordinates>5.7127878,50.8345979</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>library</name>
+<Placemark><name>Universiteitsbibliotheek</name><Point><coordinates>5.6902818,50.8445507</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Voerendaal</name><Point><coordinates>5.9273594,50.8821417</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Ubach over Worms</name><Point><coordinates>6.0536448,50.9161599</coordinates></Point></Placemark>
+<Placemark><name>SCHUNCK Bibliotheek Heerlen Glaspaleis</name><Point><coordinates>5.979362,50.887804</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Eijsden, Jeugdafdeling</name><Point><coordinates>5.7208029,50.7784027</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Servicepunt Simpelveld</name><Point><coordinates>5.9758127,50.8341097</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Vaals</name><Point><coordinates>6.0137988,50.7749719</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheekservicepunt Malpertuis</name><Point><coordinates>5.6614522,50.8559091</coordinates></Point></Placemark>
+<Placemark><name>Stadsbibliotheek van Maastricht</name><Point><coordinates>5.7010801,50.8459909</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheekservicepunt Heer</name><Point><coordinates>5.7257015,50.8440524</coordinates></Point></Placemark>
+<Placemark><name>Uitleenpunt Klimmen</name><Point><coordinates>5.8822928,50.8760025</coordinates></Point></Placemark>
+<Placemark><name>Uitleenpunt Ransdaal</name><Point><coordinates>5.8934344,50.8636518</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Valkenburg</name><Point><coordinates>5.8355345,50.8626585</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Margraten</name><Point><coordinates>5.8181782,50.8254002</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Berg en Terblijt</name><Point><coordinates>5.7912504,50.8606438</coordinates></Point></Placemark>
+<Placemark><name>SCHUNCK Bibliotheek Hoensbroek</name><Point><coordinates>5.9257221,50.9244079</coordinates></Point></Placemark>
+<Placemark><name>SCHUNCK Bibliotheek Heerlerheide Gen Coel</name><Point><coordinates>5.9557569,50.9168383</coordinates></Point></Placemark>
+<Placemark><name>SCHUNCK Bibliotheek Heerlerbaan The Flash</name><Point><coordinates>6.00757,50.8656137</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Eygelshoven</name><Point><coordinates>6.0583066,50.8942062</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Ulestraten</name><Point><coordinates>5.7853769,50.9064367</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Servicepunt Kerkrade-West</name><Point><coordinates>6.0299783,50.8612696</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Meerssen</name><Point><coordinates>5.7500047,50.8876671</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Bocholtz</name><Point><coordinates>6.0039912,50.8157359</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Landgraaf</name><Point><coordinates>6.0239625,50.9049767</coordinates></Point></Placemark>
+<Placemark><name>HuB.Bibliotheek Kerkrade</name><Point><coordinates>6.0627223,50.8656576</coordinates></Point></Placemark>
+<Placemark><name>Library of Things</name><Point><coordinates>5.7116567,50.8513112</coordinates></Point></Placemark>
+<Placemark><name>Bibliotheek Eijsden, Volwassenen afdeling</name><Point><coordinates>5.7113451,50.7775572</coordinates></Point></Placemark>
+<Placemark><name>Maastricht University - Randwyck Library</name><Point><coordinates>5.7168444,50.8351542</coordinates></Point></Placemark>
+<Placemark><name>Tapijn Learning Spaces</name><Point><coordinates>5.6878743,50.8425931</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>mill</name>
+<Placemark><name>Bisschopsmolen</name><Point><coordinates>5.6927299,50.8463301</coordinates></Point></Placemark>
+<Placemark><name>Kloostermolen Wittem</name><Point><coordinates>5.9131355,50.8139385</coordinates></Point></Placemark>
+<Placemark><name>Kasteelmolen</name><Point><coordinates>5.9944104,50.7888937</coordinates></Point></Placemark>
+<Placemark><name>Schoeërmolen</name><Point><coordinates>5.973758,50.7978492</coordinates></Point></Placemark>
+<Placemark><name>Onderste Molen</name><Point><coordinates>5.9183879,50.7944155</coordinates></Point></Placemark>
+<Placemark><name>Bovenste Molen</name><Point><coordinates>5.9193589,50.7882409</coordinates></Point></Placemark>
+<Placemark><name>Epermolen</name><Point><coordinates>5.9205055,50.7731336</coordinates></Point></Placemark>
+<Placemark><name>Volmolen</name><Point><coordinates>5.9198882,50.7695607</coordinates></Point></Placemark>
+<Placemark><name>Molen Roex</name><Point><coordinates>5.8888423,50.8118298</coordinates></Point></Placemark>
+<Placemark><name>Groenendaalse Molen</name><Point><coordinates>5.8644283,50.7959118</coordinates></Point></Placemark>
+<Placemark><name>Muggemolen</name><Point><coordinates>5.7132514,50.7664237</coordinates></Point></Placemark>
+<Placemark><name>Torenmolen van Gronsveld</name><Point><coordinates>5.729508,50.8243321</coordinates></Point></Placemark>
+<Placemark><name>Nekummermolen</name><Point><coordinates>5.6722496,50.828373</coordinates></Point></Placemark>
+<Placemark><name>Molen van Lombok</name><Point><coordinates>5.6745582,50.8347299</coordinates></Point></Placemark>
+<Placemark><name>Leeuwenmolen</name><Point><coordinates>5.691873,50.8444238</coordinates></Point></Placemark>
+<Placemark><name>Op de Vrouweheide</name><Point><coordinates>5.9511579,50.8448743</coordinates></Point></Placemark>
+<Placemark><name>Wittemer Molen</name><Point><coordinates>5.9060938,50.8174718</coordinates></Point></Placemark>
+<Placemark><name>Molen Otten</name><Point><coordinates>5.8927305,50.8330928</coordinates></Point></Placemark>
+<Placemark><name>Overhekermolen</name><Point><coordinates>5.8743329,50.8797948</coordinates></Point></Placemark>
+<Placemark><name>Schaloensmolen</name><Point><coordinates>5.8509421,50.8558271</coordinates></Point></Placemark>
+<Placemark><name>Oude of Banmolen</name><Point><coordinates>5.8341454,50.8645427</coordinates></Point></Placemark>
+<Placemark><name>Franse Molen</name><Point><coordinates>5.8315039,50.8654188</coordinates></Point></Placemark>
+<Placemark><name>Van Tienhovenmolen</name><Point><coordinates>5.8025943,50.8412429</coordinates></Point></Placemark>
+<Placemark><name>Geulhemermolen</name><Point><coordinates>5.7837998,50.8689683</coordinates></Point></Placemark>
+<Placemark><name>Molen van Hulsen</name><Point><coordinates>5.7526418,50.9231115</coordinates></Point></Placemark>
+<Placemark><name>Weltermolen</name><Point><coordinates>5.9708748,50.8761945</coordinates></Point></Placemark>
+<Placemark><name>IJzeren Molen</name><Point><coordinates>5.7404737,50.8818075</coordinates></Point></Placemark>
+<Placemark><name>Groote Molen</name><Point><coordinates>5.7556795,50.8815896</coordinates></Point></Placemark>
+<Placemark><name>Eikendermolen</name><Point><coordinates>5.9577153,50.8868093</coordinates></Point></Placemark>
+<Placemark><name>Strijthager molen</name><Point><coordinates>6.0343046,50.8859567</coordinates></Point></Placemark>
+<Placemark><name>Oliemolen</name><Point><coordinates>5.986845,50.8839921</coordinates></Point></Placemark>
+<Placemark><name>Watermolen de Ancker</name><Point><coordinates>5.6943809,50.8453212</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>mountain</name>
+<Placemark><name>Hoogste Punt van Nederland</name><Point><coordinates>6.0207565,50.7546926</coordinates></Point></Placemark>
+<Placemark><name>D'n Observant</name><Point><coordinates>5.6888605,50.8135387</coordinates></Point></Placemark>
+<Placemark><name>Wilhelminaberg</name><Point><coordinates>6.0254553,50.8755801</coordinates></Point></Placemark>
+<Placemark><name>Cannerberg</name><Point><coordinates>5.6657914,50.8190858</coordinates></Point></Placemark>
+<Placemark><name>Sint-Pietersberg</name><Point><coordinates>5.6874837,50.8268747</coordinates></Point></Placemark>
+<Placemark><name>Gulperberg</name><Point><coordinates>5.8995606,50.8134428</coordinates></Point></Placemark>
+<Placemark><name>Silexberg</name><Point><coordinates>5.6832121,50.8202286</coordinates></Point></Placemark>
+<Placemark><name>Sousberg</name><Point><coordinates>5.8690998,50.8468542</coordinates></Point></Placemark>
+<Placemark><name>Bokkebosje</name><Point><coordinates>6.0101645,50.7637341</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>museum</name>
+<Placemark><name>Kapel van Verbeelding</name><Point><coordinates>5.6931815,50.8499273</coordinates></Point></Placemark>
+<Placemark><name>Museum Valkenburg</name><Point><coordinates>5.8320799,50.8637156</coordinates></Point></Placemark>
+<Placemark><name>kruisweg op de Schaelsberg</name><Point><coordinates>5.8561363,50.8606779</coordinates></Point></Placemark>
+<Placemark><name>Romeinse Katakomben</name><Point><coordinates>5.8216243,50.8654926</coordinates></Point></Placemark>
+<Placemark><name>Miljoenenlijn</name><Point><coordinates>5.9781299,50.83168</coordinates></Point></Placemark>
+<Placemark><name>Museum de Kopermolen</name><Point><coordinates>6.0194995,50.7701205</coordinates></Point></Placemark>
+<Placemark><name>Museum aan het Vrijthof</name><Point><coordinates>5.6887551,50.8483543</coordinates></Point></Placemark>
+<Placemark><name>Natuurhistorisch Museum Maastricht</name><Point><coordinates>5.6878046,50.8450433</coordinates></Point></Placemark>
+<Placemark><name>Museumkelder Derlon</name><Point><coordinates>5.6931982,50.8477987</coordinates></Point></Placemark>
+<Placemark><name>Museum van illusies</name><Point><coordinates>5.6933129,50.8516219</coordinates></Point></Placemark>
+<Placemark><name>Marres</name><Point><coordinates>5.685843,50.8518926</coordinates></Point></Placemark>
+<Placemark><name>Bonnefantenmuseum</name><Point><coordinates>5.701339,50.8424797</coordinates></Point></Placemark>
+<Placemark><name>Kunst- en Verzamelhuis</name><Point><coordinates>5.8974214,50.8332972</coordinates></Point></Placemark>
+<Placemark><name>Spoormuseum</name><Point><coordinates>5.8718015,50.8560702</coordinates></Point></Placemark>
+<Placemark><name>De Schatkamer</name><Point><coordinates>5.6873348,50.8490416</coordinates></Point></Placemark>
+<Placemark><name>Bureau Europa</name><Point><coordinates>5.6902773,50.8567335</coordinates></Point></Placemark>
+<Placemark><name>Nederlands Mijnmuseum</name><Point><coordinates>5.9791881,50.886225</coordinates></Point></Placemark>
+<Placemark><name>Schatkamer van de Sint-Servaasbasiliek</name><Point><coordinates>5.6867471,50.8493582</coordinates></Point></Placemark>
+<Placemark><name>Museum Vaals</name><Point><coordinates>6.0030476,50.7694254</coordinates></Point></Placemark>
+<Placemark><name>Vestingmuseum Maastricht</name><Point><coordinates>5.6944804,50.8455592</coordinates></Point></Placemark>
+<Placemark><name>Maastricht Museum</name><Point><coordinates>5.7013728,50.8460925</coordinates></Point></Placemark>
+<Placemark><name>Netherlands American Cemetery and Memorial Museum</name><Point><coordinates>5.8035954,50.8179038</coordinates></Point></Placemark>
+<Placemark><name>De Schat van Simpelveld</name><Point><coordinates>5.9888812,50.8343886</coordinates></Point></Placemark>
+<Placemark><name>Museum Het Ursulinenconvent/ Familiemuseum/ Café en Winkel/ Dubois/ Apothekerstuin/ VVV/ Breusterbrouwers</name><Point><coordinates>5.707065,50.7789201</coordinates></Point></Placemark>
+<Placemark><name>Kleng Wach</name><Point><coordinates>6.0232129,50.76887</coordinates></Point></Placemark>
+<Placemark><name>Discovery Museum</name><Point><coordinates>6.0583032,50.8613281</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>theme_park</name>
+<Placemark><name>Fun Valley</name><Point><coordinates>5.7079762,50.8038502</coordinates></Point></Placemark>
+<Placemark><name>Mondo Verde</name><Point><coordinates>6.0305854,50.8856655</coordinates></Point></Placemark>
+<Placemark><name>Attractiepark Kabelbaan Valkenburg</name><Point><coordinates>5.8323905,50.8592179</coordinates></Point></Placemark>
+<Placemark><name>Kinderstad Heerlen</name><Point><coordinates>5.9624999,50.893004</coordinates></Point></Placemark>
+<Placemark><name>Adventure valley Landgraaf</name><Point><coordinates>6.0196691,50.875376</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>zoo</name>
+<Placemark><name>Kinderboerderij De Heeg</name><Point><coordinates>5.7245986,50.8185317</coordinates></Point></Placemark>
+<Placemark><name>Kinderboerderij Limmel</name><Point><coordinates>5.708183,50.8687308</coordinates></Point></Placemark>
+<Placemark><name>GaiaZOO</name><Point><coordinates>6.0495187,50.8696348</coordinates></Point></Placemark>
+<Placemark><name>Boerderij Daalhoeve</name><Point><coordinates>5.6529076,50.8431931</coordinates></Point></Placemark>
+<Placemark><name>Dierenpark Aambos</name><Point><coordinates>5.9877165,50.8846358</coordinates></Point></Placemark>
+</Folder>
+</Document></kml>
