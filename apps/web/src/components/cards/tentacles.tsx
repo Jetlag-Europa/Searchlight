@@ -125,10 +125,25 @@ export const TentacleQuestionComponent = ({
                                 Object.fromEntries(
                                     determineUnionizedStrings(
                                         x.shape.locationType,
-                                    ).map((x) => [
-                                        (x._def as any).value,
-                                        x.description,
-                                    ]),
+                                    )
+                                        .filter((y) => {
+                                            const value = (y._def as any).value;
+                                            const requiredSentinel =
+                                                GAME_GATED_TYPES[value];
+                                            return (
+                                                (!requiredSentinel ||
+                                                    requiredSentinel ===
+                                                        activeGameSentinel) &&
+                                                !isQuestionTypeHidden(
+                                                    value,
+                                                    activeGameSentinel,
+                                                )
+                                            );
+                                        })
+                                        .map((y) => [
+                                            (y._def as any).value,
+                                            y.description,
+                                        ]),
                                 ),
                             ]),
                     )}

@@ -23,6 +23,7 @@ import {
 } from "@/lib/context";
 import type { CustomStation, OpenStreetMap } from "@/maps/api";
 import { parseCustomStationsFromText, parseGPX, parseKMLFolderPOI } from "@/maps/api/importers";
+import { clearTentacleCache } from "@/maps/questions/tentacles";
 import { GAME_REGISTRY, type Game as ServerGame } from "@taibled/shared";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -276,6 +277,7 @@ export function applyGameDefaults(game: GameDefinition): void {
     hidingRadiusUnits.set(game.hidingRadiusUnits);
     tierRadiusOverrides.set(game.tierRadiusOverrides ?? {});
     gamePOIData.set({});
+    clearTentacleCache();
 }
 
 export function activateGameStations(game: GameDefinition): void {

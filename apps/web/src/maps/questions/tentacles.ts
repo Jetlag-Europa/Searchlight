@@ -8,6 +8,19 @@ import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
 
+// Manual cache for Overpass-backed tentacle lookups. getLocationsForTentacleQuestion
+// is called up to 3× per refresh (adjust + hiderify + planning) and refreshes fire
+// on every atom change, so without this each query re-hits Overpass — the user sees
+// "Determining tentacle locations…" loop endlessly. Custom-POI results are cheap and
+// not cached. Empty results are not cached (retry once data/area is ready). Cleared
+// on game switch (gamePOIData changes the answer). Mirrors the matching/measuring
+// manual caches.
+const _tentacleCache = new Map<string, FeatureCollection<Point>>();
+
+export function clearTentacleCache(): void {
+    _tentacleCache.clear();
+}
+
 export async function getLocationsForTentacleQuestion(
     question: TentacleQuestion,
 ): Promise<FeatureCollection<Point>> {
@@ -22,7 +35,22 @@ export async function getLocationsForTentacleQuestion(
         console.info(`[taibled:poi] tentacle ${question.locationType} → ${nearby.length} custom within radius`);
         return turf.featureCollection(nearby) as FeatureCollection<Point>;
     }
-    return findTentacleLocations(question as Exclude<TentacleQuestion, { locationType: "custom" }>);
+
+    const key = JSON.stringify({
+        t: question.locationType,
+        lat: question.lat?.toFixed(5),
+        lng: question.lng?.toFixed(5),
+        r: question.radius,
+        u: question.unit,
+    });
+    const cached = _tentacleCache.get(key);
+    if (cached) return cached;
+
+    const result = await findTentacleLocations(
+        question as Exclude<TentacleQuestion, { locationType: "custom" }>,
+    );
+    if (result.features.length) _tentacleCache.set(key, result);
+    return result;
 }
 
 const filterPointsWithinRadius = (
