@@ -336,8 +336,8 @@ const luxPointMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
 
 const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
-        z.literal("south-limburg-postcode").describe("1st Admin Division (South Limburg)"),
-        z.literal("south-limburg-municipality").describe("2nd Admin Division (South Limburg)"),
+        z.literal("south-limburg-postcode").describe("Postcode (South Limburg)"),
+        z.literal("south-limburg-municipality").describe("Municipality (South Limburg)"),
         z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
         z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
         // Mountain uses the generic "Mountain" question, which auto-uses the
