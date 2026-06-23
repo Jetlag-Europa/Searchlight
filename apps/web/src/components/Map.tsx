@@ -158,6 +158,22 @@ export const Map = ({ className }: { className?: string }) => {
             await clearCache();
         }
 
+        // Don't evaluate questions until the active game's custom POIs have
+        // loaded. Otherwise POI-backed questions (e.g. a tentacle for a category
+        // the game provides, like theme_park in South Limburg) fall back to
+        // Overpass before gamePOIData arrives — firing needless, stacking
+        // Overpass requests. loadGamePOI sets gamePOIData, which re-triggers
+        // this effect with the data ready.
+        const poiGame = getGameById(currentGameId.get());
+        if (
+            $questions.length > 0 &&
+            poiGame?.kmlPOIFolders &&
+            Object.keys(gamePOIData.get()).length === 0
+        ) {
+            isLoading.set(false);
+            return;
+        }
+
         let mapGeoData = mapGeoJSON.get();
         const polyGeoData = polyGeoJSON.get();
 

@@ -8,14 +8,17 @@ import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
 
-// Manual cache for Overpass-backed tentacle lookups. getLocationsForTentacleQuestion
-// is called up to 3× per refresh (adjust + hiderify + planning) and refreshes fire
-// on every atom change, so without this each query re-hits Overpass — the user sees
-// "Determining tentacle locations…" loop endlessly. Custom-POI results are cheap and
-// not cached. Empty results are not cached (retry once data/area is ready). Cleared
-// on game switch (gamePOIData changes the answer). Mirrors the matching/measuring
-// manual caches.
-const _tentacleCache = new Map<string, FeatureCollection<Point>>();
+// Promise cache for Overpass-backed tentacle lookups.
+// getLocationsForTentacleQuestion is called up to 3-4× per refresh (per-question
+// region + elimination + planning + hiderify), and refreshes fire on every atom
+// change — without this, each call re-hits Overpass and the user sees a storm of
+// "Determining tentacle locations…" toasts that never settle. Caching the
+// *promise* (not just the result) also dedupes concurrent in-flight calls so one
+// refresh fires at most one request per unique query. Results (including empty)
+// are kept so we don't refetch; on error the entry is evicted to allow a retry.
+// Cleared on game switch. Custom-POI results bypass this entirely (cheap, no
+// network) and are checked first, so they override any stale cached fallback.
+const _tentacleCache = new Map<string, Promise<FeatureCollection<Point>>>();
 
 export function clearTentacleCache(): void {
     _tentacleCache.clear();
@@ -43,14 +46,17 @@ export async function getLocationsForTentacleQuestion(
         r: question.radius,
         u: question.unit,
     });
-    const cached = _tentacleCache.get(key);
-    if (cached) return cached;
-
-    const result = await findTentacleLocations(
-        question as Exclude<TentacleQuestion, { locationType: "custom" }>,
-    );
-    if (result.features.length) _tentacleCache.set(key, result);
-    return result;
+    let pending = _tentacleCache.get(key);
+    if (!pending) {
+        pending = findTentacleLocations(
+            question as Exclude<TentacleQuestion, { locationType: "custom" }>,
+        ).catch((e) => {
+            _tentacleCache.delete(key); // allow a later refresh to retry
+            throw e;
+        });
+        _tentacleCache.set(key, pending);
+    }
+    return pending;
 }
 
 const filterPointsWithinRadius = (
