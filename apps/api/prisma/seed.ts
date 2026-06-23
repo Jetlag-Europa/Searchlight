@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { GAME_REGISTRY } from "@taibled/shared";
 
 const prisma = new PrismaClient();
 
@@ -18,239 +19,20 @@ const ROLE_PERMISSIONS = [
   { serverId: "1059625399979606166", discordRoleId: "1383202208799129731", permission: "server.admin" },
 ];
 
-const BRNO_CITY_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [49.1951, 16.6068],
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 438171,
-    extent: [49.2943708, 16.4279898, 49.1098796, 16.7278346],
-    country: "Czech Republic",
-    osm_key: "place",
-    countrycode: "CZ",
-    osm_value: "city",
-    name: "Brno",
-    type: "city",
-  },
-};
-
-const PARIS_CITY_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [48.8566, 2.3522],
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 71525,
-    extent: [49.0, 2.0, 48.6, 2.7],
-    country: "France",
-    osm_key: "place",
-    countrycode: "FR",
-    osm_value: "city",
-    name: "Paris",
-    type: "city",
-  },
-};
-
-const SOUTH_LIMBURG_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [50.8474, 5.8666],
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 47772,
-    extent: [50.9434, 5.6389, 50.7504, 6.0942],
-    country: "Netherlands",
-    osm_key: "place",
-    countrycode: "NL",
-    osm_value: "region",
-    name: "South Limburg",
-    type: "region",
-  },
-};
-
-const BUCHAREST_CITY_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [44.4268, 26.1025], // [lat, lng] — Leaflet LatLngTuple
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 1246893,
-    extent: [44.5455, 25.9700, 44.3300, 26.2900],
-    country: "Romania",
-    osm_key: "place",
-    countrycode: "RO",
-    osm_value: "city",
-    name: "Bucharest",
-    type: "city",
-  },
-};
-
-const ESPACE_MITTELLAND_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [46.9155, 7.4747], // [lat, lng] — Leaflet LatLngTuple
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 17537858,
-    extent: [47.5045, 6.4327, 46.3265, 8.4552],
-    country: "Switzerland",
-    osm_key: "place",
-    countrycode: "CH",
-    osm_value: "region",
-    name: "Espace Mittelland",
-    type: "region",
-  },
-};
-
-const BRUSSELS_CITY_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [50.8503, 4.3517],
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 54094,
-    extent: [51.05, 4.0, 50.65, 4.70],
-    country: "Belgium",
-    osm_key: "place",
-    countrycode: "BE",
-    osm_value: "city",
-    name: "Brussels",
-    type: "city",
-  },
-};
-
-const LUXEMBOURG_COUNTRY_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [49.8158683, 6.1296751],
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 2171347,
-    extent: [50.1827989, 5.7356988, 49.4478587, 6.5312481],
-    country: "Luxembourg",
-    osm_key: "place",
-    countrycode: "LU",
-    osm_value: "country",
-    name: "Luxembourg",
-    type: "country",
-  },
-};
-
-const ROTTERDAM_FEATURE = {
-  type: "Feature",
-  geometry: {
-    type: "Point",
-    coordinates: [51.9244, 4.4777], // [lat, lng] — Leaflet LatLngTuple
-  },
-  properties: {
-    osm_type: "R",
-    osm_id: 324431,
-    extent: [52.0045, 3.9408, 51.7828, 4.6473], // [maxLat, minLng, minLat, maxLng]
-    country: "Netherlands",
-    osm_key: "place",
-    countrycode: "NL",
-    osm_value: "city",
-    name: "Rotterdam",
-    type: "city",
-  },
-};
-
-const GAMES = [
-  {
-    serverId: "home-games",
-    name: "Exter Rotterdam 26",
-    sentinelValue: "__bundled-exter-rotterdam-2026__",
-    kmlPath: "exter-rotterdam-poi.kml",
-    mapLocationJson: ROTTERDAM_FEATURE,
-    hidingRadius: 300,
-    hidingRadiusUnits: "meters",
-    size: "medium",
-  },
-  {
-    serverId: "1369664929975767120", // JetLag BNL
-    name: "South Limburg 2026",
-    sentinelValue: "__bundled-south-limburg-2026__",
-    kmlPath: "south-limburg-poi.kml",
-    mapLocationJson: SOUTH_LIMBURG_FEATURE,
-    hidingRadius: 500,
-    hidingRadiusUnits: "meters",
-    size: "medium",
-  },
-  {
-    serverId: "1190673594649415730", // JetLag EU
-    name: "Bucharest 2026",
-    sentinelValue: "__bundled-bucharest-2026__",
-    kmlPath: "bucharest-poi.kml",
-    mapLocationJson: BUCHAREST_CITY_FEATURE,
-    hidingRadius: 350,
-    hidingRadiusUnits: "meters",
-    tierRadiusOverrides: { "Metro": 350, "Tram": 250 },
-    size: "medium",
-  },
-  {
-    serverId: "1190673594649415730", // JetLag EU
-    name: "Paris 2026",
-    sentinelValue: "__bundled-paris-2026__",
-    kmlPath: "paris-stations.kml",
-    mapLocationJson: PARIS_CITY_FEATURE,
-    hidingRadius: 400,
-    hidingRadiusUnits: "meters",
-    tierRadiusOverrides: { "Outer": 600 },
-    size: "large",
-  },
-  {
-    serverId: "1190673594649415730", // JetLag EU
-    name: "Brno 2026",
-    sentinelValue: "__bundled-brno-2026-v2__",
-    kmlPath: "brno-poi-v2.kml",
-    mapLocationJson: BRNO_CITY_FEATURE,
-    hidingRadius: 400,
-    hidingRadiusUnits: "meters",
-  },
-  {
-    serverId: "1190673594649415730", // JetLag EU
-    name: "Luxembourg 2026",
-    sentinelValue: "__bundled-luxembourg-2026__",
-    kmlPath: "luxembourg-hiding-zones.kml",
-    mapLocationJson: LUXEMBOURG_COUNTRY_FEATURE,
-    hidingRadius: 1,
-    hidingRadiusUnits: "kilometers",
-  },
-  {
-    serverId: "1458858559952523305", // JetLag CH
-    name: "Espace Mittelland 2026",
-    sentinelValue: "__bundled-bern-2026__",
-    kmlPath: "bern-canton-poi.kml",
-    mapLocationJson: ESPACE_MITTELLAND_FEATURE,
-    hidingRadius: 500,
-    hidingRadiusUnits: "meters",
-    size: "large",
-  },
-  {
-    serverId: "1190673594649415730", // JetLag EU
-    name: "Brussels 2026",
-    sentinelValue: "__bundled-brussels-2026__",
-    kmlPath: "brussels-hiding-zones.kml",
-    mapLocationJson: BRUSSELS_CITY_FEATURE,
-    hidingRadius: 1,
-    hidingRadiusUnits: "kilometers",
-  },
-];
+// Derived from the single source of truth in @taibled/shared. To add or tune a
+// game, edit GAME_REGISTRY there — not here. See docs/ADDING_GAMES.md.
+const GAMES = GAME_REGISTRY.map((m) => ({
+  serverId: m.serverId,
+  name: m.name,
+  sentinelValue: m.sentinel,
+  kmlPath: m.kmlPath,
+  mapLocationJson: m.osm,
+  hidingRadius: m.hidingRadius,
+  hidingRadiusUnits: m.hidingRadiusUnits,
+  tierRadiusOverrides: m.tierRadiusOverrides ?? null,
+  size: m.size,
+  hidingZoneGeoJsonPath: m.hidingZoneGeoJson ?? null,
+}));
 
 async function main() {
   for (const server of SERVERS) {
@@ -275,11 +57,14 @@ async function main() {
     await prisma.game.upsert({
       where: { sentinelValue: game.sentinelValue },
       update: {
+        serverId: game.serverId,
         name: game.name,
         kmlPath: game.kmlPath,
+        mapLocationJson: game.mapLocationJson,
         hidingRadius: game.hidingRadius,
         hidingRadiusUnits: game.hidingRadiusUnits,
         tierRadiusOverrides: game.tierRadiusOverrides ?? null,
+        size: game.size,
         hidingZoneGeoJsonPath: game.hidingZoneGeoJsonPath ?? null,
       },
       create: game,

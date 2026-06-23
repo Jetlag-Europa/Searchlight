@@ -125,9 +125,31 @@ export function parseGPX(text: string): CustomStation[] {
     return stations;
 }
 
+// Normalises common non-canonical folder names to the category key the
+// questions expect. Folders already named with the canonical category pass
+// through unchanged (identity). Add aliases here, not per-game.
+const POI_FOLDER_ALIASES: Record<string, string> = {
+    movie_theater: "cinema",
+    movie_theatre: "cinema",
+    amusement_park: "theme_park",
+    peak: "mountain",
+    golf: "golf_course",
+};
+
+const SKIPPED_POI_CATEGORIES = new Set(["administrative", "water"]);
+
+/**
+ * Parse a Folder-organised POI KML into `{ category: [{name,lat,lon}] }`.
+ *
+ * By convention each `<Folder>` is named with its canonical category, so the
+ * folder name IS the category (after alias normalisation). Pass
+ * `folderCategoryMap` only to override specific folder names (e.g. numeric
+ * folders from some exports); folders absent from the map fall back to the
+ * normalised folder name.
+ */
 export function parseKMLFolderPOI(
     text: string,
-    folderCategoryMap: Record<string, string>,
+    folderCategoryMap: Record<string, string> = {},
 ): Record<string, Array<{ name: string; lat: number; lon: number }>> {
     const result: Record<string, Array<{ name: string; lat: number; lon: number }>> = {};
     const folderBlocks = text.split(/<Folder>/i).slice(1);
@@ -135,8 +157,9 @@ export function parseKMLFolderPOI(
         const folderNameMatch = block.match(/<name>([\s\S]*?)<\/name>/i);
         if (!folderNameMatch) continue;
         const folderName = folderNameMatch[1].trim();
-        const category = folderCategoryMap[folderName];
-        if (!category || category === "administrative") continue;
+        const mapped = folderCategoryMap[folderName] ?? folderName.toLowerCase();
+        const category = POI_FOLDER_ALIASES[mapped] ?? mapped;
+        if (!category || SKIPPED_POI_CATEGORIES.has(category)) continue;
         const placemarks = block.split(/<Placemark[\s>]/i).slice(1);
         for (const pm of placemarks) {
             const coordsMatch = pm.match(

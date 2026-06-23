@@ -23,7 +23,7 @@ import {
 } from "@/lib/context";
 import type { CustomStation, OpenStreetMap } from "@/maps/api";
 import { parseCustomStationsFromText, parseGPX, parseKMLFolderPOI } from "@/maps/api/importers";
-import type { Game as ServerGame } from "@taibled/shared";
+import { GAME_REGISTRY, type Game as ServerGame } from "@taibled/shared";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -61,93 +61,33 @@ export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
     }
 }
 
-const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> = {
-    "__bundled-south-limburg-2026__": {
-        "airport":    "airport",
-        "camping":    "camping",
-        "cinema":     "cinema",
-        "consulate":  "consulate",
-        "golf_course":"golf_course",
-        "hospital":   "hospital",
-        "library":    "library",
-        "mill":       "mill",
-        "mountain":   "mountain",
-        "museum":     "museum",
-        "theme_park": "theme_park",
-        "zoo":        "zoo",
-    },
-    "__bundled-brno-2026-v2__": {
-        "5": "museum",
-        "9": "train_station",
-        "11": "airport",
-        "12": "park",
-        "13": "administrative",
-        "14": "hospital",
-        "15": "library",
-        "20": "theme_park",
-        "21": "zoo",
-        "22": "golf_course",
-        "23": "cinema",
-        "25": "water",
-        "26": "administrative",
-    },
-    "__bundled-bern-2026__": {
-        "airport":    "airport",
-        "cinema":     "cinema",
-        "consulate":  "consulate",
-        "hospital":   "hospital",
-        "library":    "library",
-        "mountain":   "mountain",
-        "museum":     "museum",
-        "park":       "park",
-        "theme_park": "theme_park",
-        "zoo":        "zoo",
-    },
-    "__bundled-bucharest-2026__": {
-        "cinema":       "cinema",
-        "consulate":    "consulate",
-        "covrigarie":   "covrigarie",
-        "hospital":     "hospital",
-        "library":      "library",
-        "museum":       "museum",
-        "park":         "park",
-        "zoo":          "zoo",
-        "golf_course":  "golf_course",
-        "theme_park":   "theme_park",
-        "train_station":"train_station",
-        "airport":      "airport",
-    },
-    "__bundled-exter-rotterdam-2026__": {
-        "library":     "library",
-        "museum":      "museum",
-        "hospital":    "hospital",
-        "zoo":         "zoo",
-        "cinema":      "cinema",
-        "golf_course": "golf_course",
-        "consulate":   "consulate",
-        "theme_park":  "theme_park",
-        "airport":     "airport",
-    },
-};
+// Client-side asset wiring, derived from the single source of truth in
+// @taibled/shared. To add or change a game, edit GAME_REGISTRY there — not here.
+// See docs/ADDING_GAMES.md.
+const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> =
+    Object.fromEntries(
+        GAME_REGISTRY.filter((m) => m.poiFolders).map((m) => [
+            m.sentinel,
+            m.poiFolders!,
+        ]),
+    );
 
 const GAME_HIDING_ZONE_GPX_PATHS: Record<string, string[]> = {};
 
-const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = {
-    "__bundled-bern-2026__": "bern-canton-stations.kml",
-    "__bundled-south-limburg-2026__": "south-limburg-stations.kml",
-    "__bundled-brno-2026-v2__": "brno-stations-v2.kml",
-    "__bundled-bucharest-2026__": "bucharest-stations.kml",
-    "__bundled-paris-2026__": "paris-stations.kml",
-    "__bundled-exter-rotterdam-2026__": "exter-rotterdam-stations.kml",
-};
+const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = Object.fromEntries(
+    GAME_REGISTRY.filter((m) => m.stationsKml).map((m) => [
+        m.sentinel,
+        m.stationsKml!,
+    ]),
+);
 
-const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> = {
-    "__bundled-bern-2026__": "bern-canton-border.geojson",
-    "__bundled-south-limburg-2026__": "south-limburg-border.geojson",
-    "__bundled-bucharest-2026__": "bucharest-border.geojson",
-    "__bundled-paris-2026__": "paris-border.geojson",
-    "__bundled-exter-rotterdam-2026__": "exter-rotterdam-border.geojson",
-};
+const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> =
+    Object.fromEntries(
+        GAME_REGISTRY.filter((m) => m.boundaryGeoJson).map((m) => [
+            m.sentinel,
+            m.boundaryGeoJson!,
+        ]),
+    );
 
 // Server-fetched games. Populated by fetchGames() when a session/server is known.
 export const gamesAtom = atom<GameDefinition[]>([]);

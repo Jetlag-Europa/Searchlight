@@ -8,6 +8,9 @@
         "build": "tsc",
         "start": "node dist/index.js",
         "test": "vitest run",
+        "seed": "tsx prisma/seed.ts",
+        "seed:dev": "DATABASE_URL=$(grep DATABASE_URL ../../.env | cut -d= -f2- | sed 's/@postgres:5432/@localhost:5434/') tsx prisma/seed.ts",
+        "validate-game": "tsx scripts/validate-game.ts",
         "postinstall": "prisma generate"
     },
     "dependencies": {

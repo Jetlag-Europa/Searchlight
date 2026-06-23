@@ -5,6 +5,8 @@
 // delete this file and its two call sites in routes/games.ts, plus the
 // `userPassesGameGate` helper in lib/permissions.ts.
 
+import { GAME_REGISTRY } from "@taibled/shared";
+
 // Virtual servers have no real Discord guild, so guild-membership checks must be
 // skipped for them (a Discord member lookup would 404 → 403 for everyone). The
 // server itself is still listed for all users; its games are gated below.
@@ -16,16 +18,16 @@ export interface GameVisibilityGate {
   requireRoleId: string; // role the user must hold in that guild to see the game
 }
 
-// A game listed here is visible only to users holding `requireRoleId` in
-// `requireGuildId`. Games not listed here are visible to anyone who can see
-// their server (existing behaviour).
-export const GAME_VISIBILITY_GATES: GameVisibilityGate[] = [
-  {
-    sentinelValue: "__bundled-exter-rotterdam-2026__",
-    requireGuildId: "1190673594649415730", // JetLag EU
-    requireRoleId: "1514353477231312966",
-  },
-];
+// A gated game is visible only to users holding `requireRoleId` in
+// `requireGuildId`. Games without a gate are visible to anyone who can see
+// their server (existing behaviour). Derived from the registry's `gate` field.
+export const GAME_VISIBILITY_GATES: GameVisibilityGate[] = GAME_REGISTRY
+  .filter((m) => m.gate)
+  .map((m) => ({
+    sentinelValue: m.sentinel,
+    requireGuildId: m.gate!.requireGuildId,
+    requireRoleId: m.gate!.requireRoleId,
+  }));
 
 export function gateForSentinel(sentinelValue: string): GameVisibilityGate | undefined {
   return GAME_VISIBILITY_GATES.find((g) => g.sentinelValue === sentinelValue);

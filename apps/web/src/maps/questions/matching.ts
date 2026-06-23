@@ -52,6 +52,11 @@ import {
     prettifyLocation,
     trainLineNodeFinder,
 } from "@/maps/api";
+import {
+    categoryForQuestionType,
+    customPOIPoints,
+    getCustomPOIs,
+} from "@/lib/poiOverride";
 import { holedMask, modifyMapData, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
@@ -63,34 +68,13 @@ import type {
     ZoneMatchingQuestions,
 } from "@/maps/schema";
 
-const MATCHING_POI_TO_CATEGORY: Record<string, string> = {
-    "airport": "airport", "airport-full": "airport",
-    "aquarium": "aquarium", "aquarium-full": "aquarium",
-    "zoo": "zoo", "zoo-full": "zoo",
-    "theme_park": "theme_park", "theme_park-full": "theme_park",
-    "museum": "museum", "museum-full": "museum",
-    "hospital": "hospital", "hospital-full": "hospital",
-    "cinema": "cinema", "cinema-full": "cinema",
-    "library": "library", "library-full": "library",
-    "golf_course": "golf_course", "golf_course-full": "golf_course",
-    "consulate": "consulate", "consulate-full": "consulate",
-    "park": "park", "park-full": "park",
-    "covrigarie": "covrigarie",
-    // Game-specific types with no generic equivalent
-    "sl-camping": "camping",
-    "sl-mill": "mill",
-    "sl-mountain": "mountain",
-    "buch-train_station": "train_station",
-    "bern-mountain": "mountain",
-};
-
 export const findMatchingPlaces = async (question: MatchingQuestion) => {
-    const overrideCategory = MATCHING_POI_TO_CATEGORY[question.type];
+    const overrideCategory = categoryForQuestionType(question.type);
     if (overrideCategory) {
-        const override = gamePOIData.get()[overrideCategory];
-        if (override?.length) {
-            console.info(`[taibled:poi] ${question.type} → ${override.length} custom ${overrideCategory}`);
-            return override.map((p) => turf.point([p.lon, p.lat], { name: p.name }));
+        const pts = customPOIPoints(overrideCategory);
+        if (pts) {
+            console.info(`[taibled:poi] ${question.type} → ${pts.length} custom ${overrideCategory}`);
+            return pts;
         }
     }
 
@@ -537,8 +521,8 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "park",
         ].includes(question.type)
     ) {
-        const poiCategory = MATCHING_POI_TO_CATEGORY[question.type];
-        const poiOverride = poiCategory ? gamePOIData.get()[poiCategory] : null;
+        const poiCategory = categoryForQuestionType(question.type);
+        const poiOverride = poiCategory ? getCustomPOIs(poiCategory) : null;
 
         let questionNearest, hiderNearest;
         if (poiOverride?.length) {

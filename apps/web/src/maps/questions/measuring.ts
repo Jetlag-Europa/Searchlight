@@ -45,6 +45,7 @@ import {
     prettifyLocation,
     QuestionSpecificLocation,
 } from "@/maps/api";
+import { categoryForQuestionType, getCustomPOIs } from "@/lib/poiOverride";
 import {
     arcBufferToPoint,
     connectToSeparateLines,
@@ -304,7 +305,8 @@ export const determineMeasuringBoundary = async (
         case "park-full": {
             const location = question.type.split("-full")[0] as APILocations;
 
-            const poiOverride = gamePOIData.get()[location];
+            const overrideCategory = categoryForQuestionType(question.type) ?? location;
+            const poiOverride = getCustomPOIs(overrideCategory);
             if (poiOverride?.length) {
                 console.info(`[taibled:poi] measuring ${question.type} → ${poiOverride.length} custom ${location}`);
                 return [
@@ -529,7 +531,10 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
             "covrigarie",
         ].includes(question.type)
     ) {
-        const poiOverride = gamePOIData.get()[(question as HomeGameMeasuringQuestions).type];
+        const poiCategory =
+            categoryForQuestionType(question.type) ??
+            (question as HomeGameMeasuringQuestions).type;
+        const poiOverride = getCustomPOIs(poiCategory);
 
         let questionNearest, hiderNearest;
         if (poiOverride?.length) {

@@ -1,29 +1,24 @@
 import * as turf from "@turf/turf";
 import type { FeatureCollection, Point } from "geojson";
 
-import { gamePOIData, hiderMode } from "@/lib/context";
+import { hiderMode } from "@/lib/context";
+import { customPOIPoints, resolveCategory } from "@/lib/poiOverride";
 import { findTentacleLocations } from "@/maps/api";
 import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
 
-// Maps prefixed tentacle location types to their gamePOIData category key.
-const TENTACLE_POI_CATMAP: Record<string, string> = {
-    "bern-mountain": "mountain",
-    "bern-park":     "park",
-};
-
 export async function getLocationsForTentacleQuestion(
     question: TentacleQuestion,
 ): Promise<FeatureCollection<Point>> {
-    const categoryKey = TENTACLE_POI_CATMAP[question.locationType] ?? question.locationType;
-    const override = gamePOIData.get()[categoryKey];
-    if (override?.length) {
+    const categoryKey = resolveCategory(question.locationType);
+    const overridePts = customPOIPoints(categoryKey);
+    if (overridePts) {
         const center = turf.point([question.lng, question.lat]);
         const radiusMeters = turf.convertLength(question.radius, question.unit, "meters");
-        const nearby = override
-            .map((p) => turf.point([p.lon, p.lat], { name: p.name }))
-            .filter((pt) => turf.distance(center, pt, { units: "meters" }) <= radiusMeters);
+        const nearby = overridePts.filter(
+            (pt) => turf.distance(center, pt, { units: "meters" }) <= radiusMeters,
+        );
         console.info(`[taibled:poi] tentacle ${question.locationType} → ${nearby.length} custom within radius`);
         return turf.featureCollection(nearby) as FeatureCollection<Point>;
     }

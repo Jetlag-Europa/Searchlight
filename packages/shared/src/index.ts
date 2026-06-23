@@ -1,3 +1,5 @@
+export * from "./games.js";
+
 // ── Auth / User ──────────────────────────────────────────────────────────────
 
 export interface User {
