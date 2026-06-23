@@ -22,7 +22,7 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn, mapToObj } from "@/lib/utils";
-import { currentGameId, gamesAtom } from "@/lib/games";
+import { currentGameId, gamesAtom, isQuestionTypeHidden } from "@/lib/games";
 import { findTentacleLocations } from "@/maps/api";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
 import {
@@ -108,8 +108,12 @@ export const TentacleQuestionComponent = ({
                                 determineUnionizedStrings(x.shape.locationType),
                             )
                             .filter((x) => {
-                                const requiredSentinel = GAME_GATED_TYPES[(x._def as any).value];
-                                return !requiredSentinel || requiredSentinel === activeGameSentinel;
+                                const value = (x._def as any).value;
+                                const requiredSentinel = GAME_GATED_TYPES[value];
+                                return (
+                                    (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
+                                    !isQuestionTypeHidden(value, activeGameSentinel)
+                                );
                             })
                             .map((x) => [(x._def as any).value, x.description]),
                     )}

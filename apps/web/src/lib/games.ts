@@ -172,6 +172,14 @@ export function getGameBySentinel(value: string): GameDefinition | undefined {
     return gamesAtom.get().find((g) => g.sentinelValue === value);
 }
 
+// Question types a game hides from the picker (e.g. a POI whose only feature is
+// outside the play area). Derived from GAME_REGISTRY[].hiddenQuestionTypes.
+export function isQuestionTypeHidden(type: string, sentinel: string): boolean {
+    if (!sentinel) return false;
+    const manifest = GAME_REGISTRY.find((g) => g.sentinel === sentinel);
+    return manifest?.hiddenQuestionTypes?.includes(type) ?? false;
+}
+
 const stationCache = new Map<string, CustomStation[]>();
 const mapBoundaryCache = new Map<string, FeatureCollection<Polygon | MultiPolygon>>();
 

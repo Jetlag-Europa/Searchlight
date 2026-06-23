@@ -24,7 +24,7 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
-import { currentGameId, gamesAtom } from "@/lib/games";
+import { currentGameId, gamesAtom, isQuestionTypeHidden } from "@/lib/games";
 import { determineMeasuringBoundary } from "@/maps/questions/measuring";
 import {
     determineUnionizedStrings,
@@ -185,8 +185,12 @@ export const MeasuringQuestionComponent = ({
                                 determineUnionizedStrings(x.shape.type),
                             )
                             .filter((x) => {
-                                const requiredSentinel = GAME_GATED_TYPES[(x._def as any).value];
-                                return !requiredSentinel || requiredSentinel === activeGameSentinel;
+                                const value = (x._def as any).value;
+                                const requiredSentinel = GAME_GATED_TYPES[value];
+                                return (
+                                    (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
+                                    !isQuestionTypeHidden(value, activeGameSentinel)
+                                );
                             })
                             .map((x) => [(x._def as any).value, x.description]),
                     )}

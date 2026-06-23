@@ -92,6 +92,13 @@ export interface GameManifest {
 
   /** Per-game visibility gate (temporary, until invite links land). */
   gate?: GameVisibilityGateManifest;
+
+  /**
+   * Question types to hide from the picker for this game — e.g. a POI question
+   * whose only real-world feature sits outside the play area and would
+   * otherwise be matched via Overpass. Already-added questions are unaffected.
+   */
+  hiddenQuestionTypes?: string[];
 }
 
 // ── Reusable OSM features ─────────────────────────────────────────────────────
@@ -218,6 +225,10 @@ export const GAME_REGISTRY: GameManifest[] = [
     boundaryGeoJson: "south-limburg-border.geojson",
     // Folders in the POI KML use canonical category names → identity mapping.
     poiFolders: {},
+    // The only nearby airport (Maastricht Aachen) is just outside the boundary;
+    // its aerodrome polygon overlaps the zone so Overpass still matches it. Hide
+    // the airport question entirely for this game.
+    hiddenQuestionTypes: ["airport"],
   },
   {
     sentinel: "__bundled-bucharest-2026__",
