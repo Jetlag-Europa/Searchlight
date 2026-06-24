@@ -3,7 +3,7 @@ import type { BBox, FeatureCollection, Point } from "geojson";
 
 import { hiderMode } from "@/lib/context";
 import { customPOIPoints, resolveCategory } from "@/lib/poiOverride";
-import { findTentacleLocations } from "@/maps/api";
+import { findTentacleLocations, LOCATION_FIRST_TAG } from "@/maps/api";
 import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
@@ -57,6 +57,14 @@ export async function getLocationsForTentacleQuestion(
         );
         console.info(`[taibled:poi] tentacle ${question.locationType} → ${nearby.length} custom within radius`);
         return turf.featureCollection(nearby) as FeatureCollection<Point>;
+    }
+
+    // Don't call Overpass for types it can't handle — custom-POI-only types (like
+    // christian_religion) aren't in LOCATION_FIRST_TAG and would produce a malformed
+    // query. Return empty without caching so the next render retries once gamePOIData
+    // loads (instead of poisoning the cache with a permanent empty result).
+    if (!(question.locationType in LOCATION_FIRST_TAG)) {
+        return turf.featureCollection([]) as FeatureCollection<Point>;
     }
 
     const key = JSON.stringify({

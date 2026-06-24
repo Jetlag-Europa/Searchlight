@@ -137,6 +137,7 @@ const tentacleLocationsOne = z.union([
     z.literal("golf_course").describe("Golf Courses (South Limburg)"),
     z.literal("bern-mountain").describe("Mountains (Bern)"),
     z.literal("bern-park").describe("Parks (Bern)"),
+    z.literal("christian_religion").describe("Christian Religion Places (South Limburg)"),
 ]);
 
 const apiLocationSchema = z.union([
@@ -408,6 +409,7 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "mill":                      "__bundled-south-limburg-2026__",
     "mountain":                  "__bundled-south-limburg-2026__",
     "golf_course":               "__bundled-south-limburg-2026__",
+    "christian_religion":        "__bundled-south-limburg-2026__",
     // Brno
     "brno-district":             "__bundled-brno-2026-v2__",
     "brno-water":                "__bundled-brno-2026-v2__",

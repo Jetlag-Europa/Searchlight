@@ -253,7 +253,11 @@ async function loadMapBoundaryGeoJSON(game: GameDefinition): Promise<void> {
 async function loadGamePOI(game: GameDefinition): Promise<void> {
     if (!game.kmlPOIFolders) return;
     const url = `${NORMALIZED_BASE}${game.kmlPath}`;
-    const res = await fetch(url);
+    // Force revalidation so a stale cached KML (browser heuristic cache or an
+    // upstream proxy) can't serve an outdated asset after new POI folders are
+    // added — this was the "christian_religion never loads" bug: the browser
+    // kept parsing an old south-limburg-poi.kml that predated the church folder.
+    const res = await fetch(url, { cache: "no-cache" });
     if (!res.ok) {
         console.warn("[taibled:poi] POI KML fetch failed for", game.id, res.status);
         return;
