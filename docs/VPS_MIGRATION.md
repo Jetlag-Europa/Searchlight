@@ -1,5 +1,19 @@
 # VPS Migration Handoff — Move prod to the Azure VPS
 
+> ✅ **This migration was completed on 2026-06-24. Prod now runs on the Azure VPS.**
+> This document is the *original plan* and is kept for history. For the **as-built**
+> operational reference (what's actually deployed), see [`VPS_Setup.md`](VPS_Setup.md).
+>
+> **Two things ended up different from the plan below — read these before trusting it:**
+> 1. **API host is `api-searchlight.jetlageuropa.org`** (single-label), NOT
+>    `api.searchlight.jetlageuropa.org`. Cloudflare free Universal SSL only covers
+>    one subdomain level (`*.jetlageuropa.org`); the two-level host failed the TLS
+>    handshake. Every `api.searchlight…` reference below should read `api-searchlight…`.
+> 2. **The tunnel is locally-managed, not token-based.** It was created from the VPS
+>    CLI (`cloudflared tunnel login` + `tunnel create`); the connector reads
+>    `/srv/WriteMap/cloudflared/config.yml` (mounted read-only). `TUNNEL_TOKEN` is
+>    unused. Ignore the Phase 0 "copy the tunnel token" step.
+
 Move the **production** stack off the Mac mini and onto an Azure VPS, fronted by a
 **Cloudflare Tunnel** (no open ports). The Mac mini keeps running **only** the
 self-hosted Overpass, now reached publicly (and authenticated) by the VPS.
