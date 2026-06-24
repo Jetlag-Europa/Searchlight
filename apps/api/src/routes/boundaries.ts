@@ -131,4 +131,5 @@ export async function boundaryRoutes(app: FastifyInstance) {
             return geoData;
         },
     );
+
 }
