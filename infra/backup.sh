@@ -8,8 +8,10 @@
 
 set -euo pipefail
 
-BACKUP_DIR="/Users/juleswitold/Dev/WriteMap/backups"
-COMPOSE_DIR="/Users/juleswitold/Dev/WriteMap/TaibledFork"
+# Paths default to the Mac mini layout; override on the VPS via env, e.g.
+#   WRITEMAP_BACKUP_DIR=/srv/WriteMap/backups WRITEMAP_COMPOSE_DIR=/srv/WriteMap/TaibledFork
+BACKUP_DIR="${WRITEMAP_BACKUP_DIR:-/Users/juleswitold/Dev/WriteMap/backups}"
+COMPOSE_DIR="${WRITEMAP_COMPOSE_DIR:-/Users/juleswitold/Dev/WriteMap/TaibledFork}"
 TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 FILENAME="writemap-${TIMESTAMP}.sql.gz"
 RETENTION_DAYS=30

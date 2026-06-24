@@ -1,0 +1,30 @@
+# VPS production overlay — Cloudflare Tunnel, no published host ports.
+#
+# Launch with: infra/deploy-vps.sh
+# Or manually:
+#   docker compose -p writemap -f docker-compose.yml -f docker-compose.vps.yml up -d --build
+#
+# Unlike docker-compose.prod.yml (Mac mini, ports + Nginx Proxy Manager), nothing
+# is exposed on the host. cloudflared shares the `internal` network and reaches the
+# containers directly as http://web:80 and http://api:3000. The public hostname →
+# service mapping (ingress) is configured in the Cloudflare Zero Trust dashboard for
+# the named tunnel whose token is TUNNEL_TOKEN:
+#   searchlight.jetlageuropa.org      -> http://web:80
+#   api.searchlight.jetlageuropa.org  -> http://api:3000
+services:
+  web:
+    build:
+      args:
+        PUBLIC_API_BASE: https://api.searchlight.jetlageuropa.org
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - web
+      - api
+    networks:
+      - internal

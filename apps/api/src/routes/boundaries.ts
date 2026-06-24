@@ -10,11 +10,32 @@ const OVERPASS_TIMEOUT_MS = 30_000;
 // public servers regularly time out on the is_in/admin-boundary queries the
 // Bezirk/canton questions need, which surfaced as 502s. Public servers remain as
 // fallback.
+const PRIVATE_OVERPASS_URL = process.env.OVERPASS_URL;
+
 const OVERPASS_URLS = [
-    process.env.OVERPASS_URL,
+    PRIVATE_OVERPASS_URL,
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
 ].filter((u): u is string => Boolean(u));
+
+// The self-hosted Overpass (OVERPASS_URL) may sit behind Cloudflare Access. When
+// these service-token credentials are set, send them as headers — but only to the
+// private URL, never to the public fallbacks.
+const CF_ACCESS_CLIENT_ID = process.env.OVERPASS_CF_ACCESS_CLIENT_ID;
+const CF_ACCESS_CLIENT_SECRET = process.env.OVERPASS_CF_ACCESS_CLIENT_SECRET;
+
+function overpassHeaders(url: string): Record<string, string> {
+    const headers: Record<string, string> = { "User-Agent": "TaibledFork/1.0" };
+    if (
+        url === PRIVATE_OVERPASS_URL &&
+        CF_ACCESS_CLIENT_ID &&
+        CF_ACCESS_CLIENT_SECRET
+    ) {
+        headers["CF-Access-Client-Id"] = CF_ACCESS_CLIENT_ID;
+        headers["CF-Access-Client-Secret"] = CF_ACCESS_CLIENT_SECRET;
+    }
+    return headers;
+}
 
 const OSM_TYPE_MAP: Record<string, string> = {
     W: "way",
@@ -28,7 +49,7 @@ async function overpassFetch(query: string): Promise<Response | null> {
         // Fresh signal per attempt — a timed-out signal would otherwise instantly
         // abort the next endpoint.
         const res = await fetch(`${url}?data=${encoded}`, {
-            headers: { "User-Agent": "TaibledFork/1.0" },
+            headers: overpassHeaders(url),
             signal: AbortSignal.timeout(OVERPASS_TIMEOUT_MS),
         }).catch(() => null);
         if (res?.ok) return res;
