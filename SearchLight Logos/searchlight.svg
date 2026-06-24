@@ -1,0 +1,71 @@
+<svg width="680" height="680" viewBox="0 0 680 680" role="img" xmlns="http://www.w3.org/2000/svg">
+<title>TailedFork SearchLight logo</title>
+<desc>Clean circular noir logo — overhead searchlight sweep with amber beam, concentric rings, gold rim, larger center housing.</desc>
+<defs>
+  <clipPath id="c">
+    <circle cx="340" cy="340" r="298"/>
+  </clipPath>
+  <radialGradient id="bg" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#18161c"/>
+    <stop offset="100%" stop-color="#0e0c11"/>
+  </radialGradient>
+  <radialGradient id="b1" cx="0%" cy="0%" r="100%" gradientUnits="userSpaceOnUse" fx="340" fy="340">
+    <stop offset="0%" stop-color="#f0c050" stop-opacity="0.9"/>
+    <stop offset="100%" stop-color="#f0c050" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="b2" cx="0%" cy="0%" r="100%" gradientUnits="userSpaceOnUse" fx="340" fy="340">
+    <stop offset="0%" stop-color="#c88020" stop-opacity="0.6"/>
+    <stop offset="100%" stop-color="#c88020" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="b3" cx="0%" cy="0%" r="100%" gradientUnits="userSpaceOnUse" fx="340" fy="340">
+    <stop offset="0%" stop-color="#8a5010" stop-opacity="0.35"/>
+    <stop offset="100%" stop-color="#8a5010" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+    <stop offset="0%" stop-color="#fff8d0"/>
+    <stop offset="40%" stop-color="#f0c050"/>
+    <stop offset="100%" stop-color="#c88020" stop-opacity="0"/>
+  </radialGradient>
+  <linearGradient id="rim" x1="0%" y1="0%" x2="100%" y2="100%">
+    <stop offset="0%" stop-color="#d4a840"/>
+    <stop offset="45%" stop-color="#7a5a18"/>
+    <stop offset="100%" stop-color="#d4a840"/>
+  </linearGradient>
+</defs>
+
+<circle cx="340" cy="340" r="298" fill="url(#bg)"/>
+
+<g clip-path="url(#c)">
+  <g fill="none" stroke="#c9a84c" stroke-width="0.6" opacity="0.18">
+    <circle cx="340" cy="340" r="75"/>
+    <circle cx="340" cy="340" r="145"/>
+    <circle cx="340" cy="340" r="215"/>
+    <circle cx="340" cy="340" r="285"/>
+  </g>
+  <g stroke="#c9a84c" stroke-width="0.5" opacity="0.1">
+    <line x1="340" y1="42" x2="340" y2="638"/>
+    <line x1="42" y1="340" x2="638" y2="340"/>
+  </g>
+  <path d="M340,340 L638,42 L638,240 Z" fill="url(#b3)"/>
+  <path d="M340,340 L638,80 L638,200 Z" fill="url(#b2)"/>
+  <path d="M340,340 L638,115 L638,168 Z" fill="url(#b1)"/>
+  <line x1="340" y1="340" x2="638" y2="140" stroke="#f0c050" stroke-width="0.8" opacity="0.5"/>
+  <circle cx="340" cy="340" r="72" fill="#13111a" stroke="#2e2840" stroke-width="1.5"/>
+  <circle cx="340" cy="340" r="63" fill="none" stroke="#c9a84c" stroke-width="0.8" opacity="0.4" stroke-dasharray="5 6"/>
+  <circle cx="340" cy="340" r="52" fill="#0e0c14" stroke="#c9a84c" stroke-width="1.2"/>
+  <circle cx="340" cy="340" r="40" fill="#0a0810" stroke="#7a5a18" stroke-width="1"/>
+  <circle cx="340" cy="340" r="28" fill="#0a0810" stroke="#3a2e10" stroke-width="1"/>
+  <circle cx="340" cy="340" r="18" fill="#080610" stroke="#2a2010" stroke-width="0.8"/>
+  <circle cx="340" cy="340" r="12" fill="url(#glow)"/>
+  <circle cx="340" cy="340" r="5" fill="#fff8d0"/>
+  <g fill="#c9a84c" opacity="0.55">
+    <circle cx="340" cy="268" r="3.5"/>
+    <circle cx="340" cy="412" r="3.5"/>
+    <circle cx="268" cy="340" r="3.5"/>
+    <circle cx="412" cy="340" r="3.5"/>
+  </g>
+</g>
+
+<circle cx="340" cy="340" r="298" fill="none" stroke="url(#rim)" stroke-width="3.5"/>
+<circle cx="340" cy="340" r="292" fill="none" stroke="#c9a84c" stroke-width="0.6" opacity="0.25"/>
+</svg>

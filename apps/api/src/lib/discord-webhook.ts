@@ -1,5 +1,15 @@
 import { env } from "./env.js";
 
+// Identity the feedback webhook posts under. `username`/`avatar_url` are only
+// honoured by Discord on message *create* (POST), not on edits (PATCH) — edited
+// messages keep the identity they were created with. `avatar_url` must be a
+// publicly reachable URL, so we serve the logo from the web app's public dir
+// (per-origin, so dev and live each use their own host).
+const WEBHOOK_IDENTITY = {
+  username: "Searchlight",
+  avatar_url: `${env.FRONTEND_ORIGIN}/searchlight.png`,
+};
+
 const SEVERITY_LABEL: Record<string, string> = {
   low: "🟡 Low",
   medium: "🟠 Medium",
@@ -116,7 +126,7 @@ export async function postNewFeedbackWebhook(
   const res = await fetch(`${env.DISCORD_FEEDBACK_WEBHOOK_URL}?wait=true`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ embeds: [embed] }),
+    body: JSON.stringify({ ...WEBHOOK_IDENTITY, embeds: [embed] }),
   });
 
   if (!res.ok) throw new Error(`Webhook POST failed: ${res.status}`);
@@ -152,7 +162,7 @@ export async function postFeatureClosedWebhook(feedbackTitle: string, resolution
   const res = await fetch(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ embeds: [featureClosedEmbed(feedbackTitle, resolution, closedByName)] }),
+    body: JSON.stringify({ ...WEBHOOK_IDENTITY, embeds: [featureClosedEmbed(feedbackTitle, resolution, closedByName)] }),
   });
 
   if (!res.ok) throw new Error(`Webhook POST failed: ${res.status}`);
@@ -164,7 +174,7 @@ export async function postBugFixedWebhook(feedbackTitle: string, closedByName: s
   const res = await fetch(env.DISCORD_FEEDBACK_WEBHOOK_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ embeds: [bugFixedEmbed(feedbackTitle, closedByName)] }),
+    body: JSON.stringify({ ...WEBHOOK_IDENTITY, embeds: [bugFixedEmbed(feedbackTitle, closedByName)] }),
   });
 
   if (!res.ok) throw new Error(`Webhook POST failed: ${res.status}`);
