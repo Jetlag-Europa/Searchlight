@@ -15,14 +15,16 @@ services:
   web:
     build:
       args:
-        PUBLIC_API_BASE: https://api.searchlight.jetlageuropa.org
+        PUBLIC_API_BASE: https://api-searchlight.jetlageuropa.org
 
   cloudflared:
     image: cloudflare/cloudflared:latest
     restart: unless-stopped
-    command: tunnel --no-autoupdate run
-    environment:
-      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    # Locally-managed tunnel: credentials + ingress live in ~/.cloudflared
+    # (mounted below), so no dashboard config and no TUNNEL_TOKEN are needed.
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - /srv/WriteMap/cloudflared:/etc/cloudflared:ro
     depends_on:
       - web
       - api
