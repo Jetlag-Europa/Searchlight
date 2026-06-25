@@ -22,7 +22,7 @@ evidence of correctness, not just "the code agrees with itself".
 |-------|-------|-------|
 | 1 | Tentacle logic harness + oracle | **Done** (`apps/web/tests/questions/`) |
 | 2 | Extend oracle to matching / measuring / radius / thermometer + debug-image-on-failure | **Done** (`apps/web/tests/questions/`) |
-| 3 | Playwright prerequisites: test-only login, `window` hook, seed | Planned |
+| 3 | Playwright prerequisites: test-only login, `window` hook, seed, isolated stack | **Done** (`apps/web/e2e/`, `docker-compose.test.yml`) |
 | 4 | Playwright: per-question rendering on the real map | Planned |
 | 5 | Playwright: multi-client SSE sync | Planned |
 
@@ -173,12 +173,51 @@ disagree" — the image is **never the gate**; the numeric assertion is.
 
 ---
 
-## Phases 3–5 — Playwright e2e (summary; detail when we get there)
+## Phase 3 — Playwright prerequisites (DONE)
 
-- **3. Prereqs:** `POST /auth/test-login` gated by `ENABLE_TEST_AUTH=1` (mints a
-  session cookie for a seeded user, skips Discord); a `window.__taibled` hook
-  exposing `mapGeoJSON / polyGeoJSON / questions / hiderMode` (test-flag only);
-  an isolated `writemap-test` Docker stack + seed; Overpass stubbed via fixtures.
+All four prereqs shipped and verified end to end (smoke spec green against the
+live stack):
+
+- **Test-only login** — `POST /auth/test-login`, registered only when
+  `ENABLE_TEST_AUTH=1` (so it doesn't exist in prod). Upserts the user and mints
+  a session cookie, skipping Discord. Env flags in `apps/api/src/lib/env.ts`
+  (`ENABLE_TEST_AUTH`, `TEST_AUTH_USER_ID`); unit-tested in `auth.test.ts`.
+- **`window.__taibled` hook** — `apps/web/src/lib/testHook.ts`, installed from
+  `Map.tsx`, gated by `PUBLIC_ENABLE_TEST_HOOK=1` (a web **build arg**, baked at
+  build time). Exposes live getters for `mapGeoJSON / polyGeoJSON / questions /
+  hiderMode`.
+- **Isolated stack** — `docker-compose.test.yml` (project `writemap-test`): own
+  Postgres volume, API with `ENABLE_TEST_AUTH=1`, web built with the hook, and a
+  stub Overpass. Brought up + seeded by `infra/deploy-test.sh`. Ports: web 8280,
+  api 3200, pg 5435. Config in `.env.test` (see `.env.test.example`).
+- **Deterministic seed** — `apps/api/prisma/seed-test.ts` (`pnpm --filter api
+  seed:test`): stable `e2e-test-user` + `e2e-session` on the South Limburg game
+  (its bundled GeoJSON ships in the web image, so boundary/matching questions
+  work offline).
+- **Overpass stub** — `infra/overpass-stub.conf` (nginx): returns a valid-but-
+  empty Overpass payload for any query, so Overpass-backed questions resolve
+  deterministically offline. Richer per-query fixtures can come in Phase 4.
+- **Playwright** — `apps/web/playwright.config.ts` + `e2e/` (`fixtures.ts`,
+  `smoke.e2e.ts`). Run with `pnpm --filter web test:e2e` after the stack is up.
+
+### Gotchas worth knowing (Phase 3)
+
+- **Use `127.0.0.1`, not `localhost`, everywhere** (Playwright baseURL, baked
+  `PUBLIC_API_BASE`, `FRONTEND_ORIGIN`). The stack binds IPv4 only; Chromium
+  resolves `localhost` → IPv6 `::1` → `ERR_CONNECTION_REFUSED`.
+- Specs are `*.e2e.ts` (not `.test.ts`/`.spec.ts`) so Vitest never runs them.
+- **Block the service worker** in the Playwright context (`serviceWorkers:
+  "block"`) — the PWA/workbox SW interferes with navigation on the plain-http
+  stack.
+- Two **source fixes** were needed for the port-mapped http stack, both made
+  proxy-safe for all envs: `nginx.conf` now uses `absolute_redirect off` (so the
+  `/map`→`/map/` redirect keeps the published port), and `Layout.astro`'s
+  http→https guard now exempts `127.0.0.1` / `::1` (not just `localhost`).
+- The session cookie is `SameSite=Lax` in non-prod; web (:8280) and api (:3200)
+  are the same site (both `127.0.0.1`), so the cookie rides cross-port requests —
+  a browser-context test-login authenticates subsequent app calls.
+
+## Phases 4–5 — Playwright e2e (summary; detail when we get there)
 - **4. Rendering:** per question type — log in, open the seeded session, set the
   question, read `window.__taibled.mapGeoJSON`, run the **Phase 1/2 assertions**
   on it, and confirm a tagged `eliminationGeoJSON` Leaflet layer exists in the

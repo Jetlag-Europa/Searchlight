@@ -114,6 +114,53 @@ export async function authRoutes(app: FastifyInstance) {
     },
   );
 
+  // POST /auth/test-login — TEST ONLY, gated by ENABLE_TEST_AUTH=1.
+  // Mints a session cookie for a seeded user without the Discord OAuth dance, so
+  // Playwright e2e can authenticate deterministically. The route is only
+  // registered when the flag is on, so it does not exist at all in production.
+  if (env.ENABLE_TEST_AUTH) {
+    app.log.warn(
+      "ENABLE_TEST_AUTH=1 — POST /auth/test-login is registered. Do NOT use this in production.",
+    );
+
+    app.post<{ Body?: { discordId?: string } }>(
+      "/test-login",
+      async (req, reply) => {
+        const discordId = req.body?.discordId ?? env.TEST_AUTH_USER_ID;
+
+        // Upsert so the endpoint works even if the user wasn't pre-seeded.
+        const user = await prisma.user.upsert({
+          where: { discordId },
+          update: {},
+          create: {
+            discordId,
+            username: discordId,
+            displayName: `Test User ${discordId}`,
+            avatarUrl: `https://cdn.discordapp.com/embed/avatars/0.png`,
+            discordAccessToken: "test-access-token",
+            discordRefreshToken: "test-refresh-token",
+            discordTokenExpiresAt: new Date(Date.now() + SESSION_TTL_MS),
+          },
+        });
+
+        const sessionId = randomBytes(32).toString("hex");
+        const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+        await prisma.authSession.create({
+          data: { id: sessionId, userId: user.discordId, expiresAt },
+        });
+
+        reply.setCookie("session", sessionId, {
+          ...sessionCookieOptions(expiresAt),
+          path: "/",
+        });
+
+        return reply.send({
+          user: { discordId: user.discordId, displayName: user.displayName },
+        });
+      },
+    );
+  }
+
   // POST /auth/logout
   app.post("/logout", async (req, reply) => {
     // Strict CSRF check — must be exactly the string "1"

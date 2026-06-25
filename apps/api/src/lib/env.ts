@@ -17,4 +17,8 @@ export const env = {
   PORT: parseInt(process.env["PORT"] ?? "3000", 10),
   ADMIN_DISCORD_IDS: process.env["ADMIN_DISCORD_IDS"] ?? "",
   DISCORD_FEEDBACK_WEBHOOK_URL: process.env["DISCORD_FEEDBACK_WEBHOOK_URL"],
+  // Test-only: when "1", enables POST /auth/test-login (mints a session cookie
+  // for a seeded user, skipping Discord) for Playwright e2e. NEVER set in prod.
+  ENABLE_TEST_AUTH: process.env["ENABLE_TEST_AUTH"] === "1",
+  TEST_AUTH_USER_ID: process.env["TEST_AUTH_USER_ID"] ?? "e2e-test-user",
 };

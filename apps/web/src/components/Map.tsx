@@ -34,6 +34,7 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
+import { installTestHook } from "@/lib/testHook";
 import {
     applyQuestionsToMapGeoData,
     computePerQuestionRegions,
@@ -137,6 +138,12 @@ export const Map = ({ className }: { className?: string }) => {
     const $polyGeoJSON = useStore(polyGeoJSON);
     const $gamePOIData = useStore(gamePOIData);
     const map = useStore(leafletMapContext);
+
+    // Test-only: expose map/question state on window.__taibled for Playwright
+    // e2e (no-op unless PUBLIC_ENABLE_TEST_HOOK=1).
+    useEffect(() => {
+        installTestHook();
+    }, []);
 
     const followMeMarkerRef = useMemo(
         () => ({ current: null as L.Marker | null }),
