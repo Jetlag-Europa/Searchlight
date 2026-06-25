@@ -3,6 +3,19 @@ import type { Feature, Point, Polygon } from "geojson";
 
 import type { Units } from "@/maps/schema";
 
+import { sampleGrid as sampleGridArea, type OracleVerdict } from "./oracleCommon";
+
+export type { OracleVerdict };
+
+/** Grid over the scenario's base boundary (thin wrapper over the shared helper
+ *  so existing tentacle callers can pass a scenario). */
+export function sampleGrid(
+    s: TentacleScenario,
+    steps: number,
+): Feature<Point>[] {
+    return sampleGridArea(s.base, steps);
+}
+
 /**
  * Independent re-derivation of what a tentacle question *should* leave on the
  * map, computed the slow/obvious way so it can be compared against the real
@@ -57,8 +70,6 @@ function nearestSite(
     return { name: sorted[0].name, margin };
 }
 
-export type OracleVerdict = "survives" | "eliminated" | "ambiguous";
-
 /**
  * Expected fate of a point. `ambiguous` means the point sits on (or near) a
  * decision boundary — the radius edge or a Voronoi edge — where floating-point
@@ -87,21 +98,4 @@ export function oracleVerdict(
     if (nearest.margin <= edgeMargin) return "ambiguous";
 
     return nearest.name === s.answerName ? "survives" : "eliminated";
-}
-
-/** A regular grid of sample points covering the scenario's bounding box. */
-export function sampleGrid(
-    s: TentacleScenario,
-    steps: number,
-): Feature<Point>[] {
-    const [minX, minY, maxX, maxY] = turf.bbox(s.base);
-    const pts: Feature<Point>[] = [];
-    for (let i = 0; i <= steps; i++) {
-        for (let j = 0; j <= steps; j++) {
-            const lng = minX + ((maxX - minX) * i) / steps;
-            const lat = minY + ((maxY - minY) * j) / steps;
-            pts.push(turf.point([lng, lat]));
-        }
-    }
-    return pts;
 }

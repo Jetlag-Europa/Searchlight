@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import type { Feature, Point, Polygon } from "geojson";
+import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // `arcBuffer` builds the radius circle via @arcgis/core's WASM geodesic-buffer
@@ -13,7 +13,7 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
     return {
         ...actual,
         arcBuffer: async (
-            fc: turf.FeatureCollection<Point>,
+            fc: FeatureCollection<Point>,
             radius: number,
             unit: turf.Units,
         ) => turf.buffer(fc.features[0], radius, { units: unit }),

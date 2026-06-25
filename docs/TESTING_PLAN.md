@@ -21,7 +21,7 @@ evidence of correctness, not just "the code agrees with itself".
 | Phase | Scope | State |
 |-------|-------|-------|
 | 1 | Tentacle logic harness + oracle | **Done** (`apps/web/tests/questions/`) |
-| 2 | Extend oracle to matching / measuring / radius / thermometer + debug-image-on-failure | **Next** (this doc) |
+| 2 | Extend oracle to matching / measuring / radius / thermometer + debug-image-on-failure | **Done** (`apps/web/tests/questions/`) |
 | 3 | Playwright prerequisites: test-only login, `window` hook, seed | Planned |
 | 4 | Playwright: per-question rendering on the real map | Planned |
 | 5 | Playwright: multi-client SSE sync | Planned |
@@ -79,7 +79,39 @@ near the POIs, ~300 m a kilometre out. Consequences for testing:
 
 ---
 
-## Phase 2 — extend the harness to the other question types (NEXT)
+## Phase 2 — extend the harness to the other question types (DONE)
+
+Shipped in `apps/web/tests/questions/`: `oracleCommon.ts` (shared `boundary`,
+`sampleGrid`, `gridAgreement`, `OracleVerdict` — lifted out of
+`tentacleOracle.ts`, which now re-uses them), `debugRender.ts` (SVG-on-failure),
+and `radius.test.ts` / `thermometer.test.ts` / `matching.test.ts` /
+`measuring.test.ts`. Full questions suite **26 green**; web suite **136 green**;
+harness tsc-clean. Findings worth carrying forward:
+
+- **Thermometer two-point Voronoi is degenerate for an EAST–WEST pair.** With A
+  and B on the same latitude, `geoSpatialVoronoi`'s reprojected hemispheres
+  collapse onto the *same* side — `warmer` and `cooler` then return the identical
+  mask. A NORTH–SOUTH (or diagonal) pair splits cleanly. The thermometer test
+  uses a vertical pair on purpose; this is a real (minor) app limitation, logged
+  not fixed — thermometer uses the raw `geoSpatialVoronoi`, not the repaired
+  `geoSpatialVoronoiSafe` that tentacles/matching use.
+- **A thermometer hider on the *gapped* side does not survive its own answer.**
+  Because the two cells overlap near one site and gap near the other, a hider in
+  the gap is assigned `warmer` from the cell it's outside of and then eliminated.
+  So the test asserts only *directional* consistency (opposite sides ⇒ opposite
+  `warmer`), not the survive-your-own-answer invariant.
+- **Bundled-GeoJSON matching is the clean, exact oracle** (containment, no
+  Voronoi, winding-agnostic) — `matching.test.ts` drives the real South Limburg
+  municipalities by stubbing `fetch` to read `public/*.geojson` off disk, and
+  also asserts the asset is a `FeatureCollection` (the Entry 34 bug guard).
+- **Faithful stubs for the WASM helpers:** `arcBuffer` → `turf.buffer`;
+  `arcBufferToPoint` → min-geodesic-distance-then-buffer-and-union (in miles, the
+  helper's `DEFAULT_BUFFER_UNIT`). `modifyMapData`/`holedMask`/`safeUnion` and the
+  real Voronoi stay under test.
+- **`adjustPerMeasuring` reads `mapGeoJSON` for a bbox before the type switch** —
+  tests must populate that nanostore even for POI/custom paths.
+
+### Original Phase 2 notes (for reference)
 
 Same recipe as tentacles: build a per-question oracle, grid-sample, assert
 agreement on clear points + invariants, and stub `arcBuffer` where used. Reuse

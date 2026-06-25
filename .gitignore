@@ -27,3 +27,6 @@ pnpm-debug.log*
 
 # local-only migration note, never commit
 summary.md
+
+# Headless test harness debug output (SVG-on-failure)
+apps/web/test-results/
