@@ -1,8 +1,11 @@
 import type { APILocations } from "@/maps/schema";
 
-export const OVERPASS_API = "https://overpass-api.de/api/interpreter";
-export const OVERPASS_API_FALLBACK =
-    "https://overpass.private.coffee/api/interpreter";
+// Overpass queries no longer hit public servers from the browser — they go through
+// the backend /overpass proxy (which reaches LocalOverpass, possibly behind
+// Cloudflare Access). This string is only a stable namespace for the browser Cache
+// API key, never a request target. It must be an http(s) URL — the Cache API
+// rejects other schemes as keys.
+export const OVERPASS_CACHE_NS = "https://overpass-api.de/api/interpreter";
 export const GEOCODER_API = "https://photon.komoot.io/api/";
 export const PASTEBIN_API_POST_URL =
     "https://cors-anywhere.com/https://pastebin.com/api/api_post.php";

@@ -12,11 +12,7 @@ import {
 import { safeUnion } from "@/maps/geo-utils";
 
 import { cacheFetch, determineCache } from "./cache";
-import {
-    LOCATION_FIRST_TAG,
-    OVERPASS_API,
-    OVERPASS_API_FALLBACK,
-} from "./constants";
+import { LOCATION_FIRST_TAG, OVERPASS_CACHE_NS } from "./constants";
 import type {
     EncompassingTentacleQuestionSchema,
     HomeGameMatchingQuestions,
@@ -25,13 +21,18 @@ import type {
 } from "./types";
 import { CacheType } from "./types";
 
-// POST helper so the query goes in the request body, avoiding URI-too-long (414)
-// on large polygons. Cache key is still the GET URL for deduplication.
-const overpassPost = (baseUrl: string, query: string): Promise<Response> =>
-    fetch(baseUrl, {
+const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+// Send the Overpass query to the backend proxy. The browser never hits public
+// Overpass servers directly — the proxy forwards to LocalOverpass (self-hosted,
+// possibly behind Cloudflare Access) with public servers as its own fallback.
+// credentials: "include" carries the session cookie (the proxy requires auth).
+const overpassProxyPost = (query: string): Promise<Response> =>
+    fetch(`${API_BASE}/overpass`, {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: `data=${encodeURIComponent(query)}`,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+        credentials: "include",
     });
 
 export const getOverpassData = async (
@@ -39,9 +40,8 @@ export const getOverpassData = async (
     loadingText?: string,
     cacheType: CacheType = CacheType.CACHE,
 ) => {
-    // Use the GET URL only as a cache key — actual requests use POST so large
-    // poly: filters don't hit the URI-too-long (414) limit on either server.
-    const cacheKey = `${OVERPASS_API}?data=${encodeURIComponent(query)}`;
+    // Stable per-query cache key (namespace only — not a request target).
+    const cacheKey = `${OVERPASS_CACHE_NS}?data=${encodeURIComponent(query)}`;
 
     try {
         const cache = await determineCache(cacheType);
@@ -51,27 +51,17 @@ export const getOverpassData = async (
         // Cache API unavailable — proceed to fetch.
     }
 
-    const doFetch = (baseUrl: string) =>
-        loadingText
-            ? toast.promise(overpassPost(baseUrl, query), { pending: loadingText })
-            : overpassPost(baseUrl, query);
-
+    const fetchPromise = overpassProxyPost(query);
     let response: Response | null = null;
     try {
-        response = await doFetch(OVERPASS_API);
+        response = loadingText
+            ? await toast.promise(fetchPromise, { pending: loadingText })
+            : await fetchPromise;
     } catch {
-        // Primary threw (CORS / network) — try fallback.
-    }
-
-    if (!response?.ok) {
-        try {
-            response = await doFetch(OVERPASS_API_FALLBACK);
-        } catch {
-            toast.error("Could not load data from Overpass (network error)", {
-                toastId: "overpass-error",
-            });
-            return { elements: [] };
-        }
+        toast.error("Could not load data from Overpass (network error)", {
+            toastId: "overpass-error",
+        });
+        return { elements: [] };
     }
 
     if (!response?.ok) {
@@ -91,8 +81,6 @@ export const getOverpassData = async (
 
     return await response.json();
 };
-
-const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 export const determineGeoJSON = async (
     osmId: string,
