@@ -175,10 +175,18 @@ export function getGameBySentinel(value: string): GameDefinition | undefined {
 
 // Question types a game hides from the picker (e.g. a POI whose only feature is
 // outside the play area). Derived from GAME_REGISTRY[].hiddenQuestionTypes.
-export function isQuestionTypeHidden(type: string, sentinel: string): boolean {
+// Entries are either a bare type (hidden from every picker) or a picker-scoped
+// "<kind>:<type>" (hidden only from that kind's picker). `kind` scopes the check.
+export function isQuestionTypeHidden(
+    type: string,
+    sentinel: string,
+    kind?: "matching" | "measuring" | "tentacle",
+): boolean {
     if (!sentinel) return false;
     const manifest = GAME_REGISTRY.find((g) => g.sentinel === sentinel);
-    return manifest?.hiddenQuestionTypes?.includes(type) ?? false;
+    const hidden = manifest?.hiddenQuestionTypes;
+    if (!hidden) return false;
+    return hidden.includes(type) || (kind ? hidden.includes(`${kind}:${type}`) : false);
 }
 
 const stationCache = new Map<string, CustomStation[]>();
