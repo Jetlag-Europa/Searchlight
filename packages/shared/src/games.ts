@@ -97,6 +97,10 @@ export interface GameManifest {
    * Question types to hide from the picker for this game — e.g. a POI question
    * whose only real-world feature sits outside the play area and would
    * otherwise be matched via Overpass. Already-added questions are unaffected.
+   *
+   * Each entry is either a bare type (`"airport"`, hidden from every picker) or
+   * a picker-scoped `"<kind>:<type>"` (`"matching:airport"`, hidden only from
+   * the matching picker). Valid kinds: `matching`, `measuring`, `tentacle`.
    */
   hiddenQuestionTypes?: string[];
 }
@@ -235,10 +239,11 @@ export const GAME_REGISTRY: GameManifest[] = [
     boundaryGeoJson: "south-limburg-border.geojson",
     // Folders in the POI KML use canonical category names → identity mapping.
     poiFolders: {},
-    // The only nearby airport (Maastricht Aachen) is just outside the boundary;
-    // its aerodrome polygon overlaps the zone so Overpass still matches it. Hide
-    // the airport question entirely for this game.
-    hiddenQuestionTypes: ["airport"],
+    // Maastricht Aachen (the only nearby airport) sits just outside the
+    // boundary, but its aerodrome polygon overlaps the zone so Overpass falsely
+    // matches it as "in zone" — wrong for the matching question, so hide airport
+    // there. Measuring (distance to nearest airport) wants it, so leave it on.
+    hiddenQuestionTypes: ["matching:airport"],
   },
   {
     sentinel: "__bundled-bucharest-2026__",

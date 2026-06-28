@@ -112,7 +112,7 @@ export const TentacleQuestionComponent = ({
                                 const requiredSentinel = GAME_GATED_TYPES[value];
                                 return (
                                     (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
-                                    !isQuestionTypeHidden(value, activeGameSentinel)
+                                    !isQuestionTypeHidden(value, activeGameSentinel, "tentacle")
                                 );
                             })
                             .map((x) => [(x._def as any).value, x.description]),
@@ -137,6 +137,7 @@ export const TentacleQuestionComponent = ({
                                                 !isQuestionTypeHidden(
                                                     value,
                                                     activeGameSentinel,
+                                                    "tentacle",
                                                 )
                                             );
                                         })

@@ -264,7 +264,7 @@ export const MatchingQuestionComponent = ({
                                 const requiredSentinel = GAME_GATED_TYPES[value];
                                 return (
                                     (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
-                                    !isQuestionTypeHidden(value, activeGameSentinel)
+                                    !isQuestionTypeHidden(value, activeGameSentinel, "matching")
                                 );
                             })
                             .map((x) => [(x._def as any).value, x.description]),
