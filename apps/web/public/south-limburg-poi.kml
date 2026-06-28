@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2"><Document>
 <name>South Limburg POI</name>
+<Folder><name>airport</name>
+<Placemark><name>Maastricht Aachen Airport</name><Point><coordinates>5.7703,50.9153</coordinates></Point></Placemark>
+</Folder>
 <Folder><name>camping</name>
 <Placemark><name>NTKC De Heerkuil</name><Point><coordinates>5.7766334,50.7907502</coordinates></Point></Placemark>
 <Placemark><name>Minicamping Rosenhof</name><Point><coordinates>5.7674476,50.8056778</coordinates></Point></Placemark>
