@@ -336,7 +336,7 @@ export const GAME_REGISTRY: GameManifest[] = [
     name: "Zurich 2026",
     serverId: SERVER.CH,
     size: "large",
-    hidingRadius: 400,
+    hidingRadius: 500,
     hidingRadiusUnits: "meters",
     osm: ZURICH_CANTON_FEATURE,
     kmlPath: "zurich-poi.kml",
