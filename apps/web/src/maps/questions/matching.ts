@@ -254,6 +254,18 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
+            case "budapest-district": {
+                // Budapest districts (kerület) are admin_level=9 in OSM. Served
+                // via the backend proxy → LocalOverpass (cached in BoundaryCache).
+                boundary = await findBoundaryFromAPI(question.lat, question.lng, 9);
+                if (!boundary) {
+                    toast.error(
+                        "No district found at this point — must be inside Budapest.",
+                    );
+                    throw new Error("No Budapest district found");
+                }
+                break;
+            }
             case "bern-canton": {
                 // Swiss cantons are admin_level=4 in OSM.
                 boundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
@@ -426,6 +438,9 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "rotterdam-theme_park":
             case "rotterdam-airport":
             case "covrigarie":
+            case "budapest-castle":
+            case "budapest-stadium":
+            case "budapest-rail":
             case "airport":
             case "major-city":
             case "aquarium-full":
@@ -554,6 +569,9 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "golf_course",
             "consulate",
             "park",
+            "budapest-castle",
+            "budapest-stadium",
+            "budapest-rail",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);

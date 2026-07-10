@@ -49,6 +49,9 @@ const CATEGORY_ALIASES: Record<string, string> = {
     "bern-mountain": "mountain",
     "bern-park": "park",
     covrigarie: "covrigarie",
+    "budapest-castle": "castle",
+    "budapest-stadium": "stadium",
+    "budapest-rail": "train_station",
 };
 
 /** Resolve a raw category/locationType key to its gamePOIData category. */

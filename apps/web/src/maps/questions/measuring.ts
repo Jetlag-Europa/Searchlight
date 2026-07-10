@@ -286,14 +286,28 @@ export const determineMeasuringBoundary = async (
             console.info(`[taibled:line] measuring ${question.type} → ${fc.features.length} line feature(s)`);
             return [turf.combine(turf.featureCollection(fc.features)).features[0]];
         }
+        case "budapest-water": {
+            // Bodies of water are bundled separately (the importer skips a
+            // "water" POI folder), so read the geojson directly.
+            const res = await fetch(import.meta.env.BASE_URL + "budapest-water.geojson");
+            const fc = await res.json();
+            if (!fc.features?.length) return false;
+            console.info(`[taibled:water] measuring budapest-water → ${fc.features.length} points`);
+            return [turf.combine(turf.featureCollection(fc.features)).features[0]];
+        }
         case "sl-camping":
         case "sl-mill":
         case "buch-train_station":
-        case "bern-mountain": {
+        case "bern-mountain":
+        case "budapest-castle":
+        case "budapest-stadium":
+        case "budapest-rail": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
                 "bern-mountain": "mountain",
+                "budapest-castle": "castle", "budapest-stadium": "stadium",
+                "budapest-rail": "train_station",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -540,14 +554,17 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
     if (
         question.type === "rotterdam-rail" ||
         question.type === "rotterdam-coastline" ||
-        question.type === "zurich-coastline"
+        question.type === "zurich-coastline" ||
+        question.type === "budapest-water"
     ) {
         const file =
             question.type === "rotterdam-rail"
                 ? "exter-rotterdam-hsl.geojson"
                 : question.type === "rotterdam-coastline"
                   ? "exter-rotterdam-coastline.geojson"
-                  : "zurich-lake-coast.geojson";
+                  : question.type === "budapest-water"
+                    ? "budapest-water.geojson"
+                    : "zurich-lake-coast.geojson";
         const res = await fetch(import.meta.env.BASE_URL + file);
         const fc = await res.json();
         if (!fc.features?.length) return question;
@@ -579,6 +596,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "rotterdam-library": "library", "rotterdam-museum": "museum", "rotterdam-hospital": "hospital",
         "rotterdam-zoo": "zoo", "rotterdam-cinema": "cinema", "rotterdam-golf_course": "golf_course",
         "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
+        "budapest-castle": "castle", "budapest-stadium": "stadium", "budapest-rail": "train_station",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

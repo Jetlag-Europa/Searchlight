@@ -1,0 +1,1130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document>
+  <Folder>
+    <name>Stations</name>
+    <Placemark>
+      <name>Üröm</name>
+      <Point><coordinates>19.002387,47.580484,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Óbuda</name>
+      <Point><coordinates>19.033607,47.568938,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Aquincum</name>
+      <Point><coordinates>19.048124,47.566212,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rómaifürdő</name>
+      <Point><coordinates>19.048275,47.575319,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Csillaghegy</name>
+      <Point><coordinates>19.045614,47.586735,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Békásmegyer</name>
+      <Point><coordinates>19.054646,47.59814,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kaszásdűlő</name>
+      <Point><coordinates>19.045446,47.557162,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Filatorigát</name>
+      <Point><coordinates>19.045897,47.552166,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szentlélek tér</name>
+      <Point><coordinates>19.04715,47.539606,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Flórián tér</name>
+      <Point><coordinates>19.040348,47.541301,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Óbudai rendelőintézet</name>
+      <Point><coordinates>19.034524,47.545054,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bécsi út / Vörösvári út</name>
+      <Point><coordinates>19.028958,47.548345,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent Margit Kórház</name>
+      <Point><coordinates>19.030909,47.540665,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Selmeci utca</name>
+      <Point><coordinates>19.03357,47.53587,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tímár utca</name>
+      <Point><coordinates>19.04462,47.534074,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Katinyi mártírok parkja</name>
+      <Point><coordinates>19.036468,47.532393,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kolosy tér</name>
+      <Point><coordinates>19.037515,47.527802,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szépvölgyi út</name>
+      <Point><coordinates>19.04026,47.527313,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Zsigmond tér</name>
+      <Point><coordinates>19.036935,47.524242,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Margit híd, budai hídfő</name>
+      <Point><coordinates>19.039085,47.514618,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Batthyány tér</name>
+      <Point><coordinates>19.038785,47.506296,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mechwart liget</name>
+      <Point><coordinates>19.031789,47.510847,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Széll Kálmán tér</name>
+      <Point><coordinates>19.024944,47.507035,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent János Kórház</name>
+      <Point><coordinates>19.009887,47.509548,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Orgonás</name>
+      <Point><coordinates>19.003105,47.506534,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Adonis utca</name>
+      <Point><coordinates>18.989887,47.503113,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Svábhegy</name>
+      <Point><coordinates>18.989424,47.497462,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Széchenyi-hegy, Gyermekvasút</name>
+      <Point><coordinates>18.979489,47.495128,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budagyöngye</name>
+      <Point><coordinates>18.999151,47.516104,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kelemen László utca</name>
+      <Point><coordinates>18.990268,47.521901,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Zuhatag sor</name>
+      <Point><coordinates>18.985976,47.526045,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagyhíd</name>
+      <Point><coordinates>18.983831,47.528267,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Heinrich István utca</name>
+      <Point><coordinates>18.970291,47.53948,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hűvösvölgy</name>
+      <Point><coordinates>18.964274,47.543027,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Déli pályaudvar</name>
+      <Point><coordinates>19.024739,47.500203,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kék Golyó utca</name>
+      <Point><coordinates>19.021044,47.49782,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Királyhágó tér</name>
+      <Point><coordinates>19.019558,47.495185,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kiss János altábornagy utca</name>
+      <Point><coordinates>19.016703,47.492513,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Zólyomi lépcső</name>
+      <Point><coordinates>19.012015,47.490425,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vas Gereben utca</name>
+      <Point><coordinates>19.009504,47.489105,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Farkasréti temető</name>
+      <Point><coordinates>19.005621,47.484204,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Márton Áron tér</name>
+      <Point><coordinates>18.999033,47.481637,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clark Ádám tér</name>
+      <Point><coordinates>19.040704,47.499249,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Várkert Bazár</name>
+      <Point><coordinates>19.044201,47.493537,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Döbrentei tér</name>
+      <Point><coordinates>19.04341,47.491731,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dózsa György tér</name>
+      <Point><coordinates>19.038054,47.493827,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Krisztina tér</name>
+      <Point><coordinates>19.032531,47.496747,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mikó utca</name>
+      <Point><coordinates>19.028891,47.498394,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent Gellért tér - Műegyetem</name>
+      <Point><coordinates>19.053915,47.483433,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gárdonyi tér</name>
+      <Point><coordinates>19.051662,47.480344,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Csörsz utca</name>
+      <Point><coordinates>19.024032,47.492332,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>BAH-csomópont</name>
+      <Point><coordinates>19.024702,47.487069,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Alsóhegy utca</name>
+      <Point><coordinates>19.030159,47.482861,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szüret utca</name>
+      <Point><coordinates>19.036371,47.480214,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Móricz Zsigmond körtér</name>
+      <Point><coordinates>19.046999,47.477317,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budafoki út / Szerémi sor</name>
+      <Point><coordinates>19.053728,47.474057,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Petőfi híd, budai hídfő</name>
+      <Point><coordinates>19.059093,47.476609,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Újbuda-központ</name>
+      <Point><coordinates>19.046306,47.474022,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kosztolányi Dezső tér</name>
+      <Point><coordinates>19.040532,47.475476,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Karolina út</name>
+      <Point><coordinates>19.033408,47.472721,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent Gellért-templom</name>
+      <Point><coordinates>19.023737,47.468538,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kelenföld vasútállomás</name>
+      <Point><coordinates>19.021634,47.465202,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bártfai utca</name>
+      <Point><coordinates>19.029232,47.464146,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bikás park</name>
+      <Point><coordinates>19.033331,47.463588,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hengermalom út / Szerémi út</name>
+      <Point><coordinates>19.048418,47.462088,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Etele út / Fehérvári út</name>
+      <Point><coordinates>19.042474,47.463139,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budafoki út / Dombóvári út</name>
+      <Point><coordinates>19.05419,47.469725,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hauszmann Alajos utca</name>
+      <Point><coordinates>19.043805,47.467259,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Andor utca</name>
+      <Point><coordinates>19.039618,47.455584,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Albertfalva kitérő</name>
+      <Point><coordinates>19.038502,47.452102,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budafok kocsiszín</name>
+      <Point><coordinates>19.036313,47.441392,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Albertfalva</name>
+      <Point><coordinates>19.03361,47.441248,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Savoya park</name>
+      <Point><coordinates>19.042515,47.435891,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Városház tér</name>
+      <Point><coordinates>19.039154,47.42704,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budafok</name>
+      <Point><coordinates>19.041614,47.426079,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Háros</name>
+      <Point><coordinates>19.036236,47.413152,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budatétény</name>
+      <Point><coordinates>19.017353,47.405485,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kastélypark</name>
+      <Point><coordinates>18.991739,47.391317,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Barosstelep</name>
+      <Point><coordinates>18.98921,47.398817,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagytétény-Diósd</name>
+      <Point><coordinates>18.973331,47.39812,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tétényliget</name>
+      <Point><coordinates>18.954403,47.384669,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budafoki elágazás</name>
+      <Point><coordinates>19.035742,47.435361,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rózsavölgy alsó</name>
+      <Point><coordinates>19.030286,47.438192,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rózsavölgy felső</name>
+      <Point><coordinates>19.022991,47.441094,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kelenvölgy-Péterhegy</name>
+      <Point><coordinates>19.012133,47.443387,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Balatoni út</name>
+      <Point><coordinates>19.005325,47.444539,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fülőke utca</name>
+      <Point><coordinates>18.99142,47.445293,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Repülőtér</name>
+      <Point><coordinates>18.986759,47.444725,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kamaraerdei Ifjúsági Park</name>
+      <Point><coordinates>18.979575,47.441157,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Csepel</name>
+      <Point><coordinates>19.066213,47.421951,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Karácsony Sándor utca</name>
+      <Point><coordinates>19.067415,47.426946,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent Imre tér</name>
+      <Point><coordinates>19.067844,47.431765,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szabadkikötő</name>
+      <Point><coordinates>19.071964,47.444421,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Millenniumtelep</name>
+      <Point><coordinates>19.105085,47.379653,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent István utca</name>
+      <Point><coordinates>19.115041,47.391741,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Soroksár felső</name>
+      <Point><coordinates>19.111739,47.409726,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Torontál utca</name>
+      <Point><coordinates>19.105302,47.423142,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Soroksár, Hősök tere</name>
+      <Point><coordinates>19.1144,47.399879,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pesterzsébet felső</name>
+      <Point><coordinates>19.093938,47.437866,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kén utca</name>
+      <Point><coordinates>19.086409,47.454967,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>János tér</name>
+      <Point><coordinates>19.102567,47.44171,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kossuth Lajos utca (Szent Erzsébet tér)</name>
+      <Point><coordinates>19.105545,47.439391,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagysándor József utca</name>
+      <Point><coordinates>19.109364,47.435515,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pöltenberg utca</name>
+      <Point><coordinates>19.108785,47.430719,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Klapka utca</name>
+      <Point><coordinates>19.111102,47.428658,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Akácfa utca</name>
+      <Point><coordinates>19.114064,47.425871,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Károly utca</name>
+      <Point><coordinates>19.116853,47.423287,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pesterzsébet, Pacsirtatelep</name>
+      <Point><coordinates>19.122532,47.422229,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Frangepán utca (Pacsirtatelep)</name>
+      <Point><coordinates>19.123333,47.424245,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wesselényi utca</name>
+      <Point><coordinates>19.119696,47.428041,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Székelyhíd utca</name>
+      <Point><coordinates>19.115496,47.430665,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vécsey utca</name>
+      <Point><coordinates>19.115337,47.438605,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kossuth Lajos utca (Tátra Tér)</name>
+      <Point><coordinates>19.112634,47.443147,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Thököly utca</name>
+      <Point><coordinates>19.109017,47.44574,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jókai Mór utca / Határ út</name>
+      <Point><coordinates>19.104962,47.448585,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gubacsi út / Határ út</name>
+      <Point><coordinates>19.096933,47.443935,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ferencváros</name>
+      <Point><coordinates>19.088414,47.468612,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Közvágóhíd</name>
+      <Point><coordinates>19.076546,47.466538,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mester utca / Könyves Kálmán körút</name>
+      <Point><coordinates>19.083038,47.469924,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Magyar Aszfalt</name>
+      <Point><coordinates>19.087843,47.459637,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Timót utca</name>
+      <Point><coordinates>19.092202,47.451858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fegyvergyár utca</name>
+      <Point><coordinates>19.093833,47.449013,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagykőrösi út / Határ út</name>
+      <Point><coordinates>19.114795,47.456335,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Epreserdő utca</name>
+      <Point><coordinates>19.111638,47.459621,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Közterületfenntartó Zrt.</name>
+      <Point><coordinates>19.107583,47.468093,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ecseri út</name>
+      <Point><coordinates>19.11048,47.471139,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mészáros Lőrinc utca</name>
+      <Point><coordinates>19.120425,47.459711,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Határ út</name>
+      <Point><coordinates>19.126617,47.465293,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pöttyös utca</name>
+      <Point><coordinates>19.117631,47.468429,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Népliget</name>
+      <Point><coordinates>19.099067,47.475412,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Haller utca / Mester utca</name>
+      <Point><coordinates>19.077566,47.475818,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mester utca / Ferenc körút</name>
+      <Point><coordinates>19.068728,47.481638,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Haller utca / Soroksári út</name>
+      <Point><coordinates>19.070399,47.474204,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Müpa - Nemzeti Színház</name>
+      <Point><coordinates>19.06999,47.469492,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Boráros tér</name>
+      <Point><coordinates>19.066322,47.479736,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagyvárad tér</name>
+      <Point><coordinates>19.089931,47.479332,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Semmelweis Klinikák</name>
+      <Point><coordinates>19.077736,47.483118,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Corvin-negyed</name>
+      <Point><coordinates>19.070016,47.48561,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hungária út (Rendőrség)</name>
+      <Point><coordinates>19.138029,47.455983,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Templom tér</name>
+      <Point><coordinates>19.142449,47.452791,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kossuth Lajos utca / Ady Endre út</name>
+      <Point><coordinates>19.14614,47.450092,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kispest, Tulipán utca</name>
+      <Point><coordinates>19.152534,47.445686,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Corvin körút</name>
+      <Point><coordinates>19.13412,47.462213,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lehel utca</name>
+      <Point><coordinates>19.14088,47.45934,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kossuth tér</name>
+      <Point><coordinates>19.144506,47.457831,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Árpád utca</name>
+      <Point><coordinates>19.151544,47.454639,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lajosmizsei sorompó</name>
+      <Point><coordinates>19.160169,47.450949,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Thököly út</name>
+      <Point><coordinates>19.179808,47.442688,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kemény Zsigmond utca</name>
+      <Point><coordinates>19.171852,47.446055,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szarvas csárda tér</name>
+      <Point><coordinates>19.186176,47.439993,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Madarász utca</name>
+      <Point><coordinates>19.192871,47.437816,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Honvéd utca</name>
+      <Point><coordinates>19.201819,47.434711,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pestszentlőrinc, Béke tér</name>
+      <Point><coordinates>19.217869,47.429369,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kőbánya-Kispest</name>
+      <Point><coordinates>19.148118,47.463654,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pestszentlőrinc</name>
+      <Point><coordinates>19.182894,47.454553,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szemeretelep</name>
+      <Point><coordinates>19.212263,47.44395,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ferihegy</name>
+      <Point><coordinates>19.223984,47.436893,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kispest</name>
+      <Point><coordinates>19.157721,47.447926,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pestszentimre felső</name>
+      <Point><coordinates>19.173554,47.413519,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pestszentimre</name>
+      <Point><coordinates>19.187633,47.402836,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Blaha Lujza tér</name>
+      <Point><coordinates>19.070507,47.496874,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákóczi tér</name>
+      <Point><coordinates>19.072233,47.492804,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>II. János Pál pápa tér</name>
+      <Point><coordinates>19.077255,47.495268,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Keleti pályaudvar</name>
+      <Point><coordinates>19.082344,47.500078,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Magdolna utca</name>
+      <Point><coordinates>19.087935,47.49231,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Orczy tér</name>
+      <Point><coordinates>19.091368,47.489236,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golgota tér</name>
+      <Point><coordinates>19.092906,47.485174,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Elnök utca</name>
+      <Point><coordinates>19.093506,47.481723,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Salgótarjáni utca, temető</name>
+      <Point><coordinates>19.096982,47.490887,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vajda Péter utca</name>
+      <Point><coordinates>19.103384,47.481559,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kőbányai út / Könyves Kálmán körút</name>
+      <Point><coordinates>19.107375,47.485997,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hidegkuti Nándor Stadion</name>
+      <Point><coordinates>19.108884,47.490782,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hős utca</name>
+      <Point><coordinates>19.10912,47.49626,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Puskás Ferenc Stadion</name>
+      <Point><coordinates>19.104786,47.500131,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Balkán utca</name>
+      <Point><coordinates>19.11561,47.473608,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kocsis Sándor Sportközpont</name>
+      <Point><coordinates>19.123893,47.478858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kőbánya alsó</name>
+      <Point><coordinates>19.12724,47.482976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kismartoni út</name>
+      <Point><coordinates>19.117369,47.484079,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pongrácz úti lakótelep</name>
+      <Point><coordinates>19.120051,47.491294,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pillangó utca</name>
+      <Point><coordinates>19.120003,47.501196,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kőbánya felső</name>
+      <Point><coordinates>19.133821,47.491937,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Őrház</name>
+      <Point><coordinates>19.124496,47.489472,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent László tér</name>
+      <Point><coordinates>19.131641,47.485121,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szent László Gimnázium</name>
+      <Point><coordinates>19.13519,47.488619,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Élessarok</name>
+      <Point><coordinates>19.138608,47.491446,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sörgyár</name>
+      <Point><coordinates>19.144702,47.491758,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Örs vezér tere</name>
+      <Point><coordinates>19.136135,47.503089,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gitár utca</name>
+      <Point><coordinates>19.15306,47.487001,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kada utca / Maglódi út</name>
+      <Point><coordinates>19.15821,47.482912,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Venyige utca</name>
+      <Point><coordinates>19.165506,47.477459,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sírkert út</name>
+      <Point><coordinates>19.171349,47.473742,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Új köztemető</name>
+      <Point><coordinates>19.177415,47.47321,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákos</name>
+      <Point><coordinates>19.173574,47.488676,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Akadémiaújtelep</name>
+      <Point><coordinates>19.222719,47.485546,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákosliget</name>
+      <Point><coordinates>19.257454,47.486202,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákoscsaba-Újtelep</name>
+      <Point><coordinates>19.272002,47.487594,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákoscsaba</name>
+      <Point><coordinates>19.28385,47.491764,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákoshegy</name>
+      <Point><coordinates>19.244723,47.468522,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákoskert</name>
+      <Point><coordinates>19.295954,47.456241,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákosfalva</name>
+      <Point><coordinates>19.151151,47.505156,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagyicce</name>
+      <Point><coordinates>19.167974,47.506954,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sashalom</name>
+      <Point><coordinates>19.179218,47.509012,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mátyásföld, repülőtér</name>
+      <Point><coordinates>19.193766,47.511737,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mátyásföld, Imre utca</name>
+      <Point><coordinates>19.199903,47.513766,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mátyásföld alsó</name>
+      <Point><coordinates>19.207362,47.515621,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinkota</name>
+      <Point><coordinates>19.217799,47.519708,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ilonatelep</name>
+      <Point><coordinates>19.229453,47.526682,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinkota alsó</name>
+      <Point><coordinates>19.220891,47.526378,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szabadságtelep</name>
+      <Point><coordinates>19.206083,47.537384,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Árpádföld</name>
+      <Point><coordinates>19.212349,47.533125,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Király utca / Erzsébet körút</name>
+      <Point><coordinates>19.066005,47.503138,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Oktogon</name>
+      <Point><coordinates>19.063301,47.50487,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vörösmarty utca</name>
+      <Point><coordinates>19.066348,47.507073,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kodály körönd</name>
+      <Point><coordinates>19.069309,47.50916,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bajza utca</name>
+      <Point><coordinates>19.072313,47.511218,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hősök tere</name>
+      <Point><coordinates>19.076819,47.514262,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Széchenyi fürdő</name>
+      <Point><coordinates>19.08094,47.517436,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mexikói út</name>
+      <Point><coordinates>19.091131,47.519638,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kacsóh Pongrác út</name>
+      <Point><coordinates>19.088338,47.518858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Erzsébet királyné útja, aluljáró</name>
+      <Point><coordinates>19.091665,47.516626,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ajtósi Dürer sor</name>
+      <Point><coordinates>19.095999,47.513554,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Zugló</name>
+      <Point><coordinates>19.101471,47.511191,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Egressy út / Hungária körút</name>
+      <Point><coordinates>19.104392,47.506909,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Laky Adolf utca</name>
+      <Point><coordinates>19.097575,47.519783,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nagy Lajos király útja / Czobor utca</name>
+      <Point><coordinates>19.101545,47.522312,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bosnyák tér</name>
+      <Point><coordinates>19.112164,47.519359,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Egressy tér</name>
+      <Point><coordinates>19.120185,47.514708,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pongrátz Gergely tér</name>
+      <Point><coordinates>19.129156,47.509414,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Újpalota</name>
+      <Point><coordinates>19.125522,47.531592,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fűrész utca</name>
+      <Point><coordinates>19.104753,47.525751,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákospatak utca</name>
+      <Point><coordinates>19.107467,47.528863,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Miskolci utca</name>
+      <Point><coordinates>19.110332,47.532039,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tóth István utca</name>
+      <Point><coordinates>19.116701,47.538094,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákospalota, MÁV-telep</name>
+      <Point><coordinates>19.120924,47.541326,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Szerencs utca / Bánkút utca</name>
+      <Point><coordinates>19.1267,47.546525,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sárfű utca</name>
+      <Point><coordinates>19.133609,47.54806,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vásárcsarnok</name>
+      <Point><coordinates>19.138856,47.544971,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Újpalota, Erdőkerülő utca</name>
+      <Point><coordinates>19.145382,47.53953,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jászai Mari tér</name>
+      <Point><coordinates>19.048576,47.512898,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nyugati pályaudvar</name>
+      <Point><coordinates>19.056131,47.510857,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lehel tér</name>
+      <Point><coordinates>19.060582,47.51779,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dózsa György út</name>
+      <Point><coordinates>19.063147,47.524493,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Göncz Árpád városközpont</name>
+      <Point><coordinates>19.067178,47.532277,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Forgách utca</name>
+      <Point><coordinates>19.069413,47.539271,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gyöngyösi utca</name>
+      <Point><coordinates>19.073221,47.548886,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Újpest-városkapu</name>
+      <Point><coordinates>19.079734,47.558655,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Újpest-központ</name>
+      <Point><coordinates>19.089869,47.560653,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Népfürdő utca / Árpád híd</name>
+      <Point><coordinates>19.05934,47.536276,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lehel utca / Róbert Károly körút</name>
+      <Point><coordinates>19.078609,47.526134,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dévai utca</name>
+      <Point><coordinates>19.065176,47.518541,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lehel utca / Dózsa György út</name>
+      <Point><coordinates>19.069082,47.520831,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Béke tér</name>
+      <Point><coordinates>19.08031,47.529242,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Frangepán utca (Angyalföld)</name>
+      <Point><coordinates>19.082069,47.533675,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fiastyúk utca</name>
+      <Point><coordinates>19.085974,47.540281,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Angyalföld kocsiszín</name>
+      <Point><coordinates>19.091754,47.553021,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Angyalföld</name>
+      <Point><coordinates>19.089708,47.549608,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákosrendező</name>
+      <Point><coordinates>19.089386,47.525245,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Istvántelek</name>
+      <Point><coordinates>19.106252,47.550219,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákospalota-Újpest</name>
+      <Point><coordinates>19.111559,47.565532,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákospalota-Kertváros</name>
+      <Point><coordinates>19.122944,47.578383,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tél utca / Pozsonyi utca</name>
+      <Point><coordinates>19.088837,47.556033,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kiss Ernő utca</name>
+      <Point><coordinates>19.094116,47.564948,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Újpesti rendelőintézet</name>
+      <Point><coordinates>19.100231,47.565107,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Géza fejedelem tér</name>
+      <Point><coordinates>19.117968,47.568441,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rákospalota, Kossuth utca</name>
+      <Point><coordinates>19.125078,47.567385,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Atlétikai stadion</name>
+      <Point><coordinates>19.11427,47.572249,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Óceánárok utca</name>
+      <Point><coordinates>19.115811,47.577782,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bőröndös utca</name>
+      <Point><coordinates>19.117074,47.585283,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Káposztásmegyer, Megyeri út</name>
+      <Point><coordinates>19.120536,47.593409,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fővám tér</name>
+      <Point><coordinates>19.057299,47.486366,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kálvin tér</name>
+      <Point><coordinates>19.061815,47.489469,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Astoria</name>
+      <Point><coordinates>19.059821,47.494032,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ferenciek tere</name>
+      <Point><coordinates>19.056021,47.493007,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Március 15. tér</name>
+      <Point><coordinates>19.051551,47.490819,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vörösmarty tér</name>
+      <Point><coordinates>19.050613,47.496799,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Deák Ferenc tér</name>
+      <Point><coordinates>19.053939,47.497575,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Széchenyi István tér</name>
+      <Point><coordinates>19.046036,47.500718,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bajcsy-Zsilinszky út</name>
+      <Point><coordinates>19.055295,47.499833,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Opera</name>
+      <Point><coordinates>19.058923,47.502232,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Arany János utca</name>
+      <Point><coordinates>19.0545,47.503088,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kossuth Lajos tér</name>
+      <Point><coordinates>19.046646,47.505427,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+</Document></kml>
