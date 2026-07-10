@@ -198,6 +198,16 @@ const ZURICH_CANTON_FEATURE: GameOSMFeature = {
 };
 
 // Discord server ids (mirror of SERVERS in seed.ts).
+const BUDAPEST_CITY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [47.4978789, 19.0402383] },
+  properties: {
+    osm_type: "R", osm_id: 1244004, extent: [47.6131468, 18.9251057, 47.3496899, 19.3349258],
+    country: "Hungary", osm_key: "place", countrycode: "HU",
+    osm_value: "city", name: "Budapest", type: "city",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -346,6 +356,26 @@ export const GAME_REGISTRY: GameManifest[] = [
     poiFolders: {},
     // Hide the generic (sea) coastline measuring question — Zurich is landlocked;
     // use the custom "Distance to Lake Zürich Coast" (zurich-coastline) instead.
+    hiddenQuestionTypes: ["coastline"],
+  },
+  {
+    sentinel: "__bundled-budapest-2025__",
+    name: "Budapest 11.07.25",
+    serverId: SERVER.EU,
+    size: "large",
+    hidingRadius: 250,
+    hidingRadiusUnits: "meters",
+    osm: BUDAPEST_CITY_FEATURE,
+    kmlPath: "budapest-poi.kml",
+    stationsKml: "budapest-stations.kml",
+    boundaryGeoJson: "budapest-border.geojson",
+    // POI folders use canonical category names → identity mapping. The custom
+    // categories castle / stadium load into gamePOIData for the Budapest-only
+    // matching/measuring questions; train_station backs the Budapest railway
+    // question; bodies of water are bundled separately (budapest-water.geojson)
+    // because the importer skips a "water" folder.
+    poiFolders: {},
+    // Budapest is landlocked — hide the generic sea-coastline measuring question.
     hiddenQuestionTypes: ["coastline"],
   },
 ];

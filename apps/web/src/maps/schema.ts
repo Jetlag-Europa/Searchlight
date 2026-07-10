@@ -374,6 +374,15 @@ const zurichMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.literal("zurich-bezirk").describe("Same Bezirk (Zürich)"),
 });
 
+const budapestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("budapest-district").describe("Same District (Budapest)"),
+        z.literal("budapest-castle").describe("Nearest Castle (Budapest)"),
+        z.literal("budapest-stadium").describe("Nearest Stadium (Budapest)"),
+        z.literal("budapest-rail").describe("Nearest Railway Station (Budapest)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -385,6 +394,7 @@ export const matchingQuestionSchema = z.union([
     bernMatchingQuestionsSchema.describe(NO_GROUP),
     exterRotterdamMatchingQuestionsSchema.describe(NO_GROUP),
     zurichMatchingQuestionsSchema.describe(NO_GROUP),
+    budapestMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -434,6 +444,16 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "zurich-bezirk":             "__bundled-zurich-2026__",
     "zurich-canton":             "__bundled-zurich-2026__",
     "zurich-coastline":          "__bundled-zurich-2026__",
+    // Budapest — district (admin_level 9 via LocalOverpass), bodies of water,
+    // and castle/stadium/rail (custom POI categories, matching + measuring)
+    "budapest-district":         "__bundled-budapest-2025__",
+    "budapest-water":            "__bundled-budapest-2025__",
+    "budapest-castle":           "__bundled-budapest-2025__",
+    "budapest-stadium":          "__bundled-budapest-2025__",
+    "budapest-rail":             "__bundled-budapest-2025__",
+    // Tentacle/POI categories unique to Budapest
+    "castle":                    "__bundled-budapest-2025__",
+    "stadium":                   "__bundled-budapest-2025__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -563,6 +583,15 @@ const zurichMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const budapestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("budapest-water").describe("Nearest Body of Water (Budapest)"),
+        z.literal("budapest-castle").describe("Nearest Castle (Budapest)"),
+        z.literal("budapest-stadium").describe("Nearest Stadium (Budapest)"),
+        z.literal("budapest-rail").describe("Nearest Railway Station (Budapest)"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -571,6 +600,7 @@ export const measuringQuestionSchema = z.union([
     bernMeasuringQuestionsSchema.describe(NO_GROUP),
     exterRotterdamMeasuringQuestionsSchema.describe(NO_GROUP),
     zurichMeasuringQuestionsSchema.describe(NO_GROUP),
+    budapestMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
