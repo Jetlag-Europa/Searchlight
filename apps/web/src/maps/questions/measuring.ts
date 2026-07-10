@@ -46,6 +46,7 @@ import {
     QuestionSpecificLocation,
 } from "@/maps/api";
 import { categoryForQuestionType, getCustomPOIs } from "@/lib/poiOverride";
+import { currentGameId, getGameById } from "@/lib/games";
 import {
     arcBufferToPoint,
     connectToSeparateLines,
@@ -86,6 +87,38 @@ const highSpeedBase = _.memoize(
     },
     (features) => `${JSON.stringify(features.map((x) => x.geometry))}`,
 );
+
+// Games that ship a bundled international-border line (converted from a KML)
+// instead of querying Overpass live. Keyed by game sentinel — add an entry to
+// opt a game in; everything else falls back to the live proxy query.
+const BUNDLED_BORDER_FILES: Record<string, string> = {
+    "__bundled-south-limburg-2026__": "south-limburg-intl-border.geojson",
+};
+
+const bundledBorderFileForActiveGame = (): string | undefined => {
+    const game = getGameById(currentGameId.get());
+    return game ? BUNDLED_BORDER_FILES[game.sentinelValue] : undefined;
+};
+
+const fetchInternationalBorderOgFeatures = async (): Promise<any[] | false> => {
+    const file = bundledBorderFileForActiveGame();
+    if (file) {
+        const res = await fetch(import.meta.env.BASE_URL + file);
+        const fc = await res.json();
+        if (!fc.features?.length) return false;
+        console.info(`[taibled:border-og] bundled ${file} → ${fc.features.length} line feature(s)`);
+        return fc.features;
+    }
+    // Generic: live international borders via the backend Overpass proxy
+    // (LocalOverpass on dev, VPS-routed on prod).
+    const data = await findInternationalBordersInZone();
+    const features = osmtogeojson(data as object).features.filter(
+        (f: any) => f.geometry.type === "LineString" || f.geometry.type === "MultiLineString",
+    );
+    if (!features.length) return false;
+    console.info(`[taibled:border-og] overpass → ${features.length} border segments`);
+    return features;
+};
 
 const bboxExtension = (
     bBox: [number, number, number, number],
@@ -207,6 +240,14 @@ export const determineMeasuringBoundary = async (
                 return false;
             }
             console.info(`[taibled:border] international-border → ${features.length} border segments`);
+            return [turf.combine(turf.featureCollection(features as any)).features[0]];
+        }
+        case "international-border-og": {
+            const features = await fetchInternationalBorderOgFeatures();
+            if (!features) {
+                toast.error("No international borders found in this game area.");
+                return false;
+            }
             return [turf.combine(turf.featureCollection(features as any)).features[0]];
         }
         case "bern-canton":
@@ -450,6 +491,24 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
             (f: any) => f.geometry.type === "LineString" || f.geometry.type === "MultiLineString",
         );
         if (!features.length) return question;
+        const combined = turf.simplify(
+            turf.combine(turf.featureCollection(features as any)).features[0] as any,
+            { tolerance: 0.005 },
+        );
+        const borderPts = turf.explode(combined as any);
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt  = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest  = turf.nearestPoint(hiderPt,  borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
+    if (question.type === "international-border-og") {
+        const features = await fetchInternationalBorderOgFeatures();
+        if (!features) return question;
         const combined = turf.simplify(
             turf.combine(turf.featureCollection(features as any)).features[0] as any,
             { tolerance: 0.005 },
