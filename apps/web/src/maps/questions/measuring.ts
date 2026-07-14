@@ -272,14 +272,20 @@ export const determineMeasuringBoundary = async (
         }
         case "rotterdam-rail":
         case "rotterdam-coastline":
-        case "zurich-coastline": {
+        case "zurich-coastline":
+        case "belgium-hsl":
+        case "belgium-coastline": {
             // Bundled local LineString (HSL high-speed rail / coastline / lake coast).
             const file =
                 question.type === "rotterdam-rail"
                     ? "exter-rotterdam-hsl.geojson"
                     : question.type === "rotterdam-coastline"
                       ? "exter-rotterdam-coastline.geojson"
-                      : "zurich-lake-coast.geojson";
+                      : question.type === "belgium-hsl"
+                        ? "belgium-hsl.geojson"
+                        : question.type === "belgium-coastline"
+                          ? "belgium-coastline.geojson"
+                          : "zurich-lake-coast.geojson";
             const res = await fetch(import.meta.env.BASE_URL + file);
             const fc = await res.json();
             if (!fc.features?.length) return false;
@@ -301,13 +307,15 @@ export const determineMeasuringBoundary = async (
         case "bern-mountain":
         case "budapest-castle":
         case "budapest-stadium":
-        case "budapest-rail": {
+        case "budapest-rail":
+        case "belgium-castle": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
                 "bern-mountain": "mountain",
                 "budapest-castle": "castle", "budapest-stadium": "stadium",
                 "budapest-rail": "train_station",
+                "belgium-castle": "castle",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -555,7 +563,9 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         question.type === "rotterdam-rail" ||
         question.type === "rotterdam-coastline" ||
         question.type === "zurich-coastline" ||
-        question.type === "budapest-water"
+        question.type === "budapest-water" ||
+        question.type === "belgium-hsl" ||
+        question.type === "belgium-coastline"
     ) {
         const file =
             question.type === "rotterdam-rail"
@@ -564,7 +574,11 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
                   ? "exter-rotterdam-coastline.geojson"
                   : question.type === "budapest-water"
                     ? "budapest-water.geojson"
-                    : "zurich-lake-coast.geojson";
+                    : question.type === "belgium-hsl"
+                      ? "belgium-hsl.geojson"
+                      : question.type === "belgium-coastline"
+                        ? "belgium-coastline.geojson"
+                        : "zurich-lake-coast.geojson";
         const res = await fetch(import.meta.env.BASE_URL + file);
         const fc = await res.json();
         if (!fc.features?.length) return question;
@@ -597,6 +611,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "rotterdam-zoo": "zoo", "rotterdam-cinema": "cinema", "rotterdam-golf_course": "golf_course",
         "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
         "budapest-castle": "castle", "budapest-stadium": "stadium", "budapest-rail": "train_station",
+        "belgium-castle": "castle",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

@@ -323,6 +323,18 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
+            case "belgium-province": {
+                // Belgium provinces are bundled locally (belgium-provinces.geojson) — no Overpass.
+                const res = await fetch(import.meta.env.BASE_URL + "belgium-provinces.geojson");
+                const fc = await res.json();
+                const pt = turf.point([question.lng, question.lat]);
+                boundary = fc.features.find((f: any) => turf.booleanPointInPolygon(pt, f));
+                if (!boundary) {
+                    toast.error("No province found at this point — must be inside Belgium.");
+                    throw new Error("No Belgium province found");
+                }
+                break;
+            }
             case "bucharest-sector": {
                 // Sectors are bundled locally (bucharest-sectors.geojson) — no Overpass needed.
                 const sectorsRes = await fetch(import.meta.env.BASE_URL + "bucharest-sectors.geojson");
@@ -441,6 +453,7 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "budapest-castle":
             case "budapest-stadium":
             case "budapest-rail":
+            case "belgium-castle":
             case "airport":
             case "major-city":
             case "aquarium-full":
@@ -572,6 +585,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "budapest-castle",
             "budapest-stadium",
             "budapest-rail",
+            "belgium-castle",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);

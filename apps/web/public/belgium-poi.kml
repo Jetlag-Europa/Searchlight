@@ -1,0 +1,4484 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Belgium 01.08 POIs</name>
+  <Folder>
+    <name>airport</name>
+    <Placemark>
+      <name>Internationale Luchthaven Antwerpen</name>
+      <Point><coordinates>4.463138,51.188972,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Internationale Luchthaven Kortrijk-Wevelgem</name>
+      <Point><coordinates>3.207965,50.81849,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Aéroport de Charleroi-Bruxelles-Sud</name>
+      <Point><coordinates>4.459457,50.463639,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Internationale luchthaven Oostende–Brugge</name>
+      <Point><coordinates>2.874006,51.200339,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Aéroport de Liège-Bierset</name>
+      <Point><coordinates>5.445014,50.638231,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Brussels Airport</name>
+      <Point><coordinates>4.485804,50.90093,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>museum</name>
+    <Placemark>
+      <name>Autoworld</name>
+      <Point><coordinates>4.393554,50.839457,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Art &amp; Histoire - Museum Kunst &amp; Geschiedenis</name>
+      <Point><coordinates>4.392077,50.839346,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>In Flanders Fields</name>
+      <Point><coordinates>2.885401,50.851035,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Joods Museum van Deportatie en Verzet</name>
+      <Point><coordinates>4.478202,51.034127,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fondation Folon</name>
+      <Point><coordinates>4.458096,50.732252,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Speelgoedmuseum</name>
+      <Point><coordinates>4.48287,51.016161,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Archéoforum</name>
+      <Point><coordinates>5.573287,50.645315,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De school van toen</name>
+      <Point><coordinates>3.717287,51.05544,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Bruxellois de la Gueuze - Brussels Museum van de Geuze</name>
+      <Point><coordinates>4.335805,50.841549,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mundaneum</name>
+      <Point><coordinates>3.955582,50.457616,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée d'histoire naturelle</name>
+      <Point><coordinates>3.948079,50.456947,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kortrijk 1302</name>
+      <Point><coordinates>3.267482,50.82898,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gasthuismuseum</name>
+      <Point><coordinates>4.999177,51.162108,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fotomuseum Antwerpen</name>
+      <Point><coordinates>4.387625,51.209033,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Parlamentarium</name>
+      <Point><coordinates>4.374328,50.84009,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ArsFIGURA</name>
+      <Point><coordinates>6.383672,50.352498,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ArsKRIPPANA</name>
+      <Point><coordinates>6.383934,50.352366,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Doornzelemolen</name>
+      <Point><coordinates>3.758001,51.140058,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Het Letterenhuis</name>
+      <Point><coordinates>4.404728,51.222809,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Snijders &amp; Rockoxhuis</name>
+      <Point><coordinates>4.40608,51.221728,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bardelare museum</name>
+      <Point><coordinates>3.636827,51.184306,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Belgian Chocolate Village</name>
+      <Point><coordinates>4.329937,50.864816,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Archief en Museum voor het Vlaams Leven te Brussel</name>
+      <Point><coordinates>4.349007,50.855241,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Belge de la Franc-Maçonnerie - Belgisch Museum van de Vrijmetselarij</name>
+      <Point><coordinates>4.351538,50.852985,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Français</name>
+      <Point><coordinates>4.638416,50.585519,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée BELvue - BELvue Museum</name>
+      <Point><coordinates>4.360689,50.84261,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Charlier - Charliermuseum</name>
+      <Point><coordinates>4.369928,50.847556,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée du CPAS de Bruxelles - Museum van het OCMW van Brussel</name>
+      <Point><coordinates>4.347247,50.835342,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Delvaux museum</name>
+      <Point><coordinates>2.610382,51.105807,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison du patrimoine médiéval mosan</name>
+      <Point><coordinates>4.898109,50.272675,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée du Chanoine Puissant</name>
+      <Point><coordinates>3.947459,50.454441,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée bruxellois du Moulin et de l'Alimentation - Brussels Museum van de Molen en de Voeding</name>
+      <Point><coordinates>4.39501,50.87325,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stadsmuseum 't Schippershof</name>
+      <Point><coordinates>3.123088,50.792667,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la Gourmandise</name>
+      <Point><coordinates>5.361435,50.557151,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musées Postes Restantes</name>
+      <Point><coordinates>5.36154,50.557368,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ecomusée</name>
+      <Point><coordinates>3.722138,50.695115,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la Banque nationale de Belgique - Museum van de Nationale Bank van België</name>
+      <Point><coordinates>4.357196,50.849803,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Muséum des sciences naturelles de Belgique - Museum voor Natuurwetenschappen van België</name>
+      <Point><coordinates>4.376494,50.836509,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Belge de la Radiologie - Belgisch Museum voor Radiologie</name>
+      <Point><coordinates>4.390885,50.907166,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Fin de siècle - Fin de siècle Museum</name>
+      <Point><coordinates>4.357985,50.841752,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Oldmasters - Oldmasters Museum</name>
+      <Point><coordinates>4.357764,50.841594,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CINEMATEK</name>
+      <Point><coordinates>4.360139,50.844101,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison Marc Sleen - Huis Marc Sleen</name>
+      <Point><coordinates>4.36001,50.850849,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Design Museum Brussels</name>
+      <Point><coordinates>4.341311,50.89766,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Famenne &amp; Art Museum</name>
+      <Point><coordinates>5.343538,50.226846,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée d'Ansembourg</name>
+      <Point><coordinates>5.58214,50.647024,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>LOMAK</name>
+      <Point><coordinates>5.088203,51.0677,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison de la science</name>
+      <Point><coordinates>5.578845,50.63873,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Egmontkamer</name>
+      <Point><coordinates>3.810701,50.869791,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stoomketelmuseum</name>
+      <Point><coordinates>3.810995,50.866846,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Saint-Rémy</name>
+      <Point><coordinates>3.923645,50.43629,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de l'érotisme et de la mythologie - Museum van erotiek en mythologië</name>
+      <Point><coordinates>4.355585,50.841259,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Regionaal Archeologisch Musuem</name>
+      <Point><coordinates>5.791429,51.095313,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vergane Glorie</name>
+      <Point><coordinates>4.930858,51.434826,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stedelijk Museum Peter Benoit</name>
+      <Point><coordinates>3.309887,50.855908,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pater Lievensmuseum</name>
+      <Point><coordinates>3.061845,50.891717,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Festraetsstudio</name>
+      <Point><coordinates>5.193288,50.821665,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Magritte Museum</name>
+      <Point><coordinates>4.358796,50.842418,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Coudenberg</name>
+      <Point><coordinates>4.359762,50.842895,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Wittert</name>
+      <Point><coordinates>5.576162,50.64076,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée en plein air - Sart Tilman</name>
+      <Point><coordinates>5.56561,50.584928,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Trésor de Liège</name>
+      <Point><coordinates>5.57161,50.639788,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bruxella 1238</name>
+      <Point><coordinates>4.350451,50.848257,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la Porte de Hal - Hallepoort Museum</name>
+      <Point><coordinates>4.344917,50.833098,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clockarium</name>
+      <Point><coordinates>4.402223,50.848362,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la ville de Bruxelles - Museum van de Stad Brussel</name>
+      <Point><coordinates>4.352781,50.846976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bakkerijmuseum</name>
+      <Point><coordinates>4.95148,51.199334,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée des Arbalétriers</name>
+      <Point><coordinates>4.360532,50.8418,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Heemkundig archeologisch museum</name>
+      <Point><coordinates>5.484839,51.226265,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Teseum</name>
+      <Point><coordinates>5.465133,50.780835,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Aquarium &amp; Museum</name>
+      <Point><coordinates>5.578858,50.638896,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison de l'Histoire européenne - Huis van de Europese geschiedenis</name>
+      <Point><coordinates>4.378586,50.839933,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Groeningemuseum</name>
+      <Point><coordinates>3.225787,51.205873,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée national de la Résistance - Nationaal Museum van de Weerstand</name>
+      <Point><coordinates>4.327917,50.839327,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wittockiana</name>
+      <Point><coordinates>4.420228,50.832247,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rouge Cloître - Rood Klooster</name>
+      <Point><coordinates>4.443094,50.813596,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Koninklijk Museum voor Schone Kunsten Antwerpen</name>
+      <Point><coordinates>4.394631,51.208593,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Boverie</name>
+      <Point><coordinates>5.577498,50.627471,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plantentuin Meise</name>
+      <Point><coordinates>4.326653,50.9285,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pavillon des Passions humaines - Paviljoen van de Menselijke Driften</name>
+      <Point><coordinates>4.387382,50.843056,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jardin botanique Jean Massart - Botanische tuin Jean Massart</name>
+      <Point><coordinates>4.43744,50.813864,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vlaams Tram- en Autobusmuseum</name>
+      <Point><coordinates>4.440355,51.199441,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum aan de Stroom</name>
+      <Point><coordinates>4.404731,51.228937,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Technopolis</name>
+      <Point><coordinates>4.470079,51.001899,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée du Tram - Trammuseum</name>
+      <Point><coordinates>4.433794,50.831858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée des instruments de musique - Muziekinstrumentenmuseum</name>
+      <Point><coordinates>4.359094,50.842838,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée des Transports en commun de Wallonie</name>
+      <Point><coordinates>5.584212,50.62847,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>M HKA - Museum van Hedendaagse Kunst Antwerpen</name>
+      <Point><coordinates>4.389706,51.211448,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tramsite Schepdaal</name>
+      <Point><coordinates>4.195848,50.83907,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ferme du Caillou</name>
+      <Point><coordinates>4.420745,50.646075,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de l'Eau et de la Fontaine</name>
+      <Point><coordinates>4.579338,50.659534,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Passchendaele Museum</name>
+      <Point><coordinates>2.988652,50.870726,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Belge de la Bande Dessinée - Belgisch Stripcentrum</name>
+      <Point><coordinates>4.360133,50.851235,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Zeilschip Mercator</name>
+      <Point><coordinates>2.91943,51.226748,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel Le Paige</name>
+      <Point><coordinates>4.83785,51.186101,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>t Grom</name>
+      <Point><coordinates>4.501646,51.061319,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Midzelen</name>
+      <Point><coordinates>4.502745,51.060767,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Africain de Namur</name>
+      <Point><coordinates>4.871396,50.466343,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gentpoort</name>
+      <Point><coordinates>3.234615,51.20303,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison Cauchie - Cauchiehuis</name>
+      <Point><coordinates>4.395326,50.838315,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Chapelle du vieux cimetière</name>
+      <Point><coordinates>4.071045,50.580825,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stadsmuseum Gent</name>
+      <Point><coordinates>3.717271,51.043886,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bastogne War Museum</name>
+      <Point><coordinates>5.738971,50.010621,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison Van Gogh</name>
+      <Point><coordinates>3.925174,50.441343,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum voor Schone Kunsten</name>
+      <Point><coordinates>3.724238,51.037971,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Belfort</name>
+      <Point><coordinates>4.038545,50.938634,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Espace gallo-romain</name>
+      <Point><coordinates>3.778445,50.630155,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison des géants</name>
+      <Point><coordinates>3.77476,50.629782,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Liezele</name>
+      <Point><coordinates>4.284947,51.066839,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Hergé</name>
+      <Point><coordinates>4.612983,50.671181,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel Puyenbrug</name>
+      <Point><coordinates>3.866184,51.149002,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>SparkOH!</name>
+      <Point><coordinates>3.901892,50.41873,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tour Salamandre</name>
+      <Point><coordinates>4.234138,50.235305,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôtel Solvay</name>
+      <Point><coordinates>4.365471,50.826368,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stadsmuseum Lier</name>
+      <Point><coordinates>4.567688,51.131713,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Arnold Vander Haeghen</name>
+      <Point><coordinates>3.721221,51.05153,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hill 62 Sanctuary Wood Museum</name>
+      <Point><coordinates>2.946024,50.836725,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison d'Erasme - Erasmushuis</name>
+      <Point><coordinates>4.308132,50.836519,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vleeshuis</name>
+      <Point><coordinates>4.399246,51.222688,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Frank Brangwyn-Arentshuis</name>
+      <Point><coordinates>3.225142,51.205452,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stedelijk museum</name>
+      <Point><coordinates>2.889264,50.845472,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Provinciaal Archeocentrum Velzeke (AVE)</name>
+      <Point><coordinates>3.779424,50.883883,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel d'Ursel</name>
+      <Point><coordinates>4.271445,51.104864,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Grevenbroekmuseum</name>
+      <Point><coordinates>5.477413,51.255662,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kazerne Dossin</name>
+      <Point><coordinates>4.479321,51.034173,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la Vie Paysanne</name>
+      <Point><coordinates>5.473387,49.544772,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Waux-Hall</name>
+      <Point><coordinates>5.868856,50.488295,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Historium</name>
+      <Point><coordinates>3.225063,51.209238,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gruuthusemuseum</name>
+      <Point><coordinates>3.224932,51.20506,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Harmonium Art Museum</name>
+      <Point><coordinates>4.365428,51.080256,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Meunier Museum</name>
+      <Point><coordinates>4.367069,50.81933,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée d’Art Spontané - Museum voor Spontane Kunst</name>
+      <Point><coordinates>4.370001,50.860371,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>S.M.A.K.</name>
+      <Point><coordinates>3.722773,51.038249,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison Autrique - Autrique-huis</name>
+      <Point><coordinates>4.373159,50.863248,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée schaerbeekois de la bière - Schaarbeeks Biermuseum</name>
+      <Point><coordinates>4.37497,50.862776,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Wiertz Museum</name>
+      <Point><coordinates>4.375713,50.837178,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée d'Ixelles - Museum van Elsene</name>
+      <Point><coordinates>4.372641,50.831484,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée des Arts Décoratifs</name>
+      <Point><coordinates>4.861325,50.463324,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Oud-gemeentehuis</name>
+      <Point><coordinates>5.020695,51.080539,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de l'Informatique Pionnière en Belgique</name>
+      <Point><coordinates>4.835489,50.462807,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Halle al'Chair</name>
+      <Point><coordinates>4.868092,50.462179,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Archéologique</name>
+      <Point><coordinates>5.810672,49.684149,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Gaspar</name>
+      <Point><coordinates>5.810978,49.683751,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dodengang</name>
+      <Point><coordinates>2.84422,51.046843,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>G.C. De Oude Pastorie</name>
+      <Point><coordinates>4.350537,50.978478,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Onze-Lieve-Vrouw-van-Leliëndaalkerk</name>
+      <Point><coordinates>4.480903,51.025694,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum Hof van Busleyden</name>
+      <Point><coordinates>4.48242,51.031123,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée des Beaux-Arts de Charleroi</name>
+      <Point><coordinates>4.453346,50.412238,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>M-Museum</name>
+      <Point><coordinates>4.704428,50.878689,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Waterburcht Pietersheim</name>
+      <Point><coordinates>5.66585,50.898536,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la ville de Herstal</name>
+      <Point><coordinates>5.638928,50.67068,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Watermolen de Beekjuffer</name>
+      <Point><coordinates>5.12215,51.186845,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Apotheekmuseum</name>
+      <Point><coordinates>5.791375,51.095192,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Maison de Monsieur Sax</name>
+      <Point><coordinates>4.911164,50.261777,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Train World</name>
+      <Point><coordinates>4.381159,50.878856,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ensorhuis</name>
+      <Point><coordinates>2.916098,51.233328,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AfricaMuseum</name>
+      <Point><coordinates>4.518145,50.82938,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Belfort</name>
+      <Point><coordinates>3.724791,51.053661,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Industriemuseum</name>
+      <Point><coordinates>3.729128,51.059371,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Huis van Herman Teirlinck</name>
+      <Point><coordinates>4.304964,50.766727,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum van de Mijnwerkerswoning</name>
+      <Point><coordinates>5.686316,50.992137,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stoomtrein Maldegem-Eeklo</name>
+      <Point><coordinates>3.44551,51.204865,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Den Ast</name>
+      <Point><coordinates>4.236552,50.738294,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gallo-Romeins Museum</name>
+      <Point><coordinates>5.466223,50.781148,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Horta - Hortamuseum</name>
+      <Point><coordinates>4.355373,50.824098,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum van het Belgisch trekpaard</name>
+      <Point><coordinates>4.024851,50.760748,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openluchtmuseum Bokrijk</name>
+      <Point><coordinates>5.402912,50.963047,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Middelheimmuseum</name>
+      <Point><coordinates>4.412863,51.181202,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plattelandscentrum Paddenbroek</name>
+      <Point><coordinates>4.10956,50.785362,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée Mode &amp; Dentelle - Mode &amp; Kant Museum</name>
+      <Point><coordinates>4.351885,50.845834,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mu.ZEE</name>
+      <Point><coordinates>2.914487,51.225631,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Fonderie</name>
+      <Point><coordinates>4.335375,50.852611,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ovenmuseum</name>
+      <Point><coordinates>3.73956,50.828641,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Museum Dhondt-Dhaenens</name>
+      <Point><coordinates>3.598437,51.009938,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Natuurhistorisch Museum Boekenberg</name>
+      <Point><coordinates>4.464197,51.199526,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Van Buuren Museum &amp; Gardens</name>
+      <Point><coordinates>4.353205,50.809579,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Choco Story Brussels</name>
+      <Point><coordinates>4.349971,50.845506,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Red Star Line Museum</name>
+      <Point><coordinates>4.403403,51.233322,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Grand Curtius</name>
+      <Point><coordinates>5.583538,50.64716,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Théâtre des Marionnettes Royal Ancien Impérial Musée Tchantchès</name>
+      <Point><coordinates>5.581436,50.639225,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Design Museum Gent</name>
+      <Point><coordinates>3.719721,51.055703,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stadtmuseum Eupen</name>
+      <Point><coordinates>6.035427,50.632303,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Gaasbeek</name>
+      <Point><coordinates>4.197081,50.796504,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée de la Vie Wallonne</name>
+      <Point><coordinates>5.576388,50.647011,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Béguinage d'Anderlecht - Begijnhof van Anderlecht</name>
+      <Point><coordinates>4.306166,50.837034,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Streekmuseum Zuiderkempen</name>
+      <Point><coordinates>4.906723,51.139089,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rubenshuis</name>
+      <Point><coordinates>4.409656,51.216984,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée d'histoire naturelle et vivarium</name>
+      <Point><coordinates>3.387462,50.603548,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Musée royal de l'Armée et d'Histoire militaire - Koninklijk Museum van het Leger en de Krijgsgeschiedenis</name>
+      <Point><coordinates>4.394096,50.841442,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Planetarium</name>
+      <Point><coordinates>4.337211,50.893339,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plantin-Moretusmuseum</name>
+      <Point><coordinates>4.398007,51.218494,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Huis van Alijn</name>
+      <Point><coordinates>3.723221,51.05755,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lange Max Museum</name>
+      <Point><coordinates>2.981766,51.118377,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison de la Métallurgie MMIL</name>
+      <Point><coordinates>5.579935,50.630764,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>cinema</name>
+    <Placemark>
+      <name>UGC</name>
+      <Point><coordinates>4.417534,51.218372,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Acinapolis</name>
+      <Point><coordinates>4.873707,50.453729,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Parc</name>
+      <Point><coordinates>5.602771,50.646168,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Nova</name>
+      <Point><coordinates>4.356089,50.848344,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné Centre</name>
+      <Point><coordinates>4.520989,50.711717,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Imagix Mons</name>
+      <Point><coordinates>3.935677,50.461609,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lumière</name>
+      <Point><coordinates>3.22141,51.210371,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sphinx</name>
+      <Point><coordinates>3.721596,51.053729,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema ZED - STUK</name>
+      <Point><coordinates>4.699101,50.873798,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Caméo</name>
+      <Point><coordinates>4.608133,50.441956,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé</name>
+      <Point><coordinates>5.491735,50.98178,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plaza Arlon</name>
+      <Point><coordinates>5.813239,49.685138,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UGC cinema's</name>
+      <Point><coordinates>5.308271,51.231815,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Studio Rubens</name>
+      <Point><coordinates>4.329152,51.215895,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cartoon's</name>
+      <Point><coordinates>4.398037,51.221544,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema</name>
+      <Point><coordinates>6.031376,50.624947,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>corso</name>
+      <Point><coordinates>6.129711,50.279978,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné-Chaplin</name>
+      <Point><coordinates>4.547978,50.076038,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plaza Arthouse Cinema</name>
+      <Point><coordinates>3.953442,50.455327,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UGC</name>
+      <Point><coordinates>4.951316,51.316507,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Palace</name>
+      <Point><coordinates>5.570039,50.64054,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Budascoop</name>
+      <Point><coordinates>3.264804,50.830465,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Scala</name>
+      <Point><coordinates>6.257737,50.406358,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Feestpaleis</name>
+      <Point><coordinates>4.032121,50.937848,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wellington</name>
+      <Point><coordinates>4.39903,50.716795,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis Leuven</name>
+      <Point><coordinates>4.711858,50.881329,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Caméo</name>
+      <Point><coordinates>4.863752,50.466712,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Foyer</name>
+      <Point><coordinates>5.618405,49.723165,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma communal</name>
+      <Point><coordinates>3.78015,50.39608,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Les Variétés</name>
+      <Point><coordinates>5.259014,50.698485,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UGC Toison d'Or</name>
+      <Point><coordinates>4.361029,50.837786,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cine Paris</name>
+      <Point><coordinates>4.35498,50.853271,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Galeries</name>
+      <Point><coordinates>4.354528,50.847498,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné Espace</name>
+      <Point><coordinates>5.813251,49.685181,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Moviemills</name>
+      <Point><coordinates>6.027968,50.431938,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CINEMATEK</name>
+      <Point><coordinates>4.360139,50.844101,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Aventure</name>
+      <Point><coordinates>4.352839,50.848358,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Culturel d'Amay</name>
+      <Point><coordinates>5.317149,50.548831,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Klappei</name>
+      <Point><coordinates>4.429069,51.221154,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé Louvain-la-Neuve</name>
+      <Point><coordinates>4.61153,50.669124,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Lumière</name>
+      <Point><coordinates>4.387719,51.209064,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Walkino</name>
+      <Point><coordinates>5.596148,51.14222,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>The Roxy Theatre</name>
+      <Point><coordinates>5.272359,51.057225,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné SHAPE</name>
+      <Point><coordinates>3.974988,50.504583,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sexy World</name>
+      <Point><coordinates>3.742036,51.056428,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nos Loisirs</name>
+      <Point><coordinates>5.533093,49.554514,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné Patria</name>
+      <Point><coordinates>5.533766,49.568036,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Forum</name>
+      <Point><coordinates>3.380059,50.608011,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bioscoop Cinema Cameo</name>
+      <Point><coordinates>5.187237,50.812548,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Lumière</name>
+      <Point><coordinates>4.481956,51.030114,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ArtCinema OFFoff</name>
+      <Point><coordinates>3.722124,51.058975,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>RITCS</name>
+      <Point><coordinates>4.345948,50.850218,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hoff Open Air Cinema</name>
+      <Point><coordinates>3.722634,51.068082,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinograph</name>
+      <Point><coordinates>4.372896,50.826775,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Club 3000</name>
+      <Point><coordinates>4.339508,50.839416,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>KASKcinema</name>
+      <Point><coordinates>3.714813,51.044588,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Stuart</name>
+      <Point><coordinates>4.186184,50.475124,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Salle de Projection</name>
+      <Point><coordinates>5.749104,50.539396,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Walburg</name>
+      <Point><coordinates>5.547491,51.251775,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plaza</name>
+      <Point><coordinates>5.448046,50.266528,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cine Mangiare</name>
+      <Point><coordinates>3.701637,51.061606,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Stockel</name>
+      <Point><coordinates>4.465814,50.84105,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Palace</name>
+      <Point><coordinates>4.032173,50.938889,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinemaximiliaan</name>
+      <Point><coordinates>4.32966,50.84836,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Totem</name>
+      <Point><coordinates>5.383246,49.926467,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Studio Skoop</name>
+      <Point><coordinates>3.733907,51.048783,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis</name>
+      <Point><coordinates>5.368938,50.929624,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis</name>
+      <Point><coordinates>4.337423,50.895409,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis</name>
+      <Point><coordinates>5.554816,50.670294,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Imagibraine</name>
+      <Point><coordinates>4.378478,50.668609,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Sauvenière</name>
+      <Point><coordinates>5.56855,50.64346,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Churchill</name>
+      <Point><coordinates>5.570052,50.641264,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UGC Cinema's Mechelen</name>
+      <Point><coordinates>4.497903,51.025565,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis</name>
+      <Point><coordinates>2.896752,51.223016,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis Kortrijk</name>
+      <Point><coordinates>3.275264,50.805607,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis</name>
+      <Point><coordinates>3.20195,51.179692,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cityscoop Roeselare</name>
+      <Point><coordinates>3.130269,50.946142,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Vendôme</name>
+      <Point><coordinates>4.363027,50.837609,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Varietes</name>
+      <Point><coordinates>4.568495,51.13304,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Studio Geel</name>
+      <Point><coordinates>4.985515,51.160947,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Imagix Tournai</name>
+      <Point><coordinates>3.386206,50.615034,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinépointcom Marche</name>
+      <Point><coordinates>5.342339,50.229855,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis Antwerpen</name>
+      <Point><coordinates>4.416294,51.245779,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UGC Cinema’s Aarschot</name>
+      <Point><coordinates>4.840049,50.982326,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinepolis Gent</name>
+      <Point><coordinates>3.730588,51.0408,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UGC De Brouckère</name>
+      <Point><coordinates>4.35196,50.851719,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Koksijde</name>
+      <Point><coordinates>2.629197,51.111315,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné Versailles</name>
+      <Point><coordinates>5.929144,50.392798,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma l'Etoile</name>
+      <Point><coordinates>4.86801,50.724883,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné Le Parc</name>
+      <Point><coordinates>4.446468,50.408081,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Quai 10</name>
+      <Point><coordinates>4.441028,50.406238,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema ZED - Vesalius</name>
+      <Point><coordinates>4.708356,50.87503,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma de Gedinne</name>
+      <Point><coordinates>4.936793,49.978761,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Atrium57 - Centre Culturel</name>
+      <Point><coordinates>4.693394,50.563501,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ciné4</name>
+      <Point><coordinates>4.321706,50.597758,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé cinéma</name>
+      <Point><coordinates>5.84809,50.593226,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Rio</name>
+      <Point><coordinates>3.035555,51.271742,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Victoria</name>
+      <Point><coordinates>5.490301,50.979017,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Focus</name>
+      <Point><coordinates>3.886519,50.776389,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinéma Forever</name>
+      <Point><coordinates>3.20451,50.742444,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Netwerk Aalst</name>
+      <Point><coordinates>4.042678,50.942203,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Central</name>
+      <Point><coordinates>4.019864,50.836894,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Imagix</name>
+      <Point><coordinates>5.241012,50.523074,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cinema Albert</name>
+      <Point><coordinates>4.111215,51.018634,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé</name>
+      <Point><coordinates>4.147353,51.172266,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bouillon-Cine</name>
+      <Point><coordinates>5.068014,49.795217,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé Charleroi</name>
+      <Point><coordinates>4.459767,50.419087,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>L'Écran</name>
+      <Point><coordinates>3.774987,50.63111,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Palace</name>
+      <Point><coordinates>4.348331,50.847937,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pathé</name>
+      <Point><coordinates>5.706088,51.000961,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>golf_course</name>
+    <Placemark>
+      <name>Taxa Golf</name>
+      <Point><coordinates>4.935414,51.303746,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Green Valley Boerengolf</name>
+      <Point><coordinates>5.865198,50.751104,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Rigenée</name>
+      <Point><coordinates>4.52082,50.560636,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf La Bruyère</name>
+      <Point><coordinates>4.502022,50.54408,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Drie Eycken</name>
+      <Point><coordinates>4.413306,51.152764,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cleydael Golf en Country Club</name>
+      <Point><coordinates>4.358667,51.141746,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Brasschaat Open Golf &amp; Country Club</name>
+      <Point><coordinates>4.518889,51.293528,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Sept-Fontaines</name>
+      <Point><coordinates>4.340107,50.718201,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de l'Empereur</name>
+      <Point><coordinates>4.472787,50.637557,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf d'Hulencourt</name>
+      <Point><coordinates>4.393148,50.635898,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Waterloo Golf Club</name>
+      <Point><coordinates>4.448337,50.693387,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Antwerp Golf Club</name>
+      <Point><coordinates>4.467782,51.341983,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Amicale Anderlecht Golf Club</name>
+      <Point><coordinates>4.263911,50.822409,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Prairie à l'avion</name>
+      <Point><coordinates>4.606743,50.68335,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Château de la Tournette</name>
+      <Point><coordinates>4.295225,50.625457,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Club de Pierpont</name>
+      <Point><coordinates>4.436113,50.554398,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Brabantse Golf</name>
+      <Point><coordinates>4.468527,50.915755,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Golf Club of Belgium</name>
+      <Point><coordinates>4.491102,50.815934,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf du Château de la Bawette</name>
+      <Point><coordinates>4.599478,50.730208,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>The National</name>
+      <Point><coordinates>4.520488,50.842106,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Club Steenpoel</name>
+      <Point><coordinates>4.247448,50.841668,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Park Tervuren</name>
+      <Point><coordinates>4.536755,50.820356,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf du Bercuit</name>
+      <Point><coordinates>4.675999,50.722733,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Brussels Golf Club</name>
+      <Point><coordinates>4.395504,50.794135,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Latem Golf Club</name>
+      <Point><coordinates>3.618022,51.01599,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf &amp; Businessclub Kampenhout</name>
+      <Point><coordinates>4.581412,50.9377,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Westgolf</name>
+      <Point><coordinates>2.755868,51.154278,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Wijnvelden</name>
+      <Point><coordinates>4.560919,51.050017,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Club Puurs</name>
+      <Point><coordinates>4.330038,51.049846,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wellington Golf</name>
+      <Point><coordinates>2.894176,51.220051,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Koninklijke Limburg Golf Club</name>
+      <Point><coordinates>5.436391,51.020681,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Club d'Andenne</name>
+      <Point><coordinates>5.069163,50.484671,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mergelhof</name>
+      <Point><coordinates>5.947468,50.756708,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Zoute Golf Club</name>
+      <Point><coordinates>3.3026,51.344865,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Lille</name>
+      <Point><coordinates>4.829153,51.281488,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Steenhoven Country Club</name>
+      <Point><coordinates>5.218446,51.290252,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Golf Club des Fagnes</name>
+      <Point><coordinates>5.877739,50.50968,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Krokkebaas</name>
+      <Point><coordinates>4.210893,51.002062,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Kluizen</name>
+      <Point><coordinates>4.086806,50.933133,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Rougemont</name>
+      <Point><coordinates>4.867647,50.387543,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Drie Eycken Ranst</name>
+      <Point><coordinates>4.570382,51.165391,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Avernas Golf Club</name>
+      <Point><coordinates>5.066272,50.695622,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf &amp; Countryclub De Palingbeek</name>
+      <Point><coordinates>2.918141,50.809159,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Golf Club du Hainaut</name>
+      <Point><coordinates>3.919486,50.503489,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kempense Golfclub</name>
+      <Point><coordinates>5.197964,51.215655,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Rinkven</name>
+      <Point><coordinates>4.580045,51.282442,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mont garni Golf Club</name>
+      <Point><coordinates>3.819904,50.503862,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Winge Golf &amp; Country Club</name>
+      <Point><coordinates>4.870832,50.911865,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Gomzé</name>
+      <Point><coordinates>5.68258,50.53979,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Koksijde Golf Ter Hille</name>
+      <Point><coordinates>2.696772,51.111501,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf &amp; Country Club Oudenaarde</name>
+      <Point><coordinates>3.553195,50.821301,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ieper Open Golf</name>
+      <Point><coordinates>2.890943,50.865645,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Découverte Virton</name>
+      <Point><coordinates>5.539866,49.55785,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Millennium Golf</name>
+      <Point><coordinates>5.157907,51.053,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Homeclub ATGolf Vlaanderen</name>
+      <Point><coordinates>5.038317,51.053182,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Flanders Nippon Golf &amp; Business Club Hasselt</name>
+      <Point><coordinates>5.373078,50.934977,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Falnuée</name>
+      <Point><coordinates>4.66413,50.505322,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Krikskens</name>
+      <Point><coordinates>4.886483,51.327908,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mini golf</name>
+      <Point><coordinates>4.171075,50.569641,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Witbos</name>
+      <Point><coordinates>4.844149,51.129648,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Golf Club Sart Tilman</name>
+      <Point><coordinates>5.558,50.573171,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ternesse Golf &amp; Country Club</name>
+      <Point><coordinates>4.503748,51.216031,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nuclea Golf Club</name>
+      <Point><coordinates>5.080419,51.212914,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Witbos</name>
+      <Point><coordinates>4.844771,51.12887,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Gent</name>
+      <Point><coordinates>3.642542,51.044612,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Five Nations Golf Club</name>
+      <Point><coordinates>5.349165,50.342911,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Durbuy</name>
+      <Point><coordinates>5.499314,50.338799,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Limburg Course</name>
+      <Point><coordinates>5.646941,50.856493,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Golf Club du Château Royal d'Ardenne</name>
+      <Point><coordinates>5.011974,50.199411,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf de Liège-Bernalmont</name>
+      <Point><coordinates>5.605193,50.662936,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Club Enghien</name>
+      <Point><coordinates>4.043812,50.68578,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wase Golf</name>
+      <Point><coordinates>4.086642,51.22404,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Ostend Golfclub</name>
+      <Point><coordinates>3.003156,51.264683,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Waregem Golf</name>
+      <Point><coordinates>3.467231,50.880657,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Damme Golf en Country Club</name>
+      <Point><coordinates>3.341823,51.218069,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ragnies Golf Club</name>
+      <Point><coordinates>4.295339,50.30601,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Naxhelet Golf &amp; Country Club</name>
+      <Point><coordinates>5.201295,50.545206,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Keerbergen Golf Club</name>
+      <Point><coordinates>4.675573,51.003915,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf du Haras</name>
+      <Point><coordinates>5.831127,50.56384,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf Puyenbroeck</name>
+      <Point><coordinates>3.89121,51.154458,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pro1golf</name>
+      <Point><coordinates>4.349542,50.177424,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golfclub Beveren</name>
+      <Point><coordinates>4.283789,51.260093,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf &amp; Hotel Henri-Chapelle</name>
+      <Point><coordinates>5.9368799,50.684078,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Golf du Bois d'Arlon &amp; Resort</name>
+      <Point><coordinates>5.7424626,49.651072,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>theme_park</name>
+    <Placemark>
+      <name>Clown Kea City</name>
+      <Point><coordinates>4.210184,50.704991,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Arboretum</name>
+      <Point><coordinates>4.633932,50.958509,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Het Karrewiel</name>
+      <Point><coordinates>4.757622,51.188008,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jump Factory</name>
+      <Point><coordinates>4.14132,51.001175,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Olmenhof</name>
+      <Point><coordinates>5.167259,50.935863,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Ferme Médiévale du Chêne</name>
+      <Point><coordinates>4.272913,50.306641,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Center Parcs Ardenne</name>
+      <Point><coordinates>5.913173,50.293403,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bobbejaanland</name>
+      <Point><coordinates>4.908291,51.201156,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plopsa Indoor Hasselt</name>
+      <Point><coordinates>5.362324,50.932719,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plopsaland Belgium</name>
+      <Point><coordinates>2.59858,51.081381,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mont Mosan</name>
+      <Point><coordinates>5.252766,50.513658,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Observatoire Centre Ardenne</name>
+      <Point><coordinates>5.398895,49.815138,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mega Speelstad</name>
+      <Point><coordinates>4.794456,51.26132,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Domaine de Palogne</name>
+      <Point><coordinates>5.531148,50.397692,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bellewaerde Park</name>
+      <Point><coordinates>2.951841,50.84896,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mini-Europe</name>
+      <Point><coordinates>4.338668,50.894153,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Arizona</name>
+      <Point><coordinates>2.583694,51.101183,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Familiepark Harry Malter</name>
+      <Point><coordinates>3.819311,51.016568,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderrijck binnenspeeltuin</name>
+      <Point><coordinates>5.509672,50.859704,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Walibi Belgium</name>
+      <Point><coordinates>4.590038,50.698847,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Boudewijn Seapark</name>
+      <Point><coordinates>3.214834,51.182048,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ancienne Abbaye de Soleilmont</name>
+      <Point><coordinates>4.501326,50.437902,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tarzan &amp; Jane</name>
+      <Point><coordinates>5.349609,51.023634,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Virtual Park</name>
+      <Point><coordinates>3.236898,50.748541,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Domaine provincial du Fourneau Saint-Michel</name>
+      <Point><coordinates>5.334018,50.09247,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Euro Space Center</name>
+      <Point><coordinates>5.221004,50.007787,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Imagipark</name>
+      <Point><coordinates>3.935373,50.468979,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Domaine provincial de Chevetogne</name>
+      <Point><coordinates>5.146199,50.227545,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jungle City</name>
+      <Point><coordinates>3.381482,50.620394,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Labyrinthe de Durbuy</name>
+      <Point><coordinates>5.464705,50.340002,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Robotland</name>
+      <Point><coordinates>4.449004,51.46448,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Cabriole</name>
+      <Point><coordinates>5.011192,50.582459,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Familiepark De Sierk</name>
+      <Point><coordinates>3.008322,51.254696,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Malagne – Archéoparc de Rochefort</name>
+      <Point><coordinates>5.2414,50.162236,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Plopsaland Ardennes</name>
+      <Point><coordinates>5.873019,50.395036,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>L'Archéosite d'Aubechies</name>
+      <Point><coordinates>3.675661,50.575968,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Adventure Valley Durbuy</name>
+      <Point><coordinates>5.445766,50.342996,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>zoo</name>
+    <Placemark>
+      <name>Kakelend Kippenmuseum</name>
+      <Point><coordinates>2.890737,51.083427,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Lenspolder</name>
+      <Point><coordinates>2.74098,51.134422,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Diggiehoeve</name>
+      <Point><coordinates>3.746799,50.800382,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>kinderboerderij Den Binnenhof</name>
+      <Point><coordinates>4.170952,51.20326,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dorpsboerderij Nest</name>
+      <Point><coordinates>3.331172,51.027404,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Alpaca Adventure</name>
+      <Point><coordinates>2.95467,50.867538,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij</name>
+      <Point><coordinates>3.360818,50.840834,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Het Doederijtje</name>
+      <Point><coordinates>4.733397,51.135706,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Zoo Antwerpen</name>
+      <Point><coordinates>4.42357,51.216258,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ferme du Planois</name>
+      <Point><coordinates>4.180049,50.630104,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij &quot;De Lange Schuur&quot;</name>
+      <Point><coordinates>2.928597,51.199685,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stadsboerderij</name>
+      <Point><coordinates>4.935444,51.333697,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pakawi Park</name>
+      <Point><coordinates>5.146325,51.127174,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Schoolhoeve De Campagne</name>
+      <Point><coordinates>3.629221,51.067313,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pairi Daiza</name>
+      <Point><coordinates>3.886873,50.584806,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dierenpark De Zonnegloed</name>
+      <Point><coordinates>2.751263,50.941497,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Parc à Gibier de Saint-Hubert</name>
+      <Point><coordinates>5.364106,50.0369,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij d'Oude Smelterij</name>
+      <Point><coordinates>3.094712,51.05405,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij Kiewit</name>
+      <Point><coordinates>5.377426,50.960934,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Zeven Torentjes</name>
+      <Point><coordinates>3.245195,51.189302,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>DiReBoe</name>
+      <Point><coordinates>3.985524,50.828177,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Barelhoeve</name>
+      <Point><coordinates>4.234545,51.088963,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij Den Ast</name>
+      <Point><coordinates>3.137165,51.034,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Happy Farm</name>
+      <Point><coordinates>4.242531,50.827726,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Parc Animalier de Bouillon</name>
+      <Point><coordinates>5.07701,49.791251,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij Tivoli</name>
+      <Point><coordinates>4.473367,51.046391,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>t Struisvogelnest</name>
+      <Point><coordinates>4.578981,51.112484,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kinderboerderij De Bogaard</name>
+      <Point><coordinates>4.99242,51.156041,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Lentehei</name>
+      <Point><coordinates>4.785199,51.183834,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>dorpsboerderij Nest</name>
+      <Point><coordinates>3.331662,51.026949,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cafetaria - The Barn Oostende</name>
+      <Point><coordinates>2.929021,51.199962,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ZooParc Vallée de la Sûre</name>
+      <Point><coordinates>5.566411,49.935386,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Monde Sauvage Aywaille</name>
+      <Point><coordinates>5.7422,50.499852,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Planckendael</name>
+      <Point><coordinates>4.516436,50.999946,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Forestia</name>
+      <Point><coordinates>5.776523,50.510409,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>consulate</name>
+    <Placemark>
+      <name>Consulat général de Suède - Consulaat-generaal van Zweden</name>
+      <Point><coordinates>4.36982,50.840635,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat de la République Slovaque</name>
+      <Point><coordinates>3.958322,50.453679,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général de l'Espagne - Consulaat-generaal van Spanje</name>
+      <Point><coordinates>4.368208,50.847488,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Austria to the EU</name>
+      <Point><coordinates>4.385818,50.843439,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Délégation Commerciale d'Autriche - Oostenrijkse Handelsdelegatie</name>
+      <Point><coordinates>4.371048,50.817058,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Japon - Ambassade van Japan</name>
+      <Point><coordinates>4.378032,50.840766,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Argentine - Ambassade van Argentinië</name>
+      <Point><coordinates>4.364859,50.825784,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Royaume-Uni - Ambassade van het Verenigd Koninkrijk (VK)</name>
+      <Point><coordinates>4.384526,50.84172,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Autriche - Ambassade van Oostenrijk</name>
+      <Point><coordinates>4.386614,50.8438,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Portugal to the EU</name>
+      <Point><coordinates>4.385318,50.843216,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Tchéquie - Ambassade van Tsjechië</name>
+      <Point><coordinates>4.384955,50.813188,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Italie - Ambassade van Italië</name>
+      <Point><coordinates>4.370879,50.846287,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d’Australie - Ambassade van Australië</name>
+      <Point><coordinates>4.366857,50.841094,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Bolivie - Ambassade van Bolivië</name>
+      <Point><coordinates>4.363515,50.828139,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Nouvelle-Zélande - Ambassade van Nieuw-Zeeland</name>
+      <Point><coordinates>4.386628,50.839182,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Honorary Consulate of the Czech Republic</name>
+      <Point><coordinates>5.575641,50.645422,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat de Corée du Sud</name>
+      <Point><coordinates>5.651698,50.618604,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Irlande - Ambassade van Ierland</name>
+      <Point><coordinates>4.381945,50.839195,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Royaume de Norvège - Ambassade van het Koninkrijk Noorwegen</name>
+      <Point><coordinates>4.38408,50.843612,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Islande - Ambassade van IJsland</name>
+      <Point><coordinates>4.384083,50.843552,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Liechtenstein - Ambassade van Liechtenstein</name>
+      <Point><coordinates>4.363372,50.849654,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Slovénie - Ambassade van Slovenië</name>
+      <Point><coordinates>4.370339,50.846304,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Monaco - Ambassade van Monaco</name>
+      <Point><coordinates>4.36821,50.839416,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Malte - Ambassade van Malta</name>
+      <Point><coordinates>4.384046,50.843878,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République du Malawi - Ambassade van de Republiek Malawi</name>
+      <Point><coordinates>4.43207,50.813404,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Seychelles - Ambassade van de Seychellen</name>
+      <Point><coordinates>4.40623,50.833791,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Canada - Ambassade van Canada</name>
+      <Point><coordinates>4.366552,50.84071,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République Dominicaine - Ambassade van de Dominicaanse Republiek</name>
+      <Point><coordinates>4.365888,50.824643,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Belize - Ambassade van Belize</name>
+      <Point><coordinates>4.406061,50.841862,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Honduras - Ambassade van Honduras</name>
+      <Point><coordinates>4.390445,50.845096,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Salvador (d'El Salvador) - Ambassade van El Salvador</name>
+      <Point><coordinates>4.371192,50.842719,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Panama - Ambassade van Panama</name>
+      <Point><coordinates>4.371146,50.81719,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Costa Rica - Ambassade van Costa Rica</name>
+      <Point><coordinates>4.371154,50.81668,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Guyana - Ambassade van Guyana</name>
+      <Point><coordinates>4.40654,50.84291,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat honoraire des Maldives</name>
+      <Point><coordinates>4.710664,50.687638,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ereconsulaat van de Republiek Korea</name>
+      <Point><coordinates>3.728658,51.056577,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Îles Salomon - Ambassade van de Salomonseilanden</name>
+      <Point><coordinates>4.409189,50.8326,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général du Pérou - Consulaat-generaal van Peru</name>
+      <Point><coordinates>4.369835,50.84797,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Honorarkonsul der Bundesrepublik Deutschland</name>
+      <Point><coordinates>5.57109,50.633875,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Honorarkonsul der Bundesrepublik Deutschland</name>
+      <Point><coordinates>4.449431,50.856097,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Germany to the EU</name>
+      <Point><coordinates>4.373549,50.843846,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat Général de la République Démocratique du Congo</name>
+      <Point><coordinates>4.404339,51.213497,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Jamaïque - Ambassade van Jamaica</name>
+      <Point><coordinates>4.43162,50.813382,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Grenade - Ambassade van Grenada</name>
+      <Point><coordinates>4.36077,50.830823,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Vanuatu - Ambassade van Vanuatu</name>
+      <Point><coordinates>4.435254,50.830317,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Belgium to the EU</name>
+      <Point><coordinates>4.373544,50.841281,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Ouganda - Ambassade van Oeganda</name>
+      <Point><coordinates>4.408596,50.838095,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Fidji - Ambassade van Fiji</name>
+      <Point><coordinates>4.395972,50.851282,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Denmark to the EU</name>
+      <Point><coordinates>4.37428,50.842924,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of the Netherlands to the EU</name>
+      <Point><coordinates>4.375327,50.842498,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Poland to the EU</name>
+      <Point><coordinates>4.385137,50.843671,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of the United Kingdom to the EU</name>
+      <Point><coordinates>4.384573,50.841728,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Honorair Consulaat van Finland</name>
+      <Point><coordinates>3.726733,51.051786,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Luxembourg - Ambassade van Luxemburg</name>
+      <Point><coordinates>4.389504,50.844675,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Luxembourg to the EU</name>
+      <Point><coordinates>4.389818,50.844805,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat van Zweden</name>
+      <Point><coordinates>4.402668,51.227233,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Malta to the EU</name>
+      <Point><coordinates>4.384127,50.843877,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Croatia to the EU</name>
+      <Point><coordinates>4.374321,50.843675,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Ireland to the EU</name>
+      <Point><coordinates>4.381925,50.83915,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Cyprus to the EU</name>
+      <Point><coordinates>4.388609,50.844276,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Slovenia to the EU</name>
+      <Point><coordinates>4.368646,50.847217,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Estonia to the EU</name>
+      <Point><coordinates>4.369667,50.843585,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Czechia to the EU</name>
+      <Point><coordinates>4.369526,50.83828,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Latvia to the EU</name>
+      <Point><coordinates>4.36923,50.845933,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Lithuania to the EU</name>
+      <Point><coordinates>4.371722,50.841715,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Finland to the EU</name>
+      <Point><coordinates>4.387938,50.844355,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Slovakia to the EU</name>
+      <Point><coordinates>4.390047,50.844923,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général d'Algérie - Consulaat-generaal van Algerije</name>
+      <Point><coordinates>4.364377,50.838008,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Albanie - Ambassade van Albanië</name>
+      <Point><coordinates>4.362895,50.827715,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général d'Italie</name>
+      <Point><coordinates>4.449004,50.409229,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Croatie (section consulaire) - Ambassade van Kroatië (consulaire afdeling)</name>
+      <Point><coordinates>4.370574,50.818353,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Representation of Central Denmark</name>
+      <Point><coordinates>4.399473,50.838362,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Norway to the European Union</name>
+      <Point><coordinates>4.384147,50.843615,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Paraguay - Ambassade van Paraguay</name>
+      <Point><coordinates>4.371131,50.817226,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Roumanie (section consulaire) - Ambassade van Roemenië (consulaire afdeling)</name>
+      <Point><coordinates>4.368851,50.847442,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Japan to the European Union</name>
+      <Point><coordinates>4.378177,50.840778,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Ukraine to the European Union</name>
+      <Point><coordinates>4.355297,50.817881,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Argentina to the European Union</name>
+      <Point><coordinates>4.364832,50.825723,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Serbia to the European Union</name>
+      <Point><coordinates>4.368758,50.847978,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Turkey to the European Union</name>
+      <Point><coordinates>4.368019,50.843648,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Albania to the European Union</name>
+      <Point><coordinates>4.365696,50.823391,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Armenia to the European Union</name>
+      <Point><coordinates>4.370316,50.841267,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Switzerland to the European Union</name>
+      <Point><coordinates>4.372249,50.838842,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Maldives - Ambassade van de Maldiven</name>
+      <Point><coordinates>4.384497,50.842803,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général du Brésil - Consulaat-generaal van Brazilië</name>
+      <Point><coordinates>4.371001,50.836501,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Comores - Ambassade van de Comoren</name>
+      <Point><coordinates>4.358376,50.807842,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Montenegro to the European Union</name>
+      <Point><coordinates>4.370113,50.836728,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général d'Algérie service visas - Consulaat-generaal van Algerije visa service</name>
+      <Point><coordinates>4.363565,50.838408,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ereconsulaat van Luxemburg</name>
+      <Point><coordinates>3.758386,51.04795,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Villa Consulaire</name>
+      <Point><coordinates>5.575759,50.627948,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur d'Argentine - Residentie van de ambassadeur van Argentinië</name>
+      <Point><coordinates>4.359687,50.827868,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Lettonie - Ambassade van Letland</name>
+      <Point><coordinates>4.369469,50.845884,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Estonie - Ambassade van Estland</name>
+      <Point><coordinates>4.369722,50.843521,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Afrique du Sud - Ambassade van Zuid-Afrika</name>
+      <Point><coordinates>4.36884,50.841292,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Liberia - Ambassade van Liberia</name>
+      <Point><coordinates>4.384212,50.843369,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Turkménistan - Ambassade van Turkmenistan</name>
+      <Point><coordinates>4.378946,50.817171,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Tadjikistan - Ambassade van Tadzjikistan</name>
+      <Point><coordinates>4.377842,50.817132,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Viêtnam - Ambassade van Vietnam</name>
+      <Point><coordinates>4.378728,50.816802,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Andorre - Ambassade van Andorra</name>
+      <Point><coordinates>4.382893,50.840388,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Lituanie - Ambassade van Litouwen</name>
+      <Point><coordinates>4.371569,50.841746,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Cap-Vert - Ambassade van Kaapverdië</name>
+      <Point><coordinates>4.379122,50.814593,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Serbie - Ambassade van Servië</name>
+      <Point><coordinates>4.368648,50.848077,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République démocratique du Congo - Ambassade van de Democratische Republiek Congo</name>
+      <Point><coordinates>4.371088,50.840154,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Hungary to the EU</name>
+      <Point><coordinates>4.374798,50.842461,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Romania to the EU</name>
+      <Point><coordinates>4.390929,50.845289,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Turquie - Ambassade van Turkije</name>
+      <Point><coordinates>4.36766,50.841927,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Türkiye to NATO</name>
+      <Point><coordinates>4.426123,50.879462,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat Général de Türkiye - Consulaat-Generaal van Türkiye</name>
+      <Point><coordinates>4.367656,50.841904,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Danemark - Ambassade van Denemarken</name>
+      <Point><coordinates>4.37433,50.843014,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République centrafricaine - Ambassade van de Centraal-Afrikaanse Republiek</name>
+      <Point><coordinates>4.349659,50.898716,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République islamique d'Afghanistan - Ambassade van de Islamitische Republiek Afghanistan</name>
+      <Point><coordinates>4.342482,50.798535,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République du Nicaragua -Ambassade van de Republiek Nicaragua</name>
+      <Point><coordinates>4.342189,50.798811,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur.rice de Roumanie - Residentie van de ambassadeur/-rice van Roemenië</name>
+      <Point><coordinates>4.362994,50.824536,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Finlande - Ambassade van Finland</name>
+      <Point><coordinates>4.387772,50.84433,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur d'Espagne - Residentie van de ambassadeur van Spanje</name>
+      <Point><coordinates>4.370208,50.841379,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Arménie - Ambassade van Armenië</name>
+      <Point><coordinates>4.370343,50.841335,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Sweden to the EU</name>
+      <Point><coordinates>4.369781,50.840759,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Bosnie-Herzégovine / Bosnie-et-Herzégovine - Ambassade van Bosnië en Herzegovina / Bosnië-Herzegovina</name>
+      <Point><coordinates>4.369762,50.842453,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Espagne - Ambassade van Spanje</name>
+      <Point><coordinates>4.371656,50.842391,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Macédoine du Nord - Ambassade van Noord-Macedonië</name>
+      <Point><coordinates>4.370339,50.845357,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Greece to the EU</name>
+      <Point><coordinates>4.375055,50.843152,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Soudan du Sud - Ambassade van Zuid-Soedan</name>
+      <Point><coordinates>4.39596,50.838572,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Samoa - Ambassade van Samoa</name>
+      <Point><coordinates>4.403744,50.829766,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Éthiopie - Ambassade van Ethiopië</name>
+      <Point><coordinates>4.402724,50.838978,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Mozambique - Ambassade van Mozambique</name>
+      <Point><coordinates>4.404836,50.833081,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Pologne (section consulaire) - Ambassade van Polen (consulaire afdeling)</name>
+      <Point><coordinates>4.396988,50.83827,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Botswana - Ambassade van Botswana</name>
+      <Point><coordinates>4.406447,50.836832,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consul honoraire d'Irlande - Ereconsul van Ierland</name>
+      <Point><coordinates>4.475734,51.148882,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Timor oriental - Ambassade van Oost-Timor</name>
+      <Point><coordinates>4.404975,50.838434,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>United Nations Development Programme</name>
+      <Point><coordinates>4.368153,50.846201,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UNHCR Belgium</name>
+      <Point><coordinates>4.367106,50.823524,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Portugal - Ambassade van Portugal</name>
+      <Point><coordinates>4.385371,50.843305,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Pays-Bas - Ambassade van Nederland</name>
+      <Point><coordinates>4.375138,50.84232,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat-generaal van Nederland</name>
+      <Point><coordinates>4.40331,51.219537,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of the People's Republic of China to the European Union</name>
+      <Point><coordinates>4.443359,50.854372,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République d'Indonésie - Ambassade van de Republiek Indonesië</name>
+      <Point><coordinates>4.434685,50.838442,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Italie - Ambassade van Italië</name>
+      <Point><coordinates>4.369297,50.815919,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of the Republic of North-Macedonia to the European Union</name>
+      <Point><coordinates>4.370416,50.845341,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission économique auprès de l'Ambassade de France en Belgique</name>
+      <Point><coordinates>4.370514,50.845422,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Kazakhstan - Ambassade van Kazachstan</name>
+      <Point><coordinates>4.38517,50.786182,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Tchad - Ambassade van Tsjaad</name>
+      <Point><coordinates>4.376767,50.874077,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Grèce - Ambassade van Griekenland</name>
+      <Point><coordinates>4.359127,50.840262,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of France to the EU</name>
+      <Point><coordinates>4.362144,50.848517,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Italy to the EU</name>
+      <Point><coordinates>4.370667,50.847007,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Spain to the EU</name>
+      <Point><coordinates>4.36879,50.847826,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Pologne - Ambassade van Polen</name>
+      <Point><coordinates>4.385307,50.84359,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Antigua et Barbuda. Dominique de Saint-Christophe-et-Niévès de Sainte-Lucie de Saint-Vincent-et-les-Grenadines (SVG) - Ambassade van Dominica Saint Lucia Saint Vincent en de Grenadines</name>
+      <Point><coordinates>4.359405,50.829793,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Suisse - Ambassade van Zwitserland</name>
+      <Point><coordinates>4.372227,50.838788,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Chancellerie consulaire d'Italie - Consulaire kanselarij van Italië</name>
+      <Point><coordinates>4.359351,50.829981,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Syrie - Ambassade van Syrië</name>
+      <Point><coordinates>4.375652,50.815848,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Zambie - Ambassade van Zambia</name>
+      <Point><coordinates>4.363413,50.815976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Biélorussie - Ambassade van Wit-Rusland</name>
+      <Point><coordinates>4.354174,50.815729,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Mali - Ambassade van Mali</name>
+      <Point><coordinates>4.364514,50.816215,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Philippines - Ambassade van de Filipijnen</name>
+      <Point><coordinates>4.35666,50.815133,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Angola - Ambassade van Angola</name>
+      <Point><coordinates>4.360943,50.80963,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Slovaquie - Ambassade van Slovakije</name>
+      <Point><coordinates>4.350797,50.81563,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Filipijns consulaat</name>
+      <Point><coordinates>3.560732,50.987145,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Ghana - Ambassade van Ghana</name>
+      <Point><coordinates>4.395049,50.85895,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Lesotho - Ambassade van Lesotho</name>
+      <Point><coordinates>4.397462,50.856396,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Myanmar (de Birmanie) - Ambassade van Myanmar</name>
+      <Point><coordinates>4.395249,50.858825,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Ukraine - Ambassade van Oekraïne</name>
+      <Point><coordinates>4.360562,50.795402,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Hongrie - Ambassade van Hongarije</name>
+      <Point><coordinates>4.369701,50.800832,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Israël - Ambassade van Israël</name>
+      <Point><coordinates>4.370884,50.803143,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur.rice du Grand-Duché de Luxembourg</name>
+      <Point><coordinates>4.406045,50.833217,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Chili - Ambassade van Chili</name>
+      <Point><coordinates>4.406036,50.836327,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Brésil - Ambassade van Brazilië</name>
+      <Point><coordinates>4.406127,50.835723,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Maroc - Ambassade van Marokko</name>
+      <Point><coordinates>4.406043,50.8356,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Maurice - Ambassade van Mauritius</name>
+      <Point><coordinates>4.4059,50.835203,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Bangladesh - Ambassade van Bangladesh</name>
+      <Point><coordinates>4.368118,50.820918,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général de France - Consulaat-Generaal van Frankrijk</name>
+      <Point><coordinates>4.368495,50.846799,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Cameroun - Ambassade van Kameroen</name>
+      <Point><coordinates>4.350519,50.818222,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Représentation Commerciale de Russie en Belgique - Handeltvertegenwoordiging van Rusland in België</name>
+      <Point><coordinates>4.385901,50.78387,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Guinée (Guinée-Conakry) - Ambassade van Guinee (Guinee-Conakry)</name>
+      <Point><coordinates>4.403308,50.84846,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Bahamas - Ambassade van Bahamas</name>
+      <Point><coordinates>4.371842,50.84208,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de l'Equateur - Ambassade van Ecuador</name>
+      <Point><coordinates>4.369172,50.821141,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de l'Erythree - Ambassade van Eritrea</name>
+      <Point><coordinates>4.34106,50.80025,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Guinée - Ambassade van Guinea</name>
+      <Point><coordinates>4.386789,50.807229,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Guinée-Bissau - Ambassade van Guinea-Bissau</name>
+      <Point><coordinates>4.406664,50.842943,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Mongolie - Ambassade van Mongolië</name>
+      <Point><coordinates>4.336002,50.820139,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Oman - Ambassade van Oman</name>
+      <Point><coordinates>4.39442,50.798348,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Haïti - Ambassade van Haïti</name>
+      <Point><coordinates>4.355212,50.828227,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Nigeria - Ambassade van Nigeria</name>
+      <Point><coordinates>4.423304,50.835036,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Mauritanie - Ambassade van Mauritanië</name>
+      <Point><coordinates>4.391846,50.798209,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Kenya - Ambassade van Kenia</name>
+      <Point><coordinates>4.362726,50.811731,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Kosovo - Ambassade van Kosovo</name>
+      <Point><coordinates>4.413965,50.833293,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Sri Lanka - Ambassade van Sri Lanka</name>
+      <Point><coordinates>4.361875,50.817433,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Moldavie - Ambassade van Moldavië</name>
+      <Point><coordinates>4.383526,50.808552,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Moldova to the European Union</name>
+      <Point><coordinates>4.383473,50.808635,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Somalie - Ambassade van Somalië</name>
+      <Point><coordinates>4.383079,50.810356,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Saint-Marin - Ambassade van San Marino</name>
+      <Point><coordinates>4.38294,50.810458,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Tanzanie - Ambassade van Tanzania</name>
+      <Point><coordinates>4.383314,50.810148,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Côte d'Ivoire - Ambassade van Ivoorkust</name>
+      <Point><coordinates>4.394135,50.79858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Liban - Ambassade van Libanon</name>
+      <Point><coordinates>4.387829,50.802669,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Ouzbékistan - Ambassade van Oezbekistan</name>
+      <Point><coordinates>4.387665,50.802884,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Colombie - Ambassade van Colombia</name>
+      <Point><coordinates>4.385076,50.808183,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Mexique - Ambassade van Mexico</name>
+      <Point><coordinates>4.384969,50.808341,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Bahreïn - Ambassade van Bahrein</name>
+      <Point><coordinates>4.385265,50.807905,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Jordanie - Ambassade van Jordanië</name>
+      <Point><coordinates>4.385323,50.807791,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Yémen - Ambassade van Jemen</name>
+      <Point><coordinates>4.385907,50.806897,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Irak - Ambassade van Irak</name>
+      <Point><coordinates>4.389836,50.800535,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Soudan - Ambassade van Soedan</name>
+      <Point><coordinates>4.386135,50.806485,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Barbade - Ambassade van Barbados</name>
+      <Point><coordinates>4.387721,50.804262,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Sénégal - Ambassade van Senegal</name>
+      <Point><coordinates>4.389582,50.802162,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Djibouti - Ambassade van Djibouti</name>
+      <Point><coordinates>4.390018,50.801733,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Suriname - Ambassade van Suriname</name>
+      <Point><coordinates>4.389768,50.801974,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Brunei - Ambassade van Brunei</name>
+      <Point><coordinates>4.394619,50.798201,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Arabie saoudite - Ambassade van Saoedi-Arabië / Saudi-Arabië</name>
+      <Point><coordinates>4.382014,50.81005,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Koweït - Ambassade van Koeweit</name>
+      <Point><coordinates>4.381746,50.810268,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Singapour - Ambassade van Singapore</name>
+      <Point><coordinates>4.386214,50.80455,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Guinée équatoriale - Ambassade van Equatoriaal-Guinea</name>
+      <Point><coordinates>4.360045,50.816082,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Burkina Faso - Ambassade van Burkina Faso</name>
+      <Point><coordinates>4.361032,50.815206,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Népal - Ambassade van Nepal</name>
+      <Point><coordinates>4.348944,50.814776,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur des Pays-Bas - Residentie van de ambassadeur van Nederland</name>
+      <Point><coordinates>4.418001,50.833341,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Zimbabwe - Ambassade van Zimbabwe</name>
+      <Point><coordinates>4.41223,50.840478,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur d'Italie - Residentie van de ambassadeur van Italië</name>
+      <Point><coordinates>4.369512,50.815446,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Uruguay - Ambassade van Uruguay</name>
+      <Point><coordinates>4.377587,50.814752,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République du Congo (Congo-Brazzaville) - Ambassade van de Republiek Congo (Congo-Brazzaville)</name>
+      <Point><coordinates>4.377528,50.814929,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Niger - Ambassade van Niger</name>
+      <Point><coordinates>4.383609,50.809841,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Burundi - Ambassade van Burundi</name>
+      <Point><coordinates>4.379761,50.847555,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of Bulgaria to the EU</name>
+      <Point><coordinates>4.38029,50.847513,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Gambie - Ambassade van Gambia</name>
+      <Point><coordinates>4.386254,50.80643,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Trinité-et-Tobago - Ambassade van Trinidad en Tobago</name>
+      <Point><coordinates>4.44835,50.822375,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulats de Monaco</name>
+      <Point><coordinates>4.405559,51.208967,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Bulgarie - Ambassade van Bulgarije</name>
+      <Point><coordinates>4.36288,50.808825,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Égypte - Ambassade van Egypte</name>
+      <Point><coordinates>4.394306,50.800039,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Russie - Ambassade van Rusland</name>
+      <Point><coordinates>4.353609,50.805545,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission du Royaume du Maroc auprès de l'Union Européenne à Bruxelles</name>
+      <Point><coordinates>4.376487,50.816129,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of Brazil to the European Union</name>
+      <Point><coordinates>4.377899,50.814337,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Iran - Ambassade van Iran</name>
+      <Point><coordinates>4.378084,50.812608,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de France - Ambassade van Frankrijk</name>
+      <Point><coordinates>4.367988,50.846767,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Libye - Ambassade van Libië</name>
+      <Point><coordinates>4.382679,50.808294,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur.rice d'Australie - Residentie van de ambassadeur/-rice van Australië</name>
+      <Point><coordinates>4.370949,50.814605,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Residence of the Secretary General of NATO</name>
+      <Point><coordinates>4.370606,50.81461,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général du Maroc</name>
+      <Point><coordinates>5.567766,50.644316,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulate of Russian Confederation</name>
+      <Point><coordinates>4.398288,51.182179,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat-generaal van Turkije</name>
+      <Point><coordinates>4.399557,51.178342,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulate Republic of Latvia</name>
+      <Point><coordinates>4.441579,51.152388,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Gabon - Ambassade van Gabon</name>
+      <Point><coordinates>4.353593,50.812416,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Roumanie - Ambassade van Roemenië</name>
+      <Point><coordinates>4.359809,50.812569,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Eswatini - Ambassade van Eswatini</name>
+      <Point><coordinates>4.360634,50.811624,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Guatemala - Ambassade van Guatemala</name>
+      <Point><coordinates>4.362697,50.811136,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur.rice de Suisse - Residentie van de ambassadeur/-rice van Zwitserland</name>
+      <Point><coordinates>4.366074,50.843854,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Residence of the British Ambassador</name>
+      <Point><coordinates>4.366214,50.843995,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Corée du Sud - Ambassade van Zuid-Korea</name>
+      <Point><coordinates>4.402562,50.795679,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Pakistan - Ambassade van Pakistan</name>
+      <Point><coordinates>4.409251,50.795737,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Croatie - Ambassade van Kroatië</name>
+      <Point><coordinates>4.370448,50.818804,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Kirghizistan - Ambassade van Kirgizië</name>
+      <Point><coordinates>4.367624,50.819207,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de la République démocratique de Sao Tomé-et-Principe - Ambassade van de Democratische Republiek Sao Tomé en Principe</name>
+      <Point><coordinates>4.407816,50.836538,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Venezuela - Ambassade van Venezuela</name>
+      <Point><coordinates>4.376815,50.815768,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Bhoutan - Ambassade van Bhutan</name>
+      <Point><coordinates>4.417721,50.832189,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nonciature apostolique (Ambassade du Saint-Siège) - Apostolische nuntiatuur (Ambassade van de Heilige Stoel)</name>
+      <Point><coordinates>4.419534,50.826966,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Rwanda - Ambassade van Rwanda</name>
+      <Point><coordinates>4.440163,50.82729,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Sierra Leone - Ambassade van Sierra Leone</name>
+      <Point><coordinates>4.445104,50.827538,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulat général du Maroc - Consulaat-generaal van Marokko</name>
+      <Point><coordinates>4.327312,50.833839,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Pérou - Ambassade van Peru</name>
+      <Point><coordinates>4.414318,50.836613,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Togo - Ambassade van Togo</name>
+      <Point><coordinates>4.417467,50.835834,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Cambodge - Ambassade van Cambodja</name>
+      <Point><coordinates>4.41761,50.83582,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Madagascar - Ambassade van Madagaskar</name>
+      <Point><coordinates>4.421153,50.835058,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Azerbaïdjan - Ambassade van Azerbeidzjan</name>
+      <Point><coordinates>4.422134,50.835025,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Malaisie - Ambassade van Maleisië</name>
+      <Point><coordinates>4.446275,50.826485,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Papouasie-Nouvelle-Guinée - Ambassade van Papoea-Nieuw-Guinea</name>
+      <Point><coordinates>4.446761,50.825356,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Résidence de l'ambassadeur.rice d'Allemagne - Residentie van de ambassadeur/-rice van Duitsland</name>
+      <Point><coordinates>4.4479,50.822817,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Namibie - Ambassade van Namibië</name>
+      <Point><coordinates>4.447841,50.822403,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Consulaat-generaal van Marokko</name>
+      <Point><coordinates>4.354704,51.177976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des États-Unis d'Amérique - Ambassade van de Verenigde Staten van Amerika (VS)</name>
+      <Point><coordinates>4.366924,50.84456,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Allemagne - Ambassade van Duitsland</name>
+      <Point><coordinates>4.373788,50.843884,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Tunisie - Ambassade van Tunesië</name>
+      <Point><coordinates>4.421615,50.835047,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Chine (RPC) - Ambassade van China</name>
+      <Point><coordinates>4.444799,50.823784,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Cuba - Ambassade van Cuba</name>
+      <Point><coordinates>4.351644,50.819113,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Honorary Consulate of the Czech Republic</name>
+      <Point><coordinates>4.295966,50.989365,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Permanent Representation of the Russian Federation to the EU</name>
+      <Point><coordinates>4.367471,50.845237,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Thaïlande - Ambassade van Thailand</name>
+      <Point><coordinates>4.372485,50.80513,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Laos - Ambassade van Laos</name>
+      <Point><coordinates>4.385259,50.848112,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de l'Inde - Ambassade van India</name>
+      <Point><coordinates>4.365951,50.820167,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mission of the United States of America to the European Union</name>
+      <Point><coordinates>4.366909,50.844081,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade des Émirats arabes unis (ÉAU) - Ambassade van de Verenigde Arabische Emiraten (VAE)</name>
+      <Point><coordinates>4.38467,50.809086,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de l'État du Qatar - Ambassade van de Staat Qatar</name>
+      <Point><coordinates>4.385473,50.805331,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade d'Algérie - Ambassade van Algerije</name>
+      <Point><coordinates>4.351704,50.815514,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade de Géorgie - Ambassade van Georgië</name>
+      <Point><coordinates>4.412445,50.832272,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ambassade du Monténégro - Ambassade van Montenegro</name>
+      <Point><coordinates>4.370091,50.836713,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>library</name>
+    <Placemark>
+      <name>BIBLOUX André Hénin - Andrée Sodenkamp</name>
+      <Point><coordinates>4.68971,50.55757,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Torhout</name>
+      <Point><coordinates>3.099402,51.06344,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Marbehan</name>
+      <Point><coordinates>5.539052,49.72664,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque</name>
+      <Point><coordinates>6.027379,50.427381,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare bibliotheek filiaal Deuzeld</name>
+      <Point><coordinates>4.462286,51.244981,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Boekentoren</name>
+      <Point><coordinates>3.725419,51.044958,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Uitleenpunt Putte-Kapellen</name>
+      <Point><coordinates>4.3983,51.350015,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Gasthuishoeve</name>
+      <Point><coordinates>4.594996,51.388016,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque des arts et lettres (BFLT)</name>
+      <Point><coordinates>4.609842,50.669897,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gemeentelijke bibliotheek Wijnegem</name>
+      <Point><coordinates>4.513778,51.225721,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Faculteit Economie en Bedrijfswetenschappen</name>
+      <Point><coordinates>4.700892,50.874631,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Filiaal 's-Gravenwezel</name>
+      <Point><coordinates>4.55539,51.26309,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque publique François de Troyer</name>
+      <Point><coordinates>4.524472,50.716002,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Merksplas</name>
+      <Point><coordinates>4.862113,51.35776,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de droit et de criminologie</name>
+      <Point><coordinates>4.379824,50.81266,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Huy</name>
+      <Point><coordinates>5.241613,50.520224,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hoofdbibliotheek Schilde</name>
+      <Point><coordinates>4.578786,51.241495,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek &amp; Stadsarchief</name>
+      <Point><coordinates>4.984932,51.161228,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>de Bib Leuven Tweebronnen</name>
+      <Point><coordinates>4.703883,50.880734,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheque de la Gourmandise</name>
+      <Point><coordinates>5.361371,50.557126,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque communale Trois Tilleuls (section adultes)</name>
+      <Point><coordinates>4.416427,50.799893,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Hamoir</name>
+      <Point><coordinates>5.531755,50.426387,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Merchtem</name>
+      <Point><coordinates>4.226985,50.961763,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Brussel Laken</name>
+      <Point><coordinates>4.346527,50.873359,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Aartselaar</name>
+      <Point><coordinates>4.385116,51.133899,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Faculteit Wetenschappen</name>
+      <Point><coordinates>3.713043,51.025947,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Faculteitsbibliotheek Letteren &amp; Wijsbegeerte</name>
+      <Point><coordinates>3.72496,51.045449,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Paliseul</name>
+      <Point><coordinates>5.122076,49.896674,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque publique de la Commune de Habay</name>
+      <Point><coordinates>5.645378,49.727951,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Esperantofonds Cesar Vanbiervliet</name>
+      <Point><coordinates>3.264958,50.82895,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek Linkebeek</name>
+      <Point><coordinates>4.336078,50.773678,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Campusbibliotheek KU Leuven Kulak</name>
+      <Point><coordinates>3.291968,50.806287,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Jezuietenhuis</name>
+      <Point><coordinates>4.686242,50.858762,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>The Hive</name>
+      <Point><coordinates>4.961559,51.160294,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Jolis-Bois</name>
+      <Point><coordinates>4.459986,50.829432,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque — UCLouvain Saint-Louis</name>
+      <Point><coordinates>4.361076,50.852855,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Biblio de Saint-Gilles</name>
+      <Point><coordinates>4.345706,50.829725,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre d'Études et de Documentation Sociales asbl</name>
+      <Point><coordinates>5.572074,50.643908,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque des Sciences de la Vie</name>
+      <Point><coordinates>5.56782,50.572516,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Xaverianen</name>
+      <Point><coordinates>3.205918,51.186923,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib Beersel</name>
+      <Point><coordinates>4.332147,50.741777,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Provinciale</name>
+      <Point><coordinates>5.350011,50.232284,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Réseau des Bibliothèques communales de Watermael-Boitsfort</name>
+      <Point><coordinates>4.402657,50.809043,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Coin des Histoires</name>
+      <Point><coordinates>4.408019,50.843737,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Communale de Blaton</name>
+      <Point><coordinates>3.660145,50.500933,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib</name>
+      <Point><coordinates>5.166149,50.940367,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Saint-Gilles</name>
+      <Point><coordinates>5.55162,50.633106,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ruilbib</name>
+      <Point><coordinates>3.234972,51.210105,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque</name>
+      <Point><coordinates>3.982107,50.45341,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Campusbibliotheek VIVES Kortrijk</name>
+      <Point><coordinates>3.284351,50.806146,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>docAtlas</name>
+      <Point><coordinates>4.944376,51.324734,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>BAIU</name>
+      <Point><coordinates>3.397287,50.606193,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Wervik</name>
+      <Point><coordinates>3.041307,50.781231,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque des sciences psychologiques de l'éducation et de la motricité</name>
+      <Point><coordinates>4.610838,50.669933,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de droit</name>
+      <Point><coordinates>4.61108,50.667988,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Waasmunster</name>
+      <Point><coordinates>4.087201,51.107465,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Laeken</name>
+      <Point><coordinates>4.347839,50.876407,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de l'École Supérieure des Arts Saint-Luc Liège</name>
+      <Point><coordinates>5.585528,50.644795,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Edegem</name>
+      <Point><coordinates>4.443858,51.155573,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La bibliothèque du casi-uo</name>
+      <Point><coordinates>4.305046,50.837454,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Braives</name>
+      <Point><coordinates>5.144294,50.619941,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de l'institut supérieur de philosophie (BISP)</name>
+      <Point><coordinates>4.610616,50.670338,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare bibliotheek Vosselaar</name>
+      <Point><coordinates>4.881453,51.30361,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Sociale Wetenschappen</name>
+      <Point><coordinates>4.703306,50.873535,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque du Parc</name>
+      <Point><coordinates>3.953626,50.458659,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque d'architecture d'ingénierie architecturale d'urbanisme</name>
+      <Point><coordinates>4.349433,50.821362,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib Josse</name>
+      <Point><coordinates>4.370234,50.852375,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib Joske</name>
+      <Point><coordinates>4.37001,50.852441,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Roosenberg</name>
+      <Point><coordinates>4.658028,50.823374,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Rollandine</name>
+      <Point><coordinates>3.819387,50.447636,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib Vinci – Woluwe</name>
+      <Point><coordinates>4.454225,50.849717,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque des Six-Bonniers</name>
+      <Point><coordinates>5.522428,50.601616,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque communale de Theux</name>
+      <Point><coordinates>5.813466,50.536048,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sciences historiques</name>
+      <Point><coordinates>5.576779,50.640502,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Salle de lecture (20 Août)</name>
+      <Point><coordinates>5.576328,50.641293,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Langues et littératures germaniques</name>
+      <Point><coordinates>5.575647,50.641371,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Langues et littérature romanes</name>
+      <Point><coordinates>5.575719,50.641398,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Philosophie et communication</name>
+      <Point><coordinates>5.575473,50.641136,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare bibliotheek De Leese Beese</name>
+      <Point><coordinates>3.227882,51.048312,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre de Lecture publique</name>
+      <Point><coordinates>3.503964,50.74425,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib WO</name>
+      <Point><coordinates>4.486236,50.844804,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek de Mena</name>
+      <Point><coordinates>4.711519,50.950391,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Papyrus</name>
+      <Point><coordinates>5.242745,50.387192,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ARhus - afdeling Beveren</name>
+      <Point><coordinates>3.146971,50.968825,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ARhus - afdeling Rumbeke</name>
+      <Point><coordinates>3.154015,50.933686,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ARhus - afdeling Gitsestraat</name>
+      <Point><coordinates>3.116883,50.960261,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Brussel Haren</name>
+      <Point><coordinates>4.416456,50.891195,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque et Ludothèque communales</name>
+      <Point><coordinates>4.378023,50.676642,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek</name>
+      <Point><coordinates>3.281111,50.778754,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bédéthèque du Centre Belge de la Bande Dessinée</name>
+      <Point><coordinates>4.3601,50.851282,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque du Patrimoine Sous-Terrain</name>
+      <Point><coordinates>4.869186,50.472085,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Célestine</name>
+      <Point><coordinates>4.871228,50.466576,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Hoevenen</name>
+      <Point><coordinates>4.404092,51.305108,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Bruxellois de Documentation Pédagogique</name>
+      <Point><coordinates>4.360456,50.851116,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Médiathèque Nouvelle</name>
+      <Point><coordinates>4.402701,50.824029,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Jeugdbib Nieuwmoer</name>
+      <Point><coordinates>4.513683,51.431712,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque CIERL</name>
+      <Point><coordinates>4.378419,50.812301,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Architecture</name>
+      <Point><coordinates>5.58554,50.644797,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Tout va bien</name>
+      <Point><coordinates>5.539656,50.628968,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque du Vieux-Thier</name>
+      <Point><coordinates>5.530624,50.621367,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Emile Jeanne</name>
+      <Point><coordinates>5.518687,50.63326,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Hasselt Limburg</name>
+      <Point><coordinates>5.341671,50.932684,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pfarrbibliothek St.Nikolaus | Eupen</name>
+      <Point><coordinates>6.030221,50.632588,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Uitleenpost Noorderwijk</name>
+      <Point><coordinates>4.839102,51.14026,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque des Sciences et Technologies</name>
+      <Point><coordinates>4.619349,50.669725,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque du Gazomètre</name>
+      <Point><coordinates>4.180555,50.474671,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Froidmont</name>
+      <Point><coordinates>4.533361,50.707445,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Communale de Rixenxart</name>
+      <Point><coordinates>4.497561,50.717376,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque des sciences de la santé</name>
+      <Point><coordinates>4.268377,50.813261,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sint-Andries</name>
+      <Point><coordinates>4.396288,51.214672,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque du Jardin Perdu</name>
+      <Point><coordinates>5.504755,50.589404,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pfarrbücherei Kelmis</name>
+      <Point><coordinates>6.007443,50.718069,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ARhus</name>
+      <Point><coordinates>3.12418,50.946439,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Haasrode</name>
+      <Point><coordinates>4.728944,50.830529,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château à l'Horloge</name>
+      <Point><coordinates>5.189548,50.523033,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque Communale</name>
+      <Point><coordinates>5.94352,50.186436,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Dijk</name>
+      <Point><coordinates>3.205662,51.228927,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibiliothèque communale</name>
+      <Point><coordinates>5.603956,50.445552,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib Olen</name>
+      <Point><coordinates>4.900719,51.16559,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Restauratie atelier</name>
+      <Point><coordinates>3.768527,50.935172,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Destelbergen</name>
+      <Point><coordinates>3.79675,51.055566,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Publieke Openbare Bibliotheek Lierde</name>
+      <Point><coordinates>3.823116,50.803628,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek Stabroek</name>
+      <Point><coordinates>4.36822,51.331838,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek Ekeren Driehoek</name>
+      <Point><coordinates>4.420043,51.280858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque communale de Hannut</name>
+      <Point><coordinates>5.081158,50.677042,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Mortsel</name>
+      <Point><coordinates>4.449947,51.171819,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Landhuis de Viron</name>
+      <Point><coordinates>4.246167,50.778939,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Waregem</name>
+      <Point><coordinates>3.435717,50.884394,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Tessenderlo</name>
+      <Point><coordinates>5.089374,51.06996,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Ransart</name>
+      <Point><coordinates>4.472414,50.450358,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Luchtbal</name>
+      <Point><coordinates>4.42343,51.252964,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Goutroux</name>
+      <Point><coordinates>4.35623,50.41331,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Baie des Tecks</name>
+      <Point><coordinates>4.863411,50.472922,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek Lubbeek</name>
+      <Point><coordinates>4.839818,50.882932,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Essenbeek</name>
+      <Point><coordinates>4.256596,50.719846,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sint-Thomas</name>
+      <Point><coordinates>3.281932,51.212528,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek De Kimpel</name>
+      <Point><coordinates>5.512447,50.866254,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Öffentliche Pfarrbibliothek Kettenis</name>
+      <Point><coordinates>6.044675,50.64573,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Temse</name>
+      <Point><coordinates>4.211811,51.125235,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque publique de Florenville</name>
+      <Point><coordinates>5.30973,49.696274,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliotheek Nieuwerkerken</name>
+      <Point><coordinates>4.008406,50.923742,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque communale de Flémalle</name>
+      <Point><coordinates>5.466764,50.597864,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek Lanaken</name>
+      <Point><coordinates>5.636718,50.895569,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Maison rurale - Bibliothèque</name>
+      <Point><coordinates>3.339608,50.547979,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibiliotheek Universiteit Hasselt</name>
+      <Point><coordinates>5.393186,50.925325,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Vottem</name>
+      <Point><coordinates>5.586366,50.672713,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque du Val Saint-Lambert</name>
+      <Point><coordinates>5.486293,50.596948,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare Bibliotheek Uitleenpost Veldegem</name>
+      <Point><coordinates>3.158811,51.104359,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque communale d'Houdeng-Gœgnies</name>
+      <Point><coordinates>4.157088,50.487457,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>L'Entre-lignes</name>
+      <Point><coordinates>4.114014,50.466972,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Archives de la Ville et du CPAS de La Louvière</name>
+      <Point><coordinates>4.152189,50.474405,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothèque de Roux</name>
+      <Point><coordinates>4.391325,50.441504,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bib in 't groen</name>
+      <Point><coordinates>3.214246,50.854251,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bibliothéque de Verviers</name>
+      <Point><coordinates>5.866846,50.593264,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Openbare bibliotheek Denderhoutem</name>
+      <Point><coordinates>4.016074,50.870659,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Het Predikheren</name>
+      <Point><coordinates>4.480036,51.033425,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Universiteitsbibliotheek</name>
+      <Point><coordinates>4.707526,50.877984,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Descamps</name>
+      <Point><coordinates>4.610609,50.669585,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>hospital</name>
+    <Placemark>
+      <name>Hôpital Universitaire des Enfants Reine Fabiola - Universitair Kinderziekenhuis Koningin Fabiola</name>
+      <Point><coordinates>4.328884,50.88854,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ZAS Vincentius</name>
+      <Point><coordinates>4.412344,51.205796,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Universitair Ziekenhuis Gent</name>
+      <Point><coordinates>3.727395,51.02348,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier du Bois de l'Abbaye</name>
+      <Point><coordinates>5.49361,50.581058,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHU Brugmann - UVC Brugmann</name>
+      <Point><coordinates>4.331431,50.887534,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZORG Campus Asse</name>
+      <Point><coordinates>4.196244,50.909858,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Sainte-Anne Saint-Remi - Sint-Anna Sint-Remi Kliniek</name>
+      <Point><coordinates>4.316865,50.845385,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre hospitalier Etterbeek-Ixelles - Ziekenhuizencentrum Etterbeek-Elsene</name>
+      <Point><coordinates>4.378476,50.824736,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre hospitalier Paul Brien - Verplegingscentrum Paul Brien</name>
+      <Point><coordinates>4.38599,50.870376,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Sint-Maria Halle</name>
+      <Point><coordinates>4.22582,50.736328,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Monica</name>
+      <Point><coordinates>4.470363,51.206655,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Jan Palfijn site Watersportbaan</name>
+      <Point><coordinates>3.69954,51.049547,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>A.Z. Sint-Lucas campus Sint-Lucas</name>
+      <Point><coordinates>3.720767,51.062594,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique CHC MontLégia</name>
+      <Point><coordinates>5.534569,50.648294,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Regionaal ziekenhuis Heilig Hart Leuven</name>
+      <Point><coordinates>4.700965,50.872364,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Oostende - Campus Hendrik Serruys</name>
+      <Point><coordinates>2.914335,51.222777,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Notre-Dame de Grâce</name>
+      <Point><coordinates>4.42725,50.475056,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique universitaire de Mont-Godinne</name>
+      <Point><coordinates>4.88254,50.358466,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZORG Campus Aalst - Merestraat</name>
+      <Point><coordinates>4.018462,50.935262,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Sainte-Élisabeth</name>
+      <Point><coordinates>4.844654,50.46015,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier Régional de Huy</name>
+      <Point><coordinates>5.240245,50.51425,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Oostende - Damiaan</name>
+      <Point><coordinates>2.933656,51.218707,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital de Mons - Site Kennedy</name>
+      <Point><coordinates>3.963385,50.457216,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Turnhout Campus Sint Jozef</name>
+      <Point><coordinates>4.920915,51.33489,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Maria Middelares</name>
+      <Point><coordinates>3.700985,51.02568,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Turnhout Campus Sint-Elizabeth</name>
+      <Point><coordinates>4.941688,51.314086,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique André Renard</name>
+      <Point><coordinates>5.633324,50.674721,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier Epicura - Hornu</name>
+      <Point><coordinates>3.830811,50.436112,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital de Warquignies</name>
+      <Point><coordinates>3.806076,50.417775,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Saint-Pierre</name>
+      <Point><coordinates>4.56037,50.66747,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vitaz Campus Moerlandstraat</name>
+      <Point><coordinates>4.149469,51.161576,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier de la Haute Senne - site Saint Vincent</name>
+      <Point><coordinates>4.067197,50.576646,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ZAS Jan Palfijn</name>
+      <Point><coordinates>4.451289,51.258951,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Alma campus Ringlaan</name>
+      <Point><coordinates>3.532531,51.190954,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHwapi</name>
+      <Point><coordinates>3.385296,50.599706,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique CHC Waremme</name>
+      <Point><coordinates>5.243704,50.691033,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Glorieux</name>
+      <Point><coordinates>3.602751,50.755568,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Sint-Elisabeth Zottegem</name>
+      <Point><coordinates>3.817343,50.86367,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Sint Vincentius Deinze</name>
+      <Point><coordinates>3.527656,50.986392,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Oudenaarde</name>
+      <Point><coordinates>3.601979,50.843288,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ziekenhuis Geel</name>
+      <Point><coordinates>5.001468,51.159313,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Regionaal Ziekenhuis Sint-Trudo</name>
+      <Point><coordinates>5.185479,50.823672,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Sint-Maarten</name>
+      <Point><coordinates>4.476461,51.051502,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ZAS Sint-Augustinus</name>
+      <Point><coordinates>4.418504,51.174413,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sint-Franciscus ziekenhuis</name>
+      <Point><coordinates>5.316179,51.046737,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Saint-Michel - Sint-Michiels Ziekenhuis</name>
+      <Point><coordinates>4.399581,50.842876,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Heilig Hart Ziekenhuis Mol</name>
+      <Point><coordinates>5.114266,51.18746,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>RZ Tienen - Campus Mariëndal</name>
+      <Point><coordinates>4.933382,50.810872,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital de Mons - Site Constantinople</name>
+      <Point><coordinates>3.959965,50.454584,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Voorkempen</name>
+      <Point><coordinates>4.6449,51.274558,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sint-Jozefskliniek Izegem</name>
+      <Point><coordinates>3.21068,50.917266,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>C.H.U. Notre-dame des Bruyères</name>
+      <Point><coordinates>5.636765,50.623026,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ West</name>
+      <Point><coordinates>2.668873,51.062229,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ZAS Cadix</name>
+      <Point><coordinates>4.415753,51.231312,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier Reine Astrid Malmedy</name>
+      <Point><coordinates>6.023964,50.426287,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Klinik St Josef</name>
+      <Point><coordinates>6.127355,50.277112,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital Delta - Delta Ziekenhuis</name>
+      <Point><coordinates>4.400842,50.816454,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Delta - Campus Torhout</name>
+      <Point><coordinates>3.095775,51.070276,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Saint-Jean - Kliniek Sint-Jan</name>
+      <Point><coordinates>4.360092,50.853923,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier Bois de l'Abbaye - Joseph Wauters</name>
+      <Point><coordinates>5.248786,50.691841,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Chirec - Hôpital de Braine-Waterloo</name>
+      <Point><coordinates>4.367786,50.68453,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sint-Andriesziekenhuis</name>
+      <Point><coordinates>3.322936,51.002,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Epicura Ath</name>
+      <Point><coordinates>3.776606,50.634613,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital d'Arlon</name>
+      <Point><coordinates>5.820493,49.67737,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital de la Citadelle (CHR)</name>
+      <Point><coordinates>5.578094,50.652122,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital de Libramont</name>
+      <Point><coordinates>5.37986,49.925159,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>ZAS Sint-Jozef</name>
+      <Point><coordinates>4.460746,51.164536,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Imelda Ziekenhuis</name>
+      <Point><coordinates>4.558629,51.017475,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHR Verviers | La Tourelle</name>
+      <Point><coordinates>5.859345,50.582221,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique CHC Heusy</name>
+      <Point><coordinates>5.862543,50.577808,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Urgences La Tourelle</name>
+      <Point><coordinates>5.858032,50.581976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Groeninge - campus Kennedylaan</name>
+      <Point><coordinates>3.264884,50.80161,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Sankt Nikolaus-Hospital</name>
+      <Point><coordinates>6.029353,50.628296,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Delta campus Rumbeke</name>
+      <Point><coordinates>3.168179,50.918481,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Rivierenland campus Rumst</name>
+      <Point><coordinates>4.371848,51.106334,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Klina</name>
+      <Point><coordinates>4.490539,51.298701,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique CHC Hermalle</name>
+      <Point><coordinates>5.687683,50.731646,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Heilig Hart Ziekenhuis</name>
+      <Point><coordinates>4.564876,51.132429,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHU de Liège - Sart-Tilman</name>
+      <Point><coordinates>5.567939,50.572522,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZORG Campus Geraardsbergen</name>
+      <Point><coordinates>3.87757,50.770474,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier de Mouscron</name>
+      <Point><coordinates>3.220028,50.74835,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHU Charleroi-Chimay - Marie Curie (Lodelinsart)</name>
+      <Point><coordinates>4.437945,50.431036,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Jan Portaels</name>
+      <Point><coordinates>4.418188,50.92756,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Algemeen Ziekenhuis Sint-Blasius</name>
+      <Point><coordinates>4.113975,51.026428,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital Molière-Longchamp - Ziekenhuis Molière-Longchamp</name>
+      <Point><coordinates>4.34234,50.816427,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>UZ Leuven campus Gasthuisberg</name>
+      <Point><coordinates>4.672994,50.879916,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Herentals</name>
+      <Point><coordinates>4.836019,51.184669,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Universitair Ziekenhuis Brussel</name>
+      <Point><coordinates>4.308474,50.887735,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHU Tivoli</name>
+      <Point><coordinates>4.207283,50.477778,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Grand Hopital De Charleroi - Notre-Dame</name>
+      <Point><coordinates>4.454639,50.417596,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Grand Hôpital de Charleroi – Site Les Viviers</name>
+      <Point><coordinates>4.491321,50.419714,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHR Haute Senne - Site Le Tilleriau</name>
+      <Point><coordinates>4.08049,50.58134,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>AZ Zeno campus Blankenberge</name>
+      <Point><coordinates>3.125149,51.307704,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Noorderhart Mariaziekenhuis</name>
+      <Point><coordinates>5.415602,51.212336,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre de santé des Fagnes</name>
+      <Point><coordinates>4.309805,50.044836,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Universitair Ziekenhuis Antwerpen</name>
+      <Point><coordinates>4.412461,51.156976,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHR Sambre &amp; Meuse - Site Meuse</name>
+      <Point><coordinates>4.886688,50.467608,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Clinique Saint-Luc Bouge</name>
+      <Point><coordinates>4.880369,50.47724,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ziekenhuis Maas en Kempen</name>
+      <Point><coordinates>5.768374,51.101884,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Centre Hospitalier Régional du Val de Sambre</name>
+      <Point><coordinates>4.627324,50.43518,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>CHU Saint-Pierre - UMC Sint-Pieter</name>
+      <Point><coordinates>4.347341,50.834695,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hôpital Érasme - Erasmusziekenhuis</name>
+      <Point><coordinates>4.265808,50.813812,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  <Folder>
+    <name>castle</name>
+    <Placemark>
+      <name>Fort 8</name>
+      <Point><coordinates>4.348238,51.165312,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Walem</name>
+      <Point><coordinates>4.462232,51.061034,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Burg Stockem</name>
+      <Point><coordinates>6.016211,50.630442,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Brasschaat</name>
+      <Point><coordinates>4.496334,51.329116,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Broechem</name>
+      <Point><coordinates>4.61854,51.177579,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort 4</name>
+      <Point><coordinates>4.459456,51.174125,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Haasdonk</name>
+      <Point><coordinates>4.228934,51.172659,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Redoute van Kapellen</name>
+      <Point><coordinates>4.448311,51.320971,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Koningshooikt</name>
+      <Point><coordinates>4.566887,51.083236,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Duffel</name>
+      <Point><coordinates>4.492063,51.075122,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Citadelle de Tournai</name>
+      <Point><coordinates>3.392528,50.599627,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ruines du Château de Beaufort</name>
+      <Point><coordinates>5.193697,50.517621,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Citadelle de Liège</name>
+      <Point><coordinates>5.577166,50.651146,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Tancrémont</name>
+      <Point><coordinates>5.790831,50.553001,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Prinsenkasteel</name>
+      <Point><coordinates>4.371601,50.928358,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Het Steen</name>
+      <Point><coordinates>4.397384,51.222782,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château des Comtes de Hornes</name>
+      <Point><coordinates>4.266624,50.683414,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Schoten</name>
+      <Point><coordinates>4.529816,51.286512,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel Cleydael</name>
+      <Point><coordinates>4.363918,51.138333,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Cognelée</name>
+      <Point><coordinates>4.888714,50.52462,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Malonne</name>
+      <Point><coordinates>4.807808,50.444215,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Suarlée</name>
+      <Point><coordinates>4.802005,50.485903,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Dave</name>
+      <Point><coordinates>4.889496,50.42158,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort d'Andoy</name>
+      <Point><coordinates>4.940977,50.441661,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Marchovelette</name>
+      <Point><coordinates>4.937223,50.506181,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Maizeret</name>
+      <Point><coordinates>4.987547,50.463676,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Crèvecœur</name>
+      <Point><coordinates>4.895952,50.273369,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Crupet</name>
+      <Point><coordinates>4.959914,50.349946,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel Ter Elst</name>
+      <Point><coordinates>4.498186,51.089646,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Poilvache</name>
+      <Point><coordinates>4.899336,50.305046,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Fagnolle</name>
+      <Point><coordinates>4.565536,50.109416,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bossenstein</name>
+      <Point><coordinates>4.595558,51.192895,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Burg Raeren</name>
+      <Point><coordinates>6.120657,50.678596,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel de Liedekerke</name>
+      <Point><coordinates>4.592395,50.851308,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Reinhardstein</name>
+      <Point><coordinates>6.102407,50.452586,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Barchon</name>
+      <Point><coordinates>5.690574,50.672453,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Montaigle</name>
+      <Point><coordinates>4.8157,50.29325,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Schans van Smoutakker</name>
+      <Point><coordinates>4.388414,51.343643,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Geeraard de Duivelsteen</name>
+      <Point><coordinates>3.728538,51.052046,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Liezele</name>
+      <Point><coordinates>4.284947,51.066839,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château fort des Comtes de Dalhem</name>
+      <Point><coordinates>5.724678,50.712148,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Horst</name>
+      <Point><coordinates>4.832145,50.93359,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Pontisse</name>
+      <Point><coordinates>5.640164,50.692547,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Citadelle de Namur</name>
+      <Point><coordinates>4.86265,50.459351,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Kessel</name>
+      <Point><coordinates>4.627384,51.150621,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Schloss Groß Weims</name>
+      <Point><coordinates>6.042207,50.650385,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Bempt</name>
+      <Point><coordinates>5.98781,50.722539,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Steendorp</name>
+      <Point><coordinates>4.255854,51.12719,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Hollogne</name>
+      <Point><coordinates>5.465846,50.646206,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Provinciedomein Fort van Beieren</name>
+      <Point><coordinates>3.253925,51.238196,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel &quot;De Burcht&quot;</name>
+      <Point><coordinates>3.89003,50.886647,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Sint-Marie</name>
+      <Point><coordinates>4.296859,51.25315,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Battice</name>
+      <Point><coordinates>5.834483,50.646993,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Haus Raeren</name>
+      <Point><coordinates>6.121948,50.678173,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château-fort de Montquintin</name>
+      <Point><coordinates>5.47281,49.545545,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Liers</name>
+      <Point><coordinates>5.581988,50.699701,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Beersel</name>
+      <Point><coordinates>4.299908,50.765638,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Flémalle</name>
+      <Point><coordinates>5.465251,50.607861,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Loncin</name>
+      <Point><coordinates>5.492654,50.674311,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château forestier des Trois Fontaines - Kasteel van de Drij Borren</name>
+      <Point><coordinates>4.445658,50.806533,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Wijer</name>
+      <Point><coordinates>5.225664,50.896841,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Torenburcht</name>
+      <Point><coordinates>5.217815,50.80189,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Moha</name>
+      <Point><coordinates>5.180363,50.553015,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ruine van Jonckholt</name>
+      <Point><coordinates>5.55519,50.877869,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Waterburcht Millen</name>
+      <Point><coordinates>5.558898,50.786073,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Waterburcht Pietersheim</name>
+      <Point><coordinates>5.66585,50.898536,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gravensteen</name>
+      <Point><coordinates>3.720651,51.057176,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ferme-château de Balâtre</name>
+      <Point><coordinates>4.636415,50.498688,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Thy-le-Château</name>
+      <Point><coordinates>4.426324,50.282124,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Laarne</name>
+      <Point><coordinates>3.838539,51.027985,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Boechout</name>
+      <Point><coordinates>4.328821,50.927982,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort d'Eben Emael</name>
+      <Point><coordinates>5.679147,50.798455,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Bornem</name>
+      <Point><coordinates>4.234351,51.082462,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Forteresse de Samson</name>
+      <Point><coordinates>4.99822,50.465818,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort 7</name>
+      <Point><coordinates>4.377498,51.164967,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Liefkenshoek</name>
+      <Point><coordinates>4.285507,51.294352,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Stabroek</name>
+      <Point><coordinates>4.352769,51.34232,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort van Merksem</name>
+      <Point><coordinates>4.457767,51.263617,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Cnocke</name>
+      <Point><coordinates>2.80591,50.980042,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van Gaasbeek</name>
+      <Point><coordinates>4.197081,50.796504,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>De Schans</name>
+      <Point><coordinates>4.600293,51.24357,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Sint-Filips</name>
+      <Point><coordinates>4.307791,51.25916,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de l'Avouerie</name>
+      <Point><coordinates>5.523493,50.479762,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Ancien château d'Amblève</name>
+      <Point><coordinates>5.648334,50.48095,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château Thierry</name>
+      <Point><coordinates>4.873339,50.21084,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Corroy-le-Château</name>
+      <Point><coordinates>4.656266,50.532904,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Huy</name>
+      <Point><coordinates>5.237309,50.517478,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Citadelle de Dinant</name>
+      <Point><coordinates>4.913236,50.261866,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gelmelslot</name>
+      <Point><coordinates>4.780838,51.402167,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château Mathelin</name>
+      <Point><coordinates>5.820531,49.593951,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Leopold</name>
+      <Point><coordinates>5.053304,50.994508,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Kasteel van de Hertogen van Brabant</name>
+      <Point><coordinates>4.945851,51.324612,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Walhain</name>
+      <Point><coordinates>4.694907,50.613832,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Sombreffe</name>
+      <Point><coordinates>4.596109,50.53099,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort d'Émines</name>
+      <Point><coordinates>4.850446,50.506717,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château-ferme de Moriensart</name>
+      <Point><coordinates>4.506998,50.66615,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort 5</name>
+      <Point><coordinates>4.432894,51.168701,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de la Chartreuse</name>
+      <Point><coordinates>5.599173,50.631654,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Citadel van Diest</name>
+      <Point><coordinates>5.044738,50.983165,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Napoleon</name>
+      <Point><coordinates>2.934347,51.239,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Burg Reuland</name>
+      <Point><coordinates>6.134443,50.19607,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort de Saint Héribert</name>
+      <Point><coordinates>4.831855,50.411271,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Fort Breendonk</name>
+      <Point><coordinates>4.34146,51.056523,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château de Franchimont</name>
+      <Point><coordinates>5.824026,50.527605,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Le Château Féodal</name>
+      <Point><coordinates>5.576554,50.181951,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Château-ferme d'Opprebais</name>
+      <Point><coordinates>4.796711,50.682694,0</coordinates></Point>
+    </Placemark>
+  </Folder>
+  </Document>
+</kml>

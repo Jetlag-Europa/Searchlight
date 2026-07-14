@@ -208,6 +208,16 @@ const BUDAPEST_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+const BELGIUM_COUNTRY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [50.6402809, 4.6667145] },
+  properties: {
+    osm_type: "R", osm_id: 52411, extent: [51.550781, 2.3889137, 49.4969821, 6.408097],
+    country: "Belgium", osm_key: "place", countrycode: "BE",
+    osm_value: "country", name: "Belgium", type: "country",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -377,6 +387,25 @@ export const GAME_REGISTRY: GameManifest[] = [
     poiFolders: {},
     // Budapest is landlocked — hide the generic sea-coastline measuring question.
     hiddenQuestionTypes: ["coastline"],
+  },
+  {
+    sentinel: "__bundled-belgium-2026__",
+    name: "Belgium 01.08",
+    serverId: SERVER.BNL,
+    size: "large",
+    hidingRadius: 1,
+    hidingRadiusUnits: "kilometers",
+    osm: BELGIUM_COUNTRY_FEATURE,
+    kmlPath: "belgium-poi.kml",
+    stationsKml: "belgium-stations.kml",
+    boundaryGeoJson: "belgium-border.geojson",
+    // POI folders use canonical category names → identity mapping. The custom
+    // "castle" folder passes through the importer into gamePOIData["castle"] for
+    // the Belgium-only castle/fort matching + measuring questions.
+    poiFolders: {},
+    // Not available in this game (no parks / mountains / aquariums). The custom
+    // belgium-coastline question replaces the generic global sea-coastline one.
+    hiddenQuestionTypes: ["park", "mountain", "aquarium", "coastline"],
   },
 ];
 

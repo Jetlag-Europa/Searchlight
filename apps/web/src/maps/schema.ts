@@ -383,6 +383,13 @@ const budapestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const belgiumMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("belgium-province").describe("Same Province (Belgium)"),
+        z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -395,6 +402,7 @@ export const matchingQuestionSchema = z.union([
     exterRotterdamMatchingQuestionsSchema.describe(NO_GROUP),
     zurichMatchingQuestionsSchema.describe(NO_GROUP),
     budapestMatchingQuestionsSchema.describe(NO_GROUP),
+    belgiumMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -454,6 +462,12 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     // Tentacle/POI categories unique to Budapest
     "castle":                    "__bundled-budapest-2025__",
     "stadium":                   "__bundled-budapest-2025__",
+    // Belgium — same-province (bundled polygons), castle/fort (custom POI,
+    // matching + measuring), high-speed rail + coastline (bundled lines)
+    "belgium-province":          "__bundled-belgium-2026__",
+    "belgium-castle":            "__bundled-belgium-2026__",
+    "belgium-hsl":               "__bundled-belgium-2026__",
+    "belgium-coastline":         "__bundled-belgium-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -592,6 +606,14 @@ const budapestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
+        z.literal("belgium-hsl").describe("Distance to High-Speed Rail (Belgium)"),
+        z.literal("belgium-coastline").describe("Distance to Coast (Belgium)"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -601,6 +623,7 @@ export const measuringQuestionSchema = z.union([
     exterRotterdamMeasuringQuestionsSchema.describe(NO_GROUP),
     zurichMeasuringQuestionsSchema.describe(NO_GROUP),
     budapestMeasuringQuestionsSchema.describe(NO_GROUP),
+    belgiumMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
