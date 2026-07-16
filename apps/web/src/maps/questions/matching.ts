@@ -59,6 +59,10 @@ import {
 } from "@/lib/poiOverride";
 import { holedMask, modifyMapData, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoi } from "@/maps/geo-utils";
+import {
+    BELGIUM_ADMIN_LABELS,
+    findBelgiumAdminDivision,
+} from "@/maps/questions/belgiumAdmin";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
 import type {
     APILocations,
@@ -323,15 +327,18 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
-            case "belgium-province": {
-                // Belgium provinces are bundled locally (belgium-provinces.geojson) — no Overpass.
-                const res = await fetch(import.meta.env.BASE_URL + "belgium-provinces.geojson");
-                const fc = await res.json();
-                const pt = turf.point([question.lng, question.lat]);
-                boundary = fc.features.find((f: any) => turf.booleanPointInPolygon(pt, f));
+            case "belgium-province":
+            case "belgium-arrondissement": {
+                // Belgium admin divisions are bundled locally — no Overpass.
+                const label = BELGIUM_ADMIN_LABELS[question.type];
+                boundary = await findBelgiumAdminDivision(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
                 if (!boundary) {
-                    toast.error("No province found at this point — must be inside Belgium.");
-                    throw new Error("No Belgium province found");
+                    toast.error(`No ${label} found at this point — must be inside Belgium.`);
+                    throw new Error(`No Belgium ${label} found`);
                 }
                 break;
             }

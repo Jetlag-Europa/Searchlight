@@ -386,6 +386,7 @@ const budapestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
 const belgiumMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("belgium-province").describe("Same Province (Belgium)"),
+        z.literal("belgium-arrondissement").describe("Same Arrondissement (Belgium)"),
         z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
     ]),
 });
@@ -462,9 +463,15 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     // Tentacle/POI categories unique to Budapest
     "castle":                    "__bundled-budapest-2025__",
     "stadium":                   "__bundled-budapest-2025__",
-    // Belgium — same-province (bundled polygons), castle/fort (custom POI,
-    // matching + measuring), high-speed rail + coastline (bundled lines)
+    // Belgium — bundled admin polygons: province + arrondissement are
+    // matching-only, region is measuring-only (distance to any region border).
+    // There is deliberately no "same region" match, and no arrondissement
+    // border-distance: with 43 divisions the band covers ~96% of Belgium and
+    // eliminates almost nothing. Plus castle/fort (custom POI, matching +
+    // measuring) and high-speed rail + coastline (bundled lines).
+    "belgium-region":            "__bundled-belgium-2026__",
     "belgium-province":          "__bundled-belgium-2026__",
+    "belgium-arrondissement":    "__bundled-belgium-2026__",
     "belgium-castle":            "__bundled-belgium-2026__",
     "belgium-hsl":               "__bundled-belgium-2026__",
     "belgium-coastline":         "__bundled-belgium-2026__",
@@ -608,6 +615,7 @@ const budapestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 
 const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
+        z.literal("belgium-region").describe("Distance to Region Border (Belgium)"),
         z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
         z.literal("belgium-hsl").describe("Distance to High-Speed Rail (Belgium)"),
         z.literal("belgium-coastline").describe("Distance to Coast (Belgium)"),
