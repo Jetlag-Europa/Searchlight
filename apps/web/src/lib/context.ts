@@ -341,6 +341,18 @@ export const tierRadiusOverrides = atom<Record<string, number>>({});
 
 export const gamePOIData = atom<Record<string, Array<{ name: string; lat: number; lon: number }>>>({});
 
+// True once the active game's POI load has RESOLVED — either custom POIs are in
+// gamePOIData, or we've confirmed the game provides none. False while a switch
+// is in flight. The map must not evaluate POI-backed questions while this is
+// false, else they fall back to Overpass before gamePOIData arrives (on a
+// whole-country game like Belgium that stray query is huge and hangs). This is
+// a lifecycle flag rather than an `Object.keys(gamePOIData).length` check
+// because gamePOIData is legitimately empty for games with no custom POIs, and
+// because the previous getGameById-based guard couldn't resolve the game during
+// the cache-paint pass (the games list isn't fetched yet). Default true so any
+// path that doesn't go through switchToGame evaluates normally.
+export const gamePOIReady = atom<boolean>(true);
+
 export const drawingQuestionKey = atom<number>(-1);
 // ID of the single hiding-zone the user has focused via a "View" button,
 // or "" for the all-zones overview. Lifted to a shared atom so the

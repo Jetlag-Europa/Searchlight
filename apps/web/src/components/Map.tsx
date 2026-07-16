@@ -19,6 +19,7 @@ import {
     baseTileLayer,
     followMe,
     gamePOIData,
+    gamePOIReady,
     hiderMode,
     isLoading,
     leafletMapContext,
@@ -137,6 +138,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $permanentOverlay = useStore(permanentOverlay);
     const $polyGeoJSON = useStore(polyGeoJSON);
     const $gamePOIData = useStore(gamePOIData);
+    const $gamePOIReady = useStore(gamePOIReady);
     const map = useStore(leafletMapContext);
 
     // Test-only: expose map/question state on window.__taibled for Playwright
@@ -165,18 +167,18 @@ export const Map = ({ className }: { className?: string }) => {
             await clearCache();
         }
 
-        // Don't evaluate questions until the active game's custom POIs have
-        // loaded. Otherwise POI-backed questions (e.g. a tentacle for a category
-        // the game provides, like theme_park in South Limburg) fall back to
-        // Overpass before gamePOIData arrives — firing needless, stacking
-        // Overpass requests. loadGamePOI sets gamePOIData, which re-triggers
-        // this effect with the data ready.
-        const poiGame = getGameById(currentGameId.get());
-        if (
-            $questions.length > 0 &&
-            poiGame?.kmlPOIFolders &&
-            Object.keys(gamePOIData.get()).length === 0
-        ) {
+        // Don't evaluate questions until the active game's POI load has resolved.
+        // Otherwise POI-backed questions (a tentacle/matching/measuring question
+        // for a category the game provides, e.g. hospital in Belgium) fall back
+        // to Overpass before gamePOIData arrives — a needless, and on a
+        // whole-country game a hanging, query. Gated on gamePOIReady (a lifecycle
+        // flag set false by switchToGame / the cache paint and flipped true when
+        // loadGamePOI finishes) rather than on getGameById + gamePOIData: during
+        // the "painted from cache" pass the games list isn't fetched yet, so the
+        // old getGameById(currentGameId) guard resolved to undefined and let the
+        // query through — the bug this replaces.
+        if ($questions.length > 0 && !gamePOIReady.get()) {
+            console.info("[taibled:poi-guard] deferring question eval until POI ready");
             isLoading.set(false);
             return;
         }
@@ -457,7 +459,7 @@ export const Map = ({ className }: { className?: string }) => {
         if (!map) return;
 
         refreshQuestions(true);
-    }, [$questions, map, $hiderMode, $mapGeoLocation, $polyGeoJSON, $gamePOIData]);
+    }, [$questions, map, $hiderMode, $mapGeoLocation, $polyGeoJSON, $gamePOIData, $gamePOIReady]);
 
     useEffect(() => {
         const intervalId = setInterval(() => {
