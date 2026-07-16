@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useStore } from "@nanostores/react";
 import type { ServersResponse, SessionsResponse, GameSessionSummary } from "@taibled/shared";
-import { questions, sidebarContextR, pendingSessionLoad } from "@/lib/context";
+import { gamePOIReady, questions, sidebarContextR, pendingSessionLoad } from "@/lib/context";
 import {
     activeSessionId,
     activeSessionData,
@@ -506,6 +506,11 @@ export function SessionManager() {
                 { strokes: cached.strokes, questions: cached.questions },
                 pending,
             );
+            // Block POI-backed question eval until switchToGame (below) resolves
+            // POI: painting cached questions fires the map effect before the game
+            // context exists, so an unguarded hospital/museum/etc. question would
+            // fall back to Overpass. switchToGame → loadGamePOI flips this true.
+            gamePOIReady.set(false);
             suppressNextSaveRef.current = true;
             strokes.set(derived.strokes);
             questions.set(derived.questions);
@@ -527,6 +532,7 @@ export function SessionManager() {
                 const games = await fetchGames(data.serverId);
                 const game = games.find((g) => g.id === data.gameId) ?? getGameById(data.gameId);
                 if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
+                else gamePOIReady.set(true); // no game to load POI for → don't block eval
 
                 cancelPendingHiderSave();
                 cancelPendingPlanningModeSave();
@@ -609,6 +615,10 @@ export function SessionManager() {
                 { strokes: cached.strokes, questions: cached.questions },
                 pending,
             );
+            // See the stored-session restore above: defer POI-backed question
+            // eval until switchToGame resolves POI, so the cache paint can't
+            // trigger a premature Overpass fallback.
+            gamePOIReady.set(false);
             suppressNextSaveRef.current = true;
             strokes.set(derived.strokes);
             questions.set(derived.questions);
@@ -627,6 +637,7 @@ export function SessionManager() {
             questions.set(loadedQuestions);
             const game = games.find((g) => g.id === selected.gameId);
             if (game) { console.info("[taibled:session] applying game", game.label); switchToGame(game); }
+            else gamePOIReady.set(true); // no game to load POI for → don't block eval
             const newHiderMode =
                 selected.hiderLat != null && selected.hiderLng != null
                     ? { latitude: selected.hiderLat, longitude: selected.hiderLng }

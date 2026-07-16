@@ -9,6 +9,7 @@ import {
     displayHidingZonesOptions,
     displayHidingZonesStyle,
     gamePOIData,
+    gamePOIReady,
 
     hidingRadius,
     hidingRadiusUnits,
@@ -259,23 +260,35 @@ async function loadMapBoundaryGeoJSON(game: GameDefinition): Promise<void> {
 }
 
 async function loadGamePOI(game: GameDefinition): Promise<void> {
-    if (!game.kmlPOIFolders) return;
-    const url = `${NORMALIZED_BASE}${game.kmlPath}`;
-    // Force revalidation so a stale cached KML (browser heuristic cache or an
-    // upstream proxy) can't serve an outdated asset after new POI folders are
-    // added — this was the "christian_religion never loads" bug: the browser
-    // kept parsing an old south-limburg-poi.kml that predated the church folder.
-    const res = await fetch(url, { cache: "no-cache" });
-    if (!res.ok) {
-        console.warn("[taibled:poi] POI KML fetch failed for", game.id, res.status);
+    // Every return path must resolve gamePOIReady, or the map defers question
+    // evaluation forever (see the guard in Map.tsx).
+    if (!game.kmlPOIFolders) {
+        console.info("[taibled:poi-guard] no custom POI for", game.label, "→ ready");
+        gamePOIReady.set(true);
         return;
     }
-    const poiByCategory = parseKMLFolderPOI(await res.text(), game.kmlPOIFolders);
-    gamePOIData.set(poiByCategory);
-    console.info(
-        "[taibled:poi] loaded custom POI for", game.label, "-",
-        Object.entries(poiByCategory).map(([k, v]) => `${k}:${v.length}`).join(", "),
-    );
+    const url = `${NORMALIZED_BASE}${game.kmlPath}`;
+    try {
+        // Force revalidation so a stale cached KML (browser heuristic cache or an
+        // upstream proxy) can't serve an outdated asset after new POI folders are
+        // added — this was the "christian_religion never loads" bug: the browser
+        // kept parsing an old south-limburg-poi.kml that predated the church folder.
+        const res = await fetch(url, { cache: "no-cache" });
+        if (!res.ok) {
+            console.warn("[taibled:poi] POI KML fetch failed for", game.id, res.status);
+            return;
+        }
+        const poiByCategory = parseKMLFolderPOI(await res.text(), game.kmlPOIFolders);
+        gamePOIData.set(poiByCategory);
+        console.info(
+            "[taibled:poi] loaded custom POI for", game.label, "-",
+            Object.entries(poiByCategory).map(([k, v]) => `${k}:${v.length}`).join(", "),
+        );
+    } finally {
+        // Resolve on success AND on fetch failure: a game whose POIs can't load
+        // should fall back to Overpass, not hang on "Finding …" forever.
+        gamePOIReady.set(true);
+    }
 }
 
 export function applyGameDefaults(game: GameDefinition): void {
@@ -314,6 +327,11 @@ export function activateGameStations(game: GameDefinition): void {
 }
 
 export function switchToGame(game: GameDefinition): void {
+    // A switch is in flight: block POI-backed question evaluation until
+    // loadGamePOI (below, async) resolves gamePOIReady. Set before any async
+    // work so an effect triggered mid-switch sees the game as not-ready.
+    gamePOIReady.set(false);
+
     additionalMapGeoLocations.set([]);
     disabledStations.set([]);
     permanentOverlay.set(null);
