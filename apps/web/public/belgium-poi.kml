@@ -1883,6 +1883,14 @@
       <name>Forestia</name>
       <Point><coordinates>5.776523,50.510409,0</coordinates></Point>
     </Placemark>
+    <Placemark>
+      <name>Bellewaerde Park</name>
+      <Point><coordinates>2.9497683,50.8458101,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Boudewijn Seapark</name>
+      <Point><coordinates>3.2124546,51.1837027,0</coordinates></Point>
+    </Placemark>
   </Folder>
   <Folder>
     <name>consulate</name>

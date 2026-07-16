@@ -36,6 +36,10 @@ import {
     trainStations,
 } from "@/lib/context";
 import {
+    BELGIUM_ADMIN_LABELS,
+    belgiumAdminBorderLines,
+} from "@/maps/questions/belgiumAdmin";
+import {
     fetchCoastline,
     findInternationalBordersInZone,
     findPlacesInZone,
@@ -269,6 +273,21 @@ export const determineMeasuringBoundary = async (
             );
             const line = turf.polygonToLine(simplifiedCanton);
             return line.type === "FeatureCollection" ? line.features : [line];
+        }
+        case "belgium-region": {
+            // ALL region borders, not just the seeker's own — "distance to a
+            // region border" means the nearest one anywhere, so a seeker in
+            // Flanders is measured against Wallonia's and Brussels' borders
+            // too. (Measuring the ring rather than the filled polygon also
+            // matters: a geodesic polygon→point distance is 0 anywhere inside
+            // it, which collapses the buffer and renders nothing.)
+            const lines = await belgiumAdminBorderLines(question.type);
+            if (!lines?.length) {
+                const label = BELGIUM_ADMIN_LABELS[question.type];
+                toast.error(`Could not load ${label} borders for this game.`);
+                return false;
+            }
+            return [turf.combine(turf.featureCollection(lines as any)).features[0]];
         }
         case "rotterdam-rail":
         case "rotterdam-coastline":
@@ -556,6 +575,24 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
         const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
         question.hiderCloser = (hiderNearest.properties.distanceToPoint ?? Infinity) < (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
+    if (question.type === "belgium-region") {
+        // Compared against ALL region borders (see determineMeasuringBoundary)
+        // — whichever is nearest to each player.
+        const lines = await belgiumAdminBorderLines(question.type);
+        if (!lines?.length) return question;
+        const borderPts = turf.explode(
+            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
+        );
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
         return question;
     }
 
