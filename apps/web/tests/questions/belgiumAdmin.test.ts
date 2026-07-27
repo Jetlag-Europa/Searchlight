@@ -43,6 +43,7 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
 
 import { hiderMode, mapGeoJSON } from "@/lib/context";
 import { isQuestionTypeHidden } from "@/lib/games";
+import { belgiumAdminDivisionBorderLines } from "@/maps/questions/belgiumAdmin";
 import { adjustPerMatching } from "@/maps/questions/matching";
 import { adjustPerMeasuring } from "@/maps/questions/measuring";
 import {
@@ -64,6 +65,7 @@ const load = (f: string) =>
     >;
 
 const regions = load("belgium-regions.geojson");
+const provinces = load("belgium-provinces.geojson");
 const arrondissements = load("belgium-arrondissements.geojson");
 
 // Several divisions are MultiPolygons (exclaves), for which polygonToLine
@@ -111,6 +113,7 @@ afterEach(() => {
 describe("Belgium admin assets", () => {
     it.each([
         ["belgium-regions.geojson", regions, 3],
+        ["belgium-provinces.geojson", provinces, 10],
         ["belgium-arrondissements.geojson", arrondissements, 43],
     ])("%s is a FeatureCollection of %s named polygons", (_f, fc, count) => {
         expect((fc as FeatureCollection).type).toBe("FeatureCollection");
@@ -169,8 +172,8 @@ function pickerTypes(schema: typeof matchingQuestionSchema, kind: "matching" | "
 }
 
 describe("question picker gating", () => {
-    // The two types are deliberately one-sided: there is no "same region"
-    // match, and no arrondissement border-distance (it eliminated only ~4%).
+    // Arrondissement is deliberately matching-only: with 43 divisions a
+    // border-distance band covers ~96% of Belgium and eliminates ~4%.
     it("belgium-arrondissement is offered for matching only, never measuring", () => {
         expect(pickerTypes(matchingQuestionSchema, "matching", BELGIUM)).toContain(
             "belgium-arrondissement",
@@ -180,16 +183,28 @@ describe("question picker gating", () => {
         ).not.toContain("belgium-arrondissement");
     });
 
-    it("belgium-region is offered for measuring only, never matching", () => {
+    it("belgium-province is offered for both matching and measuring", () => {
+        expect(pickerTypes(matchingQuestionSchema, "matching", BELGIUM)).toContain(
+            "belgium-province",
+        );
         expect(
             pickerTypes(measuringQuestionSchema as never, "measuring", BELGIUM),
-        ).toContain("belgium-region");
+        ).toContain("belgium-province");
+    });
+
+    // The all-borders "Distance to Region Border" question was removed in
+    // favour of the own-province border distance below; guard against it
+    // creeping back into either picker.
+    it("belgium-region is not offered at all", () => {
         expect(pickerTypes(matchingQuestionSchema, "matching", BELGIUM)).not.toContain(
             "belgium-region",
         );
+        expect(
+            pickerTypes(measuringQuestionSchema as never, "measuring", BELGIUM),
+        ).not.toContain("belgium-region");
     });
 
-    it.each(["belgium-region", "belgium-arrondissement"])(
+    it.each(["belgium-province", "belgium-arrondissement"])(
         "%s is NOT offered for another game",
         (type) => {
             const other = "__bundled-south-limburg-2026__";
@@ -306,13 +321,17 @@ async function measureMask(
     )) as Feature<Polygon> | null;
 }
 
-// Measuring is against EVERY border at the level, so the oracle is built from
-// all divisions' borders — not just the seeker's. Built at full resolution; the
-// handler simplifies at ~55 m, which the 8% ambiguity margin absorbs.
+// Measuring is against the border of the division the SEEKER is in — the same
+// behaviour as zurich-canton — so the oracle uses only that division's border,
+// never the neighbours'. Built at full resolution; the handler simplifies at
+// ~55 m, which the 8% ambiguity margin absorbs.
+const divisionAt = (
+    fc: FeatureCollection<Polygon | MultiPolygon>,
+    [lng, lat]: [number, number],
+) => fc.features.find((f) => turf.booleanPointInPolygon(turf.point([lng, lat]), f))!;
+
 const allLinesFor = (fc: FeatureCollection<Polygon | MultiPolygon>) =>
     fc.features.flatMap((f) => borderLines(f));
-
-const allRegionLines = allLinesFor(regions);
 
 function measuringSuite(
     type: string,
@@ -321,7 +340,7 @@ function measuringSuite(
     base: Feature<Polygon>,
     seeker: [number, number],
 ) {
-    describe(`adjustPerMeasuring — ${type} (distance to ANY ${label} border)`, () => {
+    describe(`adjustPerMeasuring — ${type} (distance to the seeker's own ${label} border)`, () => {
         const dMin = distToBorder(turf.point(seeker), lines, MI.units);
 
         const verdictFor =
@@ -335,7 +354,7 @@ function measuringSuite(
                 return inBase && kept ? "survives" : "eliminated";
             };
 
-        it(`hiderCloser: keeps a band within d_min of the nearest ${label} border`, async () => {
+        it(`hiderCloser: keeps a band within d_min of the ${label} border`, async () => {
             const mask = await measureMask(type, base, seeker, true);
             const r = gridAgreement(mask, sampleGrid(base, 28), verdictFor(true));
             expect(r.failures).toEqual([]);
@@ -362,32 +381,51 @@ function measuringSuite(
     });
 }
 
-// A box in Flanders that also reaches Wallonia and the Brussels ring, so a
-// per-region implementation (the bug: only the seeker's own region's border was
-// measured) disagrees with the oracle here.
+// A seeker in Antwerpen with a base box that spills over the province border
+// into Vlaams-Brabant and Limburg, so the grid holds a healthy mix either side
+// of the band (~380 survive / ~390 eliminated at 28 steps).
+const PROVINCE_SEEKER: [number, number] = [4.7, 51.1];
+const seekerProvince = divisionAt(provinces, PROVINCE_SEEKER);
+
 measuringSuite(
-    "belgium-region",
-    "region",
-    allRegionLines,
-    boundary(4.0, 50.6, 4.5, 50.95),
-    [4.25, 50.85], // Flanders, between Brussels and the Wallonia border
+    "belgium-province",
+    "province",
+    borderLines(seekerProvince),
+    boundary(4.35, 51.05, 4.95, 51.4),
+    PROVINCE_SEEKER,
 );
 
-describe("belgium-region measuring uses every region's border", () => {
-    it("includes borders that are not on the seeker's own region", async () => {
-        const seeker: [number, number] = [4.25, 50.85];
-        const seekerRegion = regions.features.find((f) =>
-            turf.booleanPointInPolygon(turf.point(seeker), f),
-        )!;
-        expect(seekerRegion.properties?.name).toBe("Vlaanderen");
+describe("belgium-province measuring uses only the seeker's own province", () => {
+    it("scenario sanity: the seeker sits in Antwerpen", () => {
+        expect(seekerProvince.properties?.name).toBe("Antwerpen");
+    });
 
-        // A point deep inside Wallonia, far from any Flanders border: its
-        // distance to ALL region borders must be strictly smaller than its
-        // distance to Flanders' border alone. If measuring ever reverts to the
-        // seeker's own region, this gap disappears.
-        const inWallonia = turf.point([5.0, 50.0]);
-        const dAll = distToBorder(inWallonia, allRegionLines, "kilometers");
-        const dOwn = distToBorder(inWallonia, borderLines(seekerRegion), "kilometers");
-        expect(dAll).toBeLessThan(dOwn);
+    it("measures the seeker's province border, not every province's", async () => {
+        const lines = await belgiumAdminDivisionBorderLines(
+            "belgium-province",
+            PROVINCE_SEEKER[1],
+            PROVINCE_SEEKER[0],
+        );
+        expect(lines?.length).toBeGreaterThan(0);
+
+        // A point deep inside Namur, far from Antwerpen: its distance to the
+        // measured border must match "distance to Antwerpen's ring" and be
+        // strictly greater than its distance to the nearest province border
+        // anywhere. If measuring ever goes back to all borders, this flips.
+        const inNamur = turf.point([4.85, 50.26]);
+        const measured = distToBorder(
+            inNamur,
+            lines!.flatMap((l: Feature) =>
+                l.geometry.type === "MultiLineString"
+                    ? (l.geometry.coordinates as number[][][]).map((c) => turf.lineString(c))
+                    : [l as Feature<LineString>],
+            ),
+            "kilometers",
+        );
+        const own = distToBorder(inNamur, borderLines(seekerProvince), "kilometers");
+        const any = distToBorder(inNamur, allLinesFor(provinces), "kilometers");
+
+        expect(measured).toBeCloseTo(own, 0); // handler simplifies at ~55 m
+        expect(any).toBeLessThan(own);
     }, 120_000);
 });

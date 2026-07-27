@@ -7,31 +7,30 @@
 //   province       admin_level 6  (10, from the supplied 2nd Admin KML)
 //   arrondissement admin_level 7  (43)
 //
-// The two question families need different things from these assets, so both
-// live here rather than being repeated across the handlers:
-//   matching   → the ONE division containing the seeker (findBelgiumAdminDivision)
-//                — province and arrondissement
-//   measuring  → EVERY border at that level (belgiumAdminBorderLines) — region
+// Both question families start from the same lookup — the ONE division
+// containing the seeker (findBelgiumAdminDivision):
+//   matching   → that division's polygon        — province and arrondissement
+//   measuring  → that division's border ring    — province
+//                (belgiumAdminDivisionBorderLines)
 //
-// Measuring deliberately uses all borders, not just the seeker's own division:
-// "distance to a region border" means the nearest region border anywhere, so a
-// seeker in Flanders is measured against the Wallonia and Brussels borders too.
+// Measuring is deliberately scoped to the seeker's OWN division, matching the
+// zurich-canton behaviour: "distance to the province border" means the border
+// of the province you are standing in. An all-borders variant (nearest border
+// of any division, anywhere) was tried and removed — it did not play well.
 //
-// Only region has a border-distance question. The same thing at arrondissement
-// level was tried and dropped: 43 divisions make a dense enough mesh that the
-// band covers ~96% of Belgium, so the question eliminates ~4% and isn't worth
-// asking. Region bands eliminate ~86%.
+// Only province has a border-distance question. The same thing at
+// arrondissement level was measured and dropped: 43 divisions make a dense
+// enough mesh that the band covers ~96% of Belgium, so the question eliminates
+// ~4% and isn't worth asking.
 
 import * as turf from "@turf/turf";
 
 export const BELGIUM_ADMIN_FILES: Record<string, string> = {
-    "belgium-region": "belgium-regions.geojson",
     "belgium-province": "belgium-provinces.geojson",
     "belgium-arrondissement": "belgium-arrondissements.geojson",
 };
 
 export const BELGIUM_ADMIN_LABELS: Record<string, string> = {
-    "belgium-region": "region",
     "belgium-province": "province",
     "belgium-arrondissement": "arrondissement",
 };
@@ -73,33 +72,35 @@ export const findBelgiumAdminDivision = async (
 };
 
 /**
- * Every border line at this admin level — each division's outer ring plus any
- * interior rings (Flanders' ring around the Brussels enclave, say). Shared
- * borders appear twice, which is harmless for distance.
+ * The border of the division the seeker is standing in — its outer ring plus
+ * any interior rings (a province's ring around an enclave, say). Undefined if
+ * the point falls outside every division.
+ *
+ * Note this is the seeker's OWN division only, not every border at the level.
  */
-export const belgiumAdminBorderLines = async (
+export const belgiumAdminDivisionBorderLines = async (
     type: string,
+    lat: number,
+    lng: number,
 ): Promise<any[] | undefined> => {
-    const file = BELGIUM_ADMIN_FILES[type];
-    if (!file) return undefined;
+    const division = await findBelgiumAdminDivision(type, lat, lng);
+    if (!division) return undefined;
 
-    const cached = lineCache.get(file);
+    const name = String(division.properties?.name ?? "?");
+    const key = `${type}:${name}`;
+    const cached = lineCache.get(key);
     if (cached) return cached;
 
-    const fc = await loadBelgiumAdminFC(type);
-    if (!fc?.features?.length) return undefined;
-
-    const lines = fc.features.flatMap((f: any) => {
-        const simplified = turf.simplify(f, {
-            tolerance: MEASURE_SIMPLIFY_TOLERANCE,
-            highQuality: false,
-        });
-        const l = turf.polygonToLine(simplified);
-        return l.type === "FeatureCollection" ? l.features : [l];
+    const simplified = turf.simplify(division, {
+        tolerance: MEASURE_SIMPLIFY_TOLERANCE,
+        highQuality: false,
     });
+    const l = turf.polygonToLine(simplified);
+    const lines = l.type === "FeatureCollection" ? l.features : [l];
+
     console.info(
-        `[taibled:belgium-admin] ${type} → ${lines.length} border line(s) from ${fc.features.length} divisions`,
+        `[taibled:belgium-admin] ${type} → border of "${name}" (${lines.length} line(s))`,
     );
-    lineCache.set(file, lines);
+    lineCache.set(key, lines);
     return lines;
 };

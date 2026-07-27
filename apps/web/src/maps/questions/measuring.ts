@@ -37,7 +37,7 @@ import {
 } from "@/lib/context";
 import {
     BELGIUM_ADMIN_LABELS,
-    belgiumAdminBorderLines,
+    belgiumAdminDivisionBorderLines,
 } from "@/maps/questions/belgiumAdmin";
 import {
     fetchCoastline,
@@ -274,20 +274,23 @@ export const determineMeasuringBoundary = async (
             const line = turf.polygonToLine(simplifiedCanton);
             return line.type === "FeatureCollection" ? line.features : [line];
         }
-        case "belgium-region": {
-            // ALL region borders, not just the seeker's own — "distance to a
-            // region border" means the nearest one anywhere, so a seeker in
-            // Flanders is measured against Wallonia's and Brussels' borders
-            // too. (Measuring the ring rather than the filled polygon also
-            // matters: a geodesic polygon→point distance is 0 anywhere inside
-            // it, which collapses the buffer and renders nothing.)
-            const lines = await belgiumAdminBorderLines(question.type);
+        case "belgium-province": {
+            // The border of the province the seeker is IN — same behaviour as
+            // zurich-canton, just from a bundled polygon instead of Overpass.
+            // (Measuring the ring rather than the filled polygon matters: a
+            // geodesic polygon→point distance is 0 anywhere inside it, which
+            // collapses the buffer and renders nothing.)
+            const label = BELGIUM_ADMIN_LABELS[question.type];
+            const lines = await belgiumAdminDivisionBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
             if (!lines?.length) {
-                const label = BELGIUM_ADMIN_LABELS[question.type];
-                toast.error(`Could not load ${label} borders for this game.`);
+                toast.error(`No ${label} found at this point — must be inside Belgium.`);
                 return false;
             }
-            return [turf.combine(turf.featureCollection(lines as any)).features[0]];
+            return lines;
         }
         case "rotterdam-rail":
         case "rotterdam-coastline":
@@ -578,10 +581,15 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
-    if (question.type === "belgium-region") {
-        // Compared against ALL region borders (see determineMeasuringBoundary)
-        // — whichever is nearest to each player.
-        const lines = await belgiumAdminBorderLines(question.type);
+    if (question.type === "belgium-province") {
+        // Both players are compared against the border of the SEEKER's province
+        // (see determineMeasuringBoundary) — the hider's own province is not
+        // consulted, exactly as bern-canton/zurich-canton do it.
+        const lines = await belgiumAdminDivisionBorderLines(
+            question.type,
+            question.lat,
+            question.lng,
+        );
         if (!lines?.length) return question;
         const borderPts = turf.explode(
             turf.combine(turf.featureCollection(lines as any)).features[0] as any,

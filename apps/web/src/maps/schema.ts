@@ -418,7 +418,14 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "lux-district":              "__bundled-luxembourg-2026__",
     "lux-mountains":             "__bundled-luxembourg-2026__",
     "lux-hospitals":             "__bundled-luxembourg-2026__",
-    // South Limburg — admin + POI categories with no generic equivalent
+    // South Limburg — admin + POI categories with no generic equivalent.
+    // international-border-og is gated here too: it is the only game with a
+    // bundled border file (BUNDLED_BORDER_FILES in questions/measuring.ts).
+    // Everywhere else it silently fell through to a live Overpass query that
+    // was never verified, so it is scoped to the game it was built and tested
+    // for. A future game opts in by adding a BUNDLED_BORDER_FILES entry —
+    // and widening or removing this gate.
+    "international-border-og":   "__bundled-south-limburg-2026__",
     "south-limburg-postcode":    "__bundled-south-limburg-2026__",
     "south-limburg-municipality":"__bundled-south-limburg-2026__",
     "sl-camping":                "__bundled-south-limburg-2026__",
@@ -463,13 +470,12 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     // Tentacle/POI categories unique to Budapest
     "castle":                    "__bundled-budapest-2025__",
     "stadium":                   "__bundled-budapest-2025__",
-    // Belgium — bundled admin polygons: province + arrondissement are
-    // matching-only, region is measuring-only (distance to any region border).
-    // There is deliberately no "same region" match, and no arrondissement
+    // Belgium — bundled admin polygons: province is matching + measuring
+    // (distance to the border of the province you're in, zurich-canton style),
+    // arrondissement is matching-only. There is deliberately no arrondissement
     // border-distance: with 43 divisions the band covers ~96% of Belgium and
     // eliminates almost nothing. Plus castle/fort (custom POI, matching +
     // measuring) and high-speed rail + coastline (bundled lines).
-    "belgium-region":            "__bundled-belgium-2026__",
     "belgium-province":          "__bundled-belgium-2026__",
     "belgium-arrondissement":    "__bundled-belgium-2026__",
     "belgium-castle":            "__bundled-belgium-2026__",
@@ -615,7 +621,7 @@ const budapestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 
 const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
-        z.literal("belgium-region").describe("Distance to Region Border (Belgium)"),
+        z.literal("belgium-province").describe("Distance to Province Border (Belgium)"),
         z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
         z.literal("belgium-hsl").describe("Distance to High-Speed Rail (Belgium)"),
         z.literal("belgium-coastline").describe("Distance to Coast (Belgium)"),
