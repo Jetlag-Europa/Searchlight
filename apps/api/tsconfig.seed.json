@@ -1,0 +1,18 @@
+// The main tsconfig excludes prisma/ (its rootDir is ./src, so including the
+// seed there would nest the API output under dist/src and break the image's
+// CMD). The seed still has to run in production, where the runtime image has
+// prod deps only — no tsx — so it gets compiled separately into dist-seed and
+// copied into the runtime stage. Run it with `pnpm seed:prod`.
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "outDir": "./dist-seed",
+        "rootDir": "./prisma",
+        "declaration": false,
+        "declarationMap": false
+    },
+    // Only the production seed. seed-test.ts and seed-brno-boundaries.ts are
+    // developer tools, run from the host with tsx, and are not shipped.
+    "include": ["prisma/seed.ts"],
+    "exclude": ["dist", "dist-seed"]
+}

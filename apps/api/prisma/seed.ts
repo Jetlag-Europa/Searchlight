@@ -1,4 +1,4 @@
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
 import { GAME_REGISTRY } from "@taibled/shared";
 
 const prisma = new PrismaClient();
@@ -54,6 +54,11 @@ async function main() {
   }
 
   for (const game of GAMES) {
+    // The casts are for Prisma's Json input types only — GameOSMFeature and
+    // Record<string, number> are structurally fine but lack the index
+    // signature InputJsonObject wants. Values are passed through unchanged;
+    // this file used to run under tsx, which never typechecked it, and it is
+    // now compiled by tsconfig.seed.json so it can run in the prod image.
     await prisma.game.upsert({
       where: { sentinelValue: game.sentinelValue },
       update: {
@@ -66,8 +71,8 @@ async function main() {
         tierRadiusOverrides: game.tierRadiusOverrides ?? null,
         size: game.size,
         hidingZoneGeoJsonPath: game.hidingZoneGeoJsonPath ?? null,
-      },
-      create: game,
+      } as unknown as Prisma.GameUncheckedUpdateInput,
+      create: game as unknown as Prisma.GameUncheckedCreateInput,
     });
     console.log(`Upserted game: ${game.name} (${game.sentinelValue})`);
   }
