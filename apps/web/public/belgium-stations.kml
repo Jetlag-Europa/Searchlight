@@ -115,10 +115,6 @@
       <Point><coordinates>6.038919,50.635112,0</coordinates></Point>
     </Placemark>
     <Placemark>
-      <name>Harchies</name>
-      <Point><coordinates>3.699027,50.482288,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
       <name>De Panne</name>
       <Point><coordinates>2.602166,51.07727,0</coordinates></Point>
     </Placemark>
@@ -221,10 +217,6 @@
     <Placemark>
       <name>Izegem</name>
       <Point><coordinates>3.214532,50.92111,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Callenelle</name>
-      <Point><coordinates>3.520558,50.53024,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Neerpelt</name>
@@ -723,10 +715,6 @@
       <Point><coordinates>4.538359,50.997424,0</coordinates></Point>
     </Placemark>
     <Placemark>
-      <name>Neufvilles</name>
-      <Point><coordinates>4.010425,50.543355,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
       <name>Ougrée</name>
       <Point><coordinates>5.537105,50.605369,0</coordinates></Point>
     </Placemark>
@@ -1083,28 +1071,8 @@
       <Point><coordinates>4.156907,50.562158,0</coordinates></Point>
     </Placemark>
     <Placemark>
-      <name>Obourg</name>
-      <Point><coordinates>4.006955,50.469833,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Havré</name>
-      <Point><coordinates>4.060218,50.470583,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Thieu</name>
-      <Point><coordinates>4.097807,50.46958,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Bracquegnies</name>
-      <Point><coordinates>4.124984,50.474143,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
       <name>Mons</name>
       <Point><coordinates>3.941965,50.454044,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Nimy</name>
-      <Point><coordinates>3.956149,50.471651,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Quiévrain</name>
@@ -1125,10 +1093,6 @@
     <Placemark>
       <name>Quévy</name>
       <Point><coordinates>3.909241,50.341389,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Maubray</name>
-      <Point><coordinates>3.495436,50.547675,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Tournai</name>
@@ -1153,10 +1117,6 @@
     <Placemark>
       <name>Lot</name>
       <Point><coordinates>4.273378,50.765952,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Masnuy-Saint-Pierre</name>
-      <Point><coordinates>3.961748,50.53636,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Tubize</name>
@@ -1225,10 +1185,6 @@
     <Placemark>
       <name>Leuze</name>
       <Point><coordinates>3.616629,50.600527,0</coordinates></Point>
-    </Placemark>
-    <Placemark>
-      <name>Ville-Pommerœul</name>
-      <Point><coordinates>3.723666,50.464927,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Blaton</name>
