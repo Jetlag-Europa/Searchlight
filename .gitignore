@@ -2,6 +2,8 @@
 dist/
 apps/*/dist/
 packages/*/dist/
+# Compiled production seed (apps/api/tsconfig.seed.json) — built into the image
+apps/*/dist-seed/
 
 # generated types
 .astro/

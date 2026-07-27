@@ -16,7 +16,12 @@ COPY packages/shared/src ./packages/shared/src
 RUN pnpm --filter shared build
 
 COPY apps/api/src ./apps/api/src
+COPY apps/api/tsconfig.seed.json ./apps/api/
 RUN pnpm --filter api build
+# The seed is compiled too: the runtime stage installs prod deps only, so tsx
+# isn't there to run prisma/seed.ts directly. Needed to register new bundled
+# games (see docs/ADDING_GAMES.md) — migrations alone do not create game rows.
+RUN pnpm --filter api build:seed
 
 # Runtime stage — only production deps + compiled output
 FROM node:22-alpine AS runner
@@ -32,6 +37,7 @@ RUN pnpm install --frozen-lockfile --prod
 
 # Copy compiled output from builder
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 # Run migrations then start the API

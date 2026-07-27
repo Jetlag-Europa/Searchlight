@@ -166,15 +166,37 @@ Load the dev site, switch to the game, and confirm in the console / network tab:
   Overpass (expected).
 
 Then follow the dev→live deploy flow in `startup.txt` (merge to `master`, pull
-into the prod clone, rebuild). Seeding prod uses raw SQL — see the appendix.
+into the prod clone, rebuild) — **and then seed prod**, see below. A deploy alone
+never creates the game row.
 
 ---
 
-## Appendix — seeding prod (no tsx in the API image)
+## Appendix — seeding prod
 
-The prod API Docker image omits dev deps, so `prisma db seed` / tsx don't run in
-the container. The registry-driven `seed.ts` still runs from the host against the
-prod DB if you have the workspace, otherwise upsert with raw SQL:
+**The deploy does not do this for you.** The api container runs
+`prisma migrate deploy` on boot, which applies schema migrations only. A new
+entry in `GAME_REGISTRY` ships in the web bundle and its assets serve, but
+without a `Game` row the game fails to activate. Seed after every deploy that
+adds or changes a game:
+
+```
+docker compose --project-name writemap exec api sh -c 'cd /app/apps/api && pnpm seed:prod'
+```
+
+This is registry-driven (`prisma/seed.ts`) and upserts on `sentinelValue`, so it
+is idempotent — safe to re-run, and it updates existing rows in place rather
+than colliding.
+
+`seed:prod` runs the **compiled** seed (`dist-seed/seed.js`, built by
+`tsconfig.seed.json` in the image's builder stage). The runtime image installs
+prod deps only, so `tsx` is not present and `pnpm seed` / `prisma db seed`
+cannot work there — that is why the compiled copy exists. On the VPS there are
+also no published DB ports, so seeding from the host is not an option either.
+
+### Fallback — raw SQL
+
+Only if the api container won't start (so `exec` is unavailable). Prefer
+`seed:prod`; this is hand-maintained and drifts from the registry: 
 
 ```
 docker exec writemap-postgres-1 psql -U taibled -d taibled -c "
@@ -191,5 +213,5 @@ ON CONFLICT (\"sentinelValue\") DO UPDATE SET
 "
 ```
 
-Prefer running the host `seed:dev`-style command pointed at the prod DB when the
-workspace is available — it stays in sync with the registry automatically.
+Note this only covers the `Game` table; the registry-driven seed also upserts
+servers and role permissions.
