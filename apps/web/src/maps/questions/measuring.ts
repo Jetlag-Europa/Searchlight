@@ -274,9 +274,10 @@ export const determineMeasuringBoundary = async (
             const line = turf.polygonToLine(simplifiedCanton);
             return line.type === "FeatureCollection" ? line.features : [line];
         }
+        case "belgium-region":
         case "belgium-province": {
-            // The border of the province the seeker is IN — same behaviour as
-            // zurich-canton, just from a bundled polygon instead of Overpass.
+            // The border of the region/province the seeker is IN — same behaviour
+            // as zurich-canton, just from a bundled polygon instead of Overpass.
             // (Measuring the ring rather than the filled polygon matters: a
             // geodesic polygon→point distance is 0 anywhere inside it, which
             // collapses the buffer and renders nothing.)
@@ -581,9 +582,9 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
-    if (question.type === "belgium-province") {
-        // Both players are compared against the border of the SEEKER's province
-        // (see determineMeasuringBoundary) — the hider's own province is not
+    if (question.type === "belgium-region" || question.type === "belgium-province") {
+        // Both players are compared against the border of the SEEKER's division
+        // (see determineMeasuringBoundary) — the hider's own division is not
         // consulted, exactly as bern-canton/zurich-canton do it.
         const lines = await belgiumAdminDivisionBorderLines(
             question.type,

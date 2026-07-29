@@ -10,27 +10,32 @@
 // Both question families start from the same lookup — the ONE division
 // containing the seeker (findBelgiumAdminDivision):
 //   matching   → that division's polygon        — province and arrondissement
-//   measuring  → that division's border ring    — province
+//   measuring  → that division's border ring    — region and province
 //                (belgiumAdminDivisionBorderLines)
 //
 // Measuring is deliberately scoped to the seeker's OWN division, matching the
-// zurich-canton behaviour: "distance to the province border" means the border
-// of the province you are standing in. An all-borders variant (nearest border
-// of any division, anywhere) was tried and removed — it did not play well.
+// zurich-canton behaviour: "distance to the region border" means the border of
+// the region you are standing in. An all-borders variant (nearest border of any
+// division, anywhere) shipped once at region level and was removed — it did not
+// play well. Don't reintroduce it.
 //
-// Only province has a border-distance question. The same thing at
-// arrondissement level was measured and dropped: 43 divisions make a dense
-// enough mesh that the band covers ~96% of Belgium, so the question eliminates
-// ~4% and isn't worth asking.
+// Region and province have border-distance questions; arrondissement does not.
+// The same thing at arrondissement level was measured and dropped: 43 divisions
+// make a dense enough mesh that the band covers ~96% of Belgium, so the question
+// eliminates ~4% and isn't worth asking. There is also no "same region" matching
+// question — 3 huge divisions make for a coarse, low-value match, and
+// province/arrondissement already cover "same admin area".
 
 import * as turf from "@turf/turf";
 
 export const BELGIUM_ADMIN_FILES: Record<string, string> = {
+    "belgium-region": "belgium-regions.geojson",
     "belgium-province": "belgium-provinces.geojson",
     "belgium-arrondissement": "belgium-arrondissements.geojson",
 };
 
 export const BELGIUM_ADMIN_LABELS: Record<string, string> = {
+    "belgium-region": "region",
     "belgium-province": "province",
     "belgium-arrondissement": "arrondissement",
 };

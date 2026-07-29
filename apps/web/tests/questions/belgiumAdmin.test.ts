@@ -192,19 +192,21 @@ describe("question picker gating", () => {
         ).toContain("belgium-province");
     });
 
-    // The all-borders "Distance to Region Border" question was removed in
-    // favour of the own-province border distance below; guard against it
-    // creeping back into either picker.
-    it("belgium-region is not offered at all", () => {
+    // Region is measuring-only: 3 huge divisions make a coarse, low-value
+    // matching question, and province/arrondissement already cover "same admin
+    // area". The measuring question is the OWN-region border distance — the
+    // all-borders variant was removed and must not creep back (see the
+    // own-division measuring describe block below, which guards the behaviour).
+    it("belgium-region is offered for measuring only, never matching", () => {
+        expect(
+            pickerTypes(measuringQuestionSchema as never, "measuring", BELGIUM),
+        ).toContain("belgium-region");
         expect(pickerTypes(matchingQuestionSchema, "matching", BELGIUM)).not.toContain(
             "belgium-region",
         );
-        expect(
-            pickerTypes(measuringQuestionSchema as never, "measuring", BELGIUM),
-        ).not.toContain("belgium-region");
     });
 
-    it.each(["belgium-province", "belgium-arrondissement"])(
+    it.each(["belgium-region", "belgium-province", "belgium-arrondissement"])(
         "%s is NOT offered for another game",
         (type) => {
             const other = "__bundled-south-limburg-2026__";
@@ -394,6 +396,57 @@ measuringSuite(
     boundary(4.35, 51.05, 4.95, 51.4),
     PROVINCE_SEEKER,
 );
+
+// A seeker just north of the Flanders/Wallonia line, with a base box straddling
+// it. Picked numerically over several candidates: this one splits ~410/385 at 28
+// steps with only 46 ambiguous, where an Antwerp-centred box degenerates to
+// 745/10 (the seeker sits too far inside Vlaanderen for the band to bite).
+const REGION_SEEKER: [number, number] = [4.7, 50.88];
+const seekerRegion = divisionAt(regions, REGION_SEEKER);
+
+measuringSuite(
+    "belgium-region",
+    "region",
+    borderLines(seekerRegion),
+    boundary(4.3, 50.65, 5.1, 51.1),
+    REGION_SEEKER,
+);
+
+describe("belgium-region measuring uses only the seeker's own region", () => {
+    it("scenario sanity: the seeker sits in Vlaanderen", () => {
+        expect(seekerRegion.properties?.name).toBe("Vlaanderen");
+    });
+
+    // Region measuring is the OWN-region border distance. An all-borders variant
+    // shipped once (Entry 44) and was removed after play-testing (Entry 45); this
+    // is the assertion that flips if it ever comes back.
+    it("measures the seeker's region border, not every region's", async () => {
+        const lines = await belgiumAdminDivisionBorderLines(
+            "belgium-region",
+            REGION_SEEKER[1],
+            REGION_SEEKER[0],
+        );
+        expect(lines?.length).toBeGreaterThan(0);
+
+        // Deep in the Ardennes: ~80 km from Vlaanderen's ring, but only ~20 km
+        // from the nearest region border anywhere (Wallonia's own perimeter).
+        const inArdennes = turf.point([5.5, 50.0]);
+        const measured = distToBorder(
+            inArdennes,
+            lines!.flatMap((l: Feature) =>
+                l.geometry.type === "MultiLineString"
+                    ? (l.geometry.coordinates as number[][][]).map((c) => turf.lineString(c))
+                    : [l as Feature<LineString>],
+            ),
+            "kilometers",
+        );
+        const own = distToBorder(inArdennes, borderLines(seekerRegion), "kilometers");
+        const any = distToBorder(inArdennes, allLinesFor(regions), "kilometers");
+
+        expect(measured).toBeCloseTo(own, 0); // handler simplifies at ~55 m
+        expect(any).toBeLessThan(own);
+    }, 120_000);
+});
 
 describe("belgium-province measuring uses only the seeker's own province", () => {
     it("scenario sanity: the seeker sits in Antwerpen", () => {
