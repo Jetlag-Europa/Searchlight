@@ -470,12 +470,15 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     // Tentacle/POI categories unique to Budapest
     "castle":                    "__bundled-budapest-2025__",
     "stadium":                   "__bundled-budapest-2025__",
-    // Belgium — bundled admin polygons: province is matching + measuring
-    // (distance to the border of the province you're in, zurich-canton style),
-    // arrondissement is matching-only. There is deliberately no arrondissement
-    // border-distance: with 43 divisions the band covers ~96% of Belgium and
-    // eliminates almost nothing. Plus castle/fort (custom POI, matching +
-    // measuring) and high-speed rail + coastline (bundled lines).
+    // Belgium — bundled admin polygons. Region is measuring-only, province is
+    // matching + measuring (both measure the border of the division you're IN,
+    // zurich-canton style), arrondissement is matching-only. There is
+    // deliberately no arrondissement border-distance (with 43 divisions the band
+    // covers ~96% of Belgium and eliminates almost nothing) and no "same region"
+    // match (3 divisions is too coarse to be worth asking). Plus castle/fort
+    // (custom POI, matching + measuring) and high-speed rail + coastline
+    // (bundled lines).
+    "belgium-region":            "__bundled-belgium-2026__",
     "belgium-province":          "__bundled-belgium-2026__",
     "belgium-arrondissement":    "__bundled-belgium-2026__",
     "belgium-castle":            "__bundled-belgium-2026__",
@@ -621,6 +624,7 @@ const budapestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 
 const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
+        z.literal("belgium-region").describe("Distance to Region Border (Belgium)"),
         z.literal("belgium-province").describe("Distance to Province Border (Belgium)"),
         z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
         z.literal("belgium-hsl").describe("Distance to High-Speed Rail (Belgium)"),
