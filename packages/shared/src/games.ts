@@ -218,6 +218,20 @@ const BELGIUM_COUNTRY_FEATURE: GameOSMFeature = {
   },
 };
 
+// Greater London (Nominatim: relation 175342). The `extent` is deliberately
+// NOT Nominatim's Greater London bbox — the play area is the Zone 1–3 circle
+// drawn in the source KMZ (r = 14.5 km around Charing Cross), which sits well
+// inside it, so the boundary geojson's own bbox is used instead.
+const LONDON_CITY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [51.5074456, -0.1277653] },
+  properties: {
+    osm_type: "R", osm_id: 175342, extent: [51.638296, -0.33735, 51.377784, 0.081206],
+    country: "United Kingdom", osm_key: "place", countrycode: "GB",
+    osm_value: "city", name: "London", type: "city",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -406,6 +420,42 @@ export const GAME_REGISTRY: GameManifest[] = [
     // Not available in this game (no parks / mountains / aquariums). The custom
     // belgium-coastline question replaces the generic global sea-coastline one.
     hiddenQuestionTypes: ["park", "mountain", "aquarium", "coastline"],
+  },
+  {
+    sentinel: "__bundled-london-2026__",
+    name: "London 02-08",
+    serverId: SERVER.UK,
+    size: "large",
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
+    osm: LONDON_CITY_FEATURE,
+    kmlPath: "london-poi.kml",
+    stationsKml: "london-stations.kml",
+    boundaryGeoJson: "london-border.geojson",
+    // POI folders use canonical category names → identity mapping. The two
+    // custom folders pass through the importer into gamePOIData for the
+    // London-only matching + measuring questions: "stadium" → london-stadium,
+    // "rail_terminus" → london-rail. The termini are deliberately NOT in a
+    // "train_station" folder — that key overrides the generic same-train-line /
+    // same-length-station questions, which must see all London rail, not 14
+    // terminals.
+    poiFolders: {},
+    // Categories the source map does not provide, so the generic questions
+    // would fall through to Overpass and match features outside the play area.
+    // These are the ungrouped picker literals — the "Hiding Zone Mode" group is
+    // not filtered by hiddenQuestionTypes, so bare peak/park/consulate entries
+    // would be inert. "coastline": the play area is inland (the Thames is not
+    // sea coast). "theme_park" covers the tentacle picker, which does filter
+    // grouped entries.
+    hiddenQuestionTypes: [
+      "airport",
+      "theme_park",
+      "theme_park-full",
+      "peak-full",
+      "consulate-full",
+      "park-full",
+      "coastline",
+    ],
   },
 ];
 

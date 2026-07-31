@@ -391,6 +391,13 @@ const belgiumMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const londonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("london-stadium").describe("Nearest Stadium (London)"),
+        z.literal("london-rail").describe("Nearest Rail Terminus (London)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -404,6 +411,7 @@ export const matchingQuestionSchema = z.union([
     zurichMatchingQuestionsSchema.describe(NO_GROUP),
     budapestMatchingQuestionsSchema.describe(NO_GROUP),
     belgiumMatchingQuestionsSchema.describe(NO_GROUP),
+    londonMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -484,6 +492,12 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     "belgium-castle":            "__bundled-belgium-2026__",
     "belgium-hsl":               "__bundled-belgium-2026__",
     "belgium-coastline":         "__bundled-belgium-2026__",
+    // London — stadium (12) and rail terminus (14) are custom POI categories
+    // with no rulebook equivalent, both matching + measuring. The bare
+    // "stadium" tentacle category stays gated to Budapest; London exposes its
+    // stadiums through london-stadium only, so there is no collision.
+    "london-stadium":            "__bundled-london-2026__",
+    "london-rail":               "__bundled-london-2026__",
 };
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -632,6 +646,13 @@ const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const londonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("london-stadium").describe("Nearest Stadium (London)"),
+        z.literal("london-rail").describe("Nearest Rail Terminus (London)"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -642,6 +663,7 @@ export const measuringQuestionSchema = z.union([
     zurichMeasuringQuestionsSchema.describe(NO_GROUP),
     budapestMeasuringQuestionsSchema.describe(NO_GROUP),
     belgiumMeasuringQuestionsSchema.describe(NO_GROUP),
+    londonMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

@@ -53,6 +53,10 @@ const CATEGORY_ALIASES: Record<string, string> = {
     "budapest-stadium": "stadium",
     "budapest-rail": "train_station",
     "belgium-castle": "castle",
+    "london-stadium": "stadium",
+    // NOT "train_station": that key overrides the generic same-train-line /
+    // same-length-station questions, which must see all 271 London stations.
+    "london-rail": "rail_terminus",
 };
 
 /** Resolve a raw category/locationType key to its gamePOIData category. */
