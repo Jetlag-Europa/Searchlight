@@ -331,7 +331,9 @@ export const determineMeasuringBoundary = async (
         case "budapest-castle":
         case "budapest-stadium":
         case "budapest-rail":
-        case "belgium-castle": {
+        case "belgium-castle":
+        case "london-stadium":
+        case "london-rail": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
@@ -339,6 +341,7 @@ export const determineMeasuringBoundary = async (
                 "budapest-castle": "castle", "budapest-stadium": "stadium",
                 "budapest-rail": "train_station",
                 "belgium-castle": "castle",
+                "london-stadium": "stadium", "london-rail": "rail_terminus",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -658,6 +661,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
         "budapest-castle": "castle", "budapest-stadium": "stadium", "budapest-rail": "train_station",
         "belgium-castle": "castle",
+        "london-stadium": "stadium", "london-rail": "rail_terminus",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

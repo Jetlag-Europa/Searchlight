@@ -461,6 +461,8 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "budapest-stadium":
             case "budapest-rail":
             case "belgium-castle":
+            case "london-stadium":
+            case "london-rail":
             case "airport":
             case "major-city":
             case "aquarium-full":
@@ -593,6 +595,8 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "budapest-stadium",
             "budapest-rail",
             "belgium-castle",
+            "london-stadium",
+            "london-rail",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);
