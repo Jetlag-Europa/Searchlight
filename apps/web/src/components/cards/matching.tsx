@@ -32,7 +32,7 @@ import {
 } from "@/maps/questions/matching";
 import {
     determineUnionizedStrings,
-    GAME_GATED_TYPES,
+    gateAllows,
     type MatchingQuestion,
     matchingQuestionSchema,
     NO_GROUP,
@@ -261,9 +261,8 @@ export const MatchingQuestionComponent = ({
                             )
                             .filter((x) => {
                                 const value = (x._def as any).value;
-                                const requiredSentinel = GAME_GATED_TYPES[value];
                                 return (
-                                    (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
+                                    gateAllows(value, activeGameSentinel) &&
                                     !isQuestionTypeHidden(value, activeGameSentinel, "matching")
                                 );
                             })

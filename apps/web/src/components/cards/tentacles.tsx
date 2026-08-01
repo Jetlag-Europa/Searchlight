@@ -27,7 +27,7 @@ import { findTentacleLocations } from "@/maps/api";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
 import {
     determineUnionizedStrings,
-    GAME_GATED_TYPES,
+    gateAllows,
     NO_GROUP,
     type TentacleQuestion,
     tentacleQuestionSchema,
@@ -109,9 +109,8 @@ export const TentacleQuestionComponent = ({
                             )
                             .filter((x) => {
                                 const value = (x._def as any).value;
-                                const requiredSentinel = GAME_GATED_TYPES[value];
                                 return (
-                                    (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
+                                    gateAllows(value, activeGameSentinel) &&
                                     !isQuestionTypeHidden(value, activeGameSentinel, "tentacle")
                                 );
                             })
@@ -128,12 +127,11 @@ export const TentacleQuestionComponent = ({
                                     )
                                         .filter((y) => {
                                             const value = (y._def as any).value;
-                                            const requiredSentinel =
-                                                GAME_GATED_TYPES[value];
                                             return (
-                                                (!requiredSentinel ||
-                                                    requiredSentinel ===
-                                                        activeGameSentinel) &&
+                                                gateAllows(
+                                                    value,
+                                                    activeGameSentinel,
+                                                ) &&
                                                 !isQuestionTypeHidden(
                                                     value,
                                                     activeGameSentinel,

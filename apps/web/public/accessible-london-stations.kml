@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Accessible London 02-08 Stations</name>
+    <Placemark>
+      <name>Abbey Road</name>
+      <Point><coordinates>0.0036092,51.5325414,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>All Saints</name>
+      <Point><coordinates>-0.0130551,51.5108398,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Battersea Power Station</name>
+      <Point><coordinates>-0.1429709,51.4796154,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Beckton</name>
+      <Point><coordinates>0.061373,51.5143713,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Beckton Park</name>
+      <Point><coordinates>0.0549426,51.5087601,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bermondsey</name>
+      <Point><coordinates>-0.0643453,51.4977004,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Blackfriars</name>
+      <Point><coordinates>-0.1037671,51.5115854,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Blackwall</name>
+      <Point><coordinates>-0.0071843,51.5079378,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bow Church</name>
+      <Point><coordinates>-0.0206424,51.5274411,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Brixton</name>
+      <Point><coordinates>-0.114705,51.4626097,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Bromley-by-Bow</name>
+      <Point><coordinates>-0.0123189,51.5246287,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Canada Water</name>
+      <Point><coordinates>-0.0498405,51.4979299,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Canary Wharf</name>
+      <Point><coordinates>-0.0209849,51.5051073,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Canning Town</name>
+      <Point><coordinates>0.0082987,51.5139887,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Canonbury</name>
+      <Point><coordinates>-0.0930239,51.5485632,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Crossharbour</name>
+      <Point><coordinates>-0.0144418,51.4959022,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Custom House</name>
+      <Point><coordinates>0.0259614,51.5096341,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cutty Sark for Maritime Greenwich</name>
+      <Point><coordinates>-0.0107517,51.4817267,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cyprus</name>
+      <Point><coordinates>0.0639692,51.5084776,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Dalston Junction</name>
+      <Point><coordinates>-0.074968,51.5452841,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Deptford Bridge</name>
+      <Point><coordinates>-0.0223933,51.4741638,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Devons Road</name>
+      <Point><coordinates>-0.0172729,51.5222078,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Earl's Court</name>
+      <Point><coordinates>-0.193903,51.4916123,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>East Ham</name>
+      <Point><coordinates>0.0526042,51.5394005,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>East India</name>
+      <Point><coordinates>-0.0021873,51.5093835,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Elverson Road</name>
+      <Point><coordinates>-0.0162072,51.4685232,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gallions Reach</name>
+      <Point><coordinates>0.0717937,51.5089622,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Green Park</name>
+      <Point><coordinates>-0.1429437,51.5066244,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Haggerston</name>
+      <Point><coordinates>-0.0755835,51.5386574,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hammersmith</name>
+      <Point><coordinates>-0.2250607,51.494109,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hammersmith</name>
+      <Point><coordinates>-0.223247,51.4921603,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hendon Central</name>
+      <Point><coordinates>-0.2265541,51.5834006,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Hoxton</name>
+      <Point><coordinates>-0.0756539,51.5315917,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Island Gardens</name>
+      <Point><coordinates>-0.0105052,51.4880683,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>King George V</name>
+      <Point><coordinates>0.0623526,51.502006,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>King's Cross St Pancras</name>
+      <Point><coordinates>-0.1239491,51.530609,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Langdon Park</name>
+      <Point><coordinates>-0.0141164,51.5152051,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Lewisham</name>
+      <Point><coordinates>-0.0130109,51.4649887,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Limehouse</name>
+      <Point><coordinates>-0.0394662,51.5123504,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>London Bridge</name>
+      <Point><coordinates>-0.0886993,51.5054118,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>London City Airport</name>
+      <Point><coordinates>0.048542,51.5035322,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Moorgate</name>
+      <Point><coordinates>-0.0890625,51.5182516,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Mudchute</name>
+      <Point><coordinates>-0.0149135,51.4915188,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Nine Elms</name>
+      <Point><coordinates>-0.1296937,51.4801837,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>North Greenwich</name>
+      <Point><coordinates>0.0043201,51.500574,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Paddington</name>
+      <Point><coordinates>-0.1787546,51.5185075,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pontoon Dock</name>
+      <Point><coordinates>0.0332232,51.5022501,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Poplar</name>
+      <Point><coordinates>-0.0172859,51.5077131,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Prince Regent</name>
+      <Point><coordinates>0.0331521,51.5094778,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Pudding Mill Lane</name>
+      <Point><coordinates>-0.0135365,51.5338301,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Albert</name>
+      <Point><coordinates>0.0458839,51.5083952,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Royal Victoria</name>
+      <Point><coordinates>0.0175953,51.5091026,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Shoreditch High Street</name>
+      <Point><coordinates>-0.0744674,51.5232534,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>South Quay</name>
+      <Point><coordinates>-0.0162525,51.5000357,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Southfields</name>
+      <Point><coordinates>-0.2066142,51.4457751,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Southwark</name>
+      <Point><coordinates>-0.1049663,51.503925,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Star Lane</name>
+      <Point><coordinates>0.0043357,51.5205083,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stratford High Street</name>
+      <Point><coordinates>-0.0001288,51.5376469,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Stratford International</name>
+      <Point><coordinates>-0.009359,51.5457077,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tottenham Hale</name>
+      <Point><coordinates>-0.0599442,51.588123,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Vauxhall</name>
+      <Point><coordinates>-0.1248604,51.4860091,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>West Silvertown</name>
+      <Point><coordinates>0.0223323,51.5028811,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Westferry</name>
+      <Point><coordinates>-0.026644,51.5094025,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Whitechapel</name>
+      <Point><coordinates>-0.0600874,51.5197615,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wood Lane</name>
+      <Point><coordinates>-0.2237557,51.5101068,0</coordinates></Point>
+    </Placemark>
+  </Document>
+</kml>

@@ -457,6 +457,34 @@ export const GAME_REGISTRY: GameManifest[] = [
       "coastline",
     ],
   },
+  {
+    // Same map as London 02-08, restricted to step-free stations: the source
+    // KMZ is identical layer for layer except Station, so every asset except
+    // the hiding zones is SHARED with that game rather than duplicated
+    // (scripts/gen-accessible-london-assets.py asserts they stay identical).
+    // 65 zones = the 70 the map classes accessible_type "Full", minus the 5 it
+    // also marks "Not Allowed" for proximity to another station.
+    sentinel: "__bundled-accessible-london-2026__",
+    name: "Accessible London 02-08",
+    serverId: SERVER.UK,
+    size: "large",
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
+    osm: LONDON_CITY_FEATURE,
+    kmlPath: "london-poi.kml",
+    stationsKml: "accessible-london-stations.kml",
+    boundaryGeoJson: "london-border.geojson",
+    poiFolders: {},
+    hiddenQuestionTypes: [
+      "airport",
+      "theme_park",
+      "theme_park-full",
+      "peak-full",
+      "consulate-full",
+      "park-full",
+      "coastline",
+    ],
+  },
 ];
 
 export function manifestBySentinel(sentinel: string): GameManifest | undefined {

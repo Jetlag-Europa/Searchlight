@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { isQuestionTypeHidden } from "@/lib/games";
 import {
     determineUnionizedStrings,
-    GAME_GATED_TYPES,
+    gateAllows,
     measuringQuestionSchema,
     NO_GROUP,
 } from "@/maps/schema";
@@ -16,9 +16,8 @@ function measuringPickerTypes(sentinel: string) {
         .flatMap((x: any) => determineUnionizedStrings(x.shape.type))
         .map((x: any) => x._def.value as string)
         .filter((value: string) => {
-            const required = GAME_GATED_TYPES[value];
             return (
-                (!required || required === sentinel) &&
+                gateAllows(value, sentinel) &&
                 !isQuestionTypeHidden(value, sentinel, "measuring")
             );
         });

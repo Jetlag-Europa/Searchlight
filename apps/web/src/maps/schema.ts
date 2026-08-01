@@ -393,6 +393,7 @@ const belgiumMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
 
 const londonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
+        z.literal("london-borough").describe("Same Borough (London)"),
         z.literal("london-stadium").describe("Nearest Stadium (London)"),
         z.literal("london-rail").describe("Nearest Rail Terminus (London)"),
     ]),
@@ -417,10 +418,19 @@ export const matchingQuestionSchema = z.union([
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
 ]);
 
-// Maps a question type value to the game sentinel it requires.
-// Types listed here are hidden in the selector unless that game is active.
-// Add new game-specific types here as they are introduced.
-export const GAME_GATED_TYPES: Record<string, string> = {
+// Maps a question type value to the game sentinel(s) it requires.
+// Types listed here are hidden in the selector unless one of those games is
+// active. Add new game-specific types here as they are introduced.
+//
+// An array is for a type shared by more than one game — the two London games
+// run off the same POI and borough assets, so they offer the same custom
+// questions. Prefer `gateAllows()` over reading this map directly.
+const LONDON_GAMES = [
+    "__bundled-london-2026__",
+    "__bundled-accessible-london-2026__",
+];
+
+export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // Luxembourg
     "lux-canton":                "__bundled-luxembourg-2026__",
     "lux-district":              "__bundled-luxembourg-2026__",
@@ -496,9 +506,32 @@ export const GAME_GATED_TYPES: Record<string, string> = {
     // with no rulebook equivalent, both matching + measuring. The bare
     // "stadium" tentacle category stays gated to Budapest; London exposes its
     // stadiums through london-stadium only, so there is no collision.
-    "london-stadium":            "__bundled-london-2026__",
-    "london-rail":               "__bundled-london-2026__",
+    // London — offered by BOTH London games, which share every asset these
+    // questions read (POIs, boroughs, borough lines) and differ only in their
+    // hiding zones.
+    //
+    // london-borough measures against EVERY borough boundary (Jules' call),
+    // unlike belgium-province / zurich-canton which measure the division you
+    // are standing in. Checked before building: across all 271 hiding zones the
+    // "hider is closer" answer keeps ~50% of them, so the dense-mesh problem
+    // that killed belgium-arrondissement measuring does not arise here.
+    "london-borough":            LONDON_GAMES,
+    "london-stadium":            LONDON_GAMES,
+    "london-rail":               LONDON_GAMES,
 };
+
+/**
+ * Is `type` allowed in the game identified by `sentinel`? True for any type not
+ * in GAME_GATED_TYPES (ungated), and for a gated type whose sentinel matches
+ * (or is one of several).
+ */
+export function gateAllows(type: string, sentinel: string): boolean {
+    const required = GAME_GATED_TYPES[type];
+    if (!required) return true;
+    return Array.isArray(required)
+        ? required.includes(sentinel)
+        : required === sentinel;
+}
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
     hiderCloser: z.boolean().default(true),
@@ -648,6 +681,7 @@ const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
 
 const londonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
+        z.literal("london-borough").describe("Distance to Borough Boundary (London)"),
         z.literal("london-stadium").describe("Nearest Stadium (London)"),
         z.literal("london-rail").describe("Nearest Rail Terminus (London)"),
     ]),
