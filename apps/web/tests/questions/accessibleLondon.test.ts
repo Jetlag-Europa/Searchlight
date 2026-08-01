@@ -76,24 +76,28 @@ describe("accessible-london-stations.kml", () => {
     const body = read("accessible-london-stations.kml");
     const base = read("london-stations.kml");
 
-    // 90 stations are classed accessible_type "Full" (70) or "Partial" (20);
-    // 5 of those are also marked "Not Allowed" for proximity and are dropped.
-    // The map's "Interchange" and "Travel" classes are excluded entirely.
-    it("has the 85 step-free hiding zones", () => {
-        expect(body.match(/<Placemark>/g)!.length).toBe(85);
+    // Every station classed accessible_type "Full" (70) or "Partial" (20).
+    // `category="Not Allowed"` is deliberately NOT a filter here, unlike the
+    // base game. "Interchange" and "Travel" are excluded entirely.
+    it("has the 90 step-free hiding zones", () => {
+        expect(body.match(/<Placemark>/g)!.length).toBe(90);
     });
 
-    it("excludes the Full stations the map marks 'Not Allowed'", () => {
+    it("keeps the step-free stations the map marks 'Not Allowed'", () => {
         for (const name of ["Heron Quays", "Shadwell", "West India Quay"]) {
-            expect(body).not.toContain(`<name>${name}</name>`);
+            expect(body).toContain(`<name>${name}</name>`);
         }
         // Canary Wharf is three separate stations (DLR / Jubilee / Elizabeth).
-        // Two are "Not Allowed" for proximity; the third is a valid step-free
-        // zone, so exactly one survives — the name alone doesn't disqualify it.
-        expect(body.match(/<name>Canary Wharf<\/name>/g)).toHaveLength(1);
+        // Two are "Not Allowed" for proximity; all three are step-free, and in
+        // accessible mode proximity is not a reason to drop a zone.
+        expect(body.match(/<name>Canary Wharf<\/name>/g)).toHaveLength(3);
     });
 
-    it("is a strict subset of the base game's stations", () => {
+    // These two lists are NOT nested: accessible mode ignores "Not Allowed", so
+    // it holds 5 zones the base game drops for proximity. Asserted explicitly,
+    // because an earlier revision did require a subset and the relationship
+    // flipping is exactly the kind of thing to notice loudly.
+    it("is not a subset of the base game — it keeps 5 zones the base game drops", () => {
         const coords = (kml: string) =>
             new Set(
                 [...kml.matchAll(/<coordinates>([^<]+)<\/coordinates>/g)].map((m) =>
@@ -102,18 +106,16 @@ describe("accessible-london-stations.kml", () => {
             );
         const acc = coords(body);
         const all = coords(base);
-        expect(acc.size).toBe(85);
-        // Every accessible station is also a station in the base game — the two
-        // maps share a station list and differ only in which ones qualify.
-        expect([...acc].filter((c) => !all.has(c))).toEqual([]);
+        expect(acc.size).toBe(90);
+        expect([...acc].filter((c) => !all.has(c))).toHaveLength(5);
     });
 
-    it("all 85 sit inside the shared game boundary", () => {
+    it("all 90 sit inside the shared game boundary", () => {
         const fc = JSON.parse(read("london-border.geojson")) as FeatureCollection<Polygon>;
         const pts = [...body.matchAll(/<coordinates>([^,]+),([^,]+),/g)].map((m) =>
             turf.point([parseFloat(m[1]), parseFloat(m[2])]),
         );
-        expect(pts).toHaveLength(85);
+        expect(pts).toHaveLength(90);
         for (const pt of pts) {
             expect(turf.booleanPointInPolygon(pt, fc.features[0])).toBe(true);
         }

@@ -71,6 +71,14 @@
       <Point><coordinates>-0.0209849,51.5051073,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Canary Wharf</name>
+      <Point><coordinates>-0.0186272,51.5035036,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Canary Wharf</name>
+      <Point><coordinates>-0.0176241,51.5061102,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Canning Town</name>
       <Point><coordinates>0.0082987,51.5139887,0</coordinates></Point>
     </Placemark>
@@ -175,6 +183,10 @@
       <Point><coordinates>-0.2265541,51.5834006,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Heron Quays</name>
+      <Point><coordinates>-0.0215033,51.5029301,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Hoxton</name>
       <Point><coordinates>-0.0756539,51.5315917,0</coordinates></Point>
     </Placemark>
@@ -263,6 +275,10 @@
       <Point><coordinates>0.0175953,51.5091026,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Shadwell</name>
+      <Point><coordinates>-0.0554867,51.5117593,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Shoreditch High Street</name>
       <Point><coordinates>-0.0744674,51.5232534,0</coordinates></Point>
     </Placemark>
@@ -317,6 +333,10 @@
     <Placemark>
       <name>West Ham</name>
       <Point><coordinates>0.0045685,51.5280966,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>West India Quay</name>
+      <Point><coordinates>-0.0204833,51.5067417,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>West Silvertown</name>

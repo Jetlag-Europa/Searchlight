@@ -23,20 +23,24 @@ Yes/No:
 
     Full 70   Partial 20   Interchange 3   Travel 3   None 274
 
-Per Jules: **Full + Partial**, and `category="Not Allowed"` still excludes on top
-of that (same rule as the base game). (70 + 20) - 5 Not Allowed = 85. Partial
-means step-free on some lines or directions only; the station's `step_free_note`
-says which, e.g. Waterloo "Jubilee only", Wimbledon "District and Tram only".
+Per Jules: **accessible_type Full or Partial, and nothing else** -- 70 + 20 = 90.
+`category="Not Allowed"` is deliberately NOT applied here, unlike the base game.
+Partial means step-free on some lines or directions only; the station's
+`step_free_note` says which, e.g. Waterloo "Jubilee only", Wimbledon "District
+and Tram only".
 
 Interchange and Travel remain excluded: Interchange is step-free only to change
-trains, not to enter or leave, and Travel is Thameslink-only at three stations
-that are all already Not Allowed.
+trains, not to enter or leave, and Travel is Thameslink-only.
 
-The 5 dropped are Canary Wharf (x2), Heron Quays, Shadwell and West India Quay,
-all flagged "Due to proximity to another station" -- note that list is
-recomputed for this map and is NOT the base game's (Balham, Brixton and Charing
-Cross become allowed here; Elephant & Castle, London Bridge and Vauxhall become
-Not Allowed).
+**Consequence worth knowing: this list is NOT a subset of the base game's.** Five
+stations here -- Canary Wharf (x2), Heron Quays, Shadwell, West India Quay -- are
+`Not Allowed` on the map (all "Due to proximity to another station") and so are
+absent from london-stations.kml. In accessible mode the step-free set is sparse
+enough that proximity stops being a reason to drop a zone.
+
+(That Not Allowed list is in any case recomputed per map and is NOT the base
+game's: Balham, Brixton and Charing Cross are allowed here; Elephant & Castle,
+London Bridge and Vauxhall are not.)
 
 Two data quirks that do not affect the Full-only rule but would bite a wider one:
 
@@ -75,7 +79,7 @@ SHARED_LAYERS = [
 ]
 
 ACCESSIBLE_CLASSES = {"Full", "Partial"}
-STATION_EXPECTED = 85
+STATION_EXPECTED = 90
 
 
 def load_accessible():
@@ -132,7 +136,7 @@ def assert_shared_layers_unchanged(acc_root):
 
 
 def gen_stations(root):
-    """Circles in ACCESSIBLE_CLASSES, minus any marked category='Not Allowed'."""
+    """Every circle classed in ACCESSIBLE_CLASSES. `category` is not consulted."""
     circles = {
         base.data_of(pm).get("id"): base.data_of(pm).get("allowed")
         for pm in base.folders(root)["Game Area and Hiding Zone"].findall(
@@ -141,7 +145,7 @@ def gen_stations(root):
         if base.data_of(pm).get("allowed") != "Game Area"
     }
 
-    rows, dropped = [], []
+    rows, not_allowed_kept = [], []
     mismatched = []
     for pm in base.folders(root)["Station"].findall("k:Placemark", NS):
         d = base.data_of(pm)
@@ -159,9 +163,11 @@ def gen_stations(root):
             mismatched.append((base.name_of(pm), d.get("accessible_type"), klass))
         if klass not in ACCESSIBLE_CLASSES:
             continue
+        # Deliberately kept: `category` is not a filter in accessible mode.
+        # Tracked only so the run log names the stations that differ from the
+        # base game.
         if d.get("category") == "Not Allowed":
-            dropped.append(base.name_of(pm))
-            continue
+            not_allowed_kept.append(base.name_of(pm))
         rows.append((base.name_of(pm), pt[0], pt[1]))
 
     assert not mismatched, (
@@ -170,7 +176,7 @@ def gen_stations(root):
     )
     assert len(rows) == STATION_EXPECTED, (
         f"expected {STATION_EXPECTED} accessible stations, got {len(rows)} "
-        f"({len(dropped)} dropped as 'Not Allowed') — source changed"
+        "— source changed"
     )
 
     out = (
@@ -183,8 +189,9 @@ def gen_stations(root):
     open(f"{OUT}/accessible-london-stations.kml", "w", encoding="utf-8").write(out)
     print(
         f"stations: {len(rows)} placemarks "
-        f"(classes={'+'.join(sorted(ACCESSIBLE_CLASSES))}, "
-        f"{len(dropped)} dropped as 'Not Allowed': {', '.join(sorted(dropped))})"
+        f"(classes={'+'.join(sorted(ACCESSIBLE_CLASSES))}; "
+        f"{len(not_allowed_kept)} kept despite category='Not Allowed', so absent "
+        f"from the base game: {', '.join(sorted(not_allowed_kept))})"
     )
 
 
