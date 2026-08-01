@@ -462,8 +462,9 @@ export const GAME_REGISTRY: GameManifest[] = [
     // KMZ is identical layer for layer except Station, so every asset except
     // the hiding zones is SHARED with that game rather than duplicated
     // (scripts/gen-accessible-london-assets.py asserts they stay identical).
-    // 65 zones = the 70 the map classes accessible_type "Full", minus the 5 it
-    // also marks "Not Allowed" for proximity to another station.
+    // 85 zones = the 90 the map classes accessible_type "Full" (70) or
+    // "Partial" (20), minus the 5 it also marks "Not Allowed" for proximity to
+    // another station. Its "Interchange" and "Travel" classes stay excluded.
     sentinel: "__bundled-accessible-london-2026__",
     name: "Accessible London 02-08",
     serverId: SERVER.UK,

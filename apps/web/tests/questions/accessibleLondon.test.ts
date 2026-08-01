@@ -76,10 +76,11 @@ describe("accessible-london-stations.kml", () => {
     const body = read("accessible-london-stations.kml");
     const base = read("london-stations.kml");
 
-    // 70 stations are classed accessible_type "Full"; 5 of those are also
-    // marked "Not Allowed" for proximity to another station and are dropped.
-    it("has the 65 step-free hiding zones", () => {
-        expect(body.match(/<Placemark>/g)!.length).toBe(65);
+    // 90 stations are classed accessible_type "Full" (70) or "Partial" (20);
+    // 5 of those are also marked "Not Allowed" for proximity and are dropped.
+    // The map's "Interchange" and "Travel" classes are excluded entirely.
+    it("has the 85 step-free hiding zones", () => {
+        expect(body.match(/<Placemark>/g)!.length).toBe(85);
     });
 
     it("excludes the Full stations the map marks 'Not Allowed'", () => {
@@ -101,18 +102,18 @@ describe("accessible-london-stations.kml", () => {
             );
         const acc = coords(body);
         const all = coords(base);
-        expect(acc.size).toBe(65);
+        expect(acc.size).toBe(85);
         // Every accessible station is also a station in the base game — the two
         // maps share a station list and differ only in which ones qualify.
         expect([...acc].filter((c) => !all.has(c))).toEqual([]);
     });
 
-    it("all 65 sit inside the shared game boundary", () => {
+    it("all 85 sit inside the shared game boundary", () => {
         const fc = JSON.parse(read("london-border.geojson")) as FeatureCollection<Polygon>;
         const pts = [...body.matchAll(/<coordinates>([^,]+),([^,]+),/g)].map((m) =>
             turf.point([parseFloat(m[1]), parseFloat(m[2])]),
         );
-        expect(pts).toHaveLength(65);
+        expect(pts).toHaveLength(85);
         for (const pt of pts) {
             expect(turf.booleanPointInPolygon(pt, fc.features[0])).toBe(true);
         }

@@ -11,6 +11,14 @@
       <Point><coordinates>-0.0130551,51.5108398,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Bank</name>
+      <Point><coordinates>-0.0893749,51.5131048,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Barbican</name>
+      <Point><coordinates>-0.0986342,51.5201797,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Battersea Power Station</name>
       <Point><coordinates>-0.1429709,51.4796154,0</coordinates></Point>
     </Placemark>
@@ -35,6 +43,14 @@
       <Point><coordinates>-0.0071843,51.5079378,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Bond Street</name>
+      <Point><coordinates>-0.1494231,51.5139808,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Borough</name>
+      <Point><coordinates>-0.0932926,51.5011444,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Bow Church</name>
       <Point><coordinates>-0.0206424,51.5274411,0</coordinates></Point>
     </Placemark>
@@ -57,6 +73,10 @@
     <Placemark>
       <name>Canning Town</name>
       <Point><coordinates>0.0082987,51.5139887,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cannon Street</name>
+      <Point><coordinates>-0.0903632,51.5113812,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Canonbury</name>
@@ -91,6 +111,10 @@
       <Point><coordinates>-0.0172729,51.5222078,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Ealing Broadway</name>
+      <Point><coordinates>-0.3004067,51.5149803,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Earl's Court</name>
       <Point><coordinates>-0.193903,51.4916123,0</coordinates></Point>
     </Placemark>
@@ -103,8 +127,24 @@
       <Point><coordinates>-0.0021873,51.5093835,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Elephant &amp; Castle</name>
+      <Point><coordinates>-0.1005731,51.4948884,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Elverson Road</name>
       <Point><coordinates>-0.0162072,51.4685232,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Euston Square</name>
+      <Point><coordinates>-0.1355703,51.5256866,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Farringdon</name>
+      <Point><coordinates>-0.104555,51.519964,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Finsbury Park</name>
+      <Point><coordinates>-0.1064144,51.5648345,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Gallions Reach</name>
@@ -113,6 +153,10 @@
     <Placemark>
       <name>Green Park</name>
       <Point><coordinates>-0.1429437,51.5066244,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Greenwich</name>
+      <Point><coordinates>-0.0154152,51.4781086,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Haggerston</name>
@@ -159,6 +203,10 @@
       <Point><coordinates>-0.0394662,51.5123504,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Liverpool Street</name>
+      <Point><coordinates>-0.0825205,51.5176777,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>London Bridge</name>
       <Point><coordinates>-0.0886993,51.5054118,0</coordinates></Point>
     </Placemark>
@@ -181,6 +229,10 @@
     <Placemark>
       <name>North Greenwich</name>
       <Point><coordinates>0.0043201,51.500574,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Paddington</name>
+      <Point><coordinates>-0.175365,51.5154795,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Paddington</name>
@@ -231,12 +283,20 @@
       <Point><coordinates>0.0043357,51.5205083,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Stratford</name>
+      <Point><coordinates>-0.0035472,51.541289,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Stratford High Street</name>
       <Point><coordinates>-0.0001288,51.5376469,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Stratford International</name>
       <Point><coordinates>-0.009359,51.5457077,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Tottenham Court Road</name>
+      <Point><coordinates>-0.1305125,51.5159715,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Tottenham Hale</name>
@@ -247,6 +307,18 @@
       <Point><coordinates>-0.1248604,51.4860091,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Victoria</name>
+      <Point><coordinates>-0.1431522,51.4963688,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Waterloo</name>
+      <Point><coordinates>-0.1139812,51.5030015,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>West Ham</name>
+      <Point><coordinates>0.0045685,51.5280966,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>West Silvertown</name>
       <Point><coordinates>0.0223323,51.5028811,0</coordinates></Point>
     </Placemark>
@@ -255,8 +327,16 @@
       <Point><coordinates>-0.026644,51.5094025,0</coordinates></Point>
     </Placemark>
     <Placemark>
+      <name>Westminster</name>
+      <Point><coordinates>-0.1249302,51.5013562,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
       <name>Whitechapel</name>
       <Point><coordinates>-0.0600874,51.5197615,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Wimbledon</name>
+      <Point><coordinates>-0.2052107,51.4220252,0</coordinates></Point>
     </Placemark>
     <Placemark>
       <name>Wood Lane</name>
