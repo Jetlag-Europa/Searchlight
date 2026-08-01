@@ -23,8 +23,14 @@ Yes/No:
 
     Full 70   Partial 20   Interchange 3   Travel 3   None 274
 
-Per Jules: **Full only**, and `category="Not Allowed"` still excludes on top of
-that (same rule as the base game). Full 70 - 5 Not Allowed = 65.
+Per Jules: **Full + Partial**, and `category="Not Allowed"` still excludes on top
+of that (same rule as the base game). (70 + 20) - 5 Not Allowed = 85. Partial
+means step-free on some lines or directions only; the station's `step_free_note`
+says which, e.g. Waterloo "Jubilee only", Wimbledon "District and Tram only".
+
+Interchange and Travel remain excluded: Interchange is step-free only to change
+trains, not to enter or leave, and Travel is Thameslink-only at three stations
+that are all already Not Allowed.
 
 The 5 dropped are Canary Wharf (x2), Heron Quays, Shadwell and West India Quay,
 all flagged "Due to proximity to another station" -- note that list is
@@ -68,8 +74,8 @@ SHARED_LAYERS = [
     "Zoo, Aquarium, Golf Course, Stadium, Rail Terminus",
 ]
 
-ACCESSIBLE_CLASS = "Full"
-STATION_EXPECTED = 65
+ACCESSIBLE_CLASSES = {"Full", "Partial"}
+STATION_EXPECTED = 85
 
 
 def load_accessible():
@@ -126,7 +132,7 @@ def assert_shared_layers_unchanged(acc_root):
 
 
 def gen_stations(root):
-    """Circles classed Full, minus those the map marks category='Not Allowed'."""
+    """Circles in ACCESSIBLE_CLASSES, minus any marked category='Not Allowed'."""
     circles = {
         base.data_of(pm).get("id"): base.data_of(pm).get("allowed")
         for pm in base.folders(root)["Game Area and Hiding Zone"].findall(
@@ -143,11 +149,15 @@ def gen_stations(root):
         if pt is None:
             continue
         klass = circles.get(d.get("@id"))
-        # For "Full" the station attribute and the drawn circle must agree; the
-        # two layers do diverge on Interchange, so this is checked, not assumed.
-        if (d.get("accessible_type") == ACCESSIBLE_CLASS) != (klass == ACCESSIBLE_CLASS):
-            mismatched.append(base.name_of(pm))
-        if klass != ACCESSIBLE_CLASS:
+        # For the classes we accept, the station attribute and the drawn circle
+        # must agree; the two layers DO diverge on Interchange (5 stations), so
+        # this is checked, not assumed — it is the guard that would fire if
+        # Interchange were ever added to ACCESSIBLE_CLASSES.
+        if (d.get("accessible_type") in ACCESSIBLE_CLASSES) != (
+            klass in ACCESSIBLE_CLASSES
+        ):
+            mismatched.append((base.name_of(pm), d.get("accessible_type"), klass))
+        if klass not in ACCESSIBLE_CLASSES:
             continue
         if d.get("category") == "Not Allowed":
             dropped.append(base.name_of(pm))
@@ -155,7 +165,8 @@ def gen_stations(root):
         rows.append((base.name_of(pm), pt[0], pt[1]))
 
     assert not mismatched, (
-        f"station accessible_type and circle class disagree on Full for: {mismatched}"
+        "station accessible_type and circle class disagree (name, station, circle) "
+        f"for: {mismatched}"
     )
     assert len(rows) == STATION_EXPECTED, (
         f"expected {STATION_EXPECTED} accessible stations, got {len(rows)} "
@@ -172,8 +183,8 @@ def gen_stations(root):
     open(f"{OUT}/accessible-london-stations.kml", "w", encoding="utf-8").write(out)
     print(
         f"stations: {len(rows)} placemarks "
-        f"(class={ACCESSIBLE_CLASS}, {len(dropped)} dropped as 'Not Allowed': "
-        f"{', '.join(sorted(dropped))})"
+        f"(classes={'+'.join(sorted(ACCESSIBLE_CLASSES))}, "
+        f"{len(dropped)} dropped as 'Not Allowed': {', '.join(sorted(dropped))})"
     )
 
 
