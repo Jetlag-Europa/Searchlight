@@ -28,7 +28,7 @@ import { currentGameId, gamesAtom, isQuestionTypeHidden } from "@/lib/games";
 import { determineMeasuringBoundary } from "@/maps/questions/measuring";
 import {
     determineUnionizedStrings,
-    GAME_GATED_TYPES,
+    gateAllows,
     type MeasuringQuestion,
     measuringQuestionSchema,
     NO_GROUP,
@@ -186,9 +186,8 @@ export const MeasuringQuestionComponent = ({
                             )
                             .filter((x) => {
                                 const value = (x._def as any).value;
-                                const requiredSentinel = GAME_GATED_TYPES[value];
                                 return (
-                                    (!requiredSentinel || requiredSentinel === activeGameSentinel) &&
+                                    gateAllows(value, activeGameSentinel) &&
                                     !isQuestionTypeHidden(value, activeGameSentinel, "measuring")
                                 );
                             })

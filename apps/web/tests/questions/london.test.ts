@@ -10,7 +10,7 @@ import { isQuestionTypeHidden } from "@/lib/games";
 import { categoryForQuestionType } from "@/lib/poiOverride";
 import {
     determineUnionizedStrings,
-    GAME_GATED_TYPES,
+    gateAllows,
     matchingQuestionSchema,
     measuringQuestionSchema,
     NO_GROUP,
@@ -34,9 +34,8 @@ function pickerTypes(
         .flatMap((x) => determineUnionizedStrings(x.shape.type))
         .map((x: any) => x._def.value as string)
         .filter((value: string) => {
-            const required = GAME_GATED_TYPES[value];
             return (
-                (!required || required === sentinel) &&
+                gateAllows(value, sentinel) &&
                 !isQuestionTypeHidden(value, sentinel, kind)
             );
         });
@@ -165,8 +164,8 @@ describe("london-poi.kml", () => {
 // ── Question wiring ──────────────────────────────────────────────────────────
 
 describe("London custom questions", () => {
-    it("offers london-stadium and london-rail for matching AND measuring", () => {
-        for (const type of ["london-stadium", "london-rail"]) {
+    it("offers all three London types for matching AND measuring", () => {
+        for (const type of ["london-borough", "london-stadium", "london-rail"]) {
             expect(matchingFor(LONDON)).toContain(type);
             expect(measuringFor(LONDON)).toContain(type);
         }
@@ -177,7 +176,7 @@ describe("London custom questions", () => {
         "__bundled-budapest-2025__",
         "__bundled-south-limburg-2026__",
     ])("does not offer them for %s", (sentinel) => {
-        for (const type of ["london-stadium", "london-rail"]) {
+        for (const type of ["london-borough", "london-stadium", "london-rail"]) {
             expect(matchingFor(sentinel)).not.toContain(type);
             expect(measuringFor(sentinel)).not.toContain(type);
         }

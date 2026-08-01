@@ -297,7 +297,12 @@ export const determineMeasuringBoundary = async (
         case "rotterdam-coastline":
         case "zurich-coastline":
         case "belgium-hsl":
-        case "belgium-coastline": {
+        case "belgium-coastline":
+        // London boroughs measure against EVERY borough boundary, not the one
+        // the seeker stands in. The asset is the shared border network with
+        // each internal boundary present once (see gen-london-assets.py), so
+        // it drops straight into the bundled-line path.
+        case "london-borough": {
             // Bundled local LineString (HSL high-speed rail / coastline / lake coast).
             const file =
                 question.type === "rotterdam-rail"
@@ -308,7 +313,9 @@ export const determineMeasuringBoundary = async (
                         ? "belgium-hsl.geojson"
                         : question.type === "belgium-coastline"
                           ? "belgium-coastline.geojson"
-                          : "zurich-lake-coast.geojson";
+                          : question.type === "london-borough"
+                            ? "london-borough-lines.geojson"
+                            : "zurich-lake-coast.geojson";
             const res = await fetch(import.meta.env.BASE_URL + file);
             const fc = await res.json();
             if (!fc.features?.length) return false;
@@ -614,7 +621,8 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         question.type === "zurich-coastline" ||
         question.type === "budapest-water" ||
         question.type === "belgium-hsl" ||
-        question.type === "belgium-coastline"
+        question.type === "belgium-coastline" ||
+        question.type === "london-borough"
     ) {
         const file =
             question.type === "rotterdam-rail"
@@ -627,7 +635,9 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
                       ? "belgium-hsl.geojson"
                       : question.type === "belgium-coastline"
                         ? "belgium-coastline.geojson"
-                        : "zurich-lake-coast.geojson";
+                        : question.type === "london-borough"
+                          ? "london-borough-lines.geojson"
+                          : "zurich-lake-coast.geojson";
         const res = await fetch(import.meta.env.BASE_URL + file);
         const fc = await res.json();
         if (!fc.features?.length) return question;

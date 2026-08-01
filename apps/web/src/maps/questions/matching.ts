@@ -342,6 +342,25 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
+            case "london-borough": {
+                // Boroughs are bundled locally (london-boroughs.geojson, from
+                // OSM admin_level 8 + City of London at level 6) — no Overpass.
+                const boroughRes = await fetch(
+                    import.meta.env.BASE_URL + "london-boroughs.geojson",
+                );
+                const boroughFC = await boroughRes.json();
+                const boroughPt = turf.point([question.lng, question.lat]);
+                boundary = boroughFC.features.find((f: any) =>
+                    turf.booleanPointInPolygon(boroughPt, f),
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No borough found at this point — must be inside the game area.",
+                    );
+                    throw new Error("No London borough found");
+                }
+                break;
+            }
             case "bucharest-sector": {
                 // Sectors are bundled locally (bucharest-sectors.geojson) — no Overpass needed.
                 const sectorsRes = await fetch(import.meta.env.BASE_URL + "bucharest-sectors.geojson");

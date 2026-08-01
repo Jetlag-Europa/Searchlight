@@ -48,7 +48,7 @@ import { adjustPerMatching } from "@/maps/questions/matching";
 import { adjustPerMeasuring } from "@/maps/questions/measuring";
 import {
     determineUnionizedStrings,
-    GAME_GATED_TYPES,
+    gateAllows,
     matchingQuestionSchema,
     measuringQuestionSchema,
     NO_GROUP,
@@ -163,9 +163,8 @@ function pickerTypes(schema: typeof matchingQuestionSchema, kind: "matching" | "
         .flatMap((x: any) => determineUnionizedStrings(x.shape.type))
         .map((x: any) => x._def.value as string)
         .filter((value: string) => {
-            const required = GAME_GATED_TYPES[value];
             return (
-                (!required || required === sentinel) &&
+                gateAllows(value, sentinel) &&
                 !isQuestionTypeHidden(value, sentinel, kind)
             );
         });
