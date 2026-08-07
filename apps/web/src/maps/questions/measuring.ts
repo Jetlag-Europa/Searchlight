@@ -39,6 +39,7 @@ import {
     BELGIUM_ADMIN_LABELS,
     belgiumAdminDivisionBorderLines,
 } from "@/maps/questions/belgiumAdmin";
+import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
 import {
     fetchCoastline,
     findInternationalBordersInZone,
@@ -289,6 +290,20 @@ export const determineMeasuringBoundary = async (
             );
             if (!lines?.length) {
                 toast.error(`No ${label} found at this point — must be inside Belgium.`);
+                return false;
+            }
+            return lines;
+        }
+        case "graz-district": {
+            // The border of the district the seeker is IN — same behaviour as
+            // belgium-province / zurich-canton, from a bundled polygon.
+            const lines = await grazDistrictBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
+            if (!lines?.length) {
+                toast.error("No district found at this point — must be inside Graz.");
                 return false;
             }
             return lines;
@@ -589,6 +604,29 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
         const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
         question.hiderCloser = (hiderNearest.properties.distanceToPoint ?? Infinity) < (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
+    if (question.type === "graz-district") {
+        // Both players are compared against the border of the SEEKER's district
+        // (see determineMeasuringBoundary) — the hider's own district is not
+        // consulted, exactly as belgium-province/zurich-canton do it.
+        const lines = await grazDistrictBorderLines(
+            question.type,
+            question.lat,
+            question.lng,
+        );
+        if (!lines?.length) return question;
+        const borderPts = turf.explode(
+            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
+        );
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
         return question;
     }
 

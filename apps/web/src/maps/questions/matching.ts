@@ -63,6 +63,7 @@ import {
     BELGIUM_ADMIN_LABELS,
     findBelgiumAdminDivision,
 } from "@/maps/questions/belgiumAdmin";
+import { findGrazDistrict } from "@/maps/questions/grazAdmin";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
 import type {
     APILocations,
@@ -339,6 +340,19 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 if (!boundary) {
                     toast.error(`No ${label} found at this point — must be inside Belgium.`);
                     throw new Error(`No Belgium ${label} found`);
+                }
+                break;
+            }
+            case "graz-district": {
+                // Graz districts are bundled locally — no Overpass.
+                boundary = await findGrazDistrict(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error("No district found at this point — must be inside Graz.");
+                    throw new Error("No Graz district found");
                 }
                 break;
             }
