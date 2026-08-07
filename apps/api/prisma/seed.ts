@@ -9,6 +9,7 @@ const SERVERS = [
   { id: "1369664929975767120", name: "JetLag BNL" },
   { id: "1333139120507064350", name: "JetLag DE" },
   { id: "1458858559952523305", name: "JetLag CH" },
+  { id: "1376560872029290708", name: "JetLag Nordics" },
   // Virtual server — no real Discord guild. Visible to everyone; its games are
   // gated per-game (see apps/api/src/lib/game-gates.ts).
   { id: "home-games", name: "Home Games" },
