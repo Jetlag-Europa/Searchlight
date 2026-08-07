@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Graz POIs</name>
+<Folder><name>cinema</name>
+<Placemark><name>Cineplexx</name><Point><coordinates>15.430435,47.031044,0</coordinates></Point></Placemark>
+<Placemark><name>Filmzentrum Rechbauerkino</name><Point><coordinates>15.449217,47.069896,0</coordinates></Point></Placemark>
+<Placemark><name>Geidorf Kunstkino</name><Point><coordinates>15.444421,47.078782,0</coordinates></Point></Placemark>
+<Placemark><name>KIZ RoyalKino</name><Point><coordinates>15.442591,47.063259,0</coordinates></Point></Placemark>
+<Placemark><name>Schubertkino</name><Point><coordinates>15.440632,47.071415,0</coordinates></Point></Placemark>
+<Placemark><name>UCI Kinowelt Annenhof</name><Point><coordinates>15.426817,47.070667,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>consulate</name>
+<Placemark><name>Brasilianisches Konsulat</name><Point><coordinates>15.447053,47.069216,0</coordinates></Point></Placemark>
+<Placemark><name>Deutsches Honorarkonsulat</name><Point><coordinates>15.419978,47.107172,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat Bosnien und Herzegowina</name><Point><coordinates>15.442477,47.066989,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat Ukraine</name><Point><coordinates>15.440756,47.075613,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat der Republik Estland</name><Point><coordinates>15.442866,47.080736,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat der Republik Kasachstan</name><Point><coordinates>15.433526,47.071775,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat der Republik Litauen</name><Point><coordinates>15.447085,47.073901,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat der Republik Slowenien</name><Point><coordinates>15.437348,47.069415,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat der Tschechischen Republik</name><Point><coordinates>15.461848,47.046636,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat des Großherzogtums Luxemburg</name><Point><coordinates>15.440006,47.069364,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat des Königreichs der Niederlande</name><Point><coordinates>15.446461,47.074839,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat des Vereinigten Königreiches</name><Point><coordinates>15.438771,47.06924,0</coordinates></Point></Placemark>
+<Placemark><name>Honorarkonsulat von Kasachstan</name><Point><coordinates>15.456472,47.077295,0</coordinates></Point></Placemark>
+<Placemark><name>Konsulat Malta</name><Point><coordinates>15.455556,47.07534,0</coordinates></Point></Placemark>
+<Placemark><name>Konsulat von Bosnien und Herzegowina in Graz</name><Point><coordinates>15.486633,47.080101,0</coordinates></Point></Placemark>
+<Placemark><name>Königlich Norwegisches Konsulat</name><Point><coordinates>15.455223,47.084123,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>golf_course</name>
+<Placemark><name>Golf Club Liebenau - Driving Range</name><Point><coordinates>15.468696,47.013804,0</coordinates></Point></Placemark>
+<Placemark><name>Golfclub Graz-Andritz</name><Point><coordinates>15.407277,47.11074,0</coordinates></Point></Placemark>
+<Placemark><name>Golfplatz Grazer Murauen (GC Liebenau)</name><Point><coordinates>15.467199,47.013661,0</coordinates></Point></Placemark>
+<Placemark><name>Indoor Golfbox Graz Steinberg</name><Point><coordinates>15.370852,47.053064,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>hospital</name>
+<Placemark><name>Krankenhaus der Barmherzigen Brüder Graz</name><Point><coordinates>15.432002,47.071877,0</coordinates></Point></Placemark>
+<Placemark><name>Krankenhaus der Elisabethinen Graz</name><Point><coordinates>15.426177,47.069531,0</coordinates></Point></Placemark>
+<Placemark><name>Krankenhaus der Elisabethinen Graz-Eggenberg</name><Point><coordinates>15.392978,47.07874,0</coordinates></Point></Placemark>
+<Placemark><name>LKH Graz II Standort West</name><Point><coordinates>15.399589,47.077636,0</coordinates></Point></Placemark>
+<Placemark><name>Landeskrankenhaus Graz II</name><Point><coordinates>15.419301,47.038154,0</coordinates></Point></Placemark>
+<Placemark><name>Landeskrankenhaus-Universitätsklinikum Graz</name><Point><coordinates>15.467205,47.084036,0</coordinates></Point></Placemark>
+<Placemark><name>Militärspital</name><Point><coordinates>15.395523,47.052044,0</coordinates></Point></Placemark>
+<Placemark><name>Unfallkrankenhaus Steiermark, Standort Graz</name><Point><coordinates>15.398141,47.078676,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>library</name>
+<Placemark><name>AK-Bibliothek</name><Point><coordinates>15.425346,47.072186,0</coordinates></Point></Placemark>
+<Placemark><name>Bibliothek Frauengesundheitszentrum</name><Point><coordinates>15.441186,47.067444,0</coordinates></Point></Placemark>
+<Placemark><name>Bibliothek Odilieninstitut</name><Point><coordinates>15.464678,47.077164,0</coordinates></Point></Placemark>
+<Placemark><name>Bibliothek der Med Uni Graz</name><Point><coordinates>15.46778,47.080944,0</coordinates></Point></Placemark>
+<Placemark><name>Bibliothek kunstGarten</name><Point><coordinates>15.422138,47.051788,0</coordinates></Point></Placemark>
+<Placemark><name>Depotbibliothek der Universität Graz</name><Point><coordinates>15.415669,47.1028,0</coordinates></Point></Placemark>
+<Placemark><name>FH JOANNEUM Library</name><Point><coordinates>15.406177,47.069425,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek Germanistik</name><Point><coordinates>15.447293,47.079768,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek Geschichte</name><Point><coordinates>15.44757,47.078586,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek Inffeld</name><Point><coordinates>15.459993,47.058724,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek Mathematik</name><Point><coordinates>15.44857,47.079093,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek NAWI</name><Point><coordinates>15.452275,47.065058,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek Wall</name><Point><coordinates>15.457361,47.070696,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek für Religionspädagogik</name><Point><coordinates>15.437708,47.082033,0</coordinates></Point></Placemark>
+<Placemark><name>Fachbibliothek röm.-kath. Theologie</name><Point><coordinates>15.453759,47.081241,0</coordinates></Point></Placemark>
+<Placemark><name>Fakultätsbibliothek ReSoWi</name><Point><coordinates>15.451065,47.078231,0</coordinates></Point></Placemark>
+<Placemark><name>Frauenservice</name><Point><coordinates>15.430841,47.075527,0</coordinates></Point></Placemark>
+<Placemark><name>Hauptbibliothek</name><Point><coordinates>15.450028,47.067788,0</coordinates></Point></Placemark>
+<Placemark><name>Hauptbibliothek Zanklhof</name><Point><coordinates>15.431524,47.069833,0</coordinates></Point></Placemark>
+<Placemark><name>Haus der Baubiologie - Fachbibliothek</name><Point><coordinates>15.455418,47.060116,0</coordinates></Point></Placemark>
+<Placemark><name>Hörbibliothek Mariahilf</name><Point><coordinates>15.433248,47.072469,0</coordinates></Point></Placemark>
+<Placemark><name>Institutsbibliothek Kunstgeschichte</name><Point><coordinates>15.450228,47.077499,0</coordinates></Point></Placemark>
+<Placemark><name>Interkulturelle Fachbibliothek ISOP</name><Point><coordinates>15.428478,47.069398,0</coordinates></Point></Placemark>
+<Placemark><name>KATIB Farsi Bibliothek</name><Point><coordinates>15.427677,47.072099,0</coordinates></Point></Placemark>
+<Placemark><name>Ludovico</name><Point><coordinates>15.440693,47.074376,0</coordinates></Point></Placemark>
+<Placemark><name>MOSAIK Bibliothek</name><Point><coordinates>15.416499,47.084185,0</coordinates></Point></Placemark>
+<Placemark><name>Patientenbibliothek</name><Point><coordinates>15.419073,47.036974,0</coordinates></Point></Placemark>
+<Placemark><name>Pfarre Kroisbach</name><Point><coordinates>15.466474,47.093069,0</coordinates></Point></Placemark>
+<Placemark><name>Sektion Graz Alpenvereinsbücherei</name><Point><coordinates>15.430111,47.070866,0</coordinates></Point></Placemark>
+<Placemark><name>She Drup Ling</name><Point><coordinates>15.433713,47.070758,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtbibliothek Andritz</name><Point><coordinates>15.421338,47.102658,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtbibliothek Graz Nord</name><Point><coordinates>15.431959,47.083647,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtbibliothek Graz Ost</name><Point><coordinates>15.458817,47.069358,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtbibliothek Graz Süd</name><Point><coordinates>15.432401,47.045672,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtbibliothek Graz West</name><Point><coordinates>15.407235,47.069897,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtbibliothek Gösting</name><Point><coordinates>15.405409,47.093957,0</coordinates></Point></Placemark>
+<Placemark><name>Steiermärkische Landesbibliothek</name><Point><coordinates>15.438443,47.068337,0</coordinates></Point></Placemark>
+<Placemark><name>Steirische entwicklungspolitische Mediathek</name><Point><coordinates>15.436791,47.08384,0</coordinates></Point></Placemark>
+<Placemark><name>Steirisches Volksliedwerk</name><Point><coordinates>15.439155,47.072768,0</coordinates></Point></Placemark>
+<Placemark><name>Studienbibliothek der Pädagogischen Hochschule</name><Point><coordinates>15.434126,47.081217,0</coordinates></Point></Placemark>
+<Placemark><name>Testothek</name><Point><coordinates>15.451072,47.077275,0</coordinates></Point></Placemark>
+<Placemark><name>Universitätsbibliothek</name><Point><coordinates>15.448417,47.0731,0</coordinates></Point></Placemark>
+<Placemark><name>ÖKA-Österreichisches Kabarettarchiv</name><Point><coordinates>15.4515,47.074516,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>mountain</name>
+<Placemark><name>Admonter Kogel</name><Point><coordinates>15.397124,47.114297,0</coordinates></Point></Placemark>
+<Placemark><name>Buchkogel</name><Point><coordinates>15.374884,47.038007,0</coordinates></Point></Placemark>
+<Placemark><name>Ferdinandshöhe</name><Point><coordinates>15.445488,47.096704,0</coordinates></Point></Placemark>
+<Placemark><name>Florianiberg</name><Point><coordinates>15.389648,47.020368,0</coordinates></Point></Placemark>
+<Placemark><name>Flösserkogel</name><Point><coordinates>15.36421,47.104307,0</coordinates></Point></Placemark>
+<Placemark><name>Frauenkogel</name><Point><coordinates>15.349949,47.106561,0</coordinates></Point></Placemark>
+<Placemark><name>Frauenkogel</name><Point><coordinates>15.370711,47.092205,0</coordinates></Point></Placemark>
+<Placemark><name>Fuchsriegel</name><Point><coordinates>15.495797,47.08742,0</coordinates></Point></Placemark>
+<Placemark><name>Fürstenstand</name><Point><coordinates>15.385165,47.090403,0</coordinates></Point></Placemark>
+<Placemark><name>Gaisberg</name><Point><coordinates>15.379549,47.069151,0</coordinates></Point></Placemark>
+<Placemark><name>Gritzenkogel</name><Point><coordinates>15.388433,47.059699,0</coordinates></Point></Placemark>
+<Placemark><name>Göstinger Ruinenberg</name><Point><coordinates>15.380749,47.103852,0</coordinates></Point></Placemark>
+<Placemark><name>Hauenstein</name><Point><coordinates>15.488363,47.125037,0</coordinates></Point></Placemark>
+<Placemark><name>Hubertushöhe</name><Point><coordinates>15.395556,47.084912,0</coordinates></Point></Placemark>
+<Placemark><name>Höhenberg</name><Point><coordinates>15.367744,47.098884,0</coordinates></Point></Placemark>
+<Placemark><name>Kalvarienberg</name><Point><coordinates>15.417654,47.093134,0</coordinates></Point></Placemark>
+<Placemark><name>Kogelberg</name><Point><coordinates>15.479853,47.107923,0</coordinates></Point></Placemark>
+<Placemark><name>Kollerberg</name><Point><coordinates>15.376235,47.062862,0</coordinates></Point></Placemark>
+<Placemark><name>Lustbühel</name><Point><coordinates>15.493453,47.068613,0</coordinates></Point></Placemark>
+<Placemark><name>Mühlberg</name><Point><coordinates>15.377268,47.081579,0</coordinates></Point></Placemark>
+<Placemark><name>Oberer Weizberg</name><Point><coordinates>15.458296,47.107496,0</coordinates></Point></Placemark>
+<Placemark><name>Pfangberg</name><Point><coordinates>15.454145,47.118436,0</coordinates></Point></Placemark>
+<Placemark><name>Platte</name><Point><coordinates>15.469654,47.112614,0</coordinates></Point></Placemark>
+<Placemark><name>Purberg</name><Point><coordinates>15.491934,47.10704,0</coordinates></Point></Placemark>
+<Placemark><name>Raacher Kogel</name><Point><coordinates>15.363067,47.107294,0</coordinates></Point></Placemark>
+<Placemark><name>Reinerkogel</name><Point><coordinates>15.433422,47.094457,0</coordinates></Point></Placemark>
+<Placemark><name>Reinerspitze</name><Point><coordinates>15.352288,47.102033,0</coordinates></Point></Placemark>
+<Placemark><name>Rosenkogel</name><Point><coordinates>15.43491,47.090496,0</coordinates></Point></Placemark>
+<Placemark><name>Rudolfshöhe</name><Point><coordinates>15.475239,47.073208,0</coordinates></Point></Placemark>
+<Placemark><name>Schloßberg</name><Point><coordinates>15.437607,47.07654,0</coordinates></Point></Placemark>
+<Placemark><name>Schweinberg</name><Point><coordinates>15.512494,47.085432,0</coordinates></Point></Placemark>
+<Placemark><name>Steinkogel</name><Point><coordinates>15.358428,47.105057,0</coordinates></Point></Placemark>
+<Placemark><name>Unterer Weizberg</name><Point><coordinates>15.436833,47.105757,0</coordinates></Point></Placemark>
+<Placemark><name>Weinberg</name><Point><coordinates>15.388258,47.104823,0</coordinates></Point></Placemark>
+<Placemark><name>Ölberg</name><Point><coordinates>15.380071,47.05734,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>museum</name>
+<Placemark><name>Alte Galerie Schloss Eggenberg</name><Point><coordinates>15.391217,47.073688,0</coordinates></Point></Placemark>
+<Placemark><name>Archäologiemuseum Schloss Eggenberg</name><Point><coordinates>15.392631,47.07637,0</coordinates></Point></Placemark>
+<Placemark><name>Archäologische Sammlungen der Universität Graz</name><Point><coordinates>15.449586,47.077631,0</coordinates></Point></Placemark>
+<Placemark><name>Diözesanmuseum Graz</name><Point><coordinates>15.441755,47.071698,0</coordinates></Point></Placemark>
+<Placemark><name>DruckZeug</name><Point><coordinates>15.429381,47.070707,0</coordinates></Point></Placemark>
+<Placemark><name>Graz Museum Schlossberg</name><Point><coordinates>15.436778,47.075053,0</coordinates></Point></Placemark>
+<Placemark><name>Halle für Kunst Steiermark</name><Point><coordinates>15.444612,47.07174,0</coordinates></Point></Placemark>
+<Placemark><name>Hans Gross Kriminalmuseum</name><Point><coordinates>15.446664,47.078499,0</coordinates></Point></Placemark>
+<Placemark><name>Keplerraum</name><Point><coordinates>15.432177,47.076889,0</coordinates></Point></Placemark>
+<Placemark><name>Kindermuseum FRida &amp; freD</name><Point><coordinates>15.436241,47.063165,0</coordinates></Point></Placemark>
+<Placemark><name>Kunsthaus Graz</name><Point><coordinates>15.434119,47.071297,0</coordinates></Point></Placemark>
+<Placemark><name>Montan- und Werksbahnmuseum Graz</name><Point><coordinates>15.437505,47.078714,0</coordinates></Point></Placemark>
+<Placemark><name>Museum der Wahrnehmung</name><Point><coordinates>15.437541,47.062623,0</coordinates></Point></Placemark>
+<Placemark><name>Museum für Geschichte</name><Point><coordinates>15.436776,47.07254,0</coordinates></Point></Placemark>
+<Placemark><name>Neue Galerie Graz</name><Point><coordinates>15.437581,47.068464,0</coordinates></Point></Placemark>
+<Placemark><name>Puchmuseum</name><Point><coordinates>15.43765,47.04397,0</coordinates></Point></Placemark>
+<Placemark><name>Salon Stolz</name><Point><coordinates>15.430609,47.085024,0</coordinates></Point></Placemark>
+<Placemark><name>Schell Collection</name><Point><coordinates>15.429133,47.077821,0</coordinates></Point></Placemark>
+<Placemark><name>Studienzentrum Naturkunde</name><Point><coordinates>15.41552,47.103374,0</coordinates></Point></Placemark>
+<Placemark><name>ToyToyToy  Spielzeugmuseum Graz</name><Point><coordinates>15.44151,47.073652,0</coordinates></Point></Placemark>
+<Placemark><name>Tramway Museum Graz</name><Point><coordinates>15.488951,47.105503,0</coordinates></Point></Placemark>
+<Placemark><name>Volkskundemuseum</name><Point><coordinates>15.4395,47.075031,0</coordinates></Point></Placemark>
+<Placemark><name>infowelt Koralmbahn</name><Point><coordinates>15.417306,47.072747,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>park</name>
+<Placemark><name>Am Eisernen Tor</name><Point><coordinates>15.443147,47.068202,0</coordinates></Point></Placemark>
+<Placemark><name>Am Naturdenkmal Platane</name><Point><coordinates>15.460356,47.078773,0</coordinates></Point></Placemark>
+<Placemark><name>Andritzer Obst- und Naschgarten</name><Point><coordinates>15.419895,47.10449,0</coordinates></Point></Placemark>
+<Placemark><name>Anna-Cadia-Park</name><Point><coordinates>15.407963,47.076744,0</coordinates></Point></Placemark>
+<Placemark><name>Annaplatz</name><Point><coordinates>15.396031,47.080044,0</coordinates></Point></Placemark>
+<Placemark><name>Annemarie-Zdarsky-Park</name><Point><coordinates>15.427485,47.026198,0</coordinates></Point></Placemark>
+<Placemark><name>Anton-Lippe-Platz</name><Point><coordinates>15.450726,47.047011,0</coordinates></Point></Placemark>
+<Placemark><name>Auenpark</name><Point><coordinates>15.426926,47.110099,0</coordinates></Point></Placemark>
+<Placemark><name>Augarten</name><Point><coordinates>15.436182,47.061909,0</coordinates></Point></Placemark>
+<Placemark><name>August-Matthey-Park</name><Point><coordinates>15.456647,47.070924,0</coordinates></Point></Placemark>
+<Placemark><name>Aupark Puntigam</name><Point><coordinates>15.443562,47.03742,0</coordinates></Point></Placemark>
+<Placemark><name>Baumhain Reininghaus</name><Point><coordinates>15.407555,47.058009,0</coordinates></Point></Placemark>
+<Placemark><name>Bezirkssportplatz St. Vinzenz</name><Point><coordinates>15.404358,47.076183,0</coordinates></Point></Placemark>
+<Placemark><name>Bubble Park</name><Point><coordinates>15.432059,47.059203,0</coordinates></Point></Placemark>
+<Placemark><name>Burggarten</name><Point><coordinates>15.443806,47.072912,0</coordinates></Point></Placemark>
+<Placemark><name>Dagmar-Grage-Park</name><Point><coordinates>15.420295,47.098851,0</coordinates></Point></Placemark>
+<Placemark><name>Dechant-Binder-Anlage</name><Point><coordinates>15.39957,47.093135,0</coordinates></Point></Placemark>
+<Placemark><name>Dr.-Hans-Spitzy-Platzl</name><Point><coordinates>15.430124,47.051767,0</coordinates></Point></Placemark>
+<Placemark><name>Dr.-Schlossar-Park</name><Point><coordinates>15.43136,47.051797,0</coordinates></Point></Placemark>
+<Placemark><name>Ella-Flesch-Platz</name><Point><coordinates>15.444799,47.068969,0</coordinates></Point></Placemark>
+<Placemark><name>Emil-Breisach-Park</name><Point><coordinates>15.464718,47.053817,0</coordinates></Point></Placemark>
+<Placemark><name>Eustacchiopark</name><Point><coordinates>15.477404,47.060804,0</coordinates></Point></Placemark>
+<Placemark><name>Felix-Dahn-Platz</name><Point><coordinates>15.45335,47.066645,0</coordinates></Point></Placemark>
+<Placemark><name>Floßlendplatz</name><Point><coordinates>15.424829,47.083601,0</coordinates></Point></Placemark>
+<Placemark><name>Friedenspark</name><Point><coordinates>15.417693,47.082601,0</coordinates></Point></Placemark>
+<Placemark><name>Fröbelpark</name><Point><coordinates>15.41871,47.083476,0</coordinates></Point></Placemark>
+<Placemark><name>Gemeindepark Eggenberg</name><Point><coordinates>15.402212,47.068648,0</coordinates></Point></Placemark>
+<Placemark><name>Gertie-Pakesch-Kaan-Park</name><Point><coordinates>15.408883,47.075025,0</coordinates></Point></Placemark>
+<Placemark><name>Gorbachplatz</name><Point><coordinates>15.435907,47.066569,0</coordinates></Point></Placemark>
+<Placemark><name>Grabeländer</name><Point><coordinates>15.439285,47.050827,0</coordinates></Point></Placemark>
+<Placemark><name>Grün- und Sportanlage Dominikanergrund</name><Point><coordinates>15.453252,47.061815,0</coordinates></Point></Placemark>
+<Placemark><name>Harmsdorfpark</name><Point><coordinates>15.457293,47.05122,0</coordinates></Point></Placemark>
+<Placemark><name>Hasenheide</name><Point><coordinates>15.45395,47.053998,0</coordinates></Point></Placemark>
+<Placemark><name>Hasnerplatz</name><Point><coordinates>15.433603,47.082932,0</coordinates></Point></Placemark>
+<Placemark><name>Hedwig-Ehmann-Park</name><Point><coordinates>15.456422,47.038101,0</coordinates></Point></Placemark>
+<Placemark><name>Helene-Serfecz-Platz</name><Point><coordinates>15.405052,47.0645,0</coordinates></Point></Placemark>
+<Placemark><name>Hofbauerplatz</name><Point><coordinates>15.402739,47.072779,0</coordinates></Point></Placemark>
+<Placemark><name>Ivanka-Gruber-Park</name><Point><coordinates>15.443109,47.051713,0</coordinates></Point></Placemark>
+<Placemark><name>Johannes-Zwerger-Platz</name><Point><coordinates>15.455528,47.069535,0</coordinates></Point></Placemark>
+<Placemark><name>Josef-Huber-Park</name><Point><coordinates>15.422428,47.066413,0</coordinates></Point></Placemark>
+<Placemark><name>Josef-Krainer-Park</name><Point><coordinates>15.396479,47.032504,0</coordinates></Point></Placemark>
+<Placemark><name>Josef-Pongratz-Platz</name><Point><coordinates>15.435822,47.065908,0</coordinates></Point></Placemark>
+<Placemark><name>Kalvarienberg</name><Point><coordinates>15.417749,47.093115,0</coordinates></Point></Placemark>
+<Placemark><name>Kepler Garten</name><Point><coordinates>15.431594,47.076323,0</coordinates></Point></Placemark>
+<Placemark><name>Kreuzschwestern-Park</name><Point><coordinates>15.440042,47.08242,0</coordinates></Point></Placemark>
+<Placemark><name>Leechpark</name><Point><coordinates>15.446602,47.075693,0</coordinates></Point></Placemark>
+<Placemark><name>Lessing-Park</name><Point><coordinates>15.450937,47.070814,0</coordinates></Point></Placemark>
+<Placemark><name>Liebenauer Park</name><Point><coordinates>15.462805,47.03033,0</coordinates></Point></Placemark>
+<Placemark><name>Lore-Krainer-Park</name><Point><coordinates>15.415117,47.082948,0</coordinates></Point></Placemark>
+<Placemark><name>Löseranlage</name><Point><coordinates>15.39457,47.10051,0</coordinates></Point></Placemark>
+<Placemark><name>Margarete-Hoffer-Platz</name><Point><coordinates>15.426637,47.079961,0</coordinates></Point></Placemark>
+<Placemark><name>Maria-Cäsar-Park</name><Point><coordinates>15.444014,47.045773,0</coordinates></Point></Placemark>
+<Placemark><name>Martha-Stadler-Park</name><Point><coordinates>15.403994,47.024566,0</coordinates></Point></Placemark>
+<Placemark><name>Martha-Tausk-Park</name><Point><coordinates>15.427714,47.088302,0</coordinates></Point></Placemark>
+<Placemark><name>Maß-Mensch-Park</name><Point><coordinates>15.470134,47.063001,0</coordinates></Point></Placemark>
+<Placemark><name>Meranpark</name><Point><coordinates>15.44958,47.072943,0</coordinates></Point></Placemark>
+<Placemark><name>Messepark</name><Point><coordinates>15.447105,47.058316,0</coordinates></Point></Placemark>
+<Placemark><name>Metahofpark</name><Point><coordinates>15.421814,47.07234,0</coordinates></Point></Placemark>
+<Placemark><name>Naherholungsgebiet Auwiesen;Murwiesen</name><Point><coordinates>15.462714,47.013143,0</coordinates></Point></Placemark>
+<Placemark><name>Nikolaiplatz</name><Point><coordinates>15.43427,47.068055,0</coordinates></Point></Placemark>
+<Placemark><name>Nikolaus-Harnoncourt-Park Ost</name><Point><coordinates>15.411062,47.081245,0</coordinates></Point></Placemark>
+<Placemark><name>Oeverseepark</name><Point><coordinates>15.427716,47.064005,0</coordinates></Point></Placemark>
+<Placemark><name>Olympiawiese</name><Point><coordinates>15.444417,47.038897,0</coordinates></Point></Placemark>
+<Placemark><name>Ortweinplatz</name><Point><coordinates>15.443911,47.063472,0</coordinates></Point></Placemark>
+<Placemark><name>Park Augustinum</name><Point><coordinates>15.43657,47.082267,0</coordinates></Point></Placemark>
+<Placemark><name>Peter-Rosegger-Park</name><Point><coordinates>15.40378,47.054808,0</coordinates></Point></Placemark>
+<Placemark><name>Reininghauspark</name><Point><coordinates>15.409492,47.062123,0</coordinates></Point></Placemark>
+<Placemark><name>Roseggergarten</name><Point><coordinates>15.443911,47.069185,0</coordinates></Point></Placemark>
+<Placemark><name>Rösselmühlpark</name><Point><coordinates>15.428132,47.066437,0</coordinates></Point></Placemark>
+<Placemark><name>Sankt Johannes - Park</name><Point><coordinates>15.425877,47.0489,0</coordinates></Point></Placemark>
+<Placemark><name>Schererpark</name><Point><coordinates>15.396651,47.057527,0</coordinates></Point></Placemark>
+<Placemark><name>Schillerplatz</name><Point><coordinates>15.45932,47.068765,0</coordinates></Point></Placemark>
+<Placemark><name>Schloss Eggenberg</name><Point><coordinates>15.393263,47.073488,0</coordinates></Point></Placemark>
+<Placemark><name>Schlosspark</name><Point><coordinates>15.405827,47.112401,0</coordinates></Point></Placemark>
+<Placemark><name>Schloßberg</name><Point><coordinates>15.437063,47.075822,0</coordinates></Point></Placemark>
+<Placemark><name>Schmetterlingsgarten</name><Point><coordinates>15.429438,47.065378,0</coordinates></Point></Placemark>
+<Placemark><name>Schönaupark</name><Point><coordinates>15.445682,47.05214,0</coordinates></Point></Placemark>
+<Placemark><name>Schörgelpark</name><Point><coordinates>15.459791,47.065722,0</coordinates></Point></Placemark>
+<Placemark><name>Sieben-Hügel-Park</name><Point><coordinates>15.398761,47.047548,0</coordinates></Point></Placemark>
+<Placemark><name>St.-Andrä-Platz</name><Point><coordinates>15.429148,47.069662,0</coordinates></Point></Placemark>
+<Placemark><name>Stadtpark</name><Point><coordinates>15.444692,47.073787,0</coordinates></Point></Placemark>
+<Placemark><name>Steyrergasse-Park</name><Point><coordinates>15.451067,47.063577,0</coordinates></Point></Placemark>
+<Placemark><name>Technikerpark</name><Point><coordinates>15.450031,47.068622,0</coordinates></Point></Placemark>
+<Placemark><name>Tegetthoffplatz</name><Point><coordinates>15.458881,47.076595,0</coordinates></Point></Placemark>
+<Placemark><name>Therapiepark</name><Point><coordinates>15.429196,47.064345,0</coordinates></Point></Placemark>
+<Placemark><name>Volksgarten</name><Point><coordinates>15.42724,47.073308,0</coordinates></Point></Placemark>
+<Placemark><name>Wagner-Jauregg-Platz</name><Point><coordinates>15.416457,47.039818,0</coordinates></Point></Placemark>
+<Placemark><name>Wasserturmpark</name><Point><coordinates>15.413807,47.073175,0</coordinates></Point></Placemark>
+<Placemark><name>Wormspitz</name><Point><coordinates>15.442198,47.079289,0</coordinates></Point></Placemark>
+<Placemark><name>neuer Attemsgarten</name><Point><coordinates>15.448292,47.080059,0</coordinates></Point></Placemark>
+<Placemark><name>Ökopark Eugenie-Schmiedl-Hain</name><Point><coordinates>15.46215,47.101508,0</coordinates></Point></Placemark>
+<Placemark><name>Ökopark Fekonja</name><Point><coordinates>15.44392,47.055962,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>theme_park</name>
+<Placemark><name>Naturerlebnispark Spielbergweg</name><Point><coordinates>15.389053,47.050879,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>zoo</name>
+<Placemark><name>Lustbühel</name><Point><coordinates>15.496198,47.069917,0</coordinates></Point></Placemark>
+<Placemark><name>Streichelzoo HIB Liebenau</name><Point><coordinates>15.45513,47.037238,0</coordinates></Point></Placemark>
+<Placemark><name>Turtle Island</name><Point><coordinates>15.386242,47.02634,0</coordinates></Point></Placemark>
+</Folder>
+</Document></kml>

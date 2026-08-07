@@ -232,6 +232,16 @@ const LONDON_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+const GRAZ_CITY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [47.0708678, 15.4382786] },
+  properties: {
+    osm_type: "R", osm_id: 34719, extent: [47.1345, 15.349714, 47.0118871, 15.5342002],
+    country: "Austria", osm_key: "place", countrycode: "AT",
+    osm_value: "city", name: "Graz", type: "city",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -487,6 +497,30 @@ export const GAME_REGISTRY: GameManifest[] = [
       "park-full",
       "coastline",
     ],
+  },
+  {
+    sentinel: "__bundled-graz-2026__",
+    name: "Graz 08-08",
+    serverId: SERVER.EU,
+    size: "medium",
+    // 250 m everywhere except the 7 train stations, which get 400 m. The tier
+    // keys are the "mode" column of the source CSV, written into the stations
+    // KML as <Data name="tier"> — bus (95) and tram (72) take the base radius.
+    hidingRadius: 250,
+    hidingRadiusUnits: "meters",
+    tierRadiusOverrides: { train: 400 },
+    osm: GRAZ_CITY_FEATURE,
+    kmlPath: "graz-poi.kml",
+    stationsKml: "graz-stations.kml",
+    boundaryGeoJson: "graz-border.geojson",
+    // POI folders use canonical category names → identity mapping.
+    poiFolders: {},
+    // Graz supplies 10 of the 13 rulebook categories. Airport and aquarium have
+    // no POIs here, and the city is landlocked. (Only the ungrouped literals
+    // actually bite — the Hiding Zone Mode group is never filtered — so bare
+    // "aquarium" is listed for intent while "airport"/"coastline" are the ones
+    // that do the work.)
+    hiddenQuestionTypes: ["airport", "aquarium", "aquarium-full", "coastline"],
   },
 ];
 

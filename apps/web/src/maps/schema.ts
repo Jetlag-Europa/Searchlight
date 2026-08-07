@@ -399,6 +399,10 @@ const londonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const grazMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.literal("graz-district").describe("Same District (Graz)"),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -413,6 +417,7 @@ export const matchingQuestionSchema = z.union([
     budapestMatchingQuestionsSchema.describe(NO_GROUP),
     belgiumMatchingQuestionsSchema.describe(NO_GROUP),
     londonMatchingQuestionsSchema.describe(NO_GROUP),
+    grazMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -518,6 +523,11 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     "london-borough":            LONDON_GAMES,
     "london-stadium":            LONDON_GAMES,
     "london-rail":               LONDON_GAMES,
+    // Graz — the 17 admin_level 9 Bezirke, bundled as polygons. Matching +
+    // measuring, and measuring is the border of the district you are IN
+    // (belgium-province / zurich-canton style), NOT every district border the
+    // way london-borough works. Jules' explicit call.
+    "graz-district":             "__bundled-graz-2026__",
 };
 
 /**
@@ -687,6 +697,10 @@ const londonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const grazMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.literal("graz-district").describe("Distance to District Border (Graz)"),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -698,6 +712,7 @@ export const measuringQuestionSchema = z.union([
     budapestMeasuringQuestionsSchema.describe(NO_GROUP),
     belgiumMeasuringQuestionsSchema.describe(NO_GROUP),
     londonMeasuringQuestionsSchema.describe(NO_GROUP),
+    grazMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
