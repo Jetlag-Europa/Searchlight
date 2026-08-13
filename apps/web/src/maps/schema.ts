@@ -403,6 +403,10 @@ const grazMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.literal("graz-district").describe("Same District (Graz)"),
 });
 
+const parisMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.literal("paris-arrondissement").describe("Same Arrondissement (Paris)"),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -418,6 +422,7 @@ export const matchingQuestionSchema = z.union([
     belgiumMatchingQuestionsSchema.describe(NO_GROUP),
     londonMatchingQuestionsSchema.describe(NO_GROUP),
     grazMatchingQuestionsSchema.describe(NO_GROUP),
+    parisMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -528,6 +533,13 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // (belgium-province / zurich-canton style), NOT every district border the
     // way london-borough works. Jules' explicit call.
     "graz-district":             "__bundled-graz-2026__",
+    // Paris — the 20 arrondissements plus an "Outer" catch-all covering the rest
+    // of the play-area rectangle. Matching + measuring, and measuring is the
+    // border of the arrondissement you are IN (graz-district / belgium-province
+    // style), NOT every border the way london-borough works. Jules' call, as is
+    // keeping "Outer" as a real 21st region — 186 of the 412 hiding zones are
+    // outside the city limits.
+    "paris-arrondissement":      "__bundled-paris-2026__",
 };
 
 /**
@@ -701,6 +713,12 @@ const grazMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.literal("graz-district").describe("Distance to District Border (Graz)"),
 });
 
+const parisMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z
+        .literal("paris-arrondissement")
+        .describe("Distance to Arrondissement Border (Paris)"),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -713,6 +731,7 @@ export const measuringQuestionSchema = z.union([
     belgiumMeasuringQuestionsSchema.describe(NO_GROUP),
     londonMeasuringQuestionsSchema.describe(NO_GROUP),
     grazMeasuringQuestionsSchema.describe(NO_GROUP),
+    parisMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

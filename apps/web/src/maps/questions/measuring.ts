@@ -40,6 +40,7 @@ import {
     belgiumAdminDivisionBorderLines,
 } from "@/maps/questions/belgiumAdmin";
 import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
+import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
 import {
     fetchCoastline,
     findInternationalBordersInZone,
@@ -304,6 +305,25 @@ export const determineMeasuringBoundary = async (
             );
             if (!lines?.length) {
                 toast.error("No district found at this point — must be inside Graz.");
+                return false;
+            }
+            return lines;
+        }
+        case "paris-arrondissement": {
+            // The border of the arrondissement the seeker is IN — same
+            // behaviour as graz-district / belgium-province, from a bundled
+            // polygon. For a seeker in the "Outer" region this is the city
+            // limits plus the map edge, since that region is the rectangle with
+            // Paris removed.
+            const lines = await parisArrondissementBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
+            if (!lines?.length) {
+                toast.error(
+                    "No arrondissement found at this point — must be inside the Paris play area.",
+                );
                 return false;
             }
             return lines;
@@ -612,6 +632,29 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         // (see determineMeasuringBoundary) — the hider's own district is not
         // consulted, exactly as belgium-province/zurich-canton do it.
         const lines = await grazDistrictBorderLines(
+            question.type,
+            question.lat,
+            question.lng,
+        );
+        if (!lines?.length) return question;
+        const borderPts = turf.explode(
+            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
+        );
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
+    if (question.type === "paris-arrondissement") {
+        // Both players are compared against the border of the SEEKER's
+        // arrondissement (see determineMeasuringBoundary) — the hider's own is
+        // not consulted, exactly as graz-district/belgium-province do it.
+        const lines = await parisArrondissementBorderLines(
             question.type,
             question.lat,
             question.lng,

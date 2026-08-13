@@ -64,6 +64,7 @@ import {
     findBelgiumAdminDivision,
 } from "@/maps/questions/belgiumAdmin";
 import { findGrazDistrict } from "@/maps/questions/grazAdmin";
+import { findParisArrondissement } from "@/maps/questions/parisAdmin";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
 import type {
     APILocations,
@@ -353,6 +354,23 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 if (!boundary) {
                     toast.error("No district found at this point — must be inside Graz.");
                     throw new Error("No Graz district found");
+                }
+                break;
+            }
+            case "paris-arrondissement": {
+                // Arrondissements are bundled locally — no Overpass. Inside the
+                // play area this always resolves: the "Outer" region covers
+                // everything beyond the 20.
+                boundary = await findParisArrondissement(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No arrondissement found at this point — must be inside the Paris play area.",
+                    );
+                    throw new Error("No Paris arrondissement found");
                 }
                 break;
             }
