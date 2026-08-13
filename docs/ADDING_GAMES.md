@@ -125,9 +125,10 @@ Edit `packages/shared/src/games.ts`. A standard POI game:
 Variations:
 - **Combined hiding-zones KML, no POI:** set `kmlPath: "<city>-hiding-zones.kml"`,
   omit `stationsKml`, `boundaryGeoJson`, `poiFolders`.
-- **Station-only with custom boundary, no POI** (e.g. Paris): `kmlPath` and
+- **Station-only with custom boundary, no POI:** `kmlPath` and
   `stationsKml` both point at the stations file; add `boundaryGeoJson`; omit
-  `poiFolders`.
+  `poiFolders`. (Paris was the example until its Aug 2026 refresh gave it a POI
+  file — note that a game in this shape sends *every* POI question to Overpass.)
 - **Role-gated game** (e.g. Home Games): add
   `gate: { requireGuildId: "…", requireRoleId: "…" }`.
 - **Hide a question type for this game:** add

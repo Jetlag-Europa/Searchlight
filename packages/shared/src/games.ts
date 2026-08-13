@@ -55,7 +55,7 @@ export interface GameVisibilityGateManifest {
 export interface GameManifest {
   /** Unique sentinel, e.g. "__bundled-paris-2026__". */
   sentinel: string;
-  /** Display name, e.g. "Paris 2026". */
+  /** Display name, e.g. "Paris 15-08". */
   name: string;
   /** Discord server id (or "home-games" for the virtual server). */
   serverId: string;
@@ -141,7 +141,9 @@ const PARIS_CITY_FEATURE: GameOSMFeature = {
   type: "Feature",
   geometry: { type: "Point", coordinates: [48.8566, 2.3522] },
   properties: {
-    osm_type: "R", osm_id: 71525, extent: [49.0, 2.0, 48.6, 2.7],
+    // extent is the play-area rectangle from the Map Outline layer, not
+    // Nominatim's Paris bbox — the board reaches well past the city limits.
+    osm_type: "R", osm_id: 71525, extent: [49.0691, 2.014, 48.6472, 2.6313],
     country: "France", osm_key: "place", countrycode: "FR",
     osm_value: "city", name: "Paris", type: "city",
   },
@@ -310,17 +312,31 @@ export const GAME_REGISTRY: GameManifest[] = [
     },
   },
   {
+    // Refreshed from the author's v0.1 pack (Aug 2026), replacing the original
+    // "Paris 2026" in place — same sentinel, so existing sessions keep their
+    // strokes. The 412 hiding zones are unchanged (same names, same Inner/Outer
+    // split, same radii); what is new is the POI file — the old game shipped
+    // none, so every POI question fell through to Overpass — the arrondissement
+    // questions, and a larger play area (a 2,115 km² rectangle, up from the
+    // old 1,556 km² polygon).
     sentinel: "__bundled-paris-2026__",
-    name: "Paris 2026",
+    name: "Paris 15-08",
     serverId: SERVER.EU,
     size: "large",
     hidingRadius: 400,
     hidingRadiusUnits: "meters",
     tierRadiusOverrides: { Outer: 600 },
     osm: PARIS_CITY_FEATURE,
-    kmlPath: "paris-stations.kml",
+    kmlPath: "paris-poi.kml",
     stationsKml: "paris-stations.kml",
     boundaryGeoJson: "paris-border.geojson",
+    poiFolders: {},
+    // Paris supplies 11 of the 13 rulebook categories; mountain and rail have no
+    // POIs. Per Entry 48 only the *ungrouped* literals actually bite, so
+    // "peak-full" and "coastline" are the ones doing work and bare "peak" is
+    // there for intent. The generic train-station questions sit in the Hiding
+    // Zone Mode group and cannot be hidden (same as London).
+    hiddenQuestionTypes: ["peak", "peak-full", "coastline"],
   },
   {
     sentinel: "__bundled-brno-2026-v2__",
