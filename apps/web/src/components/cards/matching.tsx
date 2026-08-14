@@ -273,12 +273,36 @@ export const MatchingQuestionComponent = ({
                         .map((x) => [
                             x.description,
                             Object.fromEntries(
-                                determineUnionizedStrings(x.shape.type).map(
-                                    (x) => [
+                                determineUnionizedStrings(x.shape.type)
+                                    // Grouped options respect hiddenQuestionTypes
+                                    // too. They did not until Aug 2026, which
+                                    // silently made the manifest a no-op for
+                                    // anything in "Hiding Zone Mode" (Entry 48).
+                                    //
+                                    // gateAllows is deliberately NOT applied
+                                    // here. Every grouped option is a generic
+                                    // rulebook question, but GAME_GATED_TYPES
+                                    // also holds bare category names
+                                    // ("golf_course" → South Limburg, "park" →
+                                    // Bucharest, "castle"/"stadium" → Budapest)
+                                    // that exist to gate TENTACLE location
+                                    // types. The gate map is not family-aware,
+                                    // so gating here would delete the generic
+                                    // golf course and park questions from every
+                                    // game. Ungrouped options are game-specific
+                                    // and still gate normally.
+                                    .filter(
+                                        (y) =>
+                                            !isQuestionTypeHidden(
+                                                (y._def as any).value,
+                                                activeGameSentinel,
+                                                "matching",
+                                            ),
+                                    )
+                                    .map((x) => [
                                         (x._def as any).value,
                                         x.description,
-                                    ],
-                                ),
+                                    ]),
                             ),
                         ])
                         .reduce(

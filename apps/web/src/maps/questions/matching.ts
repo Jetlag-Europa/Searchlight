@@ -65,6 +65,7 @@ import {
 } from "@/maps/questions/belgiumAdmin";
 import { findGrazDistrict } from "@/maps/questions/grazAdmin";
 import { findParisArrondissement } from "@/maps/questions/parisAdmin";
+import { findStockholmAdminDivision } from "@/maps/questions/stockholmAdmin";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
 import type {
     APILocations,
@@ -357,6 +358,23 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
+            case "stockholm-admin1":
+            case "stockholm-admin2":
+            case "stockholm-admin3": {
+                // All three Stockholm levels are bundled locally — no Overpass.
+                boundary = await findStockholmAdminDivision(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No admin division found at this point — must be inside the Stockholm play area.",
+                    );
+                    throw new Error("No Stockholm admin division found");
+                }
+                break;
+            }
             case "paris-arrondissement": {
                 // Arrondissements are bundled locally — no Overpass. Inside the
                 // play area this always resolves: the "Outer" region covers
@@ -514,6 +532,7 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "belgium-castle":
             case "london-stadium":
             case "london-rail":
+            case "stockholm-ikea":
             case "airport":
             case "major-city":
             case "aquarium-full":
@@ -648,6 +667,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "belgium-castle",
             "london-stadium",
             "london-rail",
+            "stockholm-ikea",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);

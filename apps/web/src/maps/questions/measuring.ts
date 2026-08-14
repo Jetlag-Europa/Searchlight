@@ -41,6 +41,7 @@ import {
 } from "@/maps/questions/belgiumAdmin";
 import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
 import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
+import { stockholmAdminDivisionBorderLines } from "@/maps/questions/stockholmAdmin";
 import {
     fetchCoastline,
     findInternationalBordersInZone,
@@ -309,6 +310,25 @@ export const determineMeasuringBoundary = async (
             }
             return lines;
         }
+        case "stockholm-admin1":
+        case "stockholm-admin2":
+        case "stockholm-admin3": {
+            // The border of the division the seeker is IN, at whichever of the
+            // three levels was asked — same behaviour as belgium-province /
+            // graz-district, from bundled polygons.
+            const lines = await stockholmAdminDivisionBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
+            if (!lines?.length) {
+                toast.error(
+                    "No admin division found at this point — must be inside the Stockholm play area.",
+                );
+                return false;
+            }
+            return lines;
+        }
         case "paris-arrondissement": {
             // The border of the arrondissement the seeker is IN — same
             // behaviour as graz-district / belgium-province, from a bundled
@@ -375,7 +395,8 @@ export const determineMeasuringBoundary = async (
         case "budapest-rail":
         case "belgium-castle":
         case "london-stadium":
-        case "london-rail": {
+        case "london-rail":
+        case "stockholm-ikea": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
@@ -384,6 +405,7 @@ export const determineMeasuringBoundary = async (
                 "budapest-rail": "train_station",
                 "belgium-castle": "castle",
                 "london-stadium": "stadium", "london-rail": "rail_terminus",
+                "stockholm-ikea": "ikea",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -650,6 +672,33 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
+    if (
+        question.type === "stockholm-admin1" ||
+        question.type === "stockholm-admin2" ||
+        question.type === "stockholm-admin3"
+    ) {
+        // Both players are compared against the border of the SEEKER's division
+        // (see determineMeasuringBoundary) — the hider's own is not consulted,
+        // exactly as graz-district/belgium-province do it.
+        const lines = await stockholmAdminDivisionBorderLines(
+            question.type,
+            question.lat,
+            question.lng,
+        );
+        if (!lines?.length) return question;
+        const borderPts = turf.explode(
+            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
+        );
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
     if (question.type === "paris-arrondissement") {
         // Both players are compared against the border of the SEEKER's
         // arrondissement (see determineMeasuringBoundary) — the hider's own is
@@ -753,6 +802,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "budapest-castle": "castle", "budapest-stadium": "stadium", "budapest-rail": "train_station",
         "belgium-castle": "castle",
         "london-stadium": "stadium", "london-rail": "rail_terminus",
+        "stockholm-ikea": "ikea",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

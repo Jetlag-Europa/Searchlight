@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Stockholm 15-08 Stations</name>
+<Placemark><name>AGA</name><Point><coordinates>18.156658,59.3463,0</coordinates></Point></Placemark>
+<Placemark><name>Abrahamsberg</name><Point><coordinates>17.954192,59.336427,0</coordinates></Point></Placemark>
+<Placemark><name>Akalla</name><Point><coordinates>17.917307,59.413797,0</coordinates></Point></Placemark>
+<Placemark><name>Alby</name><Point><coordinates>17.844992,59.239274,0</coordinates></Point></Placemark>
+<Placemark><name>Alléparken</name><Point><coordinates>17.974129,59.329027,0</coordinates></Point></Placemark>
+<Placemark><name>Altorp</name><Point><coordinates>18.072905,59.410938,0</coordinates></Point></Placemark>
+<Placemark><name>Alvik</name><Point><coordinates>17.981474,59.333514,0</coordinates></Point></Placemark>
+<Placemark><name>Alviks Strand</name><Point><coordinates>17.982189,59.328962,0</coordinates></Point></Placemark>
+<Placemark><name>Arninge</name><Point><coordinates>18.1412,59.45892,0</coordinates></Point></Placemark>
+<Placemark><name>Aspudden</name><Point><coordinates>18.002563,59.306537,0</coordinates></Point></Placemark>
+<Placemark><name>Axelsberg</name><Point><coordinates>17.973849,59.304296,0</coordinates></Point></Placemark>
+<Placemark><name>Bagarmossen</name><Point><coordinates>18.131204,59.276266,0</coordinates></Point></Placemark>
+<Placemark><name>Baggeby</name><Point><coordinates>18.132779,59.357021,0</coordinates></Point></Placemark>
+<Placemark><name>Bandhagen</name><Point><coordinates>18.049772,59.270686,0</coordinates></Point></Placemark>
+<Placemark><name>Barkarby</name><Point><coordinates>17.863857,59.405389,0</coordinates></Point></Placemark>
+<Placemark><name>Bergshamra</name><Point><coordinates>18.036784,59.381675,0</coordinates></Point></Placemark>
+<Placemark><name>Björkhagen</name><Point><coordinates>18.115491,59.291054,0</coordinates></Point></Placemark>
+<Placemark><name>Blackeberg</name><Point><coordinates>17.883576,59.34802,0</coordinates></Point></Placemark>
+<Placemark><name>Blåsut</name><Point><coordinates>18.091328,59.291174,0</coordinates></Point></Placemark>
+<Placemark><name>Bodal</name><Point><coordinates>18.138311,59.353763,0</coordinates></Point></Placemark>
+<Placemark><name>Bredäng</name><Point><coordinates>17.933322,59.294789,0</coordinates></Point></Placemark>
+<Placemark><name>Brevik</name><Point><coordinates>18.203768,59.34841,0</coordinates></Point></Placemark>
+<Placemark><name>Bromma Blocks</name><Point><coordinates>17.956922,59.353872,0</coordinates></Point></Placemark>
+<Placemark><name>Bromma Flygplats</name><Point><coordinates>17.946741,59.357129,0</coordinates></Point></Placemark>
+<Placemark><name>Brommaplan</name><Point><coordinates>17.940408,59.338239,0</coordinates></Point></Placemark>
+<Placemark><name>Bråvallavägen</name><Point><coordinates>18.060409,59.405261,0</coordinates></Point></Placemark>
+<Placemark><name>Bällsta</name><Point><coordinates>18.072083,59.522888,0</coordinates></Point></Placemark>
+<Placemark><name>Bällsta bro</name><Point><coordinates>17.963071,59.360719,0</coordinates></Point></Placemark>
+<Placemark><name>Danderyds sjukhus</name><Point><coordinates>18.041829,59.391177,0</coordinates></Point></Placemark>
+<Placemark><name>Djursholms Ekeby</name><Point><coordinates>18.05761,59.412961,0</coordinates></Point></Placemark>
+<Placemark><name>Djursholms Ösby</name><Point><coordinates>18.059271,59.398585,0</coordinates></Point></Placemark>
+<Placemark><name>Duvbo</name><Point><coordinates>17.965066,59.367778,0</coordinates></Point></Placemark>
+<Placemark><name>Enebyberg</name><Point><coordinates>18.051287,59.425275,0</coordinates></Point></Placemark>
+<Placemark><name>Enskede gård</name><Point><coordinates>18.07059,59.288849,0</coordinates></Point></Placemark>
+<Placemark><name>Ensta</name><Point><coordinates>18.063606,59.451946,0</coordinates></Point></Placemark>
+<Placemark><name>Farsta strand</name><Point><coordinates>18.1021,59.236661,0</coordinates></Point></Placemark>
+<Placemark><name>Fittja</name><Point><coordinates>17.860557,59.247285,0</coordinates></Point></Placemark>
+<Placemark><name>Flemingsberg</name><Point><coordinates>17.94699,59.218819,0</coordinates></Point></Placemark>
+<Placemark><name>Fridhemsplan</name><Point><coordinates>18.030655,59.333052,0</coordinates></Point></Placemark>
+<Placemark><name>Fruängen</name><Point><coordinates>17.96487,59.286357,0</coordinates></Point></Placemark>
+<Placemark><name>Galoppfältet</name><Point><coordinates>18.085159,59.446903,0</coordinates></Point></Placemark>
+<Placemark><name>Gamla stan</name><Point><coordinates>18.067358,59.323079,0</coordinates></Point></Placemark>
+<Placemark><name>Globen</name><Point><coordinates>18.077088,59.294156,0</coordinates></Point></Placemark>
+<Placemark><name>Gröndal</name><Point><coordinates>18.010377,59.315781,0</coordinates></Point></Placemark>
+<Placemark><name>Gubbängen</name><Point><coordinates>18.082179,59.263226,0</coordinates></Point></Placemark>
+<Placemark><name>Gullmarsplan</name><Point><coordinates>18.080713,59.299112,0</coordinates></Point></Placemark>
+<Placemark><name>Gärdet</name><Point><coordinates>18.099107,59.346095,0</coordinates></Point></Placemark>
+<Placemark><name>Gåshaga</name><Point><coordinates>18.227241,59.356696,0</coordinates></Point></Placemark>
+<Placemark><name>Gåshaga brygga</name><Point><coordinates>18.234033,59.356875,0</coordinates></Point></Placemark>
+<Placemark><name>Hagsätra</name><Point><coordinates>18.012255,59.263031,0</coordinates></Point></Placemark>
+<Placemark><name>Hallonbergen</name><Point><coordinates>17.969108,59.375405,0</coordinates></Point></Placemark>
+<Placemark><name>Hallunda</name><Point><coordinates>17.825178,59.243295,0</coordinates></Point></Placemark>
+<Placemark><name>Hammarbyhöjden</name><Point><coordinates>18.10381,59.294815,0</coordinates></Point></Placemark>
+<Placemark><name>Handen</name><Point><coordinates>18.134062,59.16644,0</coordinates></Point></Placemark>
+<Placemark><name>Helenelund</name><Point><coordinates>17.96286,59.408615,0</coordinates></Point></Placemark>
+<Placemark><name>Hjulsta</name><Point><coordinates>17.88912,59.396566,0</coordinates></Point></Placemark>
+<Placemark><name>Hornstull</name><Point><coordinates>18.036772,59.316388,0</coordinates></Point></Placemark>
+<Placemark><name>Huddinge</name><Point><coordinates>17.978588,59.236217,0</coordinates></Point></Placemark>
+<Placemark><name>Husby</name><Point><coordinates>17.926786,59.409608,0</coordinates></Point></Placemark>
+<Placemark><name>Huvudsta</name><Point><coordinates>17.985495,59.34957,0</coordinates></Point></Placemark>
+<Placemark><name>Hägernäs</name><Point><coordinates>18.125229,59.450916,0</coordinates></Point></Placemark>
+<Placemark><name>Hägerstensåsen</name><Point><coordinates>17.977974,59.295023,0</coordinates></Point></Placemark>
+<Placemark><name>Häggvik</name><Point><coordinates>17.932875,59.443792,0</coordinates></Point></Placemark>
+<Placemark><name>Hässelby gård</name><Point><coordinates>17.844541,59.367121,0</coordinates></Point></Placemark>
+<Placemark><name>Hässelby strand</name><Point><coordinates>17.832675,59.361788,0</coordinates></Point></Placemark>
+<Placemark><name>Högberga</name><Point><coordinates>18.194015,59.344398,0</coordinates></Point></Placemark>
+<Placemark><name>Högdalen</name><Point><coordinates>18.043132,59.263934,0</coordinates></Point></Placemark>
+<Placemark><name>Höglandstorget</name><Point><coordinates>17.940099,59.323337,0</coordinates></Point></Placemark>
+<Placemark><name>Hökarängen</name><Point><coordinates>18.08304,59.257051,0</coordinates></Point></Placemark>
+<Placemark><name>Hötorget</name><Point><coordinates>18.063264,59.33581,0</coordinates></Point></Placemark>
+<Placemark><name>Islandstorget</name><Point><coordinates>17.894437,59.345849,0</coordinates></Point></Placemark>
+<Placemark><name>Jakobsberg</name><Point><coordinates>17.833004,59.423689,0</coordinates></Point></Placemark>
+<Placemark><name>Johannelund</name><Point><coordinates>17.857685,59.367977,0</coordinates></Point></Placemark>
+<Placemark><name>Johannesfred</name><Point><coordinates>17.969735,59.342773,0</coordinates></Point></Placemark>
+<Placemark><name>Jordbro</name><Point><coordinates>18.126494,59.142258,0</coordinates></Point></Placemark>
+<Placemark><name>Kallhäll</name><Point><coordinates>17.80721,59.452264,0</coordinates></Point></Placemark>
+<Placemark><name>Karlaplan</name><Point><coordinates>18.091634,59.33949,0</coordinates></Point></Placemark>
+<Placemark><name>Karlsbodavägen</name><Point><coordinates>17.961322,59.355977,0</coordinates></Point></Placemark>
+<Placemark><name>Kista</name><Point><coordinates>17.942413,59.403139,0</coordinates></Point></Placemark>
+<Placemark><name>Klövervägen</name><Point><coordinates>17.973792,59.324978,0</coordinates></Point></Placemark>
+<Placemark><name>Kottla</name><Point><coordinates>18.179707,59.344426,0</coordinates></Point></Placemark>
+<Placemark><name>Kragstalund</name><Point><coordinates>18.07567,59.51027,0</coordinates></Point></Placemark>
+<Placemark><name>Kristineberg</name><Point><coordinates>18.004104,59.33256,0</coordinates></Point></Placemark>
+<Placemark><name>Kungsängen</name><Point><coordinates>17.752215,59.477804,0</coordinates></Point></Placemark>
+<Placemark><name>Käppala</name><Point><coordinates>18.217681,59.352615,0</coordinates></Point></Placemark>
+<Placemark><name>Kärrtorp</name><Point><coordinates>18.114374,59.284697,0</coordinates></Point></Placemark>
+<Placemark><name>Lahäll</name><Point><coordinates>18.074266,59.424206,0</coordinates></Point></Placemark>
+<Placemark><name>Larsberg</name><Point><coordinates>18.146012,59.350548,0</coordinates></Point></Placemark>
+<Placemark><name>Liljeholmen</name><Point><coordinates>18.023947,59.310804,0</coordinates></Point></Placemark>
+<Placemark><name>Linde</name><Point><coordinates>18.063564,59.29327,0</coordinates></Point></Placemark>
+<Placemark><name>Luma</name><Point><coordinates>18.095934,59.304184,0</coordinates></Point></Placemark>
+<Placemark><name>Mariatorget</name><Point><coordinates>18.060327,59.317129,0</coordinates></Point></Placemark>
+<Placemark><name>Masmo</name><Point><coordinates>17.881573,59.249851,0</coordinates></Point></Placemark>
+<Placemark><name>Medborgarplatsen</name><Point><coordinates>18.073078,59.315192,0</coordinates></Point></Placemark>
+<Placemark><name>Midsommarkransen</name><Point><coordinates>18.012182,59.301658,0</coordinates></Point></Placemark>
+<Placemark><name>Mälarhöjden</name><Point><coordinates>17.956008,59.301009,0</coordinates></Point></Placemark>
+<Placemark><name>Mårtensdal</name><Point><coordinates>18.088038,59.302672,0</coordinates></Point></Placemark>
+<Placemark><name>Mörby</name><Point><coordinates>18.047147,59.392063,0</coordinates></Point></Placemark>
+<Placemark><name>Mörby centrum</name><Point><coordinates>18.036235,59.39843,0</coordinates></Point></Placemark>
+<Placemark><name>Nockeby</name><Point><coordinates>17.918417,59.328669,0</coordinates></Point></Placemark>
+<Placemark><name>Nockeby torg</name><Point><coordinates>17.928355,59.329043,0</coordinates></Point></Placemark>
+<Placemark><name>Norra Ulvsunda</name><Point><coordinates>17.962166,59.350261,0</coordinates></Point></Placemark>
+<Placemark><name>Norrviken</name><Point><coordinates>17.924279,59.459115,0</coordinates></Point></Placemark>
+<Placemark><name>Norsborg</name><Point><coordinates>17.812756,59.243903,0</coordinates></Point></Placemark>
+<Placemark><name>Näckrosen</name><Point><coordinates>17.983206,59.366456,0</coordinates></Point></Placemark>
+<Placemark><name>Näsby allé</name><Point><coordinates>18.085667,59.427395,0</coordinates></Point></Placemark>
+<Placemark><name>Näsbypark</name><Point><coordinates>18.095615,59.430305,0</coordinates></Point></Placemark>
+<Placemark><name>Odenplan</name><Point><coordinates>18.047273,59.342936,0</coordinates></Point></Placemark>
+<Placemark><name>Olovslund</name><Point><coordinates>17.935269,59.327928,0</coordinates></Point></Placemark>
+<Placemark><name>Rinkeby</name><Point><coordinates>17.928676,59.388379,0</coordinates></Point></Placemark>
+<Placemark><name>Rissne</name><Point><coordinates>17.940401,59.375684,0</coordinates></Point></Placemark>
+<Placemark><name>Ropsten</name><Point><coordinates>18.10287,59.357669,0</coordinates></Point></Placemark>
+<Placemark><name>Roslags Näsby</name><Point><coordinates>18.058026,59.435647,0</coordinates></Point></Placemark>
+<Placemark><name>Rotebro</name><Point><coordinates>17.914644,59.475877,0</coordinates></Point></Placemark>
+<Placemark><name>Råcksta</name><Point><coordinates>17.881857,59.354639,0</coordinates></Point></Placemark>
+<Placemark><name>Rådhuset</name><Point><coordinates>18.044474,59.330026,0</coordinates></Point></Placemark>
+<Placemark><name>Rådmansgatan</name><Point><coordinates>18.059148,59.340218,0</coordinates></Point></Placemark>
+<Placemark><name>Rågsved</name><Point><coordinates>18.028613,59.256784,0</coordinates></Point></Placemark>
+<Placemark><name>S:t Eriksplan</name><Point><coordinates>18.037004,59.340257,0</coordinates></Point></Placemark>
+<Placemark><name>Sandsborg</name><Point><coordinates>18.092099,59.285395,0</coordinates></Point></Placemark>
+<Placemark><name>Sickla</name><Point><coordinates>18.120381,59.306932,0</coordinates></Point></Placemark>
+<Placemark><name>Sickla kaj</name><Point><coordinates>18.103555,59.302745,0</coordinates></Point></Placemark>
+<Placemark><name>Sickla udde</name><Point><coordinates>18.108775,59.30625,0</coordinates></Point></Placemark>
+<Placemark><name>Skanstull</name><Point><coordinates>18.076044,59.308419,0</coordinates></Point></Placemark>
+<Placemark><name>Skarpnäck</name><Point><coordinates>18.13305,59.26643,0</coordinates></Point></Placemark>
+<Placemark><name>Skogskyrkogården</name><Point><coordinates>18.095376,59.278588,0</coordinates></Point></Placemark>
+<Placemark><name>Skogås</name><Point><coordinates>18.153389,59.219441,0</coordinates></Point></Placemark>
+<Placemark><name>Skärholmen</name><Point><coordinates>17.907061,59.276994,0</coordinates></Point></Placemark>
+<Placemark><name>Skärmarbrink</name><Point><coordinates>18.089809,59.295706,0</coordinates></Point></Placemark>
+<Placemark><name>Skärsätra</name><Point><coordinates>18.17031,59.343362,0</coordinates></Point></Placemark>
+<Placemark><name>Slussen</name><Point><coordinates>18.072322,59.319427,0</coordinates></Point></Placemark>
+<Placemark><name>Smedslätten</name><Point><coordinates>17.964348,59.32089,0</coordinates></Point></Placemark>
+<Placemark><name>Sockenplan</name><Point><coordinates>18.069871,59.282598,0</coordinates></Point></Placemark>
+<Placemark><name>Sollentuna</name><Point><coordinates>17.94887,59.427981,0</coordinates></Point></Placemark>
+<Placemark><name>Solna</name><Point><coordinates>18.009611,59.364324,0</coordinates></Point></Placemark>
+<Placemark><name>Solna Business Park</name><Point><coordinates>17.979589,59.359395,0</coordinates></Point></Placemark>
+<Placemark><name>Solna Centrum</name><Point><coordinates>17.997605,59.360101,0</coordinates></Point></Placemark>
+<Placemark><name>Solna strand</name><Point><coordinates>17.973463,59.354418,0</coordinates></Point></Placemark>
+<Placemark><name>Spånga</name><Point><coordinates>17.897222,59.384108,0</coordinates></Point></Placemark>
+<Placemark><name>Stadion</name><Point><coordinates>18.080325,59.342322,0</coordinates></Point></Placemark>
+<Placemark><name>Stadshagen</name><Point><coordinates>18.015669,59.337609,0</coordinates></Point></Placemark>
+<Placemark><name>Stockholms södra</name><Point><coordinates>18.064103,59.314022,0</coordinates></Point></Placemark>
+<Placemark><name>Stocksund</name><Point><coordinates>18.043726,59.384754,0</coordinates></Point></Placemark>
+<Placemark><name>Stora Essingen</name><Point><coordinates>17.993234,59.324754,0</coordinates></Point></Placemark>
+<Placemark><name>Stora Mossen</name><Point><coordinates>17.965508,59.334653,0</coordinates></Point></Placemark>
+<Placemark><name>Stureby</name><Point><coordinates>18.056647,59.274731,0</coordinates></Point></Placemark>
+<Placemark><name>Stuvsta</name><Point><coordinates>17.99664,59.25404,0</coordinates></Point></Placemark>
+<Placemark><name>Sundbybergs centrum</name><Point><coordinates>17.971289,59.360972,0</coordinates></Point></Placemark>
+<Placemark><name>Svedmyra</name><Point><coordinates>18.067023,59.277473,0</coordinates></Point></Placemark>
+<Placemark><name>Sätra</name><Point><coordinates>17.921618,59.28567,0</coordinates></Point></Placemark>
+<Placemark><name>T-Centralen</name><Point><coordinates>18.062209,59.332253,0</coordinates></Point></Placemark>
+<Placemark><name>Tallkrogen</name><Point><coordinates>18.086267,59.27164,0</coordinates></Point></Placemark>
+<Placemark><name>Tekniska Högskolan</name><Point><coordinates>18.071019,59.346345,0</coordinates></Point></Placemark>
+<Placemark><name>Telefonplan</name><Point><coordinates>17.998145,59.298364,0</coordinates></Point></Placemark>
+<Placemark><name>Tensta</name><Point><coordinates>17.902439,59.394171,0</coordinates></Point></Placemark>
+<Placemark><name>Tibble</name><Point><coordinates>18.062601,59.442177,0</coordinates></Point></Placemark>
+<Placemark><name>Tjorildsplan</name><Point><coordinates>18.014847,59.331487,0</coordinates></Point></Placemark>
+<Placemark><name>Torsvik</name><Point><coordinates>18.117821,59.361922,0</coordinates></Point></Placemark>
+<Placemark><name>Trekanten</name><Point><coordinates>18.018383,59.31416,0</coordinates></Point></Placemark>
+<Placemark><name>Trångsund</name><Point><coordinates>18.130387,59.227811,0</coordinates></Point></Placemark>
+<Placemark><name>Tullinge</name><Point><coordinates>17.905182,59.205751,0</coordinates></Point></Placemark>
+<Placemark><name>Tumba</name><Point><coordinates>17.835289,59.199613,0</coordinates></Point></Placemark>
+<Placemark><name>Täby Centrum</name><Point><coordinates>18.074718,59.444319,0</coordinates></Point></Placemark>
+<Placemark><name>Täby kyrkby</name><Point><coordinates>18.06579,59.49265,0</coordinates></Point></Placemark>
+<Placemark><name>Ulriksdal</name><Point><coordinates>18.00088,59.380164,0</coordinates></Point></Placemark>
+<Placemark><name>Universitet</name><Point><coordinates>18.052997,59.364987,0</coordinates></Point></Placemark>
+<Placemark><name>Upplands Väsby</name><Point><coordinates>17.899311,59.521121,0</coordinates></Point></Placemark>
+<Placemark><name>Valla torg</name><Point><coordinates>18.048515,59.295035,0</coordinates></Point></Placemark>
+<Placemark><name>Vallentuna</name><Point><coordinates>18.079842,59.533752,0</coordinates></Point></Placemark>
+<Placemark><name>Vega</name><Point><coordinates>18.13568,59.186415,0</coordinates></Point></Placemark>
+<Placemark><name>Vendevägen</name><Point><coordinates>18.067978,59.399948,0</coordinates></Point></Placemark>
+<Placemark><name>Viggbyholm</name><Point><coordinates>18.10414,59.44925,0</coordinates></Point></Placemark>
+<Placemark><name>Visinge</name><Point><coordinates>18.06321,59.46273,0</coordinates></Point></Placemark>
+<Placemark><name>Vällingby</name><Point><coordinates>17.872049,59.363253,0</coordinates></Point></Placemark>
+<Placemark><name>Västerhaninge</name><Point><coordinates>18.103379,59.123068,0</coordinates></Point></Placemark>
+<Placemark><name>Västertorp</name><Point><coordinates>17.96658,59.291278,0</coordinates></Point></Placemark>
+<Placemark><name>Västra skogen</name><Point><coordinates>18.003953,59.347647,0</coordinates></Point></Placemark>
+<Placemark><name>Vårberg</name><Point><coordinates>17.890434,59.275984,0</coordinates></Point></Placemark>
+<Placemark><name>Vårby gård</name><Point><coordinates>17.883815,59.265014,0</coordinates></Point></Placemark>
+<Placemark><name>Zinkensdamm</name><Point><coordinates>18.048741,59.317822,0</coordinates></Point></Placemark>
+<Placemark><name>Älvsjö</name><Point><coordinates>18.010775,59.278453,0</coordinates></Point></Placemark>
+<Placemark><name>Ängbyplan</name><Point><coordinates>17.908009,59.341811,0</coordinates></Point></Placemark>
+<Placemark><name>Åkeshov</name><Point><coordinates>17.924251,59.34211,0</coordinates></Point></Placemark>
+<Placemark><name>Ålstens gård</name><Point><coordinates>17.952014,59.320624,0</coordinates></Point></Placemark>
+<Placemark><name>Ålstensgatan</name><Point><coordinates>17.956452,59.323462,0</coordinates></Point></Placemark>
+<Placemark><name>Årstaberg</name><Point><coordinates>18.029023,59.299676,0</coordinates></Point></Placemark>
+<Placemark><name>Årstadal</name><Point><coordinates>18.025672,59.305709,0</coordinates></Point></Placemark>
+<Placemark><name>Årstafältet</name><Point><coordinates>18.039784,59.296369,0</coordinates></Point></Placemark>
+<Placemark><name>Örnsberg</name><Point><coordinates>17.987992,59.30537,0</coordinates></Point></Placemark>
+<Placemark><name>Östberga</name><Point><coordinates>18.073954,59.404228,0</coordinates></Point></Placemark>
+<Placemark><name>Östermalmstorg</name><Point><coordinates>18.07735,59.33535,0</coordinates></Point></Placemark>
+</Document></kml>

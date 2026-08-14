@@ -407,6 +407,15 @@ const parisMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.literal("paris-arrondissement").describe("Same Arrondissement (Paris)"),
 });
 
+const stockholmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("stockholm-admin1").describe("Same 1st Admin Division (Stockholm)"),
+        z.literal("stockholm-admin2").describe("Same 2nd Admin Division (Stockholm)"),
+        z.literal("stockholm-admin3").describe("Same 3rd Admin Division (Stockholm)"),
+        z.literal("stockholm-ikea").describe("Nearest IKEA (Stockholm)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -423,6 +432,7 @@ export const matchingQuestionSchema = z.union([
     londonMatchingQuestionsSchema.describe(NO_GROUP),
     grazMatchingQuestionsSchema.describe(NO_GROUP),
     parisMatchingQuestionsSchema.describe(NO_GROUP),
+    stockholmMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -540,6 +550,15 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // keeping "Outer" as a real 21st region — 186 of the 412 hiding zones are
     // outside the city limits.
     "paris-arrondissement":      "__bundled-paris-2026__",
+    // Stockholm — three levels of the map author's own groupings (3 / 9 / 25),
+    // each with matching AND measuring, plus a game-specific IKEA POI doing
+    // both. Measuring is the border of the division you are IN at every level.
+    // admin3 measuring is lopsided by design (it keeps ~6.5% of zones); that
+    // was measured and shipped deliberately — see stockholmAdmin.ts.
+    "stockholm-admin1":          "__bundled-stockholm-2026__",
+    "stockholm-admin2":          "__bundled-stockholm-2026__",
+    "stockholm-admin3":          "__bundled-stockholm-2026__",
+    "stockholm-ikea":            "__bundled-stockholm-2026__",
 };
 
 /**
@@ -719,6 +738,21 @@ const parisMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
         .describe("Distance to Arrondissement Border (Paris)"),
 });
 
+const stockholmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z
+            .literal("stockholm-admin1")
+            .describe("Distance to 1st Admin Border (Stockholm)"),
+        z
+            .literal("stockholm-admin2")
+            .describe("Distance to 2nd Admin Border (Stockholm)"),
+        z
+            .literal("stockholm-admin3")
+            .describe("Distance to 3rd Admin Border (Stockholm)"),
+        z.literal("stockholm-ikea").describe("Nearest IKEA (Stockholm)"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -732,6 +766,7 @@ export const measuringQuestionSchema = z.union([
     londonMeasuringQuestionsSchema.describe(NO_GROUP),
     grazMeasuringQuestionsSchema.describe(NO_GROUP),
     parisMeasuringQuestionsSchema.describe(NO_GROUP),
+    stockholmMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
