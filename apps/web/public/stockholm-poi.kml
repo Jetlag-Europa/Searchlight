@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Stockholm 15-08 POIs</name>
+<Folder><name>airport</name>
+<Placemark><name>Bromma Stockholm Airport</name><Point><coordinates>17.942591,59.354738,0</coordinates></Point></Placemark>
+<Placemark><name>Stockholm Arlanda Airport</name><Point><coordinates>17.934294,59.649393,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>golf_course</name>
+<Placemark><name>Vallentuna Golf Club</name><Point><coordinates>18.103942,59.564803,0</coordinates></Point></Placemark>
+<Placemark><name>Arninge GK</name><Point><coordinates>18.127168,59.483619,0</coordinates></Point></Placemark>
+<Placemark><name>Jarlabanke Golfklubb</name><Point><coordinates>18.072371,59.488314,0</coordinates></Point></Placemark>
+<Placemark><name>Täby Golfklubb</name><Point><coordinates>18.009676,59.500253,0</coordinates></Point></Placemark>
+<Placemark><name>Sollentuna Golfklubb</name><Point><coordinates>17.902239,59.469916,0</coordinates></Point></Placemark>
+<Placemark><name>Danderyd Golf Club</name><Point><coordinates>18.019596,59.415124,0</coordinates></Point></Placemark>
+<Placemark><name>Djursholms Golf Club</name><Point><coordinates>18.080061,59.414445,0</coordinates></Point></Placemark>
+<Placemark><name>Lidingö Golfklubb</name><Point><coordinates>18.127185,59.379259,0</coordinates></Point></Placemark>
+<Placemark><name>Ekholmsnäs Golf Lidingö AB</name><Point><coordinates>18.188116,59.361432,0</coordinates></Point></Placemark>
+<Placemark><name>Nacka Golfklubb</name><Point><coordinates>18.355522,59.338173,0</coordinates></Point></Placemark>
+<Placemark><name>Bromma Golf</name><Point><coordinates>17.940516,59.348027,0</coordinates></Point></Placemark>
+<Placemark><name>Årsta Golf</name><Point><coordinates>18.041696,59.28811,0</coordinates></Point></Placemark>
+<Placemark><name>Björkhagens Golfklubb</name><Point><coordinates>18.144031,59.285277,0</coordinates></Point></Placemark>
+<Placemark><name>Ågesta Golfklubb</name><Point><coordinates>18.082725,59.224501,0</coordinates></Point></Placemark>
+<Placemark><name>Saltsjöbadens Golfklubb</name><Point><coordinates>18.267424,59.283061,0</coordinates></Point></Placemark>
+<Placemark><name>Fors Golf</name><Point><coordinates>18.125132,59.105041,0</coordinates></Point></Placemark>
+<Placemark><name>Botkyrka Golf Club</name><Point><coordinates>17.820821,59.156977,0</coordinates></Point></Placemark>
+<Placemark><name>Haninge Golfklubb</name><Point><coordinates>18.194147,59.107515,0</coordinates></Point></Placemark>
+<Placemark><name>Stockholms Golfklubb</name><Point><coordinates>18.030029,59.394173,0</coordinates></Point></Placemark>
+<Placemark><name>Ulriksdals GK</name><Point><coordinates>17.998293,59.386722,0</coordinates></Point></Placemark>
+<Placemark><name>Rotebro Golf</name><Point><coordinates>17.877117,59.484102,0</coordinates></Point></Placemark>
+<Placemark><name>Huvudstadens Golfklubb</name><Point><coordinates>18.031097,59.554545,0</coordinates></Point></Placemark>
+<Placemark><name>Wäsby Golf</name><Point><coordinates>17.963275,59.535272,0</coordinates></Point></Placemark>
+<Placemark><name>Kungsängen Golf &amp; Country Club AB</name><Point><coordinates>17.723091,59.516286,0</coordinates></Point></Placemark>
+<Placemark><name>Bro Hof Golf AB</name><Point><coordinates>17.625407,59.495444,0</coordinates></Point></Placemark>
+<Placemark><name>Bro-Balsta Golf</name><Point><coordinates>17.587609,59.522374,0</coordinates></Point></Placemark>
+<Placemark><name>HaningeStrand Golfklubb - Husbybanan</name><Point><coordinates>18.160594,59.119549,0</coordinates></Point></Placemark>
+<Placemark><name>HaningeStrand Golf Club</name><Point><coordinates>18.196887,59.100263,0</coordinates></Point></Placemark>
+<Placemark><name>Brollsta Golfklubb</name><Point><coordinates>18.303296,59.581483,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>hospital</name>
+<Placemark><name>Danderyds hospital</name><Point><coordinates>18.039572,59.392207,0</coordinates></Point></Placemark>
+<Placemark><name>Nya Karolinska</name><Point><coordinates>18.030243,59.348191,0</coordinates></Point></Placemark>
+<Placemark><name>Capio Saint Göran's Hospital</name><Point><coordinates>18.020762,59.334408,0</coordinates></Point></Placemark>
+<Placemark><name>Sabbatsbergs Hospital</name><Point><coordinates>18.047781,59.338637,0</coordinates></Point></Placemark>
+<Placemark><name>Ersta Sjukhus</name><Point><coordinates>18.088883,59.316883,0</coordinates></Point></Placemark>
+<Placemark><name>Södersjukhuset</name><Point><coordinates>18.05587,59.309848,0</coordinates></Point></Placemark>
+<Placemark><name>Rosenlund Medical Center</name><Point><coordinates>18.062205,59.310882,0</coordinates></Point></Placemark>
+<Placemark><name>Dalens sjukhus</name><Point><coordinates>18.098734,59.288601,0</coordinates></Point></Placemark>
+<Placemark><name>Maria Sjukhus</name><Point><coordinates>18.057831,59.316031,0</coordinates></Point></Placemark>
+<Placemark><name>Löwenströmska sjukhuset</name><Point><coordinates>17.908365,59.545071,0</coordinates></Point></Placemark>
+<Placemark><name>Bromma Hospital</name><Point><coordinates>17.900033,59.358331,0</coordinates></Point></Placemark>
+<Placemark><name>Sollentuna sjukhus</name><Point><coordinates>17.954082,59.431172,0</coordinates></Point></Placemark>
+<Placemark><name>Sophiahemmet</name><Point><coordinates>18.07579,59.346005,0</coordinates></Point></Placemark>
+<Placemark><name>Karolinska University Hospital Huddinge</name><Point><coordinates>17.936614,59.221472,0</coordinates></Point></Placemark>
+<Placemark><name>Närakut Handen</name><Point><coordinates>18.142359,59.173415,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>ikea</name>
+<Placemark><name>IKEA Barkarby</name><Point><coordinates>17.859088,59.421138,0</coordinates></Point></Placemark>
+<Placemark><name>IKEA City - Stockholm Gallerian</name><Point><coordinates>18.067291,59.332285,0</coordinates></Point></Placemark>
+<Placemark><name>IKEA Stockholm - Mall of Scandinavia</name><Point><coordinates>18.003434,59.370315,0</coordinates></Point></Placemark>
+<Placemark><name>IKEA Stockholm - Kungens Kurva</name><Point><coordinates>17.915266,59.271037,0</coordinates></Point></Placemark>
+<Placemark><name>IKEA Planera och beställ Stockholm - Täby</name><Point><coordinates>18.071898,59.445307,0</coordinates></Point></Placemark>
+</Folder>
+</Document></kml>

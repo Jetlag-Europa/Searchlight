@@ -149,6 +149,19 @@ const PARIS_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+const STOCKHOLM_CITY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [59.3336131, 18.0275091] },
+  properties: {
+    // Stockholms kommun, OSM relation 398021 (Nominatim). extent is the
+    // play-area bbox from the supplied divisions, not Nominatim's kommun bbox —
+    // the board covers the wider county, well beyond the municipality.
+    osm_type: "R", osm_id: 398021, extent: [59.6891, 17.4648, 58.6184, 18.9412],
+    country: "Sweden", osm_key: "place", countrycode: "SE",
+    osm_value: "city", name: "Stockholm", type: "city",
+  },
+};
+
 const BRNO_CITY_FEATURE: GameOSMFeature = {
   type: "Feature",
   geometry: { type: "Point", coordinates: [49.1951, 16.6068] },
@@ -310,6 +323,61 @@ export const GAME_REGISTRY: GameManifest[] = [
       zoo: "zoo", golf_course: "golf_course", theme_park: "theme_park",
       train_station: "train_station", airport: "airport",
     },
+  },
+  {
+    // First game on the Nordics server. Three levels of the author's own admin
+    // groupings (3 / 9 / 25), each with matching AND measuring, plus a
+    // game-specific IKEA POI doing both — see stockholmAdmin.ts.
+    //
+    // Stockholm supplies only 3 of the 13 rulebook categories (hospital,
+    // golf_course, airport), and the other ten are MEANT to fall through to
+    // Overpass — which reaches the self-hosted instance first via the API
+    // proxy. So the hidden list stays as short as possible.
+    //
+    // `coastline` is hidden for the opposite reason to every other game that
+    // hides it: those are landlocked, Stockholm is an archipelago. The coast is
+    // fractal and everywhere, so the question barely discriminates and the
+    // Overpass query is huge.
+    //
+    // The rest is a per-family list from Jules. The `kind:type` prefixes matter:
+    // aquariums are hidden in all three families but the literal differs
+    // (`aquarium` for tentacles and inside the Hiding Zone Mode group,
+    // `aquarium-full` for the ungrouped matching/measuring options), and
+    // hospitals are hidden ONLY as tentacles — Stockholm bundles 15 of them, so
+    // the matching/measuring hospital questions are good ones here.
+    sentinel: "__bundled-stockholm-2026__",
+    name: "Stockholm 15-08",
+    serverId: SERVER.NORDICS,
+    size: "large",
+    // Uniform across all 191 zones — no tierRadiusOverrides, and the stations
+    // KML carries no <Data name="tier"> at all.
+    hidingRadius: 500,
+    hidingRadiusUnits: "meters",
+    osm: STOCKHOLM_CITY_FEATURE,
+    kmlPath: "stockholm-poi.kml",
+    stationsKml: "stockholm-stations.kml",
+    boundaryGeoJson: "stockholm-border.geojson",
+    poiFolders: {},
+    hiddenQuestionTypes: [
+      "coastline",
+      // Tentacles
+      "tentacle:theme_park",
+      "tentacle:zoo",
+      "tentacle:aquarium",
+      "tentacle:hospital",
+      // Measuring
+      "measuring:city", // "Major City (1,000,000+ people)"
+      "measuring:international-border",
+      "measuring:aquarium-full",
+      "measuring:aquarium", // the Hiding Zone Mode copy
+      "measuring:mcdonalds",
+      "measuring:seven11",
+      // Matching
+      "matching:letter-zone", // "Zone Starts With Same Letter"
+      "matching:major-city",
+      "matching:aquarium-full",
+      "matching:aquarium", // the Hiding Zone Mode copy
+    ],
   },
   {
     // Refreshed from the author's v0.1 pack (Aug 2026), replacing the original

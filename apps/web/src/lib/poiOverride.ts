@@ -57,6 +57,9 @@ const CATEGORY_ALIASES: Record<string, string> = {
     // NOT "train_station": that key overrides the generic same-train-line /
     // same-length-station questions, which must see all 271 London stations.
     "london-rail": "rail_terminus",
+    // "ikea" is a game-specific category, not one of the 13 rulebook ones —
+    // same shape as "castle" and "covrigarie". Only this question reads it.
+    "stockholm-ikea": "ikea",
 };
 
 /** Resolve a raw category/locationType key to its gamePOIData category. */
