@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Brighton Stations</name>
+<Placemark><name>Arundel Road</name><Point><coordinates>-0.106717,50.817066,0</coordinates></Point></Placemark>
+<Placemark><name>Arundel Terrace</name><Point><coordinates>-0.110206,50.815052,0</coordinates></Point></Placemark>
+<Placemark><name>Asda Crowhurst Road</name><Point><coordinates>-0.124451,50.867321,0</coordinates></Point></Placemark>
+<Placemark><name>Beaconsfield Villas Top</name><Point><coordinates>-0.143499,50.843952,0</coordinates></Point></Placemark>
+<Placemark><name>Beresford Road</name><Point><coordinates>-0.113934,50.821167,0</coordinates></Point></Placemark>
+<Placemark><name>Bevendean School</name><Point><coordinates>-0.099947,50.842209,0</coordinates></Point></Placemark>
+<Placemark><name>Birdham Road South End</name><Point><coordinates>-0.106990,50.847538,0</coordinates></Point></Placemark>
+<Placemark><name>Bodiam Avenue</name><Point><coordinates>-0.089777,50.842213,0</coordinates></Point></Placemark>
+<Placemark><name>Bolney Road</name><Point><coordinates>-0.100191,50.855450,0</coordinates></Point></Placemark>
+<Placemark><name>Bottom of Cowley Drive</name><Point><coordinates>-0.067153,50.823891,0</coordinates></Point></Placemark>
+<Placemark><name>Bottom of Downsview</name><Point><coordinates>-0.203710,50.852154,0</coordinates></Point></Placemark>
+<Placemark><name>Bottom of Elm Grove</name><Point><coordinates>-0.128975,50.832047,0</coordinates></Point></Placemark>
+<Placemark><name>Boundary Road</name><Point><coordinates>-0.207415,50.832760,0</coordinates></Point></Placemark>
+<Placemark><name>Bramble Rise</name><Point><coordinates>-0.160854,50.861008,0</coordinates></Point></Placemark>
+<Placemark><name>Brighton Station</name><Point><coordinates>-0.141509,50.828606,0</coordinates></Point></Placemark>
+<Placemark><name>Brighton University</name><Point><coordinates>-0.116973,50.845158,0</coordinates></Point></Placemark>
+<Placemark><name>Brighton University Falmer</name><Point><coordinates>-0.084411,50.860157,0</coordinates></Point></Placemark>
+<Placemark><name>Brighton University Sports Centre</name><Point><coordinates>-0.088750,50.858997,0</coordinates></Point></Placemark>
+<Placemark><name>Buxted Rise</name><Point><coordinates>-0.125920,50.859745,0</coordinates></Point></Placemark>
+<Placemark><name>Carlton Terrace</name><Point><coordinates>-0.204650,50.837292,0</coordinates></Point></Placemark>
+<Placemark><name>Cedars Gardens</name><Point><coordinates>-0.153147,50.851067,0</coordinates></Point></Placemark>
+<Placemark><name>Chorley Avenue</name><Point><coordinates>-0.046698,50.808807,0</coordinates></Point></Placemark>
+<Placemark><name>Churchill Square</name><Point><coordinates>-0.145566,50.823715,0</coordinates></Point></Placemark>
+<Placemark><name>Clayton Way</name><Point><coordinates>-0.186094,50.849579,0</coordinates></Point></Placemark>
+<Placemark><name>Coldean Lane</name><Point><coordinates>-0.104302,50.857426,0</coordinates></Point></Placemark>
+<Placemark><name>Coleridge Street</name><Point><coordinates>-0.177261,50.835278,0</coordinates></Point></Placemark>
+<Placemark><name>Coombe Road School</name><Point><coordinates>-0.118431,50.839638,0</coordinates></Point></Placemark>
+<Placemark><name>County Hospital</name><Point><coordinates>-0.117165,50.818871,0</coordinates></Point></Placemark>
+<Placemark><name>Cowley Drive Shops</name><Point><coordinates>-0.063782,50.827827,0</coordinates></Point></Placemark>
+<Placemark><name>Crabtree Avenue</name><Point><coordinates>-0.134189,50.859066,0</coordinates></Point></Placemark>
+<Placemark><name>Craignair Avenue</name><Point><coordinates>-0.144371,50.867447,0</coordinates></Point></Placemark>
+<Placemark><name>Cricket Ground</name><Point><coordinates>-0.164037,50.829529,0</coordinates></Point></Placemark>
+<Placemark><name>Cuckmere Way</name><Point><coordinates>-0.126230,50.863724,0</coordinates></Point></Placemark>
+<Placemark><name>Deacons Drive</name><Point><coordinates>-0.212736,50.844620,0</coordinates></Point></Placemark>
+<Placemark><name>Downs Hotel</name><Point><coordinates>-0.076411,50.836327,0</coordinates></Point></Placemark>
+<Placemark><name>Dyke Tavern</name><Point><coordinates>-0.155935,50.839169,0</coordinates></Point></Placemark>
+<Placemark><name>Egremont Place</name><Point><coordinates>-0.129131,50.822472,0</coordinates></Point></Placemark>
+<Placemark><name>English Close</name><Point><coordinates>-0.191329,50.838005,0</coordinates></Point></Placemark>
+<Placemark><name>Ewart Street</name><Point><coordinates>-0.128830,50.828224,0</coordinates></Point></Placemark>
+<Placemark><name>Ewhurst Road</name><Point><coordinates>-0.120995,50.837685,0</coordinates></Point></Placemark>
+<Placemark><name>Falmer Station</name><Point><coordinates>-0.088284,50.862407,0</coordinates></Point></Placemark>
+<Placemark><name>Fiveways</name><Point><coordinates>-0.134420,50.843065,0</coordinates></Point></Placemark>
+<Placemark><name>Furze Croft</name><Point><coordinates>-0.157049,50.828133,0</coordinates></Point></Placemark>
+<Placemark><name>George Street (Stop H)</name><Point><coordinates>-0.172514,50.831274,0</coordinates></Point></Placemark>
+<Placemark><name>Glynde Avenue</name><Point><coordinates>-0.036217,50.807930,0</coordinates></Point></Placemark>
+<Placemark><name>Goldstone Valley Shops</name><Point><coordinates>-0.178190,50.850445,0</coordinates></Point></Placemark>
+<Placemark><name>Graham Avenue Shops</name><Point><coordinates>-0.228442,50.854115,0</coordinates></Point></Placemark>
+<Placemark><name>Grenadier Hotel</name><Point><coordinates>-0.194442,50.844933,0</coordinates></Point></Placemark>
+<Placemark><name>Hardwick Road</name><Point><coordinates>-0.192839,50.852604,0</coordinates></Point></Placemark>
+<Placemark><name>Harrington Road</name><Point><coordinates>-0.151643,50.845796,0</coordinates></Point></Placemark>
+<Placemark><name>Hill Brow South</name><Point><coordinates>-0.166358,50.852562,0</coordinates></Point></Placemark>
+<Placemark><name>Hove Park Tavern</name><Point><coordinates>-0.178850,50.838970,0</coordinates></Point></Placemark>
+<Placemark><name>Hove Railway Station</name><Point><coordinates>-0.171076,50.834740,0</coordinates></Point></Placemark>
+<Placemark><name>Hove Town Hall</name><Point><coordinates>-0.170007,50.827975,0</coordinates></Point></Placemark>
+<Placemark><name>Kemp Town Shops</name><Point><coordinates>-0.123452,50.819249,0</coordinates></Point></Placemark>
+<Placemark><name>Lenham Road East</name><Point><coordinates>-0.048419,50.803261,0</coordinates></Point></Placemark>
+<Placemark><name>Lockwood Crescent</name><Point><coordinates>-0.068679,50.833015,0</coordinates></Point></Placemark>
+<Placemark><name>London Road Shops</name><Point><coordinates>-0.135840,50.830271,0</coordinates></Point></Placemark>
+<Placemark><name>Longhill Road</name><Point><coordinates>-0.067835,50.812874,0</coordinates></Point></Placemark>
+<Placemark><name>Longhill School</name><Point><coordinates>-0.065130,50.819595,0</coordinates></Point></Placemark>
+<Placemark><name>Lynchet Close</name><Point><coordinates>-0.127285,50.847102,0</coordinates></Point></Placemark>
+<Placemark><name>Mackie Avenue</name><Point><coordinates>-0.135305,50.866692,0</coordinates></Point></Placemark>
+<Placemark><name>Marina</name><Point><coordinates>-0.104194,50.812077,0</coordinates></Point></Placemark>
+<Placemark><name>Martin Road</name><Point><coordinates>-0.200772,50.842484,0</coordinates></Point></Placemark>
+<Placemark><name>Meadowview</name><Point><coordinates>-0.103956,50.838615,0</coordinates></Point></Placemark>
+<Placemark><name>Mill View Hospital</name><Point><coordinates>-0.189680,50.843563,0</coordinates></Point></Placemark>
+<Placemark><name>Norfolk Square</name><Point><coordinates>-0.154685,50.825054,0</coordinates></Point></Placemark>
+<Placemark><name>North Street</name><Point><coordinates>-0.142218,50.823458,0</coordinates></Point></Placemark>
+<Placemark><name>Old Steine</name><Point><coordinates>-0.138010,50.821028,0</coordinates></Point></Placemark>
+<Placemark><name>Old Village</name><Point><coordinates>-0.220912,50.842892,0</coordinates></Point></Placemark>
+<Placemark><name>Olive Road</name><Point><coordinates>-0.197804,50.834732,0</coordinates></Point></Placemark>
+<Placemark><name>Ovingdean Stores</name><Point><coordinates>-0.073011,50.817844,0</coordinates></Point></Placemark>
+<Placemark><name>Palmeira Square</name><Point><coordinates>-0.162866,50.826813,0</coordinates></Point></Placemark>
+<Placemark><name>Paston Place</name><Point><coordinates>-0.120049,50.817039,0</coordinates></Point></Placemark>
+<Placemark><name>Patcham Place</name><Point><coordinates>-0.152245,50.864922,0</coordinates></Point></Placemark>
+<Placemark><name>Patchdean</name><Point><coordinates>-0.145106,50.859661,0</coordinates></Point></Placemark>
+<Placemark><name>Port Hall Road</name><Point><coordinates>-0.151548,50.835356,0</coordinates></Point></Placemark>
+<Placemark><name>Portfield Avenue</name><Point><coordinates>-0.134828,50.864560,0</coordinates></Point></Placemark>
+<Placemark><name>Portslade Aldridge Academy</name><Point><coordinates>-0.223679,50.851596,0</coordinates></Point></Placemark>
+<Placemark><name>Portslade Health Centre</name><Point><coordinates>-0.214235,50.833618,0</coordinates></Point></Placemark>
+<Placemark><name>Preston Circus</name><Point><coordinates>-0.139725,50.834060,0</coordinates></Point></Placemark>
+<Placemark><name>Race Hill</name><Point><coordinates>-0.113210,50.831749,0</coordinates></Point></Placemark>
+<Placemark><name>Ringmer Road</name><Point><coordinates>-0.109121,50.853870,0</coordinates></Point></Placemark>
+<Placemark><name>Royal Pavilion</name><Point><coordinates>-0.137176,50.824039,0</coordinates></Point></Placemark>
+<Placemark><name>Rugby Road East</name><Point><coordinates>-0.133448,50.839180,0</coordinates></Point></Placemark>
+<Placemark><name>Ryde Road</name><Point><coordinates>-0.117303,50.832020,0</coordinates></Point></Placemark>
+<Placemark><name>Sackville Road</name><Point><coordinates>-0.178577,50.832474,0</coordinates></Point></Placemark>
+<Placemark><name>Saltdean Library</name><Point><coordinates>-0.041562,50.801968,0</coordinates></Point></Placemark>
+<Placemark><name>Saltdean Lido</name><Point><coordinates>-0.040125,50.800363,0</coordinates></Point></Placemark>
+<Placemark><name>Saltdean Vale Shops</name><Point><coordinates>-0.034444,50.811958,0</coordinates></Point></Placemark>
+<Placemark><name>Saunders Hill</name><Point><coordinates>-0.113411,50.866917,0</coordinates></Point></Placemark>
+<Placemark><name>Scott Road</name><Point><coordinates>-0.185950,50.833496,0</coordinates></Point></Placemark>
+<Placemark><name>Sea Life Centre</name><Point><coordinates>-0.135177,50.819770,0</coordinates></Point></Placemark>
+<Placemark><name>Sea View Way</name><Point><coordinates>-0.074218,50.840275,0</coordinates></Point></Placemark>
+<Placemark><name>Seven Dials</name><Point><coordinates>-0.147807,50.831306,0</coordinates></Point></Placemark>
+<Placemark><name>Southern Cross</name><Point><coordinates>-0.218086,50.838406,0</coordinates></Point></Placemark>
+<Placemark><name>Spencer Avenue</name><Point><coordinates>-0.199190,50.850754,0</coordinates></Point></Placemark>
+<Placemark><name>Stanley Deason Leisure Centre</name><Point><coordinates>-0.100825,50.823021,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 1</name><Point><coordinates>-0.124101,50.827507,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 2</name><Point><coordinates>-0.133511,50.835827,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 3</name><Point><coordinates>-0.125453,50.837017,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 4</name><Point><coordinates>-0.205879,50.841179,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 5</name><Point><coordinates>-0.144657,50.863831,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 6</name><Point><coordinates>-0.146536,50.838291,0</coordinates></Point></Placemark>
+<Placemark><name>Stop 7</name><Point><coordinates>-0.126039,50.842606,0</coordinates></Point></Placemark>
+<Placemark><name>Sunninghill Avenue</name><Point><coordinates>-0.192664,50.846462,0</coordinates></Point></Placemark>
+<Placemark><name>Surrenden Road East End</name><Point><coordinates>-0.134697,50.853104,0</coordinates></Point></Placemark>
+<Placemark><name>Sussex House</name><Point><coordinates>-0.086565,50.864132,0</coordinates></Point></Placemark>
+<Placemark><name>Sutton Close</name><Point><coordinates>-0.068406,50.838959,0</coordinates></Point></Placemark>
+<Placemark><name>Swanborough Drive</name><Point><coordinates>-0.103039,50.832520,0</coordinates></Point></Placemark>
+<Placemark><name>Sycamore Close</name><Point><coordinates>-0.211303,50.849400,0</coordinates></Point></Placemark>
+<Placemark><name>The Avenue Shops</name><Point><coordinates>-0.107702,50.842236,0</coordinates></Point></Placemark>
+<Placemark><name>The Cliffs</name><Point><coordinates>-0.070646,50.807713,0</coordinates></Point></Placemark>
+<Placemark><name>The Deneway West</name><Point><coordinates>-0.156904,50.856667,0</coordinates></Point></Placemark>
+<Placemark><name>The Droveway</name><Point><coordinates>-0.164928,50.841927,0</coordinates></Point></Placemark>
+<Placemark><name>The Upper Drive</name><Point><coordinates>-0.160993,50.835804,0</coordinates></Point></Placemark>
+<Placemark><name>Top of Cowley Drive</name><Point><coordinates>-0.058887,50.833206,0</coordinates></Point></Placemark>
+<Placemark><name>Top of Woodruff Avenue</name><Point><coordinates>-0.159910,50.845284,0</coordinates></Point></Placemark>
+<Placemark><name>Valley Road Shops</name><Point><coordinates>-0.222586,50.847073,0</coordinates></Point></Placemark>
+<Placemark><name>Varley Park</name><Point><coordinates>-0.109096,50.863968,0</coordinates></Point></Placemark>
+<Placemark><name>Varndean College</name><Point><coordinates>-0.145150,50.851406,0</coordinates></Point></Placemark>
+<Placemark><name>Varndean High School</name><Point><coordinates>-0.135313,50.849400,0</coordinates></Point></Placemark>
+<Placemark><name>Waitrose</name><Point><coordinates>-0.177226,50.843830,0</coordinates></Point></Placemark>
+<Placemark><name>West Pier</name><Point><coordinates>-0.150155,50.821476,0</coordinates></Point></Placemark>
+<Placemark><name>Westbourne Villas North</name><Point><coordinates>-0.184581,50.829636,0</coordinates></Point></Placemark>
+<Placemark><name>White Horses</name><Point><coordinates>-0.058260,50.803127,0</coordinates></Point></Placemark>
+<Placemark><name>Whitehawk Bus Garage</name><Point><coordinates>-0.105933,50.818554,0</coordinates></Point></Placemark>
+<Placemark><name>Whitehawk Crescent</name><Point><coordinates>-0.108565,50.823338,0</coordinates></Point></Placemark>
+<Placemark><name>Whitethorn Drive</name><Point><coordinates>-0.170261,50.857380,0</coordinates></Point></Placemark>
+<Placemark><name>Wish Road North</name><Point><coordinates>-0.193344,50.831066,0</coordinates></Point></Placemark>
+<Placemark><name>Woodbourne Shops</name><Point><coordinates>-0.140068,50.856659,0</coordinates></Point></Placemark>
+<Placemark><name>Woodland Parade</name><Point><coordinates>-0.172360,50.848770,0</coordinates></Point></Placemark>
+</Document></kml>

@@ -270,6 +270,18 @@ const MILAN_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+// extent is the PLAY AREA bbox, not the city's — the board runs from Portslade
+// to Saltdean and inland over the Downs, well past Brighton itself.
+const BRIGHTON_CITY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [50.8225, -0.1372] },
+  properties: {
+    osm_type: "R", osm_id: 114085, extent: [50.89238, -0.24505, 50.79908, -0.016],
+    country: "United Kingdom", osm_key: "place", countrycode: "GB",
+    osm_value: "city", name: "Brighton and Hove", type: "city",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -650,6 +662,47 @@ export const GAME_REGISTRY: GameManifest[] = [
     // matching only, via the kind:type prefix (the South Limburg / Stockholm
     // shape). Jules' call, 27/08/2026.
     hiddenQuestionTypes: ["matching:aquarium-full", "matching:airport"],
+  },
+  {
+    sentinel: "__bundled-brighton-2026__",
+    name: "Brighton 29-08",
+    serverId: SERVER.UK,
+    // 82.62 km² — the smallest bundled game so far.
+    size: "medium",
+    // Uniform across all 132 stops; the source draws every hiding zone as a
+    // 250 m circle, so there are no tierRadiusOverrides.
+    hidingRadius: 250,
+    hidingRadiusUnits: "meters",
+    osm: BRIGHTON_CITY_FEATURE,
+    kmlPath: "brighton-poi.kml",
+    stationsKml: "brighton-stations.kml",
+    // NOT the supplied game area: it clipped 14 hiding zones, so it was pushed
+    // out additively to cover everything walkable they reached (+48,276 m²,
+    // nothing removed). See scripts/gen-brighton-assets.py.
+    boundaryGeoJson: "brighton-border.geojson",
+    // POI folders use canonical category names → identity mapping. Brighton
+    // supplies 7 of the 13 rulebook categories plus "rail_station", which is
+    // read only by brighton-rail — deliberately not "train_station", which
+    // would hijack the generic same-train-line question with 7 of 132 stops.
+    // Wards, postcodes and the coastline ship as separate GeoJSON and are read
+    // by brightonAdmin.ts, not through poiFolders.
+    poiFolders: {},
+    // No zoo, aquarium, theme park, consulate or airport anywhere in the play
+    // area, and the generic coastline question is superseded by the bundled
+    // brighton-coastline (18.6 km of real OSM coast between the author's two
+    // end markers, rather than an Overpass pull).
+    hiddenQuestionTypes: [
+      "airport",
+      "aquarium",
+      "aquarium-full",
+      "zoo",
+      "zoo-full",
+      "theme_park",
+      "theme_park-full",
+      "consulate",
+      "consulate-full",
+      "coastline",
+    ],
   },
 ];
 

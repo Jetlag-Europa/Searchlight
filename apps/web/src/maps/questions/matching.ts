@@ -64,6 +64,7 @@ import {
     findBelgiumAdminDivision,
 } from "@/maps/questions/belgiumAdmin";
 import { findGrazDistrict } from "@/maps/questions/grazAdmin";
+import { findBrightonRegion } from "@/maps/questions/brightonAdmin";
 import { findMilanMunicipio } from "@/maps/questions/milanAdmin";
 import { findParisArrondissement } from "@/maps/questions/parisAdmin";
 import { findStockholmAdminDivision } from "@/maps/questions/stockholmAdmin";
@@ -376,6 +377,24 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
+            case "brighton-ward":
+            case "brighton-postcode": {
+                // Wards and postcodes are bundled locally — no Overpass. Inside
+                // the play area this always resolves: each layer's "Outer"
+                // region covers whatever the supplied polygons do not.
+                boundary = await findBrightonRegion(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No region found at this point — must be inside the Brighton play area.",
+                    );
+                    throw new Error("No Brighton region found");
+                }
+                break;
+            }
             case "milan-municipio": {
                 // Municipi are bundled locally — no Overpass. Inside the play
                 // area this always resolves: the three "Outer" regions cover
@@ -551,6 +570,7 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "london-stadium":
             case "london-rail":
             case "stockholm-ikea":
+            case "brighton-rail":
             case "milan-castle":
             case "milan-train":
             case "milan-water":
@@ -692,6 +712,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "milan-castle",
             "milan-train",
             "milan-water",
+            "brighton-rail",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);

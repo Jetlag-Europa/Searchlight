@@ -33,3 +33,6 @@ summary.md
 
 # Headless test harness debug output (SVG-on-failure)
 apps/web/test-results/
+
+# Overpass response cache for scripts/gen-brighton-assets.py (re-fetched if absent)
+scripts/.brighton-osm-cache/

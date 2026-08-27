@@ -67,6 +67,10 @@ const CATEGORY_ALIASES: Record<string, string> = {
     "milan-castle": "castle",
     "milan-train": "rail_station",
     "milan-water": "water_body",
+    // Brighton's 7 mainline stations. NOT "train_station", which would hijack
+    // the generic same-train-line / same-length-station questions — those must
+    // see all 132 of the map's stops, not just these 7.
+    "brighton-rail": "rail_station",
 };
 
 /** Resolve a raw category/locationType key to its gamePOIData category. */
