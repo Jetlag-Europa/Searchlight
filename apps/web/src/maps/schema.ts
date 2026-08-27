@@ -416,6 +416,15 @@ const stockholmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const milanMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("milan-municipio").describe("Same Municipio (Milan)"),
+        z.literal("milan-castle").describe("Nearest Castle/Fort (Milan)"),
+        z.literal("milan-train").describe("Nearest Train Station (Milan)"),
+        z.literal("milan-water").describe("Nearest Body of Water (Milan)"),
+    ]),
+});
+
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
@@ -433,6 +442,7 @@ export const matchingQuestionSchema = z.union([
     grazMatchingQuestionsSchema.describe(NO_GROUP),
     parisMatchingQuestionsSchema.describe(NO_GROUP),
     stockholmMatchingQuestionsSchema.describe(NO_GROUP),
+    milanMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -559,6 +569,30 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     "stockholm-admin2":          "__bundled-stockholm-2026__",
     "stockholm-admin3":          "__bundled-stockholm-2026__",
     "stockholm-ikea":            "__bundled-stockholm-2026__",
+    // Milan — three game-specific POI categories, each matching + measuring.
+    // The other 11 supplied categories are rulebook ones and need no gate; they
+    // reach the POI override through their generic question types.
+    //
+    // milan-train is NOT wired to the "train_station" category on purpose: that
+    // key overrides the generic same-train-line / same-length-station
+    // questions, which must see all 269 stations, and Milan supplies only its
+    // 26 heavy-rail ones. It reads "rail_station" instead — the london-rail /
+    // "rail_terminus" shape.
+    //
+    // milan-water is points (45 quarry lakes, the Darsena, etc.), so it uses
+    // the POI path like belgium-castle, NOT the bundled-geometry path that
+    // budapest-water uses. Its folder is "water_body" because the importer's
+    // SKIPPED_POI_CATEGORIES drops a folder literally named "water".
+    // 9 Comune di Milano Municipi + 3 "Outer" catch-alls covering the rest of
+    // the 12 km play circle (the Paris "Outer" shape — 65 of 269 zones are
+    // outside the comune). Matching + measuring, and measuring is the border of
+    // the municipio you are IN, NOT every border the way london-borough works.
+    // Measuring keeps a mean 10.5% of zones — lopsided but deliberate, between
+    // Stockholm's admin2 and admin3; see milanAdmin.ts.
+    "milan-municipio":           "__bundled-milan-2026__",
+    "milan-castle":              "__bundled-milan-2026__",
+    "milan-train":               "__bundled-milan-2026__",
+    "milan-water":               "__bundled-milan-2026__",
 };
 
 /**
@@ -753,6 +787,15 @@ const stockholmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const milanMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("milan-municipio").describe("Distance to Municipio Border (Milan)"),
+        z.literal("milan-castle").describe("Nearest Castle/Fort (Milan)"),
+        z.literal("milan-train").describe("Nearest Train Station (Milan)"),
+        z.literal("milan-water").describe("Nearest Body of Water (Milan)"),
+    ]),
+});
+
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
     southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
@@ -767,6 +810,7 @@ export const measuringQuestionSchema = z.union([
     grazMeasuringQuestionsSchema.describe(NO_GROUP),
     parisMeasuringQuestionsSchema.describe(NO_GROUP),
     stockholmMeasuringQuestionsSchema.describe(NO_GROUP),
+    milanMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

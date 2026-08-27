@@ -1,0 +1,823 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Milan POIs</name>
+<Folder><name>airport</name>
+<Placemark><name>Aeroporto di Milano-Linate</name><Point><coordinates>9.27783,45.4442,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>aquarium</name>
+<Placemark><name>Acquario Civico</name><Point><coordinates>9.18077,45.474,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>castle</name>
+<Placemark><name>Castello Borromeo</name><Point><coordinates>9.33091,45.4377,0</coordinates></Point></Placemark>
+<Placemark><name>Castello Sforzesco</name><Point><coordinates>9.17958,45.4703,0</coordinates></Point></Placemark>
+<Placemark><name>Castello di Buccinasco</name><Point><coordinates>9.10781,45.4076,0</coordinates></Point></Placemark>
+<Placemark><name>Castello di Cassino Scanasio</name><Point><coordinates>9.15053,45.3901,0</coordinates></Point></Placemark>
+<Placemark><name>Castello di Longhignana</name><Point><coordinates>9.30401,45.4623,0</coordinates></Point></Placemark>
+<Placemark><name>Castello di Macconago</name><Point><coordinates>9.21218,45.4137,0</coordinates></Point></Placemark>
+<Placemark><name>Castello di Tolcinasco</name><Point><coordinates>9.18683,45.3641,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Aliverti</name><Point><coordinates>9.18627,45.467,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Annoni</name><Point><coordinates>9.18919,45.4597,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Archinto</name><Point><coordinates>9.18523,45.46,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Belgioioso</name><Point><coordinates>9.19269,45.4677,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Belgioioso</name><Point><coordinates>9.1806,45.4634,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Bigli</name><Point><coordinates>9.19357,45.4683,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Borromeo</name><Point><coordinates>9.18204,45.4634,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Borromeo d'Adda</name><Point><coordinates>9.1937,45.4715,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Bovara</name><Point><coordinates>9.20177,45.4715,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Brivio Sforza</name><Point><coordinates>9.18533,45.4591,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Cagnola</name><Point><coordinates>9.18446,45.4684,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Casati Stampa di Soncino</name><Point><coordinates>9.18308,45.4604,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Castiglioni</name><Point><coordinates>9.20123,45.4712,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Chiesa</name><Point><coordinates>9.20217,45.4711,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Clerici</name><Point><coordinates>9.18699,45.4667,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Cornaggia</name><Point><coordinates>9.17904,45.4636,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Cusani</name><Point><coordinates>9.18728,45.4709,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Cusini</name><Point><coordinates>9.19776,45.4644,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Dal Pozzo Benni</name><Point><coordinates>9.20162,45.4718,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Durini</name><Point><coordinates>9.19865,45.4651,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Greppi</name><Point><coordinates>9.19292,45.4612,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Invernizzi</name><Point><coordinates>9.20196,45.4708,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Landriani</name><Point><coordinates>9.1895,45.4724,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Litta</name><Point><coordinates>9.17835,45.466,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Litta Cusini Modignani</name><Point><coordinates>9.19717,45.4646,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Mapelli</name><Point><coordinates>9.17909,45.4631,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Mazenta</name><Point><coordinates>9.18638,45.4596,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Olivazzi Trivulzio</name><Point><coordinates>9.1927,45.4694,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Omodei</name><Point><coordinates>9.1774,45.5491,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Orsini</name><Point><coordinates>9.19057,45.4712,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Perego di Cremnago</name><Point><coordinates>9.19121,45.4715,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Recalcati Tagliasacchi</name><Point><coordinates>9.19031,45.4715,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Saporiti</name><Point><coordinates>9.20276,45.4716,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Serbelloni</name><Point><coordinates>9.19983,45.4688,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Spinola</name><Point><coordinates>9.194,45.466,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Stanga</name><Point><coordinates>9.17921,45.4628,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Trivulzio</name><Point><coordinates>9.18618,45.4606,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Visconti di Modrone</name><Point><coordinates>9.19947,45.4664,0</coordinates></Point></Placemark>
+<Placemark><name>Rivellino di Santo Spirito</name><Point><coordinates>9.17852,45.4696,0</coordinates></Point></Placemark>
+<Placemark><name>Villa Marietti Radice Fossati</name><Point><coordinates>9.14763,45.5008,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>cinema</name>
+<Placemark><name>Anteo CityLife</name><Point><coordinates>9.15472,45.4782,0</coordinates></Point></Placemark>
+<Placemark><name>Anteo Spazio Cinema</name><Point><coordinates>9.18779,45.4801,0</coordinates></Point></Placemark>
+<Placemark><name>Arcobaleno Film Center</name><Point><coordinates>9.20567,45.4771,0</coordinates></Point></Placemark>
+<Placemark><name>Arena Milano Est - Cinema Martinitt</name><Point><coordinates>9.24873,45.4759,0</coordinates></Point></Placemark>
+<Placemark><name>Arena Umanitaria</name><Point><coordinates>9.20103,45.4594,0</coordinates></Point></Placemark>
+<Placemark><name>Ariosto Spaziocinema</name><Point><coordinates>9.16602,45.4691,0</coordinates></Point></Placemark>
+<Placemark><name>Auditorium Comunale</name><Point><coordinates>9.05512,45.4861,0</coordinates></Point></Placemark>
+<Placemark><name>Auditorium Don Bosco</name><Point><coordinates>9.19982,45.4882,0</coordinates></Point></Placemark>
+<Placemark><name>Cine teatro Delfino</name><Point><coordinates>9.24445,45.459,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Ariston</name><Point><coordinates>9.28813,45.3921,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Beltrade</name><Point><coordinates>9.21489,45.4925,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Casoretto</name><Point><coordinates>9.2265,45.4892,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Centrale</name><Point><coordinates>9.18577,45.4622,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Ducale</name><Point><coordinates>9.15463,45.4524,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Godard</name><Point><coordinates>9.2043,45.444,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Mexico</name><Point><coordinates>9.16019,45.4529,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Multisala Le Giraffe</name><Point><coordinates>9.16343,45.5557,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Nuovo</name><Point><coordinates>9.14191,45.5334,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Palestrina</name><Point><coordinates>9.21389,45.485,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Rondinella</name><Point><coordinates>9.23051,45.5435,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Teatro Cristallo</name><Point><coordinates>9.09428,45.4465,0</coordinates></Point></Placemark>
+<Placemark><name>Cinema Teatro San Giuseppe</name><Point><coordinates>9.18835,45.5376,0</coordinates></Point></Placemark>
+<Placemark><name>Cineteatro San Carlo</name><Point><coordinates>9.16865,45.4652,0</coordinates></Point></Placemark>
+<Placemark><name>Cineteatro San Marco</name><Point><coordinates>9.28123,45.5299,0</coordinates></Point></Placemark>
+<Placemark><name>Cineteatro Splendor</name><Point><coordinates>9.1135,45.5421,0</coordinates></Point></Placemark>
+<Placemark><name>Cineteatro Vittoria</name><Point><coordinates>9.22692,45.5249,0</coordinates></Point></Placemark>
+<Placemark><name>Cineteca Milano Arlecchino</name><Point><coordinates>9.19534,45.4664,0</coordinates></Point></Placemark>
+<Placemark><name>Cineteca Milano Meet</name><Point><coordinates>9.20397,45.4754,0</coordinates></Point></Placemark>
+<Placemark><name>Colosseo</name><Point><coordinates>9.20794,45.4616,0</coordinates></Point></Placemark>
+<Placemark><name>Eliseo</name><Point><coordinates>9.18263,45.4608,0</coordinates></Point></Placemark>
+<Placemark><name>Gloria</name><Point><coordinates>9.16186,45.4665,0</coordinates></Point></Placemark>
+<Placemark><name>Il Cinemino</name><Point><coordinates>9.20833,45.4541,0</coordinates></Point></Placemark>
+<Placemark><name>Massimo Troisi</name><Point><coordinates>9.27158,45.4153,0</coordinates></Point></Placemark>
+<Placemark><name>Medicinema Niguarda</name><Point><coordinates>9.18789,45.5111,0</coordinates></Point></Placemark>
+<Placemark><name>Noise il cinemino</name><Point><coordinates>9.1771,45.447,0</coordinates></Point></Placemark>
+<Placemark><name>Notorius Cinemas</name><Point><coordinates>9.21745,45.5288,0</coordinates></Point></Placemark>
+<Placemark><name>Orfeo Multisala</name><Point><coordinates>9.16953,45.4569,0</coordinates></Point></Placemark>
+<Placemark><name>Plinius Multisala</name><Point><coordinates>9.21775,45.4777,0</coordinates></Point></Placemark>
+<Placemark><name>The Space Cinema - Rozzano</name><Point><coordinates>9.17824,45.3897,0</coordinates></Point></Placemark>
+<Placemark><name>The Space Cinema Odeon</name><Point><coordinates>9.19237,45.4651,0</coordinates></Point></Placemark>
+<Placemark><name>UCI Cinemas</name><Point><coordinates>9.1513,45.4077,0</coordinates></Point></Placemark>
+<Placemark><name>UCI Cinemas Certosa</name><Point><coordinates>9.12815,45.5096,0</coordinates></Point></Placemark>
+<Placemark><name>UCI Cinemas Pioltello</name><Point><coordinates>9.32181,45.5032,0</coordinates></Point></Placemark>
+<Placemark><name>Uci Cinemas Bicocca</name><Point><coordinates>9.21614,45.5219,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>consulate</name>
+<Placemark><name>Consola di Sao Tomè e Principe</name><Point><coordinates>9.19894,45.4663,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale Britannico</name><Point><coordinates>9.19323,45.4657,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale Onorario di Danimarca</name><Point><coordinates>9.18093,45.463,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale Onorario di Grecia</name><Point><coordinates>9.18177,45.4718,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale d'Austria</name><Point><coordinates>9.19393,45.4656,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale degli Emirati Arabi Uniti</name><Point><coordinates>9.20238,45.4702,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale degli Stati Uniti d'America</name><Point><coordinates>9.19414,45.4751,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale del Giappone</name><Point><coordinates>9.1945,45.4765,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale del Perù</name><Point><coordinates>9.19977,45.4839,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale del Qatar</name><Point><coordinates>9.19179,45.4701,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale del Regno del Marocco</name><Point><coordinates>9.19653,45.4927,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale del Senegal</name><Point><coordinates>9.13396,45.4978,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale del Sud-Africa</name><Point><coordinates>9.18177,45.4665,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale dell'India</name><Point><coordinates>9.18843,45.467,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale dell'Ucraina</name><Point><coordinates>9.13913,45.4967,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale della Federazione Russa</name><Point><coordinates>9.13515,45.4765,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale della Repubblica Araba d'Egitto</name><Point><coordinates>9.19769,45.4898,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale della Repubblica Islamica dell'Iran</name><Point><coordinates>9.145,45.4786,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale della Repubblica di Bielorussia</name><Point><coordinates>9.19319,45.4729,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale di Bulgaria</name><Point><coordinates>9.19796,45.4773,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale di Colombia</name><Point><coordinates>9.18347,45.4718,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale di Cuba</name><Point><coordinates>9.19732,45.4841,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale di Germania</name><Point><coordinates>9.18826,45.478,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale di Romania</name><Point><coordinates>9.1404,45.4782,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Generale di Turchia</name><Point><coordinates>9.169,45.4772,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Norvegese</name><Point><coordinates>9.20189,45.4702,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Onorario d'Estonia</name><Point><coordinates>9.17985,45.4658,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Onorario della Repubblica Ceca"</name><Point><coordinates>9.21279,45.4781,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Onorario della Repubblica di Cipro</name><Point><coordinates>9.16839,45.4697,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato Onorario delle Bahamas</name><Point><coordinates>9.18296,45.4668,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato d'Albania</name><Point><coordinates>9.18839,45.4645,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato d'Australia</name><Point><coordinates>9.1989,45.4656,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato d'Irlanda</name><Point><coordinates>9.2011,45.4628,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Bangladesh</name><Point><coordinates>9.15254,45.4517,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Canada</name><Point><coordinates>9.19454,45.4729,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Canada</name><Point><coordinates>9.19629,45.4634,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Cile</name><Point><coordinates>9.17983,45.4682,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Kuwait</name><Point><coordinates>9.19588,45.4769,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Portogallo</name><Point><coordinates>9.1476,45.4796,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato del Venezuela</name><Point><coordinates>9.1957,45.4641,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato dell'Eritrea</name><Point><coordinates>9.22051,45.4901,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Bosnia-Erzegovina</name><Point><coordinates>9.19733,45.4873,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Malaysia</name><Point><coordinates>9.19034,45.461,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Nuova Zelanda</name><Point><coordinates>9.17566,45.4649,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Repubblica Dominicana</name><Point><coordinates>9.21341,45.4826,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Repubblica del Cameroon</name><Point><coordinates>9.13969,45.4962,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Repubblica di Armenia</name><Point><coordinates>9.22974,45.483,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Slovacchia</name><Point><coordinates>9.19509,45.4739,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato della Svizzera</name><Point><coordinates>9.19652,45.4728,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato dello Sri Lanka</name><Point><coordinates>9.13707,45.4982,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Albania</name><Point><coordinates>9.18862,45.4531,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Bolivia</name><Point><coordinates>9.2132,45.4822,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Cipro</name><Point><coordinates>9.2302,45.4855,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Cuba</name><Point><coordinates>9.22238,45.469,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di El Salvador</name><Point><coordinates>9.18685,45.463,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Libia</name><Point><coordinates>9.19089,45.4617,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Lituania</name><Point><coordinates>9.17377,45.4649,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Malta</name><Point><coordinates>9.20024,45.463,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Namibia</name><Point><coordinates>9.14142,45.5015,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Nicaragua</name><Point><coordinates>9.19676,45.4644,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Panama</name><Point><coordinates>9.20009,45.4702,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di San Marino</name><Point><coordinates>9.18904,45.4531,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Spagna</name><Point><coordinates>9.193,45.4727,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato di Tunisia</name><Point><coordinates>9.19523,45.4951,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale d'Algeria</name><Point><coordinates>9.18391,45.4677,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale del Brasile</name><Point><coordinates>9.19651,45.4641,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale del Burkina Faso</name><Point><coordinates>9.19329,45.4626,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale del Libano</name><Point><coordinates>9.19089,45.4609,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale del Pakistan</name><Point><coordinates>9.16523,45.501,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale dell'Ecuador</name><Point><coordinates>9.20084,45.483,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale dell'Uruguay</name><Point><coordinates>9.1894,45.4622,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale della Polonia</name><Point><coordinates>9.15433,45.4715,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale della Repubblica Popolare Cinese</name><Point><coordinates>9.21156,45.4445,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale della Repubblica di Moldavia</name><Point><coordinates>9.1704,45.4689,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale della Serbia</name><Point><coordinates>9.1909,45.4604,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale delle Filippine</name><Point><coordinates>9.18134,45.4954,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale di Argentina</name><Point><coordinates>9.19336,45.4652,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale di Croazia</name><Point><coordinates>9.17581,45.4677,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale di Francia</name><Point><coordinates>9.19457,45.4762,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale di Monaco</name><Point><coordinates>9.16675,45.4661,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale di Svezia</name><Point><coordinates>9.19328,45.4654,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato generale di Ungheria</name><Point><coordinates>9.18703,45.4598,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato onorario d'Etiopia</name><Point><coordinates>9.18182,45.4644,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato onorario del Kenya</name><Point><coordinates>9.19703,45.4628,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato onorario del Regno Hashemita di Giordania</name><Point><coordinates>9.15745,45.4691,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato onorario della Lituania</name><Point><coordinates>9.16915,45.4669,0</coordinates></Point></Placemark>
+<Placemark><name>Consolato onorario di Lettonia</name><Point><coordinates>9.18793,45.4585,0</coordinates></Point></Placemark>
+<Placemark><name>Consulado General de México en Milán</name><Point><coordinates>9.19413,45.4671,0</coordinates></Point></Placemark>
+<Placemark><name>Nederlands consulaat-generaal in Milaan</name><Point><coordinates>9.20518,45.4646,0</coordinates></Point></Placemark>
+<Placemark><name>Reale Consolato Generale di Thailandia</name><Point><coordinates>9.15112,45.476,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>golf_course</name>
+<Placemark><name>Golf Club Il Lagetto</name><Point><coordinates>9.31712,45.4437,0</coordinates></Point></Placemark>
+<Placemark><name>Golf Tolcinasco</name><Point><coordinates>9.18253,45.3629,0</coordinates></Point></Placemark>
+<Placemark><name>Golf su Pista - Oasi del Divertimento</name><Point><coordinates>9.17754,45.554,0</coordinates></Point></Placemark>
+<Placemark><name>Le Rovedine Golf Club Milano</name><Point><coordinates>9.22737,45.3895,0</coordinates></Point></Placemark>
+<Placemark><name>Molinetto Country Club</name><Point><coordinates>9.31206,45.5157,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>hospital</name>
+<Placemark><name>ASST Grande Ospedale Metropolitano Niguarda</name><Point><coordinates>9.18603,45.5099,0</coordinates></Point></Placemark>
+<Placemark><name>ASST Nord Milano - Casa di Comunità di Cusano Milanino</name><Point><coordinates>9.18667,45.5532,0</coordinates></Point></Placemark>
+<Placemark><name>Casa di Comunità</name><Point><coordinates>9.1894,45.537,0</coordinates></Point></Placemark>
+<Placemark><name>Centro Cardiologico Monzino</name><Point><coordinates>9.26171,45.4439,0</coordinates></Point></Placemark>
+<Placemark><name>Centro Prelievi Ospedale Sesto San Giovanni</name><Point><coordinates>9.22433,45.5348,0</coordinates></Point></Placemark>
+<Placemark><name>Centro Traumatologico Ortopedico</name><Point><coordinates>9.21284,45.5251,0</coordinates></Point></Placemark>
+<Placemark><name>Ex Istituto Ortopedico Galeazzi, ora chiuso</name><Point><coordinates>9.17391,45.5229,0</coordinates></Point></Placemark>
+<Placemark><name>Humanitas</name><Point><coordinates>9.16567,45.374,0</coordinates></Point></Placemark>
+<Placemark><name>Humanitas San Pio X</name><Point><coordinates>9.18937,45.4948,0</coordinates></Point></Placemark>
+<Placemark><name>I.R.C.C.S. Policlinico San Donato</name><Point><coordinates>9.27758,45.4104,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto Clinico Città Studi</name><Point><coordinates>9.22506,45.4852,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto Clinico Humanitas</name><Point><coordinates>9.16497,45.3736,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto Nazionale dei Tumori</name><Point><coordinates>9.23137,45.475,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto Neurologico Carlo Besta</name><Point><coordinates>9.2307,45.4779,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto Scientifico Ospedale San Luca</name><Point><coordinates>9.14509,45.472,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto Villa Marelli</name><Point><coordinates>9.19404,45.4967,0</coordinates></Point></Placemark>
+<Placemark><name>Istituto di Ricovero e Cura a Carattere Scientifico San Raffaele</name><Point><coordinates>9.26548,45.5062,0</coordinates></Point></Placemark>
+<Placemark><name>Multimedica</name><Point><coordinates>9.21928,45.5366,0</coordinates></Point></Placemark>
+<Placemark><name>NPIA Via M. Gorki 50 Cinisello Balsamo</name><Point><coordinates>9.21491,45.5469,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale Bassini</name><Point><coordinates>9.2155,45.5465,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale Fatebenefratelli</name><Point><coordinates>9.19109,45.4787,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale Galeazzi Sant'Ambrogio</name><Point><coordinates>9.09615,45.5224,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale Luigi Sacco</name><Point><coordinates>9.12355,45.5202,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale Macedonio Melloni</name><Point><coordinates>9.21908,45.4664,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale San Carlo Borromeo</name><Point><coordinates>9.11422,45.468,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale San Giuseppe</name><Point><coordinates>9.17189,45.4635,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale San Paolo</name><Point><coordinates>9.15983,45.4344,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale città di Sesto San Giovanni</name><Point><coordinates>9.22418,45.5366,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale dei Bambini "Vittore Buzzi"</name><Point><coordinates>9.16697,45.4858,0</coordinates></Point></Placemark>
+<Placemark><name>Ospedale di Bollate</name><Point><coordinates>9.11646,45.5404,0</coordinates></Point></Placemark>
+<Placemark><name>Padiglione 62</name><Point><coordinates>9.12518,45.5209,0</coordinates></Point></Placemark>
+<Placemark><name>Policlinico di Milano</name><Point><coordinates>9.19675,45.4579,0</coordinates></Point></Placemark>
+<Placemark><name>Presidio Ospedaliero Gaetano Pini - ASST Pini-CTO</name><Point><coordinates>9.1939,45.4549,0</coordinates></Point></Placemark>
+<Placemark><name>Presidio territoriale Ippocrate</name><Point><coordinates>9.16272,45.5209,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso</name><Point><coordinates>9.19612,45.4592,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso CTO</name><Point><coordinates>9.21266,45.5259,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Centro Cardiologico Monzino</name><Point><coordinates>9.26065,45.4438,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Istituto Clinico Citta' Studi</name><Point><coordinates>9.22531,45.485,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Istituto Gaetano Pini</name><Point><coordinates>9.19414,45.4542,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Medico Chirurgico e Pediatrico</name><Point><coordinates>9.19054,45.4788,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Oculistico</name><Point><coordinates>9.19151,45.4796,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Ospedale San Carlo Borromeo</name><Point><coordinates>9.11409,45.4694,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Ospedale San Paolo</name><Point><coordinates>9.16112,45.4336,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Ostetrico</name><Point><coordinates>9.18767,45.5116,0</coordinates></Point></Placemark>
+<Placemark><name>Pronto Soccorso Presidio Ospedaliero Buzzi</name><Point><coordinates>9.16766,45.4862,0</coordinates></Point></Placemark>
+<Placemark><name>San Raffaele – Turro</name><Point><coordinates>9.23057,45.4997,0</coordinates></Point></Placemark>
+<Placemark><name>Servizi Territoriali ASST Fatebenefratelli Sacco</name><Point><coordinates>9.23734,45.5014,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>library</name>
+<Placemark><name>Archivio Storico Civico e Biblioteca Trivulziana</name><Point><coordinates>9.17831,45.4702,0</coordinates></Point></Placemark>
+<Placemark><name>Archivio Storico dell'Ospedale Maggiore Policlinico Ca' Granda</name><Point><coordinates>9.19542,45.4601,0</coordinates></Point></Placemark>
+<Placemark><name>BIblioteca Humanitas University</name><Point><coordinates>9.1705,45.3702,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Ambrosiana</name><Point><coordinates>9.18605,45.4636,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Bovisa Candiani</name><Point><coordinates>9.16679,45.5052,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Bovisa La Masa</name><Point><coordinates>9.15714,45.5032,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Campus Leonardo</name><Point><coordinates>9.22681,45.4795,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Civica "Ferruccio Maraspin"</name><Point><coordinates>9.18019,45.5499,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Civica Paolo Volontè</name><Point><coordinates>9.16632,45.5472,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Civica dei Ragazzi</name><Point><coordinates>9.17232,45.5468,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Civica di Rozzano</name><Point><coordinates>9.14695,45.3769,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale "Artemisia Gentileschi"</name><Point><coordinates>9.18906,45.5369,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Accursio</name><Point><coordinates>9.14615,45.4914,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Affori</name><Point><coordinates>9.16738,45.5166,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Baggio</name><Point><coordinates>9.09033,45.4634,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Calvairate</name><Point><coordinates>9.22064,45.4555,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Cassina Anna</name><Point><coordinates>9.17719,45.5249,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Chiesa Rossa</name><Point><coordinates>9.17388,45.4304,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Crescenzago</name><Point><coordinates>9.24016,45.5003,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Dergano-Bovisa</name><Point><coordinates>9.16853,45.5038,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Fra Cristoforo</name><Point><coordinates>9.17177,45.4362,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Harar</name><Point><coordinates>9.11945,45.474,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Il Quadrato</name><Point><coordinates>9.11543,45.5263,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Lorenteggio</name><Point><coordinates>9.13444,45.4475,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Niguarda</name><Point><coordinates>9.1931,45.5152,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Oglio</name><Point><coordinates>9.21753,45.4406,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Parco Sempione</name><Point><coordinates>9.17493,45.4745,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Sant'Ambrogio</name><Point><coordinates>9.16328,45.4313,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Tibaldi</name><Point><coordinates>9.18305,45.4449,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Venezia</name><Point><coordinates>9.20852,45.4749,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Vigentina</name><Point><coordinates>9.19609,45.4543,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Villa Marazzi</name><Point><coordinates>9.09102,45.4468,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Villapizzone</name><Point><coordinates>9.14757,45.4993,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Comunale Zara</name><Point><coordinates>9.19606,45.4972,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Di Comunità</name><Point><coordinates>9.25395,45.5288,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Europea di Informazione e Cultura</name><Point><coordinates>9.18914,45.465,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Francescana</name><Point><coordinates>9.19291,45.4754,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Gallaratese</name><Point><coordinates>9.11495,45.4962,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca ISU</name><Point><coordinates>9.23585,45.4765,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Lambrate</name><Point><coordinates>9.23767,45.4796,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Matematica Giovanni Ricci</name><Point><coordinates>9.22756,45.4739,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Nazionale Braidense</name><Point><coordinates>9.18911,45.4721,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Quarto Oggiaro</name><Point><coordinates>9.13048,45.5156,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Sicilia</name><Point><coordinates>9.15211,45.465,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Sormani</name><Point><coordinates>9.19811,45.4621,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca Università Bocconi</name><Point><coordinates>9.18871,45.4486,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca centrale Pietro Lincoln Cadioli</name><Point><coordinates>9.23918,45.5347,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale - Sede decentrata di Poasco</name><Point><coordinates>9.22962,45.4022,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale Carlo Caronni</name><Point><coordinates>9.05519,45.486,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale Ostilio Bego</name><Point><coordinates>9.06251,45.4257,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale di Assago</name><Point><coordinates>9.13117,45.406,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale di Buccinasco</name><Point><coordinates>9.12277,45.4251,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale di Corsico</name><Point><coordinates>9.11608,45.436,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale di Milano 2 - Cascina Ovi</name><Point><coordinates>9.26882,45.4925,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca comunale di Novate Milanese</name><Point><coordinates>9.14222,45.53,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca dei Ragazzi "Virgilio Canzi"</name><Point><coordinates>9.23088,45.537,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca del Museo civico di storia naturale</name><Point><coordinates>9.20229,45.4726,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca del Polo Centrale di Medicina e Chirurgia</name><Point><coordinates>9.19922,45.4573,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca del Polo di Mediazione Interculturale e Comunicazione</name><Point><coordinates>9.23296,45.5217,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca delle Storie Infinite</name><Point><coordinates>9.06999,45.416,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Biologia, Informatica, Chimica e Fisica</name><Point><coordinates>9.23238,45.4764,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Certosa Marchetti-Notari</name><Point><coordinates>9.26379,45.4067,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Cologno Monzese</name><Point><coordinates>9.27555,45.5302,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Filosofia</name><Point><coordinates>9.19446,45.4593,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Medicina del Polo San Paolo</name><Point><coordinates>9.15996,45.4337,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Peschiera Borromeo</name><Point><coordinates>9.2949,45.4316,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Pioltello</name><Point><coordinates>9.32866,45.4973,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di San Bovio</name><Point><coordinates>9.31264,45.4642,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di San Giuliano Milanese</name><Point><coordinates>9.28463,45.3949,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Scienze agrarie e alimentari</name><Point><coordinates>9.22736,45.4754,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Scienze della Storia e della Documentazione Storica</name><Point><coordinates>9.1938,45.4593,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Scienze della Terra Ardito Desio</name><Point><coordinates>9.22949,45.4741,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Storia dell'Arte, della Musica e dello Spettacolo</name><Point><coordinates>9.20036,45.4313,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Studi Giuridici e umanistici - Sala Crociera</name><Point><coordinates>9.19403,45.4599,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Studi giuridici e umanistici - Sala Centrale</name><Point><coordinates>9.19473,45.4596,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Studi giuridici e umanistici - Sala Common Law</name><Point><coordinates>9.19356,45.4598,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca di Via Senato</name><Point><coordinates>9.19705,45.4709,0</coordinates></Point></Placemark>
+<Placemark><name>Biblioteca multilingue LibroTrotter</name><Point><coordinates>9.22216,45.495,0</coordinates></Point></Placemark>
+<Placemark><name>Biboll - Biblioteca Ada Negri</name><Point><coordinates>9.11775,45.5424,0</coordinates></Point></Placemark>
+<Placemark><name>Casetta dei libri</name><Point><coordinates>9.13315,45.5311,0</coordinates></Point></Placemark>
+<Placemark><name>Centro Culturale Giuseppe Verdi</name><Point><coordinates>9.29303,45.4909,0</coordinates></Point></Placemark>
+<Placemark><name>Comune di San Donato Milanese</name><Point><coordinates>9.2673,45.4174,0</coordinates></Point></Placemark>
+<Placemark><name>Emeroteca di Cascina Roma</name><Point><coordinates>9.2647,45.4151,0</coordinates></Point></Placemark>
+<Placemark><name>Fondazione ISEC</name><Point><coordinates>9.23669,45.5348,0</coordinates></Point></Placemark>
+<Placemark><name>Il Pertini</name><Point><coordinates>9.21396,45.5586,0</coordinates></Point></Placemark>
+<Placemark><name>Libera Scuola Rudolf Steiner</name><Point><coordinates>9.23994,45.4845,0</coordinates></Point></Placemark>
+<Placemark><name>Mediateca di Santa Teresa</name><Point><coordinates>9.1899,45.477,0</coordinates></Point></Placemark>
+<Placemark><name>Padiglione esterno Biblioteca di Baggio</name><Point><coordinates>9.09047,45.463,0</coordinates></Point></Placemark>
+<Placemark><name>Progetto Biblioteca Gorla</name><Point><coordinates>9.22451,45.5052,0</coordinates></Point></Placemark>
+<Placemark><name>PuntoCerchiate</name><Point><coordinates>9.06711,45.518,0</coordinates></Point></Placemark>
+<Placemark><name>PuntoPero</name><Point><coordinates>9.08785,45.51,0</coordinates></Point></Placemark>
+<Placemark><name>Tilane Biblioteca</name><Point><coordinates>9.15956,45.5668,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>mountain</name>
+<Placemark><name>Collina dei Ciliegi di Bicocca</name><Point><coordinates>9.20747,45.5115,0</coordinates></Point></Placemark>
+<Placemark><name>Collina del Parco Lambro</name><Point><coordinates>9.24722,45.4941,0</coordinates></Point></Placemark>
+<Placemark><name>Monte Stella</name><Point><coordinates>9.13448,45.4909,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>museum</name>
+<Placemark><name>ADI Design Museum</name><Point><coordinates>9.17928,45.4832,0</coordinates></Point></Placemark>
+<Placemark><name>AEMuseum</name><Point><coordinates>9.15903,45.4623,0</coordinates></Point></Placemark>
+<Placemark><name>Antiquarium Alda Levi</name><Point><coordinates>9.17965,45.4578,0</coordinates></Point></Placemark>
+<Placemark><name>Archivio Giovanni Sacchi</name><Point><coordinates>9.22348,45.529,0</coordinates></Point></Placemark>
+<Placemark><name>Armani/Silos</name><Point><coordinates>9.16469,45.4515,0</coordinates></Point></Placemark>
+<Placemark><name>Baloon Museum</name><Point><coordinates>9.25113,45.5407,0</coordinates></Point></Placemark>
+<Placemark><name>Casa Manzoni</name><Point><coordinates>9.19208,45.4678,0</coordinates></Point></Placemark>
+<Placemark><name>Casa Testori</name><Point><coordinates>9.13677,45.5293,0</coordinates></Point></Placemark>
+<Placemark><name>Casa degli artisti</name><Point><coordinates>9.18335,45.4767,0</coordinates></Point></Placemark>
+<Placemark><name>Casa-museo Boschi Di Stefano</name><Point><coordinates>9.21175,45.479,0</coordinates></Point></Placemark>
+<Placemark><name>Centrale dell'acqua di Milano</name><Point><coordinates>9.16521,45.4874,0</coordinates></Point></Placemark>
+<Placemark><name>Centro culturale J.Lombardini</name><Point><coordinates>9.21675,45.5617,0</coordinates></Point></Placemark>
+<Placemark><name>Civica raccolta delle stampe Achille Bertarelli</name><Point><coordinates>9.17986,45.4695,0</coordinates></Point></Placemark>
+<Placemark><name>Civico museo archeologico di Milano</name><Point><coordinates>9.17872,45.4656,0</coordinates></Point></Placemark>
+<Placemark><name>Fondazione Luigi Rovati</name><Point><coordinates>9.20429,45.4733,0</coordinates></Point></Placemark>
+<Placemark><name>Fondazione Prada</name><Point><coordinates>9.20432,45.4439,0</coordinates></Point></Placemark>
+<Placemark><name>Fonderia Napoleonica Eugenia</name><Point><coordinates>9.18754,45.493,0</coordinates></Point></Placemark>
+<Placemark><name>Galleria Campari</name><Point><coordinates>9.23548,45.5391,0</coordinates></Point></Placemark>
+<Placemark><name>Galleria d'Arte Moderna</name><Point><coordinates>9.19968,45.4725,0</coordinates></Point></Placemark>
+<Placemark><name>Galleria d'Arte Sacra dei Contemporanei</name><Point><coordinates>9.18942,45.518,0</coordinates></Point></Placemark>
+<Placemark><name>Gallerie d'Italia</name><Point><coordinates>9.19053,45.4673,0</coordinates></Point></Placemark>
+<Placemark><name>Grande Museo del Duomo di Milano</name><Point><coordinates>9.19199,45.4634,0</coordinates></Point></Placemark>
+<Placemark><name>I tesori della Ca' Granda</name><Point><coordinates>9.19578,45.4605,0</coordinates></Point></Placemark>
+<Placemark><name>Leonardo3 Museum - Il Mondo di Leonardo</name><Point><coordinates>9.18971,45.4665,0</coordinates></Point></Placemark>
+<Placemark><name>MUDA Museo dell'assicurazione</name><Point><coordinates>9.1885,45.4588,0</coordinates></Point></Placemark>
+<Placemark><name>MUSA</name><Point><coordinates>9.22956,45.4749,0</coordinates></Point></Placemark>
+<Placemark><name>Memoriale della Shoah</name><Point><coordinates>9.2082,45.4882,0</coordinates></Point></Placemark>
+<Placemark><name>Mudec</name><Point><coordinates>9.16132,45.452,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Astronomico di Brera</name><Point><coordinates>9.18935,45.4717,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Bagatti Valsecchi</name><Point><coordinates>9.19498,45.4695,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Branca</name><Point><coordinates>9.17783,45.4959,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Civico di Storia Naturale - Biolab</name><Point><coordinates>9.19691,45.4742,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Civico di Storia Naturale - Paleolab</name><Point><coordinates>9.19805,45.4752,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Delle Illusioni</name><Point><coordinates>9.20503,45.481,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Diocesano di Milano</name><Point><coordinates>9.18103,45.4547,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Interattivo del Cinema</name><Point><coordinates>9.20402,45.5136,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Mangini Bonomi</name><Point><coordinates>9.18517,45.4635,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Martinitt e Stelline</name><Point><coordinates>9.17347,45.4656,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Mondo Milan</name><Point><coordinates>9.14842,45.4856,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Nazionale della Scienza e della Tecnologia</name><Point><coordinates>9.17059,45.4618,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Pietà Rondanini</name><Point><coordinates>9.17885,45.4697,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Poldi Pezzoli</name><Point><coordinates>9.19178,45.4685,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Popoli e Culture</name><Point><coordinates>9.14701,45.4761,0</coordinates></Point></Placemark>
+<Placemark><name>Museo San Siro</name><Point><coordinates>9.12346,45.4773,0</coordinates></Point></Placemark>
+<Placemark><name>Museo San fedele</name><Point><coordinates>9.19145,45.4666,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Scooter e Lambretta</name><Point><coordinates>9.33531,45.4701,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Teatrale alla Scala</name><Point><coordinates>9.18926,45.4673,0</coordinates></Point></Placemark>
+<Placemark><name>Museo d'Arte Antica</name><Point><coordinates>9.17961,45.4708,0</coordinates></Point></Placemark>
+<Placemark><name>Museo d'arte Paolo Pini</name><Point><coordinates>9.16397,45.5216,0</coordinates></Point></Placemark>
+<Placemark><name>Museo d'arte e scienza</name><Point><coordinates>9.18246,45.4703,0</coordinates></Point></Placemark>
+<Placemark><name>Museo degli Strumenti Musicali</name><Point><coordinates>9.17896,45.4703,0</coordinates></Point></Placemark>
+<Placemark><name>Museo dei Cappuccini</name><Point><coordinates>9.20845,45.4688,0</coordinates></Point></Placemark>
+<Placemark><name>Museo dei Mobili e delle Sculture Lignee</name><Point><coordinates>9.17918,45.4712,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del Cenacolo Vinciano</name><Point><coordinates>9.17066,45.4662,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del Giocattolo e del Bambino</name><Point><coordinates>9.17241,45.5465,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del Novecento</name><Point><coordinates>9.19023,45.4634,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del Profumo</name><Point><coordinates>9.1707,45.4889,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del Risorgimento</name><Point><coordinates>9.18964,45.4721,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del Teatro di Figura</name><Point><coordinates>9.16253,45.4522,0</coordinates></Point></Placemark>
+<Placemark><name>Museo del viaggio Fabrizio De André</name><Point><coordinates>9.25004,45.4288,0</coordinates></Point></Placemark>
+<Placemark><name>Museo della Basilica di Sant'Ambrogio</name><Point><coordinates>9.17636,45.4623,0</coordinates></Point></Placemark>
+<Placemark><name>Museo della Brigata ebraica</name><Point><coordinates>9.20436,45.4505,0</coordinates></Point></Placemark>
+<Placemark><name>Museo della Macchina da Scrivere</name><Point><coordinates>9.18726,45.4946,0</coordinates></Point></Placemark>
+<Placemark><name>Museo della Permanente</name><Point><coordinates>9.19551,45.4766,0</coordinates></Point></Placemark>
+<Placemark><name>Museo della basilica di Sant'Eustorgio</name><Point><coordinates>9.18184,45.4542,0</coordinates></Point></Placemark>
+<Placemark><name>Museo delle Arti Decorative</name><Point><coordinates>9.17819,45.4704,0</coordinates></Point></Placemark>
+<Placemark><name>Museo delle pentole nella storia</name><Point><coordinates>9.17125,45.3881,0</coordinates></Point></Placemark>
+<Placemark><name>Museo di Storia Naturale</name><Point><coordinates>9.20244,45.4727,0</coordinates></Point></Placemark>
+<Placemark><name>Museo storico dei vigili del fuoco di Milano</name><Point><coordinates>9.17453,45.4842,0</coordinates></Point></Placemark>
+<Placemark><name>Museum Of The Senses</name><Point><coordinates>9.19045,45.4809,0</coordinates></Point></Placemark>
+<Placemark><name>My Vintage - Vespe Piaggio</name><Point><coordinates>9.23128,45.4385,0</coordinates></Point></Placemark>
+<Placemark><name>Osservatorio Fondazione Prada</name><Point><coordinates>9.19013,45.4654,0</coordinates></Point></Placemark>
+<Placemark><name>Padiglione d'Arte Contemporanea</name><Point><coordinates>9.19906,45.4728,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Citterio - Grande Brera</name><Point><coordinates>9.1879,45.4704,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Morando - Costume Moda Immagine</name><Point><coordinates>9.19626,45.4686,0</coordinates></Point></Placemark>
+<Placemark><name>Palazzo Reale</name><Point><coordinates>9.19131,45.4629,0</coordinates></Point></Placemark>
+<Placemark><name>Pinacoteca Ambrosiana</name><Point><coordinates>9.18601,45.4636,0</coordinates></Point></Placemark>
+<Placemark><name>Pinacoteca del Castello Sforzesco</name><Point><coordinates>9.1798,45.4713,0</coordinates></Point></Placemark>
+<Placemark><name>Pinacoteca di Brera</name><Point><coordinates>9.18841,45.4722,0</coordinates></Point></Placemark>
+<Placemark><name>San Siro Museum</name><Point><coordinates>9.12246,45.4782,0</coordinates></Point></Placemark>
+<Placemark><name>Step to the Future</name><Point><coordinates>9.2038,45.4428,0</coordinates></Point></Placemark>
+<Placemark><name>Studio Museo Achille Castiglioni</name><Point><coordinates>9.17721,45.4695,0</coordinates></Point></Placemark>
+<Placemark><name>Studio Museo Francesco Messina</name><Point><coordinates>9.18164,45.461,0</coordinates></Point></Placemark>
+<Placemark><name>Studio Museo Vico Magistretti</name><Point><coordinates>9.20299,45.4655,0</coordinates></Point></Placemark>
+<Placemark><name>Triennale Design Museum</name><Point><coordinates>9.1735,45.4722,0</coordinates></Point></Placemark>
+<Placemark><name>Villa Necchi Campiglio</name><Point><coordinates>9.20183,45.4682,0</coordinates></Point></Placemark>
+<Placemark><name>Zambon</name><Point><coordinates>9.18897,45.5308,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>park</name>
+<Placemark><name>Accenture</name><Point><coordinates>9.18507,45.4838,0</coordinates></Point></Placemark>
+<Placemark><name>Area esterna</name><Point><coordinates>9.27373,45.4689,0</coordinates></Point></Placemark>
+<Placemark><name>Area verde ai Martiri delle Foibe</name><Point><coordinates>9.29812,45.5164,0</coordinates></Point></Placemark>
+<Placemark><name>BAM - Biblioteca degli Alberi Milano</name><Point><coordinates>9.19205,45.4845,0</coordinates></Point></Placemark>
+<Placemark><name>Bosco dei Ricordi</name><Point><coordinates>9.10096,45.5513,0</coordinates></Point></Placemark>
+<Placemark><name>Bosco della Giretta</name><Point><coordinates>9.06338,45.4761,0</coordinates></Point></Placemark>
+<Placemark><name>Bosco della Giretta</name><Point><coordinates>9.06303,45.4816,0</coordinates></Point></Placemark>
+<Placemark><name>Bosco in città</name><Point><coordinates>9.21923,45.3777,0</coordinates></Point></Placemark>
+<Placemark><name>Boscoincittà</name><Point><coordinates>9.09173,45.4859,0</coordinates></Point></Placemark>
+<Placemark><name>Citta' di Opera</name><Point><coordinates>9.21002,45.3723,0</coordinates></Point></Placemark>
+<Placemark><name>Collina dei Ciliegi</name><Point><coordinates>9.20801,45.5119,0</coordinates></Point></Placemark>
+<Placemark><name>Collinetta</name><Point><coordinates>9.17891,45.4156,0</coordinates></Point></Placemark>
+<Placemark><name>Comune di Milano</name><Point><coordinates>9.17385,45.4212,0</coordinates></Point></Placemark>
+<Placemark><name>Comune di Milano</name><Point><coordinates>9.11756,45.455,0</coordinates></Point></Placemark>
+<Placemark><name>Comune di Milano</name><Point><coordinates>9.17274,45.4166,0</coordinates></Point></Placemark>
+<Placemark><name>Cooperativa Antonio Labriola</name><Point><coordinates>9.10207,45.4991,0</coordinates></Point></Placemark>
+<Placemark><name>ERSAF - Area tampone sui cavi Lisone e Borromeo</name><Point><coordinates>9.08011,45.4234,0</coordinates></Point></Placemark>
+<Placemark><name>Ex Area Stella</name><Point><coordinates>9.10898,45.4353,0</coordinates></Point></Placemark>
+<Placemark><name>Ex Fola</name><Point><coordinates>9.2505,45.5334,0</coordinates></Point></Placemark>
+<Placemark><name>Fondazione ATM</name><Point><coordinates>9.2723,45.4783,0</coordinates></Point></Placemark>
+<Placemark><name>Giardinetti di piazzale Farina</name><Point><coordinates>9.20011,45.4984,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini Cairoli</name><Point><coordinates>9.24235,45.5364,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini Caterina da Forlì</name><Point><coordinates>9.14036,45.4609,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini Dini</name><Point><coordinates>9.18017,45.4267,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini Genesio Fumagalli</name><Point><coordinates>9.33353,45.5068,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini Luisa Fantasia</name><Point><coordinates>9.10413,45.4593,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini Pietro Bucalossi</name><Point><coordinates>9.21345,45.4531,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini XXIV Maggio - Marsala</name><Point><coordinates>9.23427,45.5288,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini di Via Mosso</name><Point><coordinates>9.22631,45.4938,0</coordinates></Point></Placemark>
+<Placemark><name>Giardini in Memoria dei Caduti di Nassiriya</name><Point><coordinates>9.12842,45.4942,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino 8 marzo</name><Point><coordinates>9.22666,45.4594,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino AIDO</name><Point><coordinates>9.10803,45.4578,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Acciaierie</name><Point><coordinates>9.23957,45.5389,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Alberto Moravia</name><Point><coordinates>9.12622,45.456,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Anna Del Bo Boffino</name><Point><coordinates>9.15126,45.4484,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Antonio Megalizzi</name><Point><coordinates>9.26257,45.4902,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Beppe Viola</name><Point><coordinates>9.22899,45.4651,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Cairoli - Cattaneo</name><Point><coordinates>9.28046,45.5205,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Carmelo Bene</name><Point><coordinates>9.16487,45.4945,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Cassina de' Pomm</name><Point><coordinates>9.2096,45.4974,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Cesare Pagani</name><Point><coordinates>9.17769,45.5042,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Don Domenico Ghinelli</name><Point><coordinates>9.2279,45.4985,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Ezio Lucarelli</name><Point><coordinates>9.2465,45.4891,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Facchetti-Maldini</name><Point><coordinates>9.11889,45.4794,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Firenze</name><Point><coordinates>9.16014,45.4894,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Franca Helg</name><Point><coordinates>9.2104,45.4415,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Frida Khalo</name><Point><coordinates>9.32314,45.5165,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Gianfranco Bianchi</name><Point><coordinates>9.17819,45.4344,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Gianfranco Miglio</name><Point><coordinates>9.25287,45.5246,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Gina Galeotti Bianchi</name><Point><coordinates>9.18852,45.5147,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Giulio Polotti</name><Point><coordinates>9.22025,45.4839,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Giuseppe Lazzati</name><Point><coordinates>9.16373,45.4742,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Gonin Giordani</name><Point><coordinates>9.126,45.4418,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Laura Conti</name><Point><coordinates>9.15025,45.4941,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Luca Rossi e Amici</name><Point><coordinates>9.172,45.5006,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Marcello Candia</name><Point><coordinates>9.21465,45.4469,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Maria Peron e Suor Giovanna Mosna</name><Point><coordinates>9.19572,45.5205,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Mario Capponi</name><Point><coordinates>9.18562,45.4403,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Marisa Bellisario</name><Point><coordinates>9.23818,45.4902,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Nilde Iotti</name><Point><coordinates>9.21667,45.4625,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Norma Cossetto</name><Point><coordinates>9.21718,45.45,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Oreste del Buono</name><Point><coordinates>9.22503,45.4636,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Paolo Scrofani</name><Point><coordinates>9.18086,45.4377,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Piazzale Bologna</name><Point><coordinates>9.22357,45.4451,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Pitteri</name><Point><coordinates>9.24576,45.4806,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Robert Baden-Powell</name><Point><coordinates>9.16747,45.4484,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Rosa Genoni</name><Point><coordinates>9.09874,45.4921,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Rosa Parks</name><Point><coordinates>9.15714,45.4965,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Salvador Allende</name><Point><coordinates>9.16138,45.4817,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Sandro Pertini</name><Point><coordinates>9.10723,45.4958,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Sergio Vieira De Mello</name><Point><coordinates>9.1175,45.4935,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Teresa Pomodoro</name><Point><coordinates>9.22365,45.4803,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Vincenzo Muccioli</name><Point><coordinates>9.15891,45.4554,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Wanda Osiris</name><Point><coordinates>9.19526,45.5027,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino Yitzhak Rabin</name><Point><coordinates>9.14865,45.4593,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino condiviso Isola Pepe Verde</name><Point><coordinates>9.1875,45.486,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino degli Alpini</name><Point><coordinates>9.23188,45.533,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino dei Caduti di Nassiriya</name><Point><coordinates>9.23868,45.5461,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino dei Giusti dell'Umanità</name><Point><coordinates>9.13075,45.5462,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino dei Giusti di tutto il mondo</name><Point><coordinates>9.13602,45.4887,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino della Pace</name><Point><coordinates>9.32216,45.5192,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino delle Crocerossine</name><Point><coordinates>9.1235,45.4506,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino delle Maioliche</name><Point><coordinates>9.26784,45.4283,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino di Via Maffei</name><Point><coordinates>9.20942,45.4584,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino di Via Val Cannobina</name><Point><coordinates>9.08941,45.4586,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino di via Giacomo della Porta</name><Point><coordinates>9.20647,45.518,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino di via Tiziano</name><Point><coordinates>9.19699,45.552,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino ex Fornace di Via Milano</name><Point><coordinates>9.24301,45.5257,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino interno Oratorio PIO XI</name><Point><coordinates>9.22149,45.5502,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino semplice</name><Point><coordinates>9.19025,45.559,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino solidale San Michele</name><Point><coordinates>9.12045,45.5229,0</coordinates></Point></Placemark>
+<Placemark><name>Idroscalo</name><Point><coordinates>9.28903,45.4642,0</coordinates></Point></Placemark>
+<Placemark><name>Il Castelletto</name><Point><coordinates>9.03842,45.4734,0</coordinates></Point></Placemark>
+<Placemark><name>Largo Antonio Balestra</name><Point><coordinates>9.14244,45.4482,0</coordinates></Point></Placemark>
+<Placemark><name>Largo Oreste Murani</name><Point><coordinates>9.23474,45.4732,0</coordinates></Point></Placemark>
+<Placemark><name>Museo Botanico Aurelia Josz</name><Point><coordinates>9.18374,45.5069,0</coordinates></Point></Placemark>
+<Placemark><name>Oasi Bosco di Zivido</name><Point><coordinates>9.29233,45.3898,0</coordinates></Point></Placemark>
+<Placemark><name>Oasi Sant'Eusebio</name><Point><coordinates>9.21579,45.5742,0</coordinates></Point></Placemark>
+<Placemark><name>Oasi del Municipio di San Giuliano Milanese</name><Point><coordinates>9.28465,45.4019,0</coordinates></Point></Placemark>
+<Placemark><name>Oasi nuovi nati</name><Point><coordinates>9.08196,45.4418,0</coordinates></Point></Placemark>
+<Placemark><name>Parchetto Giuseppe Belviso</name><Point><coordinates>9.29794,45.4946,0</coordinates></Point></Placemark>
+<Placemark><name>Parchetto Rugacesio</name><Point><coordinates>9.30807,45.4843,0</coordinates></Point></Placemark>
+<Placemark><name>Parchetto della Maddalena</name><Point><coordinates>9.22892,45.5136,0</coordinates></Point></Placemark>
+<Placemark><name>Parchetto via Martinetti</name><Point><coordinates>9.13311,45.4664,0</coordinates></Point></Placemark>
+<Placemark><name>Parco 2CR8</name><Point><coordinates>9.17116,45.5512,0</coordinates></Point></Placemark>
+<Placemark><name>Parco 8 Marzo</name><Point><coordinates>9.21966,45.4592,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Adil Belakhdim</name><Point><coordinates>9.24333,45.5058,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Adriano</name><Point><coordinates>9.254,45.5179,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Alberello</name><Point><coordinates>9.24525,45.4356,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Aldo Aniasi</name><Point><coordinates>9.1067,45.4845,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Aldo Moro</name><Point><coordinates>9.08651,45.4415,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Alessandrina Ravizza</name><Point><coordinates>9.19248,45.4476,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Alhambra</name><Point><coordinates>9.28254,45.4984,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Andrea Camilleri</name><Point><coordinates>9.13709,45.559,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Andrea Campagna</name><Point><coordinates>9.14135,45.4357,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Antonio Gramsci</name><Point><coordinates>9.24273,45.5454,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Argonne</name><Point><coordinates>9.23128,45.4681,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Ariosto</name><Point><coordinates>9.2041,45.5571,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Attilio Faconti</name><Point><coordinates>9.17418,45.5392,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Baden-Powell</name><Point><coordinates>9.33447,45.5025,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Bensi</name><Point><coordinates>9.12187,45.4469,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Buonarroti</name><Point><coordinates>9.06784,45.5263,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Ca' Granda</name><Point><coordinates>9.19945,45.5061,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Cabassina</name><Point><coordinates>9.09493,45.4369,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Carlo Marx</name><Point><coordinates>9.24414,45.5213,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Carlo Marx</name><Point><coordinates>9.24823,45.531,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Cascina tre fontanili</name><Point><coordinates>9.28425,45.517,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Cava Centroparco</name><Point><coordinates>9.27596,45.4889,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Cava Muggiano</name><Point><coordinates>9.06726,45.4372,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Cervino</name><Point><coordinates>9.18543,45.5583,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Chico Mendez</name><Point><coordinates>9.18214,45.5559,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Comunale 3</name><Point><coordinates>9.18109,45.382,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Comunale Vittime dell’Olocausto</name><Point><coordinates>9.31385,45.4344,0</coordinates></Point></Placemark>
+<Placemark><name>Parco D'Adda</name><Point><coordinates>9.05597,45.4829,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Don Alfonso Mattelli</name><Point><coordinates>9.32747,45.4837,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Don Primo Mazzolari</name><Point><coordinates>9.1458,45.4322,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Donatori del sangue</name><Point><coordinates>9.14627,45.5306,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Emilio Alessandrini</name><Point><coordinates>9.22694,45.4495,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Emilio De Marchi</name><Point><coordinates>9.16288,45.5745,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Europa</name><Point><coordinates>9.30226,45.4932,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Expo 2015</name><Point><coordinates>9.1122,45.5463,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Fausto Coppi</name><Point><coordinates>9.10635,45.5398,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Fontana</name><Point><coordinates>9.29472,45.5437,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Forlanini</name><Point><coordinates>9.2639,45.4658,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Francesco di Cataldo</name><Point><coordinates>9.23287,45.5136,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Gino Bartali</name><Point><coordinates>9.29259,45.4251,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Giorgella</name><Point><coordinates>9.1123,45.4403,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Giovanni Testori</name><Point><coordinates>9.15474,45.4989,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Gisella Floreanini</name><Point><coordinates>9.12917,45.5288,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Giuseppe "Pippo" Saporito</name><Point><coordinates>9.14675,45.4413,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Graffiti</name><Point><coordinates>9.11053,45.4736,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Guardamagna</name><Point><coordinates>9.0388,45.4507,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Guido Galli</name><Point><coordinates>9.23962,45.4554,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Industria Alfa Romeo Portello</name><Point><coordinates>9.14526,45.4876,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Laghetto Azzurro</name><Point><coordinates>9.29872,45.4292,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Lago Nord</name><Point><coordinates>9.18505,45.5754,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Lambro</name><Point><coordinates>9.25052,45.4968,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Lazzati</name><Point><coordinates>9.14079,45.5614,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Marinai d’Italia</name><Point><coordinates>9.11282,45.4319,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Martin Luther King</name><Point><coordinates>9.10937,45.5436,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Meridiana</name><Point><coordinates>9.29904,45.5438,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Monluè</name><Point><coordinates>9.25552,45.4574,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Moro</name><Point><coordinates>9.11132,45.5394,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Natura</name><Point><coordinates>9.08195,45.4452,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nicolò Savarino</name><Point><coordinates>9.17712,45.499,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nilde iotti</name><Point><coordinates>9.32755,45.4874,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord</name><Point><coordinates>9.19764,45.556,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.20048,45.5224,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.21015,45.5405,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.17905,45.5318,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.1974,45.528,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.17834,45.5205,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.18397,45.5178,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.2027,45.5281,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord Milano</name><Point><coordinates>9.17941,45.5277,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Nord di San Giuliano Milanese</name><Point><coordinates>9.27629,45.4059,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Pablo Neruda</name><Point><coordinates>9.06765,45.4265,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Panza</name><Point><coordinates>9.22318,45.522,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Papa Giovanni Paolo II</name><Point><coordinates>9.08678,45.5486,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Piero Gobetti</name><Point><coordinates>9.08314,45.4342,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Prealpi</name><Point><coordinates>9.18964,45.5474,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Pubblico BPM</name><Point><coordinates>9.14554,45.4613,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Quartiere Terrazze</name><Point><coordinates>9.18064,45.4198,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Quasimodo</name><Point><coordinates>9.28985,45.5191,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Raffaele Ciriello</name><Point><coordinates>9.15352,45.4577,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Rodari</name><Point><coordinates>9.17965,45.5537,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Rurale Cascina Gatti</name><Point><coordinates>9.24905,45.5276,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Russoli</name><Point><coordinates>9.16466,45.4415,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Salvo D'Acquisto</name><Point><coordinates>9.27868,45.5346,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Samia Yusuf Omar</name><Point><coordinates>9.31877,45.5213,0</coordinates></Point></Placemark>
+<Placemark><name>Parco San Cristoforo</name><Point><coordinates>9.07666,45.4199,0</coordinates></Point></Placemark>
+<Placemark><name>Parco San Maurizio</name><Point><coordinates>9.26299,45.547,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Sandra Mondaini e Raimondo Vianello</name><Point><coordinates>9.23749,45.517,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Sansovino</name><Point><coordinates>9.08375,45.5404,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Scout "Flavio Rossoni"</name><Point><coordinates>9.13021,45.4222,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Segantini</name><Point><coordinates>9.17088,45.4466,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Sei Milano</name><Point><coordinates>9.11331,45.4502,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Sorelle Mirabal</name><Point><coordinates>9.32839,45.5153,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Spina Azzurra</name><Point><coordinates>9.12201,45.4245,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Tadini</name><Point><coordinates>9.26305,45.4301,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Togliatti</name><Point><coordinates>9.07006,45.5306,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Torri</name><Point><coordinates>9.2831,45.514,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Travaglia</name><Point><coordinates>9.10663,45.4416,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Tre Palle</name><Point><coordinates>9.27121,45.4248,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Trevi - Semplicità</name><Point><coordinates>9.17971,45.5079,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Uruguay Gallaratese</name><Point><coordinates>9.12178,45.494,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Vanoli Omaggio</name><Point><coordinates>9.32254,45.5229,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Venticinque Aprile</name><Point><coordinates>9.09051,45.5132,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Verdi</name><Point><coordinates>9.11574,45.4284,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Via Nuoro</name><Point><coordinates>9.23049,45.5049,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Via Pirandello</name><Point><coordinates>9.06585,45.4316,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Via Savona - Via Brunelleschi</name><Point><coordinates>9.14703,45.4477,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Via Trento</name><Point><coordinates>9.08348,45.4485,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Via Verdi</name><Point><coordinates>9.09331,45.4414,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Virgilio</name><Point><coordinates>9.07592,45.4164,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Vittorio e Dario Martino</name><Point><coordinates>9.29257,45.501,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Walter Chiari</name><Point><coordinates>9.15324,45.5147,0</coordinates></Point></Placemark>
+<Placemark><name>Parco XXV Aprile</name><Point><coordinates>9.07152,45.42,0</coordinates></Point></Placemark>
+<Placemark><name>Parco Zara-Expo</name><Point><coordinates>9.13426,45.5112,0</coordinates></Point></Placemark>
+<Placemark><name>Parco agricolo del Ticinello</name><Point><coordinates>9.18722,45.4225,0</coordinates></Point></Placemark>
+<Placemark><name>Parco bambini e bambine di Chernobyl</name><Point><coordinates>9.32422,45.4988,0</coordinates></Point></Placemark>
+<Placemark><name>Parco comunale Vittime delle Foibe</name><Point><coordinates>9.31898,45.4568,0</coordinates></Point></Placemark>
+<Placemark><name>Parco comunale centro sportivo di Via Serra</name><Point><coordinates>9.17422,45.5724,0</coordinates></Point></Placemark>
+<Placemark><name>Parco comunale via Flavio Gioia</name><Point><coordinates>9.07145,45.4228,0</coordinates></Point></Placemark>
+<Placemark><name>Parco degli Scout</name><Point><coordinates>9.19618,45.5441,0</coordinates></Point></Placemark>
+<Placemark><name>Parco degli scaloni - Giardino Gabriella Bortolon</name><Point><coordinates>9.10651,45.4706,0</coordinates></Point></Placemark>
+<Placemark><name>Parco dei Fontanili</name><Point><coordinates>9.05603,45.5069,0</coordinates></Point></Placemark>
+<Placemark><name>Parco dei Fontanili</name><Point><coordinates>9.10248,45.4497,0</coordinates></Point></Placemark>
+<Placemark><name>Parco dei Triangoli</name><Point><coordinates>9.1146,45.4913,0</coordinates></Point></Placemark>
+<Placemark><name>Parco del Centenario</name><Point><coordinates>9.0576,45.4343,0</coordinates></Point></Placemark>
+<Placemark><name>Parco dell'Infinito</name><Point><coordinates>9.27891,45.4137,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Bergamella</name><Point><coordinates>9.25387,45.5215,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Besozza</name><Point><coordinates>9.32554,45.4695,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Chiesa Moderna</name><Point><coordinates>9.32439,45.481,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Costituzione</name><Point><coordinates>9.22195,45.5662,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Lambretta</name><Point><coordinates>9.25232,45.4798,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Martesana</name><Point><coordinates>9.27461,45.518,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Memoria</name><Point><coordinates>9.18123,45.5691,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Nave</name><Point><coordinates>9.18158,45.547,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Pace</name><Point><coordinates>9.31273,45.4302,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Pace</name><Point><coordinates>9.08709,45.4519,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Pace</name><Point><coordinates>9.18646,45.5334,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Resistenza</name><Point><coordinates>9.10725,45.4265,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Stazione</name><Point><coordinates>9.27148,45.4023,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Vettabbia</name><Point><coordinates>9.22968,45.4228,0</coordinates></Point></Placemark>
+<Placemark><name>Parco della Vita</name><Point><coordinates>9.07722,45.4346,0</coordinates></Point></Placemark>
+<Placemark><name>Parco delle Anse del Lambro</name><Point><coordinates>9.2878,45.4197,0</coordinates></Point></Placemark>
+<Placemark><name>Parco delle Cave</name><Point><coordinates>9.09954,45.4682,0</coordinates></Point></Placemark>
+<Placemark><name>Parco delle Favole</name><Point><coordinates>9.1781,45.5134,0</coordinates></Point></Placemark>
+<Placemark><name>Parco delle Radure</name><Point><coordinates>9.13766,45.5372,0</coordinates></Point></Placemark>
+<Placemark><name>Parco delle Rimembranze</name><Point><coordinates>9.06732,45.4194,0</coordinates></Point></Placemark>
+<Placemark><name>Parco delle Rimembranze</name><Point><coordinates>9.19304,45.5407,0</coordinates></Point></Placemark>
+<Placemark><name>Parco dello Scoiattolo</name><Point><coordinates>9.05118,45.4294,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Milano Fiorenza</name><Point><coordinates>9.08952,45.5184,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Piazza Negrelli</name><Point><coordinates>9.14021,45.4439,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Alessandrina</name><Point><coordinates>9.18105,45.5589,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Gadames</name><Point><coordinates>9.15503,45.556,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Grandi</name><Point><coordinates>9.17067,45.568,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via La Malfa</name><Point><coordinates>9.15366,45.568,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Libertà</name><Point><coordinates>9.26018,45.4187,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Negrelli</name><Point><coordinates>9.17414,45.5584,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Rimini – Via La Spezia</name><Point><coordinates>9.16837,45.4397,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via Roma / Pepe</name><Point><coordinates>9.15361,45.5626,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Via San Michele del Carso</name><Point><coordinates>9.16752,45.5735,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Villa Finzi</name><Point><coordinates>9.21971,45.5052,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di Villa Gioiosa</name><Point><coordinates>9.15761,45.5463,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di via Amalfi</name><Point><coordinates>9.24833,45.5103,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di via Dezza</name><Point><coordinates>9.16371,45.4592,0</coordinates></Point></Placemark>
+<Placemark><name>Parco di via Monte Rosa</name><Point><coordinates>9.09915,45.4415,0</coordinates></Point></Placemark>
+<Placemark><name>Parco dimora olgettina</name><Point><coordinates>9.27387,45.5058,0</coordinates></Point></Placemark>
+<Placemark><name>Parco ex OM</name><Point><coordinates>9.19271,45.4442,0</coordinates></Point></Placemark>
+<Placemark><name>Parco in memoria delle Vittime Italiane nei Gulag</name><Point><coordinates>9.09657,45.4557,0</coordinates></Point></Placemark>
+<Placemark><name>Parco pubblico Assietta Cervi</name><Point><coordinates>9.15804,45.5166,0</coordinates></Point></Placemark>
+<Placemark><name>Parco pubblico Cascina Merlata</name><Point><coordinates>9.10322,45.5086,0</coordinates></Point></Placemark>
+<Placemark><name>Parco pubblico Morganda</name><Point><coordinates>9.07602,45.5408,0</coordinates></Point></Placemark>
+<Placemark><name>Parco pubblico Vaticano II</name><Point><coordinates>9.1496,45.5133,0</coordinates></Point></Placemark>
+<Placemark><name>Parco via Don Grazioli - Zambelli</name><Point><coordinates>9.17457,45.5079,0</coordinates></Point></Placemark>
+<Placemark><name>Parco via Fermi</name><Point><coordinates>9.10263,45.4384,0</coordinates></Point></Placemark>
+<Placemark><name>Parco via Milly</name><Point><coordinates>9.10448,45.4739,0</coordinates></Point></Placemark>
+<Placemark><name>Parco via Novara-Zoia</name><Point><coordinates>9.10804,45.4772,0</coordinates></Point></Placemark>
+<Placemark><name>Parco via Pace - via Pasubio - via Seveso</name><Point><coordinates>9.17221,45.5558,0</coordinates></Point></Placemark>
+<Placemark><name>Parcobaleno Ex Parco 2</name><Point><coordinates>9.16146,45.3777,0</coordinates></Point></Placemark>
+<Placemark><name>Piazza Agrippa</name><Point><coordinates>9.1838,45.4332,0</coordinates></Point></Placemark>
+<Placemark><name>Piazza Carlo Irnerio</name><Point><coordinates>9.15328,45.4613,0</coordinates></Point></Placemark>
+<Placemark><name>Piazza Giovanni Falcone e Paolo Borsellino</name><Point><coordinates>9.16607,45.5615,0</coordinates></Point></Placemark>
+<Placemark><name>Piazza Miani</name><Point><coordinates>9.15467,45.4373,0</coordinates></Point></Placemark>
+<Placemark><name>Piazza Tirana</name><Point><coordinates>9.1296,45.4436,0</coordinates></Point></Placemark>
+<Placemark><name>Piazzale Damiano Chiesa</name><Point><coordinates>9.15615,45.4843,0</coordinates></Point></Placemark>
+<Placemark><name>Piazzale Giulio Cesare</name><Point><coordinates>9.15563,45.4745,0</coordinates></Point></Placemark>
+<Placemark><name>Piazzale Lodi</name><Point><coordinates>9.21019,45.4474,0</coordinates></Point></Placemark>
+<Placemark><name>Piazzale Lugano</name><Point><coordinates>9.1649,45.4978,0</coordinates></Point></Placemark>
+<Placemark><name>Piazzale Selinunte</name><Point><coordinates>9.13744,45.4721,0</coordinates></Point></Placemark>
+<Placemark><name>Piccolo parco dell'Ortica</name><Point><coordinates>9.24094,45.4707,0</coordinates></Point></Placemark>
+<Placemark><name>Pioppeto di Bovisasca</name><Point><coordinates>9.15453,45.5189,0</coordinates></Point></Placemark>
+<Placemark><name>Quanto Basta</name><Point><coordinates>9.29261,45.5283,0</coordinates></Point></Placemark>
+<Placemark><name>Rainbow park</name><Point><coordinates>9.29024,45.4593,0</coordinates></Point></Placemark>
+<Placemark><name>Snamwood</name><Point><coordinates>9.28218,45.4089,0</coordinates></Point></Placemark>
+<Placemark><name>Treeftyland</name><Point><coordinates>9.10926,45.5524,0</coordinates></Point></Placemark>
+<Placemark><name>Vivaio Bicocca</name><Point><coordinates>9.21015,45.508,0</coordinates></Point></Placemark>
+<Placemark><name>piccolo parco</name><Point><coordinates>9.20982,45.5552,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>rail_station</name>
+<Placemark><name>Bollate Centro</name><Point><coordinates>9.123,45.5428,0</coordinates></Point></Placemark>
+<Placemark><name>Bollate Nord</name><Point><coordinates>9.11202,45.5527,0</coordinates></Point></Placemark>
+<Placemark><name>Cesano Boscone</name><Point><coordinates>9.0914,45.4303,0</coordinates></Point></Placemark>
+<Placemark><name>Cormano-Cusano Milanino</name><Point><coordinates>9.17409,45.5457,0</coordinates></Point></Placemark>
+<Placemark><name>Corsico</name><Point><coordinates>9.10902,45.4361,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Affori</name><Point><coordinates>9.16748,45.5204,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Bovisa Politecnico</name><Point><coordinates>9.15925,45.5026,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Bruzzano Parco Nord</name><Point><coordinates>9.17281,45.5337,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Cadorna</name><Point><coordinates>9.1756,45.4684,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Centrale</name><Point><coordinates>9.20329,45.487,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Certosa</name><Point><coordinates>9.13537,45.5073,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Domodossola</name><Point><coordinates>9.16224,45.4809,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Forlanini</name><Point><coordinates>9.23701,45.4631,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Greco Pirelli</name><Point><coordinates>9.21416,45.5129,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Lambrate</name><Point><coordinates>9.2368,45.4847,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Porta Garibaldi</name><Point><coordinates>9.18801,45.4842,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Quarto Oggiaro</name><Point><coordinates>9.14562,45.5192,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Rogoredo</name><Point><coordinates>9.23848,45.4336,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Romolo</name><Point><coordinates>9.1674,45.4432,0</coordinates></Point></Placemark>
+<Placemark><name>Milano S.Cristoforo</name><Point><coordinates>9.13009,45.4426,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Scalo Romana</name><Point><coordinates>9.21313,45.4458,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Tibaldi - Bocconi</name><Point><coordinates>9.18408,45.4437,0</coordinates></Point></Placemark>
+<Placemark><name>Milano Villapizzone</name><Point><coordinates>9.15092,45.5021,0</coordinates></Point></Placemark>
+<Placemark><name>Novate Milanese</name><Point><coordinates>9.1323,45.5331,0</coordinates></Point></Placemark>
+<Placemark><name>S.Donato Milanese</name><Point><coordinates>9.25425,45.4192,0</coordinates></Point></Placemark>
+<Placemark><name>Sesto S.Giovanni</name><Point><coordinates>9.23886,45.5413,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>theme_park</name>
+<Placemark><name>Area Eventi</name><Point><coordinates>9.33136,45.4971,0</coordinates></Point></Placemark>
+<Placemark><name>EuroPark Milano Idroscalo</name><Point><coordinates>9.28514,45.4748,0</coordinates></Point></Placemark>
+<Placemark><name>Parco avventura Milano</name><Point><coordinates>9.23337,45.4341,0</coordinates></Point></Placemark>
+<Placemark><name>Trennolandia</name><Point><coordinates>9.10649,45.4807,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>water_body</name>
+<Placemark><name>Cava Concrete</name><Point><coordinates>9.32286,45.467,0</coordinates></Point></Placemark>
+<Placemark><name>Cava Farsura</name><Point><coordinates>9.28429,45.448,0</coordinates></Point></Placemark>
+<Placemark><name>Cava Gabbana</name><Point><coordinates>9.2915,45.5226,0</coordinates></Point></Placemark>
+<Placemark><name>Cava Gaggiolo</name><Point><coordinates>9.30162,45.5223,0</coordinates></Point></Placemark>
+<Placemark><name>Cava Gallolo</name><Point><coordinates>9.32819,45.4636,0</coordinates></Point></Placemark>
+<Placemark><name>Cava Palazzetto</name><Point><coordinates>9.29065,45.4419,0</coordinates></Point></Placemark>
+<Placemark><name>Darsena</name><Point><coordinates>9.17625,45.4534,0</coordinates></Point></Placemark>
+<Placemark><name>Fossone</name><Point><coordinates>9.10157,45.4794,0</coordinates></Point></Placemark>
+<Placemark><name>Giardino d'acqua</name><Point><coordinates>9.07809,45.495,0</coordinates></Point></Placemark>
+<Placemark><name>Idroscalo</name><Point><coordinates>9.28889,45.4631,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetti Pastorini</name><Point><coordinates>9.10487,45.3944,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetti Pastorini</name><Point><coordinates>9.10588,45.3927,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto Azzurro</name><Point><coordinates>9.29894,45.4294,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto Bernolda</name><Point><coordinates>9.10908,45.4237,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto Europa</name><Point><coordinates>9.2745,45.4161,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto La Gardanella</name><Point><coordinates>9.29121,45.4483,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto Oxy.gen</name><Point><coordinates>9.18714,45.5313,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto Salesina</name><Point><coordinates>9.26617,45.4665,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto dei Pescatori</name><Point><coordinates>9.12008,45.4256,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto dei Pioppi</name><Point><coordinates>9.1219,45.4238,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto dei Salici</name><Point><coordinates>9.12262,45.4224,0</coordinates></Point></Placemark>
+<Placemark><name>Laghetto delle Vergini</name><Point><coordinates>9.29347,45.4707,0</coordinates></Point></Placemark>
+<Placemark><name>Laghi Monzoro</name><Point><coordinates>9.04661,45.4657,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Bellaria</name><Point><coordinates>9.308,45.4092,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Blu</name><Point><coordinates>9.27937,45.4054,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Boscaccio</name><Point><coordinates>9.071,45.402,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Centroparco</name><Point><coordinates>9.28264,45.4878,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Malaspina</name><Point><coordinates>9.31239,45.4731,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Mezzetto</name><Point><coordinates>9.06397,45.4358,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Nord</name><Point><coordinates>9.18428,45.5763,0</coordinates></Point></Placemark>
+<Placemark><name>Lago San Novo</name><Point><coordinates>9.07978,45.3974,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Santa Maria</name><Point><coordinates>9.10959,45.3987,0</coordinates></Point></Placemark>
+<Placemark><name>Lago Verde</name><Point><coordinates>9.21369,45.4135,0</coordinates></Point></Placemark>
+<Placemark><name>Lago dei Cigni</name><Point><coordinates>9.06922,45.439,0</coordinates></Point></Placemark>
+<Placemark><name>Lago dei Cigni</name><Point><coordinates>9.26755,45.5008,0</coordinates></Point></Placemark>
+<Placemark><name>Lago di Assago</name><Point><coordinates>9.14779,45.4173,0</coordinates></Point></Placemark>
+<Placemark><name>Lago di Bruzzano</name><Point><coordinates>9.17494,45.5334,0</coordinates></Point></Placemark>
+<Placemark><name>Lago di Figino</name><Point><coordinates>9.06859,45.4911,0</coordinates></Point></Placemark>
+<Placemark><name>Lago di Niguarda</name><Point><coordinates>9.18754,45.5243,0</coordinates></Point></Placemark>
+<Placemark><name>Lago di Redecesio</name><Point><coordinates>9.27186,45.4785,0</coordinates></Point></Placemark>
+<Placemark><name>Lago ex Cava Aurora</name><Point><coordinates>9.09735,45.466,0</coordinates></Point></Placemark>
+<Placemark><name>Lago ex Cava Cabassi</name><Point><coordinates>9.0997,45.4633,0</coordinates></Point></Placemark>
+<Placemark><name>Lago ex Cava Casati</name><Point><coordinates>9.1006,45.4684,0</coordinates></Point></Placemark>
+<Placemark><name>Lago ex Cava Ongari Cerutti</name><Point><coordinates>9.09684,45.4712,0</coordinates></Point></Placemark>
+<Placemark><name>lago della cava</name><Point><coordinates>9.33743,45.442,0</coordinates></Point></Placemark>
+</Folder>
+</Document></kml>

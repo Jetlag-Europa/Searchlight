@@ -64,6 +64,7 @@ import {
     findBelgiumAdminDivision,
 } from "@/maps/questions/belgiumAdmin";
 import { findGrazDistrict } from "@/maps/questions/grazAdmin";
+import { findMilanMunicipio } from "@/maps/questions/milanAdmin";
 import { findParisArrondissement } from "@/maps/questions/parisAdmin";
 import { findStockholmAdminDivision } from "@/maps/questions/stockholmAdmin";
 import { LUX_HOSPITALS, LUX_MOUNTAINS } from "@/maps/questions/luxData";
@@ -375,6 +376,23 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 }
                 break;
             }
+            case "milan-municipio": {
+                // Municipi are bundled locally — no Overpass. Inside the play
+                // area this always resolves: the three "Outer" regions cover
+                // everything beyond the 9.
+                boundary = await findMilanMunicipio(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No municipio found at this point — must be inside the Milan play area.",
+                    );
+                    throw new Error("No Milan municipio found");
+                }
+                break;
+            }
             case "paris-arrondissement": {
                 // Arrondissements are bundled locally — no Overpass. Inside the
                 // play area this always resolves: the "Outer" region covers
@@ -533,6 +551,9 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "london-stadium":
             case "london-rail":
             case "stockholm-ikea":
+            case "milan-castle":
+            case "milan-train":
+            case "milan-water":
             case "airport":
             case "major-city":
             case "aquarium-full":
@@ -668,6 +689,9 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "london-stadium",
             "london-rail",
             "stockholm-ikea",
+            "milan-castle",
+            "milan-train",
+            "milan-water",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);
