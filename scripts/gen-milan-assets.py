@@ -80,8 +80,16 @@ def read_csv(path):
 
 
 def coord(lon, lat):
-    """Trim float noise so output is stable and matches the source precision."""
-    return f"{float(lon):g},{float(lat):g},0"
+    """
+    KML "lon,lat,0" at a fixed 6 decimal places (~0.11 m).
+
+    NOT "{:g}": that is 6 SIGNIFICANT digits, so at Milan's latitude
+    (45.4xxx) it keeps only 4 decimals — an 11 m quantisation — while longitude
+    at -0.13x keeps 7, because leading zeros are not significant. The result is
+    a boundary that staircases vertically and runs smooth horizontally, and
+    every station and POI displaced by up to 5.6 m.
+    """
+    return f"{float(lon):.6f},{float(lat):.6f},0"
 
 
 def build_stations(rows):
