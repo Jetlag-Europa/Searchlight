@@ -35,6 +35,22 @@ consulate, park, theme_park, mountain, rail`.
 The mountain question type is internally `peak`; bundle mountains under a folder
 named `mountain`. Station-name questions use the `train_station` category.
 
+#### Reserved folder names (both fail silently)
+
+Two folder names do something other than what they look like. Neither errors —
+you get a working build with a quietly wrong question:
+
+- **`water`** is in `SKIPPED_POI_CATEGORIES` (`importers.ts`) and is dropped
+  outright. Bundling water bodies under it loses every one of them. Name the
+  folder something else (Milan uses `water_body`) and reach it with a
+  game-specific question type via `CATEGORY_ALIASES`.
+- **`train_station`** overrides the *generic* same-train-line and
+  same-length-station questions, which expect **every** station on the map. Only
+  claim it if your POI file holds all of them. If you are bundling a subset —
+  e.g. heavy rail only, where the hiding zones also include metro and bus — use
+  a different key (Milan uses `rail_station`, London `rail_terminus`) so the
+  generic questions still fall through to Overpass.
+
 ---
 
 ## Steps

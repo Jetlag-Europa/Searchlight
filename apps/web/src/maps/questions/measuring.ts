@@ -40,6 +40,7 @@ import {
     belgiumAdminDivisionBorderLines,
 } from "@/maps/questions/belgiumAdmin";
 import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
+import { milanMunicipioBorderLines } from "@/maps/questions/milanAdmin";
 import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
 import { stockholmAdminDivisionBorderLines } from "@/maps/questions/stockholmAdmin";
 import {
@@ -329,6 +330,23 @@ export const determineMeasuringBoundary = async (
             }
             return lines;
         }
+        case "milan-municipio": {
+            // The border of the municipio the seeker is IN — same behaviour as
+            // graz-district / paris-arrondissement / belgium-province, from a
+            // bundled polygon.
+            const lines = await milanMunicipioBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
+            if (!lines?.length) {
+                toast.error(
+                    "No municipio found at this point — must be inside the Milan play area.",
+                );
+                return false;
+            }
+            return lines;
+        }
         case "paris-arrondissement": {
             // The border of the arrondissement the seeker is IN — same
             // behaviour as graz-district / belgium-province, from a bundled
@@ -396,7 +414,10 @@ export const determineMeasuringBoundary = async (
         case "belgium-castle":
         case "london-stadium":
         case "london-rail":
-        case "stockholm-ikea": {
+        case "stockholm-ikea":
+        case "milan-castle":
+        case "milan-train":
+        case "milan-water": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
@@ -406,6 +427,8 @@ export const determineMeasuringBoundary = async (
                 "belgium-castle": "castle",
                 "london-stadium": "stadium", "london-rail": "rail_terminus",
                 "stockholm-ikea": "ikea",
+                "milan-castle": "castle", "milan-train": "rail_station",
+                "milan-water": "water_body",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -699,6 +722,29 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
+    if (question.type === "milan-municipio") {
+        // Both players are compared against the border of the SEEKER's
+        // municipio (see determineMeasuringBoundary) — the hider's own is not
+        // consulted, exactly as graz-district/paris-arrondissement do it.
+        const lines = await milanMunicipioBorderLines(
+            question.type,
+            question.lat,
+            question.lng,
+        );
+        if (!lines?.length) return question;
+        const borderPts = turf.explode(
+            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
+        );
+        const seekerPt = turf.point([question.lng, question.lat]);
+        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
+        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
+        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
+        question.hiderCloser =
+            (hiderNearest.properties.distanceToPoint ?? Infinity) <
+            (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
     if (question.type === "paris-arrondissement") {
         // Both players are compared against the border of the SEEKER's
         // arrondissement (see determineMeasuringBoundary) — the hider's own is
@@ -803,6 +849,8 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "belgium-castle": "castle",
         "london-stadium": "stadium", "london-rail": "rail_terminus",
         "stockholm-ikea": "ikea",
+        "milan-castle": "castle", "milan-train": "rail_station",
+        "milan-water": "water_body",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

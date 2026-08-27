@@ -257,6 +257,19 @@ const GRAZ_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+// extent is the PLAY AREA bbox (the 12 km boundary circle), not Nominatim's
+// city bbox — the board reaches past the comune in every direction. Same call
+// as Paris, whose extent is its play rectangle rather than the city limits.
+const MILAN_CITY_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [45.4641943, 9.1896346] },
+  properties: {
+    osm_type: "R", osm_id: 44915, extent: [45.57667, 9.03653, 45.36073, 9.34343],
+    country: "Italy", osm_key: "place", countrycode: "IT",
+    osm_value: "city", name: "Milan", type: "city",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -606,6 +619,37 @@ export const GAME_REGISTRY: GameManifest[] = [
     // "aquarium" is listed for intent while "airport"/"coastline" are the ones
     // that do the work.)
     hiddenQuestionTypes: ["airport", "aquarium", "aquarium-full", "coastline"],
+  },
+  {
+    sentinel: "__bundled-milan-2026__",
+    name: "Milan 29-08",
+    serverId: SERVER.EU,
+    // 451 km² — a 12 km circle around the Duomo.
+    size: "medium",
+    // Uniform across all 269 stations. The source CSV's hiding_radius_m is
+    // 400.0 for every row, so there are no tierRadiusOverrides; the mode
+    // (metro 103 / bus 63 / tram 62 / train 26 / trolleybus 15) is still
+    // carried as <Data name="tier"> but nothing reads it.
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
+    osm: MILAN_CITY_FEATURE,
+    kmlPath: "milan-poi.kml",
+    stationsKml: "milan-stations.kml",
+    boundaryGeoJson: "milan-border.geojson",
+    // POI folders use canonical category names → identity mapping. Milan
+    // supplies 11 of the 13 rulebook categories (no zoo, and "rail" is served
+    // by the custom milan-train instead), plus three game-specific ones:
+    // castle, rail_station and water_body — see GAME_GATED_TYPES in schema.ts.
+    // The 12 admin divisions ship separately as milan-municipi.geojson and are
+    // read by milan-municipio (milanAdmin.ts), not through poiFolders.
+    poiFolders: {},
+    // Aquarium and airport have exactly ONE feature each (Acquario Civico,
+    // Linate). Measuring them is a good question; MATCHING them is degenerate —
+    // with a single POI both players are always nearest the same one, so the
+    // answer is always "yes" and it eliminates zero hiding zones. Hidden for
+    // matching only, via the kind:type prefix (the South Limburg / Stockholm
+    // shape). Jules' call, 27/08/2026.
+    hiddenQuestionTypes: ["matching:aquarium-full", "matching:airport"],
   },
 ];
 

@@ -60,6 +60,13 @@ const CATEGORY_ALIASES: Record<string, string> = {
     // "ikea" is a game-specific category, not one of the 13 rulebook ones —
     // same shape as "castle" and "covrigarie". Only this question reads it.
     "stockholm-ikea": "ikea",
+    // Milan. "castle" is the same key Belgium and Budapest use. The other two
+    // are Milan-only keys chosen to avoid collisions: NOT "train_station"
+    // (which would hijack the generic same-train-line questions with only 26 of
+    // Milan's 269 stations) and NOT "water" (which the KML importer skips).
+    "milan-castle": "castle",
+    "milan-train": "rail_station",
+    "milan-water": "water_body",
 };
 
 /** Resolve a raw category/locationType key to its gamePOIData category. */
