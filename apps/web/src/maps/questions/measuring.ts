@@ -40,6 +40,7 @@ import {
     belgiumAdminDivisionBorderLines,
 } from "@/maps/questions/belgiumAdmin";
 import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
+import { brightonRegionBorderLines } from "@/maps/questions/brightonAdmin";
 import { milanMunicipioBorderLines } from "@/maps/questions/milanAdmin";
 import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
 import { stockholmAdminDivisionBorderLines } from "@/maps/questions/stockholmAdmin";
@@ -330,6 +331,24 @@ export const determineMeasuringBoundary = async (
             }
             return lines;
         }
+        case "brighton-ward":
+        case "brighton-postcode": {
+            // The border of the ward/postcode the seeker is IN — same behaviour
+            // as graz-district / paris-arrondissement / milan-municipio, from a
+            // bundled polygon.
+            const lines = await brightonRegionBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
+            if (!lines?.length) {
+                toast.error(
+                    "No region found at this point — must be inside the Brighton play area.",
+                );
+                return false;
+            }
+            return lines;
+        }
         case "milan-municipio": {
             // The border of the municipio the seeker is IN — same behaviour as
             // graz-district / paris-arrondissement / belgium-province, from a
@@ -369,6 +388,7 @@ export const determineMeasuringBoundary = async (
         case "rotterdam-rail":
         case "rotterdam-coastline":
         case "zurich-coastline":
+        case "brighton-coastline":
         case "belgium-hsl":
         case "belgium-coastline":
         // London boroughs measure against EVERY borough boundary, not the one
@@ -382,7 +402,9 @@ export const determineMeasuringBoundary = async (
                     ? "exter-rotterdam-hsl.geojson"
                     : question.type === "rotterdam-coastline"
                       ? "exter-rotterdam-coastline.geojson"
-                      : question.type === "belgium-hsl"
+                      : question.type === "brighton-coastline"
+                        ? "brighton-coastline.geojson"
+                        : question.type === "belgium-hsl"
                         ? "belgium-hsl.geojson"
                         : question.type === "belgium-coastline"
                           ? "belgium-coastline.geojson"
@@ -417,7 +439,8 @@ export const determineMeasuringBoundary = async (
         case "stockholm-ikea":
         case "milan-castle":
         case "milan-train":
-        case "milan-water": {
+        case "milan-water":
+        case "brighton-rail": {
             const catMap: Record<string, string> = {
                 "sl-camping": "camping", "sl-mill": "mill",
                 "buch-train_station": "train_station",
@@ -429,6 +452,7 @@ export const determineMeasuringBoundary = async (
                 "stockholm-ikea": "ikea",
                 "milan-castle": "castle", "milan-train": "rail_station",
                 "milan-water": "water_body",
+                "brighton-rail": "rail_station",
             };
             const slPOI = gamePOIData.get()[catMap[question.type]];
             if (!slPOI?.length) return false;
@@ -795,6 +819,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         question.type === "rotterdam-rail" ||
         question.type === "rotterdam-coastline" ||
         question.type === "zurich-coastline" ||
+        question.type === "brighton-coastline" ||
         question.type === "budapest-water" ||
         question.type === "belgium-hsl" ||
         question.type === "belgium-coastline" ||
@@ -805,7 +830,9 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
                 ? "exter-rotterdam-hsl.geojson"
                 : question.type === "rotterdam-coastline"
                   ? "exter-rotterdam-coastline.geojson"
-                  : question.type === "budapest-water"
+                  : question.type === "brighton-coastline"
+                    ? "brighton-coastline.geojson"
+                    : question.type === "budapest-water"
                     ? "budapest-water.geojson"
                     : question.type === "belgium-hsl"
                       ? "belgium-hsl.geojson"
@@ -851,6 +878,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         "stockholm-ikea": "ikea",
         "milan-castle": "castle", "milan-train": "rail_station",
         "milan-water": "water_body",
+        "brighton-rail": "rail_station",
     };
     if (question.type in GAME_POI_TYPE_MAP) {
         const catMap = GAME_POI_TYPE_MAP;

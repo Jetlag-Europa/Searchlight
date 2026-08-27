@@ -416,6 +416,14 @@ const stockholmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const brightonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("brighton-ward").describe("Same Ward (Brighton)"),
+        z.literal("brighton-postcode").describe("Same Postcode (Brighton)"),
+        z.literal("brighton-rail").describe("Nearest Railway Station (Brighton)"),
+    ]),
+});
+
 const milanMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("milan-municipio").describe("Same Municipio (Milan)"),
@@ -443,6 +451,7 @@ export const matchingQuestionSchema = z.union([
     parisMatchingQuestionsSchema.describe(NO_GROUP),
     stockholmMatchingQuestionsSchema.describe(NO_GROUP),
     milanMatchingQuestionsSchema.describe(NO_GROUP),
+    brightonMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -593,6 +602,27 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     "milan-castle":              "__bundled-milan-2026__",
     "milan-train":               "__bundled-milan-2026__",
     "milan-water":               "__bundled-milan-2026__",
+    // Brighton — two independent bundled admin layers plus a bundled coastline.
+    // ward (24 ONS 2026 wards + Outer) and postcode (8 BN districts + Outer)
+    // both do matching AND measuring, and measuring is the border of the region
+    // you are IN, NOT every border the way london-borough works.
+    //
+    // Measured before shipping: postcode measuring keeps a mean 25.0% of hiding
+    // zones (the best-balanced of any game), ward measuring 5.4% — lopsided,
+    // marginally tighter than Stockholm's admin3, and shipped deliberately.
+    // See brightonAdmin.ts.
+    //
+    // brighton-coastline is measuring-only: 18.6 km of real OSM coast between
+    // the author's two end markers, so the generic Overpass "coastline"
+    // question is hidden for this game in favour of it.
+    //
+    // brighton-rail is the 7 mainline stations as a custom POI category
+    // ("rail_station"), NOT "train_station" — that key would hijack the generic
+    // same-train-line question with 7 of the map's 132 stops.
+    "brighton-ward":             "__bundled-brighton-2026__",
+    "brighton-postcode":         "__bundled-brighton-2026__",
+    "brighton-coastline":        "__bundled-brighton-2026__",
+    "brighton-rail":             "__bundled-brighton-2026__",
 };
 
 /**
@@ -787,6 +817,15 @@ const stockholmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const brightonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("brighton-ward").describe("Distance to Ward Border (Brighton)"),
+        z.literal("brighton-postcode").describe("Distance to Postcode Border (Brighton)"),
+        z.literal("brighton-coastline").describe("Distance to Coast (Brighton)"),
+        z.literal("brighton-rail").describe("Nearest Railway Station (Brighton)"),
+    ]),
+});
+
 const milanMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
         z.literal("milan-municipio").describe("Distance to Municipio Border (Milan)"),
@@ -811,6 +850,7 @@ export const measuringQuestionSchema = z.union([
     parisMeasuringQuestionsSchema.describe(NO_GROUP),
     stockholmMeasuringQuestionsSchema.describe(NO_GROUP),
     milanMeasuringQuestionsSchema.describe(NO_GROUP),
+    brightonMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
