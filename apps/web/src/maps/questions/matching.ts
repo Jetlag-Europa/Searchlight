@@ -571,6 +571,7 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
             case "london-rail":
             case "stockholm-ikea":
             case "brighton-rail":
+            case "rotterdam-ns":
             case "milan-castle":
             case "milan-train":
             case "milan-water":
@@ -713,6 +714,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
             "milan-train",
             "milan-water",
             "brighton-rail",
+            "rotterdam-ns",
         ].includes(question.type)
     ) {
         const poiCategory = categoryForQuestionType(question.type);

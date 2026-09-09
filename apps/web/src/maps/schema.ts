@@ -367,7 +367,10 @@ const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
 });
 
 const exterRotterdamMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
+    type: z.union([
+        z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
+        z.literal("rotterdam-ns").describe("Nearest NS Station (Rotterdam)"),
+    ]),
 });
 
 const zurichMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
@@ -469,6 +472,11 @@ const LONDON_GAMES = [
     "__bundled-accessible-london-2026__",
 ];
 
+const ROTTERDAM_SENTINELS = [
+    "__bundled-exter-rotterdam-2026__",
+    "__bundled-rotterdam-2026-09__",
+];
+
 export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // Luxembourg
     "lux-canton":                "__bundled-luxembourg-2026__",
@@ -509,10 +517,15 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     "bern-mountain":             "__bundled-bern-2026__",
     // Tentacle-only types unique to Bern
     "bern-park":                 "__bundled-bern-2026__",
-    // Rotterdam — admin + geometry types with no generic equivalent
-    "rotterdam-municipality":    "__bundled-exter-rotterdam-2026__",
-    "rotterdam-rail":            "__bundled-exter-rotterdam-2026__",
-    "rotterdam-coastline":       "__bundled-exter-rotterdam-2026__",
+    // Rotterdam — admin + geometry types with no generic equivalent. Shared by
+    // both Rotterdam games: "Rotterdam 12-09" is "Exter Rotterdam 26" plus the
+    // NS-station question, and reuses every one of its bundled asset files.
+    "rotterdam-municipality":    ROTTERDAM_SENTINELS,
+    "rotterdam-rail":            ROTTERDAM_SENTINELS,
+    "rotterdam-coastline":       ROTTERDAM_SENTINELS,
+    // NS heavy-rail stations — Rotterdam 12-09 only; the older game bundles no
+    // rail_station POIs, so the question would resolve to nothing there.
+    "rotterdam-ns":              "__bundled-rotterdam-2026-09__",
     // Zürich — Bezirk match + canton/lake-coast measuring
     "zurich-bezirk":             "__bundled-zurich-2026__",
     "zurich-canton":             "__bundled-zurich-2026__",
@@ -755,6 +768,7 @@ const exterRotterdamMeasuringQuestionsSchema = baseMeasuringQuestionSchema.exten
     type: z.union([
         z.literal("rotterdam-rail").describe("Distance to High-Speed Rail (Rotterdam)"),
         z.literal("rotterdam-coastline").describe("Distance to Coast (Rotterdam)"),
+        z.literal("rotterdam-ns").describe("Nearest NS Station (Rotterdam)"),
     ]),
 });
 

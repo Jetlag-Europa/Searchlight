@@ -71,6 +71,10 @@ const CATEGORY_ALIASES: Record<string, string> = {
     // the generic same-train-line / same-length-station questions — those must
     // see all 132 of the map's stops, not just these 7.
     "brighton-rail": "rail_station",
+    // Rotterdam's 9 NS heavy-rail stations. NOT "train_station" — that would
+    // hijack the generic same-train-line / same-length-station questions, which
+    // must see all 206 of the map's stops. Same call as milan-train.
+    "rotterdam-ns": "rail_station",
 };
 
 /** Resolve a raw category/locationType key to its gamePOIData category. */
