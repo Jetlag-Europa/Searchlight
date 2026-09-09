@@ -5,7 +5,7 @@ import * as turf from "@turf/turf";
 import { describe, expect, it } from "vitest";
 
 import { parseKMLFolderPOI } from "@/maps/api/importers";
-import { GAME_GATED_TYPES } from "@/maps/schema";
+import { GAME_GATED_TYPES, gateAllows } from "@/maps/schema";
 
 const SENTINEL = "__bundled-exter-rotterdam-2026__";
 
@@ -121,26 +121,40 @@ describe("Exter Rotterdam 26 — measuring line geojson", () => {
     });
 });
 
-describe("Exter Rotterdam 26 — question type gating", () => {
+describe("Rotterdam — question type gating", () => {
     // Only types with no generic equivalent are gated — POI categories (library,
     // museum, hospital, etc.) use the standard question types which already check
     // gamePOIData first and automatically use custom POIs when available.
-    const expectedGated = [
+    //
+    // There are TWO Rotterdam games. "Rotterdam 12-09" is this game plus the NS
+    // heavy-rail question, and it reuses every one of this game's bundled asset
+    // files, so the three geometry/admin types must resolve for both.
+    const SENTINEL_12_09 = "__bundled-rotterdam-2026-09__";
+
+    const sharedByBothGames = [
         "rotterdam-municipality",
         "rotterdam-rail",
         "rotterdam-coastline",
     ];
 
-    it("gates every rotterdam-* type to the Rotterdam sentinel", () => {
-        for (const type of expectedGated) {
-            expect(GAME_GATED_TYPES[type], type).toBe(SENTINEL);
-        }
+    it.each(sharedByBothGames)("%s is allowed in both Rotterdam games", (type) => {
+        expect(gateAllows(type, SENTINEL)).toBe(true);
+        expect(gateAllows(type, SENTINEL_12_09)).toBe(true);
     });
 
-    it("does not gate any rotterdam-* type to a different game", () => {
+    it("gates rotterdam-ns to Rotterdam 12-09 only", () => {
+        // Exter Rotterdam 26 bundles no rail_station POIs, so the question would
+        // resolve to nothing there.
+        expect(gateAllows("rotterdam-ns", SENTINEL_12_09)).toBe(true);
+        expect(gateAllows("rotterdam-ns", SENTINEL)).toBe(false);
+    });
+
+    it("does not gate any rotterdam-* type to a non-Rotterdam game", () => {
+        const allowed = new Set([SENTINEL, SENTINEL_12_09]);
         for (const [type, sentinel] of Object.entries(GAME_GATED_TYPES)) {
-            if (type.startsWith("rotterdam-")) {
-                expect(sentinel).toBe(SENTINEL);
+            if (!type.startsWith("rotterdam-")) continue;
+            for (const s of Array.isArray(sentinel) ? sentinel : [sentinel]) {
+                expect(allowed.has(s), `${type} -> ${s}`).toBe(true);
             }
         }
     });

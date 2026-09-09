@@ -312,6 +312,35 @@ export const GAME_REGISTRY: GameManifest[] = [
     gate: { requireGuildId: SERVER.EU, requireRoleId: "1514353477231312966" },
   },
   {
+    // Exter Rotterdam 26 plus one question: the NS heavy-rail stations, as both
+    // matching and measuring (rotterdam-ns). Every other asset is SHARED with
+    // that game byte-for-byte — same 206 hiding zones, same border,
+    // municipalities, HSL and coastline. Only the POI file differs, and it is a
+    // separate file because parseKMLFolderPOI falls back to the lowercased
+    // folder name for anything poiFolders does not list, so an extra folder in
+    // the shared KML would load into the older game too.
+    // Regenerate with scripts/gen-rotterdam-2026-assets.py.
+    sentinel: "__bundled-rotterdam-2026-09__",
+    name: "Rotterdam 12-09",
+    serverId: SERVER.BNL,
+    size: "medium",
+    hidingRadius: 300,
+    hidingRadiusUnits: "meters",
+    osm: ROTTERDAM_FEATURE,
+    kmlPath: "rotterdam-2026-poi.kml",
+    stationsKml: "exter-rotterdam-stations.kml",
+    boundaryGeoJson: "exter-rotterdam-border.geojson",
+    poiFolders: {
+      library: "library", museum: "museum", hospital: "hospital", zoo: "zoo",
+      cinema: "cinema", golf_course: "golf_course", consulate: "consulate",
+      theme_park: "theme_park", airport: "airport",
+      // NOT "train_station": that key overrides the generic same-train-line and
+      // same-length-station questions, which must see all 206 stops, not these
+      // 9. The milan-train / brighton-rail shape.
+      rail_station: "rail_station",
+    },
+  },
+  {
     sentinel: "__bundled-south-limburg-2026__",
     name: "South Limburg 2026",
     serverId: SERVER.BNL,
