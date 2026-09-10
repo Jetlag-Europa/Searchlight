@@ -387,6 +387,12 @@ export const determineMeasuringBoundary = async (
         }
         case "rotterdam-rail":
         case "rotterdam-coastline":
+        // Rotterdam municipality borders are the london-borough reading —
+        // distance to EVERY municipality boundary, not to the border of the one
+        // the seeker stands in. The asset is the deduped border network with
+        // each shared boundary present once (see gen-rotterdam-2026-assets.py),
+        // so it drops straight into the bundled-line path.
+        case "rotterdam-municipality-border":
         case "zurich-coastline":
         case "brighton-coastline":
         case "belgium-hsl":
@@ -402,6 +408,8 @@ export const determineMeasuringBoundary = async (
                     ? "exter-rotterdam-hsl.geojson"
                     : question.type === "rotterdam-coastline"
                       ? "exter-rotterdam-coastline.geojson"
+                      : question.type === "rotterdam-municipality-border"
+                        ? "rotterdam-2026-municipality-lines.geojson"
                       : question.type === "brighton-coastline"
                         ? "brighton-coastline.geojson"
                         : question.type === "belgium-hsl"
@@ -820,6 +828,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
     if (
         question.type === "rotterdam-rail" ||
         question.type === "rotterdam-coastline" ||
+        question.type === "rotterdam-municipality-border" ||
         question.type === "zurich-coastline" ||
         question.type === "brighton-coastline" ||
         question.type === "budapest-water" ||
@@ -832,6 +841,8 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
                 ? "exter-rotterdam-hsl.geojson"
                 : question.type === "rotterdam-coastline"
                   ? "exter-rotterdam-coastline.geojson"
+                  : question.type === "rotterdam-municipality-border"
+                    ? "rotterdam-2026-municipality-lines.geojson"
                   : question.type === "brighton-coastline"
                     ? "brighton-coastline.geojson"
                     : question.type === "budapest-water"

@@ -339,6 +339,23 @@ export const GAME_REGISTRY: GameManifest[] = [
       // 9. The milan-train / brighton-rail shape.
       rail_station: "rail_station",
     },
+    // Both of these ask the same thing as a bundled question on this board, and
+    // the bundled one is the better answer — it is the author's own geometry,
+    // and it does not depend on Overpass at play time:
+    //   coastline                     → rotterdam-coastline (the Kustlijn)
+    //   highspeed-measure-shinkansen  → rotterdam-rail (exter-rotterdam-hsl)
+    // The generic pair query Overpass live ("coastline" globally, HSL as
+    // [highspeed=yes] in zone) and would sit in the picker one line from their
+    // custom twins, which is how a seeker ends up asking the worse version of a
+    // question they thought they had already asked. Belgium and Zürich hide
+    // "coastline" for exactly this reason.
+    //
+    // Deliberately NOT hidden, because they are not duplicates:
+    //   rail-measure / same-train-line / same-length-station — all 206 stops,
+    //     where rotterdam-ns is only the 9 NS heavy-rail ones
+    //   the POI categories (library, museum, …) — the custom POIs OVERRIDE the
+    //     generic questions in place, so there is no second copy to hide
+    hiddenQuestionTypes: ["coastline", "highspeed-measure-shinkansen"],
   },
   {
     sentinel: "__bundled-south-limburg-2026__",

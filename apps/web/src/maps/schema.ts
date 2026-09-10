@@ -526,6 +526,16 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // NS heavy-rail stations — Rotterdam 12-09 only; the older game bundles no
     // rail_station POIs, so the question would resolve to nothing there.
     "rotterdam-ns":              "__bundled-rotterdam-2026-09__",
+    // Municipality-border measuring — Rotterdam 12-09 only, Jules' call: Exter
+    // Rotterdam 26's question list stays exactly as it shipped. It needs its
+    // OWN literal rather than reusing "rotterdam-municipality" because
+    // gateAllows() is keyed by type alone and is not family-aware — gating the
+    // shared literal to one sentinel would take the MATCHING question away from
+    // the older game too. It measures against EVERY municipality border (the
+    // london-borough reading), not the border of the one the seeker is standing
+    // in the way paris-arrondissement / belgium-province do; this play area is
+    // small enough that all-borders still discriminates.
+    "rotterdam-municipality-border": "__bundled-rotterdam-2026-09__",
     // Zürich — Bezirk match + canton/lake-coast measuring
     "zurich-bezirk":             "__bundled-zurich-2026__",
     "zurich-canton":             "__bundled-zurich-2026__",
@@ -769,6 +779,9 @@ const exterRotterdamMeasuringQuestionsSchema = baseMeasuringQuestionSchema.exten
         z.literal("rotterdam-rail").describe("Distance to High-Speed Rail (Rotterdam)"),
         z.literal("rotterdam-coastline").describe("Distance to Coast (Rotterdam)"),
         z.literal("rotterdam-ns").describe("Nearest NS Station (Rotterdam)"),
+        z
+            .literal("rotterdam-municipality-border")
+            .describe("Distance to Municipality Border (Rotterdam)"),
     ]),
 });
 
