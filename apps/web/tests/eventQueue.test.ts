@@ -236,3 +236,91 @@ describe("applyPendingEventsToState", () => {
         expect(base.strokes).toHaveLength(1); // original untouched
     });
 });
+
+// ── Active-session pointer ───────────────────────────────────────────────────
+// The session's CONTENTS live in localStorage (above). Which session you were in
+// used to live only in sessionStorage, which dies with the tab — so a discarded
+// mobile tab left the cache above intact but unreachable, and the picker
+// reappeared as if the session had never existed. These pin the two-tier pointer
+// that fixes it, including the multi-tab behaviour it must not regress.
+describe("activeSession pointer", () => {
+    const ssStore = new Map<string, string>();
+
+    const mkStorage = (m: Map<string, string>) => ({
+        getItem: (k: string) => m.get(k) ?? null,
+        setItem: (k: string, v: string) => { m.set(k, v); },
+        removeItem: (k: string) => { m.delete(k); },
+        clear: () => m.clear(),
+    });
+
+    const SS_KEY = "taibled-active-session";
+    const LS_KEY = "taibled-last-session";
+
+    // The module resolves the pointer at import time, so each case needs a fresh
+    // module registry with the storages already in the desired state.
+    async function importFresh() {
+        vi.resetModules();
+        vi.stubGlobal("sessionStorage", mkStorage(ssStore));
+        vi.stubGlobal("localStorage", mkStorage(store));
+        return await import("@/lib/activeSession");
+    }
+
+    const summary = (id: string) => ({ id }) as never;
+
+    beforeEach(() => { ssStore.clear(); store.clear(); });
+
+    test("a tab with its own pointer keeps it — multi-tab is unchanged", async () => {
+        ssStore.set(SS_KEY, "tab-session");
+        store.set(LS_KEY, "other-session");
+        const { activeSessionId } = await importFresh();
+        expect(activeSessionId.get()).toBe("tab-session");
+    });
+
+    test("a discarded tab falls back to the last session on the device", async () => {
+        store.set(LS_KEY, "survived");
+        const { activeSessionId } = await importFresh();
+        expect(activeSessionId.get()).toBe("survived");
+    });
+
+    test("falling back adopts the id, so the tab stops depending on the shared value", async () => {
+        store.set(LS_KEY, "survived");
+        await importFresh();
+        expect(ssStore.get(SS_KEY)).toBe("survived");
+    });
+
+    test("with neither tier set, there is no session and the picker shows", async () => {
+        const { activeSessionId } = await importFresh();
+        expect(activeSessionId.get()).toBe("");
+    });
+
+    test("setActiveSession writes both tiers", async () => {
+        const { setActiveSession } = await importFresh();
+        setActiveSession(summary("picked"));
+        expect(ssStore.get(SS_KEY)).toBe("picked");
+        expect(store.get(LS_KEY)).toBe("picked");
+    });
+
+    test("clearActiveSession clears both — a logout must not leave a durable pointer", async () => {
+        const { setActiveSession, clearActiveSession, activeSessionId } = await importFresh();
+        setActiveSession(summary("picked"));
+        clearActiveSession();
+        expect(ssStore.has(SS_KEY)).toBe(false);
+        expect(store.has(LS_KEY)).toBe(false);
+        expect(activeSessionId.get()).toBe("");
+    });
+
+    test("survives storage that throws, as in a locked-down privacy mode", async () => {
+        vi.resetModules();
+        const throwing = {
+            getItem: () => { throw new Error("denied"); },
+            setItem: () => { throw new Error("denied"); },
+            removeItem: () => { throw new Error("denied"); },
+        };
+        vi.stubGlobal("sessionStorage", throwing);
+        vi.stubGlobal("localStorage", throwing);
+        const mod = await import("@/lib/activeSession");
+        expect(mod.activeSessionId.get()).toBe("");
+        expect(() => mod.setActiveSession(summary("x"))).not.toThrow();
+        expect(mod.activeSessionId.get()).toBe("x");
+    });
+});
