@@ -65,6 +65,7 @@ import {
 } from "@/maps/questions/belgiumAdmin";
 import { findGrazDistrict } from "@/maps/questions/grazAdmin";
 import { findBrightonRegion } from "@/maps/questions/brightonAdmin";
+import { findGmRegion } from "@/maps/questions/gmAdmin";
 import { findMilanMunicipio } from "@/maps/questions/milanAdmin";
 import { findParisArrondissement } from "@/maps/questions/parisAdmin";
 import { findStockholmAdminDivision } from "@/maps/questions/stockholmAdmin";
@@ -392,6 +393,25 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                         "No region found at this point — must be inside the Brighton play area.",
                     );
                     throw new Error("No Brighton region found");
+                }
+                break;
+            }
+            case "gm-borough":
+            case "gm-ward":
+            case "gm-hsl": {
+                // Boroughs, wards and the nearest-HSL-stretch split are bundled
+                // locally — no Overpass. The borough and ward layers tile the
+                // play area exactly, with no "Outer" (see gmAdmin.ts).
+                boundary = await findGmRegion(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No region found at this point — must be inside the Greater Manchester play area.",
+                    );
+                    throw new Error("No Greater Manchester region found");
                 }
                 break;
             }
