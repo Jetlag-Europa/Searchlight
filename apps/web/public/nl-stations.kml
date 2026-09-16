@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>North London Stations</name>
+<Placemark><name>Angel</name><Point><coordinates>-0.106036,51.532487,0</coordinates></Point></Placemark>
+<Placemark><name>Archway</name><Point><coordinates>-0.134819,51.565312,0</coordinates></Point></Placemark>
+<Placemark><name>Arsenal</name><Point><coordinates>-0.107487,51.558384,0</coordinates></Point></Placemark>
+<Placemark><name>Belsize Park</name><Point><coordinates>-0.164615,51.550309,0</coordinates></Point></Placemark>
+<Placemark><name>Caledonian Road</name><Point><coordinates>-0.118359,51.548482,0</coordinates></Point></Placemark>
+<Placemark><name>Caledonian Road &amp; Barnsbury</name><Point><coordinates>-0.114886,51.543546,0</coordinates></Point></Placemark>
+<Placemark><name>Camden Road</name><Point><coordinates>-0.139528,51.541950,0</coordinates></Point></Placemark>
+<Placemark><name>Camden Town</name><Point><coordinates>-0.142696,51.539440,0</coordinates></Point></Placemark>
+<Placemark><name>Canonbury</name><Point><coordinates>-0.093024,51.548563,0</coordinates></Point></Placemark>
+<Placemark><name>Chalk Farm</name><Point><coordinates>-0.153481,51.544114,0</coordinates></Point></Placemark>
+<Placemark><name>Chancery Lane</name><Point><coordinates>-0.111764,51.518174,0</coordinates></Point></Placemark>
+<Placemark><name>Clapton</name><Point><coordinates>-0.056865,51.561652,0</coordinates></Point></Placemark>
+<Placemark><name>Crouch Hill</name><Point><coordinates>-0.116874,51.571431,0</coordinates></Point></Placemark>
+<Placemark><name>Dalston Junction</name><Point><coordinates>-0.074968,51.545284,0</coordinates></Point></Placemark>
+<Placemark><name>Dalston Kingsland</name><Point><coordinates>-0.076053,51.548191,0</coordinates></Point></Placemark>
+<Placemark><name>Drayton Park</name><Point><coordinates>-0.105770,51.553106,0</coordinates></Point></Placemark>
+<Placemark><name>Essex Road</name><Point><coordinates>-0.096186,51.540733,0</coordinates></Point></Placemark>
+<Placemark><name>Euston</name><Point><coordinates>-0.133875,51.528287,0</coordinates></Point></Placemark>
+<Placemark><name>Euston Square</name><Point><coordinates>-0.135570,51.525687,0</coordinates></Point></Placemark>
+<Placemark><name>Farringdon</name><Point><coordinates>-0.104555,51.519964,0</coordinates></Point></Placemark>
+<Placemark><name>Finchley Road</name><Point><coordinates>-0.180696,51.547231,0</coordinates></Point></Placemark>
+<Placemark><name>Finchley Road &amp; Frognal</name><Point><coordinates>-0.183575,51.550105,0</coordinates></Point></Placemark>
+<Placemark><name>Finsbury Park</name><Point><coordinates>-0.106414,51.564835,0</coordinates></Point></Placemark>
+<Placemark><name>Goodge Street</name><Point><coordinates>-0.134357,51.520598,0</coordinates></Point></Placemark>
+<Placemark><name>Gospel Oak</name><Point><coordinates>-0.151577,51.555487,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Central</name><Point><coordinates>-0.056875,51.547061,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Downs</name><Point><coordinates>-0.060686,51.548645,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Wick</name><Point><coordinates>-0.024154,51.543438,0</coordinates></Point></Placemark>
+<Placemark><name>Haggerston</name><Point><coordinates>-0.075583,51.538657,0</coordinates></Point></Placemark>
+<Placemark><name>Hampstead</name><Point><coordinates>-0.178425,51.556597,0</coordinates></Point></Placemark>
+<Placemark><name>Hampstead Heath</name><Point><coordinates>-0.165391,51.555240,0</coordinates></Point></Placemark>
+<Placemark><name>Highbury &amp; Islington</name><Point><coordinates>-0.103654,51.546368,0</coordinates></Point></Placemark>
+<Placemark><name>Holborn</name><Point><coordinates>-0.120066,51.517115,0</coordinates></Point></Placemark>
+<Placemark><name>Holloway Road</name><Point><coordinates>-0.113009,51.552867,0</coordinates></Point></Placemark>
+<Placemark><name>Homerton</name><Point><coordinates>-0.043121,51.547079,0</coordinates></Point></Placemark>
+<Placemark><name>Hoxton</name><Point><coordinates>-0.075654,51.531592,0</coordinates></Point></Placemark>
+<Placemark><name>Kentish Town</name><Point><coordinates>-0.138865,51.550173,0</coordinates></Point></Placemark>
+<Placemark><name>Kentish Town West</name><Point><coordinates>-0.146755,51.546994,0</coordinates></Point></Placemark>
+<Placemark><name>Kilburn High Road</name><Point><coordinates>-0.191353,51.537748,0</coordinates></Point></Placemark>
+<Placemark><name>King's Cross St Pancras</name><Point><coordinates>-0.123949,51.530609,0</coordinates></Point></Placemark>
+<Placemark><name>London Fields</name><Point><coordinates>-0.057774,51.541052,0</coordinates></Point></Placemark>
+<Placemark><name>Manor House</name><Point><coordinates>-0.096397,51.570321,0</coordinates></Point></Placemark>
+<Placemark><name>Mornington Crescent</name><Point><coordinates>-0.138092,51.534061,0</coordinates></Point></Placemark>
+<Placemark><name>Old Street</name><Point><coordinates>-0.087609,51.525628,0</coordinates></Point></Placemark>
+<Placemark><name>Rectory Road</name><Point><coordinates>-0.068617,51.559112,0</coordinates></Point></Placemark>
+<Placemark><name>Russell Square</name><Point><coordinates>-0.124253,51.523053,0</coordinates></Point></Placemark>
+<Placemark><name>Shoreditch High Street</name><Point><coordinates>-0.074467,51.523253,0</coordinates></Point></Placemark>
+<Placemark><name>South Hampstead</name><Point><coordinates>-0.178801,51.541434,0</coordinates></Point></Placemark>
+<Placemark><name>Stamford Hill</name><Point><coordinates>-0.076279,51.574883,0</coordinates></Point></Placemark>
+<Placemark><name>Stoke Newington</name><Point><coordinates>-0.072548,51.565039,0</coordinates></Point></Placemark>
+<Placemark><name>Swiss Cottage</name><Point><coordinates>-0.174982,51.543722,0</coordinates></Point></Placemark>
+<Placemark><name>Tottenham Court Road</name><Point><coordinates>-0.130513,51.515971,0</coordinates></Point></Placemark>
+<Placemark><name>Tufnell Park</name><Point><coordinates>-0.138457,51.556801,0</coordinates></Point></Placemark>
+<Placemark><name>Upper Holloway</name><Point><coordinates>-0.129647,51.563474,0</coordinates></Point></Placemark>
+<Placemark><name>Warren Street</name><Point><coordinates>-0.138530,51.524718,0</coordinates></Point></Placemark>
+<Placemark><name>West Hampstead</name><Point><coordinates>-0.192013,51.547301,0</coordinates></Point></Placemark>
+</Document></kml>

@@ -42,6 +42,7 @@ import {
 import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
 import { brightonRegionBorderLines } from "@/maps/questions/brightonAdmin";
 import { gmRegionBorderLines } from "@/maps/questions/gmAdmin";
+import { nlLines, nlWaterLines } from "@/maps/questions/nlAdmin";
 import { milanMunicipioBorderLines } from "@/maps/questions/milanAdmin";
 import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
 import { stockholmAdminDivisionBorderLines } from "@/maps/questions/stockholmAdmin";
@@ -349,6 +350,21 @@ export const determineMeasuringBoundary = async (
                 return false;
             }
             return lines;
+        }
+        case "nl-constituency":
+        case "nl-ward":
+        case "nl-hsl":
+        case "nl-water": {
+            // North London: every constituency/ward border (the london-borough
+            // reading), both high-speed lines, and the water near the zones —
+            // all bundled. See nlAdmin.ts for why water is pre-filtered.
+            const lines =
+                question.type === "nl-water"
+                    ? await nlWaterLines(question.lat, question.lng)
+                    : await nlLines(question.type);
+            if (!lines.length) return false;
+            console.info(`[taibled:nl] measuring ${question.type} → ${lines.length} line feature(s)`);
+            return [turf.combine(turf.featureCollection(lines)).features[0]];
         }
         case "gm-borough":
         case "gm-ward": {
@@ -843,6 +859,28 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         question.hiderCloser =
             (hiderNearest.properties.distanceToPoint ?? Infinity) <
             (seekerNearest.properties.distanceToPoint ?? Infinity);
+        return question;
+    }
+
+    if (
+        question.type === "nl-constituency" ||
+        question.type === "nl-ward" ||
+        question.type === "nl-hsl" ||
+        question.type === "nl-water"
+    ) {
+        // Exact point-to-line distances over EVERY feature (not the
+        // zone-filtered water set, which is only safe for the buffer).
+        const lines = await nlLines(question.type);
+        if (!lines.length) return question;
+        const nearest = (pt: any) =>
+            Math.min(
+                ...lines.map((l: any) =>
+                    turf.pointToLineDistance(pt, l, { units: "kilometers" }),
+                ),
+            );
+        question.hiderCloser =
+            nearest(turf.point([$hiderMode.longitude, $hiderMode.latitude])) <
+            nearest(turf.point([question.lng, question.lat]));
         return question;
     }
 

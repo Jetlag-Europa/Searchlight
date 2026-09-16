@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>North London POIs</name>
+<Folder><name>cinema</name>
+<Placemark><name>Castle Cinema</name><Point><coordinates>-0.043193,51.551330,0</coordinates></Point></Placemark>
+<Placemark><name>Close-Up Film Centre</name><Point><coordinates>-0.072000,51.523612,0</coordinates></Point></Placemark>
+<Placemark><name>Curzon Bloomsbury</name><Point><coordinates>-0.123147,51.524063,0</coordinates></Point></Placemark>
+<Placemark><name>Curzon Camden</name><Point><coordinates>-0.143467,51.542230,0</coordinates></Point></Placemark>
+<Placemark><name>Curzon Hoxton</name><Point><coordinates>-0.083797,51.528881,0</coordinates></Point></Placemark>
+<Placemark><name>Curzon Soho</name><Point><coordinates>-0.130608,51.512658,0</coordinates></Point></Placemark>
+<Placemark><name>Electric Cinema</name><Point><coordinates>-0.073924,51.524409,0</coordinates></Point></Placemark>
+<Placemark><name>Everyman</name><Point><coordinates>-0.178988,51.556351,0</coordinates></Point></Placemark>
+<Placemark><name>Everyman</name><Point><coordinates>-0.165778,51.550815,0</coordinates></Point></Placemark>
+<Placemark><name>Everyman King's Cross</name><Point><coordinates>-0.124056,51.537529,0</coordinates></Point></Placemark>
+<Placemark><name>Everyman On The Corner</name><Point><coordinates>-0.126999,51.537702,0</coordinates></Point></Placemark>
+<Placemark><name>Film House</name><Point><coordinates>-0.083202,51.526297,0</coordinates></Point></Placemark>
+<Placemark><name>Finsbury Park Picturehouse</name><Point><coordinates>-0.107465,51.565068,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Picturehouse</name><Point><coordinates>-0.054939,51.544815,0</coordinates></Point></Placemark>
+<Placemark><name>Institute Of Light</name><Point><coordinates>-0.058472,51.539708,0</coordinates></Point></Placemark>
+<Placemark><name>Odeon</name><Point><coordinates>-0.143757,51.538974,0</coordinates></Point></Placemark>
+<Placemark><name>Odeon</name><Point><coordinates>-0.132585,51.518359,0</coordinates></Point></Placemark>
+<Placemark><name>Odeon Holloway</name><Point><coordinates>-0.121395,51.558662,0</coordinates></Point></Placemark>
+<Placemark><name>Odeon Luxe &amp; Dine</name><Point><coordinates>-0.103572,51.538636,0</coordinates></Point></Placemark>
+<Placemark><name>Odeon Swiss Cottage</name><Point><coordinates>-0.174575,51.542535,0</coordinates></Point></Placemark>
+<Placemark><name>Rich Mix Cinema</name><Point><coordinates>-0.073095,51.524352,0</coordinates></Point></Placemark>
+<Placemark><name>Rio Cinema</name><Point><coordinates>-0.075576,51.549648,0</coordinates></Point></Placemark>
+<Placemark><name>Rooftop Film Club</name><Point><coordinates>-0.081042,51.522361,0</coordinates></Point></Placemark>
+<Placemark><name>Screen on the Green</name><Point><coordinates>-0.103665,51.536853,0</coordinates></Point></Placemark>
+<Placemark><name>The Garden Cinema</name><Point><coordinates>-0.121359,51.516230,0</coordinates></Point></Placemark>
+<Placemark><name>The Nickel Cinema</name><Point><coordinates>-0.111727,51.521712,0</coordinates></Point></Placemark>
+<Placemark><name>Vue Finchley Road</name><Point><coordinates>-0.181575,51.548125,0</coordinates></Point></Placemark>
+<Placemark><name>Vue Islington</name><Point><coordinates>-0.105827,51.534382,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>hospital</name>
+<Placemark><name>Great Ormond Street Hospital for Children</name><Point><coordinates>-0.120741,51.523164,0</coordinates></Point></Placemark>
+<Placemark><name>Homerton Healthcare NHS Foundation Trust</name><Point><coordinates>-0.045698,51.550744,0</coordinates></Point></Placemark>
+<Placemark><name>Hospital For Tropical Diseases</name><Point><coordinates>-0.135530,51.522755,0</coordinates></Point></Placemark>
+<Placemark><name>Moorfields Eye Hospital</name><Point><coordinates>-0.090032,51.527447,0</coordinates></Point></Placemark>
+<Placemark><name>NHS St Pancras Hospital</name><Point><coordinates>-0.131426,51.536574,0</coordinates></Point></Placemark>
+<Placemark><name>National Hospital for Neurology and Neurosurgery at Cleveland Street</name><Point><coordinates>-0.137951,51.519712,0</coordinates></Point></Placemark>
+<Placemark><name>Royal Free Hospital</name><Point><coordinates>-0.166158,51.553824,0</coordinates></Point></Placemark>
+<Placemark><name>Royal London Hospital for Integrated Medicine</name><Point><coordinates>-0.121367,51.521720,0</coordinates></Point></Placemark>
+<Placemark><name>Royal National ENT and Eastman Dental Hospitals</name><Point><coordinates>-0.134453,51.522619,0</coordinates></Point></Placemark>
+<Placemark><name>Royal National Orthopaedic Hospital</name><Point><coordinates>-0.142953,51.523045,0</coordinates></Point></Placemark>
+<Placemark><name>St Bartholomew's Hospital</name><Point><coordinates>-0.101417,51.516872,0</coordinates></Point></Placemark>
+<Placemark><name>St Leonard's Hospital</name><Point><coordinates>-0.077254,51.533921,0</coordinates></Point></Placemark>
+<Placemark><name>University College Hospital</name><Point><coordinates>-0.136456,51.525087,0</coordinates></Point></Placemark>
+<Placemark><name>Whittington Hospital</name><Point><coordinates>-0.139853,51.566599,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>library</name>
+<Placemark><name>Archway Library</name><Point><coordinates>-0.135648,51.565628,0</coordinates></Point></Placemark>
+<Placemark><name>Bartlett Library</name><Point><coordinates>-0.129594,51.526949,0</coordinates></Point></Placemark>
+<Placemark><name>Belsize Park Community Library</name><Point><coordinates>-0.162278,51.547900,0</coordinates></Point></Placemark>
+<Placemark><name>British Library</name><Point><coordinates>-0.127709,51.530002,0</coordinates></Point></Placemark>
+<Placemark><name>British Library of Political and Economic Science</name><Point><coordinates>-0.115695,51.514662,0</coordinates></Point></Placemark>
+<Placemark><name>Camden Town Library</name><Point><coordinates>-0.137742,51.534345,0</coordinates></Point></Placemark>
+<Placemark><name>Cat and Mouse Library</name><Point><coordinates>-0.125077,51.552672,0</coordinates></Point></Placemark>
+<Placemark><name>Clapton Library</name><Point><coordinates>-0.059863,51.562697,0</coordinates></Point></Placemark>
+<Placemark><name>Dalston CLR James Library</name><Point><coordinates>-0.073913,51.546043,0</coordinates></Point></Placemark>
+<Placemark><name>Dorest Social Club</name><Point><coordinates>-0.072392,51.530011,0</coordinates></Point></Placemark>
+<Placemark><name>Dr Williams's Library</name><Point><coordinates>-0.131530,51.523953,0</coordinates></Point></Placemark>
+<Placemark><name>Finsbury Library</name><Point><coordinates>-0.104375,51.526375,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Central Library</name><Point><coordinates>-0.055675,51.544621,0</coordinates></Point></Placemark>
+<Placemark><name>Holborn Library</name><Point><coordinates>-0.115614,51.521076,0</coordinates></Point></Placemark>
+<Placemark><name>Homerton Library</name><Point><coordinates>-0.041830,51.548909,0</coordinates></Point></Placemark>
+<Placemark><name>Islington Central Library</name><Point><coordinates>-0.107128,51.549128,0</coordinates></Point></Placemark>
+<Placemark><name>Islington Local History Centre</name><Point><coordinates>-0.104506,51.526241,0</coordinates></Point></Placemark>
+<Placemark><name>Islington North Library</name><Point><coordinates>-0.121669,51.560421,0</coordinates></Point></Placemark>
+<Placemark><name>Keats Community Library</name><Point><coordinates>-0.168203,51.555444,0</coordinates></Point></Placemark>
+<Placemark><name>Kentish Town Library</name><Point><coordinates>-0.140443,51.549984,0</coordinates></Point></Placemark>
+<Placemark><name>Kilburn Library</name><Point><coordinates>-0.191144,51.536383,0</coordinates></Point></Placemark>
+<Placemark><name>Lewis Carroll Children's Library</name><Point><coordinates>-0.118954,51.537135,0</coordinates></Point></Placemark>
+<Placemark><name>Lubavitch Lending Library</name><Point><coordinates>-0.073831,51.572347,0</coordinates></Point></Placemark>
+<Placemark><name>Main Library</name><Point><coordinates>-0.133408,51.524780,0</coordinates></Point></Placemark>
+<Placemark><name>Marx Memorial Library</name><Point><coordinates>-0.105740,51.523010,0</coordinates></Point></Placemark>
+<Placemark><name>Maughan Library</name><Point><coordinates>-0.110441,51.515167,0</coordinates></Point></Placemark>
+<Placemark><name>Mildmay Library</name><Point><coordinates>-0.084373,51.547576,0</coordinates></Point></Placemark>
+<Placemark><name>N4 Library</name><Point><coordinates>-0.103619,51.563789,0</coordinates></Point></Placemark>
+<Placemark><name>Pancras Square Library</name><Point><coordinates>-0.126657,51.533856,0</coordinates></Point></Placemark>
+<Placemark><name>Philips Building</name><Point><coordinates>-0.129218,51.522514,0</coordinates></Point></Placemark>
+<Placemark><name>Primrose Hill Community Library</name><Point><coordinates>-0.156667,51.541121,0</coordinates></Point></Placemark>
+<Placemark><name>Queen's Crescent Library</name><Point><coordinates>-0.151252,51.550444,0</coordinates></Point></Placemark>
+<Placemark><name>Royal College of Physicians Library</name><Point><coordinates>-0.145290,51.525842,0</coordinates></Point></Placemark>
+<Placemark><name>Shoreditch Library</name><Point><coordinates>-0.080091,51.530177,0</coordinates></Point></Placemark>
+<Placemark><name>Society of Genealogists</name><Point><coordinates>-0.095936,51.531627,0</coordinates></Point></Placemark>
+<Placemark><name>South Library</name><Point><coordinates>-0.098783,51.539043,0</coordinates></Point></Placemark>
+<Placemark><name>Stamford Hill Library</name><Point><coordinates>-0.072213,51.570402,0</coordinates></Point></Placemark>
+<Placemark><name>Stoke Newington Public Library</name><Point><coordinates>-0.082753,51.561563,0</coordinates></Point></Placemark>
+<Placemark><name>Stuart Hall Library</name><Point><coordinates>-0.079411,51.526474,0</coordinates></Point></Placemark>
+<Placemark><name>Swiss Cottage Library</name><Point><coordinates>-0.173277,51.542349,0</coordinates></Point></Placemark>
+<Placemark><name>The Wellcome Library</name><Point><coordinates>-0.133966,51.525977,0</coordinates></Point></Placemark>
+<Placemark><name>The Wiener Library for the Study of the Holocaust &amp; Genocide</name><Point><coordinates>-0.127997,51.521613,0</coordinates></Point></Placemark>
+<Placemark><name>UCL Institute of Education Library</name><Point><coordinates>-0.128633,51.523284,0</coordinates></Point></Placemark>
+<Placemark><name>West Hampstead Library</name><Point><coordinates>-0.191625,51.550295,0</coordinates></Point></Placemark>
+<Placemark><name>West Library</name><Point><coordinates>-0.116245,51.540753,0</coordinates></Point></Placemark>
+</Folder>
+<Folder><name>museum</name>
+<Placemark><name>Arsenal Museum</name><Point><coordinates>-0.108143,51.556674,0</coordinates></Point></Placemark>
+<Placemark><name>British Library Exhibition Space</name><Point><coordinates>-0.128130,51.529598,0</coordinates></Point></Placemark>
+<Placemark><name>British Museum</name><Point><coordinates>-0.126877,51.519312,0</coordinates></Point></Placemark>
+<Placemark><name>Burgh House and Hampstead Museum</name><Point><coordinates>-0.175082,51.558203,0</coordinates></Point></Placemark>
+<Placemark><name>Camera Museum</name><Point><coordinates>-0.125213,51.517693,0</coordinates></Point></Placemark>
+<Placemark><name>Charles Dickens Museum</name><Point><coordinates>-0.116323,51.523594,0</coordinates></Point></Placemark>
+<Placemark><name>Crick Exhibition</name><Point><coordinates>-0.127968,51.531669,0</coordinates></Point></Placemark>
+<Placemark><name>Dennis Severs' House</name><Point><coordinates>-0.077790,51.520943,0</coordinates></Point></Placemark>
+<Placemark><name>Fenton House</name><Point><coordinates>-0.179682,51.558882,0</coordinates></Point></Placemark>
+<Placemark><name>Fitzroy House</name><Point><coordinates>-0.139115,51.522523,0</coordinates></Point></Placemark>
+<Placemark><name>Foundling Museum</name><Point><coordinates>-0.121673,51.525214,0</coordinates></Point></Placemark>
+<Placemark><name>Freud Museum London</name><Point><coordinates>-0.177393,51.548311,0</coordinates></Point></Placemark>
+<Placemark><name>Grant Museum of Zoology</name><Point><coordinates>-0.134266,51.523732,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Museum</name><Point><coordinates>-0.055911,51.544491,0</coordinates></Point></Placemark>
+<Placemark><name>Honourable Artillery Company Museum</name><Point><coordinates>-0.088397,51.523015,0</coordinates></Point></Placemark>
+<Placemark><name>Hunterian Museum</name><Point><coordinates>-0.115870,51.515283,0</coordinates></Point></Placemark>
+<Placemark><name>Islington Museum</name><Point><coordinates>-0.104500,51.526490,0</coordinates></Point></Placemark>
+<Placemark><name>Lightroom</name><Point><coordinates>-0.126007,51.537430,0</coordinates></Point></Placemark>
+<Placemark><name>London Canal Museum</name><Point><coordinates>-0.120207,51.534219,0</coordinates></Point></Placemark>
+<Placemark><name>Mail Rail Museum</name><Point><coordinates>-0.113267,51.524573,0</coordinates></Point></Placemark>
+<Placemark><name>Museum Of Youth Culture</name><Point><coordinates>-0.135871,51.540025,0</coordinates></Point></Placemark>
+<Placemark><name>Museum of Freemasonry</name><Point><coordinates>-0.121267,51.515009,0</coordinates></Point></Placemark>
+<Placemark><name>Museum of Homelessness</name><Point><coordinates>-0.096650,51.570586,0</coordinates></Point></Placemark>
+<Placemark><name>Museum of Methodism</name><Point><coordinates>-0.086552,51.523817,0</coordinates></Point></Placemark>
+<Placemark><name>Museum of Shakespeare</name><Point><coordinates>-0.080227,51.522802,0</coordinates></Point></Placemark>
+<Placemark><name>Museum of the Home</name><Point><coordinates>-0.076444,51.531508,0</coordinates></Point></Placemark>
+<Placemark><name>Museum of the Order of St John</name><Point><coordinates>-0.102556,51.522006,0</coordinates></Point></Placemark>
+<Placemark><name>People's Museum Somers Town</name><Point><coordinates>-0.130948,51.531044,0</coordinates></Point></Placemark>
+<Placemark><name>Petrie Museum of Egyptian Archeology</name><Point><coordinates>-0.132984,51.523578,0</coordinates></Point></Placemark>
+<Placemark><name>Queer Britain</name><Point><coordinates>-0.123905,51.535697,0</coordinates></Point></Placemark>
+<Placemark><name>Quentin Blake Centre for Illustration</name><Point><coordinates>-0.107645,51.528594,0</coordinates></Point></Placemark>
+<Placemark><name>Restored K6 phone booth</name><Point><coordinates>-0.125752,51.529432,0</coordinates></Point></Placemark>
+<Placemark><name>Royal College of Physicians Museum</name><Point><coordinates>-0.144788,51.525778,0</coordinates></Point></Placemark>
+<Placemark><name>SOAS Gallery</name><Point><coordinates>-0.128733,51.521796,0</coordinates></Point></Placemark>
+<Placemark><name>Sir John Soane's Museum</name><Point><coordinates>-0.117469,51.517075,0</coordinates></Point></Placemark>
+<Placemark><name>St Bartholomew's Hospital museum</name><Point><coordinates>-0.100473,51.517723,0</coordinates></Point></Placemark>
+<Placemark><name>The Charterhouse</name><Point><coordinates>-0.099784,51.521464,0</coordinates></Point></Placemark>
+<Placemark><name>The Jewish Museum</name><Point><coordinates>-0.144584,51.537304,0</coordinates></Point></Placemark>
+<Placemark><name>The Postal Museum</name><Point><coordinates>-0.113998,51.524724,0</coordinates></Point></Placemark>
+<Placemark><name>The Viktor Wynd Museum of Curiosities Fine Art &amp; Natural History</name><Point><coordinates>-0.057643,51.534699,0</coordinates></Point></Placemark>
+<Placemark><name>UCL Art Museum</name><Point><coordinates>-0.133200,51.524386,0</coordinates></Point></Placemark>
+<Placemark><name>V&amp;A David Bowie Centre</name><Point><coordinates>-0.021067,51.546586,0</coordinates></Point></Placemark>
+<Placemark><name>V&amp;A East Storehouse</name><Point><coordinates>-0.021183,51.546437,0</coordinates></Point></Placemark>
+<Placemark><name>Wellcome Collection</name><Point><coordinates>-0.134020,51.525974,0</coordinates></Point></Placemark>
+</Folder>
+</Document></kml>

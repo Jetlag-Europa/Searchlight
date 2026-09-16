@@ -36,3 +36,6 @@ apps/web/test-results/
 
 # Overpass response cache for scripts/gen-brighton-assets.py (re-fetched if absent)
 scripts/.brighton-osm-cache/
+
+# Overpass response cache for scripts/gen-north-london-assets.py (re-fetched if absent)
+scripts/.north-london-osm-cache/

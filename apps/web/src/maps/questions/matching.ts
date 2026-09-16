@@ -66,6 +66,7 @@ import {
 import { findGrazDistrict } from "@/maps/questions/grazAdmin";
 import { findBrightonRegion } from "@/maps/questions/brightonAdmin";
 import { findGmRegion } from "@/maps/questions/gmAdmin";
+import { findNlRegion } from "@/maps/questions/nlAdmin";
 import { findMilanMunicipio } from "@/maps/questions/milanAdmin";
 import { findParisArrondissement } from "@/maps/questions/parisAdmin";
 import { findStockholmAdminDivision } from "@/maps/questions/stockholmAdmin";
@@ -412,6 +413,23 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                         "No region found at this point — must be inside the Greater Manchester play area.",
                     );
                     throw new Error("No Greater Manchester region found");
+                }
+                break;
+            }
+            case "nl-constituency":
+            case "nl-ward": {
+                // Bundled locally — no Overpass. Anywhere in Greater London
+                // resolves: "Outer" covers what the supplied layer does not.
+                boundary = await findNlRegion(
+                    question.type,
+                    question.lat,
+                    question.lng,
+                );
+                if (!boundary) {
+                    toast.error(
+                        "No region found at this point — must be inside Greater London.",
+                    );
+                    throw new Error("No North London region found");
                 }
                 break;
             }
