@@ -427,6 +427,13 @@ const brightonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const nlMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("nl-constituency").describe("Same Constituency (North London)"),
+        z.literal("nl-ward").describe("Same Ward (North London)"),
+    ]),
+});
+
 const gmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("gm-borough").describe("Same Borough (Greater Manchester)"),
@@ -464,6 +471,7 @@ export const matchingQuestionSchema = z.union([
     milanMatchingQuestionsSchema.describe(NO_GROUP),
     brightonMatchingQuestionsSchema.describe(NO_GROUP),
     gmMatchingQuestionsSchema.describe(NO_GROUP),
+    nlMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -666,6 +674,15 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     "gm-borough":                "__bundled-greater-manchester-2026__",
     "gm-ward":                   "__bundled-greater-manchester-2026__",
     "gm-hsl":                    "__bundled-greater-manchester-2026__",
+    // North London — constituencies and wards from bundled GeoJSON, matching
+    // AND measuring. Measuring is to EVERY border (the london-borough reading,
+    // Jules' call), not the seeker's own. Both layers carry an "Outer" for the
+    // rest of Greater London. nl-hsl (WCML + HS1) and nl-water (OSM water) are
+    // measuring only. See nlAdmin.ts.
+    "nl-constituency":           "__bundled-north-london-2026__",
+    "nl-ward":                   "__bundled-north-london-2026__",
+    "nl-hsl":                    "__bundled-north-london-2026__",
+    "nl-water":                  "__bundled-north-london-2026__",
 };
 
 /**
@@ -873,6 +890,15 @@ const brightonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const nlMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("nl-constituency").describe("Distance to Constituency Border (North London)"),
+        z.literal("nl-ward").describe("Distance to Ward Border (North London)"),
+        z.literal("nl-hsl").describe("Distance to High-Speed Rail (North London)"),
+        z.literal("nl-water").describe("Distance to Body of Water (North London)"),
+    ]),
+});
+
 const gmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
         z.literal("gm-borough").describe("Distance to Borough Border (Greater Manchester)"),
@@ -907,6 +933,7 @@ export const measuringQuestionSchema = z.union([
     milanMeasuringQuestionsSchema.describe(NO_GROUP),
     brightonMeasuringQuestionsSchema.describe(NO_GROUP),
     gmMeasuringQuestionsSchema.describe(NO_GROUP),
+    nlMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

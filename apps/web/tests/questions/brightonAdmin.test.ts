@@ -39,7 +39,7 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
     };
 });
 
-import { hiderMode, mapGeoJSON } from "@/lib/context";
+import { hiderMode, mapGeoJSON, trainStations } from "@/lib/context";
 import { isQuestionTypeHidden } from "@/lib/games";
 import { adjustPerMatching } from "@/maps/questions/matching";
 import { adjustPerMeasuring } from "@/maps/questions/measuring";
@@ -749,5 +749,257 @@ describe("adjustPerMeasuring — gm-hsl (distance to either stretch)", () => {
         expect(r.failures).toEqual([]);
         expect(r.survives).toBeGreaterThan(10);
         expect(r.eliminated).toBeGreaterThan(10);
+    }, 120_000);
+});
+
+// ══ North London 26-09 ═══════════════════════════════════════════════════════
+// Same file for the same reason as Greater Manchester (the 30-file limit).
+// Differences from Brighton/GM that these tests pin: the play area is all of
+// Greater London, the admin layers carry an "Outer", measuring is to EVERY
+// border, and nl-water is pre-filtered to the hiding zones before buffering.
+
+const NL = "__bundled-north-london-2026__";
+const nlCons = load("nl-constituencies.geojson");
+const nlWards = load("nl-wards.geojson");
+const nlBorder = load("nl-border.geojson");
+const nlLinesFile = (f: string) =>
+    JSON.parse(readFileSync(resolve(PUBLIC, f), "utf8")) as FeatureCollection<LineString>;
+
+const nlStationPoints = () => {
+    const kml = readFileSync(resolve(PUBLIC, "nl-stations.kml"), "utf8");
+    return [
+        ...kml.matchAll(/<name>([^<]*)<\/name><Point><coordinates>([-\d.]+),([-\d.]+)/g),
+    ].map((m) => turf.point([Number(m[2]), Number(m[3])], { name: m[1] }));
+};
+
+// Angel station.
+const NL_SEEKER: [number, number] = [-0.1060356, 51.5324874];
+// Near King's Cross, for the measuring tests: far enough from every ward border
+// and from water for a real distance band, and where the simplified edges put a
+// vertex at the nearest point (the arcBufferToPoint stub measures to vertices,
+// the oracle to lines — at Angel those differ 2× for water).
+const NL_SEEKER_M: [number, number] = [-0.1246, 51.5308];
+
+const minLineDist = (pt: Feature<Point>, lines: Feature<LineString>[]) =>
+    Math.min(...lines.map((l) => turf.pointToLineDistance(pt, l, MI)));
+
+describe("North London assets", () => {
+    it("ships all 56 stations as hiding zones, closed ones included", () => {
+        const names = nlStationPoints().map((p) => p.properties.name);
+        expect(names).toHaveLength(56);
+        for (const closed of ["Arsenal", "Caledonian Road", "Stoke Newington"])
+            expect(names).toContain(closed);
+        expect(names).toContain("King's Cross St Pancras");
+    });
+
+    it("plays on all of Greater London", () => {
+        expect(nlBorder.features).toHaveLength(1);
+        const km2 = turf.area(nlBorder.features[0]) / 1e6;
+        expect(km2).toBeGreaterThan(1560);
+        expect(km2).toBeLessThan(1600);
+    });
+
+    it("has 12 constituencies and 78 wards, each plus Outer", () => {
+        const cn = nlCons.features.map((f) => String(f.properties?.name));
+        const wn = nlWards.features.map((f) => String(f.properties?.name));
+        expect(cn).toHaveLength(13);
+        expect(wn).toHaveLength(79);
+        expect(cn).toContain("Outer");
+        expect(wn).toContain("Outer");
+        expect(cn).toContain("Holborn and St Pancras");
+        // The two Regent's Parks are different wards in different boroughs.
+        expect(wn).toEqual(
+            expect.arrayContaining(["Regent's Park (Camden)", "Regent's Park (Westminster)"]),
+        );
+        expect(new Set(wn).size).toBe(79);
+    });
+
+    it.each([
+        ["constituency", () => nlCons],
+        ["ward", () => nlWards],
+    ])("every hiding zone sits in exactly one real %s, never Outer", (_l, get) => {
+        for (const pt of nlStationPoints()) {
+            const hits = get().features.filter((f) => turf.booleanPointInPolygon(pt, f));
+            expect(hits, pt.properties.name).toHaveLength(1);
+            expect(hits[0].properties?.name).not.toBe("Outer");
+        }
+    });
+
+    it("Outer resolves a seeker elsewhere in Greater London", () => {
+        const croydon = turf.point([-0.0982, 51.3762]);
+        for (const fc of [nlCons, nlWards]) {
+            const hit = fc.features.find((f) => turf.booleanPointInPolygon(croydon, f));
+            expect(hit?.properties?.name).toBe("Outer");
+        }
+    });
+
+    it("ships both high-speed lines and a non-trivial water network", () => {
+        const hsl = nlLinesFile("nl-hsl.geojson");
+        expect(new Set(hsl.features.map((f) => f.properties?.name))).toEqual(
+            new Set(["West Coast Main Line", "Channel Tunnel Rail Link"]),
+        );
+        const water = nlLinesFile("nl-water.geojson");
+        expect(water.features.length).toBeGreaterThan(500);
+        // Regent's Canal runs right past Angel.
+        const near = minLineDist(turf.point(NL_SEEKER), water.features);
+        expect(near * 1609).toBeLessThan(400);
+    });
+});
+
+describe("North London question picker gating", () => {
+    const M = ["nl-constituency", "nl-ward"];
+    const D = ["nl-constituency", "nl-ward", "nl-hsl", "nl-water"];
+
+    it("offers the bundled types only for this game", () => {
+        const m = pickerTypes(matchingQuestionSchema, "matching", NL);
+        const d = pickerTypes(measuringQuestionSchema as never, "measuring", NL);
+        for (const t of M) expect(m).toContain(t);
+        for (const t of D) expect(d).toContain(t);
+        expect(m).not.toContain("nl-hsl");
+        expect(m).not.toContain("nl-water");
+        const gm = pickerTypes(measuringQuestionSchema as never, "measuring", GM);
+        for (const t of D) expect(gm).not.toContain(t);
+    });
+
+    // The rules table, row by row.
+    it.each([
+        ["matching", ["museum", "cinema", "hospital", "library", "park", "same-length-station"]],
+        ["measuring", ["museum", "cinema", "hospital", "library", "park", "rail-measure"]],
+    ] as const)("%s keeps the table's generic questions", (kind, kept) => {
+        for (const t of kept) expect(isQuestionTypeHidden(t, NL, kind), t).toBe(false);
+    });
+
+    it.each([
+        ["matching", ["airport", "zoo-full", "peak", "same-first-letter-station", "same-train-line", "zone"]],
+        ["measuring", ["airport", "coastline", "highspeed-measure-shinkansen", "mcdonalds", "consulate-full"]],
+    ] as const)("%s hides everything the table leaves out", (kind, dropped) => {
+        for (const t of dropped) expect(isQuestionTypeHidden(t, NL, kind), t).toBe(true);
+    });
+
+    it("leaves tentacles alone", () => {
+        for (const t of ["zoo", "museum", "peak"])
+            expect(isQuestionTypeHidden(t, NL, "tentacle"), t).toBe(false);
+    });
+});
+
+describe("adjustPerMatching — nl-constituency (bundled, exact)", () => {
+    const base = boundary(-0.16, 51.51, -0.05, 51.56);
+    const div = nlCons.features.find((f) =>
+        turf.booleanPointInPolygon(turf.point(NL_SEEKER), f),
+    )!;
+    const lines = borderLines(turf.simplify(div as never, RING_SIMPLIFY));
+
+    const verdictFor =
+        (same: boolean) =>
+        (pt: Feature<Point>): "survives" | "eliminated" | "ambiguous" => {
+            if (distToBorder(pt, lines, "kilometers") <= 0.06) return "ambiguous";
+            const inBase = turf.booleanPointInPolygon(pt, base);
+            const inDiv = turf.booleanPointInPolygon(pt, div);
+            return inBase && (same ? inDiv : !inDiv) ? "survives" : "eliminated";
+        };
+
+    it("scenario sanity: Angel is in Islington South and Finsbury", () => {
+        expect(div.properties?.name).toBe("Islington South and Finsbury");
+    });
+
+    it.each([true, false])("same=%s agrees with the region oracle", async (same) => {
+        const mask = await matchMask("nl-constituency", base, NL_SEEKER, same);
+        const r = gridAgreement(mask, sampleGrid(base, 28), verdictFor(same));
+        expect(r.failures).toEqual([]);
+        expect(r.survives).toBeGreaterThan(10);
+        expect(r.eliminated).toBeGreaterThan(10);
+    }, 120_000);
+});
+
+describe.each([
+    // King's Cross sits on HS1, so the HSL case uses Angel.
+    ["nl-ward", "nl-ward-lines.geojson", NL_SEEKER_M],
+    ["nl-hsl", "nl-hsl.geojson", NL_SEEKER],
+] as const)("adjustPerMeasuring — %s (every line)", (type, file, seeker) => {
+    const BASE = boundary(-0.2, 51.5, -0.03, 51.58);
+    const lines = nlLinesFile(file).features;
+    const dMin = minLineDist(turf.point(seeker as [number, number]), lines);
+
+    const verdictFor =
+        (hiderCloser: boolean) =>
+        (pt: Feature<Point>): "survives" | "eliminated" | "ambiguous" => {
+            const d = minLineDist(pt, lines);
+            if (Math.abs(d - dMin) <= Math.max(dMin * 0.08, 0.02)) return "ambiguous";
+            const inBase = turf.booleanPointInPolygon(pt, BASE);
+            return inBase && (hiderCloser ? d <= dMin : d > dMin) ? "survives" : "eliminated";
+        };
+
+    it.each([true, false])("hiderCloser=%s agrees with the nearest-line oracle", async (hc) => {
+        const mask = await measureMask(type, BASE, seeker as [number, number], hc);
+        const r = gridAgreement(mask, sampleGrid(BASE, 20), verdictFor(hc));
+        expect(r.failures).toEqual([]);
+        expect(r.survives).toBeGreaterThan(5);
+        expect(r.eliminated).toBeGreaterThan(5);
+    }, 120_000);
+
+    // Every border, not the seeker's own ring. Pinned so it isn't "fixed".
+    if (type === "nl-ward") {
+        it("measures to the nearest border of ANY ward", () => {
+            const own = nlWards.features.find((f) =>
+                turf.booleanPointInPolygon(turf.point(NL_SEEKER_M), f),
+            )!;
+            const ownD = distToBorder(turf.point(NL_SEEKER_M), borderLines(own), MI.units);
+            expect(dMin).toBeLessThanOrEqual(ownD + 0.01);
+        });
+    }
+});
+
+// nl-water is not run through adjustPerMeasuring here: the arcBufferToPoint
+// stub above uses turf.buffer (JSTS), which silently drops parts of a
+// MultiLineString this large — a stub limitation, the app buffers with ArcGIS.
+// Instead this pins what the zone pre-filter must guarantee: at every point of
+// every hiding zone, "is there water within the seeker's distance d, and how
+// near" is identical with the filtered set and with all of the water. That is
+// exactly what makes the filtered buffer's mask correct inside the zones.
+describe("nlWaterLines — the zone pre-filter is exact inside the zones", () => {
+    const centres = nlStationPoints();
+    const all = nlLinesFile("nl-water.geojson").features;
+    const zoneSamples = centres.flatMap((c) => [
+        c,
+        ...[0, 60, 120, 180, 240, 300].map((b) =>
+            turf.destination(c, 0.39, b, { units: "kilometers" }),
+        ),
+    ]);
+
+    beforeEach(() =>
+        trainStations.set(
+            centres.map((p) =>
+                turf.circle(p, 0.4, { units: "kilometers", properties: p as never }),
+            ) as never,
+        ),
+    );
+    afterEach(() => trainStations.set([]));
+
+    it.each([
+        ["near King's Cross", NL_SEEKER_M],
+        ["far away in Croydon", [-0.0982, 51.3762] as [number, number]],
+    ])("seeker %s", async (_label, seeker) => {
+        const { nlWaterLines } = await import("@/maps/questions/nlAdmin");
+        const kept = (await nlWaterLines(seeker[1], seeker[0])) as Feature<LineString>[];
+        const sp = turf.point(seeker);
+        const d = minLineDist(sp, all);
+        // arcBufferToPoint re-derives d from what it is given: must be the same.
+        expect(minLineDist(sp, kept)).toBeCloseTo(d, 9);
+        expect(kept.length).toBeLessThan(all.length);
+
+        // Oracle per sample over water in a box padded well beyond d.
+        const padLat = (d * 1.609 + 0.6) / 110.574;
+        const padLng = (d * 1.609 + 0.6) / 69.3;
+        for (const p of zoneSamples) {
+            const [x, y] = p.geometry.coordinates;
+            const near = all.filter((f) => {
+                const [w, s, e, n] = turf.bbox(f);
+                return !(e < x - padLng || w > x + padLng || n < y - padLat || s > y + padLat);
+            });
+            const truth = near.length ? minLineDist(p, near) : Infinity;
+            const got = minLineDist(p, kept);
+            if (truth <= d) expect(got, `${x},${y}`).toBeCloseTo(truth, 9);
+            else expect(got, `${x},${y}`).toBeGreaterThan(d);
+        }
     }, 120_000);
 });

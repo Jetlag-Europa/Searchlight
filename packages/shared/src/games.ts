@@ -247,6 +247,18 @@ const LONDON_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+// Same relation as LONDON_CITY_FEATURE, but extent is all of Greater London —
+// that is North London 26-09's play area.
+const GREATER_LONDON_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [51.5074456, -0.1277653] },
+  properties: {
+    osm_type: "R", osm_id: 175342, extent: [51.69186, -0.51038, 51.28676, 0.33402],
+    country: "United Kingdom", osm_key: "place", countrycode: "GB",
+    osm_value: "city", name: "London", type: "city",
+  },
+};
+
 const GRAZ_CITY_FEATURE: GameOSMFeature = {
   type: "Feature",
   geometry: { type: "Point", coordinates: [47.0708678, 15.4382786] },
@@ -821,6 +833,74 @@ export const GAME_REGISTRY: GameManifest[] = [
       "measuring:golf_course-full",
       "measuring:park",
       "measuring:park-full",
+    ],
+  },
+  {
+    // Regenerate with scripts/gen-north-london-assets.py.
+    sentinel: "__bundled-north-london-2026__",
+    name: "North London 26-09",
+    serverId: SERVER.UK,
+    // The PLAY AREA is all of Greater London (1,582 km²), but every hiding zone
+    // sits in ~25 km² of north/central London.
+    size: "large",
+    // 56 zones, uniform 400 m. The 8 stations the source marks "Closed" for
+    // engineering works are still hiding zones (Jules, 16/09/2026).
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
+    osm: GREATER_LONDON_FEATURE,
+    kmlPath: "nl-poi.kml",
+    stationsKml: "nl-stations.kml",
+    boundaryGeoJson: "nl-border.geojson",
+    // cinema, library, museum, hospital — canonical folders. Stations are NOT
+    // bundled as "train_station": rail-station measuring and station-name
+    // length are hiding-zone-mode questions that already read the 56 zones.
+    poiFolders: {},
+    // The board is exactly the game's rules table. Matching: constituency,
+    // ward, station name length, park, museum, cinema, hospital, library.
+    // Measuring: constituency, ward, high-speed rail, rail station, body of
+    // water, park, museum, cinema, hospital, library. Transit line,
+    // street/path and sea level are in the table but dropped from the app
+    // (Jules' call). Everything else is hidden; tentacles are not in the table
+    // and are left alone. Park is the generic Overpass question.
+    hiddenQuestionTypes: [
+      "matching:airport",
+      "matching:major-city",
+      "matching:zone",
+      "matching:letter-zone",
+      "matching:same-first-letter-station",
+      "matching:same-train-line",
+      "matching:aquarium",
+      "matching:aquarium-full",
+      "matching:zoo",
+      "matching:zoo-full",
+      "matching:theme_park",
+      "matching:theme_park-full",
+      "matching:peak",
+      "matching:peak-full",
+      "matching:golf_course",
+      "matching:golf_course-full",
+      "matching:consulate",
+      "matching:consulate-full",
+      "measuring:coastline",
+      "measuring:airport",
+      "measuring:city",
+      "measuring:highspeed-measure-shinkansen",
+      "measuring:international-border",
+      "measuring:international-border-og",
+      "measuring:mcdonalds",
+      "measuring:seven11",
+      "measuring:aquarium",
+      "measuring:aquarium-full",
+      "measuring:zoo",
+      "measuring:zoo-full",
+      "measuring:theme_park",
+      "measuring:theme_park-full",
+      "measuring:peak",
+      "measuring:peak-full",
+      "measuring:golf_course",
+      "measuring:golf_course-full",
+      "measuring:consulate",
+      "measuring:consulate-full",
     ],
   },
 ];
