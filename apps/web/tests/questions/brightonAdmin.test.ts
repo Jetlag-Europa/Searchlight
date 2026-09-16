@@ -485,3 +485,269 @@ describe("Brighton measuring balance is as measured", () => {
         expect(mean).toBeLessThan(hi);
     }, 120_000);
 });
+
+// ══ Greater Manchester 19-9 ══════════════════════════════════════════════════
+// Lives in this file, not its own: the web suite is at 30 files, and a 31st
+// reintroduces the vitest worker-RPC onTaskUpdate timeout (Journal Entry 57/58).
+// Same shape as Brighton — bundled admin layers, own-region measuring — so it
+// reuses the helpers above. Ward/borough tiling is asserted by the generator
+// (gen-greater-manchester-assets.py) rather than here: a turf union of 215
+// wards is too slow for the suite.
+
+const GM = "__bundled-greater-manchester-2026__";
+const gmBoroughs = load("gm-boroughs.geojson");
+const gmWards = load("gm-wards.geojson");
+const gmHslRegions = load("gm-hsl-regions.geojson");
+const gmBorder = load("gm-border.geojson");
+const gmHsl = JSON.parse(
+    readFileSync(resolve(PUBLIC, "gm-hsl.geojson"), "utf8"),
+) as FeatureCollection<LineString>;
+
+const gmStationPoints = () => {
+    const kml = readFileSync(resolve(PUBLIC, "gm-stations.kml"), "utf8");
+    return [
+        ...kml.matchAll(
+            /<name>([^<]*)<\/name><Point><coordinates>([-\d.]+),([-\d.]+)/g,
+        ),
+    ].map((m) => turf.point([Number(m[2]), Number(m[3])], { name: m[1] }));
+};
+
+// Piccadilly Gardens, the author's start marker: Manchester borough, nearer the
+// southern WCML stretch.
+const GM_SEEKER: [number, number] = [-2.2370911, 53.4808872];
+
+describe("Greater Manchester assets", () => {
+    it("ships 168 hiding zones, all inside the play area", () => {
+        const pts = gmStationPoints();
+        expect(pts).toHaveLength(168);
+        for (const pt of pts)
+            expect(turf.booleanPointInPolygon(pt, gmBorder.features[0])).toBe(true);
+        // Bus stations with a circle are hiding zones too (Jules' rule).
+        expect(pts.map((p) => p.properties.name)).toContain("Wigan Bus Station");
+    });
+
+    it("is a single hole-free polygon of about 1,271 km²", () => {
+        expect(gmBorder.features).toHaveLength(1);
+        const g = gmBorder.features[0].geometry as Polygon;
+        expect(g.type).toBe("Polygon");
+        expect(g.coordinates).toHaveLength(1);
+        const km2 = turf.area(gmBorder.features[0]) / 1e6;
+        expect(km2).toBeGreaterThan(1265);
+        expect(km2).toBeLessThan(1278);
+    });
+
+    it("has the 10 boroughs and 215 wards, with no Outer", () => {
+        const bn = gmBoroughs.features.map((f) => String(f.properties?.name));
+        const wn = gmWards.features.map((f) => String(f.properties?.name));
+        expect(bn.sort()).toEqual([
+            "Bolton", "Bury", "Manchester", "Oldham", "Rochdale",
+            "Salford", "Stockport", "Tameside", "Trafford", "Wigan",
+        ]);
+        expect(wn).toHaveLength(215);
+        expect(new Set(wn).size).toBe(215);
+        expect(wn).not.toContain("Outer");
+        // The two ward names used twice are disambiguated by borough.
+        expect(wn).toEqual(
+            expect.arrayContaining(["Brooklands (Manchester)", "Brooklands (Trafford)"]),
+        );
+    });
+
+    it.each([
+        ["borough", () => gmBoroughs],
+        ["ward", () => gmWards],
+        ["HSL region", () => gmHslRegions],
+    ])("every hiding zone sits in exactly one %s", (_label, get) => {
+        for (const pt of gmStationPoints()) {
+            const hits = get().features.filter((f) => turf.booleanPointInPolygon(pt, f));
+            expect(hits, pt.properties.name).toHaveLength(1);
+        }
+    });
+
+    // Boroughs are dissolved from the wards, so the two can never disagree.
+    it("every ward lies inside exactly one borough", () => {
+        for (const w of gmWards.features) {
+            const p = turf.pointOnFeature(w as never);
+            const hits = gmBoroughs.features.filter((b) => turf.booleanPointInPolygon(p, b));
+            expect(hits, String(w.properties?.name)).toHaveLength(1);
+        }
+    });
+
+    it("Mills Hill is in Rochdale, per ONS — not Oldham as the hand-drawn layer had it", () => {
+        const mh = gmStationPoints().find((p) => p.properties.name === "Mills Hill")!;
+        const b = gmBoroughs.features.find((f) => turf.booleanPointInPolygon(mh, f));
+        expect(b?.properties?.name).toBe("Rochdale");
+    });
+
+    // Stockport south to the county edge, and Wigan north to it.
+    it("ships the two West Coast Main Line stretches, both inside the county", () => {
+        expect(gmHsl.features.map((f) => f.properties?.name).sort()).toEqual([
+            "West Coast Main Line (North of Wigan)",
+            "West Coast Main Line (South of Stockport)",
+        ]);
+        for (const f of gmHsl.features) {
+            expect(f.geometry.type).toBe("LineString");
+            // Every interior vertex is inside. The endpoints are skipped: each
+            // stretch ENDS on the county boundary, so they sit on the ring.
+            const inner = f.geometry.coordinates.slice(1, -1);
+            expect(inner.length).toBeGreaterThan(10);
+            for (const c of inner)
+                expect(turf.booleanPointInPolygon(turf.point(c), gmBorder.features[0])).toBe(true);
+        }
+    });
+
+    it("splits the HSL regions by whichever stretch is actually nearer", () => {
+        const [a, b] = gmHsl.features;
+        for (const pt of gmStationPoints()) {
+            const da = turf.pointToLineDistance(pt, a, { units: "kilometers" });
+            const db = turf.pointToLineDistance(pt, b, { units: "kilometers" });
+            if (Math.abs(da - db) < 0.3) continue; // on the bisector
+            const want = (da < db ? a : b).properties?.name;
+            const region = gmHslRegions.features.find((f) =>
+                turf.booleanPointInPolygon(pt, f),
+            );
+            expect(region?.properties?.name, pt.properties.name).toBe(want);
+        }
+    });
+});
+
+const GM_TYPES = ["gm-borough", "gm-ward", "gm-hsl"];
+
+describe("Greater Manchester question picker gating", () => {
+    it.each(GM_TYPES)("%s is offered for both families", (t) => {
+        expect(pickerTypes(matchingQuestionSchema, "matching", GM)).toContain(t);
+        expect(pickerTypes(measuringQuestionSchema as never, "measuring", GM)).toContain(t);
+    });
+
+    it.each([BRIGHTON, "__bundled-london-2026__"])("no GM type is offered for %s", (other) => {
+        const m = pickerTypes(matchingQuestionSchema, "matching", other);
+        const d = pickerTypes(measuringQuestionSchema as never, "measuring", other);
+        for (const t of GM_TYPES) {
+            expect(m).not.toContain(t);
+            expect(d).not.toContain(t);
+        }
+    });
+
+    it("airport is measuring-only", () => {
+        expect(pickerTypes(measuringQuestionSchema as never, "measuring", GM)).toContain("airport");
+        expect(pickerTypes(matchingQuestionSchema, "matching", GM)).not.toContain("airport");
+    });
+
+    // The board is exactly Jules' list. Grouped (Hiding Zone Mode) options are
+    // checked through isQuestionTypeHidden directly, as the picker does.
+    const KEPT = ["zoo", "aquarium", "hospital", "library", "consulate", "peak"];
+    const DROPPED = ["museum", "cinema", "golf_course", "park", "theme_park"];
+    it.each(["matching", "measuring"] as const)(
+        "%s keeps the listed POI questions only",
+        (kind) => {
+            for (const t of KEPT) {
+                expect(isQuestionTypeHidden(t, GM, kind), t).toBe(false);
+                expect(isQuestionTypeHidden(`${t}-full`, GM, kind), `${t}-full`).toBe(false);
+            }
+            for (const t of DROPPED) {
+                expect(isQuestionTypeHidden(t, GM, kind), t).toBe(true);
+                expect(isQuestionTypeHidden(`${t}-full`, GM, kind), `${t}-full`).toBe(true);
+            }
+        },
+    );
+
+    it("hides the generic questions the bundled ones replace, and never tentacles", () => {
+        const d = pickerTypes(measuringQuestionSchema as never, "measuring", GM);
+        for (const t of ["highspeed-measure-shinkansen", "coastline", "city"])
+            expect(d).not.toContain(t);
+        expect(pickerTypes(matchingQuestionSchema, "matching", GM)).not.toContain("zone");
+        for (const t of [...KEPT, ...DROPPED])
+            expect(isQuestionTypeHidden(t, GM, "tentacle"), t).toBe(false);
+    });
+});
+
+describe.each([
+    ["gm-borough", gmBoroughs],
+    ["gm-hsl", gmHslRegions],
+])("adjustPerMatching — %s (bundled, exact)", (type, fc) => {
+    // Straddles the Manchester borough edge. For gm-hsl the whole box is on the
+    // southern side, so "same" keeps all of it and "!same" removes all of it.
+    const base = boundary(-2.32, 53.44, -2.16, 53.52);
+    const seekerDiv = fc.features.find((f) =>
+        turf.booleanPointInPolygon(turf.point(GM_SEEKER), f),
+    )!;
+    const seekerLines = borderLines(turf.simplify(seekerDiv as never, RING_SIMPLIFY));
+
+    const verdictFor =
+        (same: boolean) =>
+        (pt: Feature<Point>): "survives" | "eliminated" | "ambiguous" => {
+            if (distToBorder(pt, seekerLines, "kilometers") <= 0.06) return "ambiguous";
+            const inBase = turf.booleanPointInPolygon(pt, base);
+            const inDiv = turf.booleanPointInPolygon(pt, seekerDiv);
+            return inBase && (same ? inDiv : !inDiv) ? "survives" : "eliminated";
+        };
+
+    it("scenario sanity: the seeker resolves to exactly one region", () => {
+        expect(
+            fc.features.filter((f) => turf.booleanPointInPolygon(turf.point(GM_SEEKER), f)),
+        ).toHaveLength(1);
+        expect(seekerDiv.properties?.name).toBe(
+            type === "gm-borough" ? "Manchester" : "West Coast Main Line (South of Stockport)",
+        );
+    });
+
+    it.each([true, false])("same=%s agrees with the region oracle", async (same) => {
+        const mask = await matchMask(type, base, GM_SEEKER, same);
+        const r = gridAgreement(mask, sampleGrid(base, 28), verdictFor(same));
+        expect(r.failures).toEqual([]);
+        if (type === "gm-borough") {
+            expect(r.survives).toBeGreaterThan(10);
+            expect(r.eliminated).toBeGreaterThan(10);
+        }
+    }, 120_000);
+});
+
+describe("adjustPerMeasuring — gm-borough (seeker's OWN border)", () => {
+    const BASE = boundary(-2.35, 53.40, -2.10, 53.56);
+    const div = gmBoroughs.features.find((f) =>
+        turf.booleanPointInPolygon(turf.point(GM_SEEKER), f),
+    )!;
+    const lines = borderLines(turf.simplify(div as never, RING_SIMPLIFY));
+    const dMin = distToBorder(turf.point(GM_SEEKER), lines, MI.units);
+
+    const verdictFor =
+        (hiderCloser: boolean) =>
+        (pt: Feature<Point>): "survives" | "eliminated" | "ambiguous" => {
+            const d = distToBorder(pt, lines, MI.units);
+            if (Math.abs(d - dMin) <= dMin * 0.08) return "ambiguous";
+            const inBase = turf.booleanPointInPolygon(pt, BASE);
+            const closer = d <= dMin;
+            return inBase && (hiderCloser ? closer : !closer) ? "survives" : "eliminated";
+        };
+
+    it.each([true, false])("hiderCloser=%s agrees with the own-border oracle", async (hc) => {
+        const mask = await measureMask("gm-borough", BASE, GM_SEEKER, hc);
+        const r = gridAgreement(mask, sampleGrid(BASE, 24), verdictFor(hc));
+        expect(r.failures).toEqual([]);
+        expect(r.survives).toBeGreaterThan(10);
+        expect(r.eliminated).toBeGreaterThan(10);
+    }, 120_000);
+});
+
+describe("adjustPerMeasuring — gm-hsl (distance to either stretch)", () => {
+    const BASE = boundary(-2.45, 53.35, -2.05, 53.62);
+    const dist = (pt: Feature<Point>) =>
+        Math.min(...gmHsl.features.map((l) => turf.pointToLineDistance(pt, l, MI)));
+    const dMin = dist(turf.point(GM_SEEKER));
+
+    const verdictFor =
+        (hiderCloser: boolean) =>
+        (pt: Feature<Point>): "survives" | "eliminated" | "ambiguous" => {
+            const d = dist(pt);
+            if (Math.abs(d - dMin) <= dMin * 0.05) return "ambiguous";
+            const inBase = turf.booleanPointInPolygon(pt, BASE);
+            return inBase && (hiderCloser ? d <= dMin : d > dMin) ? "survives" : "eliminated";
+        };
+
+    it.each([true, false])("hiderCloser=%s agrees with the nearest-line oracle", async (hc) => {
+        const mask = await measureMask("gm-hsl", BASE, GM_SEEKER, hc);
+        const r = gridAgreement(mask, sampleGrid(BASE, 24), verdictFor(hc));
+        expect(r.failures).toEqual([]);
+        expect(r.survives).toBeGreaterThan(10);
+        expect(r.eliminated).toBeGreaterThan(10);
+    }, 120_000);
+});

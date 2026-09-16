@@ -427,6 +427,14 @@ const brightonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     ]),
 });
 
+const gmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
+    type: z.union([
+        z.literal("gm-borough").describe("Same Borough (Greater Manchester)"),
+        z.literal("gm-ward").describe("Same Ward (Greater Manchester)"),
+        z.literal("gm-hsl").describe("Nearest High-Speed Line (Greater Manchester)"),
+    ]),
+});
+
 const milanMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
     type: z.union([
         z.literal("milan-municipio").describe("Same Municipio (Milan)"),
@@ -455,6 +463,7 @@ export const matchingQuestionSchema = z.union([
     stockholmMatchingQuestionsSchema.describe(NO_GROUP),
     milanMatchingQuestionsSchema.describe(NO_GROUP),
     brightonMatchingQuestionsSchema.describe(NO_GROUP),
+    gmMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
@@ -646,6 +655,17 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     "brighton-postcode":         "__bundled-brighton-2026__",
     "brighton-coastline":        "__bundled-brighton-2026__",
     "brighton-rail":             "__bundled-brighton-2026__",
+    // Greater Manchester — boroughs and wards from bundled GeoJSON, matching AND
+    // measuring, measuring to the border of the region you are IN. Boroughs are
+    // dissolved from the wards, so the two layers agree exactly. See gmAdmin.ts.
+    //
+    // gm-hsl is the two supplied West Coast Main Line stretches. Measuring is
+    // distance to either line; matching is "same nearest stretch" (south of
+    // Stockport vs north of Wigan), since both are one railway and "same line"
+    // would always be true. It replaces the generic Overpass HSL question.
+    "gm-borough":                "__bundled-greater-manchester-2026__",
+    "gm-ward":                   "__bundled-greater-manchester-2026__",
+    "gm-hsl":                    "__bundled-greater-manchester-2026__",
 };
 
 /**
@@ -853,6 +873,14 @@ const brightonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     ]),
 });
 
+const gmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
+    type: z.union([
+        z.literal("gm-borough").describe("Distance to Borough Border (Greater Manchester)"),
+        z.literal("gm-ward").describe("Distance to Ward Border (Greater Manchester)"),
+        z.literal("gm-hsl").describe("Distance to High-Speed Rail (Greater Manchester)"),
+    ]),
+});
+
 const milanMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
     type: z.union([
         z.literal("milan-municipio").describe("Distance to Municipio Border (Milan)"),
@@ -878,6 +906,7 @@ export const measuringQuestionSchema = z.union([
     stockholmMeasuringQuestionsSchema.describe(NO_GROUP),
     milanMeasuringQuestionsSchema.describe(NO_GROUP),
     brightonMeasuringQuestionsSchema.describe(NO_GROUP),
+    gmMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),

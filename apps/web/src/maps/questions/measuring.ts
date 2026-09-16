@@ -41,6 +41,7 @@ import {
 } from "@/maps/questions/belgiumAdmin";
 import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
 import { brightonRegionBorderLines } from "@/maps/questions/brightonAdmin";
+import { gmRegionBorderLines } from "@/maps/questions/gmAdmin";
 import { milanMunicipioBorderLines } from "@/maps/questions/milanAdmin";
 import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
 import { stockholmAdminDivisionBorderLines } from "@/maps/questions/stockholmAdmin";
@@ -349,6 +350,23 @@ export const determineMeasuringBoundary = async (
             }
             return lines;
         }
+        case "gm-borough":
+        case "gm-ward": {
+            // The border of the borough/ward the seeker is IN — same behaviour
+            // as brighton-ward, from a bundled polygon.
+            const lines = await gmRegionBorderLines(
+                question.type,
+                question.lat,
+                question.lng,
+            );
+            if (!lines?.length) {
+                toast.error(
+                    "No region found at this point — must be inside the Greater Manchester play area.",
+                );
+                return false;
+            }
+            return lines;
+        }
         case "milan-municipio": {
             // The border of the municipio the seeker is IN — same behaviour as
             // graz-district / paris-arrondissement / belgium-province, from a
@@ -395,6 +413,7 @@ export const determineMeasuringBoundary = async (
         case "rotterdam-municipality-border":
         case "zurich-coastline":
         case "brighton-coastline":
+        case "gm-hsl":
         case "belgium-hsl":
         case "belgium-coastline":
         // London boroughs measure against EVERY borough boundary, not the one
@@ -412,6 +431,8 @@ export const determineMeasuringBoundary = async (
                         ? "rotterdam-2026-municipality-lines.geojson"
                       : question.type === "brighton-coastline"
                         ? "brighton-coastline.geojson"
+                        : question.type === "gm-hsl"
+                        ? "gm-hsl.geojson"
                         : question.type === "belgium-hsl"
                         ? "belgium-hsl.geojson"
                         : question.type === "belgium-coastline"
@@ -831,6 +852,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         question.type === "rotterdam-municipality-border" ||
         question.type === "zurich-coastline" ||
         question.type === "brighton-coastline" ||
+        question.type === "gm-hsl" ||
         question.type === "budapest-water" ||
         question.type === "belgium-hsl" ||
         question.type === "belgium-coastline" ||
@@ -845,6 +867,8 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
                     ? "rotterdam-2026-municipality-lines.geojson"
                   : question.type === "brighton-coastline"
                     ? "brighton-coastline.geojson"
+                    : question.type === "gm-hsl"
+                    ? "gm-hsl.geojson"
                     : question.type === "budapest-water"
                     ? "budapest-water.geojson"
                     : question.type === "belgium-hsl"

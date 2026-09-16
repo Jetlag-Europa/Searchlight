@@ -282,6 +282,19 @@ const BRIGHTON_CITY_FEATURE: GameOSMFeature = {
   },
 };
 
+// OSM relation 88084 (Nominatim, 16/09/2026). extent is the PLAY AREA bbox.
+const GREATER_MANCHESTER_FEATURE: GameOSMFeature = {
+  type: "Feature",
+  geometry: { type: "Point", coordinates: [53.5065, -2.3374] },
+  properties: {
+    osm_type: "R", osm_id: 88084, extent: [53.68574, -2.73042, 53.3272, -1.90962],
+    // "place"/"city" like every other game, though OSM calls this a
+    // boundary=administrative county — the board is the whole county.
+    country: "United Kingdom", osm_key: "place", countrycode: "GB",
+    osm_value: "city", name: "Greater Manchester", type: "city",
+  },
+};
+
 const SERVER = {
   UK: "1059625399979606166",
   EU: "1190673594649415730",
@@ -748,6 +761,66 @@ export const GAME_REGISTRY: GameManifest[] = [
       "consulate",
       "consulate-full",
       "coastline",
+    ],
+  },
+  {
+    // Regenerate with scripts/gen-greater-manchester-assets.py.
+    sentinel: "__bundled-greater-manchester-2026__",
+    name: "Greater Manchester 19-9",
+    serverId: SERVER.UK,
+    // 1,271.55 km² — London-scale, so "large".
+    size: "large",
+    // Uniform: the source draws every hiding zone as a 400 m circle. Only the
+    // stations that HAVE a circle are hiding zones — all 168 of them, a mix of
+    // National Rail, Metrolink and bus stations.
+    hidingRadius: 400,
+    hidingRadiusUnits: "meters",
+    osm: GREATER_MANCHESTER_FEATURE,
+    kmlPath: "gm-poi.kml",
+    stationsKml: "gm-stations.kml",
+    boundaryGeoJson: "gm-border.geojson",
+    // Canonical folder names → identity mapping: airport, zoo, aquarium,
+    // hospital, consulate, mountain. No library folder on purpose — the source
+    // has no libraries, so those questions stay on Overpass. Boroughs, wards and
+    // the West Coast Main Line ship as separate GeoJSON, read by gmAdmin.ts and
+    // measuring.ts rather than through poiFolders.
+    poiFolders: {},
+    // The board is exactly Jules' list (16/09/2026): measuring AND matching for
+    // boroughs, wards, high-speed line, mountain, zoo, aquarium, hospital,
+    // library and consulate; airport is measuring only. Every other rulebook
+    // matching/measuring question is hidden. Kind-prefixed throughout, so
+    // tentacles are untouched. The generic Overpass HSL and admin-zone
+    // questions are hidden in favour of gm-hsl / gm-borough / gm-ward.
+    hiddenQuestionTypes: [
+      "matching:airport",
+      "matching:major-city",
+      "matching:zone",
+      "matching:letter-zone",
+      "matching:theme_park",
+      "matching:theme_park-full",
+      "matching:museum",
+      "matching:museum-full",
+      "matching:cinema",
+      "matching:cinema-full",
+      "matching:golf_course",
+      "matching:golf_course-full",
+      "matching:park",
+      "matching:park-full",
+      "measuring:coastline",
+      "measuring:city",
+      "measuring:highspeed-measure-shinkansen",
+      "measuring:international-border",
+      "measuring:international-border-og",
+      "measuring:theme_park",
+      "measuring:theme_park-full",
+      "measuring:museum",
+      "measuring:museum-full",
+      "measuring:cinema",
+      "measuring:cinema-full",
+      "measuring:golf_course",
+      "measuring:golf_course-full",
+      "measuring:park",
+      "measuring:park-full",
     ],
   },
 ];
