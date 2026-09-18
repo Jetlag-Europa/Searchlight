@@ -494,6 +494,12 @@ const ROTTERDAM_SENTINELS = [
     "__bundled-rotterdam-2026-09__",
 ];
 
+// Stockholm 15-08 and 19-09 share every asset; only the hiding zones differ.
+const STOCKHOLM_SENTINELS = [
+    "__bundled-stockholm-2026__",
+    "__bundled-stockholm-2026-09__",
+];
+
 export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // Luxembourg
     "lux-canton":                "__bundled-luxembourg-2026__",
@@ -614,10 +620,10 @@ export const GAME_GATED_TYPES: Record<string, string | string[]> = {
     // both. Measuring is the border of the division you are IN at every level.
     // admin3 measuring is lopsided by design (it keeps ~6.5% of zones); that
     // was measured and shipped deliberately — see stockholmAdmin.ts.
-    "stockholm-admin1":          "__bundled-stockholm-2026__",
-    "stockholm-admin2":          "__bundled-stockholm-2026__",
-    "stockholm-admin3":          "__bundled-stockholm-2026__",
-    "stockholm-ikea":            "__bundled-stockholm-2026__",
+    "stockholm-admin1":          STOCKHOLM_SENTINELS,
+    "stockholm-admin2":          STOCKHOLM_SENTINELS,
+    "stockholm-admin3":          STOCKHOLM_SENTINELS,
+    "stockholm-ikea":            STOCKHOLM_SENTINELS,
     // Milan — three game-specific POI categories, each matching + measuring.
     // The other 11 supplied categories are rulebook ones and need no gate; they
     // reach the POI override through their generic question types.

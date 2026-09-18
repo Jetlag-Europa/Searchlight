@@ -90,8 +90,10 @@ function distToBorder(
     return Math.min(...lines.map((l) => turf.pointToLineDistance(pt, l, { units })));
 }
 
-function stationCoords(): Map<string, [number, number]> {
-    const kml = readFileSync(resolve(PUBLIC, "stockholm-stations.kml"), "utf8");
+function stationCoords(
+    file = "stockholm-stations.kml",
+): Map<string, [number, number]> {
+    const kml = readFileSync(resolve(PUBLIC, file), "utf8");
     const out = new Map<string, [number, number]>();
     for (const m of kml.matchAll(
         /<name>([^<]+)<\/name><Point><coordinates>([-\d.]+),([-\d.]+)/g,
@@ -101,6 +103,8 @@ function stationCoords(): Map<string, [number, number]> {
     return out;
 }
 const STATIONS = stationCoords();
+// Stockholm 19-09: the same board with two more hiding zones.
+const STATIONS_1909 = stationCoords("stockholm-1909-stations.kml");
 
 beforeEach(() => {
     vi.stubGlobal(
@@ -157,7 +161,8 @@ describe("Stockholm admin assets", () => {
         (type) => {
             const fc = LEVELS[type as keyof typeof LEVELS];
             expect(STATIONS.size).toBe(191);
-            for (const [lng, lat] of STATIONS.values()) {
+            // STATIONS_1909 is a superset of STATIONS, so this covers both games.
+            for (const [lng, lat] of STATIONS_1909.values()) {
                 const pt = turf.point([lng, lat]);
                 const hits = fc.features.filter((f) =>
                     turf.booleanPointInPolygon(pt, f),
@@ -166,6 +171,15 @@ describe("Stockholm admin assets", () => {
             }
         },
     );
+
+    it("Stockholm 19-09 is 15-08 plus Kungsträdgården and Farsta, nothing moved", () => {
+        expect(STATIONS_1909.size).toBe(193);
+        const added = [...STATIONS_1909.keys()].filter((n) => !STATIONS.has(n));
+        expect(added.sort()).toEqual(["Farsta", "Kungsträdgården"]);
+        for (const [name, coords] of STATIONS) {
+            expect(STATIONS_1909.get(name)).toEqual(coords);
+        }
+    });
 
     // The three levels are the author's own groupings, but they do nest — worth
     // pinning, because a future source revision that redraws one level without

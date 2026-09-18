@@ -317,6 +317,28 @@ const SERVER = {
   HOME: "home-games",
 } as const;
 
+// Shared by both Stockholm games; the reasoning is on Stockholm 15-08 below.
+const STOCKHOLM_HIDDEN = [
+  "coastline",
+  // Tentacles
+  "tentacle:theme_park",
+  "tentacle:zoo",
+  "tentacle:aquarium",
+  "tentacle:hospital",
+  // Measuring
+  "measuring:city", // "Major City (1,000,000+ people)"
+  "measuring:international-border",
+  "measuring:aquarium-full",
+  "measuring:aquarium", // the Hiding Zone Mode copy
+  "measuring:mcdonalds",
+  "measuring:seven11",
+  // Matching
+  "matching:letter-zone", // "Zone Starts With Same Letter"
+  "matching:major-city",
+  "matching:aquarium-full",
+  "matching:aquarium", // the Hiding Zone Mode copy
+];
+
 export const GAME_REGISTRY: GameManifest[] = [
   {
     sentinel: "__bundled-exter-rotterdam-2026__",
@@ -454,26 +476,27 @@ export const GAME_REGISTRY: GameManifest[] = [
     stationsKml: "stockholm-stations.kml",
     boundaryGeoJson: "stockholm-border.geojson",
     poiFolders: {},
-    hiddenQuestionTypes: [
-      "coastline",
-      // Tentacles
-      "tentacle:theme_park",
-      "tentacle:zoo",
-      "tentacle:aquarium",
-      "tentacle:hospital",
-      // Measuring
-      "measuring:city", // "Major City (1,000,000+ people)"
-      "measuring:international-border",
-      "measuring:aquarium-full",
-      "measuring:aquarium", // the Hiding Zone Mode copy
-      "measuring:mcdonalds",
-      "measuring:seven11",
-      // Matching
-      "matching:letter-zone", // "Zone Starts With Same Letter"
-      "matching:major-city",
-      "matching:aquarium-full",
-      "matching:aquarium", // the Hiding Zone Mode copy
-    ],
+    hiddenQuestionTypes: STOCKHOLM_HIDDEN,
+  },
+  {
+    // A rerun of Stockholm 15-08 with two more hiding zones (Kungsträdgården
+    // and Farsta, 191 -> 193). Everything else — POIs, border, the three admin
+    // levels, IKEA, the hidden list — is shared with the older game, so the
+    // stockholm-* questions are gated to STOCKHOLM_SENTINELS in schema.ts.
+    // Its own sentinel (not a replace-in-place like Paris) so 15-08 sessions
+    // keep their zone set.
+    sentinel: "__bundled-stockholm-2026-09__",
+    name: "Stockholm 19-09",
+    serverId: SERVER.NORDICS,
+    size: "large",
+    hidingRadius: 500,
+    hidingRadiusUnits: "meters",
+    osm: STOCKHOLM_CITY_FEATURE,
+    kmlPath: "stockholm-poi.kml",
+    stationsKml: "stockholm-1909-stations.kml",
+    boundaryGeoJson: "stockholm-border.geojson",
+    poiFolders: {},
+    hiddenQuestionTypes: STOCKHOLM_HIDDEN,
   },
   {
     // Refreshed from the author's v0.1 pack (Aug 2026), replacing the original
