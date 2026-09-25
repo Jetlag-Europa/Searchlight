@@ -874,7 +874,9 @@ export const GAME_REGISTRY: GameManifest[] = [
     kmlPath: "nl-poi.kml",
     stationsKml: "nl-stations.kml",
     boundaryGeoJson: "nl-border.geojson",
-    // cinema, library, museum, hospital — canonical folders. Stations are NOT
+    // cinema, library, museum, hospital, park — canonical folders. Park is 55
+    // council-listed parks (Hackney, Islington, Camden; Jules, 26/09/2026), so
+    // both park questions read those, never Overpass. Stations are NOT
     // bundled as "train_station": rail-station measuring and station-name
     // length are hiding-zone-mode questions that already read the 56 zones.
     poiFolders: {},
@@ -884,7 +886,7 @@ export const GAME_REGISTRY: GameManifest[] = [
     // water, park, museum, cinema, hospital, library. Transit line,
     // street/path and sea level are in the table but dropped from the app
     // (Jules' call). Everything else is hidden; tentacles are not in the table
-    // and are left alone. Park is the generic Overpass question.
+    // and are left alone. Park is the generic question on bundled POIs.
     hiddenQuestionTypes: [
       "matching:airport",
       "matching:major-city",
