@@ -12,6 +12,13 @@ Source (not vendored): `WriteMap-Dev/HS_North_London_FINAL.kmz`, one doc.kml:
   Cinema and Library               category is the bare <description> word
   Museum, Hospital                 one category each
 
+Parks come from a separate CSV (`WriteMap-Dev/HS_North_London_parks.csv`,
+26/09/2026): 55 parks from the Hackney, Islington and Camden council lists,
+geocoded via Google (its WKT and lat/lon are the same point). It is the WHOLE
+park list, so the park questions read these 55 and never Overpass. Named by
+the `name` column. Rows whose geocode missed the council site were renamed in
+the CSV to the park the point actually sits in (e.g. Gillespie Park).
+
 Rules decided with Jules (16/09/2026):
   - The game area is GREATER LONDON (OSM relation 175342), not the circles.
   - All 56 stations are hiding zones, the 8 closed ones included.
@@ -21,7 +28,7 @@ Rules decided with Jules (16/09/2026):
 
 Produces:
   nl-stations.kml             56 hiding zones, uniform 400 m
-  nl-poi.kml                  cinema, library, museum, hospital
+  nl-poi.kml                  cinema, library, museum, hospital, park
   nl-border.geojson           Greater London
   nl-constituencies.geojson   12 constituencies + "Outer"
   nl-constituency-lines.geojson  their border network, deduped
@@ -50,6 +57,7 @@ unioned, clipped to Greater London, and shipped as their EDGES: measuring is
 Overpass by bbox (that instance has no area index) and cached in
 scripts/.north-london-osm-cache/.
 """
+import csv
 import html
 import json
 import math
@@ -66,6 +74,7 @@ from shapely.geometry.polygon import orient
 from shapely.ops import linemerge, polygonize, transform, unary_union
 
 SRC_KMZ = "/Users/juleswitold/Dev/WriteMap-Dev/HS_North_London_FINAL.kmz"
+SRC_PARKS_CSV = "/Users/juleswitold/Dev/WriteMap-Dev/HS_North_London_parks.csv"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PUBLIC = os.path.join(ROOT, "apps", "web", "public")
 CACHE = os.path.join(ROOT, "scripts", ".north-london-osm-cache")
@@ -81,7 +90,8 @@ WATER_MIN_AREA_M2 = 20         # drops OSM digitising specks, keeps every pond
 
 EXPECT = {
     "stations": 56, "closed": 8, "constituencies": 12, "wards": 78,
-    "poi": {"cinema": 28, "library": 45, "museum": 44, "hospital": 14},
+    "poi": {"cinema": 28, "library": 45, "museum": 44, "hospital": 14,
+            "park": 55},
 }
 
 _R = 6371008.8
@@ -316,6 +326,19 @@ def main():
             if not area.contains(Point(c)):
                 sys.exit(f"POI outside Greater London: {pm_name(pm)}")
             by_cat.setdefault(cat, []).append((pm_name(pm), c))
+    # The header's second column carries a stray BOM; read by position up to
+    # `longitude` only, and skip the trailing blank line.
+    with open(SRC_PARKS_CSV, encoding="utf-8-sig", newline="") as fh:
+        rows = list(csv.reader(fh))
+    if rows[0][3] != "name" or rows[0][5:7] != ["latitude", "longitude"]:
+        sys.exit(f"parks CSV: unexpected header {rows[0][:7]}")
+    for r in rows[1:]:
+        if not any(r):
+            continue
+        c = (float(r[6]), float(r[5]))
+        if not area.contains(Point(c)):
+            sys.exit(f"park outside Greater London: {r[3]}")
+        by_cat.setdefault("park", []).append((r[3].strip(), c))
     got = {k: len(v) for k, v in by_cat.items()}
     if got != EXPECT["poi"]:
         sys.exit(f"POI counts {got} != {EXPECT['poi']}")

@@ -41,6 +41,8 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
 
 import { hiderMode, mapGeoJSON, trainStations } from "@/lib/context";
 import { isQuestionTypeHidden } from "@/lib/games";
+import { categoryForQuestionType } from "@/lib/poiOverride";
+import { parseKMLFolderPOI } from "@/maps/api/importers";
 import { adjustPerMatching } from "@/maps/questions/matching";
 import { adjustPerMeasuring } from "@/maps/questions/measuring";
 import {
@@ -790,6 +792,23 @@ describe("North London assets", () => {
         for (const closed of ["Arsenal", "Caledonian Road", "Stoke Newington"])
             expect(names).toContain(closed);
         expect(names).toContain("King's Cross St Pancras");
+    });
+
+    // Parks are the council list (Jules, 26/09/2026), so the park questions
+    // read these 55 and never Overpass.
+    it("bundles the 55 council-listed parks alongside the KMZ POIs", () => {
+        const poi = parseKMLFolderPOI(readFileSync(resolve(PUBLIC, "nl-poi.kml"), "utf8"));
+        expect(Object.fromEntries(Object.entries(poi).map(([k, v]) => [k, v.length]))).toEqual({
+            cinema: 28, hospital: 14, library: 45, museum: 44, park: 55,
+        });
+        const names = poi.park.map((p) => p.name);
+        expect(new Set(names).size).toBe(55);
+        for (const n of ["Clissold Park", "Highbury Fields", "Gillespie Park", "Primrose Hill"])
+            expect(names).toContain(n);
+        for (const p of poi.park)
+            expect(turf.booleanPointInPolygon([p.lon, p.lat], nlBorder.features[0]), p.name).toBe(true);
+        expect(categoryForQuestionType("park")).toBe("park");
+        expect(categoryForQuestionType("park-full")).toBe("park");
     });
 
     it("plays on all of Greater London", () => {

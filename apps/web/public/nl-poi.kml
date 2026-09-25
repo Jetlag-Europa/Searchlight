@@ -139,4 +139,61 @@
 <Placemark><name>V&amp;A East Storehouse</name><Point><coordinates>-0.021183,51.546437,0</coordinates></Point></Placemark>
 <Placemark><name>Wellcome Collection</name><Point><coordinates>-0.134020,51.525974,0</coordinates></Point></Placemark>
 </Folder>
+<Folder><name>park</name>
+<Placemark><name>Alexandra Road Park</name><Point><coordinates>-0.183972,51.539318,0</coordinates></Point></Placemark>
+<Placemark><name>Archway Park</name><Point><coordinates>-0.134416,51.567023,0</coordinates></Point></Placemark>
+<Placemark><name>Barnard Park</name><Point><coordinates>-0.111944,51.537220,0</coordinates></Point></Placemark>
+<Placemark><name>Biddestone Park</name><Point><coordinates>-0.114754,51.553957,0</coordinates></Point></Placemark>
+<Placemark><name>Bingfield Park</name><Point><coordinates>-0.120674,51.539754,0</coordinates></Point></Placemark>
+<Placemark><name>Brunswick Square Gardens</name><Point><coordinates>-0.121801,51.524419,0</coordinates></Point></Placemark>
+<Placemark><name>Butterfield Green</name><Point><coordinates>-0.079879,51.554300,0</coordinates></Point></Placemark>
+<Placemark><name>Caledonian Park</name><Point><coordinates>-0.123291,51.546614,0</coordinates></Point></Placemark>
+<Placemark><name>Cantelowes Gardens</name><Point><coordinates>-0.133216,51.546971,0</coordinates></Point></Placemark>
+<Placemark><name>Castlehaven Community Park</name><Point><coordinates>-0.144660,51.543076,0</coordinates></Point></Placemark>
+<Placemark><name>Chambers Road Open Space</name><Point><coordinates>-0.122521,51.555779,0</coordinates></Point></Placemark>
+<Placemark><name>Clapton Common</name><Point><coordinates>-0.066055,51.571884,0</coordinates></Point></Placemark>
+<Placemark><name>Clissold Park</name><Point><coordinates>-0.088157,51.561634,0</coordinates></Point></Placemark>
+<Placemark><name>Dartmouth Park</name><Point><coordinates>-0.139613,51.562500,0</coordinates></Point></Placemark>
+<Placemark><name>Daubeney Fields</name><Point><coordinates>-0.035621,51.554766,0</coordinates></Point></Placemark>
+<Placemark><name>Elthorne Park</name><Point><coordinates>-0.125979,51.570832,0</coordinates></Point></Placemark>
+<Placemark><name>Fortune Green Open Space</name><Point><coordinates>-0.197333,51.554509,0</coordinates></Point></Placemark>
+<Placemark><name>Gillespie Park</name><Point><coordinates>-0.105991,51.558863,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Downs</name><Point><coordinates>-0.062347,51.553968,0</coordinates></Point></Placemark>
+<Placemark><name>Hackney Marshes</name><Point><coordinates>-0.031185,51.557944,0</coordinates></Point></Placemark>
+<Placemark><name>Haggerston Park</name><Point><coordinates>-0.066975,51.532759,0</coordinates></Point></Placemark>
+<Placemark><name>Hampstead Heath</name><Point><coordinates>-0.162934,51.560684,0</coordinates></Point></Placemark>
+<Placemark><name>Highbury Fields</name><Point><coordinates>-0.102866,51.549291,0</coordinates></Point></Placemark>
+<Placemark><name>Homerton Grove</name><Point><coordinates>-0.043687,51.549706,0</coordinates></Point></Placemark>
+<Placemark><name>Joseph Grimaldi Park</name><Point><coordinates>-0.115126,51.532201,0</coordinates></Point></Placemark>
+<Placemark><name>Kilburn Grange</name><Point><coordinates>-0.198324,51.543903,0</coordinates></Point></Placemark>
+<Placemark><name>Laycock Green</name><Point><coordinates>-0.105456,51.544976,0</coordinates></Point></Placemark>
+<Placemark><name>Lincoln's Inn Fields</name><Point><coordinates>-0.116635,51.516174,0</coordinates></Point></Placemark>
+<Placemark><name>Lismore Circus</name><Point><coordinates>-0.154965,51.552861,0</coordinates></Point></Placemark>
+<Placemark><name>London Fields</name><Point><coordinates>-0.060176,51.541813,0</coordinates></Point></Placemark>
+<Placemark><name>Mabley Green</name><Point><coordinates>-0.030437,51.549952,0</coordinates></Point></Placemark>
+<Placemark><name>Maygrove Peace Park</name><Point><coordinates>-0.198409,51.548852,0</coordinates></Point></Placemark>
+<Placemark><name>Millfields Park</name><Point><coordinates>-0.045179,51.558277,0</coordinates></Point></Placemark>
+<Placemark><name>Paradise Park</name><Point><coordinates>-0.112273,51.548163,0</coordinates></Point></Placemark>
+<Placemark><name>Primrose Hill</name><Point><coordinates>-0.160815,51.539076,0</coordinates></Point></Placemark>
+<Placemark><name>Rosemary Gardens</name><Point><coordinates>-0.087628,51.538418,0</coordinates></Point></Placemark>
+<Placemark><name>Russell Square Gardens</name><Point><coordinates>-0.125890,51.521750,0</coordinates></Point></Placemark>
+<Placemark><name>Shepherdess Walk</name><Point><coordinates>-0.093862,51.532197,0</coordinates></Point></Placemark>
+<Placemark><name>Shoreditch Park</name><Point><coordinates>-0.086053,51.534575,0</coordinates></Point></Placemark>
+<Placemark><name>Spa Fields</name><Point><coordinates>-0.107778,51.525833,0</coordinates></Point></Placemark>
+<Placemark><name>Springfield Park</name><Point><coordinates>-0.059227,51.570677,0</coordinates></Point></Placemark>
+<Placemark><name>St John’s Churchyard</name><Point><coordinates>-0.053487,51.549401,0</coordinates></Point></Placemark>
+<Placemark><name>St Pancras' Gardens</name><Point><coordinates>-0.130578,51.535486,0</coordinates></Point></Placemark>
+<Placemark><name>St Paul's South</name><Point><coordinates>-0.089058,51.546345,0</coordinates></Point></Placemark>
+<Placemark><name>Stoke Newington Common</name><Point><coordinates>-0.070365,51.561490,0</coordinates></Point></Placemark>
+<Placemark><name>Stonebridge Gardens (Snake Park)</name><Point><coordinates>-0.074791,51.539228,0</coordinates></Point></Placemark>
+<Placemark><name>Talacre Gardens</name><Point><coordinates>-0.148389,51.546819,0</coordinates></Point></Placemark>
+<Placemark><name>The Hill Garden and Pergola</name><Point><coordinates>-0.182178,51.564948,0</coordinates></Point></Placemark>
+<Placemark><name>Tufnell Park Playing Fields</name><Point><coordinates>-0.133679,51.558433,0</coordinates></Point></Placemark>
+<Placemark><name>Waterlow Park</name><Point><coordinates>-0.144962,51.568641,0</coordinates></Point></Placemark>
+<Placemark><name>Well Street Common</name><Point><coordinates>-0.041810,51.541301,0</coordinates></Point></Placemark>
+<Placemark><name>Whittington Park</name><Point><coordinates>-0.128335,51.561906,0</coordinates></Point></Placemark>
+<Placemark><name>Woodberry Down Park</name><Point><coordinates>-0.089064,51.570593,0</coordinates></Point></Placemark>
+<Placemark><name>Woodfall Park</name><Point><coordinates>-0.110333,51.566584,0</coordinates></Point></Placemark>
+<Placemark><name>Wray Crescent</name><Point><coordinates>-0.118776,51.566758,0</coordinates></Point></Placemark>
+</Folder>
 </Document></kml>
