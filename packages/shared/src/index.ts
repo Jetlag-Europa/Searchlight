@@ -69,6 +69,9 @@ export interface ServerRolesResponse {
 
 // ── Games ─────────────────────────────────────────────────────────────────────
 
+// Unlisted games stay out of the game picker; sessions of them start from game links.
+export type GameListing = "listed" | "unlisted";
+
 export interface Game {
   id: string;
   gameKey: string;
@@ -77,6 +80,30 @@ export interface Game {
   size: "small" | "medium" | "large";
   currentRevisionId?: string | null;
   archivedAt?: string | null;
+  listing: GameListing;
+  // The caller imported the game.
+  isOwner: boolean;
+  // The caller may change the game's listing and links.
+  canManage: boolean;
+}
+
+export interface UpdateGameListingBody {
+  listing: GameListing;
+}
+
+export interface GameLinkSummary {
+  id: string;
+  token: string;
+  label: string | null;
+  createdAt: string;
+}
+
+export interface GameLinksResponse {
+  links: GameLinkSummary[];
+}
+
+export interface CreateGameLinkBody {
+  label?: string;
 }
 
 export interface GameRevisionSummary {
@@ -96,6 +123,7 @@ export interface GameImportResponse {
   gameKey: string;
   revision: number;
   checksum: string;
+  listing?: GameListing;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
 }
@@ -127,6 +155,10 @@ export interface GameSessionSummary {
   id: string;
   gameId: string;
   gameName: string;
+  // A session's game may be missing from the caller's game catalog (an
+  // unlisted game, or one they can only reach through the session).
+  gameKey?: string;
+  gameSize?: "small" | "medium" | "large";
   serverId: string;
   name: string;
   visibility: SessionVisibility;
@@ -225,16 +257,19 @@ export interface CreateLinkResponse {
   token: string;
 }
 
+// "game" links start a new session of an unlisted game on each use.
+export type LinkType = "join" | "fork" | "game";
+
 export interface LinkInfoResponse {
   valid: boolean;
   sessionName?: string;
   gameName?: string;
-  linkType?: "join" | "fork";
+  linkType?: LinkType;
 }
 
 export interface RedeemLinkResponse {
   sessionId: string;
-  linkType: "join" | "fork";
+  linkType: LinkType;
 }
 
 // ── Feedback ──────────────────────────────────────────────────────────────────

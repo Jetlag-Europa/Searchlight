@@ -1,4 +1,4 @@
-import { Prisma } from "@prisma/client";
+import { type GameListing, Prisma } from "@prisma/client";
 import {
   computeGameDefinitionChecksum,
   type GameDefinition,
@@ -17,6 +17,8 @@ export interface ImportActor {
   type: "cookie" | "token";
   canCreateGames(serverId: string): boolean | Promise<boolean>;
   canEditGames(serverId: string): boolean | Promise<boolean>;
+  // games.create-unlisted: create unlisted games, which the actor then owns.
+  canCreateUnlistedGames(serverId: string): boolean | Promise<boolean>;
 }
 
 export interface ImportGameDefinitionParams {
@@ -26,6 +28,8 @@ export interface ImportGameDefinitionParams {
   dryRun?: boolean;
   expectedServerId?: string;
   allowUpdate?: boolean;
+  // Listing of a newly created game (default listed). Updates never change it.
+  listing?: GameListing;
 }
 
 export class ImportConflictError extends Error {
@@ -88,6 +92,9 @@ interface ImportContext {
   allowUpdate: boolean;
 }
 
+// The fields of an existing game that an import checks.
+const GAME_SELECT = { id: true, serverId: true, listing: true, ownerId: true } as const;
+
 function isUniqueViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
@@ -137,6 +144,7 @@ async function importDefinition(
     dryRun = false,
     expectedServerId,
     allowUpdate = false,
+    listing: requestedListing,
   } = params;
 
   // 1. Authorize against the target server before validating: validation is
@@ -155,7 +163,11 @@ async function importDefinition(
     if (!(await prisma.server.findUnique({ where: { id: serverId }, select: { id: true } }))) {
       throw serverNotFound(serverId, []);
     }
-    if (!(await actor.canCreateGames(serverId)) && !(await actor.canEditGames(serverId))) {
+    if (
+      !(await actor.canCreateGames(serverId)) &&
+      !(await actor.canEditGames(serverId)) &&
+      !(await actor.canCreateUnlistedGames(serverId))
+    ) {
       throw new ImportForbiddenError(
         "You do not have permission to import games on this server",
       );
@@ -207,18 +219,29 @@ async function importDefinition(
   // 4. Look up existing game by gameKey
   const existingGame = await prisma.game.findUnique({
     where: { gameKey },
-    select: { id: true, serverId: true },
+    select: GAME_SELECT,
   });
   if (existingGame) {
     return importRevision(ctx, existingGame);
   }
 
-  // 5. Brand new game creation
+  // 5. Brand new game creation. Uploaders with only games.create-unlisted
+  // create unlisted games, which they then own and manage.
+  let listing: GameListing = requestedListing ?? "listed";
   if (actor && !(await actor.canCreateGames(def.serverId))) {
-    throw new ImportForbiddenError(
-      "You do not have permission to create games on this server",
-    );
+    if (!(await actor.canCreateUnlistedGames(def.serverId))) {
+      throw new ImportForbiddenError(
+        "You do not have permission to create games on this server",
+      );
+    }
+    if (requestedListing === "listed") {
+      throw new ImportForbiddenError(
+        "You can only create private games on this server",
+      );
+    }
+    listing = "unlisted";
   }
+  const ownerId = actor?.type === "cookie" ? (actor.userId ?? null) : null;
 
   if (dryRun) {
     return {
@@ -227,6 +250,7 @@ async function importDefinition(
       gameKey,
       revision,
       checksum: ctx.checksum,
+      listing,
       errors: [],
       warnings: validation.warnings,
     };
@@ -240,6 +264,8 @@ async function importDefinition(
           serverId: def.serverId,
           name: def.name,
           size: def.size ?? "medium",
+          listing,
+          ownerId,
         },
       });
 
@@ -266,6 +292,7 @@ async function importDefinition(
         gameKey,
         revision,
         checksum: ctx.checksum,
+        listing,
         errors: [],
         warnings: validation.warnings,
       };
@@ -275,7 +302,7 @@ async function importDefinition(
     const raced = isUniqueViolation(err)
       ? await prisma.game.findUnique({
           where: { gameKey },
-          select: { id: true, serverId: true },
+          select: GAME_SELECT,
         })
       : null;
     if (!raced) throw err;
@@ -285,7 +312,7 @@ async function importDefinition(
 
 async function importRevision(
   ctx: ImportContext,
-  game: { id: string; serverId: string },
+  game: Prisma.GameGetPayload<{ select: typeof GAME_SELECT }>,
 ): Promise<GameImportResponse> {
   const { def, gameKey, checksum, warnings, source, actor } = ctx;
 
@@ -296,7 +323,19 @@ async function importRevision(
       `Game id "${gameKey}" is already used by a game on another server`,
     );
   }
-  if (actor && !(await actor.canEditGames(game.serverId))) {
+  // Editors update any game; owners update theirs while they may still
+  // import games on its server.
+  if (
+    actor &&
+    !(await actor.canEditGames(game.serverId)) &&
+    !(
+      actor.type === "cookie" &&
+      game.ownerId != null &&
+      game.ownerId === actor.userId &&
+      ((await actor.canCreateGames(game.serverId)) ||
+        (await actor.canCreateUnlistedGames(game.serverId)))
+    )
+  ) {
     throw new ImportForbiddenError(
       "You do not have permission to edit games on this server",
     );
@@ -326,6 +365,7 @@ async function importRevision(
         gameKey,
         revision: cur.revision,
         checksum,
+        listing: game.listing,
         errors: [],
         warnings,
       };
@@ -371,6 +411,7 @@ async function importRevision(
       gameKey,
       revision: targetRevision,
       checksum,
+      listing: game.listing,
       errors: [],
       warnings,
     };

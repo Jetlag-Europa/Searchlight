@@ -18,7 +18,13 @@ export async function getUserPermissions(
 ): Promise<Set<string>> {
   const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
   if (adminIds.includes(userId)) {
-    return new Set(["games.create", "games.edit", "games.delete", "server.admin"]);
+    return new Set([
+      "games.create",
+      "games.create-unlisted",
+      "games.edit",
+      "games.delete",
+      "server.admin",
+    ]);
   }
   // Virtual servers have no Discord guild to look roles up in.
   if (VIRTUAL_SERVER_IDS.has(serverId)) return new Set();

@@ -4,6 +4,7 @@ import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
+import { createGameSession } from "../lib/game-sessions.js";
 import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
 import type { Event } from "@prisma/client";
 
@@ -26,6 +27,10 @@ async function resolveParticipant(sessionId: string, userId: string) {
       game: {
         select: {
           name: true,
+          gameKey: true,
+          size: true,
+          listing: true,
+          ownerId: true,
           currentRevisionId: true,
           currentRevision: { select: { id: true, revision: true } },
         },
@@ -89,6 +94,8 @@ export async function sessionRoutes(app: FastifyInstance) {
           game: {
             select: {
               name: true,
+              gameKey: true,
+              size: true,
               currentRevisionId: true,
               currentRevision: { select: { revision: true } },
             },
@@ -107,6 +114,8 @@ export async function sessionRoutes(app: FastifyInstance) {
           id: s.id,
           gameId: s.gameId,
           gameName: s.game.name,
+          gameKey: s.game.gameKey,
+          gameSize: s.game.size,
           serverId: s.serverId,
           name: s.name,
           visibility: s.visibility,
@@ -185,32 +194,21 @@ export async function sessionRoutes(app: FastifyInstance) {
         req.log,
       );
 
-      const session = await prisma.$transaction(async (tx) => {
-        const s = await tx.gameSession.create({
-          data: {
-            gameId: game.id,
-            serverId: game.serverId,
-            creatorId: user.discordId,
-            name,
-            visibility,
-            gameRevisionId: targetRevision.id,
-          },
-        });
-        await tx.sessionParticipant.create({
-          data: {
-            sessionId: s.id,
-            userId: user.discordId,
-            role: "creator",
-            acceptedAt: new Date(),
-          },
-        });
-        return s;
+      const session = await createGameSession({
+        gameId: game.id,
+        serverId: game.serverId,
+        creatorId: user.discordId,
+        name,
+        visibility,
+        gameRevisionId: targetRevision.id,
       });
 
       return reply.status(201).send({
         id: session.id,
         gameId: session.gameId,
         gameName: game.name,
+        gameKey: game.gameKey,
+        gameSize: game.size,
         serverId: session.serverId,
         name: session.name,
         visibility: session.visibility,
@@ -400,6 +398,8 @@ export async function sessionRoutes(app: FastifyInstance) {
         id: session.id,
         gameId: session.gameId,
         gameName: session.game.name,
+        gameKey: session.game.gameKey,
+        gameSize: session.game.size,
         serverId: session.serverId,
         name: session.name,
         visibility: session.visibility,
@@ -447,9 +447,20 @@ export async function sessionRoutes(app: FastifyInstance) {
       }
 
       // Upgrading shares the game's current revision with every participant,
-      // so it requires the access that reading that revision does.
+      // so it requires the access that reading that revision does. Sessions of
+      // an unlisted game start from its links, which grant the whole game, so
+      // they follow it to new revisions without further access.
+      const assertUpgradeAccess = (revisionId: string | null) =>
+        session.game.listing === "unlisted"
+          ? Promise.resolve()
+          : assertGameAccess(
+              user.discordId,
+              { ...session.game, serverId: session.serverId },
+              [revisionId],
+              req.log,
+            );
       let checkedRevisionId = session.game.currentRevisionId;
-      await assertGameAccess(user.discordId, session, [checkedRevisionId], req.log);
+      await assertUpgradeAccess(checkedRevisionId);
 
       type UpgradeResult = {
         status: "already-current" | "upgraded";
@@ -542,7 +553,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           throw conflict("The game was updated while upgrading; try again");
         }
         checkedRevisionId = upgradeResult.gameRevisionId;
-        await assertGameAccess(user.discordId, session, [checkedRevisionId], req.log);
+        await assertUpgradeAccess(checkedRevisionId);
         upgradeResult = await attemptUpgrade();
       }
 
@@ -680,7 +691,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         const updatedSession = await tx.gameSession.update({
           where: { id: sessionId },
           data: updateData,
-          include: { game: { select: { name: true } } },
+          include: { game: { select: { name: true, gameKey: true, size: true } } },
         });
 
         return { updated: updatedSession, eventsToBroadcast: events };
@@ -704,6 +715,8 @@ export async function sessionRoutes(app: FastifyInstance) {
         id: updated.id,
         gameId: updated.gameId,
         gameName: updated.game.name,
+        gameKey: updated.game.gameKey,
+        gameSize: updated.game.size,
         serverId: updated.serverId,
         name: updated.name,
         visibility: updated.visibility,

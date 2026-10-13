@@ -7,7 +7,14 @@ import { requirePermission } from "../lib/require-permission.js";
 import { discord, type DiscordRole } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
 
-const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+const KNOWN_PERMISSIONS = [
+  "games.create",
+  // Import private (unlisted) games and manage the ones you imported.
+  "games.create-unlisted",
+  "games.edit",
+  "games.delete",
+  "server.admin",
+];
 
 export async function serverRoutes(app: FastifyInstance) {
   // GET /servers — list seeded servers with the authed user's permissions for each

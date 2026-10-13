@@ -2,12 +2,25 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { createGameSession, GAME_LINK_PREFIX } from "../lib/game-sessions.js";
 
 function notFound(msg = "Not found") {
   return Object.assign(new Error(msg), { statusCode: 404 });
 }
 function forbidden(msg = "Forbidden") {
   return Object.assign(new Error(msg), { statusCode: 403 });
+}
+
+// A game link works while it is unrevoked and its game is unlisted and has a
+// revision to start a session on.
+async function findRedeemableGameLink(token: string) {
+  const link = await prisma.gameLink.findUnique({
+    where: { token },
+    include: { game: true },
+  });
+  if (!link || link.revokedAt || link.game.listing !== "unlisted") return null;
+  const gameRevisionId = link.game.currentRevisionId;
+  return gameRevisionId ? { ...link, gameRevisionId } : null;
 }
 
 export async function linkRoutes(app: FastifyInstance) {
@@ -17,6 +30,11 @@ export async function linkRoutes(app: FastifyInstance) {
     { schema: { params: Type.Object({ token: Type.String() }) } },
     async (req) => {
       const { token } = req.params as { token: string };
+      if (token.startsWith(GAME_LINK_PREFIX)) {
+        const gameLink = await findRedeemableGameLink(token);
+        if (!gameLink) return { valid: false };
+        return { valid: true, gameName: gameLink.game.name, linkType: "game" as const };
+      }
       const link = await prisma.sessionLink.findUnique({
         where: { token },
         include: { session: { include: { game: { select: { name: true } } } } },
@@ -38,6 +56,26 @@ export async function linkRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { token } = req.params as { token: string };
+
+      // game: start a new session of the game. The link is the grant, so
+      // neither server membership nor a role gate is checked.
+      if (token.startsWith(GAME_LINK_PREFIX)) {
+        const gameLink = await findRedeemableGameLink(token);
+        if (!gameLink) throw notFound("Link is invalid or has been revoked");
+        const session = await createGameSession({
+          gameId: gameLink.game.id,
+          serverId: gameLink.game.serverId,
+          creatorId: user.discordId,
+          name: gameLink.game.name,
+          visibility: "private",
+          gameRevisionId: gameLink.gameRevisionId,
+        });
+        req.log.info(
+          { linkId: gameLink.id, sessionId: session.id, userId: user.discordId },
+          "[links] game link redeemed",
+        );
+        return reply.status(200).send({ sessionId: session.id, linkType: "game" });
+      }
 
       const link = await prisma.sessionLink.findUnique({
         where: { token },

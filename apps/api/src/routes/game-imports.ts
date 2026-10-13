@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { GameListing } from "@prisma/client";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
@@ -67,6 +68,11 @@ export async function resolveImportActor(
           tokenRecord.permissions.includes("games.edit")
         );
       },
+      // Private uploads belong to the user who imports them; a token imports
+      // for no one, so it needs games.create or games.edit.
+      canCreateUnlistedGames() {
+        return false;
+      },
     };
   }
 
@@ -82,6 +88,10 @@ export async function resolveImportActor(
     async canEditGames(serverId: string) {
       const perms = await getUserPermissions(user.discordId, serverId, true, req.log);
       return perms.has("games.edit") || perms.has("server.admin");
+    },
+    async canCreateUnlistedGames(serverId: string) {
+      const perms = await getUserPermissions(user.discordId, serverId, true, req.log);
+      return perms.has("games.create-unlisted");
     },
   };
 }
@@ -121,7 +131,7 @@ async function assertGameDefinitionAccess({
   session,
 }: {
   req: FastifyRequest;
-  game: { id: string; serverId: string };
+  game: { id: string; serverId: string; listing: GameListing; ownerId: string | null };
   // The requested revision and the game's current one; each one's role gate applies.
   revisionIds: (string | null | undefined)[];
   // Only for routes serving a single revision: participants of a session pinned
@@ -215,14 +225,19 @@ export async function gameImportRoutes(app: FastifyInstance) {
           dryRun: Type.Optional(Type.Boolean()),
           allowUpdate: Type.Optional(Type.Boolean()),
           expectedServerId: Type.Optional(Type.String()),
+          // For a new game; an existing game keeps its listing.
+          listing: Type.Optional(
+            Type.Union([Type.Literal("listed"), Type.Literal("unlisted")]),
+          ),
         }),
       },
     },
     async (req, reply) => {
-      const { dryRun = false, allowUpdate = false, expectedServerId } = req.query as {
+      const { dryRun = false, allowUpdate = false, expectedServerId, listing } = req.query as {
         dryRun?: boolean;
         allowUpdate?: boolean;
         expectedServerId?: string;
+        listing?: GameListing;
       };
       const body = req.body as Record<string, unknown> | null | undefined;
       const shouldAllowUpdate = allowUpdate || Boolean(body?.allowUpdate);
@@ -236,6 +251,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
           dryRun,
           expectedServerId,
           allowUpdate: shouldAllowUpdate,
+          listing,
         });
 
         const status = result.status === "created" ? 201 : 200;

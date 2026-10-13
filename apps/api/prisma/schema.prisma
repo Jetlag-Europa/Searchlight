@@ -17,6 +17,13 @@ enum ParticipantRole {
   member
 }
 
+// Unlisted games stay out of the game picker: sessions of them start only
+// from a game link (or by the people who manage the game).
+enum GameListing {
+  listed
+  unlisted
+}
+
 model User {
   discordId             String       @id
   username              String
@@ -38,6 +45,8 @@ model User {
   strokes               Stroke[]
   events                Event[]
   createdLinks          SessionLink[]          @relation("CreatedLinks")
+  ownedGames            Game[]                 @relation("OwnedGames")
+  createdGameLinks      GameLink[]             @relation("CreatedGameLinks")
   feedback              Feedback[]
   feedbackVotes         FeedbackVote[]
 }
@@ -101,17 +110,40 @@ model Game {
   name              String
   size              String         @default("medium") // "small" | "medium" | "large"
   currentRevisionId String?
+  listing           GameListing    @default(listed)
+  ownerId           String?        // the importing user; null for preloaded games
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
   server          Server         @relation(fields: [serverId], references: [id])
+  owner           User?          @relation("OwnedGames", fields: [ownerId], references: [discordId])
   sessions        GameSession[]
   revisions       GameRevision[]
+  links           GameLink[]
   currentRevision GameRevision?  @relation("CurrentGameRevision", fields: [currentRevisionId], references: [id])
 
   @@index([serverId])
   @@index([currentRevisionId])
+  @@index([ownerId])
+}
+
+// A reusable link that starts a new session of an unlisted game each time it
+// is redeemed. Tokens carry a "g_" prefix so /links can tell them apart from
+// SessionLink tokens.
+model GameLink {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  gameId      String
+  createdById String
+  label       String?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  game      Game @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  createdBy User @relation("CreatedGameLinks", fields: [createdById], references: [discordId])
+
+  @@index([gameId])
 }
 
 model GameRevision {
