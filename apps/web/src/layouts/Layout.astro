@@ -9,7 +9,6 @@ export interface Props {
 }
 
 const { className } = Astro.props;
-const apiBase = import.meta.env.PUBLIC_API_BASE;
 ---
 
 <!doctype html>
@@ -17,7 +16,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width" />
-        <!-- Force HTTPS + storage migration. Must be the first script in <head>. -->
+        <!-- Force HTTPS. Must be the first script in <head>. -->
         <script type="text/javascript">
             // Redirect http → https (fixes mobile CORS loop caused by plain-HTTP origin).
             // Exempt local loopback hosts (localhost / 127.0.0.1 / ::1) so plain-HTTP
@@ -31,96 +30,6 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             ) {
                 location.replace(location.href.replace('http:', 'https:'));
             }
-            (function () {
-                var VERSION = 'v2';
-                var SENTINEL = 'taibled-storage-version';
-                if (localStorage.getItem(SENTINEL) === VERSION) return;
-
-                var NAMED = [
-                    'mapGeoLocation','additionalMapGeoLocations','permanentOverlay','polyGeoJSON',
-                    'questions','defaultUnit','isHiderMode','displayHidingZones',
-                    'displayHidingZonesOptions','displayHidingZonesStyle','useCustomStations',
-                    'customStations','removeDuplicates','includeDefaultStations','animateMapMovements',
-                    'hidingRadius','hidingRadiusUnits','disabledStations','autoSave','customPresets',
-                    'planningModeEnabled','autoZoom','baseTileLayer','thunderforestApiKey','followMe',
-                    'defaultCustomQuestions','pastebinApiKey','alwaysUsePastebin','showTutorials',
-                    'customInitPreference','allowGooglePlusCodes',
-                    'current-game-id','taibled-current-game-id','taibled-active-session',
-                    'taibled-wiped','jetlag-annotations-v1'
-                ];
-                var PREFIXES = ['jetlag-', 'annot-'];
-
-                // Collect all prefix-matched keys first (can't mutate during iteration)
-                var allKeys = [];
-                for (var i = 0; i < localStorage.length; i++) { allKeys.push(localStorage.key(i)); }
-                var wiped = [];
-                allKeys.forEach(function(k) {
-                    if (!k) return;
-                    for (var p = 0; p < PREFIXES.length; p++) {
-                        if (k.startsWith(PREFIXES[p])) { localStorage.removeItem(k); wiped.push(k); return; }
-                    }
-                });
-                NAMED.forEach(function(k) {
-                    if (localStorage.getItem(k) !== null) { localStorage.removeItem(k); wiped.push(k); }
-                });
-
-                localStorage.setItem(SENTINEL, VERSION);
-                console.info('[taibled] storage migration ' + VERSION + ': wiped ' + wiped.length + ' key(s)', wiped);
-            })();
-        </script>
-        <!--
-            Per-page-load correlation id. Must run before any component mounts, because
-            the point is to tag the burst of API calls that map.astro's four independent
-            client:only roots fire simultaneously on load. Wrapping fetch is deliberate:
-            there are ~30 call sites across lib/ and components/, and this is diagnostic
-            code meant to be removed or kept as one block, not threaded through all of
-            them. Scoped strictly to same-origin-with-apiBase URLs so no third-party
-            request (Discord CDN, CARTO tiles, Overpass, fonts) ever sees the header.
-        -->
-        <script define:vars={{ apiBase }}>
-            (function () {
-                if (!apiBase) return;
-                var id =
-                    Math.random().toString(36).slice(2, 10) +
-                    Date.now().toString(36).slice(-4);
-                window.__taibledPageLoad = id;
-
-                var nativeFetch = window.fetch.bind(window);
-                window.fetch = function (input, init) {
-                    try {
-                        var url =
-                            typeof input === 'string'
-                                ? input
-                                : input instanceof Request
-                                  ? input.url
-                                  : String(input && input.url ? input.url : input);
-
-                        if (url.indexOf(apiBase) === 0) {
-                            // A Request object carries its own immutable-ish headers, so
-                            // rebuild rather than mutate `init` when one is passed.
-                            if (input instanceof Request && !init) {
-                                var req = new Request(input);
-                                req.headers.set('X-Page-Load', id);
-                                return nativeFetch(req);
-                            }
-                            var next = Object.assign({}, init);
-                            var headers = new Headers(
-                                (init && init.headers) ||
-                                    (input instanceof Request ? input.headers : undefined),
-                            );
-                            headers.set('X-Page-Load', id);
-                            next.headers = headers;
-                            return nativeFetch(input, next);
-                        }
-                    } catch (e) {
-                        // Instrumentation must never break a request.
-                        console.warn('[taibled:pageload] header injection failed', e);
-                    }
-                    return nativeFetch(input, init);
-                };
-
-                console.info('[taibled:pageload] id=' + id);
-            })();
         </script>
         <link
             rel="icon"

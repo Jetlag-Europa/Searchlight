@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { prettifyLocation } from "@/maps/api/geo";
+import type { APILocations } from "@/maps/api/types";
 import { questionSchema } from "@/maps/schema";
 
 describe("thermometer question schema", () => {
@@ -33,13 +34,6 @@ describe("zone matching question schema", () => {
 
 describe("prettifyLocation", () => {
     it.each([
-        ["covrigarie", "Covrigarie"],
-        ["train_station", "Train Station"],
-        ["camping", "Camping"],
-        ["mill", "Mill"],
-        ["mountain", "Mountain"],
-        ["bern-mountain", "Mountain"],
-        ["bern-park", "Park"],
         ["aquarium", "Aquarium"],
         ["hospital", "Hospital"],
         ["cinema", "Cinema"],
@@ -50,9 +44,8 @@ describe("prettifyLocation", () => {
         ["museum", "Museum"],
         ["theme_park", "Theme Park"],
         ["zoo", "Zoo"],
-        ["peak", "Mountain"],
-    ] as const)("prettifyLocation(%s) === %s", (loc, expected) => {
-        expect(prettifyLocation(loc as any)).toBe(expected);
+    ] as const)("prettifyLocation(%s) === %s", (loc: APILocations, expected: string) => {
+        expect(prettifyLocation(loc)).toBe(expected);
     });
 
     it("pluralises library correctly", () => {
@@ -61,6 +54,6 @@ describe("prettifyLocation", () => {
 
     it("pluralises other types with an s suffix", () => {
         expect(prettifyLocation("aquarium", true)).toBe("Aquariums");
-        expect(prettifyLocation("covrigarie", true)).toBe("Covrigaries");
+        expect(prettifyLocation("museum", true)).toBe("Museums");
     });
 });

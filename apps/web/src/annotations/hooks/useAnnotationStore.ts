@@ -1,7 +1,6 @@
 import { persistentAtom } from "@nanostores/persistent";
 import { atom } from "nanostores";
 
-import { activeSessionId } from "@/lib/activeSession";
 import {
     deleteStrokeFromServer,
     saveStrokeToServer,
@@ -12,6 +11,7 @@ import type {
     StrokeWidthPreset,
 } from "@/annotations/types";
 import { PEN_COLORS } from "@/annotations/types";
+import { activeSessionId } from "@/lib/activeSession";
 
 export const tool = persistentAtom<AnnotationTool>("annot-tool", "pen");
 

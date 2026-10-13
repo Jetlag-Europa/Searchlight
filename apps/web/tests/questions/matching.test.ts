@@ -11,31 +11,22 @@ import { adjustPerMatching } from "@/maps/questions/matching";
 import { gridAgreement, sampleGrid } from "./oracleCommon";
 import { failuresToBad, renderDebugSVG } from "./debugRender";
 
-// Bundled-GeoJSON matching (municipality/postcode/sector) is fetched from the
-// public/ folder at runtime. Under Node there's no dev server, so we stub fetch
-// to read the real bundled file off disk — exercising the actual
-// point-in-feature boundary path (the Entry 34 "municipality doesn't work"
-// class of bug) against the real South Limburg municipalities.
-const PUBLIC = resolve(__dirname, "..", "..", "public");
+// The real South Limburg municipalities, read from the preloaded definition and
+// used as a player-drawn custom zone: exercises the exact point-in-zone path
+// (the Entry 34 "municipality doesn't work" class of bug) on real geometry.
+const PRELOADED = resolve(__dirname, "../../../../games/preloaded");
 
-const municipalities = JSON.parse(
-    readFileSync(resolve(PUBLIC, "south-limburg-municipalities.geojson"), "utf8"),
-) as FeatureCollection<Polygon>;
+const southLimburgGame = JSON.parse(
+    readFileSync(resolve(PRELOADED, "south-limburg-2026.game.json"), "utf8"),
+);
 
-beforeEach(() => {
-    vi.stubGlobal(
-        "fetch",
-        vi.fn(async (url: string) => {
-            const file = String(url).split("/").pop()!;
-            const body = readFileSync(resolve(PUBLIC, file), "utf8");
-            return {
-                ok: true,
-                status: 200,
-                json: async () => JSON.parse(body),
-            } as Response;
-        }),
-    );
-});
+interface GameFeature {
+    name: string;
+    data: FeatureCollection<Polygon>;
+}
+const features = southLimburgGame.features as GameFeature[];
+const municipalities = features.find((f) => f.name === "Municipality")!.data;
+
 
 afterEach(() => {
     hiderMode.set(false);
@@ -44,7 +35,7 @@ afterEach(() => {
 
 // The bundled border MUST be a FeatureCollection (Entry 34 / Entry 38) — assert
 // the fixture itself so a regression in the asset is caught here too.
-it("south-limburg-municipalities.geojson is a FeatureCollection of polygons", () => {
+it("south-limburg municipalities is a FeatureCollection of polygons", () => {
     expect(municipalities.type).toBe("FeatureCollection");
     expect(municipalities.features.length).toBeGreaterThan(1);
     expect(municipalities.features[0].geometry.type).toMatch(/Polygon/);
@@ -52,7 +43,8 @@ it("south-limburg-municipalities.geojson is a FeatureCollection of polygons", ()
 
 function matchingQuestion(seeker: [number, number], same: boolean) {
     return {
-        type: "south-limburg-municipality",
+        type: "custom-zone",
+        geo: muniContaining(turf.point(seeker)),
         lat: seeker[1],
         lng: seeker[0],
         same,

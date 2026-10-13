@@ -12,7 +12,11 @@ import { toast } from "react-toastify";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/useDebounce";
-import { allowGooglePlusCodes, isLoading } from "@/lib/context";
+import {
+    allowGooglePlusCodes,
+    isLoading,
+    setScopedLoading,
+} from "@/lib/context";
 import { cn } from "@/lib/utils";
 import { determineName, geocode, ICON_COLORS } from "@/maps/api";
 
@@ -166,7 +170,11 @@ const LatLngEditForm = ({
         <>
             <Command shouldFilter={false}>
                 <CommandInput
-                    placeholder={localLocations ? "Search hiding location..." : "Search place..."}
+                    placeholder={
+                        localLocations
+                            ? "Search hiding location..."
+                            : "Search place..."
+                    }
                     value={inputValue}
                     onValueChange={setInputValue}
                     disabled={disabled}
@@ -209,7 +217,8 @@ const LatLngEditForm = ({
                                     <CommandItem
                                         key={`${result.properties.osm_id}${result.properties.name}`}
                                         onSelect={() => {
-                                            const coords = result.geometry.coordinates;
+                                            const coords =
+                                                result.geometry.coordinates;
                                             onChange(coords[0], coords[1]);
                                             setInputValue("");
                                             onResultSelect?.();
@@ -489,7 +498,10 @@ export const LatitudeLongitude = ({
                                 if (!navigator || !navigator.geolocation)
                                     return alert("Geolocation not supported");
 
-                                isLoading.set(true);
+                                setScopedLoading(
+                                    "latLngPicker:geolocation",
+                                    true,
+                                );
 
                                 toast.promise(
                                     new Promise<GeolocationPosition>(
@@ -511,7 +523,10 @@ export const LatitudeLongitude = ({
                                             );
                                         })
                                         .finally(() => {
-                                            isLoading.set(false);
+                                            setScopedLoading(
+                                                "latLngPicker:geolocation",
+                                                false,
+                                            );
                                         }),
                                     {
                                         pending: "Fetching location",
@@ -536,7 +551,10 @@ export const LatitudeLongitude = ({
                                     return;
                                 }
 
-                                isLoading.set(true);
+                                setScopedLoading(
+                                    "latLngPicker:clipboard",
+                                    true,
+                                );
 
                                 toast.promise(
                                     navigator.clipboard
@@ -559,7 +577,10 @@ export const LatitudeLongitude = ({
                                             );
                                         })
                                         .finally(() => {
-                                            isLoading.set(false);
+                                            setScopedLoading(
+                                                "latLngPicker:clipboard",
+                                                false,
+                                            );
                                         }),
                                     {
                                         pending: "Reading from clipboard",

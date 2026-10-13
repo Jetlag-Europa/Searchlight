@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { type DragEndEvent, Icon } from "leaflet";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Fragment } from "react/jsx-runtime";
 import { Marker } from "react-leaflet";
 
@@ -30,6 +30,26 @@ import { SidebarMenu } from "./ui/sidebar-l";
 
 let isDragging = false;
 
+// react-leaflet calls setIcon (rebuilding the marker's DOM) whenever the icon
+// reference changes, so share one Icon per colour instead of one per render.
+const markerIcons = new Map<string, Icon>();
+const markerIcon = (color: string): Icon => {
+    let icon = markerIcons.get(color);
+    if (!icon) {
+        icon = new Icon({
+            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
+            shadowUrl:
+                "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41],
+        });
+        markerIcons.set(color, icon);
+    }
+    return icon;
+};
+
 const ColoredMarker = ({
     latitude,
     longitude,
@@ -49,34 +69,26 @@ const ColoredMarker = ({
     const $hiderMode = useStore(hiderMode);
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
-    const hiderLocalLocations: LocalLocation[] | undefined = $trainStations.length > 0
-        ? $trainStations
-            .map((s) => {
-                const name = extractStationLabel(s.properties) as string;
-                const coords = s.properties.geometry.coordinates as [number, number];
-                return { name, lat: coords[1], lng: coords[0] };
-            })
-            .filter((loc) => loc.name)
-        : undefined;
+    const hiderLocalLocations: LocalLocation[] | undefined = useMemo(
+        () =>
+            $trainStations.length > 0
+                ? $trainStations
+                      .map((s) => {
+                          const name = extractStationLabel(s.properties) as string;
+                          const coords = s.properties.geometry.coordinates as [number, number];
+                          return { name, lat: coords[1], lng: coords[0] };
+                      })
+                      .filter((loc) => loc.name)
+                : undefined,
+        [$trainStations],
+    );
     const [open, setOpen] = useState(false);
 
     return (
         <Dialog open={open} onOpenChange={setOpen}>
             <Marker
                 position={[latitude, longitude]}
-                icon={
-                    color
-                        ? new Icon({
-                              iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-                              shadowUrl:
-                                  "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
-                              iconSize: [25, 41],
-                              iconAnchor: [12, 41],
-                              popupAnchor: [1, -34],
-                              shadowSize: [41, 41],
-                          })
-                        : undefined
-                }
+                icon={color ? markerIcon(color) : undefined}
                 draggable={true}
                 eventHandlers={{
                     dragstart: () => {

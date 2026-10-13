@@ -9,6 +9,8 @@ import {
 } from "@/components/ui/sidebar-l";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
+import { radarRadii } from "@/game-definition/compile";
+import { compiledGameAtom } from "@/game-definition/store";
 import {
     autoLockQuestions,
     hiderMode,
@@ -37,6 +39,12 @@ export const RadiusQuestionComponent = ({
     const $hiderMode = useStore(hiderMode);
     const $questions = useStore(questions);
     const $isLoading = useStore(isLoading);
+    const $compiledGame = useStore(compiledGameAtom);
+    // Radii the game declares, offered as quick picks when there are several.
+    const declaredRadii = $compiledGame ? radarRadii($compiledGame) : [];
+    const declaredIndex = declaredRadii.findIndex(
+        (r) => r.value === data.radius && r.unit === data.unit,
+    );
     const label = `Radius
     ${
         $questions
@@ -82,6 +90,27 @@ export const RadiusQuestionComponent = ({
                     />
                 </div>
             </SidebarMenuItem>
+            {declaredRadii.length > 1 && (
+                <ToggleGroup
+                    className="p-2"
+                    type="single"
+                    value={declaredIndex < 0 ? "" : String(declaredIndex)}
+                    onValueChange={(value: string) => {
+                        const radius = declaredRadii[Number(value)];
+                        if (!value || !radius) return;
+                        data.radius = radius.value;
+                        data.unit = radius.unit;
+                        questionModified();
+                    }}
+                    disabled={!data.drag || $isLoading}
+                >
+                    {declaredRadii.map((radius, index) => (
+                        <ToggleGroupItem key={index} value={String(index)}>
+                            {radius.value} {radius.unit}
+                        </ToggleGroupItem>
+                    ))}
+                </ToggleGroup>
+            )}
             <LatitudeLongitude
                 latitude={data.lat}
                 longitude={data.lng}

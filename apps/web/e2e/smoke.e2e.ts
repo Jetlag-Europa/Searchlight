@@ -10,7 +10,7 @@ import {
  * Phase 3 smoke test — proves the e2e plumbing end to end:
  *   1. POST /auth/test-login mints a session (ENABLE_TEST_AUTH path).
  *   2. The cookie authenticates the app (the auth-gated /map page loads).
- *   3. The Map component mounts and installs window.__taibled
+ *   3. The Map component mounts and installs window.__searchlight
  *      (PUBLIC_ENABLE_TEST_HOOK path), exposing the live nanostore values.
  *
  * Asserting on the actual computed GeoJSON per question is Phase 4.
@@ -23,7 +23,7 @@ test.describe("e2e harness smoke", () => {
         expect(body.user.discordId).toBeTruthy();
     });
 
-    test("logged-in user loads /map and window.__taibled is installed", async ({
+    test("logged-in user loads /map and window.__searchlight is installed", async ({
         page,
     }) => {
         await testLogin(page);
@@ -35,10 +35,10 @@ test.describe("e2e harness smoke", () => {
 
         await waitForTestHook(page);
 
-        // The hook exposes the four stores; questions must be an array.
+        // The hook exposes the five stores; questions must be an array.
         const shape = await page.evaluate(() => {
-            const t = (window as unknown as { __taibled: Record<string, unknown> })
-                .__taibled;
+            const t = (window as unknown as { __searchlight: Record<string, unknown> })
+                .__searchlight;
             return {
                 keys: Object.keys(t).sort(),
                 questionsIsArray: Array.isArray(t.questions),
@@ -47,6 +47,7 @@ test.describe("e2e harness smoke", () => {
         });
 
         expect(shape.keys).toEqual([
+            "eliminationGeoJSON",
             "hiderMode",
             "mapGeoJSON",
             "polyGeoJSON",

@@ -1,7 +1,7 @@
 import type { Feature, Point, Polygon } from "geojson";
 import type { LatLngTuple } from "leaflet";
 
-import type { Question } from "@/maps/schema";
+import type { Question, Units } from "@/maps/schema";
 
 export interface OpenStreetMap {
     type: string;
@@ -52,11 +52,17 @@ export interface CustomStation {
     lat: number;
     lng: number;
     tier?: string;
+    radius?: number;
+    unit?: Units;
 }
 
 export interface StationPlaceProperties {
     id: string;
-    [key: string]: string | undefined;
+    name?: string;
+    tier?: string;
+    radius?: number;
+    unit?: Units;
+    [key: string]: unknown;
 }
 
 export type StationPlace = Feature<Point, StationPlaceProperties>;
@@ -64,7 +70,8 @@ export type StationCircle = Feature<Polygon, StationPlace>;
 
 export type {
     APILocations,
-    EncompassingTentacleQuestionSchema,
     HomeGameMatchingQuestions,
     HomeGameMeasuringQuestions,
+    TentacleQuestion,
+    TraditionalTentacleQuestion,
 } from "@/maps/schema";

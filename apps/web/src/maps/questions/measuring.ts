@@ -1,34 +1,10 @@
 import * as turf from "@turf/turf";
-import type { Feature, MultiPolygon, Polygon } from "geojson";
+import type { Feature } from "geojson";
 import _ from "lodash";
 import osmtogeojson from "osmtogeojson";
-
-const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-// Front-end cache — keyed by adminLevel + rounded coords (~100 m grid).
-const boundaryFetchCache = new Map<string, any>();
-
-const findBoundaryFromAPI = async (lat: number, lng: number, adminLevel: number) => {
-    const cacheKey = `${adminLevel}-${lat.toFixed(3)}-${lng.toFixed(3)}`;
-    if (boundaryFetchCache.has(cacheKey)) {
-        console.info(`[taibled:boundary] cache hit level=${adminLevel} key=${cacheKey}`);
-        return boundaryFetchCache.get(cacheKey);
-    }
-    const res = await fetch(
-        `${API_BASE}/boundaries/by-point?lat=${lat}&lng=${lng}&adminLevel=${adminLevel}`,
-        { credentials: "include" },
-    );
-    if (!res.ok) throw new Error(`Boundary API error: ${res.status}`);
-    const data = await res.json();
-    const geo = osmtogeojson(data as object);
-    const feature = geo.features?.[0];
-    if (feature) boundaryFetchCache.set(cacheKey, feature);
-    return feature;
-};
 import { toast } from "react-toastify";
 
 import {
-    gamePOIData,
     hiderMode,
     mapGeoJSON,
     mapGeoLocation,
@@ -36,18 +12,6 @@ import {
     trainStations,
 } from "@/lib/context";
 import {
-    BELGIUM_ADMIN_LABELS,
-    belgiumAdminDivisionBorderLines,
-} from "@/maps/questions/belgiumAdmin";
-import { grazDistrictBorderLines } from "@/maps/questions/grazAdmin";
-import { brightonRegionBorderLines } from "@/maps/questions/brightonAdmin";
-import { gmRegionBorderLines } from "@/maps/questions/gmAdmin";
-import { nlLines, nlWaterLines } from "@/maps/questions/nlAdmin";
-import { milanMunicipioBorderLines } from "@/maps/questions/milanAdmin";
-import { parisArrondissementBorderLines } from "@/maps/questions/parisAdmin";
-import { stockholmAdminDivisionBorderLines } from "@/maps/questions/stockholmAdmin";
-import {
-    fetchCoastline,
     findInternationalBordersInZone,
     findPlacesInZone,
     findPlacesSpecificInZone,
@@ -56,14 +20,14 @@ import {
     prettifyLocation,
     QuestionSpecificLocation,
 } from "@/maps/api";
-import { categoryForQuestionType, getCustomPOIs } from "@/lib/poiOverride";
-import { currentGameId, getGameById } from "@/lib/games";
 import {
     arcBufferToPoint,
     connectToSeparateLines,
     groupObjects,
     holedMask,
+    identityKey,
     modifyMapData,
+    setBounded,
 } from "@/maps/geo-utils";
 import type {
     APILocations,
@@ -99,63 +63,10 @@ const highSpeedBase = _.memoize(
     (features) => `${JSON.stringify(features.map((x) => x.geometry))}`,
 );
 
-// Games that ship a bundled international-border line (converted from a KML)
-// instead of querying Overpass live. Keyed by game sentinel — add an entry to
-// opt a game in; everything else falls back to the live proxy query.
-const BUNDLED_BORDER_FILES: Record<string, string> = {
-    "__bundled-south-limburg-2026__": "south-limburg-intl-border.geojson",
-};
-
-const bundledBorderFileForActiveGame = (): string | undefined => {
-    const game = getGameById(currentGameId.get());
-    return game ? BUNDLED_BORDER_FILES[game.sentinelValue] : undefined;
-};
-
-const fetchInternationalBorderOgFeatures = async (): Promise<any[] | false> => {
-    const file = bundledBorderFileForActiveGame();
-    if (file) {
-        const res = await fetch(import.meta.env.BASE_URL + file);
-        const fc = await res.json();
-        if (!fc.features?.length) return false;
-        console.info(`[taibled:border-og] bundled ${file} → ${fc.features.length} line feature(s)`);
-        return fc.features;
-    }
-    // Generic: live international borders via the backend Overpass proxy
-    // (LocalOverpass on dev, VPS-routed on prod).
-    const data = await findInternationalBordersInZone();
-    const features = osmtogeojson(data as object).features.filter(
-        (f: any) => f.geometry.type === "LineString" || f.geometry.type === "MultiLineString",
-    );
-    if (!features.length) return false;
-    console.info(`[taibled:border-og] overpass → ${features.length} border segments`);
-    return features;
-};
-
-const bboxExtension = (
-    bBox: [number, number, number, number],
-    distance: number,
-): [number, number, number, number] => {
-    const buffered = turf.bbox(
-        turf.buffer(turf.bboxPolygon(bBox), Math.abs(distance), {
-            units: "miles",
-        })!,
-    );
-
-    const originalDeltaLat = bBox[3] - bBox[1];
-    const originalDeltaLng = bBox[2] - bBox[0];
-
-    return [
-        buffered[0] - originalDeltaLng,
-        buffered[1] - originalDeltaLat,
-        buffered[2] + originalDeltaLng,
-        buffered[3] + originalDeltaLat,
-    ];
-};
 
 export const determineMeasuringBoundary = async (
     question: MeasuringQuestion,
 ) => {
-    const bBox = turf.bbox(mapGeoJSON.get()!);
 
     switch (question.type) {
         case "highspeed-measure-shinkansen": {
@@ -170,56 +81,7 @@ export const determineMeasuringBoundary = async (
 
             return [highSpeedBase(features)];
         }
-        case "coastline": {
-            const coastline = turf.lineToPolygon(
-                await fetchCoastline(),
-            ) as Feature<MultiPolygon>;
-
-            const distanceToCoastline = turf.pointToPolygonDistance(
-                turf.point([question.lng, question.lat]),
-                coastline,
-                {
-                    units: "miles",
-                    method: "geodesic",
-                },
-            );
-
-            return [
-                turf.difference(
-                    turf.featureCollection([
-                        turf.bboxPolygon(bBox),
-                        turf.buffer(
-                            turf.bboxClip(
-                                coastline,
-                                bBox
-                                    ? bboxExtension(
-                                          bBox as any,
-                                          distanceToCoastline,
-                                      )
-                                    : [-180, -90, 180, 90],
-                            ),
-                            distanceToCoastline,
-                            {
-                                units: "miles",
-                                steps: 64,
-                            },
-                        )!,
-                    ]),
-                )!,
-            ];
-        }
         case "airport": {
-            const airportOverride = gamePOIData.get()["airport"];
-            if (airportOverride?.length) {
-                console.info(`[taibled:poi] measuring airport → ${airportOverride.length} custom`);
-                return [
-                    turf.combine(
-                        turf.featureCollection(
-                            airportOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
-                        ),
-                    ).features[0],
-                ];
-            }
             return [
                 turf.combine(
                     turf.featureCollection(
@@ -250,290 +112,8 @@ export const determineMeasuringBoundary = async (
                 toast.error("No international borders found in this game area.");
                 return false;
             }
-            console.info(`[taibled:border] international-border → ${features.length} border segments`);
+            console.info(`[searchlight:border] international-border → ${features.length} border segments`);
             return [turf.combine(turf.featureCollection(features as any)).features[0]];
-        }
-        case "international-border-og": {
-            const features = await fetchInternationalBorderOgFeatures();
-            if (!features) {
-                toast.error("No international borders found in this game area.");
-                return false;
-            }
-            return [turf.combine(turf.featureCollection(features as any)).features[0]];
-        }
-        case "bern-canton":
-        case "zurich-canton": {
-            // Swiss cantons are admin_level=4 in OSM.
-            const cantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
-            if (!cantonBoundary) {
-                toast.error("No canton found at this point — must be inside the game area.");
-                return false;
-            }
-            // Measure distance to the canton BORDER (the ring), not the filled
-            // polygon: a geodesic polygon→point distance is 0 when the seeker is
-            // inside the canton, which collapses the buffer and renders nothing.
-            // Simplify first — the raw OSM canton ring is ~8k points, and the
-            // geodesic buffer over that is slow; ~55 m tolerance is plenty here.
-            const simplifiedCanton = turf.simplify(
-                cantonBoundary as Feature<Polygon | MultiPolygon>,
-                { tolerance: 0.0005, highQuality: false },
-            );
-            const line = turf.polygonToLine(simplifiedCanton);
-            return line.type === "FeatureCollection" ? line.features : [line];
-        }
-        case "belgium-region":
-        case "belgium-province": {
-            // The border of the region/province the seeker is IN — same behaviour
-            // as zurich-canton, just from a bundled polygon instead of Overpass.
-            // (Measuring the ring rather than the filled polygon matters: a
-            // geodesic polygon→point distance is 0 anywhere inside it, which
-            // collapses the buffer and renders nothing.)
-            const label = BELGIUM_ADMIN_LABELS[question.type];
-            const lines = await belgiumAdminDivisionBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error(`No ${label} found at this point — must be inside Belgium.`);
-                return false;
-            }
-            return lines;
-        }
-        case "graz-district": {
-            // The border of the district the seeker is IN — same behaviour as
-            // belgium-province / zurich-canton, from a bundled polygon.
-            const lines = await grazDistrictBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error("No district found at this point — must be inside Graz.");
-                return false;
-            }
-            return lines;
-        }
-        case "stockholm-admin1":
-        case "stockholm-admin2":
-        case "stockholm-admin3": {
-            // The border of the division the seeker is IN, at whichever of the
-            // three levels was asked — same behaviour as belgium-province /
-            // graz-district, from bundled polygons.
-            const lines = await stockholmAdminDivisionBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error(
-                    "No admin division found at this point — must be inside the Stockholm play area.",
-                );
-                return false;
-            }
-            return lines;
-        }
-        case "brighton-ward":
-        case "brighton-postcode": {
-            // The border of the ward/postcode the seeker is IN — same behaviour
-            // as graz-district / paris-arrondissement / milan-municipio, from a
-            // bundled polygon.
-            const lines = await brightonRegionBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error(
-                    "No region found at this point — must be inside the Brighton play area.",
-                );
-                return false;
-            }
-            return lines;
-        }
-        case "nl-constituency":
-        case "nl-ward":
-        case "nl-hsl":
-        case "nl-water": {
-            // North London: every constituency/ward border (the london-borough
-            // reading), both high-speed lines, and the water near the zones —
-            // all bundled. See nlAdmin.ts for why water is pre-filtered.
-            const lines =
-                question.type === "nl-water"
-                    ? await nlWaterLines(question.lat, question.lng)
-                    : await nlLines(question.type);
-            if (!lines.length) return false;
-            console.info(`[taibled:nl] measuring ${question.type} → ${lines.length} line feature(s)`);
-            return [turf.combine(turf.featureCollection(lines)).features[0]];
-        }
-        case "gm-borough":
-        case "gm-ward": {
-            // The border of the borough/ward the seeker is IN — same behaviour
-            // as brighton-ward, from a bundled polygon.
-            const lines = await gmRegionBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error(
-                    "No region found at this point — must be inside the Greater Manchester play area.",
-                );
-                return false;
-            }
-            return lines;
-        }
-        case "milan-municipio": {
-            // The border of the municipio the seeker is IN — same behaviour as
-            // graz-district / paris-arrondissement / belgium-province, from a
-            // bundled polygon.
-            const lines = await milanMunicipioBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error(
-                    "No municipio found at this point — must be inside the Milan play area.",
-                );
-                return false;
-            }
-            return lines;
-        }
-        case "paris-arrondissement": {
-            // The border of the arrondissement the seeker is IN — same
-            // behaviour as graz-district / belgium-province, from a bundled
-            // polygon. For a seeker in the "Outer" region this is the city
-            // limits plus the map edge, since that region is the rectangle with
-            // Paris removed.
-            const lines = await parisArrondissementBorderLines(
-                question.type,
-                question.lat,
-                question.lng,
-            );
-            if (!lines?.length) {
-                toast.error(
-                    "No arrondissement found at this point — must be inside the Paris play area.",
-                );
-                return false;
-            }
-            return lines;
-        }
-        case "rotterdam-rail":
-        case "rotterdam-coastline":
-        // Rotterdam municipality borders are the london-borough reading —
-        // distance to EVERY municipality boundary, not to the border of the one
-        // the seeker stands in. The asset is the deduped border network with
-        // each shared boundary present once (see gen-rotterdam-2026-assets.py),
-        // so it drops straight into the bundled-line path.
-        case "rotterdam-municipality-border":
-        case "zurich-coastline":
-        case "brighton-coastline":
-        case "gm-hsl":
-        case "belgium-hsl":
-        case "belgium-coastline":
-        // London boroughs measure against EVERY borough boundary, not the one
-        // the seeker stands in. The asset is the shared border network with
-        // each internal boundary present once (see gen-london-assets.py), so
-        // it drops straight into the bundled-line path.
-        case "london-borough": {
-            // Bundled local LineString (HSL high-speed rail / coastline / lake coast).
-            const file =
-                question.type === "rotterdam-rail"
-                    ? "exter-rotterdam-hsl.geojson"
-                    : question.type === "rotterdam-coastline"
-                      ? "exter-rotterdam-coastline.geojson"
-                      : question.type === "rotterdam-municipality-border"
-                        ? "rotterdam-2026-municipality-lines.geojson"
-                      : question.type === "brighton-coastline"
-                        ? "brighton-coastline.geojson"
-                        : question.type === "gm-hsl"
-                        ? "gm-hsl.geojson"
-                        : question.type === "belgium-hsl"
-                        ? "belgium-hsl.geojson"
-                        : question.type === "belgium-coastline"
-                          ? "belgium-coastline.geojson"
-                          : question.type === "london-borough"
-                            ? "london-borough-lines.geojson"
-                            : "zurich-lake-coast.geojson";
-            const res = await fetch(import.meta.env.BASE_URL + file);
-            const fc = await res.json();
-            if (!fc.features?.length) return false;
-            console.info(`[taibled:line] measuring ${question.type} → ${fc.features.length} line feature(s)`);
-            return [turf.combine(turf.featureCollection(fc.features)).features[0]];
-        }
-        case "budapest-water": {
-            // Bodies of water are bundled separately (the importer skips a
-            // "water" POI folder), so read the geojson directly.
-            const res = await fetch(import.meta.env.BASE_URL + "budapest-water.geojson");
-            const fc = await res.json();
-            if (!fc.features?.length) return false;
-            console.info(`[taibled:water] measuring budapest-water → ${fc.features.length} points`);
-            return [turf.combine(turf.featureCollection(fc.features)).features[0]];
-        }
-        case "sl-camping":
-        case "sl-mill":
-        case "buch-train_station":
-        case "bern-mountain":
-        case "budapest-castle":
-        case "budapest-stadium":
-        case "budapest-rail":
-        case "belgium-castle":
-        case "london-stadium":
-        case "london-rail":
-        case "stockholm-ikea":
-        case "milan-castle":
-        case "milan-train":
-        case "milan-water":
-        case "brighton-rail":
-        case "rotterdam-ns": {
-            const catMap: Record<string, string> = {
-                "sl-camping": "camping", "sl-mill": "mill",
-                "buch-train_station": "train_station",
-                "bern-mountain": "mountain",
-                "budapest-castle": "castle", "budapest-stadium": "stadium",
-                "budapest-rail": "train_station",
-                "belgium-castle": "castle",
-                "london-stadium": "stadium", "london-rail": "rail_terminus",
-                "stockholm-ikea": "ikea",
-                "milan-castle": "castle", "milan-train": "rail_station",
-                "milan-water": "water_body",
-                "brighton-rail": "rail_station",
-                "rotterdam-ns": "rail_station",
-            };
-            const slPOI = gamePOIData.get()[catMap[question.type]];
-            if (!slPOI?.length) return false;
-            console.info(`[taibled:poi] measuring ${question.type} → ${slPOI.length} custom`);
-            return [
-                turf.combine(
-                    turf.featureCollection(
-                        slPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
-                    ),
-                ).features[0],
-            ];
-        }
-        case "covrigarie": {
-            const covrPOI = gamePOIData.get()["covrigarie"];
-            if (!covrPOI?.length) return false;
-            console.info(`[taibled:poi] measuring covrigarie → ${covrPOI.length} custom`);
-            return [
-                turf.combine(
-                    turf.featureCollection(
-                        covrPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
-                    ),
-                ).features[0],
-            ];
-        }
-        case "brno-water": {
-            const waterPOI = gamePOIData.get()["water"];
-            if (!waterPOI?.length) return [turf.multiPolygon([])];
-            return [
-                turf.combine(
-                    turf.featureCollection(
-                        waterPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
-                    ),
-                ).features[0],
-            ];
         }
         case "city":
             return [
@@ -565,19 +145,6 @@ export const determineMeasuringBoundary = async (
         case "consulate-full":
         case "park-full": {
             const location = question.type.split("-full")[0] as APILocations;
-
-            const overrideCategory = categoryForQuestionType(question.type) ?? location;
-            const poiOverride = getCustomPOIs(overrideCategory);
-            if (poiOverride?.length) {
-                console.info(`[taibled:poi] measuring ${question.type} → ${poiOverride.length} custom ${location}`);
-                return [
-                    turf.combine(
-                        turf.featureCollection(
-                            poiOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
-                        ),
-                    ).features[0],
-                ];
-            }
 
             const data = await findPlacesInZone(
                 `[${LOCATION_FIRST_TAG[location as keyof typeof LOCATION_FIRST_TAG]}=${location}]`,
@@ -643,19 +210,17 @@ export const determineMeasuringBoundary = async (
     }
 };
 
-// Manual memoize so we can skip caching `false` results — a `false` means the
-// POI/boundary data wasn't loaded yet (gamePOIData still empty on first render).
-// _.memoize would cache that `false` permanently, causing the question to stay
-// invisible even after the data loads. By not caching `false` we allow the next
-// refresh (triggered by the gamePOIData nanostore subscription in Map.tsx) to
-// re-run and get the real result.
+// Manual memoize so we can skip caching `false` results, such as no borders
+// found: _.memoize would keep the question invisible for good, while skipping
+// it lets the next refresh retry.
 const _bufferedCache = new Map<string, any>();
+const MAX_CACHED_BUFFERS = 64;
 const bufferedDeterminer = async (question: MeasuringQuestion) => {
     const key = JSON.stringify({
         type: question.type,
         lat: question.lat,
         lng: question.lng,
-        entirety: polyGeoJSON.get() ? polyGeoJSON.get() : mapGeoLocation.get(),
+        entirety: identityKey(polyGeoJSON.get() ?? mapGeoLocation.get()),
         geo: (question as any).geo,
     });
     if (_bufferedCache.has(key)) return _bufferedCache.get(key);
@@ -668,7 +233,11 @@ const bufferedDeterminer = async (question: MeasuringQuestion) => {
         question.lat,
         question.lng,
     );
-    _bufferedCache.set(key, result);
+    setBounded(_bufferedCache, key, result, MAX_CACHED_BUFFERS);
+    // Don't keep a failed worker request cached forever.
+    result.catch(() => {
+        if (_bufferedCache.get(key) === result) _bufferedCache.delete(key);
+    });
     return result;
 };
 
@@ -712,263 +281,6 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
         return question;
     }
 
-    if (question.type === "international-border-og") {
-        const features = await fetchInternationalBorderOgFeatures();
-        if (!features) return question;
-        const combined = turf.simplify(
-            turf.combine(turf.featureCollection(features as any)).features[0] as any,
-            { tolerance: 0.005 },
-        );
-        const borderPts = turf.explode(combined as any);
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt  = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest  = turf.nearestPoint(hiderPt,  borderPts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (question.type === "bern-canton" || question.type === "zurich-canton") {
-        const cantonBoundary = await findBoundaryFromAPI(question.lat, question.lng, 4);
-        if (!cantonBoundary) return question;
-        // explode handles Polygon, MultiPolygon, and any other geometry type
-        const borderPts = turf.explode(cantonBoundary as any);
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
-        question.hiderCloser = (hiderNearest.properties.distanceToPoint ?? Infinity) < (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (question.type === "graz-district") {
-        // Both players are compared against the border of the SEEKER's district
-        // (see determineMeasuringBoundary) — the hider's own district is not
-        // consulted, exactly as belgium-province/zurich-canton do it.
-        const lines = await grazDistrictBorderLines(
-            question.type,
-            question.lat,
-            question.lng,
-        );
-        if (!lines?.length) return question;
-        const borderPts = turf.explode(
-            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
-        );
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (
-        question.type === "stockholm-admin1" ||
-        question.type === "stockholm-admin2" ||
-        question.type === "stockholm-admin3"
-    ) {
-        // Both players are compared against the border of the SEEKER's division
-        // (see determineMeasuringBoundary) — the hider's own is not consulted,
-        // exactly as graz-district/belgium-province do it.
-        const lines = await stockholmAdminDivisionBorderLines(
-            question.type,
-            question.lat,
-            question.lng,
-        );
-        if (!lines?.length) return question;
-        const borderPts = turf.explode(
-            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
-        );
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (question.type === "milan-municipio") {
-        // Both players are compared against the border of the SEEKER's
-        // municipio (see determineMeasuringBoundary) — the hider's own is not
-        // consulted, exactly as graz-district/paris-arrondissement do it.
-        const lines = await milanMunicipioBorderLines(
-            question.type,
-            question.lat,
-            question.lng,
-        );
-        if (!lines?.length) return question;
-        const borderPts = turf.explode(
-            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
-        );
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (question.type === "paris-arrondissement") {
-        // Both players are compared against the border of the SEEKER's
-        // arrondissement (see determineMeasuringBoundary) — the hider's own is
-        // not consulted, exactly as graz-district/belgium-province do it.
-        const lines = await parisArrondissementBorderLines(
-            question.type,
-            question.lat,
-            question.lng,
-        );
-        if (!lines?.length) return question;
-        const borderPts = turf.explode(
-            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
-        );
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (question.type === "belgium-region" || question.type === "belgium-province") {
-        // Both players are compared against the border of the SEEKER's division
-        // (see determineMeasuringBoundary) — the hider's own division is not
-        // consulted, exactly as bern-canton/zurich-canton do it.
-        const lines = await belgiumAdminDivisionBorderLines(
-            question.type,
-            question.lat,
-            question.lng,
-        );
-        if (!lines?.length) return question;
-        const borderPts = turf.explode(
-            turf.combine(turf.featureCollection(lines as any)).features[0] as any,
-        );
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, borderPts);
-        const hiderNearest = turf.nearestPoint(hiderPt, borderPts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    if (
-        question.type === "nl-constituency" ||
-        question.type === "nl-ward" ||
-        question.type === "nl-hsl" ||
-        question.type === "nl-water"
-    ) {
-        // Exact point-to-line distances over EVERY feature (not the
-        // zone-filtered water set, which is only safe for the buffer).
-        const lines = await nlLines(question.type);
-        if (!lines.length) return question;
-        const nearest = (pt: any) =>
-            Math.min(
-                ...lines.map((l: any) =>
-                    turf.pointToLineDistance(pt, l, { units: "kilometers" }),
-                ),
-            );
-        question.hiderCloser =
-            nearest(turf.point([$hiderMode.longitude, $hiderMode.latitude])) <
-            nearest(turf.point([question.lng, question.lat]));
-        return question;
-    }
-
-    if (
-        question.type === "rotterdam-rail" ||
-        question.type === "rotterdam-coastline" ||
-        question.type === "rotterdam-municipality-border" ||
-        question.type === "zurich-coastline" ||
-        question.type === "brighton-coastline" ||
-        question.type === "gm-hsl" ||
-        question.type === "budapest-water" ||
-        question.type === "belgium-hsl" ||
-        question.type === "belgium-coastline" ||
-        question.type === "london-borough"
-    ) {
-        const file =
-            question.type === "rotterdam-rail"
-                ? "exter-rotterdam-hsl.geojson"
-                : question.type === "rotterdam-coastline"
-                  ? "exter-rotterdam-coastline.geojson"
-                  : question.type === "rotterdam-municipality-border"
-                    ? "rotterdam-2026-municipality-lines.geojson"
-                  : question.type === "brighton-coastline"
-                    ? "brighton-coastline.geojson"
-                    : question.type === "gm-hsl"
-                    ? "gm-hsl.geojson"
-                    : question.type === "budapest-water"
-                    ? "budapest-water.geojson"
-                    : question.type === "belgium-hsl"
-                      ? "belgium-hsl.geojson"
-                      : question.type === "belgium-coastline"
-                        ? "belgium-coastline.geojson"
-                        : question.type === "london-borough"
-                          ? "london-borough-lines.geojson"
-                          : "zurich-lake-coast.geojson";
-        const res = await fetch(import.meta.env.BASE_URL + file);
-        const fc = await res.json();
-        if (!fc.features?.length) return question;
-        const combined = turf.combine(turf.featureCollection(fc.features)).features[0];
-        const linePts = turf.explode(combined as any);
-        const seekerPt = turf.point([question.lng, question.lat]);
-        const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-        const seekerNearest = turf.nearestPoint(seekerPt, linePts);
-        const hiderNearest = turf.nearestPoint(hiderPt, linePts);
-        question.hiderCloser =
-            (hiderNearest.properties.distanceToPoint ?? Infinity) <
-            (seekerNearest.properties.distanceToPoint ?? Infinity);
-        return question;
-    }
-
-    const GAME_POI_TYPE_MAP: Record<string, string> = {
-        "sl-camping": "camping", "sl-mill": "mill",
-        "sl-library": "library", "sl-museum": "museum", "sl-golf_course": "golf_course",
-        "sl-cinema": "cinema", "sl-zoo": "zoo", "sl-theme_park": "theme_park",
-        "sl-hospital": "hospital", "sl-airport": "airport", "sl-consulate": "consulate",
-        "buch-museum": "museum", "buch-park": "park", "buch-library": "library",
-        "buch-hospital": "hospital", "buch-cinema": "cinema", "buch-train_station": "train_station",
-        "buch-zoo": "zoo", "buch-golf_course": "golf_course", "buch-airport": "airport",
-        "buch-consulate": "consulate",
-        "bern-cinema": "cinema", "bern-library": "library", "bern-museum": "museum",
-        "bern-mountain": "mountain", "bern-park": "park", "bern-zoo": "zoo",
-        "bern-hospital": "hospital", "bern-consulate": "consulate", "bern-theme_park": "theme_park",
-        "bern-airport": "airport",
-        "rotterdam-library": "library", "rotterdam-museum": "museum", "rotterdam-hospital": "hospital",
-        "rotterdam-zoo": "zoo", "rotterdam-cinema": "cinema", "rotterdam-golf_course": "golf_course",
-        "rotterdam-consulate": "consulate", "rotterdam-theme_park": "theme_park", "rotterdam-airport": "airport",
-        "budapest-castle": "castle", "budapest-stadium": "stadium", "budapest-rail": "train_station",
-        "belgium-castle": "castle",
-        "london-stadium": "stadium", "london-rail": "rail_terminus",
-        "stockholm-ikea": "ikea",
-        "milan-castle": "castle", "milan-train": "rail_station",
-        "milan-water": "water_body",
-        "brighton-rail": "rail_station",
-        "rotterdam-ns": "rail_station",
-    };
-    if (question.type in GAME_POI_TYPE_MAP) {
-        const catMap = GAME_POI_TYPE_MAP;
-        const slPOI = gamePOIData.get()[catMap[question.type]];
-        if (slPOI?.length) {
-            const pts = turf.featureCollection(slPOI.map((p) => turf.point([p.lon, p.lat], { name: p.name })));
-            const seekerPt = turf.point([question.lng, question.lat]);
-            const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-            const qn = turf.nearestPoint(seekerPt, pts);
-            const hn = turf.nearestPoint(hiderPt, pts);
-            question.hiderCloser = turf.distance(seekerPt, qn) > turf.distance(hiderPt, hn);
-        }
-        return question;
-    }
 
     if (
         [
@@ -983,40 +295,21 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
             "golf_course",
             "consulate",
             "park",
-            "covrigarie",
         ].includes(question.type)
     ) {
-        const poiCategory =
-            categoryForQuestionType(question.type) ??
-            (question as HomeGameMeasuringQuestions).type;
-        const poiOverride = getCustomPOIs(poiCategory);
-
-        let questionNearest, hiderNearest;
-        if (poiOverride?.length) {
-            const pts = turf.featureCollection(
-                poiOverride.map((p) => turf.point([p.lon, p.lat], { name: p.name })),
-            );
-            const seekerPt = turf.point([question.lng, question.lat]);
-            const hiderPt = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
-            questionNearest = turf.nearestPoint(seekerPt, pts);
-            hiderNearest = turf.nearestPoint(hiderPt, pts);
-            questionNearest.properties.distanceToPoint = turf.distance(seekerPt, questionNearest);
-            hiderNearest.properties.distanceToPoint = turf.distance(hiderPt, hiderNearest);
-        } else {
-            questionNearest = await nearestToQuestion(
-                question as HomeGameMeasuringQuestions,
-            );
-            hiderNearest = await nearestToQuestion({
-                lat: $hiderMode.latitude,
-                lng: $hiderMode.longitude,
-                hiderCloser: true,
-                type: (question as HomeGameMeasuringQuestions).type,
-                drag: false,
-                color: "black",
-                collapsed: false,
-                enabled: true,
-            });
-        }
+        const questionNearest = await nearestToQuestion(
+            question as HomeGameMeasuringQuestions,
+        );
+        const hiderNearest = await nearestToQuestion({
+            lat: $hiderMode.latitude,
+            lng: $hiderMode.longitude,
+            hiderCloser: true,
+            type: (question as HomeGameMeasuringQuestions).type,
+            drag: false,
+            color: "black",
+            collapsed: false,
+            enabled: true,
+        });
 
         question.hiderCloser =
             questionNearest.properties.distanceToPoint >

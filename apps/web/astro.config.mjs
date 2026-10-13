@@ -22,6 +22,7 @@ export default defineConfig({
                 // Activate new builds on first reload instead of waiting two reloads.
                 skipWaiting: true,
                 clientsClaim: true,
+                maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
             },
             manifest: {
                 name: "Jet Lag Hide and Seek Map Generator",
@@ -49,6 +50,9 @@ export default defineConfig({
             },
         }),
     ],
+    vite: {
+        worker: { format: "es" },
+    },
     devToolbar: {
         enabled: false,
     },

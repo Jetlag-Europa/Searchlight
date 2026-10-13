@@ -1,16 +1,15 @@
-// Counter-based suppress flag shared between sseManager and SessionManager.
-// sseManager increments before applying a remote questions.replace;
-// SessionManager drains one count per useEffect fire instead of saving.
-let count = 0;
+// Question lists published by SSE or by game-definition filtering rather than
+// by a local edit. SessionManager's save effect skips them by identity: a
+// count would leak when several sets render once (a replay page, or a filter
+// right before a session load's own set) and swallow the next real edit.
+// Local edits always publish a new array (see questionModified).
+const suppressed = new WeakSet<object>();
 
-export function suppressNextQuestionSave(): void {
-    count++;
+export function suppressQuestionSave<T extends object>(questions: T): T {
+    suppressed.add(questions);
+    return questions;
 }
 
-export function shouldSuppressQuestionSave(): boolean {
-    if (count > 0) {
-        count--;
-        return true;
-    }
-    return false;
+export function isQuestionSaveSuppressed(questions: object): boolean {
+    return suppressed.has(questions);
 }

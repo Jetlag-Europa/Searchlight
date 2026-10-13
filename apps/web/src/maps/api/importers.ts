@@ -1,5 +1,7 @@
-import type { Feature, FeatureCollection, GeoJSON, Point } from "geojson";
+import type { Feature, FeatureCollection, Point } from "geojson";
 import Papa from "papaparse";
+
+import type { Units } from "@/maps/schema";
 
 import type {
     CustomStation,
@@ -31,7 +33,15 @@ function parseCSV(text: string): CustomStation[] {
     const idKey = headers.find((h) =>
         ["id", "station_id", "osm_id"].includes(h),
     );
-
+    const tierKey = headers.find((h) =>
+        ["tier", "level"].includes(h.toLowerCase()),
+    );
+    const radiusKey = headers.find((h) =>
+        ["radius", "rad"].includes(h.toLowerCase()),
+    );
+    const unitKey = headers.find((h) =>
+        ["unit", "units"].includes(h.toLowerCase()),
+    );
     if (!latKey)
         throw new Error("CSV missing required 'lat' or 'latitude' column");
     if (!lngKey)
@@ -51,33 +61,75 @@ function parseCSV(text: string): CustomStation[] {
         const name = row[nameKey];
         if (!name) continue;
         const id = idKey && row[idKey] ? row[idKey] : `${lat},${lng}`;
-        stations.push({ id, name, lat, lng });
+        const tier = tierKey && row[tierKey] ? row[tierKey] : undefined;
+        const radiusNum = radiusKey && row[radiusKey] ? parseFloat(row[radiusKey]) : NaN;
+        const radius = isFinite(radiusNum) ? radiusNum : undefined;
+        const rawUnit = unitKey && row[unitKey] ? row[unitKey].toLowerCase().trim() : undefined;
+        const unit: Units | undefined =
+            rawUnit === "miles" || rawUnit === "kilometers" || rawUnit === "meters"
+                ? rawUnit
+                : undefined;
+        stations.push({
+            id,
+            name,
+            lat,
+            lng,
+            ...(tier ? { tier } : {}),
+            ...(radius !== undefined ? { radius } : {}),
+            ...(unit ? { unit } : {}),
+        });
     }
     return stations;
 }
 
-function parseGeoJSON(obj: any): CustomStation[] {
+function parseGeoJSON(obj: unknown): CustomStation[] {
     const stations: CustomStation[] = [];
     const pushFromFeature = (f: Feature<Point>) => {
         if (!f.geometry || f.geometry.type !== "Point") return;
         const [lng, lat] = f.geometry.coordinates;
         if (!isFinite(lat) || !isFinite(lng)) return;
-        const props: any = f.properties || {};
-        const name = props["name:en"] || props.name || props.title;
-        const id = props.id || props.osm_id || props["@id"] || `${lat},${lng}`;
-        stations.push({ id: String(id), name, lat, lng });
+        const props = (f.properties || {}) as Record<string, unknown>;
+        const nameVal = props["name:en"] || props.name || props.title;
+        const name = typeof nameVal === "string" ? nameVal : undefined;
+        const idVal = props.id || props.osm_id || props["@id"] || `${lat},${lng}`;
+        const id = String(idVal);
+        const tierVal = props.tier || props.level;
+        const tier = typeof tierVal === "string" || typeof tierVal === "number" ? String(tierVal) : undefined;
+        const rawRadius = props.radius;
+        const radiusObj = rawRadius && typeof rawRadius === "object" ? (rawRadius as Record<string, unknown>) : undefined;
+        const radiusNum =
+            typeof rawRadius === "number"
+                ? rawRadius
+                : typeof radiusObj?.value === "number"
+                  ? radiusObj.value
+                  : typeof rawRadius === "string"
+                    ? parseFloat(rawRadius)
+                    : NaN;
+        const radius = isFinite(radiusNum) ? radiusNum : undefined;
+        const rawUnit = typeof props.unit === "string" ? props.unit : typeof radiusObj?.unit === "string" ? radiusObj.unit : undefined;
+        const unit: Units | undefined =
+            rawUnit === "miles" || rawUnit === "kilometers" || rawUnit === "meters"
+                ? rawUnit
+                : undefined;
+        stations.push({
+            id,
+            name,
+            lat,
+            lng,
+            ...(tier ? { tier } : {}),
+            ...(radius !== undefined ? { radius } : {}),
+            ...(unit ? { unit } : {}),
+        });
     };
-    if (obj.type === "FeatureCollection") {
-        (obj as FeatureCollection).features.forEach((f) =>
+    const geo = obj as { type?: string; features?: unknown[]; coordinates?: [number, number] } | null;
+    if (geo?.type === "FeatureCollection" && Array.isArray(geo.features)) {
+        geo.features.forEach((f) =>
             pushFromFeature(f as Feature<Point>),
         );
-    } else if (obj.type === "Feature") {
-        pushFromFeature(obj as Feature<Point>);
-    } else if (obj.type === "Point") {
-        const [lng, lat] = (obj as GeoJSON & Point).coordinates as [
-            number,
-            number,
-        ];
+    } else if (geo?.type === "Feature") {
+        pushFromFeature(geo as unknown as Feature<Point>);
+    } else if (geo?.type === "Point" && Array.isArray(geo.coordinates)) {
+        const [lng, lat] = geo.coordinates;
         stations.push({ id: `${lat},${lng}`, lat, lng });
     }
     return stations;
@@ -223,11 +275,17 @@ export function parseCustomStationsFromText(
 export function normalizeToStationFeatures(
     stations: CustomStation[],
 ): FeatureCollection<Point, StationPlaceProperties> {
-    // Return GeoJSON FeatureCollection of Points carrying properties { id, name }
+    // Return GeoJSON FeatureCollection of Points carrying properties { id, name, tier, radius, unit }
     const features: StationPlace[] = stations.map((s) => ({
         type: "Feature",
         geometry: { type: "Point", coordinates: [s.lng, s.lat] },
-        properties: { id: s.id, name: s.name, ...(s.tier ? { tier: s.tier } : {}) },
+        properties: {
+            id: s.id,
+            name: s.name,
+            ...(s.tier ? { tier: s.tier } : {}),
+            ...(s.radius !== undefined ? { radius: s.radius } : {}),
+            ...(s.unit ? { unit: s.unit } : {}),
+        },
     }));
     return { type: "FeatureCollection", features };
 }

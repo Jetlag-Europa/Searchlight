@@ -1,6 +1,8 @@
+import type { CreateFeedbackResponse,FeedbackItem, FeedbackListResponse } from "@searchlight/shared";
 import { useEffect, useRef, useState } from "react";
-import type { FeedbackItem, FeedbackListResponse, CreateFeedbackResponse } from "@taibled/shared";
+
 import { Button } from "@/components/ui/button";
+import { writeStorage } from "@/lib/safeStorage";
 import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -221,7 +223,7 @@ function FeedbackCard({
 }
 
 function loginRedirect() {
-    localStorage.setItem("taibled-return-to", "/feedback");
+    writeStorage("localStorage", "taibled-return-to", "/feedback");
     window.location.href = `${API_BASE}/auth/discord/login`;
 }
 

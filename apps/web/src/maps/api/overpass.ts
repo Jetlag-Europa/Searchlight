@@ -14,14 +14,15 @@ import { safeUnion } from "@/maps/geo-utils";
 import { cacheFetch, determineCache } from "./cache";
 import { LOCATION_FIRST_TAG, OVERPASS_CACHE_NS } from "./constants";
 import type {
-    EncompassingTentacleQuestionSchema,
     HomeGameMatchingQuestions,
     HomeGameMeasuringQuestions,
     QuestionSpecificLocation,
+    TentacleQuestion,
+    TraditionalTentacleQuestion,
 } from "./types";
 import { CacheType } from "./types";
 
-const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+const API_BASE = (import.meta.env?.PUBLIC_API_BASE ?? (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ?? "") as string;
 
 // Send the Overpass query to the backend proxy. The browser never hits public
 // Overpass servers directly — the proxy forwards to LocalOverpass (self-hosted,
@@ -34,6 +35,29 @@ const overpassProxyPost = (query: string): Promise<Response> =>
         body: JSON.stringify({ query }),
         credentials: "include",
     });
+
+// Simplify before encoding into the poly: filter — complex boundaries
+// (e.g. 1000+ point city outlines) produce queries too long for Overpass.
+// 0.005° ≈ 500 m, accurate enough for zone filtering. Memoized per play area:
+// simplify deep-clones the polygon, and this ran on every Overpass lookup.
+const polyStringCache = new WeakMap<object, string>();
+const overpassPolyString = (poly: object): string => {
+    let polyStr = polyStringCache.get(poly);
+    if (polyStr === undefined) {
+        const simplified = turf.simplify(poly as any, {
+            tolerance: 0.005,
+            highQuality: false,
+        }) as any;
+        polyStr = turf
+            .getCoords(simplified.features)
+            .flatMap((polygon: any) => polygon.geometry.coordinates)
+            .flat()
+            .map((coord: number[]) => [coord[1], coord[0]].join(" "))
+            .join(" ");
+        polyStringCache.set(poly, polyStr);
+    }
+    return polyStr;
+};
 
 export const getOverpassData = async (
     query: string,
@@ -107,7 +131,7 @@ export const determineGeoJSON = async (
 };
 
 export const findTentacleLocations = async (
-    question: EncompassingTentacleQuestionSchema,
+    question: TraditionalTentacleQuestion | TentacleQuestion,
     text: string = "Determining tentacle locations...",
 ) => {
     const query = `
@@ -172,75 +196,6 @@ out geom;
     return geo.features?.[0];
 };
 
-// Luxembourg's three districts were abolished in 2015 and are no longer
-// stored as administrative relations in OSM, so we reconstruct them from
-// their constituent cantons (admin_level=6).
-const LUX_DISTRICT_BY_CANTON: Record<string, string> = {
-    Clervaux: "Diekirch",
-    Diekirch: "Diekirch",
-    Redange: "Diekirch",
-    Vianden: "Diekirch",
-    Wiltz: "Diekirch",
-    Echternach: "Grevenmacher",
-    Grevenmacher: "Grevenmacher",
-    Remich: "Grevenmacher",
-    Capellen: "Luxembourg",
-    "Esch-sur-Alzette": "Luxembourg",
-    Luxembourg: "Luxembourg",
-    Mersch: "Luxembourg",
-};
-
-const stripCantonPrefix = (name: string | undefined): string | undefined =>
-    name?.replace(/^Canton\s+/i, "").trim();
-
-export const findLuxembourgDistrictBoundary = async (
-    latitude: number,
-    longitude: number,
-) => {
-    const cantonFeature = await findAdminBoundary(latitude, longitude, 6);
-    if (!cantonFeature) return undefined;
-    const cantonName = stripCantonPrefix(cantonFeature.properties?.name);
-    if (!cantonName) return undefined;
-    const districtName = LUX_DISTRICT_BY_CANTON[cantonName];
-    if (!districtName) return undefined;
-
-    const siblingCantons = Object.entries(LUX_DISTRICT_BY_CANTON)
-        .filter(([, d]) => d === districtName)
-        .map(([c]) => c);
-
-    const query = `
-[out:json][timeout:60];
-rel["ISO3166-1"="LU"][admin_level=2];
-map_to_area->.lux;
-rel(area.lux)["admin_level"="6"]["boundary"="administrative"];
-out geom;
-    `;
-    const data = await getOverpassData(
-        query,
-        `Building Luxembourg ${districtName} district boundary...`,
-    );
-    const collection = osmtogeojson(data) as FeatureCollection<MultiPolygon>;
-    const memberFeatures = collection.features.filter((f) => {
-        const name = stripCantonPrefix(f.properties?.name);
-        return !!name && siblingCantons.includes(name);
-    });
-    if (memberFeatures.length === 0) return undefined;
-
-    return safeUnion({
-        type: "FeatureCollection",
-        features: memberFeatures,
-    });
-};
-
-export const fetchCoastline = async () => {
-    const response = await cacheFetch(
-        import.meta.env.BASE_URL + "/coastline50.geojson",
-        "Fetching coastline data...",
-        CacheType.PERMANENT_CACHE,
-    );
-    const data = await response.json();
-    return data;
-};
 
 export const trainLineNodeFinder = async (node: string): Promise<number[]> => {
     const nodeId = node.split("/")[1];
@@ -312,16 +267,7 @@ export const findPlacesInZone = async (
     let query = "";
     const $polyGeoJSON = polyGeoJSON.get();
     if ($polyGeoJSON) {
-        // Simplify before encoding into the URL poly: filter — complex boundaries
-        // (e.g. 1000+ point city outlines) produce URLs too long for Overpass GET.
-        // 0.005° ≈ 500 m, accurate enough for zone filtering.
-        const simplified = turf.simplify($polyGeoJSON as any, { tolerance: 0.005, highQuality: false }) as typeof $polyGeoJSON;
-        const polyStr = turf
-            .getCoords(simplified.features)
-            .flatMap((polygon: any) => polygon.geometry.coordinates)
-            .flat()
-            .map((coord: number[]) => [coord[1], coord[0]].join(" "))
-            .join(" ");
+        const polyStr = overpassPolyString($polyGeoJSON);
         query = `
 [out:json]${timeoutDuration != 0 ? `[timeout:${timeoutDuration}]` : ""};
 (
@@ -415,13 +361,7 @@ export const findInternationalBordersInZone = async () => {
     let query: string;
 
     if ($polyGeoJSON) {
-        const simplified = turf.simplify($polyGeoJSON as any, { tolerance: 0.005, highQuality: false });
-        const polyStr = turf
-            .getCoords(simplified.features)
-            .flatMap((p: any) => p.geometry.coordinates)
-            .flat()
-            .map((c: number[]) => [c[1], c[0]].join(" "))
-            .join(" ");
+        const polyStr = overpassPolyString($polyGeoJSON);
         query = `
 [out:json][timeout:60];
 relation["boundary"="administrative"]["admin_level"="2"](poly:"${polyStr}")->.countries;
@@ -465,12 +405,15 @@ export const findPlacesSpecificInZone = async (
     );
 };
 
+const MAX_NEAREST_RADIUS_MILES = 300;
+
 export const nearestToQuestion = async (
     question: HomeGameMatchingQuestions | HomeGameMeasuringQuestions,
 ) => {
     let radius = 30;
     let instances: any = { features: [] };
-    while (instances.features.length === 0) {
+    // Bounded: a failed lookup returns no features, which used to retry forever.
+    while (instances.features.length === 0 && radius <= MAX_NEAREST_RADIUS_MILES) {
         instances = await findTentacleLocations(
             {
                 lat: question.lat,
@@ -487,6 +430,9 @@ export const nearestToQuestion = async (
             "Finding matching locations...",
         );
         radius += 30;
+    }
+    if (instances.features.length === 0) {
+        throw new Error(`No ${question.type} found within ${MAX_NEAREST_RADIUS_MILES} miles`);
     }
     const questionPoint = turf.point([question.lng, question.lat]);
     return turf.nearestPoint(questionPoint, instances as any);

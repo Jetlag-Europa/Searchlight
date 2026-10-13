@@ -1,7 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { sidebarContextR, type SidebarContextType } from "@/lib/context";
 import * as React from "react";
 import { LiaThumbtackSolid } from "react-icons/lia";
 
@@ -17,6 +16,7 @@ import {
     TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { sidebarContextR } from "@/lib/context";
 import { cn } from "@/lib/utils";
 
 const SIDEBAR_COOKIE_NAME = "sidebar:state";

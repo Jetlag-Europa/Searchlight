@@ -1,6 +1,17 @@
-import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import {
+    type Game as ServerGame,
+    type GameDefinition,
+    type GameSessionSummary,
+} from "@searchlight/shared";
 import { atom } from "nanostores";
 
+import {
+    compiledGameAtom,
+    filterSupportedQuestions,
+    loadGameDefinition,
+    setActiveGameDefinition,
+} from "@/game-definition/store";
+import { activeSessionData, activeSessionId } from "@/lib/activeSession";
 import {
     additionalMapGeoLocations,
     customStations,
@@ -8,47 +19,31 @@ import {
     displayHidingZones,
     displayHidingZonesOptions,
     displayHidingZonesStyle,
-    gamePOIData,
-    gamePOIReady,
-
+    gameDefinitionReady,
     hidingRadius,
     hidingRadiusUnits,
     hidingZoneFocusedStationID,
     includeDefaultStations,
     mapGeoJSON,
-    mapGeoLocation,
     permanentOverlay,
     polyGeoJSON,
+    questions,
     tierRadiusOverrides,
+    trainStations,
     useCustomStations,
 } from "@/lib/context";
-import type { CustomStation, OpenStreetMap } from "@/maps/api";
-import { parseCustomStationsFromText, parseGPX, parseKMLFolderPOI } from "@/maps/api/importers";
+import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
+import { readStorage, writeStorage } from "@/lib/safeStorage";
 import { clearTentacleCache } from "@/maps/questions/tentacles";
-import { GAME_REGISTRY, type Game as ServerGame } from "@taibled/shared";
+import type { Units } from "@/maps/schema";
+const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
+    (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
+    "") as string;
 
-const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-const NORMALIZED_BASE = (import.meta.env.BASE_URL ?? "/").replace(
-    /\/?$/,
-    "/",
-);
-
-export interface GameDefinition {
+export interface GameOption {
     id: string;
+    gameKey: string;
     label: string;
-    optionLabel: string;
-    sentinelValue: string;
-    kmlPath: string;
-    mapLocation: OpenStreetMap;
-    hidingRadius: number;
-    hidingRadiusUnits: "miles" | "kilometers" | "meters";
-    tierRadiusOverrides?: Record<string, number> | null;
-    kmlPOIFolders?: Record<string, string> | null;
-    hidingZoneGpxPaths?: string[] | null;
-    hidingZoneKmlPath?: string | null;
-    hidingZoneGeoJsonPath?: string | null;
-    mapBoundaryGeoJsonPath?: string | null;
     serverId: string;
     serverName: string;
     size: "small" | "medium" | "large";
@@ -56,317 +51,287 @@ export interface GameDefinition {
 
 export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
     switch (size) {
-        case "large": return 11;
-        case "medium": return 13;
-        case "small": return 17;
-        default: return 13;
+        case "large":
+            return 11;
+        case "medium":
+            return 13;
+        case "small":
+            return 17;
+        default:
+            return 13;
     }
 }
-
-// Client-side asset wiring, derived from the single source of truth in
-// @taibled/shared. To add or change a game, edit GAME_REGISTRY there — not here.
-// See docs/ADDING_GAMES.md.
-const GAME_KML_POI_FOLDERS: Record<string, Record<string, string>> =
-    Object.fromEntries(
-        GAME_REGISTRY.filter((m) => m.poiFolders).map((m) => [
-            m.sentinel,
-            m.poiFolders!,
-        ]),
-    );
-
-const GAME_HIDING_ZONE_GPX_PATHS: Record<string, string[]> = {};
-
-const GAME_HIDING_ZONE_KML_PATHS: Record<string, string> = Object.fromEntries(
-    GAME_REGISTRY.filter((m) => m.stationsKml).map((m) => [
-        m.sentinel,
-        m.stationsKml!,
-    ]),
-);
-
-const GAME_MAP_BOUNDARY_GEOJSON_PATHS: Record<string, string> =
-    Object.fromEntries(
-        GAME_REGISTRY.filter((m) => m.boundaryGeoJson).map((m) => [
-            m.sentinel,
-            m.boundaryGeoJson!,
-        ]),
-    );
-
-// Server-fetched games. Populated by fetchGames() when a session/server is known.
-export const gamesAtom = atom<GameDefinition[]>([]);
+// Server-fetched games.
+export const gamesAtom = atom<GameOption[]>([]);
 export const gamesLoadingAtom = atom<boolean>(false);
+let latestCatalogRequest = 0;
+let activeCatalogRequests = 0;
 
 const GAME_SS_KEY = "taibled-current-game-id";
+let gameSwitchGeneration = 0;
+interface PendingGameSwitch {
+    key: string;
+    definition: Promise<GameDefinition> | undefined;
+    promise: Promise<boolean>;
+}
+let pendingGameSwitch: PendingGameSwitch | undefined;
+let publishedGameOptions: string[] | undefined;
 
 // Tab-local game ID — sessionStorage so each tab tracks its own game independently.
 export const currentGameId = atom<string>(
-    typeof sessionStorage !== "undefined"
-        ? (sessionStorage.getItem(GAME_SS_KEY) ?? "")
-        : ""
+    readStorage("sessionStorage", GAME_SS_KEY) ?? "",
 );
 
-export async function fetchGames(serverId: string): Promise<GameDefinition[]> {
+export async function fetchGames(serverId: string): Promise<GameOption[]> {
+    const request = ++latestCatalogRequest;
+    activeCatalogRequests++;
     gamesLoadingAtom.set(true);
     try {
         const [gamesRes, serversRes] = await Promise.all([
-            fetch(`${API_BASE}/games?serverId=${serverId}`, { credentials: "include" }),
+            fetch(`${API_BASE}/games?serverId=${serverId}`, {
+                credentials: "include",
+            }),
             fetch(`${API_BASE}/servers`, { credentials: "include" }),
         ]);
-        if (!gamesRes.ok) throw new Error(`Failed to fetch games: ${gamesRes.status}`);
-        const gamesData = await gamesRes.json() as { games: ServerGame[] };
+        if (!gamesRes.ok)
+            throw new Error(`Failed to fetch games: ${gamesRes.status}`);
+        const gamesData = (await gamesRes.json()) as { games: ServerGame[] };
 
         let serverName = serverId;
         if (serversRes.ok) {
-            const serversData = await serversRes.json() as { servers: Array<{ id: string; name: string }> };
-            serverName = serversData.servers.find((s) => s.id === serverId)?.name ?? serverId;
+            const serversData = (await serversRes.json()) as {
+                servers: Array<{ id: string; name: string }>;
+            };
+            serverName =
+                serversData.servers.find((s) => s.id === serverId)?.name ??
+                serverId;
         }
 
-        const defs = gamesData.games.map((g): GameDefinition => ({
-            id: g.id,
-            label: g.name,
-            optionLabel: g.name,
-            sentinelValue: g.sentinelValue,
-            kmlPath: g.kmlPath,
-            mapLocation: g.mapLocationJson as OpenStreetMap,
-            hidingRadius: g.hidingRadius,
-            hidingRadiusUnits: g.hidingRadiusUnits,
-            tierRadiusOverrides: g.tierRadiusOverrides,
-            kmlPOIFolders: GAME_KML_POI_FOLDERS[g.sentinelValue] ?? null,
-            hidingZoneGpxPaths: GAME_HIDING_ZONE_GPX_PATHS[g.sentinelValue] ?? null,
-            hidingZoneKmlPath: GAME_HIDING_ZONE_KML_PATHS[g.sentinelValue] ?? null,
-            hidingZoneGeoJsonPath: g.hidingZoneGeoJsonPath ?? null,
-            mapBoundaryGeoJsonPath: GAME_MAP_BOUNDARY_GEOJSON_PATHS[g.sentinelValue] ?? null,
-            serverId: g.serverId,
-            serverName,
-            size: (g.size as "small" | "medium" | "large") ?? "medium",
-        }));
+        const defs = gamesData.games.map((g): GameOption => {
+            return {
+                id: g.id,
+                gameKey: g.gameKey,
+                label: g.name,
+                serverId: g.serverId,
+                serverName,
+                size: (g.size as "small" | "medium" | "large") ?? "medium",
+            };
+        });
 
-        gamesAtom.set(defs);
-
-        // Pre-fetch custom map boundaries into cache so switchToGame can apply them synchronously
-        for (const def of defs) {
-            if (def.mapBoundaryGeoJsonPath && !mapBoundaryCache.has(def.id)) {
-                fetch(`${NORMALIZED_BASE}${def.mapBoundaryGeoJsonPath}`)
-                    .then((r) => r.ok ? r.json() : Promise.reject(r.status))
-                    .then((geojson: FeatureCollection<Polygon | MultiPolygon>) => {
-                        mapBoundaryCache.set(def.id, geojson);
-                        console.info("[taibled:boundary] pre-cached boundary for", def.label);
-                    })
-                    .catch((e) => console.warn("[taibled:boundary] pre-cache failed for", def.label, e));
-            }
-        }
-
+        if (request === latestCatalogRequest) gamesAtom.set(defs);
         return defs;
     } finally {
-        gamesLoadingAtom.set(false);
+        if (--activeCatalogRequests === 0) gamesLoadingAtom.set(false);
     }
 }
 
-// Derive the sentinel set from the live games atom.
-export function getGameSentinels(): ReadonlySet<string> {
-    return new Set(gamesAtom.get().map((g) => g.sentinelValue));
+// Derive the game key set from the live games atom.
+export function getGameKeys(): ReadonlySet<string> {
+    return new Set(gamesAtom.get().map((g) => g.gameKey));
 }
-
-export function getGameById(id: string): GameDefinition | undefined {
+export function getGameById(id: string): GameOption | undefined {
     return gamesAtom.get().find((g) => g.id === id);
 }
 
-export function getGameBySentinel(value: string): GameDefinition | undefined {
-    return gamesAtom.get().find((g) => g.sentinelValue === value);
-}
-
-// Question types a game hides from the picker (e.g. a POI whose only feature is
-// outside the play area). Derived from GAME_REGISTRY[].hiddenQuestionTypes.
-// Entries are either a bare type (hidden from every picker) or a picker-scoped
-// "<kind>:<type>" (hidden only from that kind's picker). `kind` scopes the check.
-export function isQuestionTypeHidden(
-    type: string,
-    sentinel: string,
-    kind?: "matching" | "measuring" | "tentacle",
-): boolean {
-    if (!sentinel) return false;
-    const manifest = GAME_REGISTRY.find((g) => g.sentinel === sentinel);
-    const hidden = manifest?.hiddenQuestionTypes;
-    if (!hidden) return false;
-    return hidden.includes(type) || (kind ? hidden.includes(`${kind}:${type}`) : false);
-}
-
-const stationCache = new Map<string, CustomStation[]>();
-const mapBoundaryCache = new Map<string, FeatureCollection<Polygon | MultiPolygon>>();
-
-async function loadGameStations(game: GameDefinition): Promise<CustomStation[]> {
-    const cached = stationCache.get(game.id);
-    if (cached) return cached;
-
-    let stations: CustomStation[];
-
-    if (game.hidingZoneGpxPaths?.length) {
-        const all: CustomStation[] = [];
-        for (const path of game.hidingZoneGpxPaths) {
-            const url = `${NORMALIZED_BASE}${path}`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error(`GPX fetch failed: ${url} (${res.status})`);
-            all.push(...parseGPX(await res.text()));
+/**
+ * The game a session plays. The server's catalog only names it: participants
+ * may load the session's pinned revision without access to that catalog (403
+ * for non-members), and a Discord outage fails it too, so fall back to the
+ * session's own ids instead of failing the load.
+ */
+export async function resolveSessionGame(
+    session: GameSessionSummary,
+): Promise<GameOption> {
+    const games = await fetchGames(session.serverId).catch((err) => {
+        console.warn("[searchlight:session] game catalog unavailable:", err);
+        return [] as GameOption[];
+    });
+    return (
+        games.find((game) => game.id === session.gameId) ??
+        getGameById(session.gameId) ?? {
+            id: session.gameId,
+            gameKey: session.gameId,
+            label: session.name,
+            serverId: session.serverId,
+            serverName: session.serverId,
+            size: "medium",
         }
-        stations = all;
-        console.info(`[taibled:stations] loaded ${stations.length} stations from ${game.hidingZoneGpxPaths.length} GPX files for ${game.label}`);
-    } else if (game.hidingZoneKmlPath) {
-        const url = `${NORMALIZED_BASE}${game.hidingZoneKmlPath}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`Stations KML fetch failed: ${url} (${res.status})`);
-        stations = parseCustomStationsFromText(await res.text(), "kml");
-        console.info(`[taibled:stations] loaded ${stations.length} stations from ${game.hidingZoneKmlPath} for ${game.label}`);
-    } else {
-        const url = `${NORMALIZED_BASE}${game.kmlPath}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error(`KML fetch failed for ${game.id}: ${res.status}`);
-        stations = parseCustomStationsFromText(await res.text(), "kml");
-    }
-
-    stationCache.set(game.id, stations);
-    return stations;
+    );
 }
 
-async function loadGamePolyGeoJSON(game: GameDefinition): Promise<void> {
-    if (!game.hidingZoneGeoJsonPath) return;
-    const url = `${NORMALIZED_BASE}${game.hidingZoneGeoJsonPath}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        console.warn("[taibled:zones] poly GeoJSON fetch failed for", game.id, res.status);
-        return;
-    }
-    const geojson = await res.json() as FeatureCollection<Polygon | MultiPolygon>;
-    polyGeoJSON.set(geojson);
-    console.info("[taibled:zones] loaded polygon zone for", game.label);
+export function getGameByKey(value: string): GameOption | undefined {
+    return gamesAtom.get().find((g) => g.gameKey === value);
 }
 
-async function loadMapBoundaryGeoJSON(game: GameDefinition): Promise<void> {
-    if (!game.mapBoundaryGeoJsonPath) return;
-    const cached = mapBoundaryCache.get(game.id);
-    if (cached) {
-        polyGeoJSON.set(cached);
-        console.info("[taibled:boundary] applied cached boundary for", game.label);
-        return;
-    }
-    const url = `${NORMALIZED_BASE}${game.mapBoundaryGeoJsonPath}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        console.warn("[taibled:boundary] boundary GeoJSON fetch failed for", game.id, res.status);
-        return;
-    }
-    const geojson = await res.json() as FeatureCollection<Polygon | MultiPolygon>;
-    mapBoundaryCache.set(game.id, geojson);
-    polyGeoJSON.set(geojson);
-    console.info("[taibled:boundary] loaded custom map boundary for", game.label);
-}
-
-async function loadGamePOI(game: GameDefinition): Promise<void> {
-    // Every return path must resolve gamePOIReady, or the map defers question
-    // evaluation forever (see the guard in Map.tsx).
-    if (!game.kmlPOIFolders) {
-        console.info("[taibled:poi-guard] no custom POI for", game.label, "→ ready");
-        gamePOIReady.set(true);
-        return;
-    }
-    const url = `${NORMALIZED_BASE}${game.kmlPath}`;
-    try {
-        // Force revalidation so a stale cached KML (browser heuristic cache or an
-        // upstream proxy) can't serve an outdated asset after new POI folders are
-        // added — this was the "christian_religion never loads" bug: the browser
-        // kept parsing an old south-limburg-poi.kml that predated the church folder.
-        const res = await fetch(url, { cache: "no-cache" });
-        if (!res.ok) {
-            console.warn("[taibled:poi] POI KML fetch failed for", game.id, res.status);
-            return;
-        }
-        const poiByCategory = parseKMLFolderPOI(await res.text(), game.kmlPOIFolders);
-        gamePOIData.set(poiByCategory);
-        console.info(
-            "[taibled:poi] loaded custom POI for", game.label, "-",
-            Object.entries(poiByCategory).map(([k, v]) => `${k}:${v.length}`).join(", "),
+export function applyGameDefinition(def: GameDefinition): void {
+    setActiveGameDefinition(def);
+    const compiled = compiledGameAtom.get()!;
+    polyGeoJSON.set(compiled.playArea ?? null);
+    mapGeoJSON.set(compiled.playArea ?? null);
+    trainStations.set([]);
+    if (compiled.hidingZones.stations?.length) {
+        useCustomStations.set(true);
+        includeDefaultStations.set(false);
+        customStations.set(
+            compiled.hidingZones.stations.map((s) => ({
+                id: String(s.id),
+                name: s.name,
+                lat: s.coordinates[1],
+                lng: s.coordinates[0],
+                ...(s.tier ? { tier: s.tier } : {}),
+                ...(s.explicitRadius !== undefined
+                    ? { radius: s.explicitRadius }
+                    : {}),
+                unit:
+                    (s.radius?.unit as Units) ??
+                    (compiled.hidingZones.baseRadius.unit as Units),
+            })),
         );
-    } finally {
-        // Resolve on success AND on fetch failure: a game whose POIs can't load
-        // should fall back to Overpass, not hang on "Finding …" forever.
-        gamePOIReady.set(true);
+    } else {
+        useCustomStations.set(false);
+        includeDefaultStations.set(false);
+        customStations.set([]);
     }
+    hidingRadius.set(compiled.hidingZones.baseRadius.value);
+    hidingRadiusUnits.set(compiled.hidingZones.baseRadius.unit);
+    tierRadiusOverrides.set(def.hidingZones?.tierOverrides ?? {});
+
+    const currentQuestions = questions.get();
+    const visibleQuestions = filterSupportedQuestions(
+        currentQuestions,
+        compiled,
+    );
+    if (visibleQuestions.length !== currentQuestions.length) {
+        // Hiding unsupported questions is a view of the session, not an edit:
+        // during a session switch it would otherwise be saved into whichever
+        // session is still active.
+        questions.set(suppressQuestionSave(visibleQuestions));
+    }
+    gameDefinitionReady.set(true);
 }
 
-export function applyGameDefaults(game: GameDefinition): void {
-    mapGeoJSON.set(null);
-    mapGeoLocation.set(game.mapLocation);
-    // Polygon-based games load polyGeoJSON async; clear it now so old polygon doesn't linger until the new one arrives
-    if (polyGeoJSON.get() !== null) {
-        polyGeoJSON.set(null);
-    }
-    hidingRadius.set(game.hidingRadius);
-    hidingRadiusUnits.set(game.hidingRadiusUnits);
-    tierRadiusOverrides.set(game.tierRadiusOverrides ?? {});
-    gamePOIData.set({});
-    clearTentacleCache();
+export interface SwitchToGameOptions {
+    revisionId?: string | null;
+    sessionId?: string | null;
 }
 
-export function activateGameStations(game: GameDefinition): void {
-    useCustomStations.set(true);
-    includeDefaultStations.set(false);
-    const cached = stationCache.get(game.id);
-    if (cached) {
-        customStations.set(cached);
+export function activateGameStations(
+    game: GameOption,
+    options?: SwitchToGameOptions,
+): void {
+    // Ignore the selection published by switchToGame, not restored or user-edited
+    // options. The current ID alone cannot distinguish those initialization paths.
+    if (
+        !options &&
+        currentGameId.get() === game.id &&
+        displayHidingZonesOptions.get() === publishedGameOptions
+    )
         return;
-    }
-    loadGameStations(game)
-        .then((stations) => {
-            if (stations.length === 0) {
-                console.warn("[games] 0 stations parsed for", game.id);
-                return;
-            }
-            customStations.set(stations);
-        })
-        .catch((e) => {
-            console.warn("[games] activation failed for", game.id, e);
-        });
+    switchToGame(game, options);
 }
 
-export function switchToGame(game: GameDefinition): void {
-    // A switch is in flight: block POI-backed question evaluation until
-    // loadGamePOI (below, async) resolves gamePOIReady. Set before any async
-    // work so an effect triggered mid-switch sees the game as not-ready.
-    gamePOIReady.set(false);
+/** True while switchToGame is loading a definition that hasn't been applied. */
+export function isGameSwitchPending(): boolean {
+    return pendingGameSwitch !== undefined;
+}
 
+export function switchToGame(
+    game: GameOption,
+    options?: SwitchToGameOptions,
+): Promise<boolean> {
+    // Resolve the scope before publishing selection. Session initialization may
+    // supply a pin before activeSessionData has been populated.
+    const currentSession = activeSessionData.get();
+    const startingSessionId = activeSessionId.get();
+    const isSessionGame = Boolean(
+        currentSession &&
+            (currentSession.gameId === game.id ||
+                currentSession.gameId === game.gameKey),
+    );
+    const sessionId =
+        options?.sessionId !== undefined
+            ? (options.sessionId ?? undefined)
+            : isSessionGame
+              ? currentSession?.id
+              : undefined;
+    const targetRevisionId =
+        options?.revisionId !== undefined
+            ? (options.revisionId ?? undefined)
+            : isSessionGame
+              ? (currentSession?.gameRevisionId ?? undefined)
+              : undefined;
+    const isSession = Boolean(sessionId || isSessionGame);
+    const key = JSON.stringify([
+        game.id,
+        targetRevisionId ?? null,
+        sessionId ?? null,
+        isSession,
+    ]);
+    if (pendingGameSwitch?.key === key) return pendingGameSwitch.promise;
+
+    const generation = ++gameSwitchGeneration;
+    // Register the switch before notifying atom subscribers so reentrant callers
+    // share the same outcome instead of superseding the original caller.
+    const selection: PendingGameSwitch = {
+        key,
+        definition:
+            game.id && !(isSession && !targetRevisionId)
+                ? loadGameDefinition(game.id, targetRevisionId, sessionId)
+                : undefined,
+        promise: Promise.resolve()
+            .then(async () => {
+                if (isSession && !targetRevisionId) {
+                    console.warn(
+                        "[games] Session game requires a pinned revision ID; refusing unpinned/fallback load",
+                    );
+                    return false;
+                }
+                if (!selection.definition) return false;
+
+                try {
+                    const definition = await selection.definition;
+                    if (
+                        generation !== gameSwitchGeneration ||
+                        activeSessionId.get() !== startingSessionId
+                    ) return false;
+                    applyGameDefinition(definition);
+                    return true;
+                } catch (error) {
+                    if (generation !== gameSwitchGeneration) return false;
+                    console.warn(
+                        "[games] Failed to load game definition",
+                        error,
+                    );
+                    return false;
+                }
+            })
+            .finally(() => {
+                if (generation === gameSwitchGeneration)
+                    pendingGameSwitch = undefined;
+            }),
+    };
+    pendingGameSwitch = selection;
+
+    gameDefinitionReady.set(false);
+    clearTentacleCache();
+    setActiveGameDefinition(null);
+    customStations.set([]);
+    trainStations.set([]);
+    useCustomStations.set(false);
+    includeDefaultStations.set(false);
+    polyGeoJSON.set(null);
+    mapGeoJSON.set(null);
     additionalMapGeoLocations.set([]);
     disabledStations.set([]);
     permanentOverlay.set(null);
     hidingZoneFocusedStationID.set("");
 
-    applyGameDefaults(game);
-
-    displayHidingZonesOptions.set([game.sentinelValue]);
-
-    if (game.hidingZoneGeoJsonPath) {
-        // Polygon-based game (e.g. Paris): the GeoJSON boundary IS the hiding zone; no KML stations
-        useCustomStations.set(true);
-        includeDefaultStations.set(false);
-        customStations.set([]);
-        loadGamePolyGeoJSON(game).catch((e) => console.warn("[games] loadGamePolyGeoJSON failed", e));
-    } else {
-        activateGameStations(game);
-        if (game.mapBoundaryGeoJsonPath) {
-            // Custom boundary + KML stations (e.g. Bucharest): populate polyGeoJSON so zone
-            // computation and rendering use the custom boundary instead of querying OSM.
-            // Apply synchronously from cache if available, otherwise fetch async.
-            const cached = mapBoundaryCache.get(game.id);
-            if (cached) {
-                polyGeoJSON.set(cached);
-                console.info("[taibled:boundary] applied cached boundary for", game.label);
-            } else {
-                loadMapBoundaryGeoJSON(game).catch((e) => console.warn("[games] loadMapBoundaryGeoJSON failed", e));
-            }
-        }
-    }
-
-    loadGamePOI(game).catch((e) => console.warn("[games] loadGamePOI failed", e));
+    // The sidebar observes zone options; publish the owning selection first.
+    writeStorage("sessionStorage", GAME_SS_KEY, game.id);
+    currentGameId.set(game.id);
+    publishedGameOptions = [game.gameKey];
+    displayHidingZonesOptions.set(publishedGameOptions);
     displayHidingZones.set(true);
     displayHidingZonesStyle.set("zones");
-
-    sessionStorage.setItem(GAME_SS_KEY, game.id);
-    currentGameId.set(game.id);
+    return selection.promise;
 }

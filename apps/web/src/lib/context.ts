@@ -1,8 +1,10 @@
 import { persistentAtom } from "@nanostores/persistent";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
-import type { Map } from "leaflet";
+import type { Map as LeafletMap } from "leaflet";
 import { atom, computed, onSet } from "nanostores";
 
+import { radarRadii } from "@/game-definition/compile";
+import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import type {
     AdditionalMapGeoLocations,
     CustomStation,
@@ -73,12 +75,54 @@ export const polyGeoJSON = persistentAtom<FeatureCollection<
     listen: false,
 });
 
-// Not persisted: questions are server-backed (Phase 3). SessionManager loads them
-// from the server on every session pick. Persisting them caused stale TaibledOG
-// data to corrupt the server copy via the debounced save-back.
+// Questions are server-backed and restored on session selection.
 export const questions = atom<Questions>([]);
-export const addQuestion = (question: DeepPartial<Question>) =>
-    questionModified(questions.get().push(questionSchema.parse(question)));
+// Player-drawn variants, allowed in every game (see isQuestionSupported).
+const playerCustomData = (family: string): Record<string, unknown> =>
+    family === "tentacle"
+        ? { locationType: "custom", places: [] }
+        : { type: family === "matching" ? "custom-points" : "custom-measure" };
+export const addQuestion = (question: DeepPartial<Question>) => {
+    const candidate: any = {
+        ...question,
+        data: { ...((question as any).data ?? {}) },
+    };
+    const compiled = compiledGameAtom.get();
+    const family =
+        candidate.id === "tentacles"
+            ? "tentacle"
+            : candidate.id === "matching" || candidate.id === "measuring"
+              ? candidate.id
+              : undefined;
+    if (family) {
+        const idField = family === "tentacle" ? "locationType" : "type";
+        if (candidate.data[idField] === undefined) {
+            const first = compiled?.questions.find((q) => q.family === family);
+            // A game with no layer for this family still allows custom ones.
+            if (first) candidate.data[idField] = first.id;
+            else if (compiled) {
+                for (const [key, value] of Object.entries(
+                    playerCustomData(family),
+                ))
+                    candidate.data[key] ??= value;
+            }
+        }
+    }
+    // A game's radar starts at its first declared radius, not the schema's
+    // generic default.
+    if (candidate.id === "radius" && candidate.data.radius === undefined) {
+        const [radius] = compiled ? radarRadii(compiled) : [];
+        if (radius) {
+            candidate.data.radius = radius.value;
+            candidate.data.unit = radius.unit;
+        }
+    }
+    const parsed = questionSchema.parse(candidate);
+    if (compiled && !isQuestionSupported(parsed, compiled)) {
+        throw new Error("This question is not part of the active game");
+    }
+    questionModified(questions.get().push(parsed));
+};
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const questionModified = (..._: any[]) => {
     if (autoSave.get()) {
@@ -88,11 +132,15 @@ export const questionModified = (..._: any[]) => {
     }
 };
 
-export const leafletMapContext = atom<Map | null>(null);
+export const leafletMapContext = atom<LeafletMap | null>(null);
 
-export const defaultUnit = persistentAtom<Units>("defaultUnit", "miles", { listen: false });
+export const defaultUnit = persistentAtom<Units>("defaultUnit", "miles", {
+    listen: false,
+});
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).
-export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
+export const hiderMode = atom<false | { latitude: number; longitude: number }>(
+    false,
+);
 export const triggerLocalRefresh = atom<number>(0);
 export const displayHidingZones = persistentAtom<boolean>(
     "displayHidingZones",
@@ -339,19 +387,12 @@ export const hidingZone = computed(
 
 export const tierRadiusOverrides = atom<Record<string, number>>({});
 
-export const gamePOIData = atom<Record<string, Array<{ name: string; lat: number; lon: number }>>>({});
-
-// True once the active game's POI load has RESOLVED — either custom POIs are in
-// gamePOIData, or we've confirmed the game provides none. False while a switch
-// is in flight. The map must not evaluate POI-backed questions while this is
-// false, else they fall back to Overpass before gamePOIData arrives (on a
-// whole-country game like Belgium that stray query is huge and hangs). This is
-// a lifecycle flag rather than an `Object.keys(gamePOIData).length` check
-// because gamePOIData is legitimately empty for games with no custom POIs, and
-// because the previous getGameById-based guard couldn't resolve the game during
-// the cache-paint pass (the games list isn't fetched yet). Default true so any
-// path that doesn't go through switchToGame evaluates normally.
-export const gamePOIReady = atom<boolean>(true);
+// False from the start of a game switch until the selected game's definition
+// has been applied (and still false if loading it failed). The map must not
+// evaluate questions meanwhile: a game's questions have no definition to be
+// answered from yet. Default true so free play, which never switches,
+// evaluates normally.
+export const gameDefinitionReady = atom<boolean>(true);
 
 export const drawingQuestionKey = atom<number>(-1);
 // ID of the single hiding-zone the user has focused via a "View" button,
@@ -365,6 +406,52 @@ export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
 });
 
 export const isLoading = atom<boolean>(false);
+const loadingScopeCounts = new Map<string | symbol, number>();
+
+export function setScopedLoading(
+    scope: string | symbol,
+    active: boolean,
+): void {
+    const current = loadingScopeCounts.get(scope) ?? 0;
+    if (active) {
+        loadingScopeCounts.set(scope, current + 1);
+    } else {
+        const next = Math.max(0, current - 1);
+        if (next === 0) {
+            loadingScopeCounts.delete(scope);
+        } else {
+            loadingScopeCounts.set(scope, next);
+        }
+    }
+    let total = 0;
+    for (const count of loadingScopeCounts.values()) {
+        total += count;
+    }
+    isLoading.set(total > 0);
+}
+
+export function resetScopedLoading(scope?: string | symbol): void {
+    if (scope) {
+        loadingScopeCounts.delete(scope);
+    } else {
+        loadingScopeCounts.clear();
+    }
+    let total = 0;
+    for (const count of loadingScopeCounts.values()) {
+        total += count;
+    }
+    isLoading.set(total > 0);
+}
+/** Release one operation exactly once, including when its view unmounts. */
+export function acquireScopedLoading(scope: string | symbol): () => void {
+    setScopedLoading(scope, true);
+    let released = false;
+    return () => {
+        if (released) return;
+        released = true;
+        setScopedLoading(scope, false);
+    };
+}
 
 export const baseTileLayer = persistentAtom<
     "voyager" | "light" | "dark" | "transport" | "neighbourhood" | "osmcarto"
@@ -454,8 +541,12 @@ const _defaultSidebarCtx: SidebarContextType = {
     toggleSidebar: () => {},
 };
 
-export const sidebarContextL = atom<SidebarContextType>({ ..._defaultSidebarCtx });
-export const sidebarContextR = atom<SidebarContextType>({ ..._defaultSidebarCtx });
+export const sidebarContextL = atom<SidebarContextType>({
+    ..._defaultSidebarCtx,
+});
+export const sidebarContextR = atom<SidebarContextType>({
+    ..._defaultSidebarCtx,
+});
 
 // ── Sync status ───────────────────────────────────────────────────────────────
 
@@ -465,7 +556,11 @@ export const pendingEventCount = atom<number>(0);
 
 // ── Presence ─────────────────────────────────────────────────────────────────
 
-export type PresenceUser = { userId: string; displayName: string; avatarUrl: string };
+export type PresenceUser = {
+    userId: string;
+    displayName: string;
+    avatarUrl: string;
+};
 export const connectedUsers = atom<PresenceUser[]>([]);
 
 // ── Cross-island session load request ─────────────────────────────────────────

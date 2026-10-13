@@ -7,7 +7,7 @@ import { ICON_COLORS } from "./api/constants";
 export const NO_GROUP = "NO_GROUP";
 
 export const determineUnionizedStrings = (
-    obj: z.ZodUnion<any> | z.ZodLiteral<any> | z.ZodDefault<any>,
+    obj: z.ZodTypeAny,
 ): z.ZodLiteral<any>[] => {
     if (obj instanceof z.ZodUnion) {
         return obj.options.flatMap((option: any) =>
@@ -128,19 +128,9 @@ const tentacleLocationsOne = z.union([
     z.literal("hospital").describe("Hospitals"),
     z.literal("cinema").describe("Movie Theaters"),
     z.literal("library").describe("Libraries"),
-    z.literal("covrigarie").describe("Covrigarie (Bucharest)"),
-    z.literal("train_station").describe("Railway Stations (Bucharest)"),
-    z.literal("park").describe("Parks (Bucharest)"),
-    z.literal("camping").describe("Campings (South Limburg)"),
-    z.literal("mill").describe("Mills (South Limburg)"),
-    z.literal("mountain").describe("Mountains (South Limburg)"),
-    z.literal("golf_course").describe("Golf Courses (South Limburg)"),
-    z.literal("bern-mountain").describe("Mountains (Bern)"),
-    z.literal("bern-park").describe("Parks (Bern)"),
-    z.literal("christian_religion").describe("Christian Religion Places (South Limburg)"),
 ]);
 
-const apiLocationSchema = z.union([
+export const apiLocationSchema = z.union([
     z.literal("golf_course"),
     z.literal("consulate"),
     z.literal("park"),
@@ -181,12 +171,6 @@ const tentacleQuestionSpecificSchemaOne = baseTentacleQuestionSchema.extend({
     places: z.array(z.any()).optional(),
 });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const encompassingTentacleQuestionSchema = baseTentacleQuestionSchema.extend({
-    locationType: apiLocationSchema,
-    places: z.array(z.any()).optional(),
-});
-
 const customTentacleQuestionSchema = baseTentacleQuestionSchema.extend({
     locationType: z.literal("custom").describe("Custom Locations"),
     places: z.array(
@@ -203,11 +187,16 @@ const customTentacleQuestionSchema = baseTentacleQuestionSchema.extend({
         }),
     ),
 });
+const genericFeatureTentacleQuestionSchema = baseTentacleQuestionSchema.extend({
+    locationType: z.string().startsWith("tentacle-"),
+    places: z.array(z.any()).optional(),
+});
 
 export const tentacleQuestionSchema = z.union([
     customTentacleQuestionSchema.describe(NO_GROUP),
     tentacleQuestionSpecificSchemaFifteen.describe("15 Miles (Typically)"),
     tentacleQuestionSpecificSchemaOne.describe("1 Mile (Typically)"),
+    genericFeatureTentacleQuestionSchema.describe(NO_GROUP),
 ]);
 
 const baseMatchingQuestionSchema = ordinaryBaseQuestionSchema.extend({
@@ -321,388 +310,21 @@ const customMatchingQuestionSchema = baseMatchingQuestionSchema.extend({
     geo: z.any(),
 });
 
-const luxAdminMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("lux-canton").describe("Same Canton (Luxembourg)"),
-        z.literal("lux-district").describe("Same District (Luxembourg)"),
-    ]),
-});
-
-const luxPointMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("lux-mountains").describe("Lux Mountains"),
-        z.literal("lux-hospitals").describe("Lux Hospitals"),
-    ]),
-});
-
-const southLimburgMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("south-limburg-postcode").describe("Postcode (South Limburg)"),
-        z.literal("south-limburg-municipality").describe("Municipality (South Limburg)"),
-        z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
-        z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
-        // Mountain uses the generic "Mountain" question, which auto-uses the
-        // game's custom mountain POIs — no game-prefixed duplicate needed.
-    ]),
-});
-
-const brnoMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.literal("brno-district").describe("Same District (Brno)"),
-});
-
-const bernMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("bern-canton").describe("Same Swiss Canton"),
-        z.literal("bern-bezirk").describe("Same Bezirk"),
-        z.literal("bern-mountain").describe("Nearest Mountain (Bern)"),
-    ]),
-});
-
-const bucharestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("bucharest-sector").describe("1st Admin Division (Bucharest)"),
-        z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
-        z.literal("buch-train_station").describe("Nearest Railway Station (Bucharest)"),
-    ]),
-});
-
-const exterRotterdamMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("rotterdam-municipality").describe("Same Municipality (Rotterdam)"),
-        z.literal("rotterdam-ns").describe("Nearest NS Station (Rotterdam)"),
-    ]),
-});
-
-const zurichMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.literal("zurich-bezirk").describe("Same Bezirk (Zürich)"),
-});
-
-const budapestMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("budapest-district").describe("Same District (Budapest)"),
-        z.literal("budapest-castle").describe("Nearest Castle (Budapest)"),
-        z.literal("budapest-stadium").describe("Nearest Stadium (Budapest)"),
-        z.literal("budapest-rail").describe("Nearest Railway Station (Budapest)"),
-    ]),
-});
-
-const belgiumMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("belgium-province").describe("Same Province (Belgium)"),
-        z.literal("belgium-arrondissement").describe("Same Arrondissement (Belgium)"),
-        z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
-    ]),
-});
-
-const londonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("london-borough").describe("Same Borough (London)"),
-        z.literal("london-stadium").describe("Nearest Stadium (London)"),
-        z.literal("london-rail").describe("Nearest Rail Terminus (London)"),
-    ]),
-});
-
-const grazMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.literal("graz-district").describe("Same District (Graz)"),
-});
-
-const parisMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.literal("paris-arrondissement").describe("Same Arrondissement (Paris)"),
-});
-
-const stockholmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("stockholm-admin1").describe("Same 1st Admin Division (Stockholm)"),
-        z.literal("stockholm-admin2").describe("Same 2nd Admin Division (Stockholm)"),
-        z.literal("stockholm-admin3").describe("Same 3rd Admin Division (Stockholm)"),
-        z.literal("stockholm-ikea").describe("Nearest IKEA (Stockholm)"),
-    ]),
-});
-
-const brightonMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("brighton-ward").describe("Same Ward (Brighton)"),
-        z.literal("brighton-postcode").describe("Same Postcode (Brighton)"),
-        z.literal("brighton-rail").describe("Nearest Railway Station (Brighton)"),
-    ]),
-});
-
-const nlMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("nl-constituency").describe("Same Constituency (North London)"),
-        z.literal("nl-ward").describe("Same Ward (North London)"),
-    ]),
-});
-
-const gmMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("gm-borough").describe("Same Borough (Greater Manchester)"),
-        z.literal("gm-ward").describe("Same Ward (Greater Manchester)"),
-        z.literal("gm-hsl").describe("Nearest High-Speed Line (Greater Manchester)"),
-    ]),
-});
-
-const milanMatchingQuestionsSchema = baseMatchingQuestionSchema.extend({
-    type: z.union([
-        z.literal("milan-municipio").describe("Same Municipio (Milan)"),
-        z.literal("milan-castle").describe("Nearest Castle/Fort (Milan)"),
-        z.literal("milan-train").describe("Nearest Train Station (Milan)"),
-        z.literal("milan-water").describe("Nearest Body of Water (Milan)"),
-    ]),
+const genericFeatureMatchingQuestionSchema = baseMatchingQuestionSchema.extend({
+    type: z.string().startsWith("matching-"),
+    featureName: z.string().optional(),
+    geo: z.any().optional(),
 });
 
 export const matchingQuestionSchema = z.union([
     zoneMatchingQuestionsSchema.describe(NO_GROUP),
     ordinaryMatchingQuestionSchema.describe(NO_GROUP),
-    luxAdminMatchingQuestionsSchema.describe(NO_GROUP),
-    luxPointMatchingQuestionsSchema.describe(NO_GROUP),
-    southLimburgMatchingQuestionsSchema.describe(NO_GROUP),
-    brnoMatchingQuestionsSchema.describe(NO_GROUP),
-    bucharestMatchingQuestionsSchema.describe(NO_GROUP),
-    bernMatchingQuestionsSchema.describe(NO_GROUP),
-    exterRotterdamMatchingQuestionsSchema.describe(NO_GROUP),
-    zurichMatchingQuestionsSchema.describe(NO_GROUP),
-    budapestMatchingQuestionsSchema.describe(NO_GROUP),
-    belgiumMatchingQuestionsSchema.describe(NO_GROUP),
-    londonMatchingQuestionsSchema.describe(NO_GROUP),
-    grazMatchingQuestionsSchema.describe(NO_GROUP),
-    parisMatchingQuestionsSchema.describe(NO_GROUP),
-    stockholmMatchingQuestionsSchema.describe(NO_GROUP),
-    milanMatchingQuestionsSchema.describe(NO_GROUP),
-    brightonMatchingQuestionsSchema.describe(NO_GROUP),
-    gmMatchingQuestionsSchema.describe(NO_GROUP),
-    nlMatchingQuestionsSchema.describe(NO_GROUP),
     customMatchingQuestionSchema.describe(NO_GROUP),
     hidingZoneMatchingQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMatchingQuestionsSchema.describe("Hiding Zone Mode"),
+    genericFeatureMatchingQuestionSchema.describe(NO_GROUP),
 ]);
 
-// Maps a question type value to the game sentinel(s) it requires.
-// Types listed here are hidden in the selector unless one of those games is
-// active. Add new game-specific types here as they are introduced.
-//
-// An array is for a type shared by more than one game — the two London games
-// run off the same POI and borough assets, so they offer the same custom
-// questions. Prefer `gateAllows()` over reading this map directly.
-const LONDON_GAMES = [
-    "__bundled-london-2026__",
-    "__bundled-accessible-london-2026__",
-];
-
-const ROTTERDAM_SENTINELS = [
-    "__bundled-exter-rotterdam-2026__",
-    "__bundled-rotterdam-2026-09__",
-];
-
-// Stockholm 15-08 and 19-09 share every asset; only the hiding zones differ.
-const STOCKHOLM_SENTINELS = [
-    "__bundled-stockholm-2026__",
-    "__bundled-stockholm-2026-09__",
-];
-
-export const GAME_GATED_TYPES: Record<string, string | string[]> = {
-    // Luxembourg
-    "lux-canton":                "__bundled-luxembourg-2026__",
-    "lux-district":              "__bundled-luxembourg-2026__",
-    "lux-mountains":             "__bundled-luxembourg-2026__",
-    "lux-hospitals":             "__bundled-luxembourg-2026__",
-    // South Limburg — admin + POI categories with no generic equivalent.
-    // international-border-og is gated here too: it is the only game with a
-    // bundled border file (BUNDLED_BORDER_FILES in questions/measuring.ts).
-    // Everywhere else it silently fell through to a live Overpass query that
-    // was never verified, so it is scoped to the game it was built and tested
-    // for. A future game opts in by adding a BUNDLED_BORDER_FILES entry —
-    // and widening or removing this gate.
-    "international-border-og":   "__bundled-south-limburg-2026__",
-    "south-limburg-postcode":    "__bundled-south-limburg-2026__",
-    "south-limburg-municipality":"__bundled-south-limburg-2026__",
-    "sl-camping":                "__bundled-south-limburg-2026__",
-    "sl-mill":                   "__bundled-south-limburg-2026__",
-    // Tentacle-only types unique to South Limburg
-    "camping":                   "__bundled-south-limburg-2026__",
-    "mill":                      "__bundled-south-limburg-2026__",
-    "mountain":                  "__bundled-south-limburg-2026__",
-    "golf_course":               "__bundled-south-limburg-2026__",
-    "christian_religion":        "__bundled-south-limburg-2026__",
-    // Brno
-    "brno-district":             "__bundled-brno-2026-v2__",
-    "brno-water":                "__bundled-brno-2026-v2__",
-    // Bucharest — admin + types with no generic equivalent
-    "bucharest-sector":          "__bundled-bucharest-2026__",
-    "covrigarie":                "__bundled-bucharest-2026__",
-    "buch-train_station":        "__bundled-bucharest-2026__",
-    // Tentacle-only types unique to Bucharest
-    "train_station":             "__bundled-bucharest-2026__",
-    "park":                      "__bundled-bucharest-2026__",
-    // Bern — admin + types with no generic equivalent
-    "bern-canton":               "__bundled-bern-2026__",
-    "bern-bezirk":               "__bundled-bern-2026__",
-    "bern-mountain":             "__bundled-bern-2026__",
-    // Tentacle-only types unique to Bern
-    "bern-park":                 "__bundled-bern-2026__",
-    // Rotterdam — admin + geometry types with no generic equivalent. Shared by
-    // both Rotterdam games: "Rotterdam 12-09" is "Exter Rotterdam 26" plus the
-    // NS-station question, and reuses every one of its bundled asset files.
-    "rotterdam-municipality":    ROTTERDAM_SENTINELS,
-    "rotterdam-rail":            ROTTERDAM_SENTINELS,
-    "rotterdam-coastline":       ROTTERDAM_SENTINELS,
-    // NS heavy-rail stations — Rotterdam 12-09 only; the older game bundles no
-    // rail_station POIs, so the question would resolve to nothing there.
-    "rotterdam-ns":              "__bundled-rotterdam-2026-09__",
-    // Municipality-border measuring — Rotterdam 12-09 only, Jules' call: Exter
-    // Rotterdam 26's question list stays exactly as it shipped. It needs its
-    // OWN literal rather than reusing "rotterdam-municipality" because
-    // gateAllows() is keyed by type alone and is not family-aware — gating the
-    // shared literal to one sentinel would take the MATCHING question away from
-    // the older game too. It measures against EVERY municipality border (the
-    // london-borough reading), not the border of the one the seeker is standing
-    // in the way paris-arrondissement / belgium-province do; this play area is
-    // small enough that all-borders still discriminates.
-    "rotterdam-municipality-border": "__bundled-rotterdam-2026-09__",
-    // Zürich — Bezirk match + canton/lake-coast measuring
-    "zurich-bezirk":             "__bundled-zurich-2026__",
-    "zurich-canton":             "__bundled-zurich-2026__",
-    "zurich-coastline":          "__bundled-zurich-2026__",
-    // Budapest — district (admin_level 9 via LocalOverpass), bodies of water,
-    // and castle/stadium/rail (custom POI categories, matching + measuring)
-    "budapest-district":         "__bundled-budapest-2025__",
-    "budapest-water":            "__bundled-budapest-2025__",
-    "budapest-castle":           "__bundled-budapest-2025__",
-    "budapest-stadium":          "__bundled-budapest-2025__",
-    "budapest-rail":             "__bundled-budapest-2025__",
-    // Tentacle/POI categories unique to Budapest
-    "castle":                    "__bundled-budapest-2025__",
-    "stadium":                   "__bundled-budapest-2025__",
-    // Belgium — bundled admin polygons. Region is measuring-only, province is
-    // matching + measuring (both measure the border of the division you're IN,
-    // zurich-canton style), arrondissement is matching-only. There is
-    // deliberately no arrondissement border-distance (with 43 divisions the band
-    // covers ~96% of Belgium and eliminates almost nothing) and no "same region"
-    // match (3 divisions is too coarse to be worth asking). Plus castle/fort
-    // (custom POI, matching + measuring) and high-speed rail + coastline
-    // (bundled lines).
-    "belgium-region":            "__bundled-belgium-2026__",
-    "belgium-province":          "__bundled-belgium-2026__",
-    "belgium-arrondissement":    "__bundled-belgium-2026__",
-    "belgium-castle":            "__bundled-belgium-2026__",
-    "belgium-hsl":               "__bundled-belgium-2026__",
-    "belgium-coastline":         "__bundled-belgium-2026__",
-    // London — stadium (12) and rail terminus (14) are custom POI categories
-    // with no rulebook equivalent, both matching + measuring. The bare
-    // "stadium" tentacle category stays gated to Budapest; London exposes its
-    // stadiums through london-stadium only, so there is no collision.
-    // London — offered by BOTH London games, which share every asset these
-    // questions read (POIs, boroughs, borough lines) and differ only in their
-    // hiding zones.
-    //
-    // london-borough measures against EVERY borough boundary (Jules' call),
-    // unlike belgium-province / zurich-canton which measure the division you
-    // are standing in. Checked before building: across all 271 hiding zones the
-    // "hider is closer" answer keeps ~50% of them, so the dense-mesh problem
-    // that killed belgium-arrondissement measuring does not arise here.
-    "london-borough":            LONDON_GAMES,
-    "london-stadium":            LONDON_GAMES,
-    "london-rail":               LONDON_GAMES,
-    // Graz — the 17 admin_level 9 Bezirke, bundled as polygons. Matching +
-    // measuring, and measuring is the border of the district you are IN
-    // (belgium-province / zurich-canton style), NOT every district border the
-    // way london-borough works. Jules' explicit call.
-    "graz-district":             "__bundled-graz-2026__",
-    // Paris — the 20 arrondissements plus an "Outer" catch-all covering the rest
-    // of the play-area rectangle. Matching + measuring, and measuring is the
-    // border of the arrondissement you are IN (graz-district / belgium-province
-    // style), NOT every border the way london-borough works. Jules' call, as is
-    // keeping "Outer" as a real 21st region — 186 of the 412 hiding zones are
-    // outside the city limits.
-    "paris-arrondissement":      "__bundled-paris-2026__",
-    // Stockholm — three levels of the map author's own groupings (3 / 9 / 25),
-    // each with matching AND measuring, plus a game-specific IKEA POI doing
-    // both. Measuring is the border of the division you are IN at every level.
-    // admin3 measuring is lopsided by design (it keeps ~6.5% of zones); that
-    // was measured and shipped deliberately — see stockholmAdmin.ts.
-    "stockholm-admin1":          STOCKHOLM_SENTINELS,
-    "stockholm-admin2":          STOCKHOLM_SENTINELS,
-    "stockholm-admin3":          STOCKHOLM_SENTINELS,
-    "stockholm-ikea":            STOCKHOLM_SENTINELS,
-    // Milan — three game-specific POI categories, each matching + measuring.
-    // The other 11 supplied categories are rulebook ones and need no gate; they
-    // reach the POI override through their generic question types.
-    //
-    // milan-train is NOT wired to the "train_station" category on purpose: that
-    // key overrides the generic same-train-line / same-length-station
-    // questions, which must see all 269 stations, and Milan supplies only its
-    // 26 heavy-rail ones. It reads "rail_station" instead — the london-rail /
-    // "rail_terminus" shape.
-    //
-    // milan-water is points (45 quarry lakes, the Darsena, etc.), so it uses
-    // the POI path like belgium-castle, NOT the bundled-geometry path that
-    // budapest-water uses. Its folder is "water_body" because the importer's
-    // SKIPPED_POI_CATEGORIES drops a folder literally named "water".
-    // 9 Comune di Milano Municipi + 3 "Outer" catch-alls covering the rest of
-    // the 12 km play circle (the Paris "Outer" shape — 65 of 269 zones are
-    // outside the comune). Matching + measuring, and measuring is the border of
-    // the municipio you are IN, NOT every border the way london-borough works.
-    // Measuring keeps a mean 10.5% of zones — lopsided but deliberate, between
-    // Stockholm's admin2 and admin3; see milanAdmin.ts.
-    "milan-municipio":           "__bundled-milan-2026__",
-    "milan-castle":              "__bundled-milan-2026__",
-    "milan-train":               "__bundled-milan-2026__",
-    "milan-water":               "__bundled-milan-2026__",
-    // Brighton — two independent bundled admin layers plus a bundled coastline.
-    // ward (24 ONS 2026 wards + Outer) and postcode (8 BN districts + Outer)
-    // both do matching AND measuring, and measuring is the border of the region
-    // you are IN, NOT every border the way london-borough works.
-    //
-    // Measured before shipping: postcode measuring keeps a mean 25.0% of hiding
-    // zones (the best-balanced of any game), ward measuring 5.4% — lopsided,
-    // marginally tighter than Stockholm's admin3, and shipped deliberately.
-    // See brightonAdmin.ts.
-    //
-    // brighton-coastline is measuring-only: 18.6 km of real OSM coast between
-    // the author's two end markers, so the generic Overpass "coastline"
-    // question is hidden for this game in favour of it.
-    //
-    // brighton-rail is the 7 mainline stations as a custom POI category
-    // ("rail_station"), NOT "train_station" — that key would hijack the generic
-    // same-train-line question with 7 of the map's 132 stops.
-    "brighton-ward":             "__bundled-brighton-2026__",
-    "brighton-postcode":         "__bundled-brighton-2026__",
-    "brighton-coastline":        "__bundled-brighton-2026__",
-    "brighton-rail":             "__bundled-brighton-2026__",
-    // Greater Manchester — boroughs and wards from bundled GeoJSON, matching AND
-    // measuring, measuring to the border of the region you are IN. Boroughs are
-    // dissolved from the wards, so the two layers agree exactly. See gmAdmin.ts.
-    //
-    // gm-hsl is the two supplied West Coast Main Line stretches. Measuring is
-    // distance to either line; matching is "same nearest stretch" (south of
-    // Stockport vs north of Wigan), since both are one railway and "same line"
-    // would always be true. It replaces the generic Overpass HSL question.
-    "gm-borough":                "__bundled-greater-manchester-2026__",
-    "gm-ward":                   "__bundled-greater-manchester-2026__",
-    "gm-hsl":                    "__bundled-greater-manchester-2026__",
-    // North London — constituencies and wards from bundled GeoJSON, matching
-    // AND measuring. Measuring is to EVERY border (the london-borough reading,
-    // Jules' call), not the seeker's own. Both layers carry an "Outer" for the
-    // rest of Greater London. nl-hsl (WCML + HS1) and nl-water (OSM water) are
-    // measuring only. See nlAdmin.ts.
-    "nl-constituency":           "__bundled-north-london-2026__",
-    "nl-ward":                   "__bundled-north-london-2026__",
-    "nl-hsl":                    "__bundled-north-london-2026__",
-    "nl-water":                  "__bundled-north-london-2026__",
-};
-
-/**
- * Is `type` allowed in the game identified by `sentinel`? True for any type not
- * in GAME_GATED_TYPES (ungated), and for a gated type whose sentinel matches
- * (or is one of several).
- */
-export function gateAllows(type: string, sentinel: string): boolean {
-    const required = GAME_GATED_TYPES[type];
-    if (!required) return true;
-    return Array.isArray(required)
-        ? required.includes(sentinel)
-        : required === sentinel;
-}
 
 const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
     hiderCloser: z.boolean().default(true),
@@ -711,7 +333,6 @@ const baseMeasuringQuestionSchema = ordinaryBaseQuestionSchema.extend({
 const ordinaryMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
     type: z
         .union([
-            z.literal("coastline").describe("Coastline Question"),
             z
                 .literal("airport")
                 .describe("Commercial Airport In Zone Question"),
@@ -724,9 +345,6 @@ const ordinaryMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
             z
                 .literal("international-border")
                 .describe("International [broken]"),
-            z
-                .literal("international-border-og")
-                .describe("International Border [OG]"),
             z
                 .literal("aquarium-full")
                 .describe("Aquarium Question (Small+Medium Games)"),
@@ -759,7 +377,7 @@ const ordinaryMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
                 .literal("park-full")
                 .describe("Park Question (Small+Medium Games)"),
         ])
-        .default("coastline"),
+        .default("airport"),
 });
 
 const hidingZoneMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
@@ -790,159 +408,19 @@ const customMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
     type: z.literal("custom-measure").describe("Custom Measuring Question"),
     geo: z.any(),
 });
-
-const southLimburgMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("sl-camping").describe("Nearest Camping (South Limburg)"),
-        z.literal("sl-mill").describe("Nearest Mill (South Limburg)"),
-        // Mountain uses the generic "Mountain" question (auto-uses custom POIs).
-    ]),
+const genericFeatureMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
+    type: z.string().startsWith("measuring-"),
+    featureName: z.string().optional(),
+    geo: z.any().optional(),
 });
 
-const brnoMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.literal("brno-water").describe("Body of Water (Brno)"),
-});
-
-const bernMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("bern-canton").describe("Canton Border Question (Bern)"),
-        z.literal("bern-mountain").describe("Nearest Mountain (Bern)"),
-    ]),
-});
-
-const bucharestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("covrigarie").describe("Nearest Covrigarie (Bucharest)"),
-        z.literal("buch-train_station").describe("Nearest Railway Station (Bucharest)"),
-    ]),
-});
-
-const exterRotterdamMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("rotterdam-rail").describe("Distance to High-Speed Rail (Rotterdam)"),
-        z.literal("rotterdam-coastline").describe("Distance to Coast (Rotterdam)"),
-        z.literal("rotterdam-ns").describe("Nearest NS Station (Rotterdam)"),
-        z
-            .literal("rotterdam-municipality-border")
-            .describe("Distance to Municipality Border (Rotterdam)"),
-    ]),
-});
-
-const zurichMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("zurich-canton").describe("Canton Border Question (Zürich)"),
-        z.literal("zurich-coastline").describe("Distance to Lake Zürich Coast"),
-    ]),
-});
-
-const budapestMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("budapest-water").describe("Nearest Body of Water (Budapest)"),
-        z.literal("budapest-castle").describe("Nearest Castle (Budapest)"),
-        z.literal("budapest-stadium").describe("Nearest Stadium (Budapest)"),
-        z.literal("budapest-rail").describe("Nearest Railway Station (Budapest)"),
-    ]),
-});
-
-const belgiumMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("belgium-region").describe("Distance to Region Border (Belgium)"),
-        z.literal("belgium-province").describe("Distance to Province Border (Belgium)"),
-        z.literal("belgium-castle").describe("Nearest Castle/Fort (Belgium)"),
-        z.literal("belgium-hsl").describe("Distance to High-Speed Rail (Belgium)"),
-        z.literal("belgium-coastline").describe("Distance to Coast (Belgium)"),
-    ]),
-});
-
-const londonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("london-borough").describe("Distance to Borough Boundary (London)"),
-        z.literal("london-stadium").describe("Nearest Stadium (London)"),
-        z.literal("london-rail").describe("Nearest Rail Terminus (London)"),
-    ]),
-});
-
-const grazMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.literal("graz-district").describe("Distance to District Border (Graz)"),
-});
-
-const parisMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z
-        .literal("paris-arrondissement")
-        .describe("Distance to Arrondissement Border (Paris)"),
-});
-
-const stockholmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z
-            .literal("stockholm-admin1")
-            .describe("Distance to 1st Admin Border (Stockholm)"),
-        z
-            .literal("stockholm-admin2")
-            .describe("Distance to 2nd Admin Border (Stockholm)"),
-        z
-            .literal("stockholm-admin3")
-            .describe("Distance to 3rd Admin Border (Stockholm)"),
-        z.literal("stockholm-ikea").describe("Nearest IKEA (Stockholm)"),
-    ]),
-});
-
-const brightonMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("brighton-ward").describe("Distance to Ward Border (Brighton)"),
-        z.literal("brighton-postcode").describe("Distance to Postcode Border (Brighton)"),
-        z.literal("brighton-coastline").describe("Distance to Coast (Brighton)"),
-        z.literal("brighton-rail").describe("Nearest Railway Station (Brighton)"),
-    ]),
-});
-
-const nlMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("nl-constituency").describe("Distance to Constituency Border (North London)"),
-        z.literal("nl-ward").describe("Distance to Ward Border (North London)"),
-        z.literal("nl-hsl").describe("Distance to High-Speed Rail (North London)"),
-        z.literal("nl-water").describe("Distance to Body of Water (North London)"),
-    ]),
-});
-
-const gmMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("gm-borough").describe("Distance to Borough Border (Greater Manchester)"),
-        z.literal("gm-ward").describe("Distance to Ward Border (Greater Manchester)"),
-        z.literal("gm-hsl").describe("Distance to High-Speed Rail (Greater Manchester)"),
-    ]),
-});
-
-const milanMeasuringQuestionsSchema = baseMeasuringQuestionSchema.extend({
-    type: z.union([
-        z.literal("milan-municipio").describe("Distance to Municipio Border (Milan)"),
-        z.literal("milan-castle").describe("Nearest Castle/Fort (Milan)"),
-        z.literal("milan-train").describe("Nearest Train Station (Milan)"),
-        z.literal("milan-water").describe("Nearest Body of Water (Milan)"),
-    ]),
-});
 
 export const measuringQuestionSchema = z.union([
     ordinaryMeasuringQuestionSchema.describe(NO_GROUP),
-    southLimburgMeasuringQuestionsSchema.describe(NO_GROUP),
-    brnoMeasuringQuestionsSchema.describe(NO_GROUP),
-    bucharestMeasuringQuestionsSchema.describe(NO_GROUP),
-    bernMeasuringQuestionsSchema.describe(NO_GROUP),
-    exterRotterdamMeasuringQuestionsSchema.describe(NO_GROUP),
-    zurichMeasuringQuestionsSchema.describe(NO_GROUP),
-    budapestMeasuringQuestionsSchema.describe(NO_GROUP),
-    belgiumMeasuringQuestionsSchema.describe(NO_GROUP),
-    londonMeasuringQuestionsSchema.describe(NO_GROUP),
-    grazMeasuringQuestionsSchema.describe(NO_GROUP),
-    parisMeasuringQuestionsSchema.describe(NO_GROUP),
-    stockholmMeasuringQuestionsSchema.describe(NO_GROUP),
-    milanMeasuringQuestionsSchema.describe(NO_GROUP),
-    brightonMeasuringQuestionsSchema.describe(NO_GROUP),
-    gmMeasuringQuestionsSchema.describe(NO_GROUP),
-    nlMeasuringQuestionsSchema.describe(NO_GROUP),
     customMeasuringQuestionSchema.describe(NO_GROUP),
     hidingZoneMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
     homeGameMeasuringQuestionsSchema.describe("Hiding Zone Mode"),
+    genericFeatureMeasuringQuestionSchema.describe(NO_GROUP),
 ]);
 
 export const questionSchema = z.union([
@@ -1003,9 +481,6 @@ export type DeepPartial<T> = {
 export type TraditionalTentacleQuestion =
     | z.infer<typeof tentacleQuestionSpecificSchemaFifteen>
     | z.infer<typeof tentacleQuestionSpecificSchemaOne>;
-export type EncompassingTentacleQuestionSchema = z.infer<
-    typeof encompassingTentacleQuestionSchema
->;
 export type CustomTentacleQuestion = z.infer<
     typeof customTentacleQuestionSchema
 >;

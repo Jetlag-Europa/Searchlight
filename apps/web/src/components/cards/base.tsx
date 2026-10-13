@@ -179,17 +179,7 @@ export const QuestionCard = ({
                                     >
                                         Copy to Clipboard
                                     </Button>
-                                    <textarea
-                                        className="w-full h-[300px] bg-slate-900 text-white rounded-md p-2"
-                                        readOnly
-                                        value={JSON.stringify(
-                                            $questions.find(
-                                                (q) => q.key === questionKey,
-                                            ),
-                                            null,
-                                            4,
-                                        )}
-                                    ></textarea>
+                                    <QuestionJson questionKey={questionKey} />
                                 </DialogContent>
                             </Dialog>
                             <AlertDialog>
@@ -259,5 +249,22 @@ export const QuestionCard = ({
             </SidebarGroup>
             <Separator className="h-1" />
         </>
+    );
+};
+
+// Rendered only while the share dialog is open. As an inline prop it serialized
+// the question (including any custom geometry) on every render of every card.
+const QuestionJson = ({ questionKey }: { questionKey: number }) => {
+    const $questions = useStore(questions);
+    return (
+        <textarea
+            className="w-full h-[300px] bg-slate-900 text-white rounded-md p-2"
+            readOnly
+            value={JSON.stringify(
+                $questions.find((q) => q.key === questionKey),
+                null,
+                4,
+            )}
+        ></textarea>
     );
 };

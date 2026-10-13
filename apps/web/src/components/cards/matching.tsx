@@ -13,6 +13,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { compiledGameAtom } from "@/game-definition/store";
 import {
     autoLockQuestions,
     customInitPreference,
@@ -22,9 +23,10 @@ import {
     isLoading,
     questionModified,
     questions,
+    resetScopedLoading,
+    setScopedLoading,
     triggerLocalRefresh,
 } from "@/lib/context";
-import { currentGameId, gamesAtom, isQuestionTypeHidden } from "@/lib/games";
 import { cn } from "@/lib/utils";
 import {
     determineMatchingBoundary,
@@ -32,7 +34,6 @@ import {
 } from "@/maps/questions/matching";
 import {
     determineUnionizedStrings,
-    gateAllows,
     type MatchingQuestion,
     matchingQuestionSchema,
     NO_GROUP,
@@ -59,13 +60,23 @@ export const MatchingQuestionComponent = ({
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
     const $customInitPref = useStore(customInitPreference);
-    const $currentGameId = useStore(currentGameId);
-    const $games = useStore(gamesAtom);
-    const activeGameSentinel = $games.find((g) => g.id === $currentGameId)?.sentinelValue ?? "";
+    const compiled = useStore(compiledGameAtom);
+    const compiledMatching =
+        compiled?.questions.filter((q) => q.family === "matching") ?? [];
     const [customDialogOpen, setCustomDialogOpen] = React.useState(false);
     const [pendingCustomType, setPendingCustomType] = React.useState<
         "custom-zone" | "custom-points" | null
     >(null);
+    const prefillSeqRef = React.useRef(0);
+    const prefillScope = React.useMemo(() => Symbol("matching-prefill"), []);
+
+    React.useEffect(() => {
+        return () => {
+            prefillSeqRef.current++;
+            resetScopedLoading(prefillScope);
+        };
+    }, [prefillScope]);
+
     const label = `Matching
     ${
         $questions
@@ -95,10 +106,14 @@ export const MatchingQuestionComponent = ({
                                 9: "OSM Zone 9",
                                 10: "OSM Zone 10",
                             }}
-                            value={(data as ZoneMatchingQuestions).cat.adminLevel.toString()}
+                            value={(
+                                data as ZoneMatchingQuestions
+                            ).cat.adminLevel.toString()}
                             onValueChange={(value) =>
                                 questionModified(
-                                    ((data as ZoneMatchingQuestions).cat.adminLevel = parseInt(value) as
+                                    ((
+                                        data as ZoneMatchingQuestions
+                                    ).cat.adminLevel = parseInt(value) as
                                         | 2
                                         | 3
                                         | 4
@@ -189,7 +204,7 @@ export const MatchingQuestionComponent = ({
         <QuestionCard
             questionKey={questionKey}
             label={label}
-            sub={sub}
+            sub={compiled?.questionMap.get(data.type)?.label ?? sub}
             className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
@@ -218,119 +233,120 @@ export const MatchingQuestionComponent = ({
                 }}
                 onPrefill={async () => {
                     if (!pendingCustomType) return;
-                    if (pendingCustomType === "custom-zone") {
-                        (data as any).geo =
-                            await determineMatchingBoundary(data);
-                    } else {
-                        if (
-                            data.type === "airport" ||
-                            data.type === "major-city" ||
-                            data.type === "aquarium-full" ||
-                            data.type === "zoo-full" ||
-                            data.type === "theme_park-full" ||
-                            data.type === "peak-full" ||
-                            data.type === "museum-full" ||
-                            data.type === "hospital-full" ||
-                            data.type === "cinema-full" ||
-                            data.type === "library-full" ||
-                            data.type === "golf_course-full" ||
-                            data.type === "consulate-full" ||
-                            data.type === "park-full" ||
-                            data.type === "lux-mountains" ||
-                            data.type === "lux-hospitals"
-                        ) {
-                            (data as any).geo = await findMatchingPlaces(data);
+                    const currentSeq = ++prefillSeqRef.current;
+                    setScopedLoading(prefillScope, true);
+                    try {
+                        if (pendingCustomType === "custom-zone") {
+                            const boundary =
+                                await determineMatchingBoundary(data);
+                            if (prefillSeqRef.current !== currentSeq) return;
+                            (data as { geo?: unknown }).geo = boundary;
                         } else {
-                            (data as any).geo = [];
-                            toast.info("Please draw the points on the map.");
+                            if (
+                                data.type === "airport" ||
+                                data.type === "major-city" ||
+                                data.type === "aquarium-full" ||
+                                data.type === "zoo-full" ||
+                                data.type === "theme_park-full" ||
+                                data.type === "peak-full" ||
+                                data.type === "museum-full" ||
+                                data.type === "hospital-full" ||
+                                data.type === "cinema-full" ||
+                                data.type === "library-full" ||
+                                data.type === "golf_course-full" ||
+                                data.type === "consulate-full" ||
+                                data.type === "park-full"
+                            ) {
+                                const places = await findMatchingPlaces(data);
+                                if (prefillSeqRef.current !== currentSeq)
+                                    return;
+                                (data as { geo?: unknown }).geo = places;
+                            } else {
+                                (data as { geo?: unknown }).geo = [];
+                                toast.info(
+                                    "Please draw the points on the map.",
+                                );
+                            }
                         }
+                        data.type = pendingCustomType;
+                        questionModified();
+                        setCustomDialogOpen(false);
+                    } finally {
+                        setScopedLoading(prefillScope, false);
                     }
-                    data.type = pendingCustomType;
-                    questionModified();
-                    setCustomDialogOpen(false);
                 }}
             />
             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                 <Select
                     trigger="Matching Type"
-                    options={Object.fromEntries(
-                        matchingQuestionSchema.options
-                            .filter((x) => x.description === NO_GROUP)
-                            .flatMap((x) =>
-                                determineUnionizedStrings(x.shape.type),
-                            )
-                            .filter((x) => {
-                                const value = (x._def as any).value;
-                                return (
-                                    gateAllows(value, activeGameSentinel) &&
-                                    !isQuestionTypeHidden(value, activeGameSentinel, "matching")
-                                );
-                            })
-                            .map((x) => [(x._def as any).value, x.description]),
-                    )}
-                    groups={matchingQuestionSchema.options
-                        .filter((x) => x.description !== NO_GROUP)
-                        .map((x) => [
-                            x.description,
-                            Object.fromEntries(
-                                determineUnionizedStrings(x.shape.type)
-                                    // Grouped options respect hiddenQuestionTypes
-                                    // too. They did not until Aug 2026, which
-                                    // silently made the manifest a no-op for
-                                    // anything in "Hiding Zone Mode" (Entry 48).
-                                    //
-                                    // gateAllows is deliberately NOT applied
-                                    // here. Every grouped option is a generic
-                                    // rulebook question, but GAME_GATED_TYPES
-                                    // also holds bare category names
-                                    // ("golf_course" → South Limburg, "park" →
-                                    // Bucharest, "castle"/"stadium" → Budapest)
-                                    // that exist to gate TENTACLE location
-                                    // types. The gate map is not family-aware,
-                                    // so gating here would delete the generic
-                                    // golf course and park questions from every
-                                    // game. Ungrouped options are game-specific
-                                    // and still gate normally.
-                                    .filter(
-                                        (y) =>
-                                            !isQuestionTypeHidden(
-                                                (y._def as any).value,
-                                                activeGameSentinel,
-                                                "matching",
-                                            ),
-                                    )
-                                    .map((x) => [
-                                        (x._def as any).value,
-                                        x.description,
-                                    ]),
-                            ),
-                        ])
-                        .reduce(
-                            (acc, [key, value]) => {
-                                const values = {
-                                    disabled: !$displayHidingZones,
-                                    options: value,
-                                };
-
-                                if (acc[key]) {
-                                    acc[key].options = {
-                                        ...acc[key].options,
-                                        ...value,
-                                    };
-                                } else {
-                                    acc[key] = values;
-                                }
-
-                                return acc;
-                            },
-                            {} as Record<
-                                string,
-                                {
-                                    disabled: boolean;
-                                    options: Record<string, string>;
-                                }
-                            >,
-                        )}
+                    options={
+                        compiled
+                            ? Object.fromEntries(
+                                  compiledMatching.map((q) => [q.id, q.label]),
+                              )
+                            : Object.fromEntries(
+                                  matchingQuestionSchema.options
+                                      .filter((x) => x.description === NO_GROUP)
+                                      .flatMap((x) =>
+                                          determineUnionizedStrings(
+                                              x.shape.type,
+                                          ),
+                                      )
+                                      .map((x) => [
+                                          (x._def as any).value,
+                                          x.description,
+                                      ]),
+                              )
+                    }
+                    groups={
+                        compiled
+                            ? {
+                                  Custom: {
+                                      disabled: false,
+                                      options: {
+                                          "custom-points": "Custom Points",
+                                          "custom-zone": "Custom Zone",
+                                      },
+                                  },
+                              }
+                            : matchingQuestionSchema.options
+                                  .filter((x) => x.description !== NO_GROUP)
+                                  .map((x) => [
+                                      x.description,
+                                      Object.fromEntries(
+                                          determineUnionizedStrings(
+                                              x.shape.type,
+                                          ).map((x) => [
+                                              (x._def as any).value,
+                                              x.description,
+                                          ]),
+                                      ),
+                                  ])
+                                  .reduce(
+                                      (acc, [key, value]) => {
+                                          const values = {
+                                              disabled: !$displayHidingZones,
+                                              options: value,
+                                          };
+                                          if (acc[key]) {
+                                              acc[key].options = {
+                                                  ...acc[key].options,
+                                                  ...value,
+                                              };
+                                          } else {
+                                              acc[key] = values;
+                                          }
+                                          return acc;
+                                      },
+                                      {} as Record<
+                                          string,
+                                          {
+                                              disabled: boolean;
+                                              options: Record<string, string>;
+                                          }
+                                      >,
+                                  )
+                    }
                     value={data.type}
                     onValueChange={async (value) => {
                         if (
@@ -356,36 +372,58 @@ export const MatchingQuestionComponent = ({
                                     );
                                 }
                             } else if ($customInitPref === "prefill") {
-                                if (value === "custom-zone") {
-                                    (data as any).geo =
-                                        await determineMatchingBoundary(data);
-                                } else {
-                                    if (
-                                        data.type === "airport" ||
-                                        data.type === "major-city" ||
-                                        data.type === "aquarium-full" ||
-                                        data.type === "zoo-full" ||
-                                        data.type === "theme_park-full" ||
-                                        data.type === "peak-full" ||
-                                        data.type === "museum-full" ||
-                                        data.type === "hospital-full" ||
-                                        data.type === "cinema-full" ||
-                                        data.type === "library-full" ||
-                                        data.type === "golf_course-full" ||
-                                        data.type === "consulate-full" ||
-                                        data.type === "park-full" ||
-                                        data.type === "lux-mountains" ||
-                                        data.type === "lux-hospitals"
-                                    ) {
-                                        (data as any).geo =
-                                            await findMatchingPlaces(data);
+                                const currentSeq = ++prefillSeqRef.current;
+                                setScopedLoading(prefillScope, true);
+                                try {
+                                    if (value === "custom-zone") {
+                                        const boundary =
+                                            await determineMatchingBoundary(
+                                                data,
+                                            );
+                                        if (
+                                            prefillSeqRef.current !== currentSeq
+                                        )
+                                            return;
+                                        (data as { geo?: unknown }).geo =
+                                            boundary;
                                     } else {
-                                        (data as any).geo = [];
-                                        toast.info(
-                                            "Please draw the points on the map.",
-                                        );
+                                        if (
+                                            data.type === "airport" ||
+                                            data.type === "major-city" ||
+                                            data.type === "aquarium-full" ||
+                                            data.type === "zoo-full" ||
+                                            data.type === "theme_park-full" ||
+                                            data.type === "peak-full" ||
+                                            data.type === "museum-full" ||
+                                            data.type === "hospital-full" ||
+                                            data.type === "cinema-full" ||
+                                            data.type === "library-full" ||
+                                            data.type === "golf_course-full" ||
+                                            data.type === "consulate-full" ||
+                                            data.type === "park-full"
+                                        ) {
+                                            const places =
+                                                await findMatchingPlaces(data);
+                                            if (
+                                                prefillSeqRef.current !==
+                                                currentSeq
+                                            )
+                                                return;
+                                            (data as { geo?: unknown }).geo =
+                                                places;
+                                        } else {
+                                            (data as { geo?: unknown }).geo =
+                                                [];
+                                            toast.info(
+                                                "Please draw the points on the map.",
+                                            );
+                                        }
                                     }
+                                } finally {
+                                    setScopedLoading(prefillScope, false);
                                 }
+                                if (prefillSeqRef.current !== currentSeq)
+                                    return;
                             }
                             // The category should be defined such that no error is thrown if this is a zone question.
                             if (!(data as any).cat) {
