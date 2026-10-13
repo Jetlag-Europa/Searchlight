@@ -1,27 +1,28 @@
 # Dev environment setup
 
-A start-to-finish guide for getting TaibledFork running locally on a fresh
+A start-to-finish guide for getting Searchlight running locally on a fresh
 machine. It takes you from `git clone` to logging into the app in your browser.
 Postgres runs in Docker; the frontend and backend run directly on your machine
 for fast hot-reload.
 
-> This guide is for **local development**. The repo also contains `startup.txt`
-> and `DEPLOY.md` — those describe the maintainer's dev/prod **server** deploys
-> (with `lucifersserver.com` URLs and `--project-name` flags) and the
-> `docker-compose.dev.yml` / `docker-compose.prod.yml` files. You don't need any
-> of that for local work; ignore them.
+> This guide is for **local development**. Server deployments are documented
+> elsewhere: production runs on the Azure VPS ([`docs/VPS_Setup.md`](docs/VPS_Setup.md)),
+> and [`DEPLOY.md`](DEPLOY.md) covers the Mac mini stacks
+> (`docker-compose.dev.yml` / `docker-compose.prod.yml`). You don't need any of
+> that for local work.
 
 ---
 
 ## 1. What this is
 
-TaibledFork is a JetLag Hide & Seek map planner. It's a pnpm monorepo:
+Searchlight is a JetLag Hide & Seek map planner. It's a pnpm monorepo:
 
 | Path              | What it is                                   |
 | ----------------- | -------------------------------------------- |
 | `apps/web`        | Astro + React frontend (the map app)         |
 | `apps/api`        | Fastify + Prisma backend (auth, games, data) |
-| `packages/shared` | TypeScript types shared by both              |
+| `packages/shared` | Shared types and the game definition schema, validator and checksum |
+| `games/preloaded` | The bundled games, one JSON definition each (imported by the API on start) |
 
 Data lives in PostgreSQL. Login is via Discord OAuth.
 
@@ -50,8 +51,8 @@ Install these first:
 ## 3. Clone & install
 
 ```bash
-git clone <repo-url> TaibledFork
-cd TaibledFork
+git clone <repo-url> Searchlight
+cd Searchlight
 pnpm install
 ```
 
@@ -62,11 +63,15 @@ pnpm install
 
 ## 4. Configure `.env`
 
-There's one `.env` file at the repo root. Copy the template:
+For a fresh checkout, copy the template to the repo-root `.env`:
 
 ```bash
 cp .env.example .env
 ```
+
+For an existing checkout, keep your configured `.env` values. Searchlight
+branding does not migrate stored data or deployment identifiers; see the
+[naming compatibility note](DEPLOY.md).
 
 Then edit `.env`. Here's what to set for local dev:
 
@@ -82,7 +87,8 @@ Then edit `.env`. Here's what to set for local dev:
 | `SESSION_COOKIE_DOMAIN` | Leave blank.                                                     |
 | `FRONTEND_ORIGIN`       | **Set to `http://localhost:4321`** (the Vite web port).         |
 | `PUBLIC_API_BASE`       | Leave as `http://localhost:3000`.                               |
-| `DISCORD_BOT_TOKEN`     | Optional — leave blank (only adds role-name display in admin UI). |
+| `DISCORD_BOT_TOKEN`     | **Required** — the API refuses to start without it. See step 5.  |
+| `ADMIN_DISCORD_IDS`     | Your own Discord user ID (comma-separate several) — see below.   |
 | `NODE_ENV`              | Set to `development` (the template ships `production`).          |
 
 Two changes from the template matter — get these right or things break:
@@ -98,6 +104,13 @@ Two changes from the template matter — get these right or things break:
 - **`FRONTEND_ORIGIN` → `http://localhost:4321`.** The API's CORS allowlist is
   exactly this origin. The web dev server runs on `4321`, so if this stays at
   `8080` the browser's API calls get blocked by CORS.
+
+Games belong to Discord servers, and the API only shows a server's games to its
+members (checked with the bot, which must be in that server). Your local bot is
+normally not in the JetLag servers, so set `ADMIN_DISCORD_IDS` to your own
+Discord user ID (Discord → Settings → Advanced → Developer Mode, then right-click
+your name → Copy User ID). Admins skip the membership and role checks, see every
+game and may import games.
 
 ---
 
@@ -115,14 +128,14 @@ You need a Discord application so login works. Two options:
    http://localhost:3000/auth/discord/callback
    ```
    It must match `DISCORD_REDIRECT_URI` character-for-character.
-4. (Optional) Under **Bot**, create a bot and copy its token into
-   `DISCORD_BOT_TOKEN` if you want role names shown in the admin UI. Not needed
-   for login.
+4. Under **Bot**, create a bot and copy its token into `DISCORD_BOT_TOKEN`.
+   The API needs it at start-up: server membership, roles and role names are all
+   read with the bot, and only for servers the bot has joined.
 
 ### Option B — Use Jules's app
 
-If you'd rather not create one, ask Jules for the `DISCORD_CLIENT_ID` and
-`DISCORD_CLIENT_SECRET` and paste them in. Note: the
+If you'd rather not create one, ask Jules for the `DISCORD_CLIENT_ID`,
+`DISCORD_CLIENT_SECRET` and `DISCORD_BOT_TOKEN` and paste them in. Note: the
 `http://localhost:3000/auth/discord/callback` redirect above must already be
 registered on that app — confirm with Jules.
 
@@ -154,15 +167,17 @@ Run once (and again only if you wipe the DB). From `apps/api`:
 
 ```bash
 cd apps/api
+export DATABASE_URL="$(grep '^DATABASE_URL=' ../../.env | cut -d= -f2-)"
 npx prisma migrate deploy
 npx tsx prisma/seed.ts
 cd ../..
 ```
 
-These read `DATABASE_URL` from your `.env`, so as long as you set it to
-`localhost:5433` in step 4 they'll connect. The seed creates the JetLag servers
-and the bundled games (Paris, Bucharest, South Limburg, Espace Mittelland,
-Luxembourg, Exter Rotterdam, etc.).
+Prisma and the seed don't read the repo-root `.env` themselves (only the API's
+`dev` script does), hence the `export`; with `DATABASE_URL` pointing at
+`localhost:5433` from step 4 they'll connect. The seed creates the JetLag servers
+and their role mappings. Games are not seeded: the API imports every
+`games/preloaded/*.game.json` each time it starts (see `docs/ADDING_GAMES.md`).
 
 ---
 
@@ -194,8 +209,14 @@ Both servers hot-reload on file changes — no rebuild needed.
 ## 9. Running tests
 
 ```bash
-pnpm --filter web test
-pnpm --filter api test
+pnpm --filter web exec vitest run       # web unit tests (`pnpm --filter web test` starts watch mode)
+pnpm --filter @searchlight/shared test  # game definition schema, validator, checksum
+pnpm verify:preloaded-games             # every games/preloaded definition: validator + strict data checks
+pnpm check:game-schema                  # published JSON schema matches the TypeBox schema
+
+# API tests need a migrated Postgres; they create and remove their own rows.
+# Without DATABASE_URL they use postgresql://taibled:devpassword@localhost:5434/taibled.
+DATABASE_URL=postgresql://taibled:dev_password@localhost:5433/taibled pnpm --filter api test
 ```
 
 ---
@@ -220,6 +241,8 @@ pnpm --filter api test
 - **`Can't reach database at postgres:5432`.** Your `.env` `DATABASE_URL` still
   points at the Docker-internal host. Change it to
   `postgresql://taibled:<pw>@localhost:5433/taibled`.
+- **`Environment variable not found: DATABASE_URL`** from `prisma` or the seed.
+  Export it first, as in step 7.
 - **API calls fail with a CORS error in the browser console.** `FRONTEND_ORIGIN`
   in `.env` must be `http://localhost:4321` (the web dev port). Restart the API
   after changing it.
@@ -228,5 +251,12 @@ pnpm --filter api test
   (`http://localhost:3000/auth/discord/callback`). They must be identical.
 - **Port already in use (5433 / 3000 / 4321).** Something else is using the port.
   Stop it, or check `docker compose ps` for a previously-started stack.
+- **API exits with `Missing required env var: …`.** The API needs
+  `DATABASE_URL`, `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`,
+  `DISCORD_REDIRECT_URI`, `SESSION_COOKIE_SECRET`, `FRONTEND_ORIGIN` and
+  `DISCORD_BOT_TOKEN`.
+- **A server's games don't load (403 from `/games`).** Your bot can't confirm
+  you're a member of that Discord server. Set `ADMIN_DISCORD_IDS` (step 4) and
+  restart the API.
 - **`pnpm` not found / wrong version.** Re-run
   `corepack prepare pnpm@11.1.3 --activate`.

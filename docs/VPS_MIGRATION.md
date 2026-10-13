@@ -13,6 +13,11 @@
 >    CLI (`cloudflared tunnel login` + `tunnel create`); the connector reads
 >    `/srv/WriteMap/cloudflared/config.yml` (mounted read-only). `TUNNEL_TOKEN` is
 >    unused. Ignore the Phase 0 "copy the tunnel token" step.
+>
+> **Since then:** games became self-contained JSON definitions (October 2026) and
+> no longer query Overpass; the Mac mini Overpass now serves only free play (no
+> game selected) and OSM boundary lookups. The Zurich Bezirk/canton/coastline
+> checks below describe the old app.
 
 Move the **production** stack off the Mac mini and onto an Azure VPS, fronted by a
 **Cloudflare Tunnel** (no open ports). The Mac mini keeps running **only** the
@@ -133,8 +138,8 @@ Pick a home for the clone (mirrors the Mac mini's `/srv` layout):
 
 ```bash
 sudo mkdir -p /srv/WriteMap && sudo chown "$USER" /srv/WriteMap
-git clone git@github.com:JulzyWulzy/TaibledFork.git /srv/WriteMap/TaibledFork
-# (HTTPS + a PAT also works if no SSH deploy key is set up on the VPS)
+git clone <repo-url> /srv/WriteMap/TaibledFork
+# Use your repository's SSH or HTTPS clone URL; the directory name is local.
 cd /srv/WriteMap/TaibledFork
 ```
 
