@@ -1,5 +1,10 @@
 # Changelog
 
+## Docker images built in CI (2026-10-13)
+
+- A "Docker images" GitHub Actions workflow builds the `api` and `web` images for arm64 on every push to `master` and pushes them to GHCR as `ghcr.io/leandrocoding/searchlight-{api,web}`, tagged `sha-<commit>` and `latest`. Pull requests build them without pushing.
+- `infra/deploy-vps.sh` pulls the images of the checked-out commit instead of building on the VPS; `--build` keeps the old build-from-source path. The VPS needs a one-time `docker login ghcr.io` (see `docs/VPS_Setup.md`).
+
 ## Master integration and review fixes (2026-10-13)
 
 Games and data
