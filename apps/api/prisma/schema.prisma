@@ -197,6 +197,10 @@ model GameSession {
   hiderLng            Float?
   planningModeEnabled Boolean       @default(false)
   gameRevisionId      String
+  // Granted through a game link: started from one, or forked from a session of
+  // a private game. Such a session follows its game to new revisions without
+  // its creator having access to the game, even after the game is made public.
+  followsGame         Boolean       @default(false)
   eventSequence       Int           @default(0)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt

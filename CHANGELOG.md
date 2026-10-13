@@ -2,7 +2,7 @@
 
 ## Private games (2026-10-13)
 
-- Games can be private (unlisted): they stay out of the game picker, and players start them from reusable game links (`/join?token=g_…`). Each use starts a new private session, without server membership or role-gate checks, and those sessions can upgrade to the game's later revisions. See *Private games* in `docs/ADDING_GAMES.md`.
+- Games can be private (unlisted): they stay out of the game picker, and players start them from reusable game links (`/join?token=g_…`). Each use starts a new private session, without server membership or role-gate checks. Those sessions, and forks of a private game's sessions, record that grant (`GameSession.followsGame`), so they can upgrade to the game's later revisions even after it is made public. See *Private games* in `docs/ADDING_GAMES.md`.
 - New `games.create-unlisted` permission for trusted uploaders: they import games that are always private, then update, delete and share their own games, but can't publish them. Making a game public needs `games.create` or `games.edit` and revokes its links. Imports never change a game's listing.
 - `/games` lists every game you manage, with a Private badge, Make private/public, and a Links panel to create, copy and revoke game links. The import dialog can create private games, and `/admin` can grant the new permission.
 - Session summaries carry the game's key and size, so a private game played from a link loads with its own name and zone labels even though it isn't in the player's game list.

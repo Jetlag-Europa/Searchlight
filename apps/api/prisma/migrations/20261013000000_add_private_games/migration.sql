@@ -8,6 +8,9 @@ CREATE TYPE "GameListing" AS ENUM ('listed', 'unlisted');
 ALTER TABLE "Game" ADD COLUMN "listing" "GameListing" NOT NULL DEFAULT 'listed',
 ADD COLUMN "ownerId" TEXT;
 
+-- AlterTable: sessions granted through a game link keep following the game.
+ALTER TABLE "GameSession" ADD COLUMN "followsGame" BOOLEAN NOT NULL DEFAULT false;
+
 -- CreateTable
 CREATE TABLE "GameLink" (
     "id" TEXT NOT NULL,

@@ -27,6 +27,7 @@ const USERS = {
   uploader: { id: "test-private-uploader", roles: [ROLE_UPLOAD], isMember: true },
   member: { id: "test-private-member", roles: [], isMember: true },
   outsider: { id: "test-private-outsider", roles: [], isMember: false },
+  stranger: { id: "test-private-stranger", roles: [], isMember: false },
 } as const;
 type UserName = keyof typeof USERS;
 const USER_IDS = Object.values(USERS).map((u) => u.id);
@@ -77,6 +78,9 @@ async function cleanup() {
 
 describe("Private (unlisted) games and game links", () => {
   let app: FastifyInstance;
+  // The outsider's session from a game link, and a stranger's fork of it.
+  let linkSessionId: string;
+  let forkedSessionId: string;
 
   const request = (
     name: UserName | null,
@@ -222,7 +226,6 @@ describe("Private (unlisted) games and game links", () => {
   describe("game links", () => {
     let token: string;
     let linkId: string;
-    let linkSessionId: string;
 
     test("only managers create links, and only for unlisted games", async () => {
       expect((await request("member", "POST", `/games/${PRIVATE_KEY}/links`, {})).statusCode).toBe(404);
@@ -293,6 +296,18 @@ describe("Private (unlisted) games and game links", () => {
       expect(upgrade.json().status).toBe("upgraded");
     });
 
+    test("forks of a link session are granted the game too", async () => {
+      const forkLink = await request("outsider", "POST", `/sessions/${linkSessionId}/links`, {
+        linkType: "fork",
+      });
+      expect(forkLink.statusCode).toBe(201);
+      const fork = await request("stranger", "POST", `/links/${forkLink.json().token}/redeem`);
+      expect(fork.statusCode).toBe(200);
+      forkedSessionId = fork.json().sessionId;
+      const forked = await prisma.gameSession.findUniqueOrThrow({ where: { id: forkedSessionId } });
+      expect(forked.followsGame).toBe(true);
+    });
+
     test("a revoked link stops starting sessions; its sessions keep working", async () => {
       expect(
         (await request("member", "DELETE", `/games/${PRIVATE_KEY}/links/${linkId}`)).statusCode,
@@ -340,6 +355,37 @@ describe("Private (unlisted) games and game links", () => {
       );
       expect(res.statusCode).toBe(200);
       expect((await privateGame()).listing).toBe("listed");
+    });
+
+    test("sessions granted through a link keep following the game once it is public", async () => {
+      // Neither creator is a member of the game's server.
+      for (const [name, sessionId] of [
+        ["outsider", linkSessionId],
+        ["stranger", forkedSessionId],
+      ] as const) {
+        const res = await request(name, "POST", `/sessions/${sessionId}/upgrade-revision`);
+        expect(res.statusCode).toBe(200);
+        expect(res.json().status).toBe("upgraded");
+      }
+    });
+
+    test("a non-member's session without the grant cannot follow a public game", async () => {
+      const game = await privateGame();
+      const firstRevision = await prisma.gameRevision.findFirstOrThrow({
+        where: { gameId: game.id, revision: 1 },
+      });
+      const session = await prisma.gameSession.create({
+        data: {
+          gameId: game.id,
+          serverId: SERVER,
+          creatorId: USERS.stranger.id,
+          name: "Fork of a public session",
+          visibility: "private",
+          gameRevisionId: firstRevision.id,
+        },
+      });
+      const res = await request("stranger", "POST", `/sessions/${session.id}/upgrade-revision`);
+      expect(res.statusCode).toBe(403);
     });
   });
 

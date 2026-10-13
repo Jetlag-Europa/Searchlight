@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { createGameSession, GAME_LINK_PREFIX } from "../lib/game-sessions.js";
+import { createGameSession, forkFollowsGame, GAME_LINK_PREFIX } from "../lib/game-sessions.js";
 
 function notFound(msg = "Not found") {
   return Object.assign(new Error(msg), { statusCode: 404 });
@@ -69,6 +69,7 @@ export async function linkRoutes(app: FastifyInstance) {
           name: gameLink.game.name,
           visibility: "private",
           gameRevisionId: gameLink.gameRevisionId,
+          followsGame: true,
         });
         req.log.info(
           { linkId: gameLink.id, sessionId: session.id, userId: user.discordId },
@@ -79,7 +80,7 @@ export async function linkRoutes(app: FastifyInstance) {
 
       const link = await prisma.sessionLink.findUnique({
         where: { token },
-        include: { session: true, snapshot: true },
+        include: { session: { include: { game: { select: { listing: true } } } }, snapshot: true },
       });
       if (!link || link.revokedAt) throw notFound("Link is invalid or has been revoked");
       if (link.session.creatorId === user.discordId) throw forbidden("Cannot redeem your own link");
@@ -100,6 +101,7 @@ export async function linkRoutes(app: FastifyInstance) {
               name: `Copy of ${link.session.name}`,
               visibility: "private",
               gameRevisionId: targetRevisionId,
+              followsGame: forkFollowsGame(link.session),
             },
           });
           await tx.sessionParticipant.create({

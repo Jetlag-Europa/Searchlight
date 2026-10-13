@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
-import { createGameSession } from "../lib/game-sessions.js";
+import { createGameSession, forkFollowsGame } from "../lib/game-sessions.js";
 import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
 import type { Event } from "@prisma/client";
 
@@ -284,7 +284,10 @@ export async function sessionRoutes(app: FastifyInstance) {
 
       if (invite.inviteType === "fork") {
         const [originalSession, snapshot] = await Promise.all([
-          prisma.gameSession.findUniqueOrThrow({ where: { id: invite.sessionId } }),
+          prisma.gameSession.findUniqueOrThrow({
+            where: { id: invite.sessionId },
+            include: { game: { select: { listing: true } } },
+          }),
           prisma.inviteSnapshot.findUnique({ where: { inviteId } }),
         ]);
         const questions = (snapshot?.questions ?? []) as Array<{ payloadJson: object; ordinal: number; clientUuid: string }>;
@@ -299,6 +302,7 @@ export async function sessionRoutes(app: FastifyInstance) {
               name: `Copy of ${originalSession.name}`,
               visibility: "private",
               gameRevisionId: targetRevisionId,
+              followsGame: forkFollowsGame(originalSession),
             },
           });
           if (questions.length > 0) {
@@ -447,11 +451,12 @@ export async function sessionRoutes(app: FastifyInstance) {
       }
 
       // Upgrading shares the game's current revision with every participant,
-      // so it requires the access that reading that revision does. Sessions of
-      // an unlisted game start from its links, which grant the whole game, so
-      // they follow it to new revisions without further access.
+      // so it requires the access that reading that revision does. Sessions
+      // granted their game (through a game link, or any session of a private
+      // game, which only exists by such a grant) follow it without it, and the
+      // recorded grant keeps doing so after the game is made public.
       const assertUpgradeAccess = (revisionId: string | null) =>
-        session.game.listing === "unlisted"
+        session.followsGame || session.game.listing === "unlisted"
           ? Promise.resolve()
           : assertGameAccess(
               user.discordId,
