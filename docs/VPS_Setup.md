@@ -116,16 +116,48 @@ Add new hostnames' DNS with `cloudflared tunnel route dns searchlight-vps <host>
 
 ## Operations
 
-### Deploy / update (rebuild + restart)
+### Images built by CI
+The VPS does not build the app. On every push to `master`, the "Docker images"
+workflow (`.github/workflows/docker-images.yml`) builds the `api` and `web`
+images for arm64 and pushes them to the GitHub Container Registry:
+
+| Image | Tags |
+|---|---|
+| `ghcr.io/leandrocoding/searchlight-api` | `sha-<7-char commit>`, `latest` |
+| `ghcr.io/leandrocoding/searchlight-web` | `sha-<7-char commit>`, `latest` |
+
+Pull requests only build them, to catch a broken image before it is merged; a
+manual run (Actions → Docker images → Run workflow) pushes a `sha-` tag for any
+branch. Images pushed from another fork live under that owner: set
+`SEARCHLIGHT_IMAGE_REGISTRY=ghcr.io/<owner>` in `.env`.
+
+The packages are private (like the repo), so the VPS logs in once with a
+GitHub personal access token (classic) that has only the `read:packages` scope:
+```bash
+sg docker -c 'docker login ghcr.io -u <github-user>'   # paste the token as the password
+```
+
+### Deploy / update (pull + restart)
 ```bash
 cd /srv/WriteMap/TaibledFork
 git pull                       # if pulling new code
 sg docker -c 'bash infra/deploy-vps.sh'
 ```
-`infra/deploy-vps.sh` runs `docker compose -p writemap -f docker-compose.yml -f
-docker-compose.vps.yml up -d --build`. **`PUBLIC_API_BASE` is baked into the web
-bundle at build time**, so a hostname change requires a rebuild (`--build`), not
-just a restart.
+`infra/deploy-vps.sh` pulls the images tagged `sha-<checked-out commit>` and
+restarts the stack (`docker compose -p writemap -f docker-compose.yml -f
+docker-compose.vps.yml up -d --no-build`), so the containers always run the code
+of the checkout that holds the compose files. Wait for that commit's "Docker
+images" run to go green first: until it has, the pull fails and nothing changes.
+
+- **Roll back:** `git checkout <older commit>` and deploy again, or keep the
+  checkout and run `sg docker -c 'SEARCHLIGHT_IMAGE_TAG=sha-<commit> bash
+  infra/deploy-vps.sh'`.
+- **Build on the VPS instead** (CI down, or testing a local change):
+  `sg docker -c 'bash infra/deploy-vps.sh --build'` runs the old `up -d --build`.
+
+**`PUBLIC_API_BASE` is baked into the web bundle at build time**, by the workflow
+(its `web` build arg) and by `docker-compose.vps.yml` for `--build`. A hostname
+change means editing both and deploying a new image, not just a restart.
 
 On every start the `api` container runs `prisma migrate deploy`, creates any
 Discord servers missing from the database (`seed.js --missing-only`; existing
@@ -199,7 +231,8 @@ All filled and verified. Highlights:
 
 - **No host ports.** Do not add `docker-compose.prod.yml` here — that publishes
   ports you don't want on a public VPS.
-- **`PUBLIC_API_BASE` baked at build time** — rebuild web on any API hostname change.
+- **`PUBLIC_API_BASE` baked at build time** — on any API hostname change, update
+  it in `docker-images.yml` and `docker-compose.vps.yml` and deploy a new web image.
 - **Overpass is only used for free play** (no game selected) and OSM boundary
   lookups; games carry their own data and never query it.
 - **CF-Access headers only go to `OVERPASS_URL`** (the private Mac mini Overpass);
@@ -210,6 +243,8 @@ All filled and verified. Highlights:
 - **Two-level subdomains need paid ACM** — keep public hostnames one label deep
   under `jetlageuropa.org` to stay on free Universal SSL.
 - **Mac mini Overpass should stay up** — free play on the VPS depends on it.
+- **Deploy pulls, it doesn't build** — a commit CI hasn't built yet (or a VPS
+  logged out of `ghcr.io`) fails the pull and leaves the running stack as is.
 
 ---
 
