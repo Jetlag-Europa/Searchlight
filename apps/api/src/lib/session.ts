@@ -12,17 +12,11 @@ export interface ResolvedUser {
   preferences?: unknown;
 }
 
-// Why a 401 happened. The first two are decided before the database is touched
-// and are therefore indistinguishable by response time alone — which is exactly
-// the ambiguity this exists to remove. Logged, never sent to the client.
-export type AuthFailureReason =
-  | "no_cookie"       // browser sent no session cookie at all
-  | "bad_signature"   // cookie present but did not verify against SESSION_COOKIE_SECRET
-  | "no_session_row"  // signed id valid, but no matching AuthSession (revoked/pruned)
-  | "expired";        // row found, past expiresAt
+type AuthFailureReason = "no_cookie" | "bad_signature" | "no_session_row" | "expired";
 
 const unauthorized = (req: FastifyRequest, reason: AuthFailureReason) => {
-  req.log.warn({ authFailure: reason, cookieNames: Object.keys(req.cookies) }, "auth: 401");
+  // Keep diagnostics server-side; never log cookie values or session credentials.
+  req.log.info({ authFailure: reason }, "Session authentication failed");
   return Object.assign(new Error("Unauthorized"), { statusCode: 401 });
 };
 

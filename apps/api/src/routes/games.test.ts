@@ -4,23 +4,16 @@ import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
 import { gameRoutes } from "./games.js";
-import { GAME_VISIBILITY_GATES } from "../lib/game-gates.js";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 const USER_ID = "test-games-gate-user";
 const AUTH_SESSION_ID = "test-games-gate-auth";
 
-const ROTTERDAM_SENTINEL = "__bundled-exter-rotterdam-2026__";
 const HOME_GAMES_ID = "home-games";
-const EU_NONGATED_SENTINEL = "__test-eu-nongated__";
-
-const gate = GAME_VISIBILITY_GATES.find(
-    (g) => g.sentinelValue === ROTTERDAM_SENTINEL,
-)!;
-const EU_SERVER_ID = gate.requireGuildId;
-const GATE_ROLE_ID = gate.requireRoleId;
-
+const EU_NONGATED_KEY = "__test-eu-nongated__";
+const EU_SERVER_ID = "1190673594649415730";
+const GATE_ROLE_ID = "1514353477231312966";
 async function buildTestApp() {
     const app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
     await app.register(fastifyCookie, {
@@ -35,12 +28,12 @@ function signedCookie(app: Awaited<ReturnType<typeof buildTestApp>>, value: stri
     return `session=${app.signCookie(value)}`;
 }
 
-/** Set the user's cached Discord roles in the EU guild (fresh, so no Discord call). */
+/** Cache the user as an EU guild member with these roles (fresh, so no Discord call). */
 async function setEuRoles(roles: string[]) {
     await prisma.serverMembershipCache.upsert({
         where: { userId_serverId: { userId: USER_ID, serverId: EU_SERVER_ID } },
-        update: { roles, cachedAt: new Date() },
-        create: { userId: USER_ID, serverId: EU_SERVER_ID, roles, cachedAt: new Date() },
+        update: { isMember: true, roles, cachedAt: new Date() },
+        create: { userId: USER_ID, serverId: EU_SERVER_ID, isMember: true, roles, cachedAt: new Date() },
     });
 }
 
@@ -48,12 +41,9 @@ describe("GET /games — Home Games per-game visibility gate", () => {
     let app: Awaited<ReturnType<typeof buildTestApp>>;
 
     beforeAll(async () => {
-        // Sanity: the gate must be configured for Rotterdam.
-        expect(gate).toBeDefined();
-
         await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
         await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
-        await prisma.game.deleteMany({ where: { sentinelValue: EU_NONGATED_SENTINEL } });
+        await prisma.game.deleteMany({ where: { gameKey: EU_NONGATED_KEY } });
         await prisma.user.deleteMany({ where: { discordId: USER_ID } });
 
         await prisma.user.create({
@@ -75,41 +65,83 @@ describe("GET /games — Home Games per-game visibility gate", () => {
             },
         });
 
-        // Servers + games (idempotent — these usually exist from the seed).
-        await prisma.server.upsert({
-            where: { id: HOME_GAMES_ID },
-            update: {},
-            create: { id: HOME_GAMES_ID, name: "Home Games" },
+        // Servers + games (race-safe via skipDuplicates for concurrent test suites).
+        await prisma.server.createMany({
+            data: [
+                { id: HOME_GAMES_ID, name: "Home Games" },
+                { id: EU_SERVER_ID, name: "JetLag EU" },
+            ],
+            skipDuplicates: true,
         });
-        await prisma.server.upsert({
-            where: { id: EU_SERVER_ID },
-            update: {},
-            create: { id: EU_SERVER_ID, name: "JetLag EU" },
-        });
-        await prisma.game.upsert({
-            where: { sentinelValue: ROTTERDAM_SENTINEL },
+        const rotterdam = await prisma.game.upsert({
+            where: { gameKey: "exter-rotterdam-2026" },
             update: { serverId: HOME_GAMES_ID },
             create: {
                 serverId: HOME_GAMES_ID,
                 name: "Exter Rotterdam 26",
-                sentinelValue: ROTTERDAM_SENTINEL,
-                kmlPath: "exter-rotterdam-poi.kml",
-                mapLocationJson: { type: "Feature" },
-                hidingRadius: 250,
-                hidingRadiusUnits: "meters",
+                gameKey: "exter-rotterdam-2026",
+                size: "medium",
             },
         });
+        const rev = await prisma.gameRevision.upsert({
+            where: { gameId_revision: { gameId: rotterdam.id, revision: 1 } },
+            update: {
+                definition: {
+                    id: "exter-rotterdam-2026",
+                    name: "Exter Rotterdam 26",
+                    serverId: HOME_GAMES_ID,
+                    visibility: {
+                        kind: "discord-role",
+                        guildId: EU_SERVER_ID,
+                        roleId: GATE_ROLE_ID,
+                    },
+                },
+            },
+            create: {
+                gameId: rotterdam.id,
+                revision: 1,
+                checksum: "test-rev-checksum",
+                definition: {
+                    id: "exter-rotterdam-2026",
+                    name: "Exter Rotterdam 26",
+                    serverId: HOME_GAMES_ID,
+                    visibility: {
+                        kind: "discord-role",
+                        guildId: EU_SERVER_ID,
+                        roleId: GATE_ROLE_ID,
+                    },
+                },
+            },
+        });
+        await prisma.game.update({
+            where: { id: rotterdam.id },
+            data: { currentRevisionId: rev.id },
+        });
+
         // A non-gated game on the EU server to prove normal listing is unaffected.
-        await prisma.game.create({
+        const nonGatedGame = await prisma.game.create({
             data: {
                 serverId: EU_SERVER_ID,
                 name: "Test EU Non-Gated",
-                sentinelValue: EU_NONGATED_SENTINEL,
-                kmlPath: "x.kml",
-                mapLocationJson: { type: "Feature" },
-                hidingRadius: 1,
-                hidingRadiusUnits: "kilometers",
+                gameKey: EU_NONGATED_KEY,
+                size: "medium",
             },
+        });
+        const nonGatedRev = await prisma.gameRevision.create({
+            data: {
+                gameId: nonGatedGame.id,
+                revision: 1,
+                checksum: "test-eu-nongated-checksum",
+                definition: {
+                    id: EU_NONGATED_KEY,
+                    name: "Test EU Non-Gated",
+                    serverId: EU_SERVER_ID,
+                },
+            },
+        });
+        await prisma.game.update({
+            where: { id: nonGatedGame.id },
+            data: { currentRevisionId: nonGatedRev.id },
         });
 
         app = await buildTestApp();
@@ -118,9 +150,12 @@ describe("GET /games — Home Games per-game visibility gate", () => {
     afterAll(async () => {
         await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
         await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
-        await prisma.game.deleteMany({ where: { sentinelValue: EU_NONGATED_SENTINEL } });
+        await prisma.gameRevision.deleteMany({ where: { game: { gameKey: EU_NONGATED_KEY } } });
+        await prisma.game.deleteMany({ where: { gameKey: EU_NONGATED_KEY } });
         await prisma.user.deleteMany({ where: { discordId: USER_ID } });
-        await app.close();
+        if (app) {
+            await app.close();
+        }
     });
 
     test("returns 401 without a session cookie", async () => {
@@ -138,8 +173,8 @@ describe("GET /games — Home Games per-game visibility gate", () => {
         });
 
         expect(res.statusCode).toBe(200);
-        const sentinels = res.json().games.map((g: any) => g.sentinelValue);
-        expect(sentinels).toContain(ROTTERDAM_SENTINEL);
+        const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
+        expect(gameKeys).toContain("exter-rotterdam-2026");
     });
 
     test("user WITHOUT the gate role can see Home Games but not the Rotterdam game", async () => {
@@ -154,12 +189,12 @@ describe("GET /games — Home Games per-game visibility gate", () => {
         // Server is still reachable (virtual server skips membership) — 200, not 403…
         expect(res.statusCode).toBe(200);
         // …but the gated game is filtered out.
-        const sentinels = res.json().games.map((g: any) => g.sentinelValue);
-        expect(sentinels).not.toContain(ROTTERDAM_SENTINEL);
+        const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
+        expect(gameKeys).not.toContain("exter-rotterdam-2026");
     });
 
     test("non-gated games on a real server are unaffected by the gate", async () => {
-        await setEuRoles([]); // any cache row counts as EU membership
+        await setEuRoles([]); // an EU member without any roles
 
         const res = await app.inject({
             method: "GET",
@@ -168,7 +203,7 @@ describe("GET /games — Home Games per-game visibility gate", () => {
         });
 
         expect(res.statusCode).toBe(200);
-        const sentinels = res.json().games.map((g: any) => g.sentinelValue);
-        expect(sentinels).toContain(EU_NONGATED_SENTINEL);
+        const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
+        expect(gameKeys).toContain(EU_NONGATED_KEY);
     });
 });

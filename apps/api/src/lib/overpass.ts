@@ -24,7 +24,7 @@ const CF_ACCESS_CLIENT_SECRET = process.env.OVERPASS_CF_ACCESS_CLIENT_SECRET;
 
 function overpassHeaders(url: string): Record<string, string> {
     const headers: Record<string, string> = {
-        "User-Agent": "TaibledFork/1.0",
+        "User-Agent": "Searchlight/1.0",
         "Content-Type": "application/x-www-form-urlencoded",
     };
     if (

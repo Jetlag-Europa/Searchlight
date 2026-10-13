@@ -42,10 +42,9 @@ describe("GET /servers — virtual servers", () => {
         await prisma.authSession.create({
             data: { id: AUTH_SESSION_ID, userId: USER_ID, expiresAt: new Date(Date.now() + 86_400_000) },
         });
-        await prisma.server.upsert({
-            where: { id: HOME_GAMES_ID },
-            update: {},
-            create: { id: HOME_GAMES_ID, name: "Home Games" },
+        await prisma.server.createMany({
+            data: [{ id: HOME_GAMES_ID, name: "Home Games" }],
+            skipDuplicates: true,
         });
 
         app = await buildTestApp();
@@ -54,7 +53,9 @@ describe("GET /servers — virtual servers", () => {
     afterAll(async () => {
         await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
         await prisma.user.deleteMany({ where: { discordId: USER_ID } });
-        await app.close();
+        if (app) {
+            await app.close();
+        }
     });
 
     test("lists the virtual Home Games server with empty permissions (no Discord call)", async () => {

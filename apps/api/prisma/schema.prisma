@@ -55,21 +55,24 @@ model AuthSession {
 }
 
 model Server {
-  id        String   @id // Discord guild ID
-  name      String
-  iconUrl   String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id // Discord guild ID
+  name              String
+  iconUrl           String?
+  managementGuildId String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   membershipCaches ServerMembershipCache[]
   rolePermissions  RolePermission[]
   games            Game[]
   gameSessions     GameSession[]
+  importTokens     GameImportToken[]
 }
 
 model ServerMembershipCache {
   userId   String
   serverId String
+  isMember Boolean  @default(false) // false: Discord reported the user is not in the guild
   roles    String[] // Discord role ID strings
   cachedAt DateTime
 
@@ -92,24 +95,63 @@ model RolePermission {
 }
 
 model Game {
-  id                    String      @id @default(cuid())
-  serverId              String
-  name                  String
-  sentinelValue         String      @unique
-  kmlPath               String
-  mapLocationJson       Json
-  hidingRadius          Float
-  hidingRadiusUnits     String      // "miles" | "kilometers"
-  tierRadiusOverrides   Json?       // e.g. {"Train": 400} — values in same units as hidingRadiusUnits
-  size                  String      @default("medium") // "small" | "medium" | "large"
-  hidingZoneGeoJsonPath String?     // path to a GeoJSON polygon file served by the web app; sets polyGeoJSON on game switch
-  createdAt         DateTime    @default(now())
-  updatedAt         DateTime    @updatedAt
+  id                String         @id @default(cuid())
+  gameKey           String         @unique
+  serverId          String
+  name              String
+  size              String         @default("medium") // "small" | "medium" | "large"
+  currentRevisionId String?
+  archivedAt        DateTime?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
 
-  server   Server        @relation(fields: [serverId], references: [id])
-  sessions GameSession[]
+  server          Server         @relation(fields: [serverId], references: [id])
+  sessions        GameSession[]
+  revisions       GameRevision[]
+  currentRevision GameRevision?  @relation("CurrentGameRevision", fields: [currentRevisionId], references: [id])
 
   @@index([serverId])
+  @@index([currentRevisionId])
+}
+
+model GameRevision {
+  id            String       @id @default(cuid())
+  gameId        String
+  revision      Int
+  formatVersion Int          @default(1)
+  definition    Json
+  checksum      String
+  source        String       @default("api") // "api" | "web" | "preload" | "migration"
+  createdBy     String?
+  createdAt     DateTime     @default(now())
+
+  game       Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  currentFor Game[]        @relation("CurrentGameRevision")
+  sessions        GameSession[]
+  inviteSnapshots InviteSnapshot[]
+  linkSnapshots   LinkSnapshot[]
+
+  @@unique([gameId, revision])
+  @@unique([gameId, checksum])
+  @@index([gameId])
+  @@index([checksum])
+}
+
+model GameImportToken {
+  id          String    @id @default(cuid())
+  name        String
+  tokenHash   String    @unique
+  serverId    String
+  permissions String[]  // e.g. ["games.create", "games.edit"]
+  createdBy   String
+  expiresAt   DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  server Server @relation(fields: [serverId], references: [id])
+
+  @@index([serverId])
+  @@index([tokenHash])
 }
 
 model GameSession {
@@ -121,13 +163,16 @@ model GameSession {
   visibility Visibility      @default(private)
   hiderLat            Float?
   hiderLng            Float?
-  planningModeEnabled Boolean @default(false)
-  createdAt  DateTime        @default(now())
-  updatedAt  DateTime        @updatedAt
+  planningModeEnabled Boolean       @default(false)
+  gameRevisionId      String
+  eventSequence       Int           @default(0)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
-  game         Game                 @relation(fields: [gameId],    references: [id])
-  server       Server               @relation(fields: [serverId],  references: [id])
-  creator      User                 @relation("SessionCreator",    fields: [creatorId], references: [discordId])
+  game         Game                 @relation(fields: [gameId], references: [id])
+  gameRevision GameRevision         @relation(fields: [gameRevisionId], references: [id])
+  server       Server               @relation(fields: [serverId], references: [id])
+  creator      User                 @relation("SessionCreator", fields: [creatorId], references: [discordId])
   participants SessionParticipant[]
   invites      Invite[]
   strokes      Stroke[]
@@ -137,8 +182,8 @@ model GameSession {
 
   @@index([serverId])
   @@index([creatorId])
+  @@index([gameRevisionId])
 }
-
 model SessionParticipant {
   sessionId  String
   userId     String
@@ -175,12 +220,16 @@ model Invite {
 }
 
 model InviteSnapshot {
-  id        String   @id @default(cuid())
-  inviteId  String   @unique
-  questions Json     // Array of { payloadJson, ordinal, clientUuid }
-  createdAt DateTime @default(now())
+  id             String        @id @default(cuid())
+  inviteId       String        @unique
+  questions      Json          // Array of { payloadJson, ordinal, clientUuid }
+  gameRevisionId String?
+  createdAt      DateTime      @default(now())
 
-  invite Invite @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  invite         Invite        @relation(fields: [inviteId], references: [id], onDelete: Cascade)
+  gameRevision   GameRevision? @relation(fields: [gameRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([gameRevisionId])
 }
 
 model SessionLink {
@@ -200,12 +249,16 @@ model SessionLink {
 }
 
 model LinkSnapshot {
-  id        String   @id @default(cuid())
-  linkId    String   @unique
-  questions Json     // Array of { payloadJson, ordinal, clientUuid }
-  createdAt DateTime @default(now())
+  id             String        @id @default(cuid())
+  linkId         String        @unique
+  questions      Json          // Array of { payloadJson, ordinal, clientUuid }
+  gameRevisionId String?
+  createdAt      DateTime      @default(now())
 
-  link SessionLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  link           SessionLink   @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  gameRevision   GameRevision? @relation(fields: [gameRevisionId], references: [id], onDelete: SetNull)
+
+  @@index([gameRevisionId])
 }
 
 model Stroke {
@@ -241,7 +294,8 @@ model Event {
   id               String   @id @default(cuid())
   sessionId        String
   userId           String
-  type             String   // "stroke.create" | "stroke.delete" | "questions.replace"
+  sequence         Int
+  type             String   // "stroke.create" | "stroke.delete" | "questions.replace" | "hider.update" | "planning.toggle" | "session.revision-upgraded"
   payloadJson      Json
   clientUuid       String   @unique
   clientCreatedAt  DateTime
@@ -251,6 +305,7 @@ model Event {
   user    User        @relation(fields: [userId], references: [discordId])
 
   @@index([sessionId, serverReceivedAt])
+  @@unique([sessionId, sequence])
 }
 
 model Feedback {

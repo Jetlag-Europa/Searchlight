@@ -1,12 +1,13 @@
 import { describe, expect, test, vi } from "vitest";
-import { broadcast, subscribe } from "./broadcaster.js";
-import type { EventRecord } from "@taibled/shared";
+import { broadcast, subscribe, registerUserStream, closeUserStreams, closeSessionStreams } from "./broadcaster.js";
+import type { EventRecord } from "@searchlight/shared";
 
 function makeEvent(overrides: Partial<EventRecord> = {}): EventRecord {
     return {
         id: "ev-1",
         sessionId: "sess-1",
         userId: "user-1",
+        sequence: 1,
         type: "stroke.create",
         payloadJson: {},
         clientUuid: "uuid-1",
@@ -86,5 +87,43 @@ describe("subscribe / unsubscribe", () => {
         expect(l1).not.toHaveBeenCalled();
         expect(l2).toHaveBeenCalledOnce();
         u2();
+    });
+});
+
+describe("registerUserStream / closeUserStreams / closeSessionStreams", () => {
+    test("closeUserStreams calls close callback for matching session and user", () => {
+        const closeFn1 = vi.fn();
+        const closeFn2 = vi.fn();
+        const closeFnOtherUser = vi.fn();
+
+        registerUserStream("sess-1", "user-1", closeFn1);
+        registerUserStream("sess-1", "user-1", closeFn2);
+        registerUserStream("sess-1", "user-2", closeFnOtherUser);
+
+        closeUserStreams("sess-1", "user-1");
+
+        expect(closeFn1).toHaveBeenCalledOnce();
+        expect(closeFn2).toHaveBeenCalledOnce();
+        expect(closeFnOtherUser).not.toHaveBeenCalled();
+    });
+
+    test("unregistered stream callback is not called on closeUserStreams", () => {
+        const closeFn = vi.fn();
+        const unregister = registerUserStream("sess-unreg", "user-1", closeFn);
+        unregister();
+
+        closeUserStreams("sess-unreg", "user-1");
+        expect(closeFn).not.toHaveBeenCalled();
+    });
+
+    test("closeSessionStreams closes all streams for that session", () => {
+        const closeFn1 = vi.fn();
+        const closeFn2 = vi.fn();
+        registerUserStream("sess-all", "user-1", closeFn1);
+        registerUserStream("sess-all", "user-2", closeFn2);
+
+        closeSessionStreams("sess-all");
+        expect(closeFn1).toHaveBeenCalledOnce();
+        expect(closeFn2).toHaveBeenCalledOnce();
     });
 });

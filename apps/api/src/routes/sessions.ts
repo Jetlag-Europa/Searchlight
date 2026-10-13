@@ -3,7 +3,9 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { broadcast } from "../lib/broadcaster.js";
+import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
+import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
+import type { Event } from "@prisma/client";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -20,7 +22,16 @@ function conflict(msg: string) {
 async function resolveParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({
     where: { id: sessionId },
-    include: { game: { select: { name: true } } },
+    include: {
+      game: {
+        select: {
+          name: true,
+          currentRevisionId: true,
+          currentRevision: { select: { id: true, revision: true } },
+        },
+      },
+      gameRevision: { select: { id: true, revision: true } },
+    },
   });
   if (!session) throw notFound("Session not found");
 
@@ -75,7 +86,14 @@ export async function sessionRoutes(app: FastifyInstance) {
           ],
         },
         include: {
-          game: { select: { name: true } },
+          game: {
+            select: {
+              name: true,
+              currentRevisionId: true,
+              currentRevision: { select: { revision: true } },
+            },
+          },
+          gameRevision: { select: { revision: true } },
           participants: {
             where: { userId: user.discordId },
             select: { role: true },
@@ -96,6 +114,14 @@ export async function sessionRoutes(app: FastifyInstance) {
           createdAt: s.createdAt.toISOString(),
           hiderLat: s.hiderLat,
           hiderLng: s.hiderLng,
+          planningModeEnabled: s.planningModeEnabled,
+          gameRevisionId: s.gameRevisionId,
+          sessionRevision: s.gameRevision.revision,
+          currentRevision: s.game.currentRevision?.revision ?? null,
+          hasNewerRevision: Boolean(
+            s.game.currentRevisionId &&
+              s.gameRevisionId !== s.game.currentRevisionId,
+          ),
         })),
       };
     },
@@ -110,28 +136,64 @@ export async function sessionRoutes(app: FastifyInstance) {
           gameId: Type.String({ minLength: 1 }),
           name: Type.String({ minLength: 1 }),
           visibility: Type.Union([Type.Literal("private"), Type.Literal("shared")]),
+          gameRevisionId: Type.Optional(Type.String({ minLength: 1 })),
         }),
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
-      const { gameId, name, visibility } = req.body as {
+      const { gameId, name, visibility, gameRevisionId } = req.body as {
         gameId: string;
         name: string;
         visibility: "private" | "shared";
+        gameRevisionId?: string;
       };
 
-      const game = await prisma.game.findUnique({ where: { id: gameId } });
+      const game = await findGameByIdOrKey(gameId, {
+        currentRevision: { select: { id: true, revision: true } },
+      });
       if (!game) throw notFound("Game not found");
+
+      let targetRevision: { id: string; revision: number };
+      if (gameRevisionId) {
+        const rev = await prisma.gameRevision.findFirst({
+          where: { id: gameRevisionId, gameId: game.id },
+          select: { id: true, revision: true },
+        });
+        if (!rev) {
+          throw Object.assign(new Error("Specified game revision not found for this game"), {
+            statusCode: 400,
+          });
+        }
+        targetRevision = rev;
+      } else {
+        if (!game.currentRevision) {
+          throw Object.assign(
+            new Error("Game has no available revision; an imported JSON revision is required"),
+            { statusCode: 400 },
+          );
+        }
+        targetRevision = game.currentRevision;
+      }
+
+      // A session's participants may read the revision it is pinned to, so
+      // creating one requires the access that reading the game does.
+      await assertGameAccess(
+        user.discordId,
+        game,
+        [targetRevision.id, game.currentRevisionId],
+        req.log,
+      );
 
       const session = await prisma.$transaction(async (tx) => {
         const s = await tx.gameSession.create({
           data: {
-            gameId,
+            gameId: game.id,
             serverId: game.serverId,
             creatorId: user.discordId,
             name,
             visibility,
+            gameRevisionId: targetRevision.id,
           },
         });
         await tx.sessionParticipant.create({
@@ -156,6 +218,13 @@ export async function sessionRoutes(app: FastifyInstance) {
         createdAt: session.createdAt.toISOString(),
         hiderLat: null,
         hiderLng: null,
+        planningModeEnabled: false,
+        gameRevisionId: session.gameRevisionId,
+        sessionRevision: targetRevision.revision,
+        currentRevision: game.currentRevision?.revision ?? null,
+        hasNewerRevision: Boolean(
+          game.currentRevisionId && targetRevision.id !== game.currentRevisionId,
+        ),
       });
     },
   );
@@ -221,6 +290,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           prisma.inviteSnapshot.findUnique({ where: { inviteId } }),
         ]);
         const questions = (snapshot?.questions ?? []) as Array<{ payloadJson: object; ordinal: number; clientUuid: string }>;
+        const targetRevisionId = snapshot?.gameRevisionId ?? originalSession.gameRevisionId;
 
         const newSession = await prisma.$transaction(async (tx) => {
           const created = await tx.gameSession.create({
@@ -230,6 +300,7 @@ export async function sessionRoutes(app: FastifyInstance) {
               creatorId: user.discordId,
               name: `Copy of ${originalSession.name}`,
               visibility: "private",
+              gameRevisionId: targetRevisionId,
             },
           });
           if (questions.length > 0) {
@@ -337,6 +408,13 @@ export async function sessionRoutes(app: FastifyInstance) {
         hiderLat: session.hiderLat,
         hiderLng: session.hiderLng,
         planningModeEnabled: session.planningModeEnabled,
+        gameRevisionId: session.gameRevisionId,
+        sessionRevision: session.gameRevision.revision,
+        currentRevision: session.game.currentRevision?.revision ?? null,
+        hasNewerRevision: Boolean(
+          session.game.currentRevisionId &&
+            session.gameRevisionId !== session.game.currentRevisionId,
+        ),
         participants: allParticipants.map((p) => ({
           userId: p.userId,
           displayName: p.user.displayName,
@@ -345,6 +423,158 @@ export async function sessionRoutes(app: FastifyInstance) {
           acceptedAt: p.acceptedAt?.toISOString() ?? null,
         })),
       };
+    },
+  );
+
+  // POST /sessions/:sessionId/upgrade-revision
+  app.post(
+    "/:sessionId/upgrade-revision",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String() }),
+      },
+    },
+    async (req, reply) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+
+      const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
+      if (!isCreator) {
+        throw Object.assign(
+          new Error("Only the session creator can upgrade the game revision"),
+          { statusCode: 403 },
+        );
+      }
+
+      // Upgrading shares the game's current revision with every participant,
+      // so it requires the access that reading that revision does.
+      let checkedRevisionId = session.game.currentRevisionId;
+      await assertGameAccess(user.discordId, session, [checkedRevisionId], req.log);
+
+      type UpgradeResult = {
+        status: "already-current" | "upgraded";
+        previousRevision: number;
+        newRevision: number;
+        gameRevisionId: string;
+        eventToBroadcast: Event | null;
+      };
+      type UpgradeAttempt =
+        | UpgradeResult
+        | { status: "revision-changed"; gameRevisionId: string };
+
+      const attemptUpgrade = () => prisma.$transaction(async (tx): Promise<UpgradeAttempt> => {
+        const [lockedSession] = await tx.$queryRaw<Array<{ id: string; gameRevisionId: string; eventSequence: number }>>`
+          SELECT id, "gameRevisionId", "eventSequence"
+          FROM "GameSession"
+          WHERE id = ${sessionId}
+          FOR UPDATE
+        `;
+        if (!lockedSession) throw notFound("Session not found");
+
+        // Resolve the target only after serializing session transitions. A request
+        // delayed before the lock must not apply an obsolete published revision.
+        const game = await tx.game.findUnique({
+          where: { id: session.gameId },
+          include: { currentRevision: { select: { id: true, revision: true } } },
+        });
+        if (!game?.currentRevision) {
+          throw notFound("No current revision found for this game");
+        }
+        const targetRevision = game.currentRevision;
+        if (targetRevision.id !== checkedRevisionId) {
+          // Published while this request waited for the lock. Its access
+          // check can call Discord, so it runs after the lock is released.
+          return { status: "revision-changed", gameRevisionId: targetRevision.id };
+        }
+
+        if (lockedSession.gameRevisionId === targetRevision.id) {
+          return {
+            status: "already-current",
+            previousRevision: targetRevision.revision,
+            newRevision: targetRevision.revision,
+            gameRevisionId: targetRevision.id,
+            eventToBroadcast: null,
+          };
+        }
+
+        const previousRevision = await tx.gameRevision.findUniqueOrThrow({
+          where: { id: lockedSession.gameRevisionId },
+          select: { revision: true },
+        });
+
+        const nextSequence = (lockedSession.eventSequence ?? 0) + 1;
+        await tx.gameSession.update({
+          where: { id: sessionId },
+          data: {
+            gameRevisionId: targetRevision.id,
+            eventSequence: nextSequence,
+          },
+        });
+
+        const event = await tx.event.create({
+          data: {
+            sessionId,
+            userId: user.discordId,
+            sequence: nextSequence,
+            type: "session.revision-upgraded",
+            payloadJson: {
+              sessionId,
+              gameRevisionId: targetRevision.id,
+              revision: targetRevision.revision,
+            },
+            clientUuid: `session-revision-upgraded-${sessionId}-${nextSequence}`,
+            clientCreatedAt: new Date(),
+          },
+        });
+
+        return {
+          status: "upgraded",
+          previousRevision: previousRevision.revision,
+          newRevision: targetRevision.revision,
+          gameRevisionId: targetRevision.id,
+          eventToBroadcast: event,
+        };
+      });
+
+      let upgradeResult = await attemptUpgrade();
+      for (let retries = 0; upgradeResult.status === "revision-changed"; retries++) {
+        if (retries === 2) {
+          throw conflict("The game was updated while upgrading; try again");
+        }
+        checkedRevisionId = upgradeResult.gameRevisionId;
+        await assertGameAccess(user.discordId, session, [checkedRevisionId], req.log);
+        upgradeResult = await attemptUpgrade();
+      }
+
+      if (upgradeResult.eventToBroadcast) {
+        const e = upgradeResult.eventToBroadcast;
+        broadcast(sessionId, {
+          id: e.id,
+          sessionId: e.sessionId,
+          userId: e.userId,
+          sequence: e.sequence,
+          type: e.type,
+          payloadJson: e.payloadJson,
+          clientUuid: e.clientUuid,
+          clientCreatedAt: e.clientCreatedAt.toISOString(),
+          serverReceivedAt: e.serverReceivedAt.toISOString(),
+        });
+      }
+
+      if (upgradeResult.status === "already-current") {
+        return reply.send({
+          status: "already-current",
+          newRevision: upgradeResult.newRevision,
+          gameRevisionId: upgradeResult.gameRevisionId,
+        });
+      }
+
+      return reply.send({
+        status: "upgraded",
+        previousRevision: upgradeResult.previousRevision,
+        newRevision: upgradeResult.newRevision,
+        gameRevisionId: upgradeResult.gameRevisionId,
+      });
     },
   );
 
@@ -383,23 +613,90 @@ export async function sessionRoutes(app: FastifyInstance) {
         throw forbidden("Only the creator can update the session name or visibility");
       }
 
-      const updated = await prisma.gameSession.update({
-        where: { id: sessionId },
-        data: body,
-        include: { game: { select: { name: true } } },
+      const { updated, eventsToBroadcast } = await prisma.$transaction(async (tx) => {
+        const [locked] = await tx.$queryRaw<Array<{
+          id: string;
+          eventSequence: number;
+          hiderLat: number | null;
+          hiderLng: number | null;
+          planningModeEnabled: boolean;
+        }>>`
+          SELECT id, "eventSequence", "hiderLat", "hiderLng", "planningModeEnabled"
+          FROM "GameSession"
+          WHERE id = ${sessionId}
+          FOR UPDATE
+        `;
+        if (!locked) throw notFound("Session not found");
+
+        let curSequence = locked.eventSequence ?? 0;
+        const events: Event[] = [];
+
+        const hiderRequested = body.hiderLat !== undefined || body.hiderLng !== undefined;
+        const newHiderLat = body.hiderLat !== undefined ? body.hiderLat : locked.hiderLat;
+        const newHiderLng = body.hiderLng !== undefined ? body.hiderLng : locked.hiderLng;
+        const hiderChanged = hiderRequested && (newHiderLat !== locked.hiderLat || newHiderLng !== locked.hiderLng);
+
+        const planningRequested = body.planningModeEnabled !== undefined;
+        const newPlanning = planningRequested ? body.planningModeEnabled : locked.planningModeEnabled;
+        const planningChanged = planningRequested && newPlanning !== locked.planningModeEnabled;
+
+        if (hiderChanged) {
+          curSequence += 1;
+          const hiderEvent = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: curSequence,
+              type: "hider.update",
+              payloadJson: { hiderLat: newHiderLat, hiderLng: newHiderLng },
+              clientUuid: `hider-update-${sessionId}-${curSequence}`,
+              clientCreatedAt: new Date(),
+            },
+          });
+          events.push(hiderEvent);
+        }
+
+        if (planningChanged) {
+          curSequence += 1;
+          const planningEvent = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: curSequence,
+              type: "planning.toggle",
+              payloadJson: { planningModeEnabled: newPlanning },
+              clientUuid: `planning-toggle-${sessionId}-${curSequence}`,
+              clientCreatedAt: new Date(),
+            },
+          });
+          events.push(planningEvent);
+        }
+
+        const updateData: Record<string, unknown> = { ...body };
+        if (curSequence !== locked.eventSequence) {
+          updateData.eventSequence = curSequence;
+        }
+
+        const updatedSession = await tx.gameSession.update({
+          where: { id: sessionId },
+          data: updateData,
+          include: { game: { select: { name: true } } },
+        });
+
+        return { updated: updatedSession, eventsToBroadcast: events };
       });
 
-      if (body.hiderLat !== undefined || body.hiderLng !== undefined) {
+      for (const e of eventsToBroadcast) {
         broadcast(sessionId, {
-          type: "hider.update",
-          payloadJson: { hiderLat: updated.hiderLat, hiderLng: updated.hiderLng },
-        });
-      }
-
-      if (body.planningModeEnabled !== undefined) {
-        broadcast(sessionId, {
-          type: "planning.toggle",
-          payloadJson: { planningModeEnabled: updated.planningModeEnabled },
+          id: e.id,
+          sessionId: e.sessionId,
+          userId: e.userId,
+          sequence: e.sequence,
+          type: e.type,
+          payloadJson: e.payloadJson,
+          clientUuid: e.clientUuid,
+          clientCreatedAt: e.clientCreatedAt.toISOString(),
+          serverReceivedAt: e.serverReceivedAt.toISOString(),
         });
       }
 
@@ -434,6 +731,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       if (!isCreator) throw forbidden("Only the creator can delete the session");
 
       await prisma.gameSession.delete({ where: { id: sessionId } });
+      closeSessionStreams(sessionId);
       return reply.status(204).send();
     },
   );
@@ -491,6 +789,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         where: { sessionId_userId: { sessionId, userId: targetUserId } },
         data: { revokedAt: new Date() },
       });
+      closeUserStreams(sessionId, targetUserId);
 
       return reply.status(204).send();
     },
@@ -548,7 +847,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       const { invitedUserId, inviteType = "join" } = req.body as { invitedUserId: string; inviteType?: "join" | "fork" };
 
-      const { isCreator } = await resolveParticipant(sessionId, user.discordId);
+      const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (!isCreator) throw forbidden("Only the creator can send invites");
       if (invitedUserId === user.discordId) throw conflict("Cannot invite yourself");
 
@@ -575,7 +874,11 @@ export async function sessionRoutes(app: FastifyInstance) {
             data: { sessionId, invitedUserId, invitedByUserId: user.discordId, inviteType },
           });
           await tx.inviteSnapshot.create({
-            data: { inviteId: created.id, questions },
+            data: {
+              inviteId: created.id,
+              questions,
+              gameRevisionId: session.gameRevisionId,
+            },
           });
           return created;
         });
@@ -606,6 +909,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         where: { sessionId_userId: { sessionId, userId: user.discordId } },
         data: { revokedAt: new Date() },
       });
+      closeUserStreams(sessionId, user.discordId);
 
       req.log.info({ sessionId, userId: user.discordId }, "[sessions] participant left session");
       void session;
@@ -666,7 +970,13 @@ export async function sessionRoutes(app: FastifyInstance) {
           const created = await tx.sessionLink.create({
             data: { token, sessionId, createdById: user.discordId, linkType },
           });
-          await tx.linkSnapshot.create({ data: { linkId: created.id, questions } });
+          await tx.linkSnapshot.create({
+            data: {
+              linkId: created.id,
+              questions,
+              gameRevisionId: session.gameRevisionId,
+            },
+          });
           return created;
         });
         req.log.info({ sessionId, linkId: link.id }, "[links] fork link created");

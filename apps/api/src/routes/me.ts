@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
-import type { MeResponse, UserPreferences } from "@taibled/shared";
+import type { MeResponse, UserPreferences } from "@searchlight/shared";
 import { resolveSession } from "../lib/session.js";
 import prisma from "../lib/prisma.js";
 
@@ -26,7 +26,7 @@ export async function meRoute(app: FastifyInstance) {
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
-      app.log.info({ userId: user.discordId }, "[taibled:prefs] saving preferences");
+      app.log.info({ userId: user.discordId }, "[searchlight:prefs] saving preferences");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await prisma.user.update({
         where: { discordId: user.discordId },

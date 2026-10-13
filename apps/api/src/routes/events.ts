@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { subscribe, addPresence, removePresence, getPresence } from "../lib/broadcaster.js";
-import type { PresenceUser } from "@taibled/shared";
+import { subscribe, addPresence, removePresence, getPresence, registerUserStream } from "../lib/broadcaster.js";
+import type { PresenceUser } from "@searchlight/shared";
 import { env } from "../lib/env.js";
 
 async function assertParticipant(sessionId: string, userId: string) {
@@ -19,15 +19,15 @@ async function assertParticipant(sessionId: string, userId: string) {
 }
 
 export async function eventRoutes(app: FastifyInstance) {
-  // GET /sessions/:sessionId/events?since=<ISO timestamp>
+  // GET /sessions/:sessionId/events/cursor — returns { sequence: number }
   app.get(
-    "/:sessionId/events",
+    "/:sessionId/events/cursor",
     {
       schema: {
         params: Type.Object({ sessionId: Type.String() }),
-        querystring: Type.Object({
-          since: Type.Optional(Type.String()),
-        }),
+        response: {
+          200: Type.Object({ sequence: Type.Integer() }),
+        },
       },
     },
     async (req) => {
@@ -35,28 +35,85 @@ export async function eventRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await assertParticipant(sessionId, user.discordId);
 
-      const { since } = req.query as { since?: string };
-      const sinceDate = since ? new Date(since) : new Date(0);
-
-      const events = await prisma.event.findMany({
-        where: {
-          sessionId,
-          serverReceivedAt: { gt: sinceDate },
-        },
-        orderBy: { serverReceivedAt: "asc" },
+      const session = await prisma.gameSession.findUnique({
+        where: { id: sessionId },
+        select: { eventSequence: true },
       });
+      if (!session) throw Object.assign(new Error("Session not found"), { statusCode: 404 });
 
       return {
-        events: events.map((e: typeof events[number]) => ({
+        sequence: session.eventSequence ?? 0,
+      };
+    },
+  );
+
+  // GET /sessions/:sessionId/events?after=<nonnegative integer>&limit=<1..250>
+  app.get(
+    "/:sessionId/events",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String() }),
+        querystring: Type.Object({
+          after: Type.Optional(Type.Integer({ minimum: 0 })),
+          limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 250 })),
+        }),
+        response: {
+          200: Type.Object({
+            events: Type.Array(
+              Type.Object({
+                id: Type.String(),
+                sessionId: Type.String(),
+                userId: Type.String(),
+                sequence: Type.Integer(),
+                type: Type.String(),
+                payloadJson: Type.Unknown(),
+                clientUuid: Type.String(),
+                clientCreatedAt: Type.String(),
+                serverReceivedAt: Type.String(),
+              }),
+            ),
+            nextAfter: Type.Union([Type.Integer(), Type.Null()]),
+          }),
+        },
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+      await assertParticipant(sessionId, user.discordId);
+
+      const query = req.query as { after?: number; limit?: number };
+      const after = query.after ?? 0;
+      const limit = query.limit ?? 50;
+
+      const rows = await prisma.event.findMany({
+        where: {
+          sessionId,
+          sequence: { gt: after },
+        },
+        orderBy: {
+          sequence: "asc",
+        },
+        take: limit + 1,
+      });
+
+      const hasMore = rows.length > limit;
+      const events = hasMore ? rows.slice(0, limit) : rows;
+      const nextAfter = hasMore && events.length > 0 ? events[events.length - 1].sequence : null;
+
+      return {
+        events: events.map((e) => ({
           id: e.id,
           sessionId: e.sessionId,
           userId: e.userId,
+          sequence: e.sequence,
           type: e.type,
           payloadJson: e.payloadJson,
           clientUuid: e.clientUuid,
           clientCreatedAt: e.clientCreatedAt.toISOString(),
           serverReceivedAt: e.serverReceivedAt.toISOString(),
         })),
+        nextAfter,
       };
     },
   );
@@ -95,7 +152,38 @@ export async function eventRoutes(app: FastifyInstance) {
       reply.raw.write("retry: 3000\n\n");
       req.log.info({ sessionId, userId: user.discordId }, "[sse] headers sent, stream open");
 
-      const unsubscribe = subscribe(sessionId, (event) => {
+      let isClosed = false;
+      let keepAlive: NodeJS.Timeout | null = null;
+      let unsubscribe: (() => void) | null = null;
+      let unregisterStream: (() => void) | null = null;
+
+      const doClose = () => {
+        if (isClosed) return;
+        isClosed = true;
+        if (unsubscribe) {
+          unsubscribe();
+          unsubscribe = null;
+        }
+        if (unregisterStream) {
+          unregisterStream();
+          unregisterStream = null;
+        }
+        removePresence(sessionId, user.discordId);
+        if (keepAlive) {
+          clearInterval(keepAlive);
+          keepAlive = null;
+        }
+        try {
+          reply.raw.end();
+        } catch {
+          // ignore
+        }
+      };
+
+      unregisterStream = registerUserStream(sessionId, user.discordId, doClose);
+
+      unsubscribe = subscribe(sessionId, (event) => {
+        if (isClosed) return;
         req.log.info({ sessionId, eventType: event.type }, "[sse] pushing event to client");
         reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
       });
@@ -108,18 +196,16 @@ export async function eventRoutes(app: FastifyInstance) {
       // Register presence — broadcasts presence.join to all subscribers including this client
       addPresence(sessionId, presenceUser);
 
-      const keepAlive = setInterval(() => {
+      keepAlive = setInterval(() => {
+        if (isClosed) return;
         req.log.debug({ sessionId }, "[sse] ping");
         reply.raw.write(": ping\n\n");
       }, 25_000);
 
       req.raw.on("close", () => {
         req.log.info({ sessionId, userId: user.discordId }, "[sse] client disconnected");
-        unsubscribe();
-        removePresence(sessionId, user.discordId);
-        clearInterval(keepAlive);
+        doClose();
       });
-
       await reply.hijack();
     },
   );

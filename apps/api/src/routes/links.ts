@@ -52,6 +52,7 @@ export async function linkRoutes(app: FastifyInstance) {
           ordinal: number;
           clientUuid: string;
         }>;
+        const targetRevisionId = link.snapshot?.gameRevisionId ?? link.session.gameRevisionId;
         const newSession = await prisma.$transaction(async (tx) => {
           const created = await tx.gameSession.create({
             data: {
@@ -60,6 +61,7 @@ export async function linkRoutes(app: FastifyInstance) {
               creatorId: user.discordId,
               name: `Copy of ${link.session.name}`,
               visibility: "private",
+              gameRevisionId: targetRevisionId,
             },
           });
           await tx.sessionParticipant.create({

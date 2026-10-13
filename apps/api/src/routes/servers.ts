@@ -6,7 +6,6 @@ import { getUserPermissions } from "../lib/permissions.js";
 import { requirePermission } from "../lib/require-permission.js";
 import { discord, type DiscordRole } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
-import { VIRTUAL_SERVER_IDS } from "../lib/game-gates.js";
 
 const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
@@ -36,12 +35,7 @@ export async function serverRoutes(app: FastifyInstance) {
 
       const settled = await Promise.allSettled(
         servers.map(async (server) => {
-          // Virtual servers (e.g. Home Games) have no real Discord guild, so a
-          // permission lookup would hit Discord with a bogus guild id and throw,
-          // dropping the server from the list. They carry no server-level perms.
-          const perms = VIRTUAL_SERVER_IDS.has(server.id)
-            ? new Set<string>()
-            : await getUserPermissions(user.discordId, server.id, false, req.log);
+          const perms = await getUserPermissions(user.discordId, server.id, false, req.log);
           return {
             id: server.id,
             name: server.name,

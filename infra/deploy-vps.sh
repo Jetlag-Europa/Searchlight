@@ -15,15 +15,5 @@ docker compose \
 echo "VPS production stack updated."
 docker compose --project-name writemap ps
 
-# Game rows are NOT created by the deploy. The api container runs
-# `prisma migrate deploy` on boot, which applies schema changes only — a new
-# bundled game in GAME_REGISTRY needs the seed run explicitly, or it will show
-# up in the web bundle and then fail to activate for lack of a Game row.
-# The seed upserts by sentinelValue, so re-running it is safe and idempotent.
-cat <<'EOF'
-
-If this deploy added or changed a bundled game, register it now:
-
-  docker compose --project-name writemap exec api sh -c 'cd /app/apps/api && pnpm seed:prod'
-
-EOF
+# Game definitions in games/preloaded/ are automatically preloaded by the api
+# container on boot.

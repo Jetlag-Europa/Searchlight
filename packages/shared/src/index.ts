@@ -1,4 +1,6 @@
+import type { ValidationIssue } from "./game-definition/index.js";
 export * from "./games.js";
+export * from "./game-definition/index.js";
 
 // ── Auth / User ──────────────────────────────────────────────────────────────
 
@@ -69,18 +71,38 @@ export interface ServerRolesResponse {
 
 export interface Game {
   id: string;
+  gameKey: string;
   serverId: string;
   name: string;
-  sentinelValue: string;
-  kmlPath: string;
-  mapLocationJson: unknown; // OpenStreetMap Feature JSON
-  hidingRadius: number;
-  hidingRadiusUnits: "miles" | "kilometers";
-  tierRadiusOverrides?: Record<string, number> | null;
   size: "small" | "medium" | "large";
-  hidingZoneGeoJsonPath?: string | null;
+  currentRevisionId?: string | null;
+  archivedAt?: string | null;
 }
 
+export interface GameRevisionSummary {
+  id: string;
+  gameId: string;
+  revision: number;
+  formatVersion: number;
+  checksum: string;
+  source: string;
+  createdBy: string | null;
+  createdAt: string;
+}
+
+export interface GameImportResponse {
+  status: "created" | "updated" | "unchanged";
+  gameId: string;
+  gameKey: string;
+  revision: number;
+  checksum: string;
+  errors: ValidationIssue[];
+  warnings: ValidationIssue[];
+}
+
+export interface GameRevisionsResponse {
+  revisions: GameRevisionSummary[];
+}
 export interface GamesResponse {
   games: Game[];
 }
@@ -88,18 +110,12 @@ export interface GamesResponse {
 export interface CreateGameBody {
   serverId: string;
   name: string;
-  sentinelValue: string;
-  kmlPath: string;
-  mapLocationJson: unknown;
-  hidingRadius: number;
-  hidingRadiusUnits: "miles" | "kilometers";
+  gameKey?: string;
   size?: "small" | "medium" | "large";
 }
 
 export interface UpdateGameBody {
   name?: string;
-  hidingRadius?: number;
-  hidingRadiusUnits?: "miles" | "kilometers";
   size?: "small" | "medium" | "large";
 }
 
@@ -119,8 +135,11 @@ export interface GameSessionSummary {
   hiderLat: number | null;
   hiderLng: number | null;
   planningModeEnabled: boolean;
+  gameRevisionId?: string | null;
+  sessionRevision?: number | null;
+  currentRevision?: number | null;
+  hasNewerRevision?: boolean;
 }
-
 export interface SessionParticipantDetail {
   userId: string;
   displayName: string;
@@ -293,7 +312,7 @@ export interface QuestionsResponse {
 
 export interface ReplaceQuestionsBody {
   questions: QuestionRecord[];
-  replacementId?: string;
+  replacementId: string;
 }
 
 // ── Presence ─────────────────────────────────────────────────────────────────
@@ -319,12 +338,20 @@ export interface PlanningToggleEvent {
   payloadJson: { planningModeEnabled: boolean };
 }
 
-// ── Events ────────────────────────────────────────────────────────────────────
+export interface SessionRevisionUpgradedEvent {
+  type: "session.revision-upgraded";
+  payloadJson: {
+    sessionId: string;
+    gameRevisionId: string;
+    revision: number;
+  };
+}
 
 export interface EventRecord {
   id: string;
   sessionId: string;
   userId: string;
+  sequence: number;
   type: string;
   payloadJson: unknown;
   clientUuid: string;
@@ -334,4 +361,9 @@ export interface EventRecord {
 
 export interface EventsResponse {
   events: EventRecord[];
+  nextAfter: number | null;
+}
+
+export interface EventCursorResponse {
+  sequence: number;
 }
