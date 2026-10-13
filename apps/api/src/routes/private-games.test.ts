@@ -227,9 +227,9 @@ describe("Private (unlisted) games and game links", () => {
     let token: string;
     let linkId: string;
 
-    test("only managers create links, and only for unlisted games", async () => {
+    test("only managers create links", async () => {
       expect((await request("member", "POST", `/games/${PRIVATE_KEY}/links`, {})).statusCode).toBe(404);
-      expect((await request("editor", "POST", `/games/${LISTED_KEY}/links`, {})).statusCode).toBe(409);
+      expect((await request("member", "POST", `/games/${LISTED_KEY}/links`, {})).statusCode).toBe(403);
 
       const res = await request("uploader", "POST", `/games/${PRIVATE_KEY}/links`, {
         label: "Friends",
@@ -328,7 +328,7 @@ describe("Private (unlisted) games and game links", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    test("making a game public revokes its links and opens it to members", async () => {
+    test("making a game public opens it to members and keeps its links", async () => {
       const { token } = (
         await request("uploader", "POST", `/games/${PRIVATE_KEY}/links`, {})
       ).json();
@@ -337,7 +337,8 @@ describe("Private (unlisted) games and game links", () => {
       expect(res.statusCode).toBe(200);
       expect(res.json()).toMatchObject({ listing: "listed", canManage: true });
 
-      expect((await request(null, "GET", `/links/${token}`)).json()).toEqual({ valid: false });
+      expect((await request(null, "GET", `/links/${token}`)).json()).toMatchObject({ valid: true });
+      expect((await request("stranger", "POST", `/links/${token}/redeem`)).statusCode).toBe(200);
       expect(await gameKeysFor("member")).toContain(PRIVATE_KEY);
       const session = await request("member", "POST", "/sessions", {
         gameId: PRIVATE_KEY,
@@ -367,6 +368,27 @@ describe("Private (unlisted) games and game links", () => {
         expect(res.statusCode).toBe(200);
         expect(res.json().status).toBe("upgraded");
       }
+    });
+
+    test("a public game's link lets non-members start and follow sessions of it", async () => {
+      const link = await request("editor", "POST", `/games/${LISTED_KEY}/links`, {});
+      expect(link.statusCode).toBe(201);
+      const listedSession = { gameId: LISTED_KEY, name: "Direct", visibility: "private" };
+      expect((await request("outsider", "POST", "/sessions", listedSession)).statusCode).toBe(403);
+
+      const redeemed = await request("outsider", "POST", `/links/${link.json().token}/redeem`);
+      expect(redeemed.statusCode).toBe(200);
+      const { sessionId } = redeemed.json();
+
+      const update = await importAs(
+        "creator",
+        definition(LISTED_KEY, "Listed Game v2"),
+        "?allowUpdate=true",
+      );
+      expect(update.json().status).toBe("updated");
+      const upgrade = await request("outsider", "POST", `/sessions/${sessionId}/upgrade-revision`);
+      expect(upgrade.statusCode).toBe(200);
+      expect(upgrade.json().status).toBe("upgraded");
     });
 
     test("a non-member's session without the grant cannot follow a public game", async () => {

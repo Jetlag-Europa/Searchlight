@@ -96,7 +96,7 @@ function GameLinks({ game }: { game: Game }) {
         <div className="mt-3 pt-3 border-t border-border space-y-2">
             <p className="text-xs text-muted-foreground">
                 Anyone with a link can start their own session of this game, as often as they
-                like, without seeing it in the game list.
+                like, without being a member of this server.
             </p>
             {links?.map((link) => (
                 <div key={link.id} className="flex items-center justify-between gap-2 text-xs">
@@ -169,7 +169,7 @@ function GameCard({
         if (
             listing === "listed" &&
             !confirm(
-                `Make "${game.name}" public? It will appear in the game list, and its private links stop working.`,
+                `Make "${game.name}" public? It will appear in the game list.`,
             )
         )
             return;
@@ -179,7 +179,6 @@ function GameCard({
                 method: "PATCH",
                 body: JSON.stringify({ listing }),
             });
-            setShowLinks(false);
             onChanged(updated);
         } catch (e: unknown) {
             setError((e as Error).message);
@@ -225,7 +224,7 @@ function GameCard({
                     {error && <p className="text-xs text-destructive mt-1">{error}</p>}
                 </div>
                 <div className="flex flex-wrap justify-end gap-2 shrink-0">
-                    {isPrivate && game.canManage && (
+                    {game.canManage && (
                         <Button
                             size="sm"
                             variant="outline"

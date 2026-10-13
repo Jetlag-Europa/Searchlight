@@ -27,7 +27,8 @@ import { GameManager } from "@/components/GameManager";
             Manage game definitions for each JetLag server.
             Only servers where you hold <code>games.create</code>, <code>games.create-unlisted</code>,
             <code>games.edit</code>, or <code>games.delete</code> permissions are shown.
-            Private games stay out of the game list; players start them from game links.
+            Private games stay out of the game list. Game links let anyone start a session
+            of a game, private or not, without being a member of its server.
         </p>
         <GameManager client:only="react" />
     </main>

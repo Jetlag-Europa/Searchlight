@@ -257,7 +257,7 @@ export interface CreateLinkResponse {
   token: string;
 }
 
-// "game" links start a new session of an unlisted game on each use.
+// "game" links start a new session of their game (listed or not) on each use.
 export type LinkType = "join" | "fork" | "game";
 
 export interface LinkInfoResponse {

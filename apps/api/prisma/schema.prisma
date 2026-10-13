@@ -128,9 +128,9 @@ model Game {
   @@index([ownerId])
 }
 
-// A reusable link that starts a new session of an unlisted game each time it
-// is redeemed. Tokens carry a "g_" prefix so /links can tell them apart from
-// SessionLink tokens.
+// A reusable link that starts a new session of its game (listed or not) each
+// time it is redeemed, without server membership or role-gate checks. Tokens
+// carry a "g_" prefix so /links can tell them apart from SessionLink tokens.
 model GameLink {
   id          String    @id @default(cuid())
   token       String    @unique
@@ -197,9 +197,10 @@ model GameSession {
   hiderLng            Float?
   planningModeEnabled Boolean       @default(false)
   gameRevisionId      String
-  // Granted through a game link: started from one, or forked from a session of
-  // a private game. Such a session follows its game to new revisions without
-  // its creator having access to the game, even after the game is made public.
+  // Granted its game: started from a game link, or forked from a granted
+  // session or a private game's session. Such a session follows its game to
+  // new revisions without its creator having access to the game, whether or
+  // not the game is listed.
   followsGame         Boolean       @default(false)
   eventSequence       Int           @default(0)
   createdAt           DateTime      @default(now())

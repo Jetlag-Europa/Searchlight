@@ -44,10 +44,10 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
 
-    // Game links ("g_" tokens) start a new session of a private game.
+    // Game links ("g_" tokens) start a new session of their game.
     if (token?.startsWith("g_")) {
         $("invalid-title").textContent = "Link no longer active";
-        $("invalid-text").textContent = "This game link has been revoked or the game is no longer private.";
+        $("invalid-text").textContent = "This game link has been revoked.";
     }
 
     if (!token) {
@@ -67,7 +67,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
 
             const copy = {
                 game: {
-                    label: "Private game",
+                    label: "You're invited to play",
                     title: linkInfo.gameName,
                     subtitle: "Start your own session of this game",
                     action: "Start a session",

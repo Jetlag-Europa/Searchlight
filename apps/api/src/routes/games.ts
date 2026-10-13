@@ -163,8 +163,7 @@ export async function gameRoutes(app: FastifyInstance) {
   );
 
   // PATCH /games/:gameId — change a game's listing. Managers may unlist a game;
-  // listing one needs games.create or games.edit. Listing revokes the game's
-  // links: a listed game is for its server's members.
+  // listing one needs games.create or games.edit. Its links keep working.
   app.patch(
     "/:gameId",
     {
@@ -189,15 +188,7 @@ export async function gameRoutes(app: FastifyInstance) {
         throw forbidden("You can only keep games private on this server");
       }
 
-      const updated = await prisma.$transaction(async (tx) => {
-        if (listing === "listed") {
-          await tx.gameLink.updateMany({
-            where: { gameId: game.id, revokedAt: null },
-            data: { revokedAt: new Date() },
-          });
-        }
-        return tx.game.update({ where: { id: game.id }, data: { listing } });
-      });
+      const updated = await prisma.game.update({ where: { id: game.id }, data: { listing } });
       return serializeGame(updated, user.discordId, perms);
     },
   );
@@ -266,7 +257,7 @@ export async function gameRoutes(app: FastifyInstance) {
   );
 
   // POST /games/:gameId/links — create a game link (managers only). Each
-  // redemption starts a new session; only unlisted games have links.
+  // redemption starts a new session, listed game or not.
   app.post(
     "/:gameId/links",
     {
@@ -285,9 +276,6 @@ export async function gameRoutes(app: FastifyInstance) {
       const { gameId } = req.params as { gameId: string };
       const label = (req.body as { label?: string } | undefined)?.label?.trim() || null;
       const { game } = await resolveManagedGame(gameId, user.discordId, req.log);
-      if (game.listing !== "unlisted") {
-        throw Object.assign(new Error("Only private games have game links"), { statusCode: 409 });
-      }
 
       const link = await prisma.gameLink.create({
         data: {

@@ -11,14 +11,14 @@ function forbidden(msg = "Forbidden") {
   return Object.assign(new Error(msg), { statusCode: 403 });
 }
 
-// A game link works while it is unrevoked and its game is unlisted and has a
-// revision to start a session on.
+// A game link works while it is unrevoked and its game has a revision to
+// start a session on.
 async function findRedeemableGameLink(token: string) {
   const link = await prisma.gameLink.findUnique({
     where: { token },
     include: { game: true },
   });
-  if (!link || link.revokedAt || link.game.listing !== "unlisted") return null;
+  if (!link || link.revokedAt) return null;
   const gameRevisionId = link.game.currentRevisionId;
   return gameRevisionId ? { ...link, gameRevisionId } : null;
 }
