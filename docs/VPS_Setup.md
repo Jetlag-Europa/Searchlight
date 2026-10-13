@@ -36,7 +36,7 @@ VPS — `cloudflared` is the only ingress.
    Azure VPS (Ubuntu 24.04, aarch64)  ── docker compose -p writemap ──
      ├── cloudflared  → http://web:80, http://api:3000  (internal net)
      ├── web    (nginx, static Astro build)
-     ├── api    (Fastify; runs `prisma migrate deploy` on boot)
+     ├── api    (Fastify; on boot: migrate, create missing servers, import games)
      └── postgres (volume: writemap_postgres_data)   NO host ports
 
    Mac mini (stays up)
@@ -127,6 +127,14 @@ docker-compose.vps.yml up -d --build`. **`PUBLIC_API_BASE` is baked into the web
 bundle at build time**, so a hostname change requires a rebuild (`--build`), not
 just a restart.
 
+On every start the `api` container runs `prisma migrate deploy`, creates any
+Discord servers missing from the database (`seed.js --missing-only`; existing
+servers and role mappings are left alone), then starts Fastify, which imports
+every `games/preloaded/*.game.json`. Game additions and edits therefore ship
+with a normal deploy: changed content becomes a new revision, running sessions
+stay on the revision they started with, and a file that fails to import is
+logged (`Failed to preload game definition`) and skipped.
+
 ### Status / logs
 ```bash
 docker compose -p writemap ps
@@ -144,6 +152,19 @@ Nightly via cron at 03:00 (`crontab -l`):
 ```bash
 sg docker -c 'WRITEMAP_BACKUP_DIR=/srv/WriteMap/backups WRITEMAP_COMPOSE_DIR=/srv/WriteMap/TaibledFork bash infra/backup.sh'
 ```
+
+### Reset the database (fresh start)
+Deletes every session, account and game revision; take a backup first. The
+October 2026 release (JSON game definitions with pinned revisions) ships with a
+reset: sessions from before it cannot be loaded.
+```bash
+sg docker -c 'WRITEMAP_BACKUP_DIR=/srv/WriteMap/backups WRITEMAP_COMPOSE_DIR=/srv/WriteMap/TaibledFork bash infra/backup.sh'
+docker compose -p writemap -f docker-compose.yml -f docker-compose.vps.yml down
+docker volume rm writemap_postgres_data
+sg docker -c 'bash infra/deploy-vps.sh'
+```
+The API rebuilds the schema, the servers and the games on boot. Everyone logs in
+again; role mappings changed through the admin UI must be redone.
 
 ### Restore a dump (into a fresh volume)
 ```bash
@@ -163,6 +184,7 @@ All filled and verified. Highlights:
 - `POSTGRES_PASSWORD` / `DATABASE_URL` — same password (fresh volume).
 - `DISCORD_CLIENT_SECRET` / `DISCORD_BOT_TOKEN` / `DISCORD_FEEDBACK_WEBHOOK_URL`.
 - `SESSION_COOKIE_SECRET` — reused from Mac mini prod so restored sessions stayed valid.
+- `ADMIN_DISCORD_IDS` — Discord user IDs that get every permission on every server.
 - `DISCORD_REDIRECT_URI=https://api-searchlight.jetlageuropa.org/auth/discord/callback`
   (must match the Discord developer portal — already registered).
 - `OVERPASS_CF_ACCESS_CLIENT_ID` / `_SECRET` — Cloudflare Access service token for
@@ -178,6 +200,8 @@ All filled and verified. Highlights:
 - **No host ports.** Do not add `docker-compose.prod.yml` here — that publishes
   ports you don't want on a public VPS.
 - **`PUBLIC_API_BASE` baked at build time** — rebuild web on any API hostname change.
+- **Overpass is only used for free play** (no game selected) and OSM boundary
+  lookups; games carry their own data and never query it.
 - **CF-Access headers only go to `OVERPASS_URL`** (the private Mac mini Overpass);
   public Overpass fallbacks get a plain `User-Agent`. If the Mac mini Overpass is
   down, queries fall back to public servers (slower, may time out).
@@ -185,7 +209,7 @@ All filled and verified. Highlights:
   `config.yml`.
 - **Two-level subdomains need paid ACM** — keep public hostnames one label deep
   under `jetlageuropa.org` to stay on free Universal SSL.
-- **Mac mini Overpass must stay up** — the VPS depends on it.
+- **Mac mini Overpass should stay up** — free play on the VPS depends on it.
 
 ---
 
@@ -196,6 +220,6 @@ All filled and verified. Highlights:
 2. **Tunnel:** dashboard/token-based → **locally-managed** (CLI-created tunnel,
    credentials + ingress in `/srv/WriteMap/cloudflared/`, no `TUNNEL_TOKEN`).
 
-These required edits to `docker-compose.vps.yml` (web build arg + the `cloudflared`
-service) that are currently **uncommitted on the VPS clone** — see
-[`../summary.md`](../summary.md) for the diff and what to fold back into `master`.
+Both are committed: `docker-compose.vps.yml` bakes the `api-searchlight` host
+into the web build and runs the `cloudflared` service from the mounted config,
+and `.env.vps.example` carries the matching hosts.

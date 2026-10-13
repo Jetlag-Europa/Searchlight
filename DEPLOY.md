@@ -1,12 +1,24 @@
 # Deployment — Mac mini M1
 
-Everything runs on the Mac mini M1 — both the code you write and the two live
-stacks. Docker Compose runs `postgres`, `api`, and `web` as three services per
+> **Production moved to the Azure VPS on 2026-06-24.** The live production stack
+> is documented in [`docs/VPS_Setup.md`](docs/VPS_Setup.md)
+> (`searchlight.jetlageuropa.org`). This document covers the Mac mini stacks: the
+> **dev** stack, and the former **prod** stack, kept as the rollback target (see
+> [`docs/VPS_MIGRATION.md`](docs/VPS_MIGRATION.md#rollback)). The Mac mini also
+> hosts the self-hosted Overpass that the VPS uses for free play.
+
+On the Mac mini M1 run both the code you write and the two stacks described
+here. Docker Compose runs `postgres`, `api`, and `web` as three services per
 stack. Cloudflare + Nginx Proxy Manager on FleetCommand terminate TLS and proxy
 to the M1 over the LAN.
 
 Two stacks run in parallel — **prod** and **dev** — each fully isolated by Docker
 project names, separate volumes, and separate host ports.
+
+**Naming compatibility:** Searchlight branding does not migrate the `taibled`
+database, `taibled` / `taibled_dev` roles, persisted state, `TaibledFork`
+deployment paths, or Compose project/volume names. Keep existing configured
+`.env` values when upgrading; do not recreate volumes for the rename.
 
 ---
 
@@ -49,9 +61,11 @@ Dev can be redeployed as often as you like without touching prod.
 
 | Service | Prod host port | Dev host port |
 |---|---|---|
-| API | `127.0.0.1:3000` | `127.0.0.1:3100` |
-| Web | `127.0.0.1:8080` | `127.0.0.1:8180` |
-| Postgres | not exposed | not exposed |
+| API | `3000` (all interfaces, for the LAN proxy) | `3100` (all interfaces) |
+| Web | `8080` (all interfaces) | `8180` (all interfaces) |
+| Postgres | `127.0.0.1:5435` | `127.0.0.1:5434` |
+
+Postgres is published on loopback only, for local tools on the M1.
 
 ---
 
@@ -82,7 +96,7 @@ Dev can be redeployed as often as you like without touching prod.
 ### 1. Clone and configure
 
 ```bash
-git clone <repo-url> /srv/WriteMap
+git clone <repo-url> /srv/WriteMap/TaibledFork
 cd /srv/WriteMap/TaibledFork
 cp .env.example .env
 nano .env          # fill in production values (see table below)
@@ -96,12 +110,15 @@ Key values for production:
 | `DATABASE_URL` | `postgresql://taibled:<pw>@postgres:5432/taibled` |
 | `DISCORD_CLIENT_ID` | from Discord developer portal |
 | `DISCORD_CLIENT_SECRET` | from Discord developer portal |
+| `DISCORD_BOT_TOKEN` | **required** — the API won't start without it; membership and roles are read with the bot, which must be in every game server |
 | `DISCORD_REDIRECT_URI` | `https://apihideandseek.lucifersserver.com/auth/discord/callback` |
 | `SESSION_COOKIE_SECRET` | `openssl rand -hex 32` |
 | `SESSION_COOKIE_DOMAIN` | `.hideandseek.lucifersserver.com` |
 | `FRONTEND_ORIGIN` | `https://hideandseek.lucifersserver.com` |
 | `PUBLIC_API_BASE` | `https://apihideandseek.lucifersserver.com` |
 | `NODE_ENV` | `production` |
+| `ADMIN_DISCORD_IDS` | optional: comma-separated Discord user IDs with every permission on every server |
+| `OVERPASS_URL` | optional: the self-hosted Overpass, used only for free play (no game); public servers are the fallback |
 
 ### 2. Launch
 
@@ -110,8 +127,11 @@ cd /srv/WriteMap/TaibledFork
 bash infra/deploy-prod.sh
 ```
 
-On first boot, the `api` container runs `prisma migrate deploy` before starting
-Fastify. Subsequent restarts skip the build if images are unchanged.
+On every start, the `api` container runs `prisma migrate deploy`, creates any
+Discord servers missing from the database (`seed.js --missing-only`), then starts
+Fastify, which imports every `games/preloaded/*.game.json`. New or changed games
+therefore ship with the deploy; there is nothing to seed by hand. Subsequent
+deploys skip the build if images are unchanged.
 
 ### 3. Update after a code push
 
@@ -126,7 +146,7 @@ cd /srv/WriteMap/TaibledFork && git pull && bash infra/deploy-prod.sh
 ### 1. Clone and configure
 
 ```bash
-git clone <repo-url> /srv/WriteMap-Dev
+git clone <repo-url> /srv/WriteMap-Dev/TaibledFork
 cd /srv/WriteMap-Dev/TaibledFork
 cp .env.dev.example .env
 nano .env          # fill in dev values
@@ -164,10 +184,12 @@ In the [Discord developer portal](https://discord.com/developers/applications)
 http://localhost:3000/auth/discord/callback
 https://apihideandseek.lucifersserver.com/auth/discord/callback
 https://apidevhideandseek.lucifersserver.com/auth/discord/callback
+https://api-searchlight.jetlageuropa.org/auth/discord/callback
 ```
 
-The first is for local development. Both server URIs use the same Discord app —
-`DISCORD_REDIRECT_URI` in each `.env` tells the API which one to send.
+The first is for local development, the last for production on the VPS. All
+server URIs use the same Discord app — `DISCORD_REDIRECT_URI` in each `.env`
+tells the API which one to send.
 
 ---
 
@@ -209,7 +231,7 @@ Add:
 
 Backups are written to `/srv/WriteMap/backups/` as `writemap-YYYYMMDD-HHMMSS.sql.gz`.
 
-> **Note:** backups are not encrypted at rest. See `PLAN.md` for the open question.
+> **Note:** backups are not encrypted at rest.
 
 ---
 

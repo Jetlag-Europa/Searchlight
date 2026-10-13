@@ -1,5 +1,103 @@
 # Changelog
 
+## Master integration and review fixes (2026-10-13)
+
+Games and data
+- Rebase onto master and bring its later games into the JSON format: Greater Manchester 19-09, North London 26-09 (with its 55 council-listed parks) and Stockholm 19-09. Rotterdam 12-09's municipality-border measuring was already ported. Master's legacy assets, per-game modules and generator scripts are removed. Not carried over: Greater Manchester's library questions (answered live by Overpass, no bundled data) and North London's station-name length (no JSON equivalent).
+- Fix Brno 2026, Brussels 2026 and OLD Luxembourg 2026, whose converted play areas were `[lat, lng]` boxes that put every hiding zone outside the map; they use the OSM boundaries they loaded before the conversion.
+- Normalize every preloaded definition to the authoring guide: decoded names (no CDATA), unique feature IDs, singular Title Case layer names ("Same Ward", "Nearest Golf Course"), single-site layers measuring only, one feature per named line, 6-decimal positions, and lighter Belgium/Milan region layers. Each zone's answers are unchanged.
+- Duplicate layer names are a validation error, and compiled datasets are keyed by layer position, so layers whose names slug alike can't read each other's data.
+
+Server
+- The database is reset with this release: legacy sessions are not migrated, the `convert:legacy-sessions` command is gone, and every session must be pinned to a game revision.
+- Access: creating or upgrading a session needs the game's server membership and role gate; a session only exposes its pinned revision. Server membership is recorded explicitly instead of inferred from any cached role lookup.
+- Imports: authenticate before reading the body, serialize concurrent imports, never rewrite a stored revision (re-importing older content re-activates its revision), constrain game IDs to slugs, and keep preloading the other files when one fails. Container start only creates missing servers, so revoked role mappings stay revoked.
+- Imports to an unregistered server report `SERVER_NOT_FOUND` instead of a permission error. When a game is updated while a session upgrade waits for the session lock, the new revision's access check runs after the lock is released (it can call Discord), and the upgrade retries.
+- Auth diagnostics: `apps/api/scripts/auth-walls.sh` groups 401s by client and time window, since the page-load correlation header is not adopted.
+
+Sync
+- Loading or switching sessions can no longer save one session's questions into another, and restoring a session keeps edits that haven't reached the server.
+- Failed sends retry with backoff while online; remote question changes that land just after our own are applied; flushes run on page hide and tab switch, without keepalive on session switch.
+- Closed event streams reconnect from the last applied event; sessions the server reports gone (403/404) are forgotten along with their cached data, while transient errors keep them. A revision upgrade is published only after its board loads. Storage access is guarded everywhere for privacy modes.
+- The echo of our own question save no longer undoes newer local edits, and a loading session stays read-only until it is reconciled with the server.
+
+Geometry
+- Nearest-line matching builds its partition once per layer in the worker (seconds to minutes per marker move before, now milliseconds after the first).
+- Tentacles use the geodesic radius circle, so a hider just inside the radius isn't eliminated; hider-mode measuring uses the same geodetic distances as the map.
+- Measuring buffers only the features that can reach the map, with a tolerance scaled to the distance, a smaller cache, and stale worker jobs skipped.
+- A refresh that reused geometry a newer marker position superseded starts over instead of reporting "No solutions found".
+- Remove the unused POI override layer and operators; free play rejects game-only question IDs; unpinned game loads always fetch the latest definition.
+
+Interface and tools
+- Radars start at the game's declared radii (Add Question offers one button per radius, the card offers them as quick picks), and matching/measuring/tentacles add a custom question when the game has no layer for them. Export Game JSON in the map drawer exports the revision being played. Sessions still open when the game catalog can't be fetched, the free-play boundary is never fetched while a session's game loads, and the revision banner shows a reactivated older revision as current. The import preview honours the root `unit`, shows radars as off when omitted, shows the thermometer, and lists only servers the user can import to.
+- `check-game.mjs` also flags undecoded (CDATA/entity) names, repeated feature IDs, region layers no zone lies in, out-of-range bounds, numeric tiers and plural layer names, and gains `--strict`. `pnpm verify:preloaded-games` now fails on file name/ID mismatches and on the strict checks. `game-tools.mjs` skips CSV rows without coordinates, coerces numeric KML radii, and throws on missing input or mixed-family layers.
+- The web app passes its ESLint rules.
+- Correct the setup, deployment, testing and authoring docs (required bot token, admin IDs, test database, preloading on boot, production on the VPS).
+
+## Games declare all their questions (2026-10-12)
+
+- A game offers only what its definition declares. Radar and thermometer are now opt-in (`radars: true | [radii]`, `thermometer: true`); every preloaded game already sets both, so none changes.
+- No OpenStreetMap/Overpass fallback inside a game: generic question types (pasted, from the map's context menu, or picked in a card's type list) are rejected or hidden; only the game's compiled questions and player-drawn custom questions remain. Tentacle locations come only from the game's layers.
+- Rewrite the game creation skill (`/skills/create-game.md`) against the actual runtime, and add `game-tools.mjs` (KML/GeoJSON/CSV/OSM conversion and normalization) and `check-game.mjs` (validator-equivalent errors, play-quality warnings, and the generated question list). Point `docs/ADDING_GAMES.md` at it and drop its obsolete Overpass-fallback guidance.
+
+## Luxembourg 2–3 October and load toast (2026-10-01)
+
+- Add the Luxembourg 2–3 October 2026 game. Simplify its canton, former-district and international-border geometry (~11 m tolerance) so measuring stays responsive, and drop matching from its single-site layers (amusement park, aquarium, airport), which always answered "same".
+- Stop the spurious "At least one place type must be selected" toast on session load: hiding-zone initialization now waits for an in-flight game switch instead of treating its transient empty selection as an error.
+
+## Gameplay save fixes (2026-09-25)
+
+- Keep gameplay saves debounced, persist each queued snapshot before network dispatch, and serialize live saves with reconnect replay so failed writes cannot roll back newer answers or settings.
+- Restore hider/planning state from a fresh session snapshot after replay. Use physical POI identity when filtering legacy matching answers inside a hiding zone.
+- Keep the revision notice compact and out of map controls, with confirmation and a plain loading/error state. Resolve revision upgrades under the session lock.
+
+## JSON game session and geometry correctness (2026-09-23)
+
+- Keep matching and tentacle answers tied to physical POI locations even when imported features reuse IDs; repair clustered-point Voronoi partitions and competing-line previews.
+- Measure region-boundary answers against each candidate's own region using the same ArcGIS geodetic metric for the answer and buffer, including candidates outside all regions. Offload hiding-zone intersection filtering and coalesce obsolete refreshes.
+- Preserve unsent edits on session changes, replay commit-ordered paginated events, close revoked SSE streams, and persist content with its event before acknowledging writes.
+- Bound game/session caches and location searches; prevent stale map layers, imports, and question-card edits from overwriting newer state. Keep independent loading operations from unlocking controls prematurely.
+- Keep offline queues and snapshots tied to their verified account; make duplicate and failed PATCH saves retryable, and prevent a create/delete race from resurrecting annotations.
+
+## JSON game planning and performance fixes (2026-09-22)
+
+- Share compiled question geometry between planning and evaluation: restore matching/measuring outlines, line-based matching previews, and clipped tentacle partitions.
+- Cache derived geometry by compiled dataset and position, reuse in-flight work across answer changes, and bound position-cache retention. Run buffering and compiled map clipping in a module worker.
+- Reuse standalone question regions for the combined map instead of evaluating every question twice. Invalidate obsolete map and hiding-zone refreshes, discard stale results, and react directly to planning-mode changes.
+- Deduplicate game-definition loads by game/revision/session, prevent sidebar activation feedback, and keep failed game switches from using previous-game data. Guard session reconciliation against obsolete responses.
+- Handle empty remaining areas, disabled previews/zone filters, and degenerate Voronoi inputs; preserve the previous complete map when a geometry calculation fails.
+
+## Upstream integration (2026-09-11)
+
+- Add Rotterdam 12-09 as a self-contained preloaded JSON definition on JetLag BNL, with nine NS stations for matching/measuring and a dedicated municipal boundary network for nearest-boundary measuring. Keep Exter Rotterdam unchanged; no legacy game wiring or assets are restored.
+- Preserve the shipped 155 hiding spots at 300 m. Upstream September commit descriptions still say 206, but an earlier map revision replaced those spots. Decode source display names correctly in the new definition.
+- Restore the active session after tab storage loss using a durable, tab-preferred pointer. Guard storage getters and methods, and preserve explicit leave behavior across reloads.
+- Log server-side authentication failure reasons and browser request metadata without cookie values or referrers. Do not adopt upstream's global fetch wrapper or page-load correlation patch.
+
+## Searchlight naming (2026-09-11)
+
+- Standardize workspace packages on `@searchlight/*` and the test-only browser hook on `window.__searchlight`.
+- Use Searchlight in log prefixes, the Overpass User-Agent, and product/setup documentation.
+- Preserve existing `taibled-*` browser storage keys, PostgreSQL database/role defaults, deployment paths, and Compose project/volume names. Existing sessions, offline edits, and deployments do not require a naming migration.
+- Keep existing local environment values and deployed directory names; a new local clone may be named `Searchlight`.
+
+## JSON game runtime cleanup (2026-09-07)
+
+- Remove definition type aliases, the `gameId` JSON input alias, game sentinels, redundant caches, and retired platform dataset declarations.
+- Create and update games only through JSON import; require pinned definitions for new sessions and forks. Unconverted sessions do not fall back to the current definition.
+- Remove fuzzy bundled-game POI aliases, the old base64 hiding-zone URL reader, the historical browser-storage migration, and obsolete Brno boundary seeding.
+- Legacy sessions are not migrated: the database is reset when this ships, so sessions created before game revisions existed are dropped rather than converted.
+- Update the game creation skill and published schemas; reject unknown root and feature-layer properties.
+
+## Game definition review fixes (2026-09-07)
+
+- Protect current and historical definitions with authentication, game visibility, and shared-session access checks; reject cross-server game updates.
+- Serve definitions from the database only. Pin session loading and fork snapshots to their selected revision.
+- Preserve station radii, units, and tiers; clear stale stations when changing games.
+- Accept embedded GeoJSON only, reject MultiPoint and malformed geometry, and validate generated question identifiers.
+- Honor disabled radars, keep invalid upload previews usable, and publish valid draft-07 schemas.
+- Add snapshot revision columns without backfilling legacy data. Existing broken sessions and snapshots are not repaired.
+
 ## Phase 2 — Server registration + role mapping + permissions (2026-05-21)
 
 Adds the permission layer: four JetLag Discord servers seeded into the DB,

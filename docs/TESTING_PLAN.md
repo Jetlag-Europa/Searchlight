@@ -3,8 +3,11 @@
 Goal: verify game features (tentacles, matching, measuring, …) **without a human
 opening a browser**. Two layers, both asserting on *geometry*, not pixels:
 
-1. **Logic layer** (Vitest, no browser) — run a question's `adjustPer*` directly
-   in Node and assert on the returned GeoJSON. Fast, deterministic, offline.
+1. **Logic layer** (Vitest, no browser) — evaluate a question directly in Node
+   and assert on the returned GeoJSON: the compiled operators
+   (`apps/web/src/maps/questions/operators/`) for a game's questions, the
+   `adjustPer*` handlers for free play and player-drawn custom questions. Fast,
+   deterministic, offline.
 2. **Integration layer** (Playwright, later) — drive the real Astro/React app,
    read the *computed* GeoJSON back out of the app's nanostores via a `window`
    test hook, and run the same assertions. Catches wiring bugs the logic layer
@@ -31,6 +34,63 @@ Decisions locked with Jules: run **locally on demand** (Mac mini); gate on
 via a **test-only login endpoint**; logic layer fully **fixtured/offline**, e2e
 against an isolated **`writemap-test`** stack with Overpass stubbed.
 
+### JSON game regression coverage
+
+`pnpm --filter @searchlight/web exec vitest run` covers compiled planning/evaluation
+parity, point/line/polygon datasets, clipped tentacle partitions, degenerate
+Voronoi inputs, empty areas, bounded geometry caching and failed-cache retries,
+latest-refresh scheduling, and concurrent pinned game loads.
+
+Browser smoke verification must also exercise the module worker: Node tests
+cannot demonstrate main-thread responsiveness or production worker asset loading.
+Use a large measuring dataset (for example Paris Library, or North London's
+Body of Water lines), alternate answers,
+toggle planning without editing questions, and change the answer while a
+calculation is pending. Confirm the latest answer is rendered, only one
+elimination layer remains, and browser input/timers continue during calculation.
+The Astro/Vite worker output uses ES modules because ArcGIS loads additional
+geometry modules dynamically.
+
+For session synchronization, the API provides an access-checked
+`GET /sessions/:id/events/cursor` before content snapshots. The cursor is a
+per-session commit-ordered sequence, not a client timestamp. Replay pages use
+`GET /sessions/:id/events?after=<sequence>&limit=<1..250>` and buffer live
+events until each page is applied in order. Content and its event commit in one
+transaction; participant revocation closes existing streams. Run
+`pnpm --filter @searchlight/api exec vitest run src/routes/events.test.ts src/routes/session-content.test.ts`
+against an isolated migrated PostgreSQL database when changing this contract.
+The web suite covers old-session gap fills, failed offline edits, save ordering,
+reconnect gaps, and cross-account cache isolation.
+
+For slow devices, profile the shipped Belgium definition with multiple answered
+measuring questions and all 424 hiding zones. Region filtering should leave
+browser timers responsive at a throttled CPU rate; warm timings alone do not
+establish acceptable cold-load latency or memory use on a physical phone.
+
+When running `ENABLE_TEST_AUTH=1` outside the isolated Docker stack, set
+`HOST=127.0.0.1`; the API's normal container default binds to all interfaces.
+
+For line layers with matching enabled, the nearest-line partition is built once
+per layer in the geometry worker (`apps/web/src/maps/geo-utils/lineVoronoi.ts`)
+from points sampled along each line: 25–250 m apart, following the closest
+approach of lines that don't meet, and at most 20,000 samples per layer. The
+seeker's answer is simply its nearest line. Boundaries between lines can
+therefore be off by up to a sample step rather than being an exact segment
+Voronoi (`tests/questions/lineMatching.test.ts`). Test competing lines at the
+game's map scale and do not interpret metre-scale boundary differences as
+precise GPS evidence.
+
+Measuring buffers only the features that can reach the current map from the
+seeker's distance (`geo-utils/bufferReach.ts`); the distance itself is always
+taken over the whole layer. Stale buffer requests for the same question are
+skipped in the worker queue (`geo-utils/workerQueue.ts`).
+
+For containing-region boundary questions, verify the ArcGIS worker in a real
+browser as well as running Turf-mocked unit tests. The automatic hider verdict
+and per-region buffer must use the same ellipsoidal distance model; at the
+equator a one-degree threshold differed from Turf's spherical result by about
+124 metres in a browser reproduction.
+
 ---
 
 ## Phase 1 (done) — what exists, for reference
@@ -44,7 +104,8 @@ against an isolated **`writemap-test`** stack with Overpass stubbed.
   (see "Oracle conditioning" below).
 - **`tentacles.test.ts`** — 8 tests: grid-oracle agreement (well-separated POIs),
   planar-fallback structural checks (clustered POIs, the Entry 35 case),
-  area/radius invariants, and hider resolution.
+  area/radius invariants, and hider resolution. These exercise the free-play
+  handler; a game's tentacles are covered by `tentacleOperator.test.ts`.
 
 Two seams, both documented in-code:
 - `arcBuffer` is **stubbed with `turf.buffer`** via `vi.mock("@/maps/geo-utils")`
@@ -85,8 +146,8 @@ Shipped in `apps/web/tests/questions/`: `oracleCommon.ts` (shared `boundary`,
 `sampleGrid`, `gridAgreement`, `OracleVerdict` — lifted out of
 `tentacleOracle.ts`, which now re-uses them), `debugRender.ts` (SVG-on-failure),
 and `radius.test.ts` / `thermometer.test.ts` / `matching.test.ts` /
-`measuring.test.ts`. Full questions suite **26 green**; web suite **136 green**;
-harness tsc-clean. Findings worth carrying forward:
+`measuring.test.ts` (at the time: questions suite 26 green, web suite 136
+green, harness tsc-clean). Findings worth carrying forward:
 
 - **Thermometer two-point Voronoi is degenerate for an EAST–WEST pair.** With A
   and B on the same latitude, `geoSpatialVoronoi`'s reprojected hemispheres
@@ -100,76 +161,15 @@ harness tsc-clean. Findings worth carrying forward:
   the gap is assigned `warmer` from the cell it's outside of and then eliminated.
   So the test asserts only *directional* consistency (opposite sides ⇒ opposite
   `warmer`), not the survive-your-own-answer invariant.
-- **Bundled-GeoJSON matching is the clean, exact oracle** (containment, no
-  Voronoi, winding-agnostic) — `matching.test.ts` drives the real South Limburg
-  municipalities by stubbing `fetch` to read `public/*.geojson` off disk, and
-  also asserts the asset is a `FeatureCollection` (the Entry 34 bug guard).
+- **Region containment is the clean, exact oracle** (no Voronoi,
+  winding-agnostic) — `matching.test.ts` takes the real South Limburg
+  municipalities from `games/preloaded/south-limburg-2026.game.json` and uses
+  one as a player-drawn custom zone, and also asserts the layer is a
+  `FeatureCollection` (the Entry 34 bug guard).
 - **Faithful stubs for the WASM helpers:** `arcBuffer` → `turf.buffer`;
   `arcBufferToPoint` → min-geodesic-distance-then-buffer-and-union (in miles, the
   helper's `DEFAULT_BUFFER_UNIT`). `modifyMapData`/`holedMask`/`safeUnion` and the
   real Voronoi stay under test.
-- **`adjustPerMeasuring` reads `mapGeoJSON` for a bbox before the type switch** —
-  tests must populate that nanostore even for POI/custom paths.
-
-### Original Phase 2 notes (for reference)
-
-Same recipe as tentacles: build a per-question oracle, grid-sample, assert
-agreement on clear points + invariants, and stub `arcBuffer` where used. Reuse
-`sampleGrid` / the ambiguity pattern from `tentacleOracle.ts` (consider lifting
-the shared bits into `questions/oracleCommon.ts`).
-
-### 2a. Radius — `adjustPerRadius` (`questions/radius.ts`)
-Simplest. Result = base ∩ circle (when `within`) or base − circle (when
-`!within`). Uses `arcBuffer` → **stub it**.
-- **Oracle:** point survives iff `in base ∧ (within === (dist ≤ radius))`.
-- Invariants: `within` result ⊆ circle; `!within` result disjoint from the
-  open circle; area ≤ base.
-- `hiderifyRadius`: hider inside radius ⇒ `within = true`, else `false` (pure
-  distance, easy direct assertions).
-
-### 2b. Thermometer — `adjustPerThermometer` (`questions/thermometer.ts`)
-Two points A,B; `geoSpatialVoronoi` of `[A,B]`; keep cell `[1]` if `warmer`,
-else `[0]`. No `arcBuffer`. **Note:** indexes Voronoi features by position, so
-confirm which of `features[0]/[1]` corresponds to A vs B before writing the
-oracle (don't assume).
-- **Oracle:** "warmer" region = points closer to B than A (the half-plane
-  bisector of A,B); assert survive iff `in base ∧ on the correct side`.
-- Apply the same Mercator edge-margin near the bisector.
-- `hiderifyThermometer`: sets `warmer` from which point the hider is nearer.
-
-### 2c. Matching — `adjustPerMatching` (`questions/matching.ts`)
-Most involved: matching has POI/zone/admin-boundary variants and routes through
-`determineMatchingBoundary` + `geoSpatialVoronoiSafe`. For **POI-category
-matching**, the oracle mirrors tentacles (nearest-POI cell, `same` keeps the
-seeker's cell, `!same` removes it). For **bundled-GeoJSON matching**
-(municipality/postcode/sector), the oracle is exact and winding-agnostic:
-survive iff the point's containing feature equals (or, for `!same`, differs
-from) the seeker's containing feature — no Voronoi, no edge-margin needed.
-- Start with one bundled-GeoJSON game fixture (e.g. South Limburg municipalities
-  or Rotterdam) since it's the cleanest oracle and covers the real Entry 34
-  "municipality doesn't work" class of bug.
-- Guard the **FeatureCollection requirement** for `*-border.geojson` here too
-  (a bare Feature silently no-ops — Entry 34).
-
-### 2d. Measuring — `adjustPerMeasuring` (`questions/measuring.ts`)
-Distance-to-feature bands. Key gotcha from Entry 35: `arcBufferToPoint` distance
-is **0 inside a polygon**, so border-measuring must use the boundary *line*, not
-the filled polygon. Oracle: survive iff `in base ∧ geodesic distance to the
-target feature is on the correct side of the threshold`. Uses arc buffers →
-**stub** the arcgis-backed helpers (`arcBuffer`, `arcBufferToPoint`).
-
-### 2e. Debug-image-on-failure helper (`questions/debugRender.ts`)
-~30–50 lines, **no browser**: given base, POIs, the computed mask, optional
-Voronoi cells + hider, emit a standalone **SVG** (simple lng/lat→viewBox scale)
-to `apps/web/test-results/<scenario>.svg`. Call it from the oracle checker only
-when `failures.length > 0`. This is the human aid for "why did this point
-disagree" — the image is **never the gate**; the numeric assertion is.
-
-### Phase 2 acceptance
-- Each question type has ≥1 grid-oracle test (or exact-containment test where
-  Voronoi isn't involved) with non-vacuous survive/eliminate counts, plus
-  invariants and hider tests.
-- Full `pnpm --filter web test` stays green; no new heavy deps.
 
 ---
 
@@ -182,21 +182,23 @@ live stack):
   `ENABLE_TEST_AUTH=1` (so it doesn't exist in prod). Upserts the user and mints
   a session cookie, skipping Discord. Env flags in `apps/api/src/lib/env.ts`
   (`ENABLE_TEST_AUTH`, `TEST_AUTH_USER_ID`); unit-tested in `auth.test.ts`.
-- **`window.__taibled` hook** — `apps/web/src/lib/testHook.ts`, installed from
+- **`window.__searchlight` hook** — `apps/web/src/lib/testHook.ts`, installed from
   `Map.tsx`, gated by `PUBLIC_ENABLE_TEST_HOOK=1` (a web **build arg**, baked at
-  build time). Exposes live getters for `mapGeoJSON / polyGeoJSON / questions /
-  hiderMode`.
+  build time). Exposes live getters for `mapGeoJSON` (the play area),
+  `eliminationGeoJSON` (the elimination mask the answered questions produce),
+  `polyGeoJSON`, `questions` and `hiderMode`.
 - **Isolated stack** — `docker-compose.test.yml` (project `writemap-test`): own
   Postgres volume, API with `ENABLE_TEST_AUTH=1`, web built with the hook, and a
   stub Overpass. Brought up + seeded by `infra/deploy-test.sh`. Ports: web 8280,
   api 3200, pg 5435. Config in `.env.test` (see `.env.test.example`).
 - **Deterministic seed** — `apps/api/prisma/seed-test.ts` (`pnpm --filter api
-  seed:test`): stable `e2e-test-user` + `e2e-session` on the South Limburg game
-  (its bundled GeoJSON ships in the web image, so boundary/matching questions
-  work offline).
+  seed:test`): stable `e2e-test-user` + `e2e-session` on South Limburg 2026. The
+  API imports the game from `games/preloaded` on boot (run the seed after it
+  is up), and a game's questions use only its own data, so they work offline.
 - **Overpass stub** — `infra/overpass-stub.conf` (nginx): returns a valid-but-
-  empty Overpass payload for any query, so Overpass-backed questions resolve
-  deterministically offline. Richer per-query fixtures can come in Phase 4.
+  empty Overpass payload for any query, so free-play (no game) questions and
+  boundary lookups resolve deterministically offline. Games never query
+  Overpass.
 - **Playwright** — `apps/web/playwright.config.ts` + `e2e/` (`fixtures.ts`,
   `smoke.e2e.ts`). Run with `pnpm --filter web test:e2e` after the stack is up.
 
@@ -219,7 +221,7 @@ live stack):
 
 ## Phases 4–5 — Playwright e2e (summary; detail when we get there)
 - **4. Rendering:** per question type — log in, open the seeded session, set the
-  question, read `window.__taibled.mapGeoJSON`, run the **Phase 1/2 assertions**
+  question, read `window.__searchlight.eliminationGeoJSON`, run the **Phase 1/2 assertions**
   on it, and confirm a tagged `eliminationGeoJSON` Leaflet layer exists in the
   DOM (Leaflet renders SVG by default — no `preferCanvas`).
 - **5. SSE sync:** two browser contexts, same session; an action in A (stroke /
@@ -232,8 +234,8 @@ live stack):
 
 ```
 cd apps/web
-pnpm test                      # all web vitest, incl. tests/questions/
-npx vitest run tests/questions/tentacles.test.ts   # just the question harness
+pnpm exec vitest run                               # all web tests, incl. tests/questions/ (`pnpm test` watches)
+pnpm exec vitest run tests/questions/              # just the question harness
 ```
 
 (Playwright scripts — `pnpm test:e2e`, `pnpm test:e2e:headed` — added in Phase 3.)
