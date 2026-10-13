@@ -11,8 +11,8 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
 
         <div id="invalid" class="hidden flex-col items-center gap-6 text-center max-w-md">
             <div class="flex flex-col gap-2">
-                <h1 class="text-3xl font-bold tracking-tight">Session no longer active</h1>
-                <p class="text-white/60">This game session has ended or the link has been revoked.</p>
+                <h1 id="invalid-title" class="text-3xl font-bold tracking-tight">Session no longer active</h1>
+                <p id="invalid-text" class="text-white/60">This game session has ended or the link has been revoked.</p>
             </div>
             <a href="/" class="text-sm text-white/50 hover:text-white/80 underline">Go to home</a>
         </div>
@@ -44,6 +44,12 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
 
+    // Game links ("g_" tokens) start a new session of a private game.
+    if (token?.startsWith("g_")) {
+        $("invalid-title").textContent = "Link no longer active";
+        $("invalid-text").textContent = "This game link has been revoked or the game is no longer private.";
+    }
+
     if (!token) {
         $("loading").classList.add("hidden");
         showEl("invalid");
@@ -59,16 +65,38 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 return;
             }
 
-            $("session-name").textContent = linkInfo.sessionName;
-            $("game-name").textContent = linkInfo.gameName;
-
-            if (linkInfo.linkType === "fork") {
-                $("link-label").textContent = "Shared with you";
-                $("redeem-label").textContent = me ? "Get your copy" : "Log in to get your copy";
-            } else {
-                $("link-label").textContent = "You're invited to join";
-                $("redeem-label").textContent = me ? "Join session" : "Log in to join";
+            const copy = {
+                game: {
+                    label: "Private game",
+                    title: linkInfo.gameName,
+                    subtitle: "Start your own session of this game",
+                    action: "Start a session",
+                    loginAction: "Log in to start a session",
+                },
+                fork: {
+                    label: "Shared with you",
+                    title: linkInfo.sessionName,
+                    subtitle: linkInfo.gameName,
+                    action: "Get your copy",
+                    loginAction: "Log in to get your copy",
+                },
+                join: {
+                    label: "You're invited to join",
+                    title: linkInfo.sessionName,
+                    subtitle: linkInfo.gameName,
+                    action: "Join session",
+                    loginAction: "Log in to join",
+                },
+            }[linkInfo.linkType] ?? null;
+            if (!copy) {
+                showEl("invalid");
+                return;
             }
+
+            $("link-label").textContent = copy.label;
+            $("session-name").textContent = copy.title;
+            $("game-name").textContent = copy.subtitle;
+            $("redeem-label").textContent = me ? copy.action : copy.loginAction;
 
             showEl("valid");
 
@@ -96,7 +124,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                     window.location.href = "/map";
                 } catch {
                     $("redeem-btn").disabled = false;
-                    $("redeem-label").textContent = linkInfo.linkType === "fork" ? "Get your copy" : "Join session";
+                    $("redeem-label").textContent = copy.action;
                 }
             });
         }).catch(() => {

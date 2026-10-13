@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const games = vi.hoisted(() => ({
     getGameById: vi.fn(),
+    sessionGameOption: vi.fn((s: { gameId: string }) => ({ id: s.gameId })),
     switchToGame: vi.fn<() => Promise<boolean>>(),
 }));
 vi.mock("@/lib/games", () => games);

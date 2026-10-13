@@ -2,7 +2,14 @@ import type { DiscordRole, RolePermissionEntry, ServerRolesResponse,ServersRespo
 import { useCallback,useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"] as const;
+// games.create-unlisted: upload private games (shared by link) and manage your own.
+const PERMISSIONS = [
+  "games.create",
+  "games.create-unlisted",
+  "games.edit",
+  "games.delete",
+  "server.admin",
+] as const;
 
 function ServerCard({ server }: { server: ServerWithPermissions }) {
   const isAdmin = server.permissions.includes("server.admin");

@@ -134,10 +134,32 @@ export function getGameById(id: string): GameOption | undefined {
 }
 
 /**
+ * A session's game as described by the session itself, for games missing from
+ * the caller's catalog. Summaries cached before sessions carried game details
+ * fall back to the session's ids.
+ */
+export function sessionGameOption(
+    session: Pick<
+        GameSessionSummary,
+        "gameId" | "gameName" | "gameKey" | "gameSize" | "serverId"
+    >,
+): GameOption {
+    return {
+        id: session.gameId,
+        gameKey: session.gameKey ?? session.gameId,
+        label: session.gameName,
+        serverId: session.serverId,
+        serverName: session.serverId,
+        size: session.gameSize ?? "medium",
+    };
+}
+
+/**
  * The game a session plays. The server's catalog only names it: participants
  * may load the session's pinned revision without access to that catalog (403
- * for non-members), and a Discord outage fails it too, so fall back to the
- * session's own ids instead of failing the load.
+ * for non-members, and unlisted games started from a game link are never in
+ * it), and a Discord outage fails it too, so fall back to the session's own
+ * description of its game instead of failing the load.
  */
 export async function resolveSessionGame(
     session: GameSessionSummary,
@@ -148,14 +170,8 @@ export async function resolveSessionGame(
     });
     return (
         games.find((game) => game.id === session.gameId) ??
-        getGameById(session.gameId) ?? {
-            id: session.gameId,
-            gameKey: session.gameId,
-            label: session.name,
-            serverId: session.serverId,
-            serverName: session.serverId,
-            size: "medium",
-        }
+        getGameById(session.gameId) ??
+        sessionGameOption(session)
     );
 }
 

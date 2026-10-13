@@ -408,6 +408,9 @@ describe("resolveSessionGame", () => {
     const session = {
         id: "session-1",
         gameId: "game-db-id",
+        gameName: "Private Paris",
+        gameKey: "private-paris",
+        gameSize: "large",
         serverId: "server-1",
         name: "Friday game",
     } as Parameters<typeof resolveSessionGame>[0];
@@ -426,10 +429,24 @@ describe("resolveSessionGame", () => {
         vi.spyOn(console, "warn").mockImplementation(() => {});
         expect(await resolveSessionGame(session)).toEqual({
             id: "game-db-id",
-            gameKey: "game-db-id",
-            label: "Friday game",
+            gameKey: "private-paris",
+            label: "Private Paris",
             serverId: "server-1",
             serverName: "server-1",
+            size: "large",
+        });
+    });
+
+    it("falls back to the session's ids for summaries without game details", async () => {
+        // Summaries cached before sessions described their game.
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response("Forbidden", { status: 403 }),
+        );
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        const cached = { ...session, gameKey: undefined, gameSize: undefined };
+        expect(await resolveSessionGame(cached)).toMatchObject({
+            gameKey: "game-db-id",
+            label: "Private Paris",
             size: "medium",
         });
     });

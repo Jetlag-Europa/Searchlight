@@ -1,4 +1,9 @@
-import type { GameDefinition, GameImportResponse, ValidationIssue } from "@searchlight/shared";
+import type {
+  GameDefinition,
+  GameImportResponse,
+  GameListing,
+  ValidationIssue,
+} from "@searchlight/shared";
 import { resolveGameDefinitionId, validateGameDefinition } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
@@ -19,11 +24,18 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 type ServerOption = { id: string; name: string; permissions?: string[] };
 
 // The import API accepts any of these (games.create for new games,
-// games.edit for updates, server.admin for both).
-const IMPORT_PERMISSIONS = ["games.create", "games.edit", "server.admin"];
+// games.edit for updates, server.admin for both, games.create-unlisted for
+// private games the importer owns).
+const IMPORT_PERMISSIONS = ["games.create", "games.edit", "server.admin", "games.create-unlisted"];
 const canImportTo = (server: ServerOption) =>
   !server.permissions ||
   server.permissions.some((p) => IMPORT_PERMISSIONS.includes(p));
+// Without games.create (or server.admin), new games can only be private.
+const createsOnlyPrivateGames = (server: ServerOption | undefined) =>
+  Boolean(
+    server?.permissions &&
+      !server.permissions.some((p) => p === "games.create" || p === "server.admin"),
+  );
 
 interface ImportGameDialogProps {
   serverId?: string;
@@ -46,6 +58,7 @@ export function ImportGameDialog({
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<GameDefinition | null>(null);
   const [allowUpdate, setAllowUpdate] = useState<boolean>(true);
+  const [makePrivate, setMakePrivate] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<ValidationIssue[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<ValidationIssue[]>([]);
   const [dryRunResult, setDryRunResult] = useState<GameImportResponse | null>(null);
@@ -69,6 +82,13 @@ export function ImportGameDialog({
         .catch(() => {});
     }
   }, [initialServers]);
+
+  const privateOnly = createsOnlyPrivateGames(servers.find((s) => s.id === selectedServerId));
+  // Only applies when the import creates a game; updates keep its listing.
+  const listingFor = (serverId: string, wantsPrivate: boolean): GameListing | undefined =>
+    wantsPrivate || createsOnlyPrivateGames(servers.find((s) => s.id === serverId))
+      ? "unlisted"
+      : undefined;
 
   const resetState = () => {
     setFileName(null);
@@ -111,7 +131,12 @@ export function ImportGameDialog({
         // Auto dry-run test
         if (validation.valid) {
           try {
-            const preview = await importGameDefinitionAPI(parsed, true, allowUpdate);
+            const preview = await importGameDefinitionAPI(
+              parsed,
+              true,
+              allowUpdate,
+              listingFor(parsed.serverId, makePrivate),
+            );
             setDryRunResult(preview);
           } catch (err: any) {
             setApiError(err.message || "Failed to inspect game collision");
@@ -131,7 +156,12 @@ export function ImportGameDialog({
       const updated = { ...parsedData, serverId: newServerId };
       setParsedData(updated);
       try {
-        const preview = await importGameDefinitionAPI(updated, true, allowUpdate);
+        const preview = await importGameDefinitionAPI(
+          updated,
+          true,
+          allowUpdate,
+          listingFor(newServerId, makePrivate),
+        );
         setDryRunResult(preview);
         setApiError(null);
       } catch (err: any) {
@@ -144,7 +174,12 @@ export function ImportGameDialog({
     setAllowUpdate(checked);
     if (parsedData) {
       try {
-        const preview = await importGameDefinitionAPI(parsedData, true, checked);
+        const preview = await importGameDefinitionAPI(
+          parsedData,
+          true,
+          checked,
+          listingFor(selectedServerId, makePrivate),
+        );
         setDryRunResult(preview);
         setApiError(null);
       } catch (err: any) {
@@ -159,7 +194,12 @@ export function ImportGameDialog({
     setApiError(null);
     try {
       const toSend = { ...parsedData, serverId: selectedServerId };
-      await importGameDefinitionAPI(toSend, false, allowUpdate);
+      await importGameDefinitionAPI(
+        toSend,
+        false,
+        allowUpdate,
+        listingFor(selectedServerId, makePrivate),
+      );
       setOpen(false);
       resetState();
       onImported();
@@ -235,7 +275,9 @@ export function ImportGameDialog({
                     }`}
                   >
                     {dryRunResult.status === "created"
-                      ? "New Map"
+                      ? privateOnly || makePrivate
+                        ? "New Private Map"
+                        : "New Map"
                       : dryRunResult.status === "updated"
                       ? `Update (Rev ${dryRunResult.revision})`
                       : "Identical (Up to date)"}
@@ -327,6 +369,31 @@ export function ImportGameDialog({
                   Allow updating if a map with ID <code>{gameId}</code> already exists
                 </label>
               </div>
+
+              {/* Listing of a new game */}
+              {dryRunResult?.status === "created" && (
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="private-game-checkbox"
+                    checked={privateOnly || makePrivate}
+                    disabled={privateOnly}
+                    onChange={(e) => setMakePrivate(e.target.checked)}
+                    className="rounded border-input h-4 w-4 mt-0.5"
+                  />
+                  <label
+                    htmlFor="private-game-checkbox"
+                    className="text-xs font-medium cursor-pointer text-foreground select-none"
+                  >
+                    Private game: keep it out of the game list and share it with game links
+                    {privateOnly && (
+                      <span className="block font-normal text-muted-foreground">
+                        You can only import private games on this server.
+                      </span>
+                    )}
+                  </label>
+                </div>
+              )}
             </div>
           )}
 

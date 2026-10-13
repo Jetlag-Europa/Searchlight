@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { activeSessionData, activeSessionId, setActiveSession } from "@/lib/activeSession";
-import { getGameById, switchToGame } from "@/lib/games";
+import { getGameById, sessionGameOption, switchToGame } from "@/lib/games";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -27,14 +27,7 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 export async function loadRevision(sessionId: string, revision: number, gameRevisionId: string) {
   const current = activeSessionData.get();
   if (current?.id !== sessionId || activeSessionId.get() !== sessionId) return;
-  const game = getGameById(current.gameId) ?? {
-    id: current.gameId,
-    gameKey: current.gameId,
-    label: current.name,
-    serverId: current.serverId,
-    serverName: current.serverId,
-    size: "medium" as const,
-  };
+  const game = getGameById(current.gameId) ?? sessionGameOption(current);
   const loaded = await switchToGame(game, { revisionId: gameRevisionId, sessionId });
   const latest = activeSessionData.get();
   if (latest?.id !== sessionId || activeSessionId.get() !== sessionId) return;

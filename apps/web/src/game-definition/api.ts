@@ -1,6 +1,7 @@
 import type {
   GameDefinition,
   GameImportResponse,
+  GameListing,
   GameRevisionsResponse,
 } from "@searchlight/shared";
 
@@ -16,6 +17,8 @@ export async function importGameDefinitionAPI(
   raw: unknown,
   dryRun = false,
   allowUpdate = false,
+  // Listing of a new game; the server's default (listed) when omitted.
+  listing?: GameListing,
 ): Promise<GameImportResponse> {
   const url = buildApiUrl("/games/import");
   if (dryRun) {
@@ -23,6 +26,9 @@ export async function importGameDefinitionAPI(
   }
   if (allowUpdate) {
     url.searchParams.set("allowUpdate", "true");
+  }
+  if (listing) {
+    url.searchParams.set("listing", listing);
   }
   const res = await fetch(url.toString(), {
     method: "POST",
