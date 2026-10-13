@@ -397,7 +397,7 @@ export const PolygonDraw = () => {
             {question &&
                 question.id === "tentacles" &&
                 question.data.locationType === "custom" &&
-                question.data.places.map((x) => (
+                question.data.places?.map((x) => (
                     <TentacleMarker
                         key={x.geometry.coordinates.join(",")}
                         point={x}

@@ -61,8 +61,9 @@ function boundary(
 }
 
 // Build the inner TentacleQuestion data object for a scenario, custom-location
-// type so no Overpass / gamePOIData is touched.
+// type so Overpass is not touched.
 function customTentacleQuestion(s: TentacleScenario) {
+    const answerPoi = s.places.find((p) => p.properties?.name === s.answerName);
     return {
         id: "tentacles",
         key: "test-tentacle",
@@ -74,7 +75,7 @@ function customTentacleQuestion(s: TentacleScenario) {
         lat: s.seeker[1],
         lng: s.seeker[0],
         places: s.places,
-        location: {
+        location: answerPoi ?? {
             type: "Feature" as const,
             geometry: { type: "Point" as const, coordinates: s.seeker },
             properties: { name: s.answerName },

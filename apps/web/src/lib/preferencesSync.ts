@@ -1,4 +1,6 @@
-import type { UserPreferences } from "@taibled/shared";
+import type { UserPreferences } from "@searchlight/shared";
+import type { WritableAtom } from "nanostores";
+
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
 import {
     allowGooglePlusCodes,
@@ -16,7 +18,6 @@ import {
     thunderforestApiKey,
     warningAlarm,
 } from "@/lib/context";
-import type { WritableAtom } from "nanostores";
 
 export const PREF_ENTRIES: { key: keyof UserPreferences; atom: WritableAtom<any> }[] = [
     { key: "defaultUnit", atom: defaultUnit },

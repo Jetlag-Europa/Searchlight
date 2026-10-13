@@ -19,8 +19,8 @@ import { AuthGuard } from "@/components/AuthGuard";
 import { SessionManager } from "@/components/SessionManager";
 import { SyncIndicator } from "@/components/SyncIndicator";
 import { PreferencesSync } from "@/components/PreferencesSync";
+import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
 ---
-
 <Layout className="bg-jetlag">
     <!--
         Auth loading overlay — visible immediately (no JS required).
@@ -53,10 +53,10 @@ import { PreferencesSync } from "@/components/PreferencesSync";
     <SidebarProviderL client:load>
         <SidebarProviderR client:load defaultOpen={false}>
             <QuestionSidebar client:only />
-            <main class="flex flex-col flex-grow group">
+            <main class="flex h-svh min-w-0 flex-col flex-grow group">
                 <div
-                    class="flex justify-center"
                     id="map-modal-dialog-container-leaflet"
+                    class="min-h-0 flex-1"
                 >
                     <div class="w-full h-full relative">
                         <div
@@ -81,7 +81,7 @@ import { PreferencesSync } from "@/components/PreferencesSync";
                         <div
                             class="bottom-5 left-2 right-2 mb-2 absolute z-[1030] group-[.fullscreen]:hidden"
                         >
-                            <OptionDrawers client:load />
+                            <OptionDrawers client:only />
                         </div>
                         <div
                             class="right-2 top-1/2 -translate-y-1/2 absolute z-[1030] group-[.fullscreen]:hidden max-h-[80vh] overflow-y-auto"
@@ -89,11 +89,12 @@ import { PreferencesSync } from "@/components/PreferencesSync";
                             <AnnotationToolbar client:only />
                         </div>
                         <Map
-                            className="w-full group-[.fullscreen]:w-full group-[.fullscreen]:h-full"
+                            className="w-full !h-full group-[.fullscreen]:w-full"
                             client:only
                         />
                     </div>
                 </div>
+                <SessionUpgradeBanner client:only="react" />
             </main>
             <ZoneSidebar client:only />
             <TutorialDialog client:only />

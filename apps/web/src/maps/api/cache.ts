@@ -76,7 +76,7 @@ export const cacheFetch = async (
         } finally {
             inFlightFetches.delete(inflightKey);
         }
-    } catch (e) {
+    } catch {
         // Cache API unavailable (non-secure context) — fall through
 
         return fetch(url, fetchOptions);
@@ -91,7 +91,7 @@ export const clearCache = async (cacheType: CacheType = CacheType.CACHE) => {
                 cache.delete(key);
             });
         });
-    } catch (e) {
+    } catch {
         // Cache API unavailable (non-secure context) — fall through
     }
 };

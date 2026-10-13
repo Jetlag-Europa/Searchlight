@@ -1,222 +1,395 @@
-import type { Questions } from "@/maps/schema";
-import { strokes } from "@/annotations/hooks/useAnnotationStore";
+import type { GameSessionSummary } from "@searchlight/shared";
+
 import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
-import { randomUUID } from "@/lib/utils";
+import { activeSessionId, verifiedUserId } from "@/lib/activeSession";
+import {
+    hiderMode,
+    pendingEventCount,
+    planningModeEnabled,
+    syncStatus,
+} from "@/lib/context";
 import {
     enqueueEvent,
-    markEventSynced,
     getPendingEvents,
+    type PendingEvent,
     setCachedSession,
-    getCachedSession,
 } from "@/lib/eventQueue";
-import { syncStatus, pendingEventCount } from "@/lib/context";
+import { sendPendingEvent } from "@/lib/syncManager";
+import { randomUUID } from "@/lib/utils";
+import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 function refreshSyncCounts(sessionId: string): void {
-    const count = getPendingEvents(sessionId).filter((e) => e.status === "pending").length;
+    const count = getPendingEvents(sessionId).filter(
+        (e) => e.status === "pending" || e.status === "failed",
+    ).length;
     pendingEventCount.set(count);
     if (count === 0) syncStatus.set("synced");
 }
 
 // ── Questions ────────────────────────────────────────────────────────────────
 
-export async function loadQuestionsFromServer(sessionId: string): Promise<Questions> {
+export async function loadQuestionsFromServer(
+    sessionId: string,
+): Promise<Questions> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
     });
     if (!res.ok) throw new Error(`Failed to load questions: ${res.status}`);
-    const data = await res.json() as { questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }> };
+    const data = (await res.json()) as {
+        questions: Array<{
+            clientUuid: string;
+            ordinal: number;
+            payloadJson: unknown;
+        }>;
+    };
     return data.questions.map((q) => q.payloadJson) as unknown as Questions;
+}
+
+interface SaveState {
+    timers: Map<string, ReturnType<typeof setTimeout>>;
+    pending: Map<string, () => PendingEvent>;
+    dispatches: Map<string, Promise<void>>;
+}
+
+const questionSaves: SaveState = {
+    timers: new Map(),
+    pending: new Map(),
+    dispatches: new Map(),
+};
+const hiderSaves: SaveState = {
+    timers: new Map(),
+    pending: new Map(),
+    dispatches: new Map(),
+};
+const planningSaves: SaveState = {
+    timers: new Map(),
+    pending: new Map(),
+    dispatches: new Map(),
+};
+
+function cancelSave(state: SaveState, sessionId?: string): void {
+    if (sessionId) {
+        clearTimeout(state.timers.get(sessionId));
+        state.timers.delete(sessionId);
+        state.pending.delete(sessionId);
+    } else {
+        for (const timer of state.timers.values()) clearTimeout(timer);
+        state.timers.clear();
+        state.pending.clear();
+    }
+    // Cancel scheduling, not durable edits: reconnect must still replay them.
+}
+
+function dispatchSave(
+    state: SaveState,
+    event: PendingEvent,
+    keepalive = false,
+): Promise<void> {
+    cancelSave(state, event.sessionId);
+    const result = sendPendingEvent(event, keepalive);
+    state.dispatches.set(event.sessionId, result);
+    const cleanup = () => {
+        if (state.dispatches.get(event.sessionId) === result) {
+            state.dispatches.delete(event.sessionId);
+        }
+    };
+    void result.then(cleanup, cleanup);
+    return result;
+}
+
+function debounceSave(
+    state: SaveState,
+    sessionId: string,
+    createEvent: () => PendingEvent,
+    delay: number,
+): void {
+    cancelSave(state, sessionId);
+    // Keep rapid gameplay edits cheap. Persist the final snapshot when the
+    // debounce fires (or unload flushes), before waiting for any network work.
+    state.pending.set(sessionId, createEvent);
+    state.timers.set(
+        sessionId,
+        setTimeout(() => {
+            dispatchSave(state, createEvent()).catch((err) => {
+                console.warn("[sessionState] failed to save:", err);
+            });
+        }, delay),
+    );
+}
+
+function hasPendingSave(
+    state: SaveState,
+    type: PendingEvent["type"],
+    sessionId?: string,
+): boolean {
+    if (!sessionId) return state.timers.size > 0 || state.dispatches.size > 0;
+    return (
+        state.timers.has(sessionId) ||
+        state.dispatches.has(sessionId) ||
+        getPendingEvents(sessionId).some(
+            (event) => event.type === type && event.status !== "synced",
+        )
+    );
+}
+
+function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
+    const replacementId = randomUUID();
+    const event = enqueueEvent({
+        sessionId,
+        type: "questions.replace",
+        payloadJson: {
+            replacementId,
+            questions: qs.map((question, ordinal) => ({
+                clientUuid: randomUUID(),
+                ordinal,
+                payloadJson: question,
+            })),
+        },
+        clientUuid: `questions-replace-${replacementId}`,
+        clientCreatedAt: Date.now(),
+    });
+    refreshSyncCounts(sessionId);
+    return event;
 }
 
 export async function saveQuestionsToServer(
     sessionId: string,
     qs: Questions,
 ): Promise<void> {
-    const replacementId = randomUUID();
-    const mappedQuestions = qs.map((q, i) => ({
-        clientUuid: randomUUID(),
-        ordinal: i,
-        payloadJson: q,
-    }));
+    await dispatchSave(questionSaves, queueQuestions(sessionId, qs));
+}
 
-    const event = enqueueEvent({
-        sessionId,
-        type: "questions.replace",
-        payloadJson: { replacementId, questions: mappedQuestions },
-        clientUuid: `questions-replace-${replacementId}`,
-        clientCreatedAt: Date.now(),
-    });
-    refreshSyncCounts(sessionId);
+export function hasPendingQuestionSave(sessionId?: string): boolean {
+    return hasPendingSave(questionSaves, "questions.replace", sessionId);
+}
 
-    try {
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ replacementId, questions: mappedQuestions }),
-        });
-        if (!res.ok) throw new Error(`Failed to save questions: ${res.status}`);
-        markEventSynced(sessionId, event.localId);
-        // Keep the cache in sync so offline reloads see the current state.
-        const cachedState = getCachedSession(sessionId);
-        if (cachedState) {
-            setCachedSession({ ...cachedState, questions: qs, lastSyncedAt: Date.now() });
-        }
-        refreshSyncCounts(sessionId);
-    } catch (e) {
-        if (!navigator.onLine) syncStatus.set("offline");
-        throw e;
+/** An edit is waiting in the debounce and hasn't been queued yet. */
+export function hasScheduledQuestionSave(sessionId: string): boolean {
+    return questionSaves.timers.has(sessionId);
+}
+
+export function cancelPendingQuestionSave(sessionId?: string): void {
+    cancelSave(questionSaves, sessionId);
+}
+
+// Flushing queues the pending snapshot durably before returning. Pass
+// keepalive only when the page is going away: keepalive bodies are capped at
+// 64 KiB, which a large question list exceeds.
+export async function flushQuestionSave(
+    sessionId?: string,
+    keepalive = false,
+): Promise<void> {
+    const targetSessionId = sessionId ?? activeSessionId.get();
+    if (!targetSessionId) return;
+    const pending = questionSaves.pending.get(targetSessionId);
+    if (pending) {
+        await dispatchSave(questionSaves, pending(), keepalive);
+    } else {
+        await questionSaves.dispatches.get(targetSessionId);
     }
 }
 
-let questionSaveTimer: ReturnType<typeof setTimeout> | null = null;
-const QUESTION_DEBOUNCE_MS = 500;
+export function saveQuestionsDebounced(sessionId: string, qs: Questions): void {
+    debounceSave(questionSaves, sessionId, () => queueQuestions(sessionId, qs), 500);
+}
 
-// ── Hider mode ────────────────────────────────────────────────────────────────
+type HiderModeValue = false | { latitude: number; longitude: number };
 
-let hiderSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let hiderPatchInFlight = 0;
+function queueHiderMode(sessionId: string, mode: HiderModeValue): PendingEvent {
+    const event = enqueueEvent({
+        sessionId,
+        type: "hider.update",
+        payloadJson:
+            mode === false
+                ? { hiderLat: null, hiderLng: null }
+                : { hiderLat: mode.latitude, hiderLng: mode.longitude },
+        clientUuid: `hider-update-${randomUUID()}`,
+        clientCreatedAt: Date.now(),
+    });
+    refreshSyncCounts(sessionId);
+    return event;
+}
 
-export function hasPendingHiderSave(): boolean {
-    return hiderSaveTimer !== null || hiderPatchInFlight > 0;
+export function hasPendingHiderSave(sessionId?: string): boolean {
+    return hasPendingSave(hiderSaves, "hider.update", sessionId);
+}
+
+export function cancelPendingHiderSave(sessionId?: string): void {
+    cancelSave(hiderSaves, sessionId);
 }
 
 export function saveHiderModeToServer(
     sessionId: string,
-    mode: false | { latitude: number; longitude: number },
+    mode: HiderModeValue,
 ): void {
-    if (hiderSaveTimer) clearTimeout(hiderSaveTimer);
-    hiderSaveTimer = setTimeout(() => {
-        hiderSaveTimer = null;
-        const body = mode === false
-            ? { hiderLat: null, hiderLng: null }
-            : { hiderLat: mode.latitude, hiderLng: mode.longitude };
-        console.info("[sessionState] saving hider mode for", sessionId, body);
-        hiderPatchInFlight++;
-        fetch(`${API_BASE}/sessions/${sessionId}`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-        }).catch((err) => {
-            console.warn("[sessionState] failed to save hider mode:", err);
-        }).finally(() => {
-            hiderPatchInFlight--;
-        });
-    }, 800);
+    debounceSave(hiderSaves, sessionId, () => queueHiderMode(sessionId, mode), 800);
+}
+
+export async function executeHiderPatch(
+    sessionId: string,
+    mode: HiderModeValue,
+    keepalive = false,
+): Promise<void> {
+    await dispatchSave(hiderSaves, queueHiderMode(sessionId, mode), keepalive);
+}
+
+export function flushHiderSave(
+    sessionId: string,
+    mode: HiderModeValue,
+    keepalive = false,
+): void {
+    if (!hiderSaves.pending.has(sessionId)) return;
+    executeHiderPatch(sessionId, mode, keepalive).catch((err) => {
+        console.warn("[sessionState] failed to flush hider mode save:", err);
+    });
 }
 
 // ── Planning mode ─────────────────────────────────────────────────────────────
 
-let planningModeSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let planningPatchInFlight = 0;
-
-export function hasPendingPlanningModeSave(): boolean {
-    return planningModeSaveTimer !== null || planningPatchInFlight > 0;
+function queuePlanningMode(sessionId: string, enabled: boolean): PendingEvent {
+    const event = enqueueEvent({
+        sessionId,
+        type: "planning.toggle",
+        payloadJson: { planningModeEnabled: enabled },
+        clientUuid: `planning-toggle-${randomUUID()}`,
+        clientCreatedAt: Date.now(),
+    });
+    refreshSyncCounts(sessionId);
+    return event;
 }
 
-export function savePlanningModeToServer(sessionId: string, enabled: boolean): void {
-    if (planningModeSaveTimer) clearTimeout(planningModeSaveTimer);
-    planningModeSaveTimer = setTimeout(() => {
-        planningModeSaveTimer = null;
-        console.info("[sessionState] saving planningModeEnabled for", sessionId, enabled);
-        planningPatchInFlight++;
-        fetch(`${API_BASE}/sessions/${sessionId}`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ planningModeEnabled: enabled }),
-        }).catch((err) => {
-            console.warn("[sessionState] failed to save planningModeEnabled:", err);
-        }).finally(() => {
-            planningPatchInFlight--;
-        });
-    }, 300);
+export function hasPendingPlanningModeSave(sessionId?: string): boolean {
+    return hasPendingSave(planningSaves, "planning.toggle", sessionId);
 }
 
-export function cancelPendingPlanningModeSave(): void {
-    if (planningModeSaveTimer) {
-        clearTimeout(planningModeSaveTimer);
-        planningModeSaveTimer = null;
-    }
+export function cancelPendingPlanningModeSave(sessionId?: string): void {
+    cancelSave(planningSaves, sessionId);
 }
 
-export function cancelPendingQuestionSave(): void {
-    if (questionSaveTimer) {
-        clearTimeout(questionSaveTimer);
-        questionSaveTimer = null;
-    }
-}
-
-export function cancelPendingHiderSave(): void {
-    if (hiderSaveTimer) {
-        clearTimeout(hiderSaveTimer);
-        hiderSaveTimer = null;
-    }
-}
-
-// Fire any pending hider save immediately. keepalive:true means the browser
-// will honour the request even if the page is unloading (beforeunload case).
-export function flushHiderSave(
+export function savePlanningModeToServer(
     sessionId: string,
-    mode: false | { latitude: number; longitude: number },
+    enabled: boolean,
 ): void {
-    if (!hiderSaveTimer) return;
-    clearTimeout(hiderSaveTimer);
-    hiderSaveTimer = null;
-    const body =
-        mode === false
-            ? { hiderLat: null, hiderLng: null }
-            : { hiderLat: mode.latitude, hiderLng: mode.longitude };
-    console.info("[sessionState] flushing hider save for", sessionId, body);
-    hiderPatchInFlight++;
-    fetch(`${API_BASE}/sessions/${sessionId}`, {
-        method: "PATCH",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        keepalive: true,
-    }).catch((err) => {
-        console.warn("[sessionState] failed to flush hider mode save:", err);
-    }).finally(() => {
-        hiderPatchInFlight--;
+    debounceSave(planningSaves, sessionId, () => queuePlanningMode(sessionId, enabled), 300);
+}
+
+export async function executePlanningPatch(
+    sessionId: string,
+    enabled: boolean,
+    keepalive = false,
+): Promise<void> {
+    await dispatchSave(planningSaves, queuePlanningMode(sessionId, enabled), keepalive);
+}
+
+export function flushPlanningModeSave(
+    sessionId: string,
+    enabled: boolean,
+    keepalive = false,
+): void {
+    if (!planningSaves.pending.has(sessionId)) return;
+    executePlanningPatch(sessionId, enabled, keepalive).catch((err) => {
+        console.warn("[sessionState] failed to flush planning mode save:", err);
     });
 }
 
-export function saveQuestionsDebounced(sessionId: string, qs: Questions): void {
-    if (questionSaveTimer) clearTimeout(questionSaveTimer);
-    questionSaveTimer = setTimeout(() => {
-        questionSaveTimer = null;
-        saveQuestionsToServer(sessionId, qs).catch((err) => {
-            console.warn("[sessionState] failed to save questions:", err);
-        });
-    }, QUESTION_DEBOUNCE_MS);
+// ── Flushing ─────────────────────────────────────────────────────────────────
+
+/**
+ * Queue a session's debounced edits durably right away and start sending
+ * them, without waiting for the network.
+ */
+export function flushSessionSaves(sessionId: string, keepalive = false): void {
+    flushQuestionSave(sessionId, keepalive).catch((err) => {
+        console.warn("[sessionState] failed to flush question save:", err);
+    });
+    flushHiderSave(sessionId, hiderMode.get(), keepalive);
+    flushPlanningModeSave(sessionId, planningModeEnabled.get(), keepalive);
 }
 
+/**
+ * Debounced edits live only in memory until their timer fires, so flush them
+ * whenever the page may be going away. Mobile browsers often skip
+ * beforeunload, and a hidden tab can be frozen or discarded without another
+ * event. Returns a function that removes the listeners.
+ */
+export function flushSavesOnPageExit(): () => void {
+    const flush = () => {
+        const id = activeSessionId.get();
+        if (!id || !verifiedUserId.get()) return;
+        console.info("[sessionState] page may be closing — flushing saves for", id);
+        flushSessionSaves(id, true);
+    };
+    const flushIfHidden = () => {
+        if (document.visibilityState === "hidden") flush();
+    };
+    window.addEventListener("beforeunload", flush);
+    window.addEventListener("pagehide", flush);
+    document.addEventListener("visibilitychange", flushIfHidden);
+    return () => {
+        window.removeEventListener("beforeunload", flush);
+        window.removeEventListener("pagehide", flush);
+        document.removeEventListener("visibilitychange", flushIfHidden);
+    };
+}
 // ── Session load ─────────────────────────────────────────────────────────────
 
-export async function loadSessionContent(sessionId: string): Promise<{
+export async function fetchServerCursor(sessionId: string): Promise<number> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/events/cursor`, {
+        credentials: "include",
+    });
+    if (!res.ok) throw new Error(`Failed to fetch cursor: ${res.status}`);
+    const data = (await res.json()) as { sequence?: number };
+    if (typeof data.sequence !== "number")
+        throw new Error("Invalid cursor response: missing sequence");
+    return data.sequence;
+}
+
+export async function loadSessionContent(
+    sessionId: string,
+    userId: string,
+): Promise<{
     strokes: StrokeFeature[];
+    session: GameSessionSummary;
     questions: Questions;
+    cursor?: number;
 }> {
-    const [loadedStrokes, loadedQuestions] = await Promise.all([
+    let serverCursor = 0;
+    try {
+        serverCursor = await fetchServerCursor(sessionId);
+    } catch (err) {
+        console.warn(
+            "[sessionState] failed to fetch server cursor, defaulting to 0:",
+            err,
+        );
+    }
+
+    const [loadedStrokes, loadedQuestions, session] = await Promise.all([
         loadStrokesFromServer(sessionId),
         loadQuestionsFromServer(sessionId),
+        fetch(`${API_BASE}/sessions/${sessionId}`, {
+            credentials: "include",
+        }).then(async (res) => {
+            if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
+            return (await res.json()) as GameSessionSummary;
+        }),
     ]);
 
-    strokes.set(loadedStrokes);
-
-    // Cache the freshly loaded server state for offline-first reloads.
     setCachedSession({
         sessionId,
+        userId,
         strokes: loadedStrokes,
         questions: loadedQuestions,
         lastSyncedAt: Date.now(),
-        lastServerEventAt: new Date().toISOString(),
+        lastSequence: serverCursor,
     });
 
-    return { strokes: loadedStrokes, questions: loadedQuestions };
+    return {
+        strokes: loadedStrokes,
+        session,
+        questions: loadedQuestions,
+        cursor: serverCursor,
+    };
 }

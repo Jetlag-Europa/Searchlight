@@ -1,12 +1,7 @@
-import * as units from "@arcgis/core/core/units.js";
-import * as geodesicBufferOperator from "@arcgis/core/geometry/operators/geodesicBufferOperator.js";
-import * as geodeticDistanceOperator from "@arcgis/core/geometry/operators/geodeticDistanceOperator.js";
-import Point from "@arcgis/core/geometry/Point.js";
-import * as geometryJsonUtils from "@arcgis/core/geometry/support/jsonUtils.js";
-import * as unionTypes from "@arcgis/core/unionTypes.js";
-import { arcgisToGeoJSON, geojsonToArcGIS } from "@terraformer/arcgis";
+import type * as units from "@arcgis/core/core/units.js";
 import * as turf from "@turf/turf";
 import type {
+    BBox,
     Feature,
     FeatureCollection,
     MultiPolygon,
@@ -15,7 +10,12 @@ import type {
 
 import { BLANK_GEOJSON } from "@/maps/api";
 
-export { geoSpatialVoronoi, geoSpatialVoronoiSafe } from "@/maps/geo-utils/voronoi";
+import { requestGeometry } from "./geometryClient";
+
+export {
+    geoSpatialVoronoi,
+    geoSpatialVoronoiSafe,
+} from "@/maps/geo-utils/voronoi";
 
 export const safeUnion = (input: FeatureCollection<Polygon | MultiPolygon>) => {
     if (input.features.length === 0) throw new Error("safeUnion: no features");
@@ -30,6 +30,9 @@ export const holedMask = (
         | Feature<Polygon | MultiPolygon>
         | FeatureCollection<Polygon | MultiPolygon>,
 ) => {
+    if ("features" in input && input.features.length === 0) {
+        return BLANK_GEOJSON.features[0] as Feature<Polygon>;
+    }
     return turf.difference(
         turf.featureCollection([
             BLANK_GEOJSON.features[0] as Feature<Polygon>,
@@ -44,82 +47,45 @@ export const modifyMapData = (
         | FeatureCollection<Polygon | MultiPolygon>
         | Feature<Polygon | MultiPolygon>,
     withinModifications: boolean,
-) => {
-    const safeModifications =
-        "features" in modifications ? safeUnion(modifications) : modifications;
-
-    if (withinModifications) {
-        return turf.intersect(
-            turf.featureCollection([safeUnion(mapData), safeModifications]),
-        );
-    }
-    return turf.intersect(
-        turf.featureCollection([
-            safeUnion(mapData),
-            holedMask(safeModifications)!,
-        ]),
-    );
-};
-
-const DEFAULT_BUFFER_UNIT = "miles";
+) =>
+    // Clipping a large play area is the heaviest step of most questions; run it
+    // in the geometry worker instead of blocking the UI thread.
+    requestGeometry({
+        kind: "clip",
+        mapData,
+        modifications,
+        within: withinModifications,
+    });
 
 export const arcBuffer = (
     geometry: FeatureCollection,
     distance: number,
-    unit: units.LengthUnit & turf.Units = DEFAULT_BUFFER_UNIT,
-) => {
-    const arcgisGeometry = geometry.features.map((x) =>
-        geometryJsonUtils.fromJSON(geojsonToArcGIS(x.geometry)),
-    ) as unionTypes.GeometryUnion[];
+    unit: units.LengthUnit & turf.Units = "miles",
+    /** How far the result may stray from the true curve; 3 ft by default. */
+    maxDeviation?: number,
+): Promise<Feature<Polygon | MultiPolygon>> =>
+    requestGeometry({ kind: "radius", geometry, distance, unit, maxDeviation });
 
-    return innateArcBuffer(arcgisGeometry, distance, unit);
-};
-
-const innateArcBuffer = async (
-    arcgisGeometry: unionTypes.GeometryUnion[],
-    distance: number,
-    unit: units.LengthUnit & turf.Units = DEFAULT_BUFFER_UNIT,
-) => {
-    await geodesicBufferOperator.load();
-
-    const bufferedGeometry = geodesicBufferOperator.executeMany(
-        arcgisGeometry,
-        Array(arcgisGeometry.length).fill(distance),
-        {
-            union: true,
-            unit: unit,
-            maxDeviation: turf.convertLength(3, "feet", unit),
-        },
-    );
-
-    return turf.combine(
-        turf.featureCollection([
-            turf.feature(arcgisToGeoJSON(bufferedGeometry[0] as any)),
-        ]) as any,
-    ).features[0] as Feature<MultiPolygon>;
-};
-
-export const arcBufferToPoint = async (
+/**
+ * Buffers `geometry` by its distance to the point. With `within`, the result
+ * is exact only inside that box, which can spare buffering most of a large
+ * layer; it may then be an empty MultiPolygon.
+ */
+export const arcBufferToPoint = (
     geometry: FeatureCollection,
     lat: number,
     lng: number,
-) => {
-    const point = new Point({
-        latitude: lat,
-        longitude: lng,
-    });
-
-    const arcgisGeometry = geometry.features.map((x) =>
-        geometryJsonUtils.fromJSON(geojsonToArcGIS(x.geometry)),
-    ) as unionTypes.GeometryUnion[];
-
-    await geodeticDistanceOperator.load();
-
-    const distances = arcgisGeometry.map((x) =>
-        geodeticDistanceOperator.execute(x, point, {
-            unit: DEFAULT_BUFFER_UNIT,
-        }),
+    options: { within?: BBox; supersede?: string } = {},
+): Promise<Feature<Polygon | MultiPolygon>> =>
+    requestGeometry(
+        { kind: "nearest", geometry, lat, lng, within: options.within },
+        { supersede: options.supersede },
     );
 
-    return innateArcBuffer(arcgisGeometry, Math.min(...distances));
-};
+export const arcDistanceToPoint = (
+    geometry: FeatureCollection,
+    lat: number,
+    lng: number,
+    unit: units.LengthUnit & turf.Units = "miles",
+): Promise<number> =>
+    requestGeometry({ kind: "distance", geometry, lat, lng, unit });

@@ -27,10 +27,10 @@ export async function testLogin(
     expect(res.ok(), `test-login failed: ${res.status()}`).toBeTruthy();
 }
 
-/** Resolves when `window.__taibled` is installed (the Map component has mounted). */
+/** Resolves when `window.__searchlight` is installed (the Map component has mounted). */
 export async function waitForTestHook(page: Page): Promise<void> {
     await page.waitForFunction(
-        () => typeof (window as unknown as { __taibled?: unknown }).__taibled !== "undefined",
+        () => typeof (window as unknown as { __searchlight?: unknown }).__searchlight !== "undefined",
         undefined,
         { timeout: 30_000 },
     );

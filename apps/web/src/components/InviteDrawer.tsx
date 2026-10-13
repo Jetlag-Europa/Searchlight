@@ -1,16 +1,19 @@
-import { useEffect, useState, useRef, useCallback } from "react";
 import { useStore } from "@nanostores/react";
 import type {
-    PendingInvitesResponse,
+    CreateLinkResponse,
     InviteSummary,
+    PendingInvitesResponse,
     SessionInviteDetail,
     SessionInvitesResponse,
-    UserSearchResult,
-    UserSearchResponse,
-    SessionLinkSummary,
     SessionLinksResponse,
-    CreateLinkResponse,
-} from "@taibled/shared";
+    SessionLinkSummary,
+    UserSearchResponse,
+    UserSearchResult,
+} from "@searchlight/shared";
+import type { ForkAcceptResponse,GameSessionSummary } from "@searchlight/shared";
+import { useCallback,useEffect, useRef, useState } from "react";
+
+import { Button } from "@/components/ui/button";
 import {
     Drawer,
     DrawerContent,
@@ -18,11 +21,9 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { activeSessionData, setActiveSession } from "@/lib/activeSession";
 import { pendingSessionLoad } from "@/lib/context";
-import type { GameSessionSummary, ForkAcceptResponse } from "@taibled/shared";
+import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_INTERVAL_MS = 30_000;

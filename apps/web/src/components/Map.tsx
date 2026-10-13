@@ -4,12 +4,15 @@ import "leaflet-contextmenu";
 
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
+import type { FeatureCollection, Polygon } from "geojson";
 import * as L from "leaflet";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
+import { compiledGameAtom } from "@/game-definition/store";
+import { activeSessionId } from "@/lib/activeSession";
 import { bootstrapDefaults } from "@/lib/bootstrapCustomStations";
 import {
     additionalMapGeoLocations,
@@ -18,32 +21,39 @@ import {
     autoZoom,
     baseTileLayer,
     followMe,
-    gamePOIData,
-    gamePOIReady,
+    gameDefinitionReady,
     hiderMode,
-    isLoading,
     leafletMapContext,
     mapGeoJSON,
     mapGeoLocation,
     permanentOverlay,
+    perQuestionMapData,
     planningModeEnabled,
     polyGeoJSON,
-    perQuestionMapData,
     questionFinishedMapData,
     questions,
+    setScopedLoading,
     thunderforestApiKey,
     triggerLocalRefresh,
 } from "@/lib/context";
-import { cn } from "@/lib/utils";
+import { currentGameId, isGameSwitchPending } from "@/lib/games";
+import { createLatestTask } from "@/lib/latestTask";
 import { installTestHook } from "@/lib/testHook";
+import { cn } from "@/lib/utils";
 import {
-    applyQuestionsToMapGeoData,
     computePerQuestionRegions,
-    holedMask,
+    determinePlanningPolygon,
 } from "@/maps";
 import { hiderifyQuestion } from "@/maps";
-import { clearCache, determineMapBoundaries } from "@/maps/api";
-import { currentGameId, getGameById } from "@/lib/games";
+import {
+    BLANK_GEOJSON,
+    clearCache,
+    determineMapBoundaries,
+} from "@/maps/api";
+import {
+    requestGeometry,
+    SupersededError,
+} from "@/maps/geo-utils/geometryClient";
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
@@ -132,6 +142,15 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     );
 };
 
+// The active game may not offer the requested question type.
+const addQuestionFromMenu = (question: Parameters<typeof addQuestion>[0]) => {
+    try {
+        addQuestion(question);
+    } catch (error) {
+        toast.error((error as Error).message);
+    }
+};
+
 export const Map = ({ className }: { className?: string }) => {
     useStore(additionalMapGeoLocations);
     const $mapGeoLocation = useStore(mapGeoLocation);
@@ -139,15 +158,28 @@ export const Map = ({ className }: { className?: string }) => {
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
-    const $isLoading = useStore(isLoading);
+    const $planningMode = useStore(planningModeEnabled);
+    const $compiledGame = useStore(compiledGameAtom);
     const $followMe = useStore(followMe);
     const $permanentOverlay = useStore(permanentOverlay);
     const $polyGeoJSON = useStore(polyGeoJSON);
-    const $gamePOIData = useStore(gamePOIData);
-    const $gamePOIReady = useStore(gamePOIReady);
+    const $gameDefinitionReady = useStore(gameDefinitionReady);
     const map = useStore(leafletMapContext);
+    const $currentGameId = useStore(currentGameId);
+    const refreshQueue = useMemo(() => createLatestTask(), []);
+    const renderedGameIdRef = useRef<string | null>(null);
 
-    // Test-only: expose map/question state on window.__taibled for Playwright
+    const clearQuestionLayers = (targetMap: L.Map) => {
+        targetMap.eachLayer((layer) => {
+            if (
+                ("questionKey" in layer && layer.questionKey != null) ||
+                ("eliminationGeoJSON" in layer && layer.eliminationGeoJSON)
+            ) {
+                targetMap.removeLayer(layer);
+            }
+        });
+    };
+    // Test-only: expose map/question state on window.__searchlight for Playwright
     // e2e (no-op unless PUBLIC_ENABLE_TEST_HOOK=1).
     useEffect(() => {
         installTestHook();
@@ -162,144 +194,199 @@ export const Map = ({ className }: { className?: string }) => {
         [],
     );
 
-    const refreshQuestions = async (focus: boolean = false) => {
+    const refreshQuestions = async (isLatest: () => boolean) => {
         if (!map) return;
 
-        if (isLoading.get()) return;
+        const sourceQuestions = questions.get();
+        const planning = planningModeEnabled.get();
+        const compiled = compiledGameAtom.get();
+        const hider = hiderMode.get();
+        const boundary = polyGeoJSON.get();
+        const location = mapGeoLocation.get();
+        const definitionReady = gameDefinitionReady.get();
+        const activeGameId = currentGameId.get();
 
-        isLoading.set(true);
-
-        if ($questions.length === 0) {
-            await clearCache();
+        // If switching to a new game (different game ID than what's rendered),
+        // clear old layers immediately so old layers are not presented for a
+        // different game.
+        if (
+            renderedGameIdRef.current !== null &&
+            renderedGameIdRef.current !== activeGameId
+        ) {
+            clearQuestionLayers(map);
+            renderedGameIdRef.current = null;
         }
 
-        // Don't evaluate questions until the active game's POI load has resolved.
-        // Otherwise POI-backed questions (a tentacle/matching/measuring question
-        // for a category the game provides, e.g. hospital in Belgium) fall back
-        // to Overpass before gamePOIData arrives — a needless, and on a
-        // whole-country game a hanging, query. Gated on gamePOIReady (a lifecycle
-        // flag set false by switchToGame / the cache paint and flipped true when
-        // loadGamePOI finishes) rather than on getGameById + gamePOIData: during
-        // the "painted from cache" pass the games list isn't fetched yet, so the
-        // old getGameById(currentGameId) guard resolved to undefined and let the
-        // query through — the bug this replaces.
-        if ($questions.length > 0 && !gamePOIReady.get()) {
-            console.info("[taibled:poi-guard] deferring question eval until POI ready");
-            isLoading.set(false);
+        const isCurrent = () =>
+            isLatest() &&
+            currentGameId.get() === activeGameId &&
+            questions.get() === sourceQuestions &&
+            planningModeEnabled.get() === planning &&
+            compiledGameAtom.get() === compiled &&
+            hiderMode.get() === hider &&
+            polyGeoJSON.get() === boundary &&
+            mapGeoLocation.get() === location &&
+            gameDefinitionReady.get() === definitionReady;
+
+        if (sourceQuestions.length > 0 && !definitionReady) {
+            // If switch failed (compiled is null and definitionReady is false), clear old layers
+            if (
+                renderedGameIdRef.current !== null &&
+                !compiled &&
+                !definitionReady
+            ) {
+                clearQuestionLayers(map);
+                renderedGameIdRef.current = null;
+            }
             return;
         }
-
-        let mapGeoData = mapGeoJSON.get();
-        const polyGeoData = polyGeoJSON.get();
-
-        // Custom boundary (polyGeoJSON) always wins — if it has arrived, apply it
-        // even if mapGeoJSON was already set from a previous Overpass fetch.
-        if (polyGeoData) {
-            mapGeoData = polyGeoData;
-            if (mapGeoJSON.get() !== polyGeoData) mapGeoJSON.set(polyGeoData);
-        } else if (!mapGeoData) {
-            // No custom boundary loaded yet. If the active game expects one, bail out —
-            // loadMapBoundaryGeoJSON / loadGamePolyGeoJSON will set polyGeoJSON when done,
-            // which changes $polyGeoJSON and re-triggers this effect with the real boundary.
-            const activeGame = getGameById(currentGameId.get());
-            if (activeGame?.mapBoundaryGeoJsonPath || activeGame?.hidingZoneGeoJsonPath) {
-                isLoading.set(false);
-                return;
+        setScopedLoading("map", true);
+        try {
+            // Question cards and markers mutate data in place, even when auto-save
+            // is off. Take an immutable view before any awaited geometry work.
+            const snapshot = structuredClone(sourceQuestions);
+            if (snapshot.length === 0) {
+                await clearCache();
+                if (!isCurrent()) return;
             }
-            try {
-                const x = await toast.promise(determineMapBoundaries(), {
+
+            let mapGeoData = boundary ?? mapGeoJSON.get();
+            if (!mapGeoData) {
+                // A game brings its own play area, and every session has a
+                // game: while one is selected, loading or being restored, wait
+                // for it instead of fetching the free-play boundary.
+                if (
+                    currentGameId.get() ||
+                    activeSessionId.get() ||
+                    isGameSwitchPending()
+                ) {
+                    if (
+                        renderedGameIdRef.current !== null &&
+                        !compiled &&
+                        !definitionReady
+                    ) {
+                        clearQuestionLayers(map);
+                        renderedGameIdRef.current = null;
+                    }
+                    return;
+                }
+                mapGeoData = await toast.promise(determineMapBoundaries(), {
                     error: "Couldn't load map boundaries — Overpass API may be slow. Try again.",
                 });
-                mapGeoJSON.set(x);
-                mapGeoData = x;
-            } catch {
-                isLoading.set(false);
-                return;
+                if (!isCurrent()) return;
             }
-        }
-
-        map.eachLayer((layer: any) => {
-            if (layer.questionKey || layer.questionKey === 0) {
-                map.removeLayer(layer);
-            }
-        });
-
-        try {
-            if ($hiderMode !== false) {
-                for (const question of $questions) {
+            if (mapGeoJSON.get() !== mapGeoData) mapGeoJSON.set(mapGeoData);
+            if (hider !== false) {
+                for (const question of snapshot) {
                     await hiderifyQuestion(question);
+                    if (!isCurrent()) return;
                 }
-
-                triggerLocalRefresh.set(Math.random()); // Refresh the question sidebar with new information but not this map
             }
 
-            // Per-question standalone regions (dodge-aware hiding zone survival).
-            // Computed from the full base boundary BEFORE it gets folded into the
-            // combined elimination area below.
             const perQuestionRegions = await computePerQuestionRegions(
-                $questions,
+                snapshot,
                 mapGeoData,
-                planningModeEnabled.get(),
+                planning,
             );
-            perQuestionMapData.set(perQuestionRegions);
-            console.info(
-                "[taibled:dodge] per-question regions",
-                perQuestionRegions.length,
-            );
+            if (!isCurrent()) return;
 
-            mapGeoData = await applyQuestionsToMapGeoData(
-                $questions,
-                mapGeoData,
-                planningModeEnabled.get(),
-                (geoJSONObj, question) => {
-                    const geoJSONPlane = L.geoJSON(geoJSONObj);
-                    // @ts-expect-error This is a check such that only this type of layer is removed
-                    geoJSONPlane.questionKey = question.key;
-                    geoJSONPlane.addTo(map);
-                },
-            );
+            // Build the replacement off-map. Never clear the visible result
+            // while awaiting geometry, or let an obsolete refresh publish layers.
+            const previews: L.GeoJSON[] = [];
+            for (const question of snapshot) {
+                const geometry = await determinePlanningPolygon(
+                    question,
+                    planning,
+                );
+                if (!isCurrent()) return;
+                if (!geometry) continue;
+                const layer = L.geoJSON(geometry);
+                Object.assign(layer, { questionKey: question.key });
+                previews.push(layer);
+            }
 
+            // Standalone regions already include the base boundary. Reuse them
+            // rather than evaluating every question a second time for the map.
+            if (perQuestionRegions.length) {
+                mapGeoData = perQuestionRegions[0].region;
+                for (
+                    let index = 1;
+                    index < perQuestionRegions.length;
+                    index++
+                ) {
+                    const { region } = perQuestionRegions[index];
+                    const intersection = await requestGeometry({
+                        kind: "clip",
+                        mapData: mapGeoData!,
+                        modifications: region,
+                        within: true,
+                    });
+                    if (!isCurrent()) return;
+                    mapGeoData = turf.featureCollection(
+                        intersection ? [intersection] : [],
+                    );
+                }
+            }
+            if (!isCurrent()) return;
+
+            // Mask the remaining area off the main thread (same result as
+            // holedMask) and keep the unmasked area for auto-zoom.
+            const remaining = mapGeoData!;
+            const mask = await requestGeometry({
+                kind: "clip",
+                mapData: BLANK_GEOJSON as FeatureCollection<Polygon>,
+                modifications: remaining,
+                within: false,
+            });
+            if (!isCurrent()) return;
             mapGeoData = {
                 type: "FeatureCollection",
-                features: [holedMask(mapGeoData!)!],
+                features: [mask!],
             };
+            const elimination = L.geoJSON(mapGeoData);
+            Object.assign(elimination, { eliminationGeoJSON: true });
 
-            map.eachLayer((layer: any) => {
-                if (layer.eliminationGeoJSON) {
-                    // Hopefully only geoJSON layers
-                    map.removeLayer(layer);
-                }
-            });
-
-            const g = L.geoJSON(mapGeoData);
-            // @ts-expect-error This is a check such that only this type of layer is removed
-            g.eliminationGeoJSON = true;
-            g.addTo(map);
-
+            clearQuestionLayers(map);
+            for (const preview of previews) preview.addTo(map);
+            elimination.addTo(map);
+            renderedGameIdRef.current = activeGameId;
+            if (hider !== false) {
+                snapshot.forEach((question, index) => {
+                    sourceQuestions[index].data = question.data;
+                });
+                triggerLocalRefresh.set(Math.random());
+            }
+            perQuestionMapData.set(perQuestionRegions);
             questionFinishedMapData.set(mapGeoData);
 
-            if (autoZoom.get() && focus) {
-                const bbox = turf.bbox(holedMask(mapGeoData) as any);
-                const bounds = [
+            if (autoZoom.get()) {
+                if (!remaining.features.length) return;
+                const bbox = turf.bbox(remaining);
+                const bounds: L.LatLngBoundsExpression = [
                     [bbox[1], bbox[0]],
                     [bbox[3], bbox[2]],
                 ];
-
                 if (animateMapMovements.get()) {
-                    map.flyToBounds(bounds as any);
+                    map.flyToBounds(bounds);
                 } else {
-                    map.fitBounds(bounds as any);
+                    map.fitBounds(bounds);
                 }
             }
         } catch (error) {
-            console.log(error);
-
-            isLoading.set(false);
+            if (!isCurrent()) return;
+            if (error instanceof SupersededError) {
+                // This refresh reused cached geometry an obsolete refresh had
+                // requested, and a newer position replaced it. The cache has
+                // dropped it, so start over.
+                void refreshQueue.request(refreshQuestions);
+                return;
+            }
+            console.error(error);
             if (document.querySelectorAll(".Toastify__toast").length === 0) {
-                return toast.error("No solutions found / error occurred");
+                toast.error("No solutions found / error occurred");
             }
         } finally {
-            isLoading.set(false);
+            setScopedLoading("map", false);
         }
     };
 
@@ -317,7 +404,7 @@ export const Map = ({ className }: { className?: string }) => {
                     {
                         text: "Add Radius",
                         callback: (e: any) =>
-                            addQuestion({
+                            addQuestionFromMenu({
                                 id: "radius",
                                 data: {
                                     lat: e.latlng.lat,
@@ -337,7 +424,7 @@ export const Map = ({ className }: { className?: string }) => {
                                 },
                             );
 
-                            addQuestion({
+                            addQuestionFromMenu({
                                 id: "thermometer",
                                 data: {
                                     latA: e.latlng.lat,
@@ -351,7 +438,7 @@ export const Map = ({ className }: { className?: string }) => {
                     {
                         text: "Add Tentacles",
                         callback: (e: any) => {
-                            addQuestion({
+                            addQuestionFromMenu({
                                 id: "tentacles",
                                 data: {
                                     lat: e.latlng.lat,
@@ -363,7 +450,7 @@ export const Map = ({ className }: { className?: string }) => {
                     {
                         text: "Add Matching",
                         callback: (e: any) => {
-                            addQuestion({
+                            addQuestionFromMenu({
                                 id: "matching",
                                 data: {
                                     lat: e.latlng.lat,
@@ -375,7 +462,7 @@ export const Map = ({ className }: { className?: string }) => {
                     {
                         text: "Add Measuring",
                         callback: (e: any) => {
-                            addQuestion({
+                            addQuestionFromMenu({
                                 id: "measuring",
                                 data: {
                                     lat: e.latlng.lat,
@@ -387,7 +474,7 @@ export const Map = ({ className }: { className?: string }) => {
                     {
                         text: "Exclude Country",
                         callback: (e: any) => {
-                            addQuestion({
+                            addQuestionFromMenu({
                                 id: "matching",
                                 data: {
                                     lat: e.latlng.lat,
@@ -463,28 +550,27 @@ export const Map = ({ className }: { className?: string }) => {
 
     useEffect(() => {
         if (!map) return;
-
-        refreshQuestions(true);
-    }, [$questions, map, $hiderMode, $mapGeoLocation, $polyGeoJSON, $gamePOIData, $gamePOIReady]);
+        const resizeObserver = new ResizeObserver(() => {
+            map.invalidateSize({ pan: false });
+        });
+        resizeObserver.observe(map.getContainer());
+        return () => resizeObserver.disconnect();
+    }, [map]);
 
     useEffect(() => {
-        const intervalId = setInterval(() => {
-            if (!map) return;
-            if (isLoading.get()) return;
-            let layerCount = 0;
-            map.eachLayer((layer: any) => {
-                if (layer.eliminationGeoJSON) {
-                    layerCount++;
-                }
-            });
-            if (layerCount > 1) {
-                console.log("Too many layers, refreshing...");
-                refreshQuestions(false);
-            }
-        }, 1000);
-
-        return () => clearInterval(intervalId);
-    }, [map]);
+        void refreshQueue.request(refreshQuestions);
+        return () => refreshQueue.cancel();
+    }, [
+        $questions,
+        map,
+        $hiderMode,
+        $planningMode,
+        $compiledGame,
+        $mapGeoLocation,
+        $polyGeoJSON,
+        $gameDefinitionReady,
+        $currentGameId,
+    ]);
 
     useEffect(() => {
         const handleFullscreenChange = () => {

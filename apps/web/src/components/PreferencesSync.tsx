@@ -1,6 +1,7 @@
+import type { MeResponse } from "@searchlight/shared";
 import { useEffect, useRef } from "react";
-import type { MeResponse } from "@taibled/shared";
-import { PREF_ENTRIES, applyPreferences, collectPreferences } from "@/lib/preferencesSync";
+
+import { applyPreferences, collectPreferences,PREF_ENTRIES } from "@/lib/preferencesSync";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -18,7 +19,7 @@ export function PreferencesSync() {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(collectPreferences()),
                 keepalive,
-            }).catch((e) => console.warn("[taibled:prefs] save failed", e));
+            }).catch((e) => console.warn("[searchlight:prefs] save failed", e));
         };
 
         const schedSave = () => {
@@ -43,9 +44,9 @@ export function PreferencesSync() {
             .then(({ preferences }: MeResponse) => {
                 if (!preferences || Object.keys(preferences).length === 0) return;
                 applyPreferences(preferences);
-                console.info("[taibled:prefs] loaded from server", preferences);
+                console.info("[searchlight:prefs] loaded from server", preferences);
             })
-            .catch((e) => console.warn("[taibled:prefs] load failed", e))
+            .catch((e) => console.warn("[searchlight:prefs] load failed", e))
             .finally(() => {
                 suppressSave.current = false;
             });

@@ -1,12 +1,14 @@
 import * as turf from "@turf/turf";
-import type { BBox, FeatureCollection, Point } from "geojson";
+import type { BBox, Feature, FeatureCollection, Point } from "geojson";
 
+import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode } from "@/lib/context";
-import { customPOIPoints, resolveCategory } from "@/lib/poiOverride";
 import { findTentacleLocations, LOCATION_FIRST_TAG } from "@/maps/api";
-import { arcBuffer, safeUnion } from "@/maps/geo-utils";
+import { arcBuffer, safeUnion, setBounded } from "@/maps/geo-utils";
 import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
 import type { TentacleQuestion, Units } from "@/maps/schema";
+
+import { determineTentacleGeometry, featuresMatch } from "./operators/tentacle";
 
 // A bbox covering the tentacle's POIs and its radius circle, used to clip the
 // planar-Voronoi fallback in geoSpatialVoronoiSafe (which kicks in only when the
@@ -36,9 +38,10 @@ function tentacleVoronoiBbox(
 // *promise* (not just the result) also dedupes concurrent in-flight calls so one
 // refresh fires at most one request per unique query. Results (including empty)
 // are kept so we don't refetch; on error the entry is evicted to allow a retry.
-// Cleared on game switch. Custom-POI results bypass this entirely (cheap, no
-// network) and are checked first, so they override any stale cached fallback.
+// Cleared on game switch.
 const _tentacleCache = new Map<string, Promise<FeatureCollection<Point>>>();
+// Keys include the seeker position, so every marker drag adds an entry.
+const MAX_CACHED_TENTACLE_LOOKUPS = 50;
 
 export function clearTentacleCache(): void {
     _tentacleCache.clear();
@@ -47,22 +50,60 @@ export function clearTentacleCache(): void {
 export async function getLocationsForTentacleQuestion(
     question: TentacleQuestion,
 ): Promise<FeatureCollection<Point>> {
-    const categoryKey = resolveCategory(question.locationType);
-    const overridePts = customPOIPoints(categoryKey);
-    if (overridePts) {
-        const center = turf.point([question.lng, question.lat]);
-        const radiusMeters = turf.convertLength(question.radius, question.unit, "meters");
-        const nearby = overridePts.filter(
-            (pt) => turf.distance(center, pt, { units: "meters" }) <= radiusMeters,
-        );
-        console.info(`[taibled:poi] tentacle ${question.locationType} → ${nearby.length} custom within radius`);
-        return turf.featureCollection(nearby) as FeatureCollection<Point>;
+    const game = compiledGameAtom.get();
+    if (game && question.locationType && question.locationType !== "custom") {
+        const qDef = game.questionMap.get(question.locationType);
+        if (
+            qDef &&
+            qDef.family === "tentacle" &&
+            "source" in qDef.evaluator &&
+            qDef.evaluator.source?.kind === "dataset" &&
+            qDef.evaluator.source.datasetId
+        ) {
+            const ds = game.datasets[qDef.evaluator.source.datasetId] as
+                | { kind?: string; features?: { features?: Feature[] } }
+                | undefined;
+            if (ds?.kind === "inline" && ds.features?.features) {
+                const withName = (p: Feature<Point>) => {
+                    const props = (p.properties ?? {}) as Record<string, unknown>;
+                    const name = (props.name ?? props["name:en"] ?? "POI") as string;
+                    return {
+                        ...p,
+                        properties: {
+                            ...props,
+                            name,
+                        },
+                    } as Feature<Point>;
+                };
+
+                if (
+                    question.lat !== null &&
+                    question.lng !== null &&
+                    question.radius !== undefined &&
+                    question.radius !== null &&
+                    question.unit !== undefined
+                ) {
+                    // List exactly the sites inside the circle the map uses.
+                    const { points } = await determineTentacleGeometry({
+                        evaluator: qDef.evaluator,
+                        datasets: game.datasets,
+                        data: question,
+                    });
+                    return turf.featureCollection(points.map(withName));
+                }
+                return turf.featureCollection(
+                    ds.features.features
+                        .filter((f): f is Feature<Point> => f.geometry?.type === "Point")
+                        .map(withName),
+                );
+            }
+        }
+        // A game's tentacle locations come only from its own layers.
+        return turf.featureCollection([]) as FeatureCollection<Point>;
     }
 
-    // Don't call Overpass for types it can't handle — custom-POI-only types (like
-    // christian_religion) aren't in LOCATION_FIRST_TAG and would produce a malformed
-    // query. Return empty without caching so the next render retries once gamePOIData
-    // loads (instead of poisoning the cache with a permanent empty result).
+    // Don't call Overpass for types it can't handle: a type outside
+    // LOCATION_FIRST_TAG would produce a malformed query.
     if (!(question.locationType in LOCATION_FIRST_TAG)) {
         return turf.featureCollection([]) as FeatureCollection<Point>;
     }
@@ -82,7 +123,7 @@ export async function getLocationsForTentacleQuestion(
             _tentacleCache.delete(key); // allow a later refresh to retry
             throw e;
         });
-        _tentacleCache.set(key, pending);
+        setBounded(_tentacleCache, key, pending, MAX_CACHED_TENTACLE_LOOKUPS);
     }
     return pending;
 }
@@ -132,7 +173,7 @@ export const adjustPerTentacle = async (
 
     const rawPoints =
         question.locationType === "custom"
-            ? turf.featureCollection(question.places)
+            ? turf.featureCollection(question.places ?? [])
             : await getLocationsForTentacleQuestion(question);
 
     const points =
@@ -146,14 +187,26 @@ export const adjustPerTentacle = async (
               )
             : rawPoints;
 
+    if (points.features.length === 1) {
+        if (!featuresMatch(points.features[0], question.location)) {
+            return mapData;
+        }
+        const circle = await arcBuffer(
+            turf.featureCollection([turf.point([question.lng, question.lat])]),
+            question.radius,
+            question.unit,
+        );
+        return turf.intersect(
+            turf.featureCollection([safeUnion(mapData), circle]),
+        );
+    }
+
     const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
 
-    const correctPolygon = voronoi.features.find((feature: any) => {
+    const correctPolygon = voronoi.features.find((feature) => {
         if (!question.location) return false;
-        return (
-            feature.properties.site.properties.name ===
-            question.location.properties.name
-        );
+        const site = (feature.properties as { site?: Feature<Point> } | undefined)?.site ?? feature;
+        return featuresMatch(site, question.location);
     });
     if (!correctPolygon) {
         return mapData;
@@ -178,7 +231,7 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
 
     const rawPoints =
         question.locationType === "custom"
-            ? turf.featureCollection(question.places)
+            ? turf.featureCollection(question.places ?? [])
             : await getLocationsForTentacleQuestion(question);
 
     const points =
@@ -231,7 +284,7 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
 export const tentaclesPlanningPolygon = async (question: TentacleQuestion) => {
     const rawPoints =
         question.locationType === "custom"
-            ? turf.featureCollection(question.places)
+            ? turf.featureCollection(question.places ?? [])
             : await getLocationsForTentacleQuestion(question);
 
     const points =

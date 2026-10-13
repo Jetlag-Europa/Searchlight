@@ -1,6 +1,7 @@
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
-import { Suspense, use } from "react";
+import type { Feature, Point } from "geojson";
+import { Suspense, use, useEffect, useMemo, useRef } from "react";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import PresetsDialog from "@/components/PresetsDialog";
@@ -12,6 +13,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
 import { UnitSelect } from "@/components/UnitSelect";
+import { compiledGameAtom } from "@/game-definition/store";
 import {
     autoLockQuestions,
     drawingQuestionKey,
@@ -19,15 +21,15 @@ import {
     isLoading,
     questionModified,
     questions,
+    resetScopedLoading,
+    setScopedLoading,
     triggerLocalRefresh,
 } from "@/lib/context";
-import { cn, mapToObj } from "@/lib/utils";
-import { currentGameId, gamesAtom, isQuestionTypeHidden } from "@/lib/games";
-import { findTentacleLocations } from "@/maps/api";
+import { cn } from "@/lib/utils";
+import { featuresMatch } from "@/maps/questions/operators/tentacle";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
 import {
     determineUnionizedStrings,
-    gateAllows,
     NO_GROUP,
     type TentacleQuestion,
     tentacleQuestionSchema,
@@ -50,9 +52,38 @@ export const TentacleQuestionComponent = ({
     const $questions = useStore(questions);
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
-    const $currentGameId = useStore(currentGameId);
-    const $games = useStore(gamesAtom);
-    const activeGameSentinel = $games.find((g) => g.id === $currentGameId)?.sentinelValue ?? "";
+    const compiled = useStore(compiledGameAtom);
+    const compiledTentacles =
+        compiled?.questions.filter((q) => q.family === "tentacle") ?? [];
+    // use() suspends on every promise it hasn't seen, so a fresh promise per
+    // render flashed the spinner and re-filtered the dataset on any re-render.
+    // Only create one when an input of the lookup changes, including the
+    // compiled game, whose layers a game's lookup reads.
+    const locationsPromise = useMemo(
+        () =>
+            data.locationType === "custom"
+                ? Promise.resolve(turf.featureCollection(data.places ?? []))
+                : getLocationsForTentacleQuestion(data),
+        [
+            data.locationType,
+            data.lat,
+            data.lng,
+            data.radius,
+            data.unit,
+            data.places,
+            compiled,
+        ],
+    );
+    const prefillSeqRef = useRef(0);
+    const prefillScope = useMemo(() => Symbol("tentacle-prefill"), []);
+
+    useEffect(() => {
+        return () => {
+            prefillSeqRef.current++;
+            resetScopedLoading(prefillScope);
+        };
+    }, [prefillScope]);
+
     const label = `Tentacles
     ${
         $questions
@@ -60,12 +91,11 @@ export const TentacleQuestionComponent = ({
             .map((q) => q.key)
             .indexOf(questionKey) + 1
     }`;
-
     return (
         <QuestionCard
             questionKey={questionKey}
             label={label}
-            sub={sub}
+            sub={compiled?.questionMap.get(data.locationType)?.label ?? sub}
             className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
@@ -101,74 +131,86 @@ export const TentacleQuestionComponent = ({
             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                 <Select
                     trigger="Location Type"
-                    options={Object.fromEntries(
-                        tentacleQuestionSchema.options
-                            .filter((x) => x.description === NO_GROUP)
-                            .flatMap((x) =>
-                                determineUnionizedStrings(x.shape.locationType),
-                            )
-                            .filter((x) => {
-                                const value = (x._def as any).value;
-                                return (
-                                    gateAllows(value, activeGameSentinel) &&
-                                    !isQuestionTypeHidden(value, activeGameSentinel, "tentacle")
-                                );
-                            })
-                            .map((x) => [(x._def as any).value, x.description]),
-                    )}
-                    groups={Object.fromEntries(
-                        tentacleQuestionSchema.options
-                            .filter((x) => x.description !== NO_GROUP)
-                            .map((x) => [
-                                x.description,
-                                Object.fromEntries(
-                                    determineUnionizedStrings(
-                                        x.shape.locationType,
-                                    )
-                                        .filter((y) => {
-                                            const value = (y._def as any).value;
-                                            return (
-                                                gateAllows(
-                                                    value,
-                                                    activeGameSentinel,
-                                                ) &&
-                                                !isQuestionTypeHidden(
-                                                    value,
-                                                    activeGameSentinel,
-                                                    "tentacle",
-                                                )
-                                            );
-                                        })
-                                        .map((y) => [
-                                            (y._def as any).value,
-                                            y.description,
-                                        ]),
-                                ),
-                            ]),
-                    )}
                     value={data.locationType}
+                    options={
+                        compiled
+                            ? Object.fromEntries(
+                                  compiledTentacles.map((q) => [q.id, q.label]),
+                              )
+                            : Object.fromEntries(
+                                  tentacleQuestionSchema.options
+                                      .filter((x) => x.description === NO_GROUP)
+                                      .flatMap((x) =>
+                                          determineUnionizedStrings(
+                                              x.shape.locationType,
+                                          ),
+                                      )
+                                      .map((x) => [
+                                          (x._def as any).value,
+                                          x.description,
+                                      ]),
+                              )
+                    }
+                    groups={
+                        compiled
+                            ? {
+                                  Custom: {
+                                      disabled: false,
+                                      options: {
+                                          custom: "Custom Locations",
+                                      },
+                                  },
+                              }
+                            : Object.fromEntries(
+                                  tentacleQuestionSchema.options
+                                      .filter((x) => x.description !== NO_GROUP)
+                                      .map((x) => [
+                                          x.description,
+                                          Object.fromEntries(
+                                              determineUnionizedStrings(
+                                                  x.shape.locationType,
+                                              ).map((y) => [
+                                                  (y._def as any).value,
+                                                  y.description,
+                                              ]),
+                                          ),
+                                      ]),
+                              )
+                    }
                     onValueChange={async (value) => {
+                        const currentSeq = ++prefillSeqRef.current;
                         if (value === "custom") {
-                            const priorLocations = await getLocationsForTentacleQuestion(
-                                data as TraditionalTentacleQuestion,
-                            );
-
-                            data.locationType = "custom";
-                            data.places = priorLocations.features.map((x) => ({
-                                ...x,
-                                properties: {
-                                    ...x.properties,
-                                    name:
-                                        x.properties?.["name:en"] ??
-                                        x.properties?.name,
-                                },
-                            }));
-                            data.location = false;
+                            setScopedLoading(prefillScope, true);
+                            try {
+                                const priorLocations =
+                                    await getLocationsForTentacleQuestion(
+                                        data as TraditionalTentacleQuestion,
+                                    );
+                                if (prefillSeqRef.current !== currentSeq)
+                                    return;
+                                data.locationType = "custom";
+                                data.places = priorLocations.features.map(
+                                    (x) => ({
+                                        ...x,
+                                        properties: {
+                                            ...x.properties,
+                                            name:
+                                                x.properties?.["name:en"] ??
+                                                x.properties?.name,
+                                        },
+                                    }),
+                                );
+                                data.location = false;
+                            } finally {
+                                setScopedLoading(prefillScope, false);
+                            }
                         } else {
                             data.location = false;
                             data.locationType = value;
                         }
-                        questionModified();
+                        if (prefillSeqRef.current === currentSeq) {
+                            questionModified();
+                        }
                     }}
                     disabled={!data.drag || $isLoading}
                 />
@@ -238,13 +280,7 @@ export const TentacleQuestionComponent = ({
                 >
                     <TentacleLocationSelector
                         data={data}
-                        promise={
-                            data.locationType === "custom"
-                                ? Promise.resolve(
-                                      turf.featureCollection(data.places),
-                                  )
-                                : getLocationsForTentacleQuestion(data)
-                        }
+                        promise={locationsPromise}
                         disabled={!data.drag || $isLoading}
                     />
                 </Suspense>
@@ -253,80 +289,109 @@ export const TentacleQuestionComponent = ({
     );
 };
 
+function getFeatureKey(feature: Feature<Point>): string {
+    if (feature.id !== undefined && feature.id !== null) {
+        return String(feature.id);
+    }
+    return JSON.stringify(feature.geometry.coordinates);
+}
+
 const TentacleLocationSelector = ({
     data,
     promise,
     disabled,
 }: {
     data: TentacleQuestion;
-    promise: Promise<any>;
+    promise: Promise<{ features: Feature[] }>;
     disabled: boolean;
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
     const locations = use(promise);
 
+    const allFeatures = (locations.features || []).filter(
+        (f): f is Feature<Point> => f.geometry?.type === "Point",
+    );
+
     // Filter locations to only those within the radius of the primary location
-    const filteredFeatures = (() => {
+    const filteredFeatures: Feature<Point>[] = (() => {
         if (
             data.lat === null ||
             data.lng === null ||
             data.radius === undefined ||
             data.radius === null
         ) {
-            return locations.features;
+            return allFeatures;
         }
 
         const center = turf.point([data.lng, data.lat]);
 
-        return locations.features.filter((feature: any) => {
-            const coords =
-                feature?.geometry?.coordinates ??
-                (feature?.properties?.lon && feature?.properties?.lat
-                    ? [feature.properties.lon, feature.properties.lat]
-                    : null);
-
-            if (!coords) return false;
-
-            const pt = turf.point(coords);
-            const dist = turf.distance(center, pt, { units: data.unit });
-
+        return allFeatures.filter((feature) => {
+            const dist = turf.distance(center, feature, { units: data.unit });
             return dist <= data.radius;
         });
     })();
 
     // If the currently selected location is no longer within radius, clear it.
-    const _selectedLocationName = data.location
-        ? data.location.properties?.name
-        : null;
     if (
-        _selectedLocationName &&
-        !filteredFeatures.find(
-            (f: any) => f.properties.name === _selectedLocationName,
-        )
+        data.location &&
+        !filteredFeatures.some((f) => featuresMatch(f, data.location))
     ) {
         data.location = false;
         questionModified();
     }
+
+    const nameCounts = new Map<string, number>();
+    for (const f of filteredFeatures) {
+        const name = (f.properties?.name as string | undefined) ?? "Location";
+        nameCounts.set(name, (nameCounts.get(name) ?? 0) + 1);
+    }
+
+    const featureOptions: Record<string, string> = {};
+    for (const f of filteredFeatures) {
+        const key = getFeatureKey(f);
+        const name = (f.properties?.name as string | undefined) ?? "Location";
+        const isDuplicate = (nameCounts.get(name) ?? 0) > 1;
+        if (isDuplicate) {
+            const coords = f.geometry.coordinates;
+            featureOptions[key] =
+                `${name} (${coords[1].toFixed(3)}, ${coords[0].toFixed(3)})`;
+        } else {
+            featureOptions[key] = name;
+        }
+    }
+
+    const currentMatched = data.location
+        ? filteredFeatures.find((f) => featuresMatch(f, data.location))
+        : null;
+    const currentValue = currentMatched
+        ? getFeatureKey(currentMatched)
+        : "false";
 
     return (
         <Select
             trigger="Location"
             options={{
                 false: "Not Within",
-                ...mapToObj(filteredFeatures, (feature: any) => [
-                    feature.properties.name,
-                    feature.properties.name,
-                ]),
+                ...featureOptions,
             }}
-            value={data.location ? data.location.properties.name : "false"}
+            value={currentValue}
             onValueChange={(value) => {
                 if (value === "false") {
                     data.location = false;
                 } else {
-                    data.location = filteredFeatures.find(
-                        (feature: any) => feature.properties.name === value,
+                    const found = filteredFeatures.find(
+                        (feature) => getFeatureKey(feature) === value,
                     );
+                    data.location = found
+                        ? {
+                              ...found,
+                              properties: {
+                                  ...found.properties,
+                                  name: found.properties?.name ?? "Location",
+                              },
+                          }
+                        : false;
                 }
 
                 questionModified();

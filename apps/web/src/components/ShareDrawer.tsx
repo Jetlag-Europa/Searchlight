@@ -1,14 +1,16 @@
-import { useEffect, useState, useCallback } from "react";
 import { useStore } from "@nanostores/react";
 import type {
-    UserSearchResult,
-    UserSearchResponse,
+    CreateLinkResponse,
     SessionInviteDetail,
     SessionInvitesResponse,
-    SessionLinkSummary,
     SessionLinksResponse,
-    CreateLinkResponse,
-} from "@taibled/shared";
+    SessionLinkSummary,
+    UserSearchResponse,
+    UserSearchResult,
+} from "@searchlight/shared";
+import { useCallback,useEffect, useState } from "react";
+
+import { Button } from "@/components/ui/button";
 import {
     Drawer,
     DrawerContent,
@@ -16,9 +18,8 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 import { activeSessionData } from "@/lib/activeSession";
+import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -243,7 +244,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                     {activeTab === "user" && (
                         <div className="space-y-3">
                             <p className="text-xs text-muted-foreground">
-                                Send a personal copy of this session's questions to a user. They get their own private snapshot.
+                                Send a personal copy of this session’s questions to a user. They get their own private snapshot.
                             </p>
 
                             <input
@@ -314,7 +315,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                     {activeTab === "link" && (
                         <div className="space-y-3">
                             <p className="text-xs text-muted-foreground">
-                                Anyone with this link gets their own private copy of your session's questions.
+                                Anyone with this link gets their own private copy of your session’s questions.
                             </p>
 
                             <Button

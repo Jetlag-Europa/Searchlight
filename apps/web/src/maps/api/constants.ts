@@ -1,5 +1,3 @@
-import type { APILocations } from "@/maps/schema";
-
 // Overpass queries no longer hit public servers from the browser — they go through
 // the backend /overpass proxy (which reaches LocalOverpass, possibly behind
 // Cloudflare Access). This string is only a stable namespace for the browser Cache

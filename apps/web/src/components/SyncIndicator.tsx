@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
-import { syncStatus, pendingEventCount, connectedUsers } from "@/lib/context";
+
+import { connectedUsers,pendingEventCount, syncStatus } from "@/lib/context";
 
 const MAX_AVATARS = 5;
 

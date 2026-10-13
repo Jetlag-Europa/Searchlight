@@ -1,9 +1,12 @@
 import { useStore } from "@nanostores/react";
+import { resolveGameDefinitionId } from "@searchlight/shared";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
+import { InviteDrawer } from "@/components/InviteDrawer";
+import { ShareDrawer } from "@/components/ShareDrawer";
 import {
     Drawer,
     DrawerContent,
@@ -11,15 +14,15 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
+import { activeGameDefinitionAtom } from "@/game-definition/store";
 import {
     additionalMapGeoLocations,
     allowGooglePlusCodes,
     alwaysUsePastebin,
-    autoLockQuestions,
     animateMapMovements,
+    autoLockQuestions,
     autoSave,
     autoZoom,
-    warningAlarm,
     baseTileLayer,
     customInitPreference,
     customPresets,
@@ -31,15 +34,12 @@ import {
     displayHidingZonesOptions,
     displayHidingZonesStyle,
     followMe,
-    showZoneNames,
     hiderMode,
     hidingRadius,
     hidingRadiusUnits,
     hidingZone,
     hidingZoneFocusedStationID,
     includeDefaultStations,
-    trainStations,
-    leafletMapContext,
     mapGeoJSON,
     mapGeoLocation,
     pastebinApiKey,
@@ -49,12 +49,13 @@ import {
     questions,
     save,
     showTutorial,
+    showZoneNames,
     thunderforestApiKey,
+    trainStations,
     triggerLocalRefresh,
     useCustomStations,
+    warningAlarm,
 } from "@/lib/context";
-import { InviteDrawer } from "@/components/InviteDrawer";
-import { ShareDrawer } from "@/components/ShareDrawer";
 import {
     cn,
     compress,
@@ -63,10 +64,10 @@ import {
     shareOrFallback,
     uploadToPastebin,
 } from "@/lib/utils";
+import { extractStationLabel } from "@/maps/geo-utils";
 import { questionsSchema } from "@/maps/schema";
 
 import { LatitudeLongitude, type LocalLocation } from "./LatLngPicker";
-import { extractStationLabel } from "@/maps/geo-utils";
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import { Input } from "./ui/input";
@@ -80,7 +81,6 @@ import {
 } from "./ui/sidebar-l";
 import { UnitSelect } from "./UnitSelect";
 
-const HIDING_ZONE_URL_PARAM = "hz";
 const HIDING_ZONE_COMPRESSED_URL_PARAM = "hzc";
 const PASTEBIN_URL_PARAM = "pb";
 
@@ -95,7 +95,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $hiderMode = useStore(hiderMode);
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
-    const $hidingZone = useStore(hidingZone);
+    // hidingZone is read only when sharing; subscribing kept the derived store
+    // (with its structuredClones) recomputing on every question/station change.
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
@@ -125,27 +126,18 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
 
         lastDefaultUnit.current = currentDefault;
     }, [$defaultUnit]);
-
     useEffect(() => {
+        let active = true;
         const params = new URL(window.location.toString()).searchParams;
-        const hidingZoneOld = params.get(HIDING_ZONE_URL_PARAM);
         const hidingZoneCompressed = params.get(
             HIDING_ZONE_COMPRESSED_URL_PARAM,
         );
         const pastebinId = params.get(PASTEBIN_URL_PARAM);
 
-        if (hidingZoneOld !== null) {
-            // Legacy base64 encoding
-            try {
-                loadHidingZone(atob(hidingZoneOld));
-                // Remove hiding zone parameter after initial load
-                window.history.replaceState({}, "", window.location.pathname);
-            } catch (e) {
-                toast.error(`Invalid hiding zone settings: ${e}`);
-            }
-        } else if (hidingZoneCompressed !== null) {
+        if (hidingZoneCompressed !== null) {
             // Modern compressed format
             decompress(hidingZoneCompressed).then((data) => {
+                if (!active) return;
                 try {
                     loadHidingZone(data);
                     // Remove hiding zone parameter after initial load
@@ -155,12 +147,14 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                         window.location.pathname,
                     );
                 } catch (e) {
-                    toast.error(`Invalid hiding zone settings: ${e}`);
+                    if (active)
+                        toast.error(`Invalid hiding zone settings: ${e}`);
                 }
             });
         } else if (pastebinId !== null) {
             fetchFromPastebin(pastebinId)
                 .then((data) => {
+                    if (!active) return;
                     try {
                         loadHidingZone(data);
                         // Remove pb parameter after initial load
@@ -173,16 +167,21 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                             "Successfully loaded data from Pastebin link!",
                         );
                     } catch (e) {
-                        toast.error(`Invalid data from Pastebin: ${e}`);
+                        if (active)
+                            toast.error(`Invalid data from Pastebin: ${e}`);
                     }
                 })
                 .catch((error) => {
+                    if (!active) return;
                     console.error("Failed to fetch from Pastebin:", error);
                     toast.error(
                         `Failed to load from Pastebin: ${error.message}`,
                     );
                 });
         }
+        return () => {
+            active = false;
+        };
     }, []);
 
     const loadHidingZone = (hidingZone: string) => {
@@ -312,487 +311,616 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
             </Button>
 
             {/* Collapsible section — stays mounted, animates height */}
-            <div className={cn("grid transition-all duration-200 w-32", isNavOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]")}>
+            <div
+                className={cn(
+                    "grid transition-all duration-200 w-32",
+                    isNavOpen ? "grid-rows-[1fr]" : "grid-rows-[0fr]",
+                )}
+            >
                 <div className="min-h-0 overflow-hidden flex flex-col gap-2 pt-0 pb-0">
+                    {/* Share — hidden but kept in DOM */}
+                    <Button
+                        className="w-full shadow-md hidden"
+                        onClick={async () => {
+                            setNavOpen(false);
+                            const hidingZoneString =
+                                JSON.stringify(hidingZone.get());
+                            let compressedData;
+                            try {
+                                compressedData =
+                                    await compress(hidingZoneString);
+                            } catch (error) {
+                                console.error("Compression failed:", error);
+                                toast.error(
+                                    `Failed to prepare data for sharing`,
+                                );
+                                return;
+                            }
 
-            {/* Share — hidden but kept in DOM */}
-            <Button
-                className="w-full shadow-md hidden"
-                onClick={async () => {
-                    setNavOpen(false);
-                    const hidingZoneString = JSON.stringify($hidingZone);
-                    let compressedData;
-                    try {
-                        compressedData = await compress(hidingZoneString);
-                    } catch (error) {
-                        console.error("Compression failed:", error);
-                        toast.error(`Failed to prepare data for sharing`);
-                        return;
-                    }
+                            const baseUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
+                            let shareUrl = `${baseUrl}?${HIDING_ZONE_COMPRESSED_URL_PARAM}=${compressedData}`;
 
-                    const baseUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
-                    let shareUrl = `${baseUrl}?${HIDING_ZONE_COMPRESSED_URL_PARAM}=${compressedData}`;
+                            if ($alwaysUsePastebin || shareUrl.length > 2000) {
+                                if (!$pastebinApiKey) {
+                                    toast.error(
+                                        "Data is too large for a URL or Pastebin is forced. Please enter a Pastebin API key in Options to share via Pastebin.",
+                                    );
+                                    return;
+                                }
+                                try {
+                                    toast.info(
+                                        "Data is being shared via Pastebin...",
+                                    );
+                                    const pastebinUrl = await uploadToPastebin(
+                                        $pastebinApiKey,
+                                        hidingZoneString,
+                                    );
+                                    const pasteId = pastebinUrl.substring(
+                                        pastebinUrl.lastIndexOf("/") + 1,
+                                    );
+                                    shareUrl = `${baseUrl}?${PASTEBIN_URL_PARAM}=${pasteId}`;
+                                    toast.success(
+                                        "Successfully uploaded to Pastebin! URL is ready to be shared.",
+                                    );
+                                } catch (error) {
+                                    console.error(
+                                        "Pastebin upload failed:",
+                                        error,
+                                    );
+                                    toast.error(
+                                        `Pastebin upload failed. Please check your API key and try again.`,
+                                    );
+                                    return;
+                                }
+                            }
 
-                    if ($alwaysUsePastebin || shareUrl.length > 2000) {
-                        if (!$pastebinApiKey) {
-                            toast.error(
-                                "Data is too large for a URL or Pastebin is forced. Please enter a Pastebin API key in Options to share via Pastebin.",
-                            );
-                            return;
-                        }
-                        try {
-                            toast.info("Data is being shared via Pastebin...");
-                            const pastebinUrl = await uploadToPastebin(
-                                $pastebinApiKey,
-                                hidingZoneString,
-                            );
-                            const pasteId = pastebinUrl.substring(
-                                pastebinUrl.lastIndexOf("/") + 1,
-                            );
-                            shareUrl = `${baseUrl}?${PASTEBIN_URL_PARAM}=${pasteId}`;
-                            toast.success(
-                                "Successfully uploaded to Pastebin! URL is ready to be shared.",
-                            );
-                        } catch (error) {
-                            console.error("Pastebin upload failed:", error);
-                            toast.error(
-                                `Pastebin upload failed. Please check your API key and try again.`,
-                            );
-                            return;
-                        }
-                    }
+                            // Show platform native share sheet if possible
+                            await shareOrFallback(shareUrl).then((result) => {
+                                console.log(`result ${result}`);
+                                if (result === false) {
+                                    return toast.error(
+                                        `Clipboard not supported. Try manually copying/pasting: ${shareUrl}`,
+                                        { className: "p-0 w-[1000px]" },
+                                    );
+                                }
 
-                    // Show platform native share sheet if possible
-                    await shareOrFallback(shareUrl).then((result) => {
-                        console.log(`result ${result}`);
-                        if (result === false) {
-                            return toast.error(
-                                `Clipboard not supported. Try manually copying/pasting: ${shareUrl}`,
-                                { className: "p-0 w-[1000px]" },
-                            );
-                        }
-
-                        if (result === "clipboard") {
-                            toast.success(
-                                "Hiding zone URL copied to clipboard",
-                                {
-                                    autoClose: 2000,
-                                },
-                            );
-                        }
-                    });
-                }}
-                data-tutorial-id="share-old"
-            >
-                Share
-            </Button>
-            <Button
-                className="w-full shadow-md"
-                variant={$showZoneNames ? "default" : "outline"}
-                onClick={() => {
-                    showZoneNames.set(!$showZoneNames);
-                }}
-            >
-                Zone Labels
-            </Button>
-            <Button
-                className="w-full shadow-md hidden"
-                onClick={() => {
-                    setNavOpen(false);
-                    showTutorial.set(true);
-                }}
-            >
-                Tutorial
-            </Button>
-            <a href="/feedback" target="_blank" rel="noopener noreferrer" className="w-full" onClick={() => setNavOpen(false)}>
-                <Button className="w-full shadow-md">Feedback</Button>
-            </a>
-            <ShareDrawer className="w-full shadow-md" onOpen={() => setNavOpen(false)} />
-            <InviteDrawer className="w-full" onOpen={() => setNavOpen(false)} />
-            <Drawer open={isOptionsOpen} onOpenChange={(open) => { setOptionsOpen(open); if (open) setNavOpen(false); }}>
-                <DrawerTrigger className="w-full" asChild>
+                                if (result === "clipboard") {
+                                    toast.success(
+                                        "Hiding zone URL copied to clipboard",
+                                        {
+                                            autoClose: 2000,
+                                        },
+                                    );
+                                }
+                            });
+                        }}
+                        data-tutorial-id="share-old"
+                    >
+                        Share
+                    </Button>
                     <Button
                         className="w-full shadow-md"
-                        data-tutorial-id="option-questions-button"
+                        variant={$showZoneNames ? "default" : "outline"}
+                        onClick={() => {
+                            showZoneNames.set(!$showZoneNames);
+                        }}
                     >
-                        Options
+                        Zone Labels
                     </Button>
-                </DrawerTrigger>
-                <DrawerContent aria-describedby={undefined}>
-                    <div className="flex flex-col items-center gap-4 mb-4">
-                        <DrawerHeader>
-                            <DrawerTitle className="text-4xl font-semibold font-poppins">
+                    <Button
+                        className="w-full shadow-md hidden"
+                        onClick={() => {
+                            setNavOpen(false);
+                            showTutorial.set(true);
+                        }}
+                    >
+                        Tutorial
+                    </Button>
+                    <a
+                        href="/feedback"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full"
+                        onClick={() => setNavOpen(false)}
+                    >
+                        <Button className="w-full shadow-md">Feedback</Button>
+                    </a>
+                    <ShareDrawer
+                        className="w-full shadow-md"
+                        onOpen={() => setNavOpen(false)}
+                    />
+                    <InviteDrawer
+                        className="w-full"
+                        onOpen={() => setNavOpen(false)}
+                    />
+                    <Drawer
+                        open={isOptionsOpen}
+                        onOpenChange={(open) => {
+                            setOptionsOpen(open);
+                            if (open) setNavOpen(false);
+                        }}
+                    >
+                        <DrawerTrigger className="w-full" asChild>
+                            <Button
+                                className="w-full shadow-md"
+                                data-tutorial-id="option-questions-button"
+                            >
                                 Options
-                            </DrawerTitle>
-                        </DrawerHeader>
-                        <div className="overflow-y-scroll max-h-[40vh] flex flex-col items-center gap-4 max-w-[1000px] px-12">
-                            <div className="flex flex-row max-[330px]:flex-col gap-4">
-                                <Button
-                                    onClick={() => {
-                                        if (!navigator || !navigator.clipboard)
-                                            return toast.error(
-                                                "Clipboard not supported",
-                                            );
-                                        navigator.clipboard.writeText(
-                                            JSON.stringify($hidingZone),
-                                        );
-                                        toast.success(
-                                            "Hiding zone copied successfully",
-                                            {
-                                                autoClose: 2000,
-                                            },
-                                        );
-                                    }}
-                                >
-                                    Copy Hiding Zone
-                                </Button>
-                                <Button
-                                    onClick={() => {
-                                        if (!navigator || !navigator.clipboard)
-                                            return toast.error(
-                                                "Clipboard not supported",
-                                            );
-                                        navigator.clipboard
-                                            .readText()
-                                            .then(loadHidingZone);
-                                    }}
-                                >
-                                    Paste Hiding Zone
-                                </Button>
-                            </div>
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <Label>Default Unit</Label>
-                            <UnitSelect
-                                unit={$defaultUnit}
-                                onChange={defaultUnit.set}
-                            />
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <Label>New Custom Question Defaults</Label>
-                            <Select
-                                trigger="New custom default"
-                                options={{
-                                    ask: "Ask each time",
-                                    blank: "Start blank",
-                                    prefill: "Copy from current",
-                                }}
-                                value={$customInitPref}
-                                onValueChange={(v) =>
-                                    customInitPreference.set(v as any)
-                                }
-                            />
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <Label>Base map style</Label>
-                            <Select
-                                trigger="Base map style"
-                                options={{
-                                    voyager: "CARTO Voyager",
-                                    light: "CARTO Light",
-                                    dark: "CARTO Dark",
-                                    transport: "Thunderforest Transport",
-                                    neighbourhood:
-                                        "Thunderforest Neighbourhood",
-                                    osmcarto: "OpenStreetMap Carto",
-                                }}
-                                value={$baseTileLayer}
-                                onValueChange={(v) =>
-                                    baseTileLayer.set(v as any)
-                                }
-                            />
-                            <div className="flex flex-col items-center gap-2">
-                                <Label>Thunderforest API Key</Label>
-                                <Input
-                                    type="text"
-                                    value={$thunderforestApiKey}
-                                    id="thunderforestApiKey"
-                                    onChange={(e) =>
-                                        thunderforestApiKey.set(e.target.value)
-                                    }
-                                    placeholder="Enter your Thunderforest API key"
-                                />
-                                <p className="text-xs text-gray-500">
-                                    Needed for Thunderforest map styles. Create
-                                    a key{" "}
-                                    <a
-                                        href="https://manage.thunderforest.com/users/sign_up?price=hobby-project-usd"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-500 cursor-pointer"
-                                    >
-                                        here.
-                                    </a>{" "}
-                                    Don&apos;t worry, it&apos;s free.
-                                </p>
-                            </div>
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <div className="flex flex-col items-center gap-2">
-                                <Label>Pastebin API Key</Label>
-                                <Input
-                                    type="text"
-                                    value={$pastebinApiKey}
-                                    id="pastebinApiKey"
-                                    onChange={(e) =>
-                                        pastebinApiKey.set(e.target.value)
-                                    }
-                                    placeholder="Enter your Pastebin API key"
-                                />
-                                <p className="text-xs text-gray-500">
-                                    Needed for sharing large game data. Create a
-                                    key{" "}
-                                    <a
-                                        href="https://pastebin.com/doc_api"
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-blue-500 cursor-pointer"
-                                    >
-                                        here
-                                    </a>
-                                    .
-                                </p>
-                            </div>
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <Label>Permanent Map Overlay</Label>
-                            <div className="flex flex-row max-[330px]:flex-col gap-4">
-                                <Button
-                                    onClick={() => permanentOverlay.set(null)}
-                                >
-                                    Remove
-                                </Button>
-                                <Button
-                                    onClick={async () => {
-                                        if (!navigator || !navigator.clipboard)
-                                            return toast.error(
-                                                "Clipboard not supported",
-                                            );
-
-                                        try {
-                                            const clipboard =
-                                                await navigator.clipboard.readText();
-                                            const geojson =
-                                                JSON.parse(clipboard);
-                                            permanentOverlay.set(geojson);
-                                        } catch (e) {
-                                            toast.error(
-                                                `Invalid GeoJSON overlay: ${e}`,
-                                            );
-                                        }
-                                    }}
-                                >
-                                    Paste GeoJSON
-                                </Button>
-                            </div>
-                            <Separator className="bg-slate-300 w-[280px]" />
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Animate map movements?
-                                </label>
-                                <Checkbox
-                                    checked={$animateMapMovements}
-                                    onCheckedChange={() => {
-                                        animateMapMovements.set(
-                                            !$animateMapMovements,
-                                        );
-                                    }}
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Force Pastebin for sharing?
-                                </label>
-                                <Checkbox
-                                    checked={$alwaysUsePastebin}
-                                    onCheckedChange={() =>
-                                        alwaysUsePastebin.set(
-                                            !$alwaysUsePastebin,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Enable planning mode?
-                                </label>
-                                <Checkbox
-                                    checked={$planningMode}
-                                    onCheckedChange={() => {
-                                        if ($planningMode === true) {
-                                            const map = leafletMapContext.get();
-                                            if (map) {
-                                                map.eachLayer((layer: any) => {
-                                                    if (layer.questionKey || layer.questionKey === 0) {
-                                                        map.removeLayer(layer);
-                                                    }
-                                                });
-                                            }
-                                        } else {
-                                            questions.set([...questions.get()]);
-                                        }
-                                        planningModeEnabled.set(!$planningMode);
-                                    }}
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Auto save?
-                                </label>
-                                <Checkbox
-                                    checked={$autoSave}
-                                    onCheckedChange={() =>
-                                        autoSave.set(!$autoSave)
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins text-red-400">
-                                    Warning alarm?
-                                </label>
-                                <Checkbox
-                                    checked={$warningAlarm}
-                                    onCheckedChange={() =>
-                                        warningAlarm.set(!$warningAlarm)
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Auto zoom?
-                                </label>
-                                <Checkbox
-                                    checked={$autoZoom}
-                                    onCheckedChange={() =>
-                                        autoZoom.set(!$autoZoom)
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Follow Me (GPS)?
-                                </label>
-                                <Checkbox
-                                    checked={$followMe}
-                                    onCheckedChange={() =>
-                                        followMe.set(!$followMe)
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Default to custom questions?
-                                </label>
-                                <Checkbox
-                                    checked={$defaultCustomQuestions}
-                                    onCheckedChange={() =>
-                                        defaultCustomQuestions.set(
-                                            !$defaultCustomQuestions,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Allow Google Plus codes?
-                                </label>
-                                <Checkbox
-                                    checked={$allowGooglePlusCodes}
-                                    onCheckedChange={() =>
-                                        allowGooglePlusCodes.set(
-                                            !$allowGooglePlusCodes,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Show pen toolbar?
-                                </label>
-                                <Checkbox
-                                    checked={$penToolbarVisible}
-                                    onCheckedChange={() =>
-                                        penToolbarVisible.set(
-                                            !$penToolbarVisible,
-                                        )
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Auto-lock questions?
-                                </label>
-                                <Checkbox
-                                    checked={$autoLockQuestions}
-                                    onCheckedChange={() =>
-                                        autoLockQuestions.set(!$autoLockQuestions)
-                                    }
-                                />
-                            </div>
-                            <div className="flex flex-row items-center gap-2">
-                                <label className="text-2xl font-semibold font-poppins">
-                                    Hider mode?
-                                </label>
-                                <Checkbox
-                                    checked={!!$hiderMode}
-                                    onCheckedChange={() => {
-                                        if ($hiderMode === false) {
-                                            const coords =
-                                                mapGeoLocation.get().geometry
-                                                    .coordinates;
-                                            hiderMode.set({
-                                                latitude: coords[0],
-                                                longitude: coords[1],
-                                            });
-                                        } else {
-                                            hiderMode.set(false);
-                                        }
-                                    }}
-                                />
-                            </div>
-                            {$hiderMode !== false && (
-                                <SidebarMenu>
-                                    <LatitudeLongitude
-                                        latitude={$hiderMode.latitude}
-                                        longitude={$hiderMode.longitude}
-                                        inlineEdit
-                                        localLocations={$trainStations.length > 0
-                                            ? ($trainStations.map((s) => {
-                                                const name = extractStationLabel(s.properties) as string;
-                                                const coords = s.properties.geometry.coordinates as [number, number];
-                                                return { name, lat: coords[1], lng: coords[0] } satisfies LocalLocation;
-                                              }).filter((loc) => loc.name))
-                                            : undefined}
-                                        onChange={(latitude, longitude) => {
-                                            $hiderMode.latitude =
-                                                latitude ?? $hiderMode.latitude;
-                                            $hiderMode.longitude =
-                                                longitude ??
-                                                $hiderMode.longitude;
-
-                                            if ($autoSave) {
-                                                hiderMode.set({
-                                                    ...$hiderMode,
-                                                });
-                                            } else {
-                                                triggerLocalRefresh.set(
-                                                    Math.random(),
+                            </Button>
+                        </DrawerTrigger>
+                        <DrawerContent aria-describedby={undefined}>
+                            <div className="flex flex-col items-center gap-4 mb-4">
+                                <DrawerHeader>
+                                    <DrawerTitle className="text-4xl font-semibold font-poppins">
+                                        Options
+                                    </DrawerTitle>
+                                </DrawerHeader>
+                                <div className="overflow-y-scroll max-h-[40vh] flex flex-col items-center gap-4 max-w-[1000px] px-12">
+                                    <div className="flex flex-row max-[330px]:flex-col gap-4">
+                                        <Button
+                                            onClick={() => {
+                                                if (
+                                                    !navigator ||
+                                                    !navigator.clipboard
+                                                )
+                                                    return toast.error(
+                                                        "Clipboard not supported",
+                                                    );
+                                                navigator.clipboard.writeText(
+                                                    JSON.stringify(hidingZone.get()),
                                                 );
-                                            }
-                                        }}
-                                        label="Hider Location"
+                                                toast.success(
+                                                    "Hiding zone copied successfully",
+                                                    {
+                                                        autoClose: 2000,
+                                                    },
+                                                );
+                                            }}
+                                        >
+                                            Copy Hiding Zone
+                                        </Button>
+                                        <Button
+                                            onClick={() => {
+                                                if (
+                                                    !navigator ||
+                                                    !navigator.clipboard
+                                                )
+                                                    return toast.error(
+                                                        "Clipboard not supported",
+                                                    );
+                                                navigator.clipboard
+                                                    .readText()
+                                                    .then(loadHidingZone);
+                                            }}
+                                        >
+                                            Paste Hiding Zone
+                                        </Button>
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => {
+                                                // Export the revision being
+                                                // played (a session's pinned
+                                                // one), not the game's latest.
+                                                const def =
+                                                    activeGameDefinitionAtom.get();
+                                                if (!def) {
+                                                    toast.error(
+                                                        "No game definition is loaded",
+                                                    );
+                                                    return;
+                                                }
+                                                const gameId =
+                                                    resolveGameDefinitionId(
+                                                        def,
+                                                    );
+                                                try {
+                                                    const blob = new Blob(
+                                                        [
+                                                            JSON.stringify(
+                                                                def,
+                                                                null,
+                                                                2,
+                                                            ),
+                                                        ],
+                                                        {
+                                                            type: "application/json",
+                                                        },
+                                                    );
+                                                    const url =
+                                                        URL.createObjectURL(
+                                                            blob,
+                                                        );
+                                                    const a =
+                                                        document.createElement(
+                                                            "a",
+                                                        );
+                                                    a.href = url;
+                                                    a.download = `${gameId}.game.json`;
+                                                    document.body.appendChild(
+                                                        a,
+                                                    );
+                                                    a.click();
+                                                    document.body.removeChild(
+                                                        a,
+                                                    );
+                                                    URL.revokeObjectURL(url);
+                                                    toast.success(
+                                                        `Exported ${def.name || gameId} JSON`,
+                                                    );
+                                                } catch (err: any) {
+                                                    toast.error(
+                                                        err.message ||
+                                                            "Failed to export game JSON",
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            Export Game JSON
+                                        </Button>
+                                    </div>
+                                    <Separator className="bg-slate-300 w-[280px]" />
+                                    <Label>Default Unit</Label>
+                                    <UnitSelect
+                                        unit={$defaultUnit}
+                                        onChange={defaultUnit.set}
                                     />
-                                    {!autoSave && (
-                                        <SidebarMenuItem>
-                                            <SidebarMenuButton
-                                                className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500 mt-2"
-                                                onClick={save}
+                                    <Separator className="bg-slate-300 w-[280px]" />
+                                    <Label>New Custom Question Defaults</Label>
+                                    <Select
+                                        trigger="New custom default"
+                                        options={{
+                                            ask: "Ask each time",
+                                            blank: "Start blank",
+                                            prefill: "Copy from current",
+                                        }}
+                                        value={$customInitPref}
+                                        onValueChange={(v) =>
+                                            customInitPreference.set(v as any)
+                                        }
+                                    />
+                                    <Separator className="bg-slate-300 w-[280px]" />
+                                    <Label>Base map style</Label>
+                                    <Select
+                                        trigger="Base map style"
+                                        options={{
+                                            voyager: "CARTO Voyager",
+                                            light: "CARTO Light",
+                                            dark: "CARTO Dark",
+                                            transport:
+                                                "Thunderforest Transport",
+                                            neighbourhood:
+                                                "Thunderforest Neighbourhood",
+                                            osmcarto: "OpenStreetMap Carto",
+                                        }}
+                                        value={$baseTileLayer}
+                                        onValueChange={(v) =>
+                                            baseTileLayer.set(v as any)
+                                        }
+                                    />
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Label>Thunderforest API Key</Label>
+                                        <Input
+                                            type="text"
+                                            value={$thunderforestApiKey}
+                                            id="thunderforestApiKey"
+                                            onChange={(e) =>
+                                                thunderforestApiKey.set(
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="Enter your Thunderforest API key"
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Needed for Thunderforest map styles.
+                                            Create a key{" "}
+                                            <a
+                                                href="https://manage.thunderforest.com/users/sign_up?price=hobby-project-usd"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-500 cursor-pointer"
                                             >
-                                                Save
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
+                                                here.
+                                            </a>{" "}
+                                            Don&apos;t worry, it&apos;s free.
+                                        </p>
+                                    </div>
+                                    <Separator className="bg-slate-300 w-[280px]" />
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Label>Pastebin API Key</Label>
+                                        <Input
+                                            type="text"
+                                            value={$pastebinApiKey}
+                                            id="pastebinApiKey"
+                                            onChange={(e) =>
+                                                pastebinApiKey.set(
+                                                    e.target.value,
+                                                )
+                                            }
+                                            placeholder="Enter your Pastebin API key"
+                                        />
+                                        <p className="text-xs text-gray-500">
+                                            Needed for sharing large game data.
+                                            Create a key{" "}
+                                            <a
+                                                href="https://pastebin.com/doc_api"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-500 cursor-pointer"
+                                            >
+                                                here
+                                            </a>
+                                            .
+                                        </p>
+                                    </div>
+                                    <Separator className="bg-slate-300 w-[280px]" />
+                                    <Label>Permanent Map Overlay</Label>
+                                    <div className="flex flex-row max-[330px]:flex-col gap-4">
+                                        <Button
+                                            onClick={() =>
+                                                permanentOverlay.set(null)
+                                            }
+                                        >
+                                            Remove
+                                        </Button>
+                                        <Button
+                                            onClick={async () => {
+                                                if (
+                                                    !navigator ||
+                                                    !navigator.clipboard
+                                                )
+                                                    return toast.error(
+                                                        "Clipboard not supported",
+                                                    );
+
+                                                try {
+                                                    const clipboard =
+                                                        await navigator.clipboard.readText();
+                                                    const geojson =
+                                                        JSON.parse(clipboard);
+                                                    permanentOverlay.set(
+                                                        geojson,
+                                                    );
+                                                } catch (e) {
+                                                    toast.error(
+                                                        `Invalid GeoJSON overlay: ${e}`,
+                                                    );
+                                                }
+                                            }}
+                                        >
+                                            Paste GeoJSON
+                                        </Button>
+                                    </div>
+                                    <Separator className="bg-slate-300 w-[280px]" />
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Animate map movements?
+                                        </label>
+                                        <Checkbox
+                                            checked={$animateMapMovements}
+                                            onCheckedChange={() => {
+                                                animateMapMovements.set(
+                                                    !$animateMapMovements,
+                                                );
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Force Pastebin for sharing?
+                                        </label>
+                                        <Checkbox
+                                            checked={$alwaysUsePastebin}
+                                            onCheckedChange={() =>
+                                                alwaysUsePastebin.set(
+                                                    !$alwaysUsePastebin,
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Enable planning mode?
+                                        </label>
+                                        <Checkbox
+                                            checked={$planningMode}
+                                            onCheckedChange={(checked) => {
+                                                planningModeEnabled.set(
+                                                    checked === true,
+                                                );
+                                            }}
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Auto save?
+                                        </label>
+                                        <Checkbox
+                                            checked={$autoSave}
+                                            onCheckedChange={() =>
+                                                autoSave.set(!$autoSave)
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins text-red-400">
+                                            Warning alarm?
+                                        </label>
+                                        <Checkbox
+                                            checked={$warningAlarm}
+                                            onCheckedChange={() =>
+                                                warningAlarm.set(!$warningAlarm)
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Auto zoom?
+                                        </label>
+                                        <Checkbox
+                                            checked={$autoZoom}
+                                            onCheckedChange={() =>
+                                                autoZoom.set(!$autoZoom)
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Follow Me (GPS)?
+                                        </label>
+                                        <Checkbox
+                                            checked={$followMe}
+                                            onCheckedChange={() =>
+                                                followMe.set(!$followMe)
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Default to custom questions?
+                                        </label>
+                                        <Checkbox
+                                            checked={$defaultCustomQuestions}
+                                            onCheckedChange={() =>
+                                                defaultCustomQuestions.set(
+                                                    !$defaultCustomQuestions,
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Allow Google Plus codes?
+                                        </label>
+                                        <Checkbox
+                                            checked={$allowGooglePlusCodes}
+                                            onCheckedChange={() =>
+                                                allowGooglePlusCodes.set(
+                                                    !$allowGooglePlusCodes,
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Show pen toolbar?
+                                        </label>
+                                        <Checkbox
+                                            checked={$penToolbarVisible}
+                                            onCheckedChange={() =>
+                                                penToolbarVisible.set(
+                                                    !$penToolbarVisible,
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Auto-lock questions?
+                                        </label>
+                                        <Checkbox
+                                            checked={$autoLockQuestions}
+                                            onCheckedChange={() =>
+                                                autoLockQuestions.set(
+                                                    !$autoLockQuestions,
+                                                )
+                                            }
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Hider mode?
+                                        </label>
+                                        <Checkbox
+                                            checked={!!$hiderMode}
+                                            onCheckedChange={() => {
+                                                if ($hiderMode === false) {
+                                                    const coords =
+                                                        mapGeoLocation.get()
+                                                            .geometry
+                                                            .coordinates;
+                                                    hiderMode.set({
+                                                        latitude: coords[0],
+                                                        longitude: coords[1],
+                                                    });
+                                                } else {
+                                                    hiderMode.set(false);
+                                                }
+                                            }}
+                                        />
+                                    </div>
+                                    {$hiderMode !== false && (
+                                        <SidebarMenu>
+                                            <LatitudeLongitude
+                                                latitude={$hiderMode.latitude}
+                                                longitude={$hiderMode.longitude}
+                                                inlineEdit
+                                                localLocations={
+                                                    $trainStations.length > 0
+                                                        ? $trainStations
+                                                              .map((s) => {
+                                                                  const name =
+                                                                      extractStationLabel(
+                                                                          s.properties,
+                                                                      ) as string;
+                                                                  const coords =
+                                                                      s
+                                                                          .properties
+                                                                          .geometry
+                                                                          .coordinates as [
+                                                                          number,
+                                                                          number,
+                                                                      ];
+                                                                  return {
+                                                                      name,
+                                                                      lat: coords[1],
+                                                                      lng: coords[0],
+                                                                  } satisfies LocalLocation;
+                                                              })
+                                                              .filter(
+                                                                  (loc) =>
+                                                                      loc.name,
+                                                              )
+                                                        : undefined
+                                                }
+                                                onChange={(
+                                                    latitude,
+                                                    longitude,
+                                                ) => {
+                                                    $hiderMode.latitude =
+                                                        latitude ??
+                                                        $hiderMode.latitude;
+                                                    $hiderMode.longitude =
+                                                        longitude ??
+                                                        $hiderMode.longitude;
+
+                                                    if ($autoSave) {
+                                                        hiderMode.set({
+                                                            ...$hiderMode,
+                                                        });
+                                                    } else {
+                                                        triggerLocalRefresh.set(
+                                                            Math.random(),
+                                                        );
+                                                    }
+                                                }}
+                                                label="Hider Location"
+                                            />
+                                            {!autoSave && (
+                                                <SidebarMenuItem>
+                                                    <SidebarMenuButton
+                                                        className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500 mt-2"
+                                                        onClick={save}
+                                                    >
+                                                        Save
+                                                    </SidebarMenuButton>
+                                                </SidebarMenuItem>
+                                            )}
+                                        </SidebarMenu>
                                     )}
-                                </SidebarMenu>
-                            )}
-                        </div>
-                    </div>
-                </DrawerContent>
-            </Drawer>
+                                </div>
+                            </div>
+                        </DrawerContent>
+                    </Drawer>
                 </div>
             </div>
 
@@ -800,7 +928,11 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 className="w-32 shadow-md"
                 onClick={() => setNavOpen((v) => !v)}
             >
-                {isNavOpen ? <ChevronDown className="mr-2 h-4 w-4" /> : <ChevronUp className="mr-2 h-4 w-4" />}
+                {isNavOpen ? (
+                    <ChevronDown className="mr-2 h-4 w-4" />
+                ) : (
+                    <ChevronUp className="mr-2 h-4 w-4" />
+                )}
                 Menu
             </Button>
         </div>

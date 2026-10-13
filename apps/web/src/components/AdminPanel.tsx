@@ -1,5 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
-import type { ServersResponse, ServerWithPermissions, DiscordRole, RolePermissionEntry, ServerRolesResponse } from "@taibled/shared";
+import type { DiscordRole, RolePermissionEntry, ServerRolesResponse,ServersResponse, ServerWithPermissions } from "@searchlight/shared";
+import { useCallback,useEffect, useState } from "react";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"] as const;

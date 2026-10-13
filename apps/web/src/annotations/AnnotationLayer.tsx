@@ -15,7 +15,6 @@ import {
 } from "@/annotations/hooks/useAnnotationStore";
 import { usePointerCapture } from "@/annotations/hooks/usePointerCapture";
 import { SvgStrokeRenderer } from "@/annotations/render/SvgStrokeRenderer";
-import { randomUUID } from "@/lib/utils";
 import {
     CROSSOUT_COLOR,
     CROSSOUT_WIDTH_PIXELS,
@@ -25,6 +24,7 @@ import {
 } from "@/annotations/types";
 import { strokeIntersectsErasePoint } from "@/annotations/utils/eraserHit";
 import { pixelsToMeters } from "@/annotations/utils/geoMath";
+import { randomUUID } from "@/lib/utils";
 
 interface ActiveStrokeState {
     points: L.LatLng[];

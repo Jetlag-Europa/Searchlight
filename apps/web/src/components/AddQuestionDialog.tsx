@@ -1,4 +1,5 @@
 import { useStore } from "@nanostores/react";
+import type { DistanceRadius } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import React from "react";
 import { toast } from "react-toastify";
@@ -11,28 +12,53 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { SidebarMenuButton } from "@/components/ui/sidebar-l";
+import { radarRadii } from "@/game-definition/compile";
+import { compiledGameAtom } from "@/game-definition/store";
 import {
     addQuestion,
     defaultCustomQuestions,
     isLoading,
     leafletMapContext,
 } from "@/lib/context";
-
 export const AddQuestionDialog = ({
     children,
 }: {
     children: React.ReactNode;
 }) => {
     const $isLoading = useStore(isLoading);
+    const compiled = useStore(compiledGameAtom);
     const [open, setOpen] = React.useState(false);
 
-    const runAddRadius = () => {
+    const hasRadius = compiled
+        ? compiled.questions.some((q) => q.family === "radius")
+        : true;
+    // A game declaring several radar radii gets one button per radius.
+    const radii = compiled ? radarRadii(compiled) : [];
+    const hasThermometer = compiled
+        ? compiled.questions.some((q) => q.family === "thermometer")
+        : true;
+    // Player-drawn custom questions are allowed in every game, so a family
+    // without compiled questions still adds its custom variant (addQuestion).
+    const hasTentacles = compiled
+        ? compiled.questions.some((q) => q.family === "tentacle")
+        : true;
+    const hasMatching = compiled
+        ? compiled.questions.some((q) => q.family === "matching")
+        : true;
+    const hasMeasuring = compiled
+        ? compiled.questions.some((q) => q.family === "measuring")
+        : true;
+    const runAddRadius = (radius?: DistanceRadius) => {
         const map = leafletMapContext.get();
         if (!map) return false;
         const center = map.getCenter();
         addQuestion({
             id: "radius",
-            data: { lat: center.lat, lng: center.lng },
+            data: {
+                lat: center.lat,
+                lng: center.lng,
+                ...(radius && { radius: radius.value, unit: radius.unit }),
+            },
         });
         return true;
     };
@@ -62,6 +88,7 @@ export const AddQuestionDialog = ({
         const map = leafletMapContext.get();
         if (!map) return false;
         const center = map.getCenter();
+        const firstTentacle = compiled?.questions.find((q) => q.family === "tentacle");
         addQuestion({
             id: "tentacles",
             data: defaultCustomQuestions.get()
@@ -71,7 +98,11 @@ export const AddQuestionDialog = ({
                       locationType: "custom",
                       places: [],
                   }
-                : { lat: center.lat, lng: center.lng },
+                : {
+                      lat: center.lat,
+                      lng: center.lng,
+                      locationType: firstTentacle ? firstTentacle.id : undefined,
+                  },
         });
         return true;
     };
@@ -80,11 +111,16 @@ export const AddQuestionDialog = ({
         const map = leafletMapContext.get();
         if (!map) return false;
         const center = map.getCenter();
+        const firstMatching = compiled?.questions.find((q) => q.family === "matching");
         addQuestion({
             id: "matching",
             data: defaultCustomQuestions.get()
                 ? { lat: center.lat, lng: center.lng, type: "custom-points" }
-                : { lat: center.lat, lng: center.lng },
+                : {
+                      lat: center.lat,
+                      lng: center.lng,
+                      type: firstMatching ? firstMatching.id : undefined,
+                  },
         });
         return true;
     };
@@ -93,15 +129,19 @@ export const AddQuestionDialog = ({
         const map = leafletMapContext.get();
         if (!map) return false;
         const center = map.getCenter();
+        const firstMeasuring = compiled?.questions.find((q) => q.family === "measuring");
         addQuestion({
             id: "measuring",
             data: defaultCustomQuestions.get()
                 ? { lat: center.lat, lng: center.lng, type: "custom-measure" }
-                : { lat: center.lat, lng: center.lng },
+                : {
+                      lat: center.lat,
+                      lng: center.lng,
+                      type: firstMeasuring ? firstMeasuring.id : undefined,
+                  },
         });
         return true;
     };
-
     const runPasteQuestion = async () => {
         if (!navigator || !navigator.clipboard) {
             toast.error("Clipboard API not supported in your browser");
@@ -145,21 +185,37 @@ export const AddQuestionDialog = ({
                 </DialogDescription>
 
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <SidebarMenuButton
-                        onClick={() => {
-                            if (runAddRadius()) setOpen(false);
-                        }}
-                        disabled={$isLoading}
-                    >
-                        Add Radius
-                    </SidebarMenuButton>
+                    {radii.length > 1 ? (
+                        radii.map((radius) => (
+                            <SidebarMenuButton
+                                key={`${radius.value}-${radius.unit}`}
+                                onClick={() => {
+                                    if (runAddRadius(radius)) setOpen(false);
+                                }}
+                                disabled={$isLoading}
+                            >
+                                Add Radius ({radius.value} {radius.unit})
+                            </SidebarMenuButton>
+                        ))
+                    ) : (
+                        <SidebarMenuButton
+                            onClick={() => {
+                                if (runAddRadius(radii[0])) setOpen(false);
+                            }}
+                            disabled={$isLoading || !hasRadius}
+                            className={!hasRadius ? "opacity-40 cursor-not-allowed" : ""}
+                        >
+                            Add Radius {!hasRadius && "(Disabled)"}
+                        </SidebarMenuButton>
+                    )}
                     <SidebarMenuButton
                         onClick={() => {
                             if (runAddThermometer()) setOpen(false);
                         }}
-                        disabled={$isLoading}
+                        disabled={$isLoading || !hasThermometer}
+                        className={!hasThermometer ? "opacity-40 cursor-not-allowed" : ""}
                     >
-                        Add Thermometer
+                        Add Thermometer {!hasThermometer && "(Disabled)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
@@ -167,7 +223,7 @@ export const AddQuestionDialog = ({
                         }}
                         disabled={$isLoading}
                     >
-                        Add Tentacles
+                        Add Tentacles {!hasTentacles && "(Custom)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
@@ -175,7 +231,7 @@ export const AddQuestionDialog = ({
                         }}
                         disabled={$isLoading}
                     >
-                        Add Matching
+                        Add Matching {!hasMatching && "(Custom)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
@@ -183,7 +239,7 @@ export const AddQuestionDialog = ({
                         }}
                         disabled={$isLoading}
                     >
-                        Add Measuring
+                        Add Measuring {!hasMeasuring && "(Custom)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={async () => {

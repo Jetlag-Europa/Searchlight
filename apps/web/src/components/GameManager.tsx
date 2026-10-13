@@ -1,7 +1,9 @@
+import type { Game,GamesResponse, ServersResponse, ServerWithPermissions } from "@searchlight/shared";
 import { useEffect, useState } from "react";
-import type { ServersResponse, ServerWithPermissions, GamesResponse, Game } from "@taibled/shared";
+
 import { Button } from "@/components/ui/button";
 
+import { ImportGameDialog } from "./ImportGameDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 function GameCard({
@@ -13,34 +15,8 @@ function GameCard({
     permissions: string[];
     onDeleted: (id: string) => void;
 }) {
-    const [editing, setEditing] = useState(false);
-    const [editName, setEditName] = useState(game.name);
-    const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
-
-    const canEdit = permissions.includes("games.edit");
     const canDelete = permissions.includes("games.delete");
-
-    const handleSave = async () => {
-        if (!editName.trim() || editName === game.name) { setEditing(false); return; }
-        setSaving(true);
-        setError(null);
-        try {
-            const res = await fetch(`${API_BASE}/games/${game.id}`, {
-                method: "PATCH",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name: editName.trim() }),
-            });
-            if (!res.ok) throw new Error(`${res.status}`);
-            setEditing(false);
-        } catch (e: unknown) {
-            setError((e as Error).message);
-        } finally {
-            setSaving(false);
-        }
-    };
-
     const handleDelete = async () => {
         if (!confirm(`Delete game "${game.name}"? This cannot be undone.`)) return;
         setError(null);
@@ -62,32 +38,41 @@ function GameCard({
     return (
         <div className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
-                {editing ? (
-                    <input
-                        autoFocus
-                        type="text"
-                        className="border border-input rounded-md px-2 py-1 text-sm bg-background w-full"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") setEditing(false); }}
-                    />
-                ) : (
-                    <p className="text-sm font-medium">{game.name}</p>
-                )}
-                <p className="text-xs text-muted-foreground mt-0.5">{game.kmlPath}</p>
+                <p className="text-sm font-medium">{game.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 font-mono">
+                    ID: {game.gameKey}
+                </p>
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
             <div className="flex gap-2 shrink-0">
-                {canEdit && !editing && (
-                    <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>
-                )}
-                {editing && (
-                    <>
-                        <Button size="sm" onClick={handleSave} disabled={saving}>{saving ? "…" : "Save"}</Button>
-                        <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>Cancel</Button>
-                    </>
-                )}
-                {canDelete && !editing && (
+                <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={async () => {
+                        setError(null);
+                        try {
+                            const res = await fetch(`${API_BASE}/games/${encodeURIComponent(game.gameKey)}/export`, {
+                                credentials: "include",
+                            });
+                            if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
+                            const data = await res.json();
+                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement("a");
+                            a.href = url;
+                            a.download = `${game.gameKey}.game.json`;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                        } catch (e: unknown) {
+                            setError((e as Error).message);
+                        }
+                    }}
+                >
+                    Export JSON
+                </Button>
+                {canDelete && (
                     <Button size="sm" variant="destructive" onClick={handleDelete}>Delete</Button>
                 )}
             </div>
@@ -100,15 +85,10 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     const canEdit = server.permissions.includes("games.edit");
     const canDelete = server.permissions.includes("games.delete");
     const hasAnyGamePerm = canCreate || canEdit || canDelete;
+    const canImport = canCreate || canEdit;
 
     const [games, setGames] = useState<Game[] | null>(null);
     const [loading, setLoading] = useState(true);
-    const [showCreateForm, setShowCreateForm] = useState(false);
-    const [newName, setNewName] = useState("");
-    const [newKmlPath, setNewKmlPath] = useState("");
-    const [newSentinelValue, setNewSentinelValue] = useState("");
-    const [creating, setCreating] = useState(false);
-    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         fetch(`${API_BASE}/games?serverId=${server.id}`, { credentials: "include" })
@@ -121,38 +101,6 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
             .finally(() => setLoading(false));
     }, [server.id]);
 
-    const handleCreate = async () => {
-        if (!newName.trim() || !newKmlPath.trim() || !newSentinelValue.trim()) return;
-        setCreating(true);
-        setError(null);
-        try {
-            const res = await fetch(`${API_BASE}/games`, {
-                method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    serverId: server.id,
-                    name: newName.trim(),
-                    sentinelValue: newSentinelValue.trim(),
-                    kmlPath: newKmlPath.trim(),
-                    mapLocationJson: {},
-                    hidingRadius: 1,
-                    hidingRadiusUnits: "kilometers",
-                }),
-            });
-            if (!res.ok) throw new Error(`${res.status}`);
-            const created: Game = await res.json();
-            setGames((prev) => [...(prev ?? []), created]);
-            setShowCreateForm(false);
-            setNewName("");
-            setNewKmlPath("");
-            setNewSentinelValue("");
-        } catch (e: unknown) {
-            setError(`Failed to create game: ${(e as Error).message}`);
-        } finally {
-            setCreating(false);
-        }
-    };
 
     if (!hasAnyGamePerm) return null;
 
@@ -178,36 +126,18 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                 </div>
             )}
 
-            {canCreate && !showCreateForm && (
-                <Button variant="outline" size="sm" onClick={() => setShowCreateForm(true)}>
-                    + New game
-                </Button>
-            )}
-
-            {showCreateForm && (
-                <div className="border border-border rounded-lg p-4 space-y-3 mt-2">
-                    <p className="text-sm font-medium">New game</p>
-                    <div className="grid gap-2">
-                        <div>
-                            <label className="text-xs text-muted-foreground block mb-1">Name</label>
-                            <input type="text" placeholder="e.g. Luxembourg 2027" className="w-full border border-input rounded-md px-3 py-1.5 text-sm bg-background" value={newName} onChange={(e) => setNewName(e.target.value)} />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground block mb-1">KML path (relative to public/)</label>
-                            <input type="text" placeholder="e.g. my-game.kml" className="w-full border border-input rounded-md px-3 py-1.5 text-sm bg-background" value={newKmlPath} onChange={(e) => setNewKmlPath(e.target.value)} />
-                        </div>
-                        <div>
-                            <label className="text-xs text-muted-foreground block mb-1">Sentinel value (unique ID for the zone selector)</label>
-                            <input type="text" placeholder="e.g. __my-game-2027__" className="w-full border border-input rounded-md px-3 py-1.5 text-sm bg-background" value={newSentinelValue} onChange={(e) => setNewSentinelValue(e.target.value)} />
-                        </div>
-                    </div>
-                    {error && <p className="text-xs text-destructive">{error}</p>}
-                    <div className="flex gap-2">
-                        <Button size="sm" onClick={handleCreate} disabled={creating || !newName.trim()}>
-                            {creating ? "Creating…" : "Create"}
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => setShowCreateForm(false)}>Cancel</Button>
-                    </div>
+            {canImport && (
+                <div className="flex gap-2">
+                    <ImportGameDialog
+                        serverId={server.id}
+                        onImported={() => {
+                            fetch(`${API_BASE}/games?serverId=${encodeURIComponent(server.id)}`, { credentials: "include" })
+                                .then((r) => (r.ok ? r.json() : null))
+                                .then((data: GamesResponse | null) => {
+                                    if (data) setGames(data.games);
+                                });
+                        }}
+                    />
                 </div>
             )}
         </div>
@@ -216,6 +146,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
 
 export function GameManager() {
     const [servers, setServers] = useState<ServerWithPermissions[] | null>(null);
+    const [reloadCounter, setReloadCounter] = useState(0);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -234,15 +165,36 @@ export function GameManager() {
     const adminServers = servers.filter((s) =>
         s.permissions.some((p) => ["games.create", "games.edit", "games.delete"].includes(p)),
     );
+    const importableServers = servers.filter((s) =>
+        s.permissions.some((p) => ["games.create", "games.edit"].includes(p)),
+    );
 
     if (adminServers.length === 0) {
-        return <p className="text-muted-foreground">You don't have game management permissions in any server.</p>;
+        return <p className="text-muted-foreground">You don’t have game management permissions in any server.</p>;
     }
-
     return (
         <div>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-border">
+                <div>
+                    <h1 className="text-xl font-bold">Games & Maps</h1>
+                    <p className="text-xs text-muted-foreground mt-1">
+                        Import or export versioned game definitions as JSON, or manage server maps.
+                    </p>
+                </div>
+                {importableServers.length > 0 && (
+                    <ImportGameDialog
+                        servers={importableServers}
+                        onImported={() => setReloadCounter((c) => c + 1)}
+                        trigger={
+                            <Button className="font-semibold shadow-sm">
+                                + Import Game JSON
+                            </Button>
+                        }
+                    />
+                )}
+            </div>
             {adminServers.map((s) => (
-                <ServerSection key={s.id} server={s} />
+                <ServerSection key={`${s.id}-${reloadCounter}`} server={s} />
             ))}
         </div>
     );
