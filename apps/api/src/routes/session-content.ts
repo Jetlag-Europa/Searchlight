@@ -3,12 +3,15 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { broadcast } from "../lib/broadcaster.js";
-
+import type { Event, Stroke } from "@prisma/client";
 function notFound(msg = "Not found") {
   return Object.assign(new Error(msg), { statusCode: 404 });
 }
 function forbidden(msg = "Forbidden") {
   return Object.assign(new Error(msg), { statusCode: 403 });
+}
+function conflict(msg = "Conflict") {
+  return Object.assign(new Error(msg), { statusCode: 409 });
 }
 
 async function assertParticipant(sessionId: string, userId: string) {
@@ -79,54 +82,98 @@ export async function sessionContentRoutes(app: FastifyInstance) {
 
       const { clientUuid, payloadJson } = req.body as { clientUuid: string; payloadJson: unknown };
 
-      const existing = await prisma.stroke.findUnique({ where: { clientUuid } });
-      const stroke = await prisma.stroke.upsert({
-        where: { clientUuid },
-        update: {},
-        create: {
-          sessionId,
-          userId: user.discordId,
-          payloadJson: payloadJson as object,
-          clientUuid,
-        },
-      });
+      let transactionResult: {
+        stroke: Stroke;
+        eventToBroadcast: Event | null;
+      };
 
-      if (!existing) {
-        req.log.info({ sessionId, clientUuid }, "[events] new stroke — writing event and broadcasting");
-        prisma.event.upsert({
-          where: { clientUuid: `stroke-create-${clientUuid}` },
-          update: {},
-          create: {
-            sessionId,
-            userId: user.discordId,
-            type: "stroke.create",
-            payloadJson: payloadJson as object,
-            clientUuid: `stroke-create-${clientUuid}`,
-            clientCreatedAt: new Date(),
-          },
-        }).then((e) => {
-          req.log.info({ sessionId, eventId: e.id, clientUuid }, "[events] stroke.create event saved, broadcasting");
-          broadcast(sessionId, {
-            id: e.id,
-            sessionId: e.sessionId,
-            userId: e.userId,
-            type: e.type,
-            payloadJson: e.payloadJson,
-            clientUuid: e.clientUuid,
-            clientCreatedAt: e.clientCreatedAt.toISOString(),
-            serverReceivedAt: e.serverReceivedAt.toISOString(),
+      try {
+        transactionResult = await prisma.$transaction(async (tx) => {
+          const [locked] = await tx.$queryRaw<Array<{ id: string; eventSequence: number }>>`
+            SELECT id, "eventSequence"
+            FROM "GameSession"
+            WHERE id = ${sessionId}
+            FOR UPDATE
+          `;
+          if (!locked) throw notFound("Session not found");
+
+          const existing = await tx.stroke.findUnique({ where: { clientUuid } });
+          if (existing) {
+            if (existing.sessionId !== sessionId) {
+              throw conflict("Stroke clientUuid already exists in another session");
+            }
+            return { stroke: existing, eventToBroadcast: null };
+          }
+
+          const stroke = await tx.stroke.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              payloadJson: payloadJson as object,
+              clientUuid,
+            },
           });
-        }).catch((e: unknown) => req.log.warn({ err: e }, "[events] stroke.create write failed"));
+
+          const nextSequence = (locked.eventSequence ?? 0) + 1;
+          await tx.gameSession.update({
+            where: { id: sessionId },
+            data: { eventSequence: nextSequence },
+          });
+
+          const event = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: nextSequence,
+              type: "stroke.create",
+              payloadJson: payloadJson as object,
+              clientUuid: `stroke-create-${clientUuid}`,
+              clientCreatedAt: new Date(),
+            },
+          });
+
+          return { stroke, eventToBroadcast: event };
+        });
+      } catch (err: unknown) {
+        if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+          const existing = await prisma.stroke.findUnique({ where: { clientUuid } });
+          if (existing) {
+            if (existing.sessionId !== sessionId) {
+              throw conflict("Stroke clientUuid already exists in another session");
+            }
+            transactionResult = { stroke: existing, eventToBroadcast: null };
+          } else {
+            throw conflict("Unique constraint conflict on stroke creation");
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      if (transactionResult.eventToBroadcast) {
+        const e = transactionResult.eventToBroadcast;
+        req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.create event saved, broadcasting");
+        broadcast(sessionId, {
+          id: e.id,
+          sessionId: e.sessionId,
+          userId: e.userId,
+          sequence: e.sequence,
+          type: e.type,
+          payloadJson: e.payloadJson,
+          clientUuid: e.clientUuid,
+          clientCreatedAt: e.clientCreatedAt.toISOString(),
+          serverReceivedAt: e.serverReceivedAt.toISOString(),
+        });
       } else {
-        req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write");
+        req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write and broadcast");
       }
 
       return reply.status(201).send({
-        id: stroke.id,
-        clientUuid: stroke.clientUuid,
-        userId: stroke.userId,
-        payloadJson: stroke.payloadJson,
-        createdAt: stroke.createdAt.toISOString(),
+        id: transactionResult.stroke.id,
+        clientUuid: transactionResult.stroke.clientUuid,
+        userId: transactionResult.stroke.userId,
+        payloadJson: transactionResult.stroke.payloadJson,
+        createdAt: transactionResult.stroke.createdAt.toISOString(),
       });
     },
   );
@@ -144,36 +191,105 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId, clientUuid } = req.params as { sessionId: string; clientUuid: string };
       await assertParticipant(sessionId, user.discordId);
 
-      await prisma.stroke.updateMany({
-        where: { clientUuid, sessionId, deletedAt: null },
-        data: { deletedAt: new Date() },
-      });
+      let eventToBroadcast: Event | null = null;
+      try {
+        eventToBroadcast = await prisma.$transaction(async (tx) => {
+          const [locked] = await tx.$queryRaw<Array<{ id: string; eventSequence: number }>>`
+            SELECT id, "eventSequence"
+            FROM "GameSession"
+            WHERE id = ${sessionId}
+            FOR UPDATE
+          `;
+          if (!locked) throw notFound("Session not found");
 
-      req.log.info({ sessionId, clientUuid }, "[events] stroke.delete — writing event and broadcasting");
-      prisma.event.upsert({
-        where: { clientUuid: `stroke-delete-${clientUuid}` },
-        update: {},
-        create: {
-          sessionId,
-          userId: user.discordId,
-          type: "stroke.delete",
-          payloadJson: { clientUuid },
-          clientUuid: `stroke-delete-${clientUuid}`,
-          clientCreatedAt: new Date(),
-        },
-      }).then((e) => {
-        req.log.info({ sessionId, eventId: e.id, clientUuid }, "[events] stroke.delete event saved, broadcasting");
+          const stroke = await tx.stroke.findUnique({ where: { clientUuid } });
+          if (stroke && stroke.sessionId !== sessionId) {
+            throw conflict("Stroke clientUuid belongs to another session");
+          }
+
+          const existingEvent = await tx.event.findUnique({
+            where: { clientUuid: `stroke-delete-${clientUuid}` },
+          });
+          if (existingEvent) {
+            if (existingEvent.sessionId !== sessionId) {
+              throw conflict("Stroke delete event belongs to another session");
+            }
+            return null;
+          }
+
+          if (stroke) {
+            if (stroke.deletedAt === null) {
+              await tx.stroke.update({
+                where: { clientUuid },
+                data: { deletedAt: new Date() },
+              });
+            }
+          } else {
+            await tx.stroke.create({
+              data: {
+                sessionId,
+                userId: user.discordId,
+                clientUuid,
+                payloadJson: {},
+                deletedAt: new Date(),
+              },
+            });
+          }
+
+          const nextSequence = (locked.eventSequence ?? 0) + 1;
+          await tx.gameSession.update({
+            where: { id: sessionId },
+            data: { eventSequence: nextSequence },
+          });
+
+          const event = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: nextSequence,
+              type: "stroke.delete",
+              payloadJson: { clientUuid },
+              clientUuid: `stroke-delete-${clientUuid}`,
+              clientCreatedAt: new Date(),
+            },
+          });
+
+          return event;
+        });
+      } catch (err: unknown) {
+        if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+          const existingEvent = await prisma.event.findUnique({
+            where: { clientUuid: `stroke-delete-${clientUuid}` },
+          });
+          if (existingEvent && existingEvent.sessionId === sessionId) {
+            eventToBroadcast = null;
+          } else if (existingEvent && existingEvent.sessionId !== sessionId) {
+            throw conflict("Stroke delete event belongs to another session");
+          } else {
+            throw conflict("Unique constraint conflict on stroke delete");
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      if (eventToBroadcast) {
+        const e = eventToBroadcast;
+        req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.delete event saved, broadcasting");
         broadcast(sessionId, {
           id: e.id,
           sessionId: e.sessionId,
           userId: e.userId,
+          sequence: e.sequence,
           type: e.type,
           payloadJson: e.payloadJson,
           clientUuid: e.clientUuid,
           clientCreatedAt: e.clientCreatedAt.toISOString(),
           serverReceivedAt: e.serverReceivedAt.toISOString(),
         });
-      }).catch((e: unknown) => req.log.warn({ err: e }, "[events] stroke.delete write failed"));
+      } else {
+        req.log.info({ sessionId, clientUuid }, "[events] stroke delete already processed, skipping broadcast");
+      }
 
       return reply.status(204).send();
     },
@@ -221,7 +337,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
               payloadJson: Type.Unknown(),
             }),
           ),
-          replacementId: Type.Optional(Type.String()),
+          replacementId: Type.String({ minLength: 1 }),
         }),
       },
     },
@@ -232,49 +348,94 @@ export async function sessionContentRoutes(app: FastifyInstance) {
 
       const { questions: incoming, replacementId } = req.body as {
         questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }>;
-        replacementId?: string;
+        replacementId: string;
       };
 
-      await prisma.$transaction([
-        prisma.sessionQuestion.deleteMany({ where: { sessionId } }),
-        prisma.sessionQuestion.createMany({
-          data: incoming.map((q) => ({
-            sessionId,
-            clientUuid: q.clientUuid,
-            ordinal: q.ordinal,
-            payloadJson: q.payloadJson as object,
-          })),
-        }),
-      ]);
+      let eventToBroadcast: Event | null = null;
+      try {
+        eventToBroadcast = await prisma.$transaction(async (tx) => {
+          const [locked] = await tx.$queryRaw<Array<{ id: string; eventSequence: number }>>`
+            SELECT id, "eventSequence"
+            FROM "GameSession"
+            WHERE id = ${sessionId}
+            FOR UPDATE
+          `;
+          if (!locked) throw notFound("Session not found");
 
-      if (replacementId) {
-        req.log.info({ sessionId, replacementId, questionCount: incoming.length }, "[events] questions.replace — writing event and broadcasting");
-        prisma.event.upsert({
-          where: { clientUuid: `questions-replace-${replacementId}` },
-          update: {},
-          create: {
-            sessionId,
-            userId: user.discordId,
-            type: "questions.replace",
-            payloadJson: { replacementId, questions: incoming } as object,
-            clientUuid: `questions-replace-${replacementId}`,
-            clientCreatedAt: new Date(),
-          },
-        }).then((e) => {
-          req.log.info({ sessionId, eventId: e.id, replacementId }, "[events] questions.replace event saved, broadcasting");
-          broadcast(sessionId, {
-            id: e.id,
-            sessionId: e.sessionId,
-            userId: e.userId,
-            type: e.type,
-            payloadJson: e.payloadJson,
-            clientUuid: e.clientUuid,
-            clientCreatedAt: e.clientCreatedAt.toISOString(),
-            serverReceivedAt: e.serverReceivedAt.toISOString(),
+          const existingEvent = await tx.event.findUnique({
+            where: { clientUuid: `questions-replace-${replacementId}` },
           });
-        }).catch((e: unknown) => req.log.warn({ err: e }, "[events] questions.replace write failed"));
+          if (existingEvent) {
+            if (existingEvent.sessionId !== sessionId) {
+              throw conflict("Question replacementId belongs to another session");
+            }
+            return null;
+          }
+
+          await tx.sessionQuestion.deleteMany({ where: { sessionId } });
+          if (incoming.length > 0) {
+            await tx.sessionQuestion.createMany({
+              data: incoming.map((q) => ({
+                sessionId,
+                clientUuid: q.clientUuid,
+                ordinal: q.ordinal,
+                payloadJson: q.payloadJson as object,
+              })),
+            });
+          }
+
+          const nextSequence = (locked.eventSequence ?? 0) + 1;
+          await tx.gameSession.update({
+            where: { id: sessionId },
+            data: { eventSequence: nextSequence },
+          });
+
+          const event = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: nextSequence,
+              type: "questions.replace",
+              payloadJson: { replacementId, questions: incoming } as object,
+              clientUuid: `questions-replace-${replacementId}`,
+              clientCreatedAt: new Date(),
+            },
+          });
+          return event;
+        });
+      } catch (err: unknown) {
+        if (replacementId && typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+          const existingEvent = await prisma.event.findUnique({
+            where: { clientUuid: `questions-replace-${replacementId}` },
+          });
+          if (existingEvent && existingEvent.sessionId === sessionId) {
+            eventToBroadcast = null;
+          } else if (existingEvent && existingEvent.sessionId !== sessionId) {
+            throw conflict("Question replacementId belongs to another session");
+          } else {
+            throw conflict("Unique constraint conflict on question replacement");
+          }
+        } else {
+          throw err;
+        }
+      }
+
+      if (eventToBroadcast) {
+        const e = eventToBroadcast;
+        req.log.info({ sessionId, eventId: e.id, replacementId, sequence: e.sequence }, "[events] questions.replace event saved, broadcasting");
+        broadcast(sessionId, {
+          id: e.id,
+          sessionId: e.sessionId,
+          userId: e.userId,
+          sequence: e.sequence,
+          type: e.type,
+          payloadJson: e.payloadJson,
+          clientUuid: e.clientUuid,
+          clientCreatedAt: e.clientCreatedAt.toISOString(),
+          serverReceivedAt: e.serverReceivedAt.toISOString(),
+        });
       } else {
-        req.log.info({ sessionId }, "[events] questions.replace — no replacementId, skipping event write");
+        req.log.info({ sessionId, replacementId }, "[events] questions.replace duplicate skipped broadcast");
       }
 
       return reply.status(204).send();

@@ -1,8 +1,8 @@
 import type { FastifyBaseLogger } from "fastify";
 import { discord } from "./discord-client.js";
 import prisma from "./prisma.js";
-import type { GameVisibilityGate } from "./game-gates.js";
-
+import { env } from "./env.js";
+import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
 // Discord roles are cached per (user, server). Normal reads tolerate a stale
 // cache for up to DEFAULT_TTL_MS. Permission-gated requests (`privileged`) use
 // the much shorter PRIVILEGED_TTL_MS so role/permission changes take effect
@@ -16,8 +16,14 @@ export async function getUserPermissions(
   privileged = false,
   logger?: FastifyBaseLogger,
 ): Promise<Set<string>> {
-  const roleIds = await getUserRoleIds(userId, serverId, privileged, logger);
+  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (adminIds.includes(userId)) {
+    return new Set(["games.create", "games.edit", "games.delete", "server.admin"]);
+  }
+  // Virtual servers have no Discord guild to look roles up in.
+  if (VIRTUAL_SERVER_IDS.has(serverId)) return new Set();
 
+  const roleIds = await getUserRoleIds(userId, serverId, privileged, logger);
   if (roleIds.length === 0) return new Set();
 
   const rows = await prisma.rolePermission.findMany({
@@ -28,20 +34,31 @@ export async function getUserPermissions(
   return new Set(rows.map((r) => r.permission));
 }
 
-// TEMPORARY (see game-gates.ts): returns true if the user holds the gate's
-// required role in the gate's guild. Delete when the invite system lands.
-export async function userPassesGameGate(
+export async function userPassesDiscordRoleGate(
   userId: string,
-  gate: GameVisibilityGate,
+  guildId: string,
+  roleId: string,
   logger?: FastifyBaseLogger,
 ): Promise<boolean> {
+  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (adminIds.includes(userId)) {
+    return true;
+  }
+
   // Visibility is permission-gated, so use the short (privileged) TTL — role
   // changes propagate within ~1 minute.
-  const roles = await getUserRoleIds(userId, gate.requireGuildId, true, logger);
-  const passed = roles.includes(gate.requireRoleId);
+  let roles: string[];
+  try {
+    roles = await getUserRoleIds(userId, guildId, true, logger);
+  } catch (error) {
+    // Fail closed for this game without taking down the whole public catalog.
+    logger?.warn({ guildId, userId, err: error }, "Could not verify game visibility role");
+    return false;
+  }
+  const passed = roles.includes(roleId);
   logger?.info(
-    { userId, sentinel: gate.sentinelValue, passed },
-    `[taibled:game-gate] ${passed ? "pass" : "deny"} ${gate.sentinelValue}`,
+    { userId, guildId, roleId, passed },
+    `[searchlight:game-gate] ${passed ? "pass" : "deny"} role ${roleId} in ${guildId}`,
   );
   return passed;
 }
@@ -59,22 +76,50 @@ export async function getUserRoleIds(
   if (cached && Date.now() - cached.cachedAt.getTime() < ttl) {
     return cached.roles;
   }
-  return fetchAndCacheRoles(userId, serverId, logger);
+  return (await fetchAndCacheMembership(userId, serverId, logger)).roles;
 }
 
-async function fetchAndCacheRoles(
+// Non-members are cached too (no roles, isMember false), so permission lookups
+// for every listed server don't hit Discord on each request.
+async function fetchAndCacheMembership(
   userId: string,
   serverId: string,
   logger?: FastifyBaseLogger,
-): Promise<string[]> {
+): Promise<{ isMember: boolean; roles: string[] }> {
   const member = await discord.getGuildMember(serverId, userId, logger);
-  const roles = member?.roles ?? [];
+  const membership = { isMember: member !== null, roles: member?.roles ?? [] };
 
   await prisma.serverMembershipCache.upsert({
     where: { userId_serverId: { userId, serverId } },
-    update: { roles, cachedAt: new Date() },
-    create: { userId, serverId, roles, cachedAt: new Date() },
+    update: { ...membership, cachedAt: new Date() },
+    create: { userId, serverId, ...membership, cachedAt: new Date() },
   });
 
-  return roles;
+  return membership;
+}
+
+export async function assertServerMembership(
+  userId: string,
+  serverId: string,
+  logger?: FastifyBaseLogger,
+): Promise<void> {
+  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (adminIds.includes(userId)) {
+    return;
+  }
+
+  // Membership is cached like roles for normal reads, but a cached "not a
+  // member" expires after PRIVILEGED_TTL_MS so someone who just joined the
+  // server isn't locked out for an hour.
+  const cached = await prisma.serverMembershipCache.findUnique({
+    where: { userId_serverId: { userId, serverId } },
+  });
+  const ttl = cached?.isMember ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
+  const isMember =
+    cached && Date.now() - cached.cachedAt.getTime() < ttl
+      ? cached.isMember
+      : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+  if (!isMember) {
+    throw Object.assign(new Error("Not a member of this server"), { statusCode: 403 });
+  }
 }

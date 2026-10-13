@@ -1,5 +1,5 @@
 {
-    "name": "taibled",
+    "name": "searchlight",
     "private": true,
     "packageManager": "pnpm@11.1.3",
     "engines": {
@@ -7,6 +7,12 @@
     },
     "scripts": {
         "dev": "pnpm --filter web dev",
-        "build": "pnpm -r build"
+        "build": "pnpm -r build",
+        "generate:game-schema": "tsx scripts/generate-game-json-schema.ts",
+        "check:game-schema": "tsx scripts/generate-game-json-schema.ts --check",
+        "verify:preloaded-games": "tsx scripts/verify-preloaded-games.ts"
+    },
+    "devDependencies": {
+        "tsx": "^4.19.2"
     }
 }

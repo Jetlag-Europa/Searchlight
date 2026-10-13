@@ -11,7 +11,7 @@ const prisma = new PrismaClient();
 
 const TEST_USER_ID = process.env["TEST_AUTH_USER_ID"] ?? "e2e-test-user";
 const SESSION_ID = "e2e-session";
-const GAME_SENTINEL = "__bundled-south-limburg-2026__";
+const GAME_KEY = "south-limburg-2026";
 
 async function main() {
   const user = await prisma.user.upsert({
@@ -29,17 +29,19 @@ async function main() {
   });
 
   const game = await prisma.game.findFirst({
-    where: { sentinelValue: GAME_SENTINEL },
+    where: { gameKey: GAME_KEY },
   });
-  if (!game) {
+  if (!game || !game.currentRevisionId) {
     throw new Error(
-      `Seed-test: game "${GAME_SENTINEL}" not found. Run the base seed (pnpm seed) first.`,
+      `Seed-test: game "${GAME_KEY}" not found or has no current revision. Ensure preloaded games are imported first.`,
     );
   }
 
   await prisma.gameSession.upsert({
     where: { id: SESSION_ID },
-    update: {},
+    update: {
+      gameRevisionId: game.currentRevisionId,
+    },
     create: {
       id: SESSION_ID,
       gameId: game.id,
@@ -47,6 +49,7 @@ async function main() {
       creatorId: user.discordId,
       name: "E2E Session",
       visibility: "private",
+      gameRevisionId: game.currentRevisionId,
     },
   });
 

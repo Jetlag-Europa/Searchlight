@@ -1,147 +1,88 @@
-// Validate a bundled game's assets before seeding. Run from apps/api:
-//   pnpm exec tsx scripts/validate-game.ts __bundled-paris-2026__
+// Validate bundled games against canonical JSON definitions.
+// Run from apps/api:
+//   pnpm exec tsx scripts/validate-game.ts paris-2026
 //   pnpm exec tsx scripts/validate-game.ts            # validates every game
 //
-// Checks (no network): asset files exist; stations KML has >=1 Point; POI KML
-// folders resolve to categories; boundary GeoJSON parses to a polygon; any
-// tierRadiusOverrides keys actually appear as <Data name="tier"> values.
+// Checks (no network): canonical game definition exists in games/preloaded;
+// valid per shared validateGameDefinition schema.
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { GAME_REGISTRY, type GameManifest } from "@taibled/shared";
+import {
+  resolveGameDefinitionId,
+  validateGameDefinition,
+} from "@searchlight/shared";
 
-const PUBLIC_DIR = resolve(import.meta.dirname, "../../web/public");
-
-const SKIPPED = new Set(["administrative", "water"]);
-
-function read(asset: string): string | null {
-  const path = resolve(PUBLIC_DIR, asset);
-  return existsSync(path) ? readFileSync(path, "utf8") : null;
-}
-
-function countPoints(kml: string): number {
-  return (kml.match(/<Point>/gi) ?? []).length;
-}
-
-function folderNames(kml: string): string[] {
-  return kml
-    .split(/<Folder>/i)
-    .slice(1)
-    .map((b) => b.match(/<name>([\s\S]*?)<\/name>/i)?.[1]?.trim() ?? "")
-    .filter(Boolean);
-}
-
-// Signed area (shoelace); positive = clockwise in lon/lat order.
-function ringIsCW(ring: number[][]): boolean {
-  let sum = 0;
-  for (let i = 0; i < ring.length - 1; i++) {
-    const [x1, y1] = ring[i];
-    const [x2, y2] = ring[i + 1];
-    sum += (x2 - x1) * (y2 + y1);
-  }
-  return sum > 0;
-}
-
-function tierValues(kml: string): Set<string> {
-  const out = new Set<string>();
-  const re = /<Data name="tier">\s*<value>([\s\S]*?)<\/value>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(kml)) !== null) out.add(m[1].trim());
-  return out;
-}
-
-function validate(g: GameManifest): string[] {
+const PRELOADED_DIR = resolve(import.meta.dirname, "../../../games/preloaded");
+function validateFile(fileName: string): { name: string; gameId: string; errors: string[]; warnings: string[] } {
   const errors: string[] = [];
-  const warn: string[] = [];
+  const warnings: string[] = [];
 
-  // Asset existence.
-  for (const asset of [g.kmlPath, g.stationsKml, g.boundaryGeoJson, g.hidingZoneGeoJson]) {
-    if (asset && !existsSync(resolve(PUBLIC_DIR, asset))) {
-      errors.push(`missing asset file: ${asset}`);
-    }
+  const canonicalPath = resolve(PRELOADED_DIR, fileName);
+
+  if (!existsSync(canonicalPath)) {
+    errors.push(`missing canonical game definition: games/preloaded/${fileName}`);
+    return { name: fileName, gameId: fileName, errors, warnings };
   }
 
-  // Stations: the stations file (or kmlPath when combined) must have points.
-  const stationsFile = g.stationsKml ?? (g.hidingZoneGeoJson ? null : g.kmlPath);
-  if (stationsFile) {
-    const kml = read(stationsFile);
-    if (kml) {
-      const pts = countPoints(kml);
-      if (pts === 0) errors.push(`stations file ${stationsFile} has 0 <Point> placemarks`);
-      // Tier overrides must reference tiers that exist in the KML.
-      if (g.tierRadiusOverrides) {
-        const tiers = tierValues(kml);
-        for (const key of Object.keys(g.tierRadiusOverrides)) {
-          if (!tiers.has(key)) warn.push(`tierRadiusOverrides key "${key}" not found as a <Data name="tier"> value`);
-        }
-      }
-    }
+  let canonicalContent = "";
+  let parsed: Record<string, unknown>;
+  try {
+    canonicalContent = readFileSync(canonicalPath, "utf8");
+    parsed = JSON.parse(canonicalContent);
+  } catch (e) {
+    errors.push(`invalid JSON in games/preloaded/${fileName}: ${(e as Error).message}`);
+    return { name: fileName, gameId: fileName, errors, warnings };
   }
 
-  // POI folders resolve to categories.
-  if (g.poiFolders && g.kmlPath) {
-    const kml = read(g.kmlPath);
-    if (kml) {
-      const names = folderNames(kml);
-      for (const name of names) {
-        const cat = (g.poiFolders[name] ?? name.toLowerCase());
-        if (!cat) warn.push(`POI folder "${name}" has no category mapping`);
-        else if (SKIPPED.has(cat)) continue;
-      }
-      if (names.length === 0) warn.push(`POI file ${g.kmlPath} has no <Folder> blocks`);
+  const result = validateGameDefinition(parsed);
+  if (!result.valid) {
+    for (const err of result.errors) {
+      errors.push(`[${err.code}] ${err.path}: ${err.message}`);
     }
   }
-
-  // Boundary GeoJSON: must be a FeatureCollection of Polygon/MultiPolygon, CCW.
-  if (g.boundaryGeoJson) {
-    const txt = read(g.boundaryGeoJson);
-    if (txt) {
-      try {
-        const geo = JSON.parse(txt);
-        // Every game's border is a FeatureCollection; the client treats it as
-        // one (polyGeoJSON.features). A bare Feature silently breaks masking.
-        if (geo.type !== "FeatureCollection") {
-          errors.push(`boundary ${g.boundaryGeoJson} must be a FeatureCollection (got ${geo.type})`);
-        }
-        const geom = geo.type === "FeatureCollection"
-          ? geo.features?.[0]?.geometry
-          : geo.type === "Feature" ? geo.geometry : geo;
-        if (!["Polygon", "MultiPolygon"].includes(geom?.type)) {
-          errors.push(`boundary ${g.boundaryGeoJson} is not a Polygon/MultiPolygon (got ${geom?.type})`);
-        } else {
-          const ring = geom.type === "Polygon" ? geom.coordinates[0] : geom.coordinates[0][0];
-          if (ring && ringIsCW(ring)) {
-            warn.push(`boundary ${g.boundaryGeoJson} exterior ring is clockwise; GeoJSON wants CCW (turf.rewind / shapely.orient)`);
-          }
-        }
-      } catch (e) {
-        errors.push(`boundary ${g.boundaryGeoJson} is not valid JSON: ${(e as Error).message}`);
-      }
-    }
+  for (const warn of result.warnings) {
+    warnings.push(`[${warn.code}] ${warn.path}: ${warn.message}`);
   }
 
-  for (const w of warn) console.warn(`  ⚠ ${g.sentinel}: ${w}`);
-  return errors;
+
+  const gameId = resolveGameDefinitionId(parsed as { id?: string; name: string });
+  const name = typeof parsed.name === "string" ? parsed.name : gameId;
+
+  for (const w of warnings) console.warn(`  ⚠ ${gameId}: ${w}`);
+  return { name, gameId, errors, warnings };
 }
+
+const allFiles = readdirSync(PRELOADED_DIR)
+  .filter((f) => f.endsWith(".game.json"))
+  .sort();
 
 const arg = process.argv[2];
-const games = arg ? GAME_REGISTRY.filter((g) => g.sentinel === arg) : GAME_REGISTRY;
+let targetFiles = allFiles;
 
-if (arg && games.length === 0) {
-  console.error(`No game with sentinel "${arg}" in GAME_REGISTRY.`);
-  process.exit(1);
+if (arg) {
+  const normalizedArg = arg.replace(/\.game\.json$/, "");
+  targetFiles = allFiles.filter((f) => {
+    const base = f.replace(/\.game\.json$/, "");
+    return base === normalizedArg || f === arg;
+  });
+
+  if (targetFiles.length === 0) {
+    console.error(`No preloaded game matching "${arg}".`);
+    process.exit(1);
+  }
 }
 
 let failed = 0;
-for (const g of games) {
-  const errors = validate(g);
+for (const file of targetFiles) {
+  const { name, gameId, errors } = validateFile(file);
   if (errors.length) {
     failed++;
-    console.error(`✗ ${g.sentinel} (${g.name})`);
+    console.error(`✗ ${gameId} (${name})`);
     for (const e of errors) console.error(`    ${e}`);
   } else {
-    console.log(`✓ ${g.sentinel} (${g.name})`);
+    console.log(`✓ ${gameId} (${name})`);
   }
 }
 
@@ -149,4 +90,4 @@ if (failed) {
   console.error(`\n${failed} game(s) failed validation.`);
   process.exit(1);
 }
-console.log(`\nAll ${games.length} game(s) valid.`);
+console.log(`\nAll ${targetFiles.length} game(s) valid.`);

@@ -71,17 +71,32 @@ describe("GET /sessions/:sessionId/events", () => {
 
     await prisma.server.create({ data: { id: SERVER_ID, name: "Test Server" } });
 
-    await prisma.game.create({
+    const game = await prisma.game.create({
       data: {
         id: GAME_ID,
         serverId: SERVER_ID,
         name: "Test Game",
-        sentinelValue: "test-sentinel-evroutes",
-        kmlPath: "/fake.kml",
-        mapLocationJson: {},
-        hidingRadius: 1.0,
-        hidingRadiusUnits: "miles",
+        gameKey: "test-game-evroutes",
+        size: "medium",
       },
+    });
+
+    const rev = await prisma.gameRevision.create({
+      data: {
+        gameId: game.id,
+        revision: 1,
+        checksum: "test-evroutes-checksum",
+        definition: {
+          id: "test-game-evroutes",
+          name: "Test Game",
+          serverId: SERVER_ID,
+        },
+      },
+    });
+
+    await prisma.game.update({
+      where: { id: game.id },
+      data: { currentRevisionId: rev.id },
     });
 
     await prisma.gameSession.createMany({
@@ -92,6 +107,7 @@ describe("GET /sessions/:sessionId/events", () => {
           serverId: SERVER_ID,
           creatorId: USER1_ID,
           name: "Session 1",
+          gameRevisionId: rev.id,
         },
         {
           id: SESSION2_ID,
@@ -99,6 +115,7 @@ describe("GET /sessions/:sessionId/events", () => {
           serverId: SERVER_ID,
           creatorId: USER2_ID,
           name: "Session 2",
+          gameRevisionId: rev.id,
         },
       ],
     });
@@ -120,6 +137,7 @@ describe("GET /sessions/:sessionId/events", () => {
         {
           sessionId: SESSION1_ID,
           userId: USER1_ID,
+          sequence: 1,
           type: "stroke.create",
           payloadJson: { test: 1 },
           clientUuid: "test-ev-1",
@@ -129,6 +147,7 @@ describe("GET /sessions/:sessionId/events", () => {
         {
           sessionId: SESSION1_ID,
           userId: USER1_ID,
+          sequence: 2,
           type: "stroke.delete",
           payloadJson: { clientUuid: "abc" },
           clientUuid: "test-ev-2",
@@ -136,6 +155,11 @@ describe("GET /sessions/:sessionId/events", () => {
           serverReceivedAt: t2,
         },
       ],
+    });
+
+    await prisma.gameSession.update({
+      where: { id: SESSION1_ID },
+      data: { eventSequence: 2 },
     });
 
     app = await buildTestApp();
@@ -151,6 +175,7 @@ describe("GET /sessions/:sessionId/events", () => {
     await prisma.gameSession.deleteMany({
       where: { id: { in: [SESSION1_ID, SESSION2_ID] } },
     });
+    await prisma.gameRevision.deleteMany({ where: { gameId: GAME_ID } });
     await prisma.game.deleteMany({ where: { id: GAME_ID } });
     await prisma.server.deleteMany({ where: { id: SERVER_ID } });
     await prisma.user.deleteMany({
@@ -178,14 +203,16 @@ describe("GET /sessions/:sessionId/events", () => {
     expect(body.events).toHaveLength(2);
   });
 
-  test("events are ordered by serverReceivedAt ascending", async () => {
+  test("events are ordered by sequence ascending", async () => {
     const res = await app.inject({
       method: "GET",
       url: `/sessions/${SESSION1_ID}/events`,
       headers: { cookie },
     });
-    const { events } = res.json<{ events: Array<{ type: string }> }>();
+    const { events } = res.json<{ events: Array<{ sequence: number; type: string }> }>();
+    expect(events[0].sequence).toBe(1);
     expect(events[0].type).toBe("stroke.create");
+    expect(events[1].sequence).toBe(2);
     expect(events[1].type).toBe("stroke.delete");
   });
 
@@ -195,38 +222,65 @@ describe("GET /sessions/:sessionId/events", () => {
       url: `/sessions/${SESSION1_ID}/events`,
       headers: { cookie },
     });
-    const { events } = res.json<{ events: Array<Record<string, unknown>> }>();
+    const { events, nextAfter } = res.json<{ events: Array<Record<string, unknown>>; nextAfter: number | null }>();
     const ev = events[0];
     expect(typeof ev.id).toBe("string");
     expect(ev.sessionId).toBe(SESSION1_ID);
     expect(ev.userId).toBe(USER1_ID);
+    expect(ev.sequence).toBe(1);
     expect(typeof ev.clientCreatedAt).toBe("string");
     expect(typeof ev.serverReceivedAt).toBe("string");
+    expect(nextAfter).toBeNull();
   });
 
-  test("?since filters to events strictly after the timestamp", async () => {
-    // t1 is excluded (gt, not gte) — only t2's event should appear
+  test("?after filters to events with sequence > after", async () => {
     const res = await app.inject({
       method: "GET",
-      url: `/sessions/${SESSION1_ID}/events?since=${encodeURIComponent(t1.toISOString())}`,
+      url: `/sessions/${SESSION1_ID}/events?after=1`,
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const { events } = res.json<{ events: Array<{ type: string }> }>();
+    const { events, nextAfter } = res.json<{ events: Array<{ sequence: number; type: string }>; nextAfter: number | null }>();
     expect(events).toHaveLength(1);
+    expect(events[0].sequence).toBe(2);
     expect(events[0].type).toBe("stroke.delete");
+    expect(nextAfter).toBeNull();
   });
 
-  test("?since with a future timestamp returns empty list", async () => {
-    const future = new Date(Date.now() + 60_000).toISOString();
+  test("pagination with limit returns nextAfter when more pages exist", async () => {
     const res = await app.inject({
       method: "GET",
-      url: `/sessions/${SESSION1_ID}/events?since=${encodeURIComponent(future)}`,
+      url: `/sessions/${SESSION1_ID}/events?after=0&limit=1`,
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const { events } = res.json<{ events: unknown[] }>();
+    const { events, nextAfter } = res.json<{ events: Array<{ sequence: number }>; nextAfter: number | null }>();
+    expect(events).toHaveLength(1);
+    expect(events[0].sequence).toBe(1);
+    expect(nextAfter).toBe(1);
+
+    const res2 = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/events?after=${nextAfter}&limit=1`,
+      headers: { cookie },
+    });
+    expect(res2.statusCode).toBe(200);
+    const body2 = res2.json<{ events: Array<{ sequence: number }>; nextAfter: number | null }>();
+    expect(body2.events).toHaveLength(1);
+    expect(body2.events[0].sequence).toBe(2);
+    expect(body2.nextAfter).toBeNull();
+  });
+
+  test("?after beyond latest sequence returns empty list and nextAfter null", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/events?after=999`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const { events, nextAfter } = res.json<{ events: unknown[]; nextAfter: number | null }>();
     expect(events).toHaveLength(0);
+    expect(nextAfter).toBeNull();
   });
 
   test("404 for a session that does not exist", async () => {
@@ -246,6 +300,71 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(403);
+  });
+  // ── GET /sessions/:sessionId/events/cursor ──────────────────────────────────
+  test("cursor: 401 without auth cookie", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/events/cursor`,
+    });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test("cursor: 404 for a session that does not exist", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/nonexistent-session-id/events/cursor`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+
+  test("cursor: 403 when user is not a participant of the session", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION2_ID}/events/cursor`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(403);
+  });
+
+  test("cursor: returns latest event sequence when events exist", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/events/cursor`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(200);
+    const body = res.json<{ sequence: number }>();
+    expect(body.sequence).toBe(2);
+  });
+
+  test("cursor: returns 0 when no events exist in session", async () => {
+    const EMPTY_SESSION_ID = "test-evroutes-empty";
+    const game = await prisma.game.findUniqueOrThrow({ where: { id: GAME_ID } });
+    await prisma.gameSession.create({
+      data: {
+        id: EMPTY_SESSION_ID,
+        gameId: GAME_ID,
+        serverId: SERVER_ID,
+        creatorId: USER1_ID,
+        name: "Empty Session",
+        eventSequence: 0,
+        gameRevisionId: game.currentRevisionId!,
+      },
+    });
+    try {
+      const res = await app.inject({
+        method: "GET",
+        url: `/sessions/${EMPTY_SESSION_ID}/events/cursor`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      const body = res.json<{ sequence: number }>();
+      expect(body.sequence).toBe(0);
+    } finally {
+      await prisma.gameSession.delete({ where: { id: EMPTY_SESSION_ID } });
+    }
   });
 
   // ── GET /sessions/:sessionId/stream (SSE) ──────────────────────────────────
@@ -274,5 +393,51 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(404);
+  });
+
+  test("stream: revoked participant is forbidden from connecting", async () => {
+    const REVOKED_USER_ID = "test-evroutes-revoked-user";
+    await prisma.user.create({
+      data: {
+        discordId: REVOKED_USER_ID,
+        username: "revokeduser",
+        displayName: "Revoked User",
+        avatarUrl: "",
+        discordAccessToken: "tok-rev",
+        discordRefreshToken: "ref-rev",
+        discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    const REVOKED_AUTH_ID = "test-evroutes-revoked-auth";
+    await prisma.authSession.create({
+      data: {
+        id: REVOKED_AUTH_ID,
+        userId: REVOKED_USER_ID,
+        expiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    await prisma.sessionParticipant.create({
+      data: {
+        sessionId: SESSION1_ID,
+        userId: REVOKED_USER_ID,
+        role: "member",
+        acceptedAt: new Date(),
+        revokedAt: new Date(), // Already revoked!
+      },
+    });
+
+    const revokedCookie = `session=${app.signCookie(REVOKED_AUTH_ID)}`;
+    try {
+      const res = await app.inject({
+        method: "GET",
+        url: `/sessions/${SESSION1_ID}/stream`,
+        headers: { cookie: revokedCookie },
+      });
+      expect(res.statusCode).toBe(403);
+    } finally {
+      await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: REVOKED_USER_ID } });
+      await prisma.authSession.deleteMany({ where: { id: REVOKED_AUTH_ID } });
+      await prisma.user.deleteMany({ where: { discordId: REVOKED_USER_ID } });
+    }
   });
 });

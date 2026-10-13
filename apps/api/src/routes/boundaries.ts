@@ -10,6 +10,18 @@ const OSM_TYPE_MAP: Record<string, string> = {
     N: "node",
 };
 
+// lastAccessedAt only needs day-level precision; writing it on every hit made
+// each cached read a read plus a write.
+const TOUCH_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+async function touchBoundaryCache(entry: { osmId: string; osmType: string; lastAccessedAt: Date }) {
+    if (Date.now() - entry.lastAccessedAt.getTime() < TOUCH_INTERVAL_MS) return;
+    await prisma.boundaryCache.update({
+        where: { osmId_osmType: { osmId: entry.osmId, osmType: entry.osmType } },
+        data: { lastAccessedAt: new Date() },
+    });
+}
+
 export async function boundaryRoutes(app: FastifyInstance) {
     // GET /boundaries/R/12345 — fetch by known OSM ID, cache in DB
     app.get(
@@ -37,10 +49,7 @@ export async function boundaryRoutes(app: FastifyInstance) {
                 where: { osmId_osmType: { osmId, osmType } },
             });
             if (cached) {
-                await prisma.boundaryCache.update({
-                    where: { osmId_osmType: { osmId, osmType } },
-                    data: { lastAccessedAt: new Date() },
-                });
+                await touchBoundaryCache(cached);
                 return cached.geojson;
             }
 
@@ -88,10 +97,7 @@ export async function boundaryRoutes(app: FastifyInstance) {
             });
             if (cached) {
                 app.log.info({ osmId, osmType }, "boundary cache hit");
-                await prisma.boundaryCache.update({
-                    where: { osmId_osmType: { osmId, osmType } },
-                    data: { lastAccessedAt: new Date() },
-                });
+                await touchBoundaryCache(cached);
                 return cached.geojson;
             }
 

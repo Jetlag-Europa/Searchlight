@@ -19,8 +19,8 @@ COPY apps/api/src ./apps/api/src
 COPY apps/api/tsconfig.seed.json ./apps/api/
 RUN pnpm --filter api build
 # The seed is compiled too: the runtime stage installs prod deps only, so tsx
-# isn't there to run prisma/seed.ts directly. Needed to register new bundled
-# games (see docs/ADDING_GAMES.md) — migrations alone do not create game rows.
+# isn't there to run prisma/seed.ts directly. It registers the Discord servers
+# games belong to; the API itself imports games/preloaded on start.
 RUN pnpm --filter api build:seed
 
 # Runtime stage — only production deps + compiled output
@@ -39,6 +39,9 @@ RUN pnpm install --frozen-lockfile --prod
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
 COPY --from=builder /app/apps/api/dist-seed ./apps/api/dist-seed
 COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
-
-# Run migrations then start the API
-CMD sh -c "pnpm --filter api exec prisma migrate deploy && node apps/api/dist/index.js"
+COPY games ./games
+# Run migrations, create any missing Discord servers games belong to (a fresh DB
+# has none, so the boot-time game preload would load nothing), then start.
+# --missing-only leaves existing servers' names and role mappings alone; run
+# `pnpm seed:prod` for a full seed that resets them.
+CMD sh -c "pnpm --filter api exec prisma migrate deploy && (cd apps/api && node dist-seed/seed.js --missing-only) && node apps/api/dist/index.js"

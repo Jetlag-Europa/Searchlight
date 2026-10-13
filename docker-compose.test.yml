@@ -1,7 +1,7 @@
 # Isolated e2e stack — project name `writemap-test`. Fully separate from dev/prod:
 # its own Postgres volume (namespaced by the project name), the API with
 # ENABLE_TEST_AUTH=1 (so POST /auth/test-login works), a web build with the
-# window.__taibled hook baked in, and a stub Overpass so boundary/POI queries are
+# window.__searchlight hook baked in, and a stub Overpass so boundary/POI queries are
 # deterministic and offline.
 #
 # Launch with: infra/deploy-test.sh

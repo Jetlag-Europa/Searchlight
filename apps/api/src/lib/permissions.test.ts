@@ -7,7 +7,12 @@ vi.mock("./discord-client.js", () => ({
 
 import prisma from "./prisma.js";
 import { discord } from "./discord-client.js";
-import { getUserRoleIds } from "./permissions.js";
+import {
+    assertServerMembership,
+    getUserPermissions,
+    getUserRoleIds,
+    userPassesDiscordRoleGate,
+} from "./permissions.js";
 
 const USER_ID = "test-perm-ttl-user";
 const SERVER_ID = "test-perm-ttl-server";
@@ -18,8 +23,8 @@ async function setCache(roles: string[], ageMs: number) {
     const cachedAt = new Date(Date.now() - ageMs);
     await prisma.serverMembershipCache.upsert({
         where: { userId_serverId: { userId: USER_ID, serverId: SERVER_ID } },
-        update: { roles, cachedAt },
-        create: { userId: USER_ID, serverId: SERVER_ID, roles, cachedAt },
+        update: { isMember: true, roles, cachedAt },
+        create: { userId: USER_ID, serverId: SERVER_ID, isMember: true, roles, cachedAt },
     });
 }
 
@@ -74,5 +79,82 @@ describe("getUserRoleIds — cache TTL (1 hour default, 1 minute when privileged
         const roles = await getUserRoleIds(USER_ID, SERVER_ID, true);
         expect(roles).toEqual(["cached-role"]);
         expect(mockGetMember).not.toHaveBeenCalled();
+    });
+    test("denies a gated game when Discord role verification fails", async () => {
+        await setCache(["stale-role"], 2 * 60 * 1000);
+        mockGetMember.mockRejectedValue(new Error("Discord unavailable"));
+        expect(await userPassesDiscordRoleGate(USER_ID, SERVER_ID, "stale-role")).toBe(false);
+    });
+});
+
+describe("assertServerMembership — cached membership", () => {
+    beforeAll(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+        await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+
+        await prisma.user.create({
+            data: {
+                discordId: USER_ID,
+                username: "perm-ttl",
+                displayName: "Perm TTL",
+                avatarUrl: "https://example.com/a.png",
+                discordAccessToken: "tok",
+                discordRefreshToken: "ref",
+                discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+            },
+        });
+        await prisma.server.create({ data: { id: SERVER_ID, name: "Perm TTL Server" } });
+    });
+
+    afterAll(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+        await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+    });
+
+    beforeEach(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        mockGetMember.mockReset();
+    });
+
+    test("rejects a non-member whose role lookup was cached", async () => {
+        // GET /servers resolves permissions for every server, caching non-members too.
+        mockGetMember.mockResolvedValue(null);
+        expect([...(await getUserPermissions(USER_ID, SERVER_ID))]).toEqual([]);
+
+        await expect(assertServerMembership(USER_ID, SERVER_ID)).rejects.toMatchObject({
+            statusCode: 403,
+        });
+    });
+
+    test("accepts a cached member without calling Discord", async () => {
+        await setCache([], 30 * 60 * 1000);
+        await assertServerMembership(USER_ID, SERVER_ID);
+        expect(mockGetMember).not.toHaveBeenCalled();
+    });
+
+    test("re-checks a membership cached longer than an hour ago", async () => {
+        await setCache([], 2 * 60 * 60 * 1000);
+        mockGetMember.mockResolvedValue(null);
+        await expect(assertServerMembership(USER_ID, SERVER_ID)).rejects.toMatchObject({
+            statusCode: 403,
+        });
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+
+    test("re-checks a cached non-member after a minute, so joining takes effect", async () => {
+        mockGetMember.mockResolvedValue(null);
+        await expect(assertServerMembership(USER_ID, SERVER_ID)).rejects.toMatchObject({
+            statusCode: 403,
+        });
+        await prisma.serverMembershipCache.update({
+            where: { userId_serverId: { userId: USER_ID, serverId: SERVER_ID } },
+            data: { cachedAt: new Date(Date.now() - 2 * 60 * 1000) },
+        });
+
+        mockGetMember.mockResolvedValue({ roles: [], nick: null });
+        await assertServerMembership(USER_ID, SERVER_ID);
+        expect(mockGetMember).toHaveBeenCalledTimes(2);
     });
 });

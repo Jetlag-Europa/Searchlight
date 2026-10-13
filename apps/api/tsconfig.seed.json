@@ -11,8 +11,8 @@
         "declaration": false,
         "declarationMap": false
     },
-    // Only the production seed. seed-test.ts and seed-brno-boundaries.ts are
-    // developer tools, run from the host with tsx, and are not shipped.
+    // Only the production seed. seed-test.ts is a developer tool, run from the host
+    // with tsx, and is not shipped.
     "include": ["prisma/seed.ts"],
     "exclude": ["dist", "dist-seed"]
 }

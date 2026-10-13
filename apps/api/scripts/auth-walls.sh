@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Summarise auth 401s from a running API container's logs.
 #
-# Groups 401s by the client-generated x-page-load id, so the 5-9 simultaneous
-# failures produced by one unauthenticated page load appear as ONE wall rather
-# than nine unrelated log lines — and reports the User-Agent and the pre-DB
-# failure reason (no_cookie vs bad_signature), neither of which was previously
-# recorded anywhere.
+# Groups 401s by client (address + User-Agent) and 3-second window, so the 5-9
+# simultaneous failures produced by one unauthenticated page load appear as ONE
+# wall rather than nine unrelated log lines — and reports the User-Agent and the
+# pre-DB failure reason (no_cookie vs bad_signature), neither of which was
+# previously recorded anywhere.
 #
 # Usage:
 #   scripts/auth-walls.sh                      # dev container, whole log
@@ -46,23 +46,20 @@ printf '%s\n' "$PARSED" | jq -rs '
 '
 echo
 
-echo "=== walls (grouped by page load) ==="
+echo "=== walls (grouped by client and 3 s window) ==="
 printf '%s\n' "$PARSED" | jq -rs '
   (map(select(.req) | {key: .reqId, value: .req}) | from_entries) as $reqs
   | map(select(.authFailure) | . + {r: $reqs[.reqId]})
-  # Requests with no page-load id predate the instrumentation or come from a
-  # non-browser client; bucket them separately rather than merging them into one
-  # meaningless giant wall.
-  | group_by(.r.pageLoad // "(none:\(.reqId))")
+  | group_by([(.r.remoteAddress // "?"), (.r.userAgent // "?"), ((.time | tonumber) / 3000 | floor)])
   | map({
-      pageLoad: (.[0].r.pageLoad // "(none)"),
       size: length,
       reasons: (map(.authFailure) | unique | join(",")),
+      client: (.[0].r.remoteAddress // "(unlogged)"),
       ua: (.[0].r.userAgent // "(unlogged)"),
       urls: (map(.r.url) | unique | join(" ")),
       t: (.[0].time)
     })
   | sort_by(.t)
   | .[]
-  | "\(.t | tonumber / 1000 | strftime("%H:%M:%S"))  size=\(.size)  \(.reasons)\n    ua=\(.ua)\n    urls=\(.urls)\n"
+  | "\(.t | tonumber / 1000 | strftime("%H:%M:%S"))  size=\(.size)  \(.reasons)  client=\(.client)\n    ua=\(.ua)\n    urls=\(.urls)\n"
 '
