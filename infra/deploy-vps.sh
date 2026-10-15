@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Deploy or update the PRODUCTION stack on the VPS (Cloudflare Tunnel, no ports).
-# Run from the repo root of the VPS clone.
+# Run from the repo root of the VPS clone. See DEPLOY.md → Production.
 #
 # By default, pulls the api and web images CI built for the checked-out commit
 # (ghcr.io/…/searchlight-{api,web}:sha-<commit>, see
@@ -9,6 +9,9 @@
 # another tag (e.g. latest).
 #
 #   --build   build the images from this checkout on the VPS instead
+#
+# Game definitions in games/preloaded/ ship inside the api image and are
+# imported when it starts.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,8 +38,10 @@ else
   compose up -d --no-build
 fi
 
+# Every deploy leaves the previous images behind. Drop the ones no container
+# uses that are over a week old; a rollback pulls them again from GHCR.
+docker image prune -af --filter "until=168h" >/dev/null \
+  || echo "Warning: pruning old images failed; the deploy itself succeeded." >&2
+
 echo "VPS production stack updated."
 docker compose --project-name writemap ps
-
-# Game definitions in games/preloaded/ are automatically preloaded by the api
-# container on boot.

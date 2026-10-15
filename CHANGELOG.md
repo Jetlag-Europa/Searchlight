@@ -1,9 +1,12 @@
 # Changelog
 
-## Docker images built in CI (2026-10-13)
+## Deployment: CI-built images and cleanup (2026-10-15)
 
 - A "Docker images" GitHub Actions workflow builds the `api` and `web` images for arm64 on every push to `main` and pushes them to GHCR as `ghcr.io/jetlag-europa/searchlight-{api,web}`, tagged `sha-<commit>` and `latest`. Pull requests build them without pushing.
-- `infra/deploy-vps.sh` pulls the images of the checked-out commit instead of building on the VPS; `--build` keeps the old build-from-source path. The VPS needs a one-time `docker login ghcr.io` (see `docs/VPS_Setup.md`).
+- `infra/deploy-vps.sh` pulls the images of the checked-out commit instead of building on the VPS (`--build` keeps the build-from-source path) and removes unused images older than a week. The VPS needs a one-time `docker login ghcr.io` and a clone that tracks `Jetlag-Europa/Searchlight` (see `DEPLOY.md`).
+- `DEPLOY.md` is the one deployment guide: production on the VPS (formerly `docs/VPS_Setup.md`), the Mac mini dev stack, and Discord redirects. The completed migration plan `docs/VPS_MIGRATION.md` is removed.
+- Removed what nothing used any more: the Mac mini production stack (`docker-compose.prod.yml`, `infra/deploy-prod.sh`; production moved to the VPS in June and its data was reset in October), the GitHub Pages workflow (it only ran on `master`, which this repo doesn't have), and the `TUNNEL_TOKEN` placeholder.
+- `infra/backup.sh` writes to `backups/` next to the clone by default instead of a Mac mini home directory, so its cron line needs no overrides.
 
 ## Master integration and review fixes (2026-10-13)
 
