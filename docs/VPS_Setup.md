@@ -117,14 +117,14 @@ Add new hostnames' DNS with `cloudflared tunnel route dns searchlight-vps <host>
 ## Operations
 
 ### Images built by CI
-The VPS does not build the app. On every push to `master`, the "Docker images"
+The VPS does not build the app. On every push to `main`, the "Docker images"
 workflow (`.github/workflows/docker-images.yml`) builds the `api` and `web`
 images for arm64 and pushes them to the GitHub Container Registry:
 
 | Image | Tags |
 |---|---|
-| `ghcr.io/leandrocoding/searchlight-api` | `sha-<7-char commit>`, `latest` |
-| `ghcr.io/leandrocoding/searchlight-web` | `sha-<7-char commit>`, `latest` |
+| `ghcr.io/jetlag-europa/searchlight-api` | `sha-<7-char commit>`, `latest` |
+| `ghcr.io/jetlag-europa/searchlight-web` | `sha-<7-char commit>`, `latest` |
 
 Pull requests only build them, to catch a broken image before it is merged; a
 manual run (Actions → Docker images → Run workflow) pushes a `sha-` tag for any

@@ -2,19 +2,19 @@ name: Docker images
 
 # Builds the api and web images and pushes them to the GitHub Container Registry
 # as ghcr.io/<owner>/searchlight-api and ghcr.io/<owner>/searchlight-web, tagged
-# sha-<short commit> (every push to master or manual run) and latest (master).
+# sha-<short commit> (every push to main or manual run) and latest (main).
 # The VPS pulls them instead of building on the box: see infra/deploy-vps.sh and
 # docs/VPS_Setup.md. Pull requests only build, to catch a broken image before it
-# reaches master.
+# reaches main.
 
 on:
     push:
-        branches: [master]
+        branches: [main]
     pull_request:
     workflow_dispatch:
 
-# A newer push to a PR supersedes its running build; master builds all finish,
-# so every master commit keeps an image to deploy or roll back to.
+# A newer push to a PR supersedes its running build; main builds all finish,
+# so every main commit keeps an image to deploy or roll back to.
 concurrency:
     group: docker-images-${{ github.ref }}
     cancel-in-progress: ${{ github.event_name == 'pull_request' }}

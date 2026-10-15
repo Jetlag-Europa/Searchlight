@@ -19,10 +19,10 @@
 # the owner the images were pushed under.
 services:
   api:
-    image: ${SEARCHLIGHT_IMAGE_REGISTRY:-ghcr.io/leandrocoding}/searchlight-api:${SEARCHLIGHT_IMAGE_TAG:-latest}
+    image: ${SEARCHLIGHT_IMAGE_REGISTRY:-ghcr.io/jetlag-europa}/searchlight-api:${SEARCHLIGHT_IMAGE_TAG:-latest}
 
   web:
-    image: ${SEARCHLIGHT_IMAGE_REGISTRY:-ghcr.io/leandrocoding}/searchlight-web:${SEARCHLIGHT_IMAGE_TAG:-latest}
+    image: ${SEARCHLIGHT_IMAGE_REGISTRY:-ghcr.io/jetlag-europa}/searchlight-web:${SEARCHLIGHT_IMAGE_TAG:-latest}
     build:
       args:
         # Also baked into the CI image: keep in step with docker-images.yml.
