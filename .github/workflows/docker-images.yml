@@ -1,11 +1,15 @@
 name: Docker images
 
-# Builds the api and web images and pushes them to the GitHub Container Registry
-# as ghcr.io/<owner>/searchlight-api and ghcr.io/<owner>/searchlight-web, tagged
-# sha-<short commit> (every push to main or manual run) and latest (main).
-# The VPS pulls them instead of building on the box: see infra/deploy-vps.sh and
-# DEPLOY.md. Pull requests only build, to catch a broken image before it
-# reaches main.
+# Builds the api and web images for linux/amd64 and linux/arm64 and pushes them
+# to the GitHub Container Registry as ghcr.io/<owner>/searchlight-api and
+# ghcr.io/<owner>/searchlight-web, tagged sha-<short commit> (every push to main
+# or manual run) and latest (main). Each tag is a multi-platform image, so
+# `docker pull` picks the host's architecture. The server pulls them instead of
+# building: see infra/deploy-vps.sh and DEPLOY.md. Pull requests only build, to
+# catch a broken image before it reaches main.
+#
+# Each platform builds natively on its own runner (no QEMU emulation) and is
+# pushed by digest; the merge job then tags the two digests as one image.
 
 on:
     push:
@@ -25,20 +29,32 @@ permissions:
 
 jobs:
     build:
-        name: ${{ matrix.image }}
-        # The VPS is arm64: build natively on an arm64 runner rather than under
-        # QEMU emulation.
-        runs-on: ubuntu-24.04-arm
+        name: ${{ matrix.image }} (${{ matrix.platform }})
+        runs-on: ${{ matrix.runner }}
         strategy:
             fail-fast: false
             matrix:
+                image: [api, web]
+                platform: [linux/amd64, linux/arm64]
                 include:
-                    - image: api
+                    - platform: linux/amd64
+                      runner: ubuntu-24.04
+                    - platform: linux/arm64
+                      runner: ubuntu-24.04-arm
                     - image: web
                       # Baked into the static bundle, so this image only talks to
-                      # the VPS API. Keep in step with docker-compose.vps.yml.
+                      # the production API. Keep in step with docker-compose.vps.yml.
                       build-args: PUBLIC_API_BASE=https://api-searchlight.jetlageuropa.org
         steps:
+            - name: Image name
+              id: name
+              env:
+                  IMAGE: ${{ matrix.image }}
+                  PLATFORM: ${{ matrix.platform }}
+              run: |
+                  echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/searchlight-${IMAGE}" >> "$GITHUB_OUTPUT"
+                  echo "platform-pair=${PLATFORM//\//-}" >> "$GITHUB_OUTPUT"
+
             - uses: actions/checkout@v6
 
             - uses: docker/setup-buildx-action@v4
@@ -51,24 +67,105 @@ jobs:
                   username: ${{ github.actor }}
                   password: ${{ secrets.GITHUB_TOKEN }}
 
-            - name: Image tags
+            - name: Image labels
               id: meta
               uses: docker/metadata-action@v6
               with:
-                  images: ghcr.io/${{ github.repository_owner }}/searchlight-${{ matrix.image }}
-                  tags: |
-                      type=sha
-                      type=raw,value=latest,enable={{is_default_branch}}
+                  images: ${{ steps.name.outputs.image }}
 
-            - name: Build and push
+            - name: Build and push by digest
+              id: build
               uses: docker/build-push-action@v7
               with:
                   context: .
                   file: apps/${{ matrix.image }}/Dockerfile
-                  platforms: linux/arm64
+                  platforms: ${{ matrix.platform }}
                   build-args: ${{ matrix.build-args }}
-                  push: ${{ github.event_name != 'pull_request' }}
-                  tags: ${{ steps.meta.outputs.tags }}
                   labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha,scope=${{ matrix.image }}
-                  cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+                  outputs: type=image,name=${{ steps.name.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ github.event_name != 'pull_request' }}
+                  cache-from: type=gha,scope=${{ matrix.image }}-${{ steps.name.outputs.platform-pair }}
+                  cache-to: type=gha,mode=max,scope=${{ matrix.image }}-${{ steps.name.outputs.platform-pair }}
+
+            - name: Export digest
+              if: github.event_name != 'pull_request'
+              env:
+                  DIGEST: ${{ steps.build.outputs.digest }}
+              run: |
+                  mkdir -p "${RUNNER_TEMP}/digests"
+                  touch "${RUNNER_TEMP}/digests/${DIGEST#sha256:}"
+
+            - name: Upload digest
+              if: github.event_name != 'pull_request'
+              uses: actions/upload-artifact@v7
+              with:
+                  name: digests-${{ matrix.image }}-${{ steps.name.outputs.platform-pair }}
+                  path: ${{ runner.temp }}/digests/*
+                  if-no-files-found: error
+                  retention-days: 1
+
+    merge:
+        name: ${{ matrix.image }} (tag)
+        if: github.event_name != 'pull_request'
+        needs: build
+        runs-on: ubuntu-24.04
+        strategy:
+            fail-fast: false
+            matrix:
+                image: [api, web]
+        steps:
+            - name: Image name
+              id: name
+              env:
+                  IMAGE: ${{ matrix.image }}
+              run: echo "image=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/searchlight-${IMAGE}" >> "$GITHUB_OUTPUT"
+
+            - name: Download digests
+              uses: actions/download-artifact@v8
+              with:
+                  path: ${{ runner.temp }}/digests
+                  pattern: digests-${{ matrix.image }}-*
+                  merge-multiple: true
+
+            - uses: docker/setup-buildx-action@v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Image tags
+              id: meta
+              uses: docker/metadata-action@v6
+              with:
+                  images: ${{ steps.name.outputs.image }}
+                  tags: |
+                      type=sha
+                      type=raw,value=latest,enable={{is_default_branch}}
+
+            - name: Tag the platform images as one image
+              working-directory: ${{ runner.temp }}/digests
+              env:
+                  IMAGE: ${{ steps.name.outputs.image }}
+                  SOURCE: ${{ github.server_url }}/${{ github.repository }}
+              run: |
+                  args=()
+                  while IFS= read -r tag; do args+=(--tag "$tag"); done \
+                      < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+                  # The source annotation links the package to this repository.
+                  args+=(--annotation "index:org.opencontainers.image.source=${SOURCE}")
+                  args+=(--annotation "index:org.opencontainers.image.revision=${GITHUB_SHA}")
+                  sources=()
+                  for digest in *; do sources+=("${IMAGE}@sha256:${digest}"); done
+                  if [[ ${#sources[@]} -ne 2 ]]; then
+                      echo "Expected 2 platform digests, got ${#sources[@]}" >&2
+                      exit 1
+                  fi
+                  docker buildx imagetools create "${args[@]}" "${sources[@]}"
+
+            - name: Inspect
+              env:
+                  IMAGE: ${{ steps.name.outputs.image }}
+                  TAG: ${{ steps.meta.outputs.version }}
+              run: docker buildx imagetools inspect "${IMAGE}:${TAG}"

@@ -8,12 +8,12 @@
 # previously recorded anywhere.
 #
 # Usage:
-#   scripts/auth-walls.sh                      # dev container, whole log
-#   scripts/auth-walls.sh writemap-api-1       # another container
-#   scripts/auth-walls.sh writemap-dev-api-1 30m
+#   scripts/auth-walls.sh                      # production container, whole log
+#   scripts/auth-walls.sh writemap-test-api-1  # another container
+#   scripts/auth-walls.sh writemap-api-1 30m   # the last 30 minutes
 set -euo pipefail
 
-CONTAINER="${1:-writemap-dev-api-1}"
+CONTAINER="${1:-writemap-api-1}"
 SINCE="${2:-}"
 
 command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }

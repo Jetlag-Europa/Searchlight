@@ -1,10 +1,9 @@
-// Shared Overpass client. A self-hosted instance (set OVERPASS_URL, e.g.
-// http://host.docker.internal:12345/api/interpreter in dev, or
-// https://overpass.lucifersserver.com/api/interpreter behind Cloudflare Access in
-// prod) is tried first — the public servers regularly time out on the
-// is_in/admin-boundary queries the Bezirk/canton questions need, which surfaced as
-// 502s. Public servers remain as fallback. Every Overpass call in the app (backend
-// boundary routes and the /overpass proxy the frontend uses) funnels through here.
+// Shared Overpass client. A self-hosted instance (set OVERPASS_URL, optionally
+// behind Cloudflare Access) is tried first — the public servers regularly time
+// out on the is_in/admin-boundary queries the Bezirk/canton questions need,
+// which surfaced as 502s. Public servers remain as fallback. Every Overpass
+// call in the app (backend boundary routes and the /overpass proxy the frontend
+// uses) funnels through here.
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
