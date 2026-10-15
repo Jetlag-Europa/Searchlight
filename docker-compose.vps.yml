@@ -5,11 +5,10 @@
 # Or manually, building from the checkout:
 #   docker compose -p writemap -f docker-compose.yml -f docker-compose.vps.yml up -d --build
 #
-# Unlike docker-compose.prod.yml (Mac mini, ports + Nginx Proxy Manager), nothing
-# is exposed on the host. cloudflared shares the `internal` network and reaches the
-# containers directly as http://web:80 and http://api:3000. The tunnel is
-# locally managed: its ingress (public hostname → service) lives in
-# /srv/WriteMap/cloudflared/config.yml, mounted below (see docs/VPS_Setup.md):
+# Nothing is exposed on the host. cloudflared shares the `internal` network and
+# reaches the containers directly as http://web:80 and http://api:3000. The
+# tunnel is locally managed: its ingress (public hostname → service) lives in
+# /srv/WriteMap/cloudflared/config.yml, mounted below (see DEPLOY.md):
 #   searchlight.jetlageuropa.org      -> http://web:80
 #   api-searchlight.jetlageuropa.org  -> http://api:3000
 #

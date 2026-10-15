@@ -5,11 +5,9 @@ machine. It takes you from `git clone` to logging into the app in your browser.
 Postgres runs in Docker; the frontend and backend run directly on your machine
 for fast hot-reload.
 
-> This guide is for **local development**. Server deployments are documented
-> elsewhere: production runs on the Azure VPS ([`docs/VPS_Setup.md`](docs/VPS_Setup.md)),
-> and [`DEPLOY.md`](DEPLOY.md) covers the Mac mini stacks
-> (`docker-compose.dev.yml` / `docker-compose.prod.yml`). You don't need any of
-> that for local work.
+> This guide is for **local development**. Server deployments (production on
+> the Azure VPS, the Mac mini dev stack) are documented in [`DEPLOY.md`](DEPLOY.md).
+> You don't need any of that for local work.
 
 ---
 
@@ -71,7 +69,7 @@ cp .env.example .env
 
 For an existing checkout, keep your configured `.env` values. Searchlight
 branding does not migrate stored data or deployment identifiers; see the
-[naming compatibility note](DEPLOY.md).
+[naming compatibility note](DEPLOY.md#naming-compatibility).
 
 Then edit `.env`. Here's what to set for local dev:
 
