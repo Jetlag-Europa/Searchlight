@@ -19,7 +19,7 @@ function sessionCookieOptions(expiresAt: Date) {
   return {
     httpOnly: true,
     // SameSite=None is required when the frontend and API are on different subdomains
-    // (e.g. hideandseek.lucifersserver.com vs apihideandseek.lucifersserver.com).
+    // (e.g. searchlight.jetlageuropa.org vs api-searchlight.jetlageuropa.org).
     // SameSite=Lax blocks cookies on cross-origin fetch, causing an infinite login loop.
     sameSite: (isProd ? "none" : "lax") as "none" | "lax",
     signed: true,

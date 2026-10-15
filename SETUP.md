@@ -5,9 +5,8 @@ machine. It takes you from `git clone` to logging into the app in your browser.
 Postgres runs in Docker; the frontend and backend run directly on your machine
 for fast hot-reload.
 
-> This guide is for **local development**. Server deployments (production on
-> the Azure VPS, the Mac mini dev stack) are documented in [`DEPLOY.md`](DEPLOY.md).
-> You don't need any of that for local work.
+> This guide is for **local development**. Production deployment is documented
+> in [`DEPLOY.md`](DEPLOY.md). You don't need any of that for local work.
 
 ---
 
@@ -213,7 +212,7 @@ pnpm verify:preloaded-games             # every games/preloaded definition: vali
 pnpm check:game-schema                  # published JSON schema matches the TypeBox schema
 
 # API tests need a migrated Postgres; they create and remove their own rows.
-# Without DATABASE_URL they use postgresql://taibled:devpassword@localhost:5434/taibled.
+# Without DATABASE_URL they use postgresql://taibled:devpassword@localhost:5433/taibled.
 DATABASE_URL=postgresql://taibled:dev_password@localhost:5433/taibled pnpm --filter api test
 ```
 
