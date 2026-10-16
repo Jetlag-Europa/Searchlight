@@ -60,15 +60,30 @@ it("removes no key the app still stores", () => {
         });
     const live = new Set<string>();
     for (const source of sources(resolve(__dirname, "../src"))) {
+        // A key is a string, or a constant defined in the same module.
+        const constants = new Map(
+            [...source.matchAll(/const (\w+) = "([^"]+)"/g)].map(
+                ([, name, value]) => [name, value],
+            ),
+        );
+        const key = String.raw`(?:"([^"]+)"|(\w+))`;
         const patterns = [
-            /persistent(?:Atom|Map)\s*(?:<[\s\S]*?>)?\s*\(\s*"([^"]+)"/g,
-            /Storage\(\s*"localStorage",\s*"([^"]+)"/g,
-            /localStorage\.\w+\(\s*"([^"]+)"/g,
+            String.raw`persistent(?:Atom|Map)\s*(?:<[\s\S]*?>)?\s*\(\s*${key}`,
+            String.raw`Storage\(\s*"localStorage",\s*${key}`,
+            String.raw`localStorage\.\w+\(\s*${key}`,
         ];
         for (const pattern of patterns) {
-            for (const [, key] of source.matchAll(pattern)) live.add(key);
+            for (const [, literal, name] of source.matchAll(
+                new RegExp(pattern, "g"),
+            )) {
+                const value = literal ?? constants.get(name);
+                if (value) live.add(value);
+            }
         }
     }
     expect(live).toContain("disabledStations");
+    expect(live).toContain("lastGameView");
+    // Defined as a constant.
+    expect(live).toContain("taibled-last-session");
     expect(RETIRED_STORAGE_KEYS.filter((key) => live.has(key))).toEqual([]);
 });

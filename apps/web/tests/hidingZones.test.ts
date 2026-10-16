@@ -85,3 +85,67 @@ it("draws a game's zones from its definition alone", () => {
     expect(compiled.bounds[3]).toBeGreaterThanOrEqual(50.4);
     expect(fetchSpy).not.toHaveBeenCalled();
 });
+
+it("numbers unnamed zones among their own kind", () => {
+    const point = (lng: number) => ({
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [lng, 50] },
+        properties: {},
+    });
+    const area = { type: "Feature", geometry: district, properties: {} };
+    const compiled = compileGameDefinition({
+        ...game,
+        hidingZones: {
+            features: {
+                type: "FeatureCollection",
+                features: [area, point(10), area, point(10.1)],
+            },
+        },
+    } as unknown as GameDefinition);
+
+    // Adding areas doesn't renumber the stations.
+    expect(
+        compiled.hidingZones.stations?.map(({ id, name }) => [id, name]),
+    ).toEqual([
+        ["area-1", "Area 1"],
+        ["zone-1", "Station 1"],
+        ["area-2", "Area 2"],
+        ["zone-2", "Station 2"],
+    ]);
+});
+
+it("frames the play area without explicit bounds", () => {
+    const compiled = compileGameDefinition({
+        ...game,
+        map: {
+            center: [10, 50],
+            playArea: {
+                type: "FeatureCollection",
+                features: [
+                    {
+                        type: "Feature",
+                        geometry: {
+                            type: "Polygon",
+                            coordinates: [
+                                [
+                                    [9, 49],
+                                    [11, 49],
+                                    [11, 51],
+                                    [9, 51],
+                                    [9, 49],
+                                ],
+                            ],
+                        },
+                        properties: {},
+                    },
+                ],
+            },
+        },
+    } as unknown as GameDefinition);
+
+    const [west, south, east, north] = compiled.bounds;
+    expect(west).toBeLessThanOrEqual(9);
+    expect(south).toBeLessThanOrEqual(49);
+    expect(east).toBeGreaterThanOrEqual(11);
+    expect(north).toBeGreaterThanOrEqual(51);
+});

@@ -169,7 +169,7 @@ The import rejects unknown properties, both at the root and in each layer. Posit
 | `visibility` | no | `{"kind":"server-members"}` | Or `{"kind":"discord-role","guildId":"…","roleId":"…"}` to restrict the game to one role. |
 | `unit` | no | | Avoid it. Set `hidingZones.unit` instead (section 4). |
 | `map.center` | yes | | `[lng, lat]`. Use the play area's centre. |
-| `map.bounds` | no | from `center` and zones ±0.05° | `[west, south, east, north]`. Set it to the play area's bbox plus a small margin. Matching cells are computed over this box, so a box much larger than the play area only slows matching down. |
+| `map.bounds` | no | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`. Set it to the play area's bbox plus a small margin. Matching cells are computed over this box, so a box much larger than the play area only slows matching down. |
 | `map.playArea` | yes | | A FeatureCollection of Polygon/MultiPolygon features. It is the starting map: everything outside it is eliminated from the start, and the view fits to it. |
 | `hidingZones` | yes | | Section 4. |
 | `radars`, `thermometer` | no | **off** | Section 5.1. |

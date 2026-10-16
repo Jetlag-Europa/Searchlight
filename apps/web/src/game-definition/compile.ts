@@ -71,9 +71,18 @@ export function compileGameDefinition(
   const stations: CompiledHidingZone[] = [];
   const rawFeatures = (definition.hidingZones?.features as any)?.features || [];
 
+  // Unnamed zones are numbered among their own kind, so a game's areas don't
+  // renumber its stations.
+  let stationCount = 0;
+  let areaCount = 0;
+
   for (const feat of rawFeatures) {
-    const zId = feat.id ?? feat.properties?.name ?? `zone-${stations.length + 1}`;
-    const name = feat.properties?.name ?? `Station ${stations.length + 1}`;
+    const isArea =
+      feat.geometry?.type === "Polygon" || feat.geometry?.type === "MultiPolygon";
+    const ordinal = (isArea ? areaCount : stationCount) + 1;
+    const zId =
+      feat.id ?? feat.properties?.name ?? (isArea ? `area-${ordinal}` : `zone-${ordinal}`);
+    const name = feat.properties?.name ?? (isArea ? `Area ${ordinal}` : `Station ${ordinal}`);
     // tierOverrides keys are strings; a numeric tier (1) selects the "1" key,
     // here and in the zone sidebar alike.
     const rawTier = feat.properties?.tier;
@@ -91,6 +100,7 @@ export function compileGameDefinition(
     }
 
     if (feat.geometry?.type === "Point") {
+      stationCount++;
       stations.push({
         id: zId,
         name,
@@ -99,10 +109,8 @@ export function compileGameDefinition(
         radius: effectiveRadius,
         ...(explicitRadius !== undefined ? { explicitRadius } : {}),
       });
-    } else if (
-      feat.geometry?.type === "Polygon" ||
-      feat.geometry?.type === "MultiPolygon"
-    ) {
+    } else if (isArea) {
+      areaCount++;
       stations.push({
         id: zId,
         name,
@@ -249,14 +257,18 @@ export function compileGameDefinition(
       definition.map.center[0], definition.map.center[0],
       definition.map.center[1], definition.map.center[1],
     ];
-    for (const s of stations) {
-      const [west, south, east, north] = s.area
-        ? turf.bbox(s.area)
-        : [...s.coordinates, ...s.coordinates];
+    const extend = ([west, south, east, north]: number[]) => {
       minLng = Math.min(minLng, west);
       maxLng = Math.max(maxLng, east);
       minLat = Math.min(minLat, south);
       maxLat = Math.max(maxLat, north);
+    };
+    // The play area, which the map starts as, and every zone.
+    if (definition.map.playArea?.features?.length) {
+      extend(turf.bbox(definition.map.playArea as FeatureCollection));
+    }
+    for (const s of stations) {
+      extend(s.area ? turf.bbox(s.area) : [...s.coordinates, ...s.coordinates]);
     }
     const margin = 0.05;
     bounds = [minLng - margin, minLat - margin, maxLng + margin, maxLat + margin];

@@ -12,6 +12,7 @@ import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
+import { activeSessionData, activeSessionId } from "@/lib/activeSession";
 import { bootstrapDefaults } from "@/lib/bootstrap";
 import {
     addQuestion,
@@ -21,6 +22,7 @@ import {
     followMe,
     gameDefinitionReady,
     hiderMode,
+    lastGameView,
     leafletMapContext,
     mapGeoJSON,
     permanentOverlay,
@@ -59,9 +61,45 @@ import { PolygonDraw } from "./PolygonDraw";
 // client bundle, so the key ships to the browser wherever it is declared.
 const CARTO_API_KEY = "cb1_2e23_1_bd24b1a55d41442abf180516";
 
-// Before a game has loaded, the map shows the world.
+// Before a game has loaded, the map shows the world, or the game it showed
+// last (see lastGameView).
 const WORLD_CENTER: L.LatLngTuple = [20, 0];
 const WORLD_ZOOM = 2;
+
+type GameBounds = [number, number, number, number];
+
+const isGameBounds = (bounds: unknown): bounds is GameBounds =>
+    Array.isArray(bounds) &&
+    bounds.length === 4 &&
+    bounds.every((value) => Number.isFinite(value));
+
+const fitGameBounds = (
+    map: L.Map,
+    [west, south, east, north]: GameBounds,
+) =>
+    map.fitBounds(
+        [
+            [south, west],
+            [north, east],
+        ],
+        { animate: false },
+    );
+
+/** Remember a game's view, keeping the session known to play it. */
+const rememberGameView = (
+    gameId: string,
+    bounds: GameBounds,
+    sessionId?: string,
+) => {
+    const previous = lastGameView.get();
+    lastGameView.set({
+        gameId,
+        bounds,
+        sessionId:
+            sessionId ??
+            (previous?.gameId === gameId ? previous.sessionId : undefined),
+    });
+};
 
 const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     switch (tileLayer) {
@@ -234,6 +272,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const map = useStore(leafletMapContext);
     const $currentGameId = useStore(currentGameId);
+    const $activeSession = useStore(activeSessionData);
     const refreshQueue = useMemo(() => createLatestTask(), []);
     const renderedGameIdRef = useRef<string | null>(null);
     const framedGameIdRef = useRef<string | null>(null);
@@ -528,21 +567,44 @@ export const Map = ({ className }: { className?: string }) => {
         });
     }, [map, $compiledGame]);
 
+    // Until a game has been framed, open on this tab's game, or the session
+    // being restored, as last framed: a definition can take a while to load,
+    // or fail to offline.
+    useEffect(() => {
+        if (!map || framedGameIdRef.current !== null) return;
+        const view = lastGameView.get();
+        if (!view || !isGameBounds(view.bounds)) return;
+        const matches = $currentGameId
+            ? view.gameId === $currentGameId
+            : view.sessionId === activeSessionId.get();
+        if (!matches) return;
+        framedGameIdRef.current = view.gameId;
+        fitGameBounds(map, view.bounds);
+    }, [map, $currentGameId]);
+
     // Show each game when it loads; a new revision of the same game keeps
     // the view.
     useEffect(() => {
         if (!map || !$compiledGame) return;
-        if (framedGameIdRef.current === $currentGameId) return;
-        framedGameIdRef.current = $currentGameId;
-        const [west, south, east, north] = $compiledGame.bounds;
-        map.fitBounds(
-            [
-                [south, west],
-                [north, east],
-            ],
-            { animate: false },
+        if (framedGameIdRef.current !== $currentGameId) {
+            framedGameIdRef.current = $currentGameId;
+            fitGameBounds(map, $compiledGame.bounds);
+        }
+        const session = activeSessionData.get();
+        rememberGameView(
+            $currentGameId,
+            $compiledGame.bounds,
+            session?.gameId === $currentGameId ? session.id : undefined,
         );
     }, [map, $compiledGame, $currentGameId]);
+
+    // A session selected after its game loaded plays the framed game too.
+    useEffect(() => {
+        const view = lastGameView.get();
+        if (!$activeSession || view?.gameId !== $activeSession.gameId) return;
+        if (view.sessionId === $activeSession.id) return;
+        rememberGameView(view.gameId, view.bounds, $activeSession.id);
+    }, [$activeSession]);
 
     useEffect(() => {
         bootstrapDefaults();
