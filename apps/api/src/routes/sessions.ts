@@ -592,7 +592,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           hiderLat: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
           hiderLng: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
           planningModeEnabled: Type.Optional(Type.Boolean()),
-        }),
+        }, { additionalProperties: false }),
       },
     },
     async (req) => {
@@ -672,7 +672,16 @@ export async function sessionRoutes(app: FastifyInstance) {
           events.push(planningEvent);
         }
 
-        const updateData: Record<string, unknown> = { ...body };
+        // Copy only the fields this route owns; never spread the request body
+        // into the update, or a caller could overwrite creatorId, serverId, etc.
+        const updateData: Record<string, unknown> = {};
+        if (body.name !== undefined) updateData.name = body.name;
+        if (body.visibility !== undefined) updateData.visibility = body.visibility;
+        if (body.hiderLat !== undefined) updateData.hiderLat = body.hiderLat;
+        if (body.hiderLng !== undefined) updateData.hiderLng = body.hiderLng;
+        if (body.planningModeEnabled !== undefined) {
+          updateData.planningModeEnabled = body.planningModeEnabled;
+        }
         if (curSequence !== locked.eventSequence) {
           updateData.eventSequence = curSequence;
         }
