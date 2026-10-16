@@ -33,17 +33,6 @@ export const mapGeoJSON = atom<FeatureCollection<
 export const polyGeoJSON = atom<FeatureCollection<
     Polygon | MultiPolygon
 > | null>(null);
-// The bounds the map last framed a game with, and a session playing it: a
-// reload opens there while the game's definition loads, or if it can't.
-export const lastGameView = persistentAtom<{
-    gameId: string;
-    sessionId?: string;
-    bounds: [number, number, number, number];
-} | null>("lastGameView", null, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
-    listen: false,
-});
 
 // Questions are server-backed and restored on session selection.
 export const questions = atom<Questions>([]);

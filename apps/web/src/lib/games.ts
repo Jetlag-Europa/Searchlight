@@ -24,6 +24,7 @@ import {
     questions,
     trainStations,
 } from "@/lib/context";
+import { GAME_SS_KEY } from "@/lib/gameView";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
@@ -57,7 +58,6 @@ export const gamesLoadingAtom = atom<boolean>(false);
 let latestCatalogRequest = 0;
 let activeCatalogRequests = 0;
 
-const GAME_SS_KEY = "taibled-current-game-id";
 let gameSwitchGeneration = 0;
 interface PendingGameSwitch {
     key: string;
@@ -72,8 +72,9 @@ export const currentGameId = atom<string>(
 
 /**
  * A server's game catalog, without publishing it. The session picker browses
- * other servers' catalogs; the zone sidebar must not mistake them for the
- * active session's.
+ * other servers' catalogs, while gamesAtom holds the active session's: the
+ * zone sidebar reads its game's size there, which sets the zoom level from
+ * which zone names show.
  */
 export async function fetchGameCatalog(
     serverId: string,
