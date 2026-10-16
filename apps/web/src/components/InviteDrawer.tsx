@@ -7,6 +7,7 @@ import type {
     SessionInvitesResponse,
     SessionLinksResponse,
     SessionLinkSummary,
+    SessionParticipantsResponse,
     UserSearchResponse,
     UserSearchResult,
 } from "@searchlight/shared";
@@ -177,6 +178,23 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     const [searching, setSearching] = useState(false);
     const [invitingId, setInvitingId] = useState<string | null>(null);
     const [sendError, setSendError] = useState<string | null>(null);
+    const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
+
+    const fetchMembers = useCallback(async () => {
+        if (!session || !isCreator) return;
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${session.id}/participants`, {
+                credentials: "include",
+            });
+            if (!res.ok) return;
+            const data: SessionParticipantsResponse = await res.json();
+            setMemberIds(new Set(
+                data.participants.filter((p) => p.acceptedAt !== null).map((p) => p.userId),
+            ));
+        } catch {
+            // non-critical
+        }
+    }, [session, isCreator]);
 
     useEffect(() => {
         const q = query.trim();
@@ -191,7 +209,9 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                 if (!res.ok) return;
                 const data: UserSearchResponse = await res.json();
                 const alreadyInvited = new Set(sentInvites.map((i) => i.invitedUserId));
-                setSearchResults(data.users.filter((u) => !alreadyInvited.has(u.discordId)));
+                setSearchResults(data.users.filter(
+                    (u) => !alreadyInvited.has(u.discordId) && !memberIds.has(u.discordId),
+                ));
             } catch {
                 // ignore
             } finally {
@@ -199,7 +219,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             }
         }, 300);
         return () => clearTimeout(t);
-    }, [query, session, isCreator, sentInvites]);
+    }, [query, session, isCreator, sentInvites, memberIds]);
 
     const handleInvite = async (invitedUser: UserSearchResult) => {
         if (!session) return;
@@ -307,6 +327,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         if (v) {
             onOpen?.();
             fetchSentInvites();
+            fetchMembers();
             fetchLinks();
         } else {
             setQuery("");
@@ -341,7 +362,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                             <p className="text-sm font-medium mb-3">
                                 Invite to <span className="text-foreground">{session.name}</span>
                             </p>
-                            <TabBar active={activeTab} onChange={setActiveTab} />
+                            <TabBar active={activeTab} onChange={(t) => { setActiveTab(t); setSendError(null); }} />
 
                             {sendError && (
                                 <p className="text-xs text-destructive mb-3">{sendError}</p>

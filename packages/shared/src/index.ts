@@ -152,6 +152,10 @@ export interface GameSessionDetail extends GameSessionSummary {
   participants: SessionParticipantDetail[];
 }
 
+export interface SessionParticipantsResponse {
+  participants: SessionParticipantDetail[];
+}
+
 export interface SessionsResponse {
   sessions: GameSessionSummary[];
 }

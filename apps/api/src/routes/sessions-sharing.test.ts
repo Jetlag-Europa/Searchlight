@@ -183,6 +183,15 @@ describe("session invites, share copies and links", () => {
     expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
   });
 
+  test("accepting an invite to a still-private session makes it shared", async () => {
+    // As left by invites sent before sending one promoted the session.
+    const old = await prisma.invite.create({
+      data: { sessionId: SESSION_ID, invitedUserId: FRIEND_ID, invitedByUserId: CREATOR_ID, inviteType: "join" },
+    });
+    expect((await accept(old.id)).statusCode).toBe(204);
+    expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
+  });
+
   test("a user can hold an invite to join and a copy at the same time", async () => {
     expect((await invite("join")).statusCode).toBe(201);
     expect((await invite("fork")).statusCode).toBe(201);

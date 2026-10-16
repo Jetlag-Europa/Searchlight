@@ -338,6 +338,12 @@ export async function sessionRoutes(app: FastifyInstance) {
           where: { id: inviteId },
           data: { acceptedAt: new Date() },
         }),
+        // Invites sent before sending one promoted the session may still
+        // point at a private session; members only list shared ones.
+        prisma.gameSession.update({
+          where: { id: invite.sessionId },
+          data: { visibility: "shared" },
+        }),
         prisma.sessionParticipant.upsert({
           where: { sessionId_userId: { sessionId: invite.sessionId, userId: user.discordId } },
           update: { acceptedAt: new Date(), revokedAt: null },

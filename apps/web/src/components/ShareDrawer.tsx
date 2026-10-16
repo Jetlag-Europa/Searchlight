@@ -256,7 +256,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                 </DrawerHeader>
 
                 <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto">
-                    <TabBar active={activeTab} onChange={setActiveTab} />
+                    <TabBar active={activeTab} onChange={(t) => { setActiveTab(t); setSendError(null); }} />
 
                     {sendError && (
                         <p className="text-xs text-destructive mb-3">{sendError}</p>
