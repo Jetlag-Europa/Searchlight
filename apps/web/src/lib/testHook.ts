@@ -9,7 +9,7 @@ import {
 /**
  * Test-only window hook for Playwright e2e (Phase 3 of the testing harness).
  *
- * When `PUBLIC_ENABLE_TEST_HOOK === "1"` (set only in the `writemap-test` stack),
+ * When `PUBLIC_ENABLE_TEST_HOOK === "1"` (set only in the `searchlight-test` stack),
  * exposes the live values of the map/question nanostores on `window.__searchlight`,
  * so an e2e test can read the GeoJSON the app rendered — `mapGeoJSON` is the
  * play area, `eliminationGeoJSON` the elimination mask the answered questions

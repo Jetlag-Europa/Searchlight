@@ -9,7 +9,7 @@
 #
 # Usage:
 #   scripts/auth-walls.sh                      # production container, whole log
-#   scripts/auth-walls.sh writemap-test-api-1  # another container
+#   scripts/auth-walls.sh searchlight-test-api-1  # another container
 #   scripts/auth-walls.sh writemap-api-1 30m   # the last 30 minutes
 set -euo pipefail
 

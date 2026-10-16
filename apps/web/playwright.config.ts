@@ -3,7 +3,7 @@ import { defineConfig, devices } from "@playwright/test";
 /**
  * Playwright config for the headless integration layer (Phase 3+).
  *
- * Runs against the isolated `writemap-test` Docker stack (bring it up first with
+ * Runs against the isolated `searchlight-test` Docker stack (bring it up first with
  * `infra/deploy-test.sh`): web on :8280, api on :3200. Override with WEB_BASE /
  * API_BASE env vars if you point it elsewhere. Specs are named `*.e2e.ts` so
  * Vitest (which claims `*.test.ts`/`*.spec.ts`) never tries to run them.

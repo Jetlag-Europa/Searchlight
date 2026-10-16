@@ -1,47 +1,35 @@
-# Isolated e2e stack — project name `writemap-test`. Fully separate from dev/prod:
-# its own Postgres volume (namespaced by the project name), the API with
-# ENABLE_TEST_AUTH=1 (so POST /auth/test-login works), a web build with the
-# window.__searchlight hook baked in, and a stub Overpass so boundary/POI queries are
-# deterministic and offline.
+# Overlay: the isolated e2e test stack (project `searchlight-test`), brought up
+# and seeded by infra/deploy-test.sh. The API allows test logins
+# (ENABLE_TEST_AUTH), the web build exposes window.__searchlight, and Overpass
+# is stubbed so free-play questions are offline and deterministic.
 #
-# Launch with: infra/deploy-test.sh
-# Or manually:
-#   docker compose -p writemap-test -f docker-compose.yml -f docker-compose.test.yml up -d --build
-#
-# Ports (all bound to localhost): web 8280, api 3200, postgres 5435.
-
+# Ports, all on 127.0.0.1: web 8280, api 3200, postgres 5435. Use 127.0.0.1,
+# not localhost: Chromium resolves localhost to ::1, where nothing listens.
 services:
   postgres:
     ports:
       - "127.0.0.1:5435:5432"
 
   api:
-    # .env supplies the base secrets; .env.test overrides FRONTEND_ORIGIN (CORS)
-    # and anything else test-specific. Compose concatenates env_file lists, so
-    # both load and .env.test wins on conflicts.
-    env_file:
-      - .env
-      - .env.test
+    image: searchlight-test-api
     environment:
+      NODE_ENV: development
       ENABLE_TEST_AUTH: "1"
-      # Stub Overpass — keep boundary/POI queries offline & deterministic.
-      OVERPASS_URL: "http://overpass-stub/api/interpreter"
+      FRONTEND_ORIGIN: http://127.0.0.1:8280
+      DISCORD_REDIRECT_URI: http://127.0.0.1:3200/auth/discord/callback
+      OVERPASS_URL: http://overpass-stub/api/interpreter
     ports:
       - "127.0.0.1:3200:3000"
 
   web:
+    image: searchlight-test-web
     build:
       args:
-        # 127.0.0.1 (not localhost) everywhere: the ports bind IPv4 only, and
-        # Chromium resolves "localhost" to IPv6 ::1 → ERR_CONNECTION_REFUSED.
-        PUBLIC_API_BASE: "http://127.0.0.1:3200"
+        PUBLIC_API_BASE: http://127.0.0.1:3200
         PUBLIC_ENABLE_TEST_HOOK: "1"
     ports:
       - "127.0.0.1:8280:80"
 
-  # Minimal Overpass stand-in: returns a valid-but-empty Overpass payload for any
-  # request, so Overpass-backed questions resolve deterministically without the
-  # network. Richer per-query fixtures can be added in Phase 4 if needed.
   overpass-stub:
     image: nginx:alpine
     restart: unless-stopped

@@ -1,0 +1,24 @@
+# Local development: Postgres only, on localhost:5433. The API and web app run
+# on the host (`pnpm dev`, which also starts this). See README.md.
+name: searchlight-dev
+
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: taibled
+      POSTGRES_USER: taibled
+      POSTGRES_PASSWORD: devpassword
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taibled -d taibled"]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+
+volumes:
+  postgres_data:

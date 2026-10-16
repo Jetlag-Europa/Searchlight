@@ -1,7 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 
-// Deterministic e2e fixtures for the `writemap-test` stack. Assumes the base
-// seed (servers + games) has already run — run `pnpm seed` first, then this.
+// Deterministic e2e fixtures for the `searchlight-test` stack. Assumes the API
+// has started once (it creates the servers and imports the games), then run this.
 // Creates a stable test user and a stable session pointing at the South Limburg
 // 2026 game (its bundled GeoJSON assets ship in the web image, so boundary/
 // matching questions work offline). IDs are fixed so Playwright can hard-code

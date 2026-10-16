@@ -27,6 +27,7 @@ RUN pnpm --filter api build:seed
 FROM node:22-alpine AS runner
 RUN npm install -g pnpm@11.1.3
 WORKDIR /app
+ENV NODE_ENV=production
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/api/package.json apps/api/tsconfig.json ./apps/api/

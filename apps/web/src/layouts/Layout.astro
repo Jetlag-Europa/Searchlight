@@ -20,7 +20,7 @@ const { className } = Astro.props;
         <script type="text/javascript">
             // Redirect http → https (fixes mobile CORS loop caused by plain-HTTP origin).
             // Exempt local loopback hosts (localhost / 127.0.0.1 / ::1) so plain-HTTP
-            // local stacks like writemap-test don't get upgraded to a TLS-less https.
+            // local stacks like searchlight-test don't get upgraded to a TLS-less https.
             if (
                 location.protocol === 'http:' &&
                 !location.hostname.includes('localhost') &&
