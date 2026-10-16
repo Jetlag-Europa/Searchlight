@@ -230,7 +230,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     <Separator className="bg-slate-300 w-[280px]" />
                                     <Label>Custom Points to Custom Zone</Label>
                                     <Select
-                                        trigger="New custom default"
+                                        trigger="Custom Points to Custom Zone"
                                         options={{
                                             ask: "Ask each time",
                                             blank: "Start blank",

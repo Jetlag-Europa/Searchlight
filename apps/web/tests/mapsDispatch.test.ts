@@ -528,6 +528,30 @@ describe("maps dispatch and hider regression suite", () => {
                 await hiderifyQuestion(question as never);
                 expect(JSON.stringify(question.data)).toBe(before);
             }
+
+            // A blank custom tentacle, as "Add Tentacles" makes one, is
+            // answered "Not Within": it removes the seeker's circle.
+            const blankTentacle = {
+                id: "tentacles" as const,
+                key: 35,
+                data: tentacleQuestionSchema.parse({
+                    locationType: "custom",
+                    places: [],
+                    radius: 10,
+                    unit: "kilometers",
+                    lat: 35.65,
+                    lng: 139.62,
+                }),
+            };
+            expect(blankTentacle.data.location).toBe(false);
+            const region = await adjustMapGeoDataForQuestion(
+                blankTentacle,
+                playArea,
+            );
+            expect(inside(region, 139.62, 35.65)).toBe(false);
+            expect(inside(region, 139.9, 35.9)).toBe(true);
+            await hiderifyQuestion(blankTentacle);
+            expect(blankTentacle.data.location).toBe(false);
         } finally {
             mapGeoJSON.set(null);
         }

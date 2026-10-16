@@ -109,6 +109,22 @@ export const determineMatchingBoundary = async (question: MatchingQuestion) => {
     return result;
 };
 
+/**
+ * How switching a matching question to a custom type starts. Only custom
+ * points can be copied, into a custom zone (the seeker's cell); anything else
+ * starts blank whatever the preference, as copying a game's layer could make
+ * the session's questions too large to save.
+ */
+export const customSwitchStart = (
+    from: string,
+    to: "custom-zone" | "custom-points",
+    preference: "ask" | "blank" | "prefill",
+): "ask" | "blank" | "copy" => {
+    if (from !== "custom-points" || to !== "custom-zone") return "blank";
+    if (preference === "ask") return "ask";
+    return preference === "prefill" ? "copy" : "blank";
+};
+
 export const adjustPerMatching = async (
     question: MatchingQuestion,
     mapData: any,

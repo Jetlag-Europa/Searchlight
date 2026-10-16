@@ -45,10 +45,10 @@ export const CustomInitDialog: React.FC<Props> = ({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent>
                 <DialogHeader>
-                    <DialogTitle>New Custom Question</DialogTitle>
+                    <DialogTitle>New Custom Zone</DialogTitle>
                     <DialogDescription>
-                        Do you want the new question to start blank, or copy
-                        what the current question contains?
+                        Do you want the zone to start blank, or as the
+                        seeker&apos;s cell among the current custom points?
                     </DialogDescription>
                 </DialogHeader>
                 <div className="flex items-center gap-2">

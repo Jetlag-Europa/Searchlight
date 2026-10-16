@@ -27,7 +27,10 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
-import { determineMatchingBoundary } from "@/maps/questions/matching";
+import {
+    customSwitchStart,
+    determineMatchingBoundary,
+} from "@/maps/questions/matching";
 import type { MatchingQuestion } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
@@ -74,9 +77,8 @@ export const MatchingQuestionComponent = ({
             .indexOf(questionKey) + 1
     }`;
 
-    // Starts a custom question blank or, when copying custom points into a
-    // custom zone, as the seeker's cell. A game's question starts blank:
-    // copying its layer could make the session's questions too large to save.
+    // Starts a custom question blank or, copying custom points into a custom
+    // zone, as the seeker's cell (see customSwitchStart).
     const switchToCustom = async (
         type: "custom-zone" | "custom-points",
         copy: boolean,
@@ -193,19 +195,17 @@ export const MatchingQuestionComponent = ({
                             value === "custom-zone" ||
                             value === "custom-points"
                         ) {
-                            // Only custom points can be copied, into a zone.
-                            const copyable =
-                                value === "custom-zone" &&
-                                data.type === "custom-points";
-                            if (copyable && $customInitPref === "ask") {
+                            const start = customSwitchStart(
+                                data.type,
+                                value,
+                                $customInitPref,
+                            );
+                            if (start === "ask") {
                                 setPendingCustomType(value);
                                 setCustomDialogOpen(true);
                                 return;
                             }
-                            await switchToCustom(
-                                value,
-                                copyable && $customInitPref === "prefill",
-                            );
+                            await switchToCustom(value, start === "copy");
                             return;
                         }
 

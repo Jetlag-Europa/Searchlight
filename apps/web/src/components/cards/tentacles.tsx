@@ -328,9 +328,20 @@ const TentacleLocationSelector = ({
     const currentMatched = data.location
         ? filteredFeatures.find((f) => featuresMatch(f, data.location))
         : null;
+    // Until the sites are known, show the saved answer, not "Not Within".
+    const savedAnswer =
+        !locationsKnown && data.location && !currentMatched
+            ? (data.location as Feature<Point>)
+            : null;
+    if (savedAnswer) {
+        featureOptions[getFeatureKey(savedAnswer)] =
+            (savedAnswer.properties?.name as string | undefined) ?? "Location";
+    }
     const currentValue = currentMatched
         ? getFeatureKey(currentMatched)
-        : "false";
+        : savedAnswer
+          ? getFeatureKey(savedAnswer)
+          : "false";
 
     return (
         <Select

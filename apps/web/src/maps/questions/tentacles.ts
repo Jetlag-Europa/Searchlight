@@ -5,7 +5,7 @@ import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode } from "@/lib/context";
 import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
-import type { TentacleQuestion, Units } from "@/maps/schema";
+import type { TentacleQuestion } from "@/maps/schema";
 
 import { determineTentacleGeometry, featuresMatch } from "./operators/tentacle";
 
@@ -85,50 +85,19 @@ export async function getLocationsForTentacleQuestion(
     return turf.featureCollection([]) as FeatureCollection<Point>;
 }
 
-const filterPointsWithinRadius = (
-    points: any,
-    centerLng: number,
-    centerLat: number,
-    radius: number,
-    unit: Units,
-) => {
-    if (
-        centerLng === null ||
-        centerLat === null ||
-        radius === undefined ||
-        radius === null
-    ) {
-        return points;
-    }
-    const center = turf.point([centerLng, centerLat]);
-
+// Only player-drawn tentacles reach the handlers below: a game's tentacles are
+// answered by the tentacle operator. Their places and position were checked by
+// the question schema. Without places, nothing is divided.
+const placesWithinRadius = (question: TentacleQuestion) => {
+    const center = turf.point([question.lng, question.lat]);
     return turf.featureCollection(
-        points.features.filter((feature: any) => {
-            const coords =
-                feature?.geometry?.coordinates ??
-                (feature?.properties?.lon && feature?.properties?.lat
-                    ? [feature.properties.lon, feature.properties.lat]
-                    : null);
-
-            if (!coords) return false;
-
-            const pt = turf.point(coords);
-            const dist = turf.distance(center, pt, { units: unit });
-            return dist <= radius;
-        }),
+        ((question.places ?? []) as Feature<Point>[]).filter(
+            (place) =>
+                turf.distance(center, place, { units: question.unit }) <=
+                question.radius,
+        ),
     );
 };
-
-// Only player-drawn tentacles reach the handlers below: a game's tentacles are
-// answered by the tentacle operator. Without places, nothing is divided.
-const placesWithinRadius = (question: TentacleQuestion) =>
-    filterPointsWithinRadius(
-        turf.featureCollection(question.places ?? []),
-        question.lng,
-        question.lat,
-        question.radius,
-        question.unit,
-    );
 
 export const adjustPerTentacle = async (
     question: TentacleQuestion,
