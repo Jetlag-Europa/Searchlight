@@ -1,4 +1,5 @@
 import { useStore } from "@nanostores/react";
+import type { DistanceRadius } from "@searchlight/shared";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import { Input } from "@/components/ui/input";
@@ -23,6 +24,18 @@ import { cn } from "@/lib/utils";
 import type { RadiusQuestion } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
+
+const UNIT_ABBREVIATIONS: Record<DistanceRadius["unit"], string> = {
+    meters: "m",
+    kilometers: "km",
+    miles: "mi",
+};
+
+// Short label for a quick-pick radius: 500 meters -> "500 m", 2000 -> "2 km".
+const formatRadius = ({ value, unit }: DistanceRadius) =>
+    unit === "meters" && value >= 1000 && value % 100 === 0
+        ? `${value / 1000} km`
+        : `${value} ${UNIT_ABBREVIATIONS[unit]}`;
 
 export const RadiusQuestionComponent = ({
     data,
@@ -92,8 +105,10 @@ export const RadiusQuestionComponent = ({
             </SidebarMenuItem>
             {declaredRadii.length > 1 && (
                 <ToggleGroup
-                    className="p-2"
+                    className="grid grid-cols-3 gap-1 px-2 pb-2"
                     type="single"
+                    variant="outline"
+                    size="sm"
                     value={declaredIndex < 0 ? "" : String(declaredIndex)}
                     onValueChange={(value: string) => {
                         const radius = declaredRadii[Number(value)];
@@ -105,8 +120,12 @@ export const RadiusQuestionComponent = ({
                     disabled={!data.drag || $isLoading}
                 >
                     {declaredRadii.map((radius, index) => (
-                        <ToggleGroupItem key={index} value={String(index)}>
-                            {radius.value} {radius.unit}
+                        <ToggleGroupItem
+                            key={index}
+                            value={String(index)}
+                            className="whitespace-nowrap"
+                        >
+                            {formatRadius(radius)}
                         </ToggleGroupItem>
                     ))}
                 </ToggleGroup>
