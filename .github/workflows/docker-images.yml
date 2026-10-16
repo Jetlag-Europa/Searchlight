@@ -4,9 +4,9 @@ name: Docker images
 # to the GitHub Container Registry as ghcr.io/<owner>/searchlight-api and
 # ghcr.io/<owner>/searchlight-web, tagged sha-<short commit> (every push to main
 # or manual run) and latest (main). Each tag is a multi-platform image, so
-# `docker pull` picks the host's architecture. Servers pull them with
-# infra/deploy.sh (see DEPLOY.md). Pull requests only build, to catch a broken
-# image before it reaches main.
+# `docker pull` picks the host's architecture. Servers pull them (see
+# DEPLOY.md). Pull requests only build, to catch a broken image before it
+# reaches main.
 #
 # Each platform builds natively on its own runner (no QEMU emulation) and is
 # pushed by digest; the merge job then tags the two digests as one image.

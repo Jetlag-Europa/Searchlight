@@ -6,11 +6,16 @@
 #   docker-compose.test.yml         e2e test stack (infra/deploy-test.sh)
 #
 # A server picks its overlay with COMPOSE_FILE in .env (.env.prod.example), so
-# plain `docker compose ...` commands work there. Deploy with infra/deploy.sh.
+# plain `docker compose ...` commands work there. See DEPLOY.md.
 #
 # api and web are the images CI pushes to GHCR (.github/workflows/docker-images.yml).
 # `docker compose pull` fetches them; `docker compose build` builds the same
 # names from this checkout instead.
+
+# Required: the project name scopes the Postgres volume, and the directory-name
+# default would start a second, empty database.
+name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME in .env (see .env.prod.example)}
+
 services:
   postgres:
     image: postgres:16

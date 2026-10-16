@@ -4,7 +4,7 @@
 
 - Development is `cp .env.example .env`, four Discord/session values, `pnpm install`, `pnpm dev`. `pnpm dev` starts Postgres (`docker-compose.dev.yml`), builds and watches the shared package, and runs the API (migrating and creating servers first) and the web app. The web app reads `PUBLIC_API_BASE` from the root `.env`; `apps/web/.env` is gone. The API's `prisma`, `seed` and `seed:test` scripts read the root `.env` too.
 - `docker-compose.yml` is the whole stack, pulling the CI images from GHCR or building them with the same names. Overlays add the way in: `docker-compose.cloudflared.yml` (production, was `docker-compose.vps.yml`) or `docker-compose.backend.yml` (API on a host port, now an overlay too). A server picks one with `COMPOSE_FILE` in `.env` and names its stack with `COMPOSE_PROJECT_NAME`, so `docker compose` needs no flags there. The API's `DATABASE_URL` is built from `POSTGRES_PASSWORD`.
-- `infra/deploy.sh` (was `deploy-vps.sh`) deploys whatever `.env` describes. `infra/backup.sh` uses the same settings.
+- `infra/deploy-vps.sh` is removed: a deploy is `git pull`, `docker compose pull`, `docker compose up -d` (or `up -d --build`). `docker-compose.yml` refuses to run without `COMPOSE_PROJECT_NAME`. `infra/backup.sh` follows `.env` too.
 - The e2e stack is `searchlight-test` and needs no `.env.test`.
 - `README.md` (replacing `SETUP.md`), `DEPLOY.md` and `docs/TESTING.md` (replacing `TESTING_PLAN.md`) are rewritten for the current setup.
 

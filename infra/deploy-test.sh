@@ -2,15 +2,21 @@
 # Build and start the isolated e2e stack (docker-compose.test.yml), then seed the
 # Playwright fixtures. Safe to re-run. Needs the dev .env (for the Discord
 # values the API requires) and `pnpm install`. See docs/TESTING.md.
+#
+#   infra/deploy-test.sh        start (or rebuild) and seed
+#   infra/deploy-test.sh down   stop and delete the test database
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+export COMPOSE_PROJECT_NAME=searchlight-test
+export COMPOSE_FILE=docker-compose.yml:docker-compose.test.yml
 export POSTGRES_PASSWORD=test
-compose() {
-  docker compose -p searchlight-test -f docker-compose.yml -f docker-compose.test.yml "$@"
-}
 
-compose up -d --build --wait
+if [[ "${1:-}" == "down" ]]; then
+  exec docker compose down -v
+fi
+
+docker compose up -d --build --wait
 
 # The API container has migrated, created the servers and imported the games;
 # the fixtures need tsx, so they are seeded from the host.
@@ -20,4 +26,4 @@ DATABASE_URL="postgresql://taibled:${POSTGRES_PASSWORD}@127.0.0.1:5435/taibled" 
 echo
 echo "Test stack ready: web http://127.0.0.1:8280, api http://127.0.0.1:3200"
 echo "Run the specs:    pnpm --filter @searchlight/web test:e2e"
-echo "Tear down:        docker compose -p searchlight-test down -v"
+echo "Tear down:        infra/deploy-test.sh down"

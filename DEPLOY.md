@@ -30,8 +30,9 @@ adds the way in:
 `docker-compose.dev.yml` is unrelated: the Postgres for local development.
 
 A server chooses with `COMPOSE_FILE` in its `.env`, and `COMPOSE_PROJECT_NAME`
-names the stack, so plain `docker compose ps|logs|exec` work there without
-flags.
+names the stack, so plain `docker compose` commands work there without flags.
+`docker-compose.yml` refuses to run without a project name: with the default
+(the directory name) a server would start a second, empty database.
 
 ## Set up a server
 
@@ -56,23 +57,22 @@ flags.
    `COMPOSE_FILE` line, and `chmod 600 .env`.
 5. **Ingress:** set up the [Cloudflare Tunnel](#cloudflare-tunnel), or point
    your own proxy at the API port with the backend overlay.
-6. **Start:** `infra/deploy.sh`.
+6. **Start:** as in the update below.
 
 ## Deploy an update
 
 ```bash
 git pull
-infra/deploy.sh            # pull the images CI built for this commit
-infra/deploy.sh --build    # or: build them here from the checkout
+docker compose pull && docker compose up -d   # the latest images CI built from main
+docker compose up -d --build                  # or: build them here from the checkout
+docker image prune -f                         # drop the images the update replaced
 ```
 
-The default pulls `sha-<checked-out commit>`, so wait for that commit's "Docker
-images" run to finish; until then the pull fails and nothing changes. Each
-deploy also prunes unused images older than a week.
+Wait for the commit's "Docker images" run to finish before pulling; until it
+has, `latest` is still the previous commit.
 
-- **Roll back:** `git checkout <commit> && infra/deploy.sh`.
-- **Restart** with `docker compose restart <service>`, not `up`: a plain
-  `docker compose up` switches to the `latest` tag.
+- **Roll back** or pin a version: set `SEARCHLIGHT_IMAGE_TAG=sha-<7-char commit>`
+  in `.env`, then pull and `up -d`. Remove it to follow `latest` again.
 - **Another API hostname:** change `PUBLIC_API_BASE` in `.env` and deploy with
   `--build` (or change the build arg in `.github/workflows/docker-images.yml`).
 
@@ -136,11 +136,11 @@ encrypted. Nightly, via `crontab -e`:
 docker compose down -v            # deletes the database
 docker compose up -d --wait postgres
 gunzip -c <dump>.sql.gz | docker compose exec -T postgres psql -U taibled -d taibled
-infra/deploy.sh
+docker compose up -d
 ```
 
 **Start over** with an empty database: back up, then `docker compose down -v`
-and `infra/deploy.sh`. The API recreates the schema, servers and games; users
+and `docker compose up -d`. The API recreates the schema, servers and games; users
 log in again and role mappings changed in the admin UI are lost.
 
 ## Production

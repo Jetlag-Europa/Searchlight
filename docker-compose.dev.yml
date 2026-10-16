@@ -1,5 +1,7 @@
 # Local development: Postgres only, on localhost:5433. The API and web app run
 # on the host (`pnpm dev`, which also starts this). See README.md.
+name: searchlight-dev
+
 services:
   postgres:
     image: postgres:16

@@ -40,7 +40,7 @@ elements.
 infra/deploy-test.sh                                        # build, start and seed (needs the dev .env)
 pnpm --filter @searchlight/web exec playwright install chromium  # once
 pnpm --filter @searchlight/web test:e2e
-docker compose -p searchlight-test down -v                  # tear down
+infra/deploy-test.sh down                                   # tear down
 ```
 
 The seed (`apps/api/prisma/seed-test.ts`) creates the `e2e-test-user` and the
