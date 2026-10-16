@@ -1,5 +1,16 @@
 # Changelog
 
+## Session invites and share copies (2026-10-16)
+
+- The new-session form no longer asks for Private or Shared. The choice changed nothing: every session starts with only its creator, and it becomes shared when the creator invites someone. `POST /sessions` now treats `visibility` as optional, defaulting to `private`.
+- `POST /sessions/:id/invites` makes the session shared when it sends an invite to join, as creating a join link already did. The web app no longer PATCHes visibility first. That PATCH replaced the active session with a response that lacked its revision fields, which could load the wrong game revision and hid the revision banner. `PATCH /sessions/:id` now returns those fields too.
+- A user can have a pending invite to join and a pending copy at the same time; before, the second was refused with a 409 that the drawers didn't show. Inviting someone already in the session is refused.
+- The Share drawer, now "Share a copy", lists only pending copies. It listed invites to join as well.
+- The Invites and Share a copy drawers show why sending failed, and the join page shows why redeeming a link failed.
+- Accepting a copy sent to you makes you a participant of the new session, as redeeming a share link already did, so you appear in its participant list.
+- A creator opening their own invite link is taken to the session instead of getting an error.
+- Kicking someone who isn't in the session answers 404 instead of 500.
+
 ## Overpass proxy limits (2026-10-16)
 
 - `POST /overpass` clamps each query's `[timeout]` to 80 s and `[maxsize]` to 512 MiB, adding them when the query doesn't set them.

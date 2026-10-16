@@ -159,7 +159,8 @@ export interface SessionsResponse {
 export interface CreateSessionBody {
   gameId: string;
   name: string;
-  visibility: SessionVisibility;
+  /** Defaults to private; inviting someone makes the session shared. */
+  visibility?: SessionVisibility;
 }
 
 export interface UpdateSessionBody {

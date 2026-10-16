@@ -135,17 +135,21 @@ export async function sessionRoutes(app: FastifyInstance) {
         body: Type.Object({
           gameId: Type.String({ minLength: 1 }),
           name: Type.String({ minLength: 1 }),
-          visibility: Type.Union([Type.Literal("private"), Type.Literal("shared")]),
+          // Sessions become shared when the creator invites someone, so the
+          // web app no longer sends this; older clients still may.
+          visibility: Type.Optional(
+            Type.Union([Type.Literal("private"), Type.Literal("shared")]),
+          ),
           gameRevisionId: Type.Optional(Type.String({ minLength: 1 })),
         }),
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
-      const { gameId, name, visibility, gameRevisionId } = req.body as {
+      const { gameId, name, visibility = "private", gameRevisionId } = req.body as {
         gameId: string;
         name: string;
-        visibility: "private" | "shared";
+        visibility?: "private" | "shared";
         gameRevisionId?: string;
       };
 
@@ -301,6 +305,14 @@ export async function sessionRoutes(app: FastifyInstance) {
               name: `Copy of ${originalSession.name}`,
               visibility: "private",
               gameRevisionId: targetRevisionId,
+            },
+          });
+          await tx.sessionParticipant.create({
+            data: {
+              sessionId: created.id,
+              userId: user.discordId,
+              role: "creator",
+              acceptedAt: new Date(),
             },
           });
           if (questions.length > 0) {
@@ -689,7 +701,16 @@ export async function sessionRoutes(app: FastifyInstance) {
         const updatedSession = await tx.gameSession.update({
           where: { id: sessionId },
           data: updateData,
-          include: { game: { select: { name: true } } },
+          include: {
+            game: {
+              select: {
+                name: true,
+                currentRevisionId: true,
+                currentRevision: { select: { revision: true } },
+              },
+            },
+            gameRevision: { select: { revision: true } },
+          },
         });
 
         return { updated: updatedSession, eventsToBroadcast: events };
@@ -721,6 +742,13 @@ export async function sessionRoutes(app: FastifyInstance) {
         hiderLat: updated.hiderLat,
         hiderLng: updated.hiderLng,
         planningModeEnabled: updated.planningModeEnabled,
+        gameRevisionId: updated.gameRevisionId,
+        sessionRevision: updated.gameRevision.revision,
+        currentRevision: updated.game.currentRevision?.revision ?? null,
+        hasNewerRevision: Boolean(
+          updated.game.currentRevisionId &&
+            updated.gameRevisionId !== updated.game.currentRevisionId,
+        ),
       };
     },
   );
@@ -794,10 +822,11 @@ export async function sessionRoutes(app: FastifyInstance) {
       if (!isCreator) throw forbidden("Only the creator can kick participants");
       if (targetUserId === session.creatorId) throw forbidden("Cannot kick the session creator");
 
-      await prisma.sessionParticipant.update({
-        where: { sessionId_userId: { sessionId, userId: targetUserId } },
+      const { count } = await prisma.sessionParticipant.updateMany({
+        where: { sessionId, userId: targetUserId, revokedAt: null },
         data: { revokedAt: new Date() },
       });
+      if (count === 0) throw notFound("Participant not found");
       closeUserStreams(sessionId, targetUserId);
 
       return reply.status(204).send();
@@ -860,16 +889,28 @@ export async function sessionRoutes(app: FastifyInstance) {
       if (!isCreator) throw forbidden("Only the creator can send invites");
       if (invitedUserId === user.discordId) throw conflict("Cannot invite yourself");
 
+      // A user may hold one pending invite of each type: an invite to join
+      // and a copy are independent offers.
       const existing = await prisma.invite.findFirst({
         where: {
           sessionId,
           invitedUserId,
+          inviteType,
           revokedAt: null,
           acceptedAt: null,
           declinedAt: null,
         },
       });
       if (existing) throw conflict("An active invite already exists for this user");
+
+      if (inviteType === "join") {
+        const participant = await prisma.sessionParticipant.findUnique({
+          where: { sessionId_userId: { sessionId, userId: invitedUserId } },
+        });
+        if (participant && participant.acceptedAt && !participant.revokedAt) {
+          throw conflict("This user is already in the session");
+        }
+      }
 
       let invite;
       if (inviteType === "fork") {
@@ -892,8 +933,15 @@ export async function sessionRoutes(app: FastifyInstance) {
           return created;
         });
       } else {
-        invite = await prisma.invite.create({
-          data: { sessionId, invitedUserId, invitedByUserId: user.discordId, inviteType },
+        // Inviting someone makes the session shared, as creating a join link
+        // does, so it is listed for them once they accept.
+        invite = await prisma.$transaction(async (tx) => {
+          if (session.visibility === "private") {
+            await tx.gameSession.update({ where: { id: sessionId }, data: { visibility: "shared" } });
+          }
+          return tx.invite.create({
+            data: { sessionId, invitedUserId, invitedByUserId: user.discordId, inviteType },
+          });
         });
       }
 
