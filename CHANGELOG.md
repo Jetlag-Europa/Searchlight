@@ -1,5 +1,12 @@
 # Changelog
 
+## Every session plays its game (2026-10-16)
+
+- Free play, inherited from JetLagHideAndSeek, is gone. It no longer runs behind the session picker (the default Luxembourg boundary isn't fetched any more) or when a session's game fails to load, and questions are only ever answered from the session's game.
+- When a session's game can't be loaded (offline, a server error, no access), a "Game not loaded" message with Retry and Change session covers the board. Until the game has loaded, Add Question and the map's Add items are disabled, no question is evaluated and no hiding zones are looked up in OSM. Radars, thermometers, the game's layer questions and custom questions are kept meanwhile; questions from the old built-in catalogue are hidden, as they already were once a game loaded.
+- Removed the free-play tools that could overwrite a game's play area, questions or settings: the place picker (with "Clear Questions & Cache"), drawing a play area with the polygon tool (it still draws custom questions), the map's "Exclude Country" item, Copy/Paste Hiding Zone and `?hzc=`/`?pb=` links, the hidden Share and Tutorial buttons, the tutorial, and the Pastebin settings, which are no longer synced as preferences.
+- Changing the Default Unit no longer changes the game's hiding-zone radius unit, and hider mode starts at the game's centre.
+
 ## Hider mode turns off again (2026-10-17)
 
 - Turning hider mode off saved the hider's position as 0, 0 instead of clearing it, so hider mode came straight back on at that point, also after a reload. `PATCH /sessions/:id` now stores `hiderLat`/`hiderLng` `null` as null and 0 as 0: its body schema checked them as a number first, and the request validator turned `null` into 0.

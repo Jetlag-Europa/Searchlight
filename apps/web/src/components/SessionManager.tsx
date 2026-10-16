@@ -523,6 +523,44 @@ function SessionChip({
     );
 }
 
+// ── Game not loaded (session active, definition missing) ──────────────────────
+
+function GameNotLoadedOverlay({
+    onRetry,
+    onChangeSession,
+}: {
+    onRetry: () => void;
+    onChangeSession: () => void;
+}) {
+    return (
+        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
+            <div
+                role="alert"
+                className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6"
+            >
+                <h1 className="text-xl font-bold mb-1">Game not loaded</h1>
+                <p className="text-sm text-muted-foreground mb-5">
+                    This session&apos;s game could not be loaded. Questions
+                    can&apos;t be answered or added until it is. Check your
+                    connection and try again.
+                </p>
+                <div className="flex gap-2">
+                    <Button size="sm" onClick={onRetry}>
+                        Retry
+                    </Button>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={onChangeSession}
+                    >
+                        Change session
+                    </Button>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SessionManager() {
@@ -532,8 +570,11 @@ export function SessionManager() {
     const currentQuestions = useStore(questions);
     const currentHiderMode = useStore(hiderMode);
     const currentPlanningMode = useStore(planningModeEnabled);
+    const gameReady = useStore(gameDefinitionReady);
     const [showPicker, setShowPicker] = useState(false);
     const [loading, setLoading] = useState(false);
+    // The last session load ended without the session's game definition.
+    const [gameNotLoaded, setGameNotLoaded] = useState(false);
     const sessionLoadGenerationRef = useRef(0);
     // Generation of the session load that is still replacing content, if any.
     // Save effects bail while it is current: the atoms can already hold the
@@ -822,12 +863,11 @@ export function SessionManager() {
                         questions: serverQs,
                     });
                     strokes.set(reconciled.strokes);
-                    const visibleQuestions = definitionReady
-                        ? filterSupportedQuestions(
-                              reconciled.questions,
-                              compiledGameAtom.get(),
-                          )
-                        : reconciled.questions;
+                    // Without its definition, keep what the game may support.
+                    const visibleQuestions = filterSupportedQuestions(
+                        reconciled.questions,
+                        definitionReady ? compiledGameAtom.get() : null,
+                    );
                     console.info(
                         "[searchlight:session] reconciled",
                         visibleQuestions.length,
@@ -876,7 +916,10 @@ export function SessionManager() {
                         e,
                     );
                 } finally {
-                    if (isCurrent()) loadingGenerationRef.current = null;
+                    if (isCurrent()) {
+                        loadingGenerationRef.current = null;
+                        setGameNotLoaded(!gameDefinitionReady.get());
+                    }
                 }
             })
             .catch((e) => {
@@ -884,7 +927,9 @@ export function SessionManager() {
                 console.warn("[searchlight:session] session fetch error:", e);
                 // Keep the pointer even without a cache to show, so the next
                 // load can restore the session once the server is back.
-                setShowPicker(!paintCached());
+                const painted = paintCached();
+                setShowPicker(!painted);
+                setGameNotLoaded(painted);
             })
             .finally(() => {
                 if (isCurrent()) setLoading(false);
@@ -977,12 +1022,11 @@ export function SessionManager() {
                 });
 
                 strokes.set(reconciledState.strokes);
-                const visibleQuestions = definitionReady
-                    ? filterSupportedQuestions(
-                          reconciledState.questions,
-                          compiledGameAtom.get(),
-                      )
-                    : reconciledState.questions;
+                // Without its definition, keep what the game may support.
+                const visibleQuestions = filterSupportedQuestions(
+                    reconciledState.questions,
+                    definitionReady ? compiledGameAtom.get() : null,
+                );
                 console.info(
                     "[searchlight:session] loaded",
                     visibleQuestions.length,
@@ -1058,6 +1102,7 @@ export function SessionManager() {
             setActiveSession(sessionToActivate);
             loadingGenerationRef.current = null;
             setShowPicker(false);
+            setGameNotLoaded(!gameDefinitionReady.get());
         },
         [authUserId, forgetSession],
     );
@@ -1085,6 +1130,12 @@ export function SessionManager() {
         });
     }, [handleSessionSelected]);
 
+    // Load the session again, its game included.
+    const retryGameLoad = () => {
+        if (session) void handleSessionSelected(session);
+        else if (sessionId) pendingSessionLoad.set(sessionId);
+    };
+
     if (loading) {
         return (
             <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
@@ -1098,6 +1149,12 @@ export function SessionManager() {
             {showPicker && (
                 <SessionPickerOverlay
                     onSessionSelected={handleSessionSelected}
+                />
+            )}
+            {!showPicker && gameNotLoaded && !gameReady && (
+                <GameNotLoadedOverlay
+                    onRetry={retryGameLoad}
+                    onChangeSession={() => setShowPicker(true)}
                 />
             )}
             {!showPicker && session && (

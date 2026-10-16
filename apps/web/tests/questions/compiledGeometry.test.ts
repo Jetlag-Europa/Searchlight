@@ -100,7 +100,6 @@ import {
     setActiveGameDefinition,
 } from "@/game-definition/store";
 import { hiderMode, mapGeoJSON } from "@/lib/context";
-import { currentGameId } from "@/lib/games";
 import {
     adjustMapGeoDataForQuestion,
     applyQuestionsToMapGeoData,
@@ -487,7 +486,7 @@ describe("compiled planning and evaluation geometry", () => {
         },
     );
 
-    it("never sends a game-layer question to the generic handlers without its game", async () => {
+    it("holds every question while no game definition is loaded", async () => {
         const question = {
             id: "matching" as const,
             key: 8,
@@ -499,31 +498,36 @@ describe("compiled planning and evaluation geometry", () => {
                 same: true,
             }),
         };
+        // A generic question, once answered live from OSM.
+        const generic = {
+            id: "matching" as const,
+            key: 9,
+            data: {
+                type: "airport",
+                lat: 0,
+                lng: -0.04,
+                drag: true,
+                same: true,
+            },
+        } as any;
         setActiveGameDefinition(null);
-        currentGameId.set("");
+        const fetchSpy = vi.spyOn(globalThis, "fetch");
         try {
-            // Free play has no layer to answer it from.
-            await expect(
-                adjustMapGeoDataForQuestion(question, playArea),
-            ).rejects.toThrow("Question belongs to a game that is not active");
-            expect(
-                await determinePlanningPolygon(question, true),
-            ).toBeUndefined();
             hiderMode.set({ latitude: 0, longitude: 0.04 });
-            await hiderifyQuestion(question);
-            expect(question.data.same).toBe(true);
-
-            // While the selected game's definition loads, it waits.
-            currentGameId.set(fixture.id);
-            expect(await adjustMapGeoDataForQuestion(question, playArea)).toBe(
-                playArea,
-            );
-            expect(
-                await determinePlanningPolygon(question, true),
-            ).toBeUndefined();
+            for (const pending of [question, generic]) {
+                expect(
+                    await adjustMapGeoDataForQuestion(pending, playArea),
+                ).toBe(playArea);
+                expect(
+                    await determinePlanningPolygon(pending, true),
+                ).toBeUndefined();
+                await hiderifyQuestion(pending);
+                expect(pending.data.same).toBe(true);
+            }
+            expect(fetchSpy).not.toHaveBeenCalled();
         } finally {
+            fetchSpy.mockRestore();
             hiderMode.set(false);
-            currentGameId.set("");
         }
     });
 

@@ -16,9 +16,7 @@ export interface UserPreferences {
   customInitPreference?: string;
   baseTileLayer?: string;
   thunderforestApiKey?: string;
-  pastebinApiKey?: string;
   animateMapMovements?: boolean;
-  alwaysUsePastebin?: boolean;
   autoSave?: boolean;
   warningAlarm?: boolean;
   autoZoom?: boolean;

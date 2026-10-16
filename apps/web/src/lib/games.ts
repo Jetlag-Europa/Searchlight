@@ -230,11 +230,6 @@ export function activateGameStations(
     switchToGame(game, options);
 }
 
-/** True while switchToGame is loading a definition that hasn't been applied. */
-export function isGameSwitchPending(): boolean {
-    return pendingGameSwitch !== undefined;
-}
-
 export function switchToGame(
     game: GameOption,
     options?: SwitchToGameOptions,

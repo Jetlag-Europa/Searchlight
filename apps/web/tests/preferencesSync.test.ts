@@ -13,7 +13,6 @@ vi.stubGlobal("localStorage", {
 import { applyPreferences, collectPreferences, PREF_ENTRIES } from "@/lib/preferencesSync";
 import {
     allowGooglePlusCodes,
-    alwaysUsePastebin,
     animateMapMovements,
     autoLockQuestions,
     autoSave,
@@ -23,7 +22,6 @@ import {
     defaultCustomQuestions,
     defaultUnit,
     followMe,
-    pastebinApiKey,
     showZoneNames,
     thunderforestApiKey,
     warningAlarm,
@@ -36,7 +34,6 @@ function resetAtomDefaults() {
     customInitPreference.set("ask");
     baseTileLayer.set("voyager");
     animateMapMovements.set(false);
-    alwaysUsePastebin.set(false);
     autoSave.set(true);
     warningAlarm.set(false);
     autoZoom.set(true);
@@ -46,7 +43,6 @@ function resetAtomDefaults() {
     autoLockQuestions.set(false);
     followMe.set(false);
     thunderforestApiKey.set("");
-    pastebinApiKey.set("");
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -150,13 +146,11 @@ describe("collectPreferences / applyPreferences round-trip", () => {
         baseTileLayer.set("dark");
         customInitPreference.set("blank");
         animateMapMovements.set(true);
-        alwaysUsePastebin.set(true);
         autoSave.set(false);
         defaultCustomQuestions.set(true);
         allowGooglePlusCodes.set(true);
         showZoneNames.set(true);
         thunderforestApiKey.set("my-api-key");
-        pastebinApiKey.set("pb-key");
 
         const snapshot = collectPreferences();
 
@@ -174,12 +168,10 @@ describe("collectPreferences / applyPreferences round-trip", () => {
         expect(baseTileLayer.get()).toBe("dark");
         expect(customInitPreference.get()).toBe("blank");
         expect(animateMapMovements.get()).toBe(true);
-        expect(alwaysUsePastebin.get()).toBe(true);
         expect(autoSave.get()).toBe(false);
         expect(defaultCustomQuestions.get()).toBe(true);
         expect(allowGooglePlusCodes.get()).toBe(true);
         expect(showZoneNames.get()).toBe(true);
         expect(thunderforestApiKey.get()).toBe("my-api-key");
-        expect(pastebinApiKey.get()).toBe("pb-key");
     });
 });

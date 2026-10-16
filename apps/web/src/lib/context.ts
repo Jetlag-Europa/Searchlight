@@ -1,7 +1,7 @@
 import { persistentAtom } from "@nanostores/persistent";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { Map as LeafletMap } from "leaflet";
-import { atom, computed, onSet } from "nanostores";
+import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
@@ -83,11 +83,14 @@ const playerCustomData = (family: string): Record<string, unknown> =>
         ? { locationType: "custom", places: [] }
         : { type: family === "matching" ? "custom-points" : "custom-measure" };
 export const addQuestion = (question: DeepPartial<Question>) => {
+    // Every question belongs to a game: none can be added until its
+    // definition has loaded.
+    const compiled = compiledGameAtom.get();
+    if (!compiled) throw new Error("The game has not loaded yet");
     const candidate: any = {
         ...question,
         data: { ...((question as any).data ?? {}) },
     };
-    const compiled = compiledGameAtom.get();
     const family =
         candidate.id === "tentacles"
             ? "tentacle"
@@ -97,10 +100,10 @@ export const addQuestion = (question: DeepPartial<Question>) => {
     if (family) {
         const idField = family === "tentacle" ? "locationType" : "type";
         if (candidate.data[idField] === undefined) {
-            const first = compiled?.questions.find((q) => q.family === family);
+            const first = compiled.questions.find((q) => q.family === family);
             // A game with no layer for this family still allows custom ones.
             if (first) candidate.data[idField] = first.id;
-            else if (compiled) {
+            else {
                 for (const [key, value] of Object.entries(
                     playerCustomData(family),
                 ))
@@ -111,14 +114,14 @@ export const addQuestion = (question: DeepPartial<Question>) => {
     // A game's radar starts at its first declared radius, not the schema's
     // generic default.
     if (candidate.id === "radius" && candidate.data.radius === undefined) {
-        const [radius] = compiled ? radarRadii(compiled) : [];
+        const [radius] = radarRadii(compiled);
         if (radius) {
             candidate.data.radius = radius.value;
             candidate.data.unit = radius.unit;
         }
     }
     const parsed = questionSchema.parse(candidate);
-    if (compiled && !isQuestionSupported(parsed, compiled)) {
+    if (!isQuestionSupported(parsed, compiled)) {
         throw new Error("This question is not part of the active game");
     }
     questionModified(questions.get().push(parsed));
@@ -319,80 +322,13 @@ export const deleteCustomPreset = (id: string) => {
     customPresets.set(customPresets.get().filter((p) => p.id !== id));
 };
 
-export const hidingZone = computed(
-    [
-        questions,
-        polyGeoJSON,
-        mapGeoLocation,
-        additionalMapGeoLocations,
-        disabledStations,
-        hidingRadius,
-        hidingRadiusUnits,
-        displayHidingZonesOptions,
-        useCustomStations,
-        customStations,
-        includeDefaultStations,
-        customPresets,
-        permanentOverlay,
-    ],
-    (
-        q,
-        geo,
-        loc,
-        altLoc,
-        disabledStations,
-        radius,
-        hidingRadiusUnits,
-        zoneOptions,
-        useCustom,
-        $customStations,
-        includeDefault,
-        presets,
-        $permanentOverlay,
-    ) => {
-        if (geo !== null) {
-            return {
-                ...geo,
-                questions: q,
-                disabledStations: disabledStations,
-                hidingRadius: radius,
-                hidingRadiusUnits,
-                zoneOptions: zoneOptions,
-                useCustomStations: useCustom,
-                customStations: $customStations,
-                includeDefaultStations: includeDefault,
-                presets: structuredClone(presets),
-                permanentOverlay: $permanentOverlay,
-            };
-        } else {
-            const $loc = structuredClone(loc);
-            $loc.properties.isHidingZone = true;
-            $loc.properties.questions = q;
-            return {
-                ...$loc,
-                disabledStations: disabledStations,
-                hidingRadius: radius,
-                hidingRadiusUnits,
-                alternateLocations: structuredClone(altLoc),
-                zoneOptions: zoneOptions,
-                useCustomStations: useCustom,
-                customStations: $customStations,
-                includeDefaultStations: includeDefault,
-                presets: structuredClone(presets),
-                permanentOverlay: $permanentOverlay,
-            };
-        }
-    },
-);
-
 export const tierRadiusOverrides = atom<Record<string, number>>({});
 
-// False from the start of a game switch until the selected game's definition
-// has been applied (and still false if loading it failed). The map must not
-// evaluate questions meanwhile: a game's questions have no definition to be
-// answered from yet. Default true so free play, which never switches,
-// evaluates normally.
-export const gameDefinitionReady = atom<boolean>(true);
+// True once the session's game definition has been applied: false before the
+// first game loads, from the start of a game switch, and after loading failed.
+// The map must not evaluate questions meanwhile: a game's questions have no
+// definition to be answered from yet.
+export const gameDefinitionReady = atom<boolean>(false);
 
 export const drawingQuestionKey = atom<number>(-1);
 // ID of the single hiding-zone the user has focused via a "View" button,
@@ -476,22 +412,6 @@ export const defaultCustomQuestions = persistentAtom<boolean>(
         decode: JSON.parse,
     },
 );
-
-export const pastebinApiKey = persistentAtom<string>("pastebinApiKey", "");
-export const alwaysUsePastebin = persistentAtom<boolean>(
-    "alwaysUsePastebin",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
-
-export const showTutorial = persistentAtom<boolean>("showTutorials", false, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
-});
-export const tutorialStep = atom<number>(0);
 
 export const customInitPreference = persistentAtom<"ask" | "blank" | "prefill">(
     "customInitPreference",

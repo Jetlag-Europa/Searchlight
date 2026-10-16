@@ -28,36 +28,23 @@ const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
     tentacle: ["custom"],
 };
 
-/** Whether the question asks about a game layer, such as `matching-museum`. */
-export function hasCompiledQuestionId(question: any): boolean {
-    const { family, id } = canonicalQuestionId(question);
-    return (
-        (family === "matching" ||
-            family === "measuring" ||
-            family === "tentacle") &&
-        typeof id === "string" &&
-        id.startsWith(`${family}-`)
-    );
-}
-
 /**
  * Whether a persisted question is supported by the current handlers.
  *
- * While a definition is loading, canonical feature IDs are retained. Once a
- * definition is ready, a game offers only what it declares: radar and
- * thermometer when its definition enables them, its compiled feature
- * questions, and player-drawn custom questions. Generic question types (which
- * would query OSM/Overpass) are not supported in a game, so neither a stale or
- * wrong-game definition nor a pasted question falls through to OSM evaluation.
+ * Every question belongs to a game. Once its definition is ready, a game
+ * offers only what it declares: radar and thermometer when its definition
+ * enables them, its compiled feature questions, and player-drawn custom
+ * questions. Generic question types (which would query OSM/Overpass) are never
+ * supported, so neither a stale or wrong-game definition nor a pasted question
+ * falls through to OSM evaluation.
  *
- * `inGame` says whether the tab has a game selected, even one whose definition
- * is still loading. Outside any game (free play) canonical feature IDs are not
- * supported: there is no layer to answer them from.
+ * While the definition is loading (`compiled` is null), the questions a game
+ * could support are retained: radar, thermometer, canonical feature IDs and
+ * player-drawn custom questions.
  */
 export function isQuestionSupported(
     question: any,
     compiled: Pick<CompiledGame, "questionMap"> | null | undefined,
-    { inGame = true }: { inGame?: boolean } = {},
 ): boolean {
     const { family, id } = canonicalQuestionId(question);
     if (!family) return false;
@@ -84,15 +71,13 @@ export function isQuestionSupported(
         ) {
             return false;
         }
-        if (!compiled) return inGame;
+        if (!compiled) return true;
         return compiled.questionMap.get(id)?.family === family;
     }
 
-    if (compiled && !PLAYER_CUSTOM_TYPES[family].includes(id)) return false;
+    if (!PLAYER_CUSTOM_TYPES[family].includes(id)) return false;
 
-    // The schema's explicit branches are the source of truth for the remaining
-    // question shapes. Its generic feature branch is intentionally bypassed
-    // above unless the ID is compiled.
+    // A player-drawn question must match its schema branch.
     return questionSchema.safeParse(question).success;
 }
 

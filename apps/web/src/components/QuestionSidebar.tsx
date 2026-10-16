@@ -133,7 +133,7 @@ export const QuestionSidebar = () => {
             </SidebarContent>
             <SidebarGroup>
                 <SidebarGroupContent>
-                    <SidebarMenu data-tutorial-id="add-questions-buttons">
+                    <SidebarMenu>
                         <SidebarMenuItem>
                             <AddQuestionDialog>
                                 <SidebarMenuButton disabled={$isLoading}>
