@@ -107,7 +107,7 @@ const getDefaultUnit = () => {
     try {
         return defaultUnit.get();
     } catch {
-        return "miles";
+        return "kilometers";
     }
 };
 

@@ -134,7 +134,7 @@ export const questionModified = (..._: any[]) => {
 
 export const leafletMapContext = atom<LeafletMap | null>(null);
 
-export const defaultUnit = persistentAtom<Units>("defaultUnit", "miles", {
+export const defaultUnit = persistentAtom<Units>("defaultUnit", "kilometers", {
     listen: false,
 });
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).

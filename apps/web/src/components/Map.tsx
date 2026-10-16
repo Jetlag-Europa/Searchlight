@@ -420,7 +420,7 @@ export const Map = ({ className }: { className?: string }) => {
                                 5,
                                 90,
                                 {
-                                    units: "miles",
+                                    units: "kilometers",
                                 },
                             );
 

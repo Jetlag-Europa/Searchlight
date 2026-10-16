@@ -34,7 +34,7 @@ export const ThermometerQuestionComponent = ({
     const $isLoading = useStore(isLoading);
 
     const $defaultUnit = useStore(defaultUnit);
-    const DISTANCE_UNIT = $defaultUnit ?? "miles";
+    const DISTANCE_UNIT = $defaultUnit ?? "kilometers";
 
     const label = `Thermometer
     ${
