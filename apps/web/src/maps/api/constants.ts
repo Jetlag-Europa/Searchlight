@@ -1,9 +1,3 @@
-// Overpass queries no longer hit public servers from the browser — they go through
-// the backend /overpass proxy (which reaches LocalOverpass, possibly behind
-// Cloudflare Access). This string is only a stable namespace for the browser Cache
-// API key, never a request target. It must be an http(s) URL — the Cache API
-// rejects other schemes as keys.
-export const OVERPASS_CACHE_NS = "https://overpass-api.de/api/interpreter";
 export const GEOCODER_API = "https://photon.komoot.io/api/";
 
 export const ICON_COLORS = {

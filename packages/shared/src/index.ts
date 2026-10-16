@@ -153,7 +153,7 @@ export interface GameSessionSummary {
   hiderLat: number | null;
   hiderLng: number | null;
   planningModeEnabled: boolean;
-  gameRevisionId?: string | null;
+  gameRevisionId: string;
   sessionRevision?: number | null;
   currentRevision?: number | null;
   hasNewerRevision?: boolean;

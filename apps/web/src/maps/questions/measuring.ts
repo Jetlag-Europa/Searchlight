@@ -3,7 +3,6 @@ import * as turf from "@turf/turf";
 import {
     hiderMode,
     mapGeoJSON,
-    mapGeoLocation,
     polyGeoJSON,
 } from "@/lib/context";
 import {
@@ -33,7 +32,8 @@ const bufferedDeterminer = async (question: MeasuringQuestion) => {
         type: question.type,
         lat: question.lat,
         lng: question.lng,
-        entirety: identityKey(polyGeoJSON.get() ?? mapGeoLocation.get()),
+        // Each loaded game or revision has its own play area object.
+        entirety: identityKey(polyGeoJSON.get()),
         geo: (question as any).geo,
     });
     if (_bufferedCache.has(key)) return _bufferedCache.get(key);

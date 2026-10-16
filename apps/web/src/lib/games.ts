@@ -11,30 +11,21 @@ import {
     loadGameDefinition,
     setActiveGameDefinition,
 } from "@/game-definition/store";
-import { activeSessionData, activeSessionId } from "@/lib/activeSession";
+import { activeSessionId } from "@/lib/activeSession";
 import {
-    additionalMapGeoLocations,
-    customStations,
     disabledStations,
     displayHidingZones,
-    displayHidingZonesOptions,
     displayHidingZonesStyle,
     gameDefinitionReady,
-    hidingRadius,
-    hidingRadiusUnits,
     hidingZoneFocusedStationID,
-    includeDefaultStations,
     mapGeoJSON,
     permanentOverlay,
     polyGeoJSON,
     questions,
-    tierRadiusOverrides,
     trainStations,
-    useCustomStations,
 } from "@/lib/context";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
-import type { Units } from "@/maps/schema";
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
     (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
     "") as string;
@@ -70,11 +61,9 @@ const GAME_SS_KEY = "taibled-current-game-id";
 let gameSwitchGeneration = 0;
 interface PendingGameSwitch {
     key: string;
-    definition: Promise<GameDefinition> | undefined;
     promise: Promise<boolean>;
 }
 let pendingGameSwitch: PendingGameSwitch | undefined;
-let publishedGameOptions: string[] | undefined;
 
 // Tab-local game ID — sessionStorage so each tab tracks its own game independently.
 export const currentGameId = atom<string>(
@@ -135,10 +124,6 @@ export async function fetchGames(serverId: string): Promise<GameOption[]> {
     }
 }
 
-// Derive the game key set from the live games atom.
-export function getGameKeys(): ReadonlySet<string> {
-    return new Set(gamesAtom.get().map((g) => g.gameKey));
-}
 export function getGameById(id: string): GameOption | undefined {
     return gamesAtom.get().find((g) => g.id === id);
 }
@@ -169,42 +154,13 @@ export async function resolveSessionGame(
     );
 }
 
-export function getGameByKey(value: string): GameOption | undefined {
-    return gamesAtom.get().find((g) => g.gameKey === value);
-}
-
 export function applyGameDefinition(def: GameDefinition): void {
     setActiveGameDefinition(def);
     const compiled = compiledGameAtom.get()!;
     polyGeoJSON.set(compiled.playArea ?? null);
     mapGeoJSON.set(compiled.playArea ?? null);
+    // The zone sidebar redraws the zones from the new definition.
     trainStations.set([]);
-    if (compiled.hidingZones.stations?.length) {
-        useCustomStations.set(true);
-        includeDefaultStations.set(false);
-        customStations.set(
-            compiled.hidingZones.stations.map((s) => ({
-                id: String(s.id),
-                name: s.name,
-                lat: s.coordinates[1],
-                lng: s.coordinates[0],
-                ...(s.tier ? { tier: s.tier } : {}),
-                ...(s.explicitRadius !== undefined
-                    ? { radius: s.explicitRadius }
-                    : {}),
-                unit:
-                    (s.radius?.unit as Units) ??
-                    (compiled.hidingZones.baseRadius.unit as Units),
-            })),
-        );
-    } else {
-        useCustomStations.set(false);
-        includeDefaultStations.set(false);
-        customStations.set([]);
-    }
-    hidingRadius.set(compiled.hidingZones.baseRadius.value);
-    hidingRadiusUnits.set(compiled.hidingZones.baseRadius.unit);
-    tierRadiusOverrides.set(def.hidingZones?.tierOverrides ?? {});
 
     const currentQuestions = questions.get();
     const visibleQuestions = filterSupportedQuestions(
@@ -220,35 +176,10 @@ export function applyGameDefinition(def: GameDefinition): void {
     gameDefinitionReady.set(true);
 }
 
+/** A session's game: its pinned revision, loaded with the session's access. */
 export interface SwitchToGameOptions {
-    revisionId?: string | null;
-    sessionId?: string | null;
-}
-
-/**
- * Load the stations of a game the zone options name. Only the active
- * session's game is loaded, pinned to the session's revision: restored zone
- * options can name another game, whose definition must never reach this
- * session's board.
- */
-export function activateGameStations(game: GameOption): void {
-    const session = activeSessionData.get();
-    if (
-        !session?.gameRevisionId ||
-        (session.gameId !== game.id && session.gameId !== game.gameKey)
-    )
-        return;
-    // Ignore the selection published by switchToGame, not restored or user-edited
-    // options. The current ID alone cannot distinguish those initialization paths.
-    if (
-        currentGameId.get() === game.id &&
-        displayHidingZonesOptions.get() === publishedGameOptions
-    )
-        return;
-    switchToGame(game, {
-        revisionId: session.gameRevisionId,
-        sessionId: session.id,
-    });
+    revisionId: string;
+    sessionId: string;
 }
 
 /**
@@ -270,81 +201,39 @@ export function leaveGame(): void {
 export function resetGameState(): void {
     gameDefinitionReady.set(false);
     setActiveGameDefinition(null);
-    customStations.set([]);
     trainStations.set([]);
-    useCustomStations.set(false);
-    includeDefaultStations.set(false);
     polyGeoJSON.set(null);
     mapGeoJSON.set(null);
-    additionalMapGeoLocations.set([]);
     disabledStations.set([]);
     permanentOverlay.set(null);
     hidingZoneFocusedStationID.set("");
-    tierRadiusOverrides.set({});
     writeStorage("sessionStorage", GAME_SS_KEY, "");
     currentGameId.set("");
 }
 
 export function switchToGame(
     game: GameOption,
-    options?: SwitchToGameOptions,
+    { revisionId, sessionId }: SwitchToGameOptions,
 ): Promise<boolean> {
-    // Resolve the scope before publishing selection. Session initialization may
-    // supply a pin before activeSessionData has been populated.
-    const currentSession = activeSessionData.get();
     const startingSessionId = activeSessionId.get();
-    const isSessionGame = Boolean(
-        currentSession &&
-            (currentSession.gameId === game.id ||
-                currentSession.gameId === game.gameKey),
-    );
-    const sessionId =
-        options?.sessionId !== undefined
-            ? (options.sessionId ?? undefined)
-            : isSessionGame
-              ? currentSession?.id
-              : undefined;
-    const targetRevisionId =
-        options?.revisionId !== undefined
-            ? (options.revisionId ?? undefined)
-            : isSessionGame
-              ? (currentSession?.gameRevisionId ?? undefined)
-              : undefined;
-    const isSession = Boolean(sessionId || isSessionGame);
-    const key = JSON.stringify([
-        game.id,
-        targetRevisionId ?? null,
-        sessionId ?? null,
-        isSession,
-    ]);
+    const key = JSON.stringify([game.id, revisionId, sessionId]);
     if (pendingGameSwitch?.key === key) return pendingGameSwitch.promise;
 
     const generation = ++gameSwitchGeneration;
+    const definition = loadGameDefinition(game.id, revisionId, sessionId);
     // Register the switch before notifying atom subscribers so reentrant callers
     // share the same outcome instead of superseding the original caller.
     const selection: PendingGameSwitch = {
         key,
-        definition:
-            game.id && !(isSession && !targetRevisionId)
-                ? loadGameDefinition(game.id, targetRevisionId, sessionId)
-                : undefined,
         promise: Promise.resolve()
             .then(async () => {
-                if (isSession && !targetRevisionId) {
-                    console.warn(
-                        "[games] Session game requires a pinned revision ID; refusing unpinned/fallback load",
-                    );
-                    return false;
-                }
-                if (!selection.definition) return false;
-
                 try {
-                    const definition = await selection.definition;
+                    const loaded = await definition;
                     if (
                         generation !== gameSwitchGeneration ||
                         activeSessionId.get() !== startingSessionId
                     ) return false;
-                    applyGameDefinition(definition);
+                    applyGameDefinition(loaded);
                     return true;
                 } catch (error) {
                     if (generation !== gameSwitchGeneration) return false;
@@ -364,11 +253,8 @@ export function switchToGame(
 
     resetGameState();
 
-    // The sidebar observes zone options; publish the owning selection first.
     writeStorage("sessionStorage", GAME_SS_KEY, game.id);
     currentGameId.set(game.id);
-    publishedGameOptions = [game.gameKey];
-    displayHidingZonesOptions.set(publishedGameOptions);
     displayHidingZones.set(true);
     displayHidingZonesStyle.set("zones");
     return selection.promise;

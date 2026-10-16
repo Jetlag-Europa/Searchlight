@@ -5,13 +5,17 @@ import {
   type QuestionDefinition,
   resolveGameDefinitionId,
 } from "@searchlight/shared";
+import * as turf from "@turf/turf";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 export interface CompiledHidingZone {
   id: string | number;
   name: string;
   tier?: string;
+  /** The station, or for a polygon zone a point inside it. */
   coordinates: [number, number];
+  /** A polygon zone's own area. A station's zone is a circle of `radius`. */
+  area?: Polygon | MultiPolygon;
   radius: DistanceRadius;
   explicitRadius?: number;
 }
@@ -94,6 +98,18 @@ export function compileGameDefinition(
         coordinates: feat.geometry.coordinates as [number, number],
         radius: effectiveRadius,
         ...(explicitRadius !== undefined ? { explicitRadius } : {}),
+      });
+    } else if (
+      feat.geometry?.type === "Polygon" ||
+      feat.geometry?.type === "MultiPolygon"
+    ) {
+      stations.push({
+        id: zId,
+        name,
+        tier,
+        coordinates: turf.pointOnFeature(feat).geometry.coordinates as [number, number],
+        area: feat.geometry,
+        radius: effectiveRadius,
       });
     }
   }
@@ -234,10 +250,13 @@ export function compileGameDefinition(
       definition.map.center[1], definition.map.center[1],
     ];
     for (const s of stations) {
-      minLng = Math.min(minLng, s.coordinates[0]);
-      maxLng = Math.max(maxLng, s.coordinates[0]);
-      minLat = Math.min(minLat, s.coordinates[1]);
-      maxLat = Math.max(maxLat, s.coordinates[1]);
+      const [west, south, east, north] = s.area
+        ? turf.bbox(s.area)
+        : [...s.coordinates, ...s.coordinates];
+      minLng = Math.min(minLng, west);
+      maxLng = Math.max(maxLng, east);
+      minLat = Math.min(minLat, south);
+      maxLat = Math.max(maxLat, north);
     }
     const margin = 0.05;
     bounds = [minLng - margin, minLat - margin, maxLng + margin, maxLat + margin];
@@ -252,7 +271,7 @@ export function compileGameDefinition(
     bounds,
     playArea: definition.map.playArea as FeatureCollection<Polygon | MultiPolygon>,
     hidingZones: {
-      kind: stations.length > 0 ? "points" : "polygons",
+      kind: stations.some((s) => !s.area) ? "points" : "polygons",
       features: definition.hidingZones?.features as FeatureCollection,
       stations,
       baseRadius,

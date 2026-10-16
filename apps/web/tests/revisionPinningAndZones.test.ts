@@ -1,3 +1,5 @@
+import * as turf from "@turf/turf";
+import type { Polygon } from "geojson";
 import { describe, expect, it, beforeEach, afterAll, vi } from "vitest";
 import {
   applyGameDefinition,
@@ -7,19 +9,22 @@ import {
 import {
   cacheRevisionDefinition,
   clearDefinitionCache,
-  getCachedRevisionDefinition,
+  compiledGameAtom,
 } from "@/game-definition/store";
-import {
-  customStations,
-  hidingRadius,
-  hidingRadiusUnits,
-  tierRadiusOverrides,
-  trainStations,
-  useCustomStations,
-} from "@/lib/context";
-import { activeSessionData, setActiveSession, clearActiveSession } from "@/lib/activeSession";
-import { normalizeToStationFeatures, parseCustomStationsFromText } from "@/maps/api";
+import { trainStations } from "@/lib/context";
+import { clearActiveSession } from "@/lib/activeSession";
+import { hidingZoneCircles } from "@/maps/geo-utils";
 import type { GameDefinition } from "@searchlight/shared";
+
+/** The game-wide hiding radius of the applied definition. */
+const appliedRadius = () => compiledGameAtom.get()?.hidingZones.baseRadius.value;
+/** The applied game's zones, as the zone sidebar draws them. */
+const zones = () => hidingZoneCircles(compiledGameAtom.get()!);
+/** A circular zone's radius in metres: its centre to its first vertex. */
+const radiusOf = (zone: ReturnType<typeof zones>[number]) =>
+  turf.distance(zone.properties, (zone.geometry as Polygon).coordinates[0][0], {
+    units: "meters",
+  });
 
 describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence", () => {
   const sessionStore = new Map<string, string>();
@@ -38,12 +43,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
     sessionStore.clear();
     clearDefinitionCache();
     clearActiveSession();
-    customStations.set([]);
-    useCustomStations.set(false);
     trainStations.set([]);
-    hidingRadius.set(400);
-    hidingRadiusUnits.set("meters");
-    tierRadiusOverrides.set({});
     vi.restoreAllMocks();
   });
 
@@ -103,66 +103,58 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
 
       applyGameDefinition(def);
 
-      expect(useCustomStations.get()).toBe(true);
-      const stations = customStations.get();
-      expect(stations).toHaveLength(3);
-
-      // Station 1: explicit radius 800 overrides tier 'major' (600)
-      expect(stations[0]).toMatchObject({
+      const [explicit, tierOnly, defaultOnly] = zones();
+      expect(zones()).toHaveLength(3);
+      expect(explicit.properties.properties).toEqual({
         id: "stn-1",
         name: "Station Explicit",
         tier: "major",
-        radius: 800,
-        unit: "meters",
       });
-
-      // Station 2: tier 'minor', no explicit radius
-      expect(stations[1]).toMatchObject({
+      expect(tierOnly.properties.properties).toEqual({
         id: "stn-2",
         name: "Station Tier Only",
         tier: "minor",
-        unit: "meters",
       });
-      expect(stations[1].radius).toBeUndefined();
-
-      // Station 3: no tier and no explicit radius
-      expect(stations[2]).toMatchObject({
+      expect(defaultOnly.properties.properties).toEqual({
         id: "stn-3",
         name: "Station Default Only",
-        unit: "meters",
       });
-      expect(stations[2].tier).toBeUndefined();
-      expect(stations[2].radius).toBeUndefined();
 
-      // Features normalization preserves properties into GeoJSON features
-      const normalized = normalizeToStationFeatures(stations);
-      expect(normalized.features[0].properties).toMatchObject({
-        id: "stn-1",
-        tier: "major",
-        radius: 800,
-      });
-      expect(normalized.features[1].properties).toMatchObject({
-        id: "stn-2",
-        tier: "minor",
-      });
+      // Station 1: explicit radius 800 overrides tier 'major' (600)
+      expect(radiusOf(explicit)).toBeCloseTo(800, 0);
+      // Station 2: tier 'minor', no explicit radius
+      expect(radiusOf(tierOnly)).toBeCloseTo(250, 0);
+      // Station 3: no tier and no explicit radius
+      expect(radiusOf(defaultOnly)).toBeCloseTo(400, 0);
     });
 
-    it("parses CSV with tier and radius columns", () => {
-      const csv = `id,name,lat,lng,tier,radius,unit\ns1,Central,37.7,-122.4,major,750,meters\ns2,Local,37.8,-122.5,minor,300,meters`;
-      const stations = parseCustomStationsFromText(csv, "text/csv");
-      expect(stations).toHaveLength(2);
-      expect(stations[0]).toMatchObject({
-        id: "s1",
-        name: "Central",
-        tier: "major",
-        radius: 750,
+    it("draws a zone with its own radius and unit", () => {
+      applyGameDefinition({
+        name: "Unit Game",
+        serverId: "srv-1",
         unit: "meters",
+        map: { center: [0, 0], playArea: { type: "FeatureCollection", features: [] } },
+        hidingZones: {
+          radius: 400,
+          features: {
+            type: "FeatureCollection",
+            features: [
+              {
+                id: "km",
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [0.1, 0.1] },
+                properties: { name: "Kilometres", radius: { value: 1.5, unit: "kilometers" } },
+              },
+            ],
+          },
+        },
       });
+      expect(radiusOf(zones()[0])).toBeCloseTo(1500, 0);
     });
   });
 
-  describe("Review 10: Clearing stations and mode for nonpoint or empty collections", () => {
-    it("clears custom stations and resets mode when switching to a polygon-only game", () => {
+  describe("Review 10: Zones of polygon and empty collections", () => {
+    it("draws a polygon-only game's zones as their polygons", () => {
       // First, set up a game with point stations
       const pointGame: GameDefinition = {
         name: "Point Game",
@@ -191,8 +183,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
         },
       };
       applyGameDefinition(pointGame);
-      expect(useCustomStations.get()).toBe(true);
-      expect(customStations.get().length).toBe(1);
+      expect(zones()).toHaveLength(1);
 
       // Now apply a polygon-only game
       const polygonGame: GameDefinition = {
@@ -225,17 +216,33 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
         },
       };
 
+      const fetchSpy = vi.spyOn(globalThis, "fetch");
       applyGameDefinition(polygonGame);
-      expect(useCustomStations.get()).toBe(false);
-      expect(customStations.get()).toEqual([]);
       expect(trainStations.get()).toEqual([]);
+      const [zone] = zones();
+      expect(zones()).toHaveLength(1);
+      expect(zone.geometry).toEqual(polygonGame.hidingZones.features.features[0].geometry);
+      expect(zone.properties.properties).toEqual({ id: "poly1", name: "Polygon Zone" });
+      // Its station is a point inside the polygon.
+      expect(turf.booleanPointInPolygon(zone.properties, zone as never)).toBe(true);
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
 
     it("clears stations when switching to an empty station collection", () => {
-      // Set active custom stations first
-      useCustomStations.set(true);
-      customStations.set([{ id: "stale", name: "Stale", lat: 1, lng: 1 }]);
-      trainStations.set([]);
+      applyGameDefinition({
+        name: "Stale Game",
+        serverId: "srv-1",
+        map: { center: [1, 1], playArea: { type: "FeatureCollection", features: [] } },
+        hidingZones: {
+          features: {
+            type: "FeatureCollection",
+            features: [
+              { type: "Feature", geometry: { type: "Point", coordinates: [1, 1] }, properties: { name: "Stale" } },
+            ],
+          },
+        },
+      });
+      trainStations.set(zones());
 
       const emptyGame: GameDefinition = {
         name: "Empty Game",
@@ -249,8 +256,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
       };
 
       applyGameDefinition(emptyGame);
-      expect(useCustomStations.get()).toBe(false);
-      expect(customStations.get()).toEqual([]);
+      expect(zones()).toEqual([]);
       expect(trainStations.get()).toEqual([]);
     });
   });
@@ -297,7 +303,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
 
       expect(loaded).toBe(true);
       // Verify R1 (radius 300) was applied, NOT R2 (radius 600)
-      expect(hidingRadius.get()).toBe(300);
+      expect(appliedRadius()).toBe(300);
     });
 
     it("live upgrade loads R2 even when R1 was previously cached", async () => {
@@ -350,7 +356,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
       });
 
       expect(upgraded).toBe(true);
-      expect(hidingRadius.get()).toBe(550);
+      expect(appliedRadius()).toBe(550);
       expect(fetchSpy).toHaveBeenCalled();
       const calledUrl = fetchSpy.mock.calls[0][0] as string;
       expect(calledUrl).toContain("sessionId=sess-upgrade");
@@ -393,7 +399,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
 
       // Must return false and NOT load mutableCurrent (radius 999)
       expect(result).toBe(false);
-      expect(hidingRadius.get()).not.toBe(999);
+      expect(appliedRadius()).not.toBe(999);
       // Verify export was never queried
       const exportCalls = fetchSpy.mock.calls.filter(([url]) => String(url).includes("/export"));
       expect(exportCalls).toHaveLength(0);
@@ -439,30 +445,17 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
       // Retrieve revision 1 for game-one
       const loaded1 = await switchToGame(gameDef1, { revisionId: "rev-1-uuid", sessionId: "sess-1" });
       expect(loaded1).toBe(true);
-      expect(hidingRadius.get()).toBe(350);
+      expect(appliedRadius()).toBe(350);
 
       // Retrieve revision 1 for game-two
       const loaded2 = await switchToGame(gameDef2, { revisionId: "rev-1-uuid", sessionId: "sess-2" });
       expect(loaded2).toBe(true);
-      expect(hidingRadius.get()).toBe(700);
+      expect(appliedRadius()).toBe(700);
 
       // Switch back to game-one revision 1 and verify it was not corrupted by game-two
       const reloaded1 = await switchToGame(gameDef1, { revisionId: "rev-1-uuid", sessionId: "sess-1" });
       expect(reloaded1).toBe(true);
-      expect(hidingRadius.get()).toBe(350);
-    });
-
-    it("refuses to load an unpinned session game without falling back to current export", async () => {
-      const gameDef: GameOption = {
-        id: "game-unpinned",
-        gameKey: "game-unpinned",
-        label: "Game Unpinned",
-        serverId: "srv-1",
-        serverName: "Server 1",
-        size: "medium",
-      };
-      const loaded = await switchToGame(gameDef, { sessionId: "sess-unpinned" });
-      expect(loaded).toBe(false);
+      expect(appliedRadius()).toBe(350);
     });
   });
 });

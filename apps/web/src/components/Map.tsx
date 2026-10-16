@@ -12,7 +12,7 @@ import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
-import { bootstrapDefaults } from "@/lib/bootstrapCustomStations";
+import { bootstrapDefaults } from "@/lib/bootstrap";
 import {
     addQuestion,
     animateMapMovements,
@@ -23,7 +23,6 @@ import {
     hiderMode,
     leafletMapContext,
     mapGeoJSON,
-    mapGeoLocation,
     permanentOverlay,
     perQuestionMapData,
     planningModeEnabled,
@@ -59,6 +58,10 @@ import { PolygonDraw } from "./PolygonDraw";
 // https://carto.com/basemaps/apikey/. Plain constant on purpose: this is a
 // client bundle, so the key ships to the browser wherever it is declared.
 const CARTO_API_KEY = "cb1_2e23_1_bd24b1a55d41442abf180516";
+
+// Before a game has loaded, the map shows the world.
+const WORLD_CENTER: L.LatLngTuple = [20, 0];
+const WORLD_ZOOM = 2;
 
 const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     switch (tileLayer) {
@@ -219,7 +222,6 @@ const ADD_QUESTION_MENU_ITEMS = [
 ];
 
 export const Map = ({ className }: { className?: string }) => {
-    const $mapGeoLocation = useStore(mapGeoLocation);
     const $questions = useStore(questions);
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
@@ -234,6 +236,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $currentGameId = useStore(currentGameId);
     const refreshQueue = useMemo(() => createLatestTask(), []);
     const renderedGameIdRef = useRef<string | null>(null);
+    const framedGameIdRef = useRef<string | null>(null);
 
     const clearQuestionLayers = (targetMap: L.Map) => {
         targetMap.eachLayer((layer) => {
@@ -268,7 +271,6 @@ export const Map = ({ className }: { className?: string }) => {
         const compiled = compiledGameAtom.get();
         const hider = hiderMode.get();
         const boundary = polyGeoJSON.get();
-        const location = mapGeoLocation.get();
         const definitionReady = gameDefinitionReady.get();
         const activeGameId = currentGameId.get();
 
@@ -291,7 +293,6 @@ export const Map = ({ className }: { className?: string }) => {
             compiledGameAtom.get() === compiled &&
             hiderMode.get() === hider &&
             polyGeoJSON.get() === boundary &&
-            mapGeoLocation.get() === location &&
             gameDefinitionReady.get() === definitionReady;
 
         if (sourceQuestions.length > 0 && !definitionReady) {
@@ -443,8 +444,8 @@ export const Map = ({ className }: { className?: string }) => {
     const displayMap = useMemo(
         () => (
             <MapContainer
-                center={$mapGeoLocation.geometry.coordinates}
-                zoom={5}
+                center={WORLD_CENTER}
+                zoom={WORLD_ZOOM}
                 className={cn("w-[500px] h-[500px]", className)}
                 ref={leafletMapContext.set}
                 // @ts-expect-error Typing doesn't update from react-contextmenu
@@ -527,6 +528,22 @@ export const Map = ({ className }: { className?: string }) => {
         });
     }, [map, $compiledGame]);
 
+    // Show each game when it loads; a new revision of the same game keeps
+    // the view.
+    useEffect(() => {
+        if (!map || !$compiledGame) return;
+        if (framedGameIdRef.current === $currentGameId) return;
+        framedGameIdRef.current = $currentGameId;
+        const [west, south, east, north] = $compiledGame.bounds;
+        map.fitBounds(
+            [
+                [south, west],
+                [north, east],
+            ],
+            { animate: false },
+        );
+    }, [map, $compiledGame, $currentGameId]);
+
     useEffect(() => {
         bootstrapDefaults();
     }, []);
@@ -549,7 +566,6 @@ export const Map = ({ className }: { className?: string }) => {
         $hiderMode,
         $planningMode,
         $compiledGame,
-        $mapGeoLocation,
         $polyGeoJSON,
         $gameDefinitionReady,
         $currentGameId,

@@ -3,7 +3,7 @@ import { atom, computed } from "nanostores";
 
 import { questionSchema } from "@/maps/schema";
 
-import { exportGameDefinitionAPI, fetchGameRevisionAPI } from "./api.js";
+import { fetchGameRevisionAPI } from "./api.js";
 import { type CompiledGame,compileGameDefinition } from "./compile.js";
 
 function canonicalQuestionId(question: any): {
@@ -105,9 +105,7 @@ export const compiledGameAtom = computed(
     },
 );
 
-// Only pinned revisions are cached: they never change. A game's latest
-// definition can be replaced by a new revision at any time, and nothing tells
-// the client which revision is latest without asking the server.
+// Sessions load pinned revisions, which never change, so they can be cached.
 const revisionDefinitionCache = new Map<string, GameDefinition>();
 const pendingDefinitions = new Map<string, Promise<GameDefinition>>();
 // Keep only a few full definitions: each can contain thousands of GeoJSON
@@ -165,35 +163,25 @@ export function cacheRevisionDefinition(
 }
 
 /**
- * Share only requests made with the same revision and session access scope.
- * Without a revision, the latest definition is fetched afresh each time.
+ * Load a session's pinned revision. Share only requests made with the same
+ * revision and session access scope.
  */
 export function loadGameDefinition(
     gameId: string,
-    revisionId: string | undefined,
-    sessionId: string | undefined,
+    revisionId: string,
+    sessionId: string,
 ): Promise<GameDefinition> {
-    const key = JSON.stringify([gameId, revisionId ?? null, sessionId ?? null]);
+    const key = JSON.stringify([gameId, revisionId, sessionId]);
     const pending = pendingDefinitions.get(key);
     if (pending) return pending;
 
-    if (revisionId) {
-        const cached = getCachedRevisionDefinition(
-            gameId,
-            revisionId,
-            sessionId,
-        );
-        if (cached) return Promise.resolve(cached);
-    }
+    const cached = getCachedRevisionDefinition(gameId, revisionId, sessionId);
+    if (cached) return Promise.resolve(cached);
 
-    const request = (
-        revisionId
-            ? fetchGameRevisionAPI(gameId, revisionId, sessionId)
-            : exportGameDefinitionAPI(gameId)
-    )
+    const request = fetchGameRevisionAPI(gameId, revisionId, sessionId)
         .then((definition) => {
             // A cache clear also invalidates requests that started before it.
-            if (revisionId && pendingDefinitions.get(key) === request) {
+            if (pendingDefinitions.get(key) === request) {
                 cacheRevisionDefinition(
                     gameId,
                     revisionId,

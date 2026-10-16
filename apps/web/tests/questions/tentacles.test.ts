@@ -60,8 +60,8 @@ function boundary(
     ]);
 }
 
-// Build the inner TentacleQuestion data object for a scenario, custom-location
-// type so Overpass is not touched.
+// Build the inner TentacleQuestion data object for a scenario, with player-drawn
+// (custom) locations.
 function customTentacleQuestion(s: TentacleScenario) {
     const answerPoi = s.places.find((p) => p.properties?.name === s.answerName);
     return {

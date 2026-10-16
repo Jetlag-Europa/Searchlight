@@ -125,7 +125,7 @@ export async function requestGeometry(
     });
 }
 export async function filterZoneIndexes(
-    circles: Feature<Polygon>[],
+    circles: Feature<Polygon | MultiPolygon>[],
     regions: FeatureCollection<Polygon | MultiPolygon>[],
 ): Promise<number[]> {
     if (typeof Worker === "undefined") {

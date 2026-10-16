@@ -9,7 +9,6 @@ import type {
 import * as L from "leaflet";
 import _ from "lodash";
 import { SidebarCloseIcon } from "lucide-react";
-import osmtogeojson from "osmtogeojson";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
@@ -21,60 +20,38 @@ import {
     SidebarMenu,
     SidebarMenuItem,
 } from "@/components/ui/sidebar-r";
+import { compiledGameAtom } from "@/game-definition/store";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
     acquireScopedLoading,
     animateMapMovements,
     autoZoom,
-    customStations as customStationsAtom,
     disabledStations,
     displayHidingZones,
-    displayHidingZonesOptions,
     displayHidingZonesStyle,
     gameDefinitionReady,
-    hidingRadius,
-    hidingRadiusUnits,
     hidingZoneFocusedStationID,
-    includeDefaultStations as includeDefaultStationsAtom,
     isLoading,
     leafletMapContext,
-    mergeDuplicates as mergeDuplicatesAtom,
     perQuestionMapData,
     questionFinishedMapData,
     setScopedLoading,
     showZoneNames,
-    tierRadiusOverrides,
     trainStations,
-    useCustomStations as useCustomStationsAtom,
 } from "@/lib/context";
-import {
-    activateGameStations,
-    currentGameId,
-    gamesAtom,
-    getGameByKey,
-    getGameKeys,
-    zoneLabelMinZoom,
-} from "@/lib/games";
+import { currentGameId, gamesAtom, zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
-import {
-    findPlacesInZone,
-    normalizeToStationFeatures,
-    parseCustomStationsFromText,
-    type StationCircle,
-    type StationPlace,
-} from "@/maps/api";
+import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
     extractStationName,
+    hidingZoneCircles,
     lngLatToText,
-    mergeDuplicateStation,
     safeUnion,
 } from "@/maps/geo-utils";
 import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
-import type { Units } from "@/maps/schema";
 
-import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import {
     Command,
@@ -84,16 +61,9 @@ import {
     CommandItem,
     CommandList,
 } from "./ui/command";
-import { Input } from "./ui/input";
 import { Label } from "./ui/label";
-import { MultiSelect } from "./ui/multi-select";
 import { ScrollToTop } from "./ui/scroll-to-top";
 import { MENU_ITEM_CLASSNAME } from "./ui/sidebar-l";
-import { UnitSelect } from "./UnitSelect";
-
-function _previewText(count: number) {
-    return `${count} custom station${count === 1 ? "" : "s"} imported`;
-}
 
 let buttonJustClicked = false;
 
@@ -101,21 +71,14 @@ export const ZoneSidebar = () => {
     const $displayHidingZones = useStore(displayHidingZones);
     const $questionFinishedMapData = useStore(questionFinishedMapData);
     const $perQuestionMapData = useStore(perQuestionMapData);
-    const $displayHidingZonesOptions = useStore(displayHidingZonesOptions);
     const $displayHidingZonesStyle = useStore(displayHidingZonesStyle);
-    const $hidingRadius = useStore(hidingRadius);
-    const $hidingRadiusUnits = useStore(hidingRadiusUnits);
     const $isLoading = useStore(isLoading);
     const map = useStore(leafletMapContext);
     const stations = useStore(trainStations);
     const $disabledStations = useStore(disabledStations);
-    const useCustomStations = useStore(useCustomStationsAtom);
-    const mergeDuplicates = useStore(mergeDuplicatesAtom);
-    const includeDefaultStations = useStore(includeDefaultStationsAtom);
-    const $customStations = useStore(customStationsAtom);
+    const $compiledGame = useStore(compiledGameAtom);
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
-    const $tierRadiusOverrides = useStore(tierRadiusOverrides);
     const $showZoneNames = useStore(showZoneNames);
     const $games = useStore(gamesAtom);
     const $currentGameId = useStore(currentGameId);
@@ -126,31 +89,20 @@ export const ZoneSidebar = () => {
     const sidebarRef = useRef<HTMLDivElement>(null);
     const zoneRefreshQueue = useMemo(() => createLatestTask(), []);
     const selectionTaskQueue = useMemo(() => createLatestTask(), []);
-    const importSeqRef = useRef(0);
-    const [importUrl, setImportUrl] = useState("");
 
-    // Track which games are currently selected. Newly added ones
-    // trigger the matching game definition to load; if all games go
-    // away, drop out of custom-stations mode.
-    const prevGameKeys = useRef<Set<string>>(new Set());
-    useEffect(() => {
-        const gameKeys = getGameKeys();
-        const current = new Set(
-            $displayHidingZonesOptions.filter((o) => gameKeys.has(o)),
+    // The game's hiding radius, for reference: zones take theirs from the game.
+    const radiusLabel = useMemo(() => {
+        const zones = ($compiledGame?.hidingZones.stations ?? []).filter(
+            (zone) => !zone.area,
         );
-        const prev = prevGameKeys.current;
-        prevGameKeys.current = current;
-
-        for (const key of current) {
-            if (!prev.has(key)) {
-                const game = getGameByKey(key);
-                if (game) activateGameStations(game);
-            }
-        }
-        if (prev.size > 0 && current.size === 0) {
-            useCustomStationsAtom.set(false);
-        }
-    }, [$displayHidingZonesOptions, $games]);
+        if (!$compiledGame || zones.length === 0) return null;
+        const { value, unit } = $compiledGame.hidingZones.baseRadius;
+        const varies = zones.some(
+            (zone) =>
+                zone.radius?.value !== value || zone.radius?.unit !== unit,
+        );
+        return `${value} ${unit}${varies ? " (varies by zone)" : ""}`;
+    }, [$compiledGame]);
 
     // Hide zone name labels when zoomed out too far to avoid overlap
     const activeGame = $games.find((g) => g.id === $currentGameId);
@@ -265,126 +217,13 @@ export const ZoneSidebar = () => {
         if (!map) return;
 
         const initializeHidingZones = async (isCurrent: () => boolean) => {
-            // Zones come from the game. switchToGame publishes the game's key
-            // before its definition (and bundled stations) arrives, and the
-            // definition may fail to load: until it has been applied, don't
-            // flag the selection as a user error or query Overpass.
+            // Zones come from the game. Until its definition has been
+            // applied (it may also fail to load), there are none to show.
             // applyGameDefinition flips gameDefinitionReady and re-runs this
-            // effect with the real stations.
-            if (!$gameDefinitionReady) return;
+            // effect with the game's zones.
+            if (!$gameDefinitionReady || !$compiledGame) return;
 
-            const needsDefault = !useCustomStations || includeDefaultStations;
-            // Strip every game key before any Overpass call — they're
-            // app-internal markers, not OSM tag selectors.
-            const overpassOptions = $displayHidingZonesOptions.filter(
-                (o) => !getGameKeys().has(o),
-            );
-            if (needsDefault && overpassOptions.length === 0) {
-                toast.error("At least one place type must be selected");
-                return;
-            }
-
-            let places: StationPlace[] = [];
-
-            if (!needsDefault) {
-                // Custom only
-                places = normalizeToStationFeatures(
-                    $customStations,
-                ).features.map((f) => {
-                    const coords =
-                        f.geometry &&
-                        "coordinates" in f.geometry &&
-                        Array.isArray(f.geometry.coordinates)
-                            ? f.geometry.coordinates
-                            : [0, 0];
-                    return {
-                        type: "Feature" as const,
-                        geometry: f.geometry,
-                        properties: {
-                            id: f.properties?.id || `${coords[1]},${coords[0]}`,
-                            name: f.properties?.name,
-                            ...(f.properties?.tier
-                                ? { tier: f.properties.tier }
-                                : {}),
-                            ...(f.properties?.radius !== undefined
-                                ? { radius: f.properties.radius }
-                                : {}),
-                            ...(f.properties?.unit
-                                ? { unit: f.properties.unit }
-                                : {}),
-                        },
-                    };
-                });
-            } else {
-                // Fetch default, optionally merge custom
-                // @ts-expect-error osmtogeojson always defines properties with an "id" string
-                places = osmtogeojson(
-                    await findPlacesInZone(
-                        overpassOptions[0],
-                        "Finding stations. This may take a while. Do not press any buttons while this is processing. Don't worry, it will be cached.",
-                        "nwr",
-                        "center",
-                        overpassOptions.slice(1),
-                    ),
-                ).features;
-
-                if (
-                    useCustomStations &&
-                    $customStations.length > 0 &&
-                    includeDefaultStations
-                ) {
-                    const customFeatures = normalizeToStationFeatures(
-                        $customStations,
-                    ).features.map(
-                        (f) =>
-                            ({
-                                type: "Feature",
-                                geometry: f.geometry,
-                                properties: {
-                                    id:
-                                        f.properties?.id ||
-                                        `${f.geometry.coordinates[1]},${f.geometry.coordinates[0]}`,
-                                    name: f.properties?.name,
-                                    ...(f.properties?.tier
-                                        ? { tier: f.properties.tier }
-                                        : {}),
-                                    ...(f.properties?.radius !== undefined
-                                        ? { radius: f.properties.radius }
-                                        : {}),
-                                    ...(f.properties?.unit
-                                        ? { unit: f.properties.unit }
-                                        : {}),
-                                },
-                            }) as StationPlace,
-                    );
-                    const seen = new Set<string>();
-                    const merged: StationPlace[] = [];
-                    const add = (feat: StationPlace) => {
-                        const id = feat.properties.id as string | undefined;
-                        const key =
-                            id && id.includes("/")
-                                ? `id:${id}`
-                                : `pt:${feat.geometry.coordinates[1]},${feat.geometry.coordinates[0]}`;
-                        if (!seen.has(key)) {
-                            seen.add(key);
-                            merged.push(feat);
-                        }
-                    };
-                    places.forEach(add);
-                    customFeatures.forEach(add);
-                    places = merged;
-                }
-            }
-            if (!isCurrent()) return;
-
-            // merge duplicate stations if selected
-            if (mergeDuplicates) {
-                places = mergeDuplicateStation(
-                    places,
-                    $hidingRadius,
-                    $hidingRadiusUnits,
-                );
-            }
+            const allCircles = hidingZoneCircles($compiledGame);
 
             // Dodge-aware survival: a hider may move within their zone, so a zone
             // is valid as long as it overlaps EACH question's still-possible region
@@ -394,59 +233,6 @@ export const ZoneSidebar = () => {
             //
             // Each region is unioned to a single feature for booleanIntersects. A
             // null region means that question eliminates everywhere → drop all.
-            const allCircles: StationCircle[] = places.map((place) => {
-                const placeProps: Record<string, unknown> =
-                    place.properties ?? {};
-                // tierOverrides keys are strings; match compile.ts, which
-                // reads a numeric tier (1) as "1".
-                const tier =
-                    typeof placeProps.tier === "string" ||
-                    typeof placeProps.tier === "number"
-                        ? String(placeProps.tier)
-                        : undefined;
-                const radiusSetting = placeProps.radius;
-                const radiusObject =
-                    radiusSetting !== null && typeof radiusSetting === "object"
-                        ? radiusSetting
-                        : undefined;
-                const explicitRadius =
-                    typeof radiusSetting === "number"
-                        ? radiusSetting
-                        : radiusObject &&
-                            "value" in radiusObject &&
-                            typeof radiusObject.value === "number"
-                          ? radiusObject.value
-                          : undefined;
-                const radius =
-                    explicitRadius !== undefined
-                        ? explicitRadius
-                        : tier && $tierRadiusOverrides[tier] !== undefined
-                          ? $tierRadiusOverrides[tier]
-                          : $hidingRadius;
-                const rawUnit =
-                    typeof placeProps.unit === "string"
-                        ? placeProps.unit
-                        : radiusObject &&
-                            "unit" in radiusObject &&
-                            typeof radiusObject.unit === "string"
-                          ? radiusObject.unit
-                          : undefined;
-                const unit: Units =
-                    rawUnit === "miles" ||
-                    rawUnit === "kilometers" ||
-                    rawUnit === "meters"
-                        ? rawUnit
-                        : $hidingRadiusUnits;
-                const center = turf.getCoord(place);
-                const circle = turf.circle(center, radius, {
-                    steps: 32,
-                    units: unit,
-                    properties: place,
-                });
-
-                return circle;
-            });
-
             // Extract per-question regions for dodge-aware EACH region overlap
             const questionRegions: FeatureCollection<Polygon | MultiPolygon>[] =
                 $perQuestionMapData
@@ -500,18 +286,11 @@ export const ZoneSidebar = () => {
         return () => zoneRefreshQueue.cancel();
     }, [
         map,
-        $hidingRadiusUnits,
         $questionFinishedMapData,
         $perQuestionMapData,
         $displayHidingZones,
-        $displayHidingZonesOptions,
-        $hidingRadius,
-        $tierRadiusOverrides,
-        useCustomStations,
-        includeDefaultStations,
-        $customStations,
+        $compiledGame,
         $gameDefinitionReady,
-        mergeDuplicates,
     ]);
 
     useEffect(() => {
@@ -623,356 +402,21 @@ export const ZoneSidebar = () => {
                                 Warning: This feature can drastically slow down
                                 your device.
                             </SidebarMenuItem>
-                            <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
-                                <div className="flex flex-row items-center justify-between w-full">
-                                    <Label className="font-semibold font-poppins">
-                                        Use custom station list?
-                                    </Label>
-                                    <Checkbox
-                                        checked={useCustomStations}
-                                        onCheckedChange={(v) =>
-                                            useCustomStationsAtom.set(!!v)
-                                        }
-                                        disabled={$isLoading}
-                                    />
-                                </div>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
-                                <div className="flex flex-row items-center justify-between w-full">
-                                    <Label className="font-semibold font-poppins">
-                                        Merge duplicated stations?
-                                    </Label>
-                                    <Checkbox
-                                        checked={mergeDuplicates}
-                                        onCheckedChange={(v) =>
-                                            mergeDuplicatesAtom.set(!!v)
-                                        }
-                                        disabled={$isLoading}
-                                    />
-                                </div>
-                            </SidebarMenuItem>
-                            {useCustomStations && (
-                                <>
-                                    <SidebarMenuItem
-                                        className={MENU_ITEM_CLASSNAME}
-                                    >
-                                        <div className="flex flex-col gap-2 w-full">
-                                            <Label className="font-semibold font-poppins leading-5">
-                                                Import stations from URL (CSV,
-                                                GeoJSON, KML). This must be a
-                                                raw file link.
-                                            </Label>
-                                            <div className="flex gap-2">
-                                                <Input
-                                                    placeholder="https://..."
-                                                    value={importUrl}
-                                                    onChange={(e) =>
-                                                        setImportUrl(
-                                                            e.target.value,
-                                                        )
-                                                    }
-                                                    disabled={$isLoading}
-                                                />
-                                                <button
-                                                    className="bg-blue-600 text-white px-3 rounded-md"
-                                                    disabled={$isLoading}
-                                                    onClick={async () => {
-                                                        if (!importUrl) return;
-                                                        const currentSeq =
-                                                            ++importSeqRef.current;
-                                                        setScopedLoading(
-                                                            "zone:importUrl",
-                                                            true,
-                                                        );
-                                                        try {
-                                                            const res =
-                                                                await fetch(
-                                                                    importUrl,
-                                                                );
-                                                            const contentType =
-                                                                res.headers.get(
-                                                                    "content-type",
-                                                                ) || undefined;
-                                                            const text =
-                                                                await res.text();
-                                                            if (
-                                                                importSeqRef.current !==
-                                                                currentSeq
-                                                            )
-                                                                return;
-                                                            const parsed =
-                                                                parseCustomStationsFromText(
-                                                                    text,
-                                                                    contentType ||
-                                                                        undefined,
-                                                                );
-                                                            if (
-                                                                parsed.length ===
-                                                                0
-                                                            ) {
-                                                                toast.error(
-                                                                    "No stations found in provided URL",
-                                                                );
-                                                                return;
-                                                            }
-                                                            customStationsAtom.set(
-                                                                parsed,
-                                                            );
-                                                            useCustomStationsAtom.set(
-                                                                true,
-                                                            );
-                                                            toast.success(
-                                                                `Imported ${parsed.length} stations`,
-                                                            );
-                                                            setImportUrl("");
-                                                        } catch (e: any) {
-                                                            if (
-                                                                importSeqRef.current !==
-                                                                currentSeq
-                                                            )
-                                                                return;
-                                                            toast.error(
-                                                                `Failed to import from URL: ${e.message || e}`,
-                                                            );
-                                                        } finally {
-                                                            setScopedLoading(
-                                                                "zone:importUrl",
-                                                                false,
-                                                            );
-                                                        }
-                                                    }}
-                                                >
-                                                    Import
-                                                </button>
-                                            </div>
-                                            <div>
-                                                <Input
-                                                    type="file"
-                                                    multiple
-                                                    accept=".csv,.json,.geojson,.kml,application/json,application/vnd.google-earth.kml+xml,text/csv,application/vnd.google-apps.kml+xml,application/xml,text/xml"
-                                                    onInput={async (e) => {
-                                                        const files = (
-                                                            e.target as HTMLInputElement
-                                                        ).files;
-                                                        if (
-                                                            !files ||
-                                                            files.length === 0
-                                                        )
-                                                            return;
-                                                        try {
-                                                            const all: any[] =
-                                                                [];
-                                                            for (const file of Array.from(
-                                                                files,
-                                                            )) {
-                                                                const text =
-                                                                    await file.text();
-                                                                const parsed =
-                                                                    parseCustomStationsFromText(
-                                                                        text,
-                                                                        file.type,
-                                                                    );
-                                                                all.push(
-                                                                    ...parsed,
-                                                                );
-                                                            }
-                                                            if (
-                                                                all.length === 0
-                                                            ) {
-                                                                toast.error(
-                                                                    "No stations found in uploaded files",
-                                                                );
-                                                                return;
-                                                            }
-                                                            const byKey =
-                                                                new Map<
-                                                                    string,
-                                                                    any
-                                                                >();
-                                                            for (const s of all) {
-                                                                const key =
-                                                                    s.id &&
-                                                                    s.id.includes(
-                                                                        "/",
-                                                                    )
-                                                                        ? `id:${s.id}`
-                                                                        : `pt:${s.lat},${s.lng}`;
-                                                                if (
-                                                                    !byKey.has(
-                                                                        key,
-                                                                    )
-                                                                )
-                                                                    byKey.set(
-                                                                        key,
-                                                                        s,
-                                                                    );
-                                                            }
-                                                            const unique =
-                                                                Array.from(
-                                                                    byKey.values(),
-                                                                );
-                                                            customStationsAtom.set(
-                                                                unique,
-                                                            );
-                                                            toast.success(
-                                                                `Imported ${unique.length} stations`,
-                                                            );
-                                                        } catch (e: any) {
-                                                            toast.error(
-                                                                `Failed to import files: ${e.message || e}`,
-                                                            );
-                                                        }
-                                                    }}
-                                                />
-                                            </div>
-                                            <div className="flex flex-row items-center justify-between w-full">
-                                                <Label className="font-semibold font-poppins">
-                                                    Include default stations
-                                                    with custom list?
-                                                </Label>
-                                                <Checkbox
-                                                    checked={
-                                                        includeDefaultStations
-                                                    }
-                                                    onCheckedChange={(v) =>
-                                                        includeDefaultStationsAtom.set(
-                                                            !!v,
-                                                        )
-                                                    }
-                                                    disabled={$isLoading}
-                                                />
-                                            </div>
-                                            {$customStations.length > 0 && (
-                                                <div className="text-sm text-gray-300">
-                                                    {_previewText(
-                                                        $customStations.length,
-                                                    )}
-                                                </div>
-                                            )}
-                                            {$customStations.length > 0 && (
-                                                <div className="flex gap-2">
-                                                    <Button
-                                                        className="w-full"
-                                                        onClick={() =>
-                                                            customStationsAtom.set(
-                                                                [],
-                                                            )
-                                                        }
-                                                    >
-                                                        Clear Imported
-                                                    </Button>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </SidebarMenuItem>
-                                </>
-                            )}
-                            <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
-                                <MultiSelect
-                                    options={[
-                                        ...$games.map((g) => ({
-                                            label: g.label,
-                                            value: g.gameKey,
-                                        })),
-                                        {
-                                            label: "Railway Stations",
-                                            value: "[railway=station]",
-                                        },
-                                        {
-                                            label: "Railway Halts",
-                                            value: "[railway=halt]",
-                                        },
-                                        {
-                                            label: "Railway Stops",
-                                            value: "[railway=stop]",
-                                        },
-                                        {
-                                            label: "Tram Stops",
-                                            value: "[railway=tram_stop]",
-                                        },
-                                        {
-                                            label: "Bus Stops",
-                                            value: "[highway=bus_stop]",
-                                        },
-                                        {
-                                            label: "Ferry Terminals",
-                                            value: "[amenity=ferry_terminal]",
-                                        },
-                                        {
-                                            label: "Ferry Platforms (public transport)",
-                                            value: "[public_transport=platform][platform=ferry]",
-                                        },
-                                        {
-                                            label: "Funicular Stations",
-                                            value: "[railway=funicular]",
-                                        },
-                                        {
-                                            label: "Aerialway Stations",
-                                            value: "[aerialway=station]",
-                                        },
-                                        {
-                                            label: "Railway Stations Excluding Subways",
-                                            value: "[railway=station][subway!=yes]",
-                                        },
-                                        {
-                                            label: "Subway Stations",
-                                            value: "[railway=station][subway=yes]",
-                                        },
-                                        {
-                                            label: "Light Rail Stations",
-                                            value: "[railway=station][light_rail=yes]",
-                                        },
-                                        {
-                                            label: "Light Rail Halts",
-                                            value: "[railway=halt][light_rail=yes]",
-                                        },
-                                    ]}
-                                    onValueChange={
-                                        displayHidingZonesOptions.set
-                                    }
-                                    defaultValue={$displayHidingZonesOptions}
-                                    placeholder="Select allowed places"
-                                    animation={2}
-                                    maxCount={3}
-                                    modalPopover
-                                    className="!bg-popover bg-opacity-100"
-                                    disabled={
-                                        $isLoading ||
-                                        (useCustomStations &&
-                                            !includeDefaultStations)
-                                    }
-                                />
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <Label className="font-semibold font-poppins ml-2">
-                                    Hiding Zone Radius
-                                </Label>
-                                <div
+                            {radiusLabel && (
+                                <SidebarMenuItem
                                     className={cn(
                                         MENU_ITEM_CLASSNAME,
-                                        "gap-2 flex flex-row",
+                                        "justify-between",
                                     )}
                                 >
-                                    <Input
-                                        type="number"
-                                        className="rounded-md p-2 w-16"
-                                        value={$hidingRadius}
-                                        onChange={(e) => {
-                                            hidingRadius.set(
-                                                parseFloat(e.target.value),
-                                            );
-                                        }}
-                                        disabled={$isLoading}
-                                    />
-                                    <UnitSelect
-                                        unit={$hidingRadiusUnits}
-                                        disabled={$isLoading}
-                                        onChange={(unit) => {
-                                            hidingRadiusUnits.set(unit);
-                                        }}
-                                    />
-                                </div>
-                            </SidebarMenuItem>
+                                    <Label className="font-semibold font-poppins">
+                                        Hiding Zone Radius
+                                    </Label>
+                                    <div className="text-right">
+                                        {radiusLabel}
+                                    </div>
+                                </SidebarMenuItem>
+                            )}
                             {$displayHidingZones && stations.length > 0 && (
                                 <SidebarMenuItem
                                     className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
@@ -1043,16 +487,13 @@ export const ZoneSidebar = () => {
                                         const displayName = extractStationLabel(
                                             selected?.properties,
                                         );
-                                        const id = selected?.properties
-                                            .properties.id as string;
                                         const coords = selected?.properties
                                             .geometry.coordinates as [
                                             number,
                                             number,
                                         ];
-                                        const href = id?.includes("/")
-                                            ? `https://www.openstreetmap.org/${id}`
-                                            : `https://www.openstreetmap.org/?mlat=${coords[1]}&mlon=${coords[0]}#map=17/${coords[1]}/${coords[0]}`;
+                                        // The zone on a full map.
+                                        const href = `https://www.openstreetmap.org/?mlat=${coords[1]}&mlon=${coords[0]}#map=17/${coords[1]}/${coords[0]}`;
                                         return (
                                             <a
                                                 href={href}

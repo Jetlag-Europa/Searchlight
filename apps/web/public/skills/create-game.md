@@ -195,7 +195,7 @@ Only Searchlight admins can import into Home Games, since it has no Discord role
 "hidingZones": { "radius": 400, "unit": "meters", "tierOverrides": { "Outer": 600 }, "features": { "type": "FeatureCollection", "features": [ … ] } }
 ```
 
-- **Use Point features.** Polygon and MultiPolygon zones pass validation, but the app only draws and uses Point zones.
+- **Use Point features.** A Polygon or MultiPolygon zone also works: the app uses it as its own area, so no radius or tier applies to it, but `check-game.mjs` can't tell whether it lies inside the play area.
 - **`id`:** give every zone a unique, stable string ID (the slug of its name, with `-2`, `-3` for repeats). Without one the zone name is used as the ID, so two stops with the same name collide.
 - **`properties.name`** is the name shown to players.
 - **`properties.tier`** selects a radius from `tierOverrides`. Write tiers as strings, like the `tierOverrides` keys (a number `1` is read as `"1"`). Tier names are case-sensitive: `"outer"` does not match `"Outer"`. Zones whose tier has no override use the base radius.

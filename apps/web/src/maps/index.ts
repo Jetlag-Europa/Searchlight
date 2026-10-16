@@ -3,13 +3,7 @@ import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
-import {
-    hiderMode,
-    mapGeoJSON,
-    mapGeoLocation,
-    polyGeoJSON,
-    trainStations,
-} from "@/lib/context";
+import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 
 import { arcDistanceToPoint } from "./geo-utils";
 import {
@@ -379,9 +373,7 @@ function regionCacheFor(baseMapGeoData: unknown): Map<string, any> {
         baseMapGeoData,
         compiledGameAtom.get(),
         hiderMode.get(),
-        trainStations.get(),
         polyGeoJSON.get(),
-        mapGeoLocation.get(),
     ];
     if (
         !regionCache ||

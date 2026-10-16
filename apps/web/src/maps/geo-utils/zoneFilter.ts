@@ -9,12 +9,12 @@ import type {
 
 export type FilterZoneRequest = {
     kind: "filterZone";
-    circles: Feature<Polygon>[];
+    circles: Feature<Polygon | MultiPolygon>[];
     regions: FeatureCollection<Polygon | MultiPolygon>[];
 };
 
 export function calculateFilterZoneIndexes(
-    circles: Feature<Polygon>[],
+    circles: Feature<Polygon | MultiPolygon>[],
     regions: FeatureCollection<Polygon | MultiPolygon>[],
 ): number[] {
     if (!circles || !circles.length) return [];
