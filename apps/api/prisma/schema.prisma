@@ -333,13 +333,3 @@ model Event {
   @@index([sessionId, serverReceivedAt])
   @@unique([sessionId, sequence])
 }
-
-model BoundaryCache {
-  osmId          String
-  osmType        String   // "W", "R", or "N"
-  geojson        Json
-  fetchedAt      DateTime @default(now())
-  lastAccessedAt DateTime @default(now())
-
-  @@id([osmId, osmType])
-}

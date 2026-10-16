@@ -13,10 +13,10 @@ export COMPOSE_FILE=docker-compose.yml:docker-compose.test.yml
 export POSTGRES_PASSWORD=test
 
 if [[ "${1:-}" == "down" ]]; then
-  exec docker compose down -v
+  exec docker compose down -v --remove-orphans
 fi
 
-docker compose up -d --build --wait
+docker compose up -d --build --wait --remove-orphans
 
 # The API container has migrated, created the servers and imported the games;
 # the fixtures need tsx, so they are seeded from the host.

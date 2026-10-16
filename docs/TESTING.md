@@ -31,10 +31,9 @@ union and intersection code stays under test.
 ## End-to-end (Playwright)
 
 The e2e stack is the production images with test switches, on its own
-database: the API accepts `POST /auth/test-login` (`ENABLE_TEST_AUTH=1`), the
-web build exposes the map state as `window.__searchlight`
-(`PUBLIC_ENABLE_TEST_HOOK=1`), and Overpass is an nginx stub that returns no
-elements.
+database: the API accepts `POST /auth/test-login` (`ENABLE_TEST_AUTH=1`) and
+the web build exposes the map state as `window.__searchlight`
+(`PUBLIC_ENABLE_TEST_HOOK=1`).
 
 ```bash
 infra/deploy-test.sh                                        # build, start and seed (needs the dev .env)

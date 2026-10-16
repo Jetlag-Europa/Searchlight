@@ -17,9 +17,6 @@ export const env = {
   PORT: parseInt(process.env["PORT"] ?? "3000", 10),
   HOST: process.env["HOST"] ?? "0.0.0.0",
   ADMIN_DISCORD_IDS: process.env["ADMIN_DISCORD_IDS"] ?? "",
-  // Largest Overpass response the API reads before failing with a 502.
-  OVERPASS_MAX_RESPONSE_BYTES:
-    Number(process.env["OVERPASS_MAX_RESPONSE_BYTES"]) || 50 * 1024 * 1024,
   // Test-only: when "1", enables POST /auth/test-login (mints a session cookie
   // for a seeded user, skipping Discord) for Playwright e2e. NEVER set in prod.
   ENABLE_TEST_AUTH: process.env["ENABLE_TEST_AUTH"] === "1",

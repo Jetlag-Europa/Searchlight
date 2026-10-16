@@ -1,7 +1,6 @@
 # Overlay: the isolated e2e test stack (project `searchlight-test`), brought up
 # and seeded by infra/deploy-test.sh. The API allows test logins
-# (ENABLE_TEST_AUTH), the web build exposes window.__searchlight, and Overpass
-# is stubbed so free-play questions are offline and deterministic.
+# (ENABLE_TEST_AUTH) and the web build exposes window.__searchlight.
 #
 # Ports, all on 127.0.0.1: web 8280, api 3200, postgres 5435. Use 127.0.0.1,
 # not localhost: Chromium resolves localhost to ::1, where nothing listens.
@@ -17,7 +16,6 @@ services:
       ENABLE_TEST_AUTH: "1"
       FRONTEND_ORIGIN: http://127.0.0.1:8280
       DISCORD_REDIRECT_URI: http://127.0.0.1:3200/auth/discord/callback
-      OVERPASS_URL: http://overpass-stub/api/interpreter
     ports:
       - "127.0.0.1:3200:3000"
 
@@ -29,11 +27,3 @@ services:
         PUBLIC_ENABLE_TEST_HOOK: "1"
     ports:
       - "127.0.0.1:8280:80"
-
-  overpass-stub:
-    image: nginx:alpine
-    restart: unless-stopped
-    volumes:
-      - ./infra/overpass-stub.conf:/etc/nginx/conf.d/default.conf:ro
-    networks:
-      - internal
