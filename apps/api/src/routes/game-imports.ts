@@ -121,7 +121,7 @@ async function assertGameDefinitionAccess({
   session,
 }: {
   req: FastifyRequest;
-  game: { id: string; serverId: string };
+  game: { id: string; serverId: string; unlisted: boolean };
   // The requested revision and the game's current one; each one's role gate applies.
   revisionIds: (string | null | undefined)[];
   // Only for routes serving a single revision: participants of a session pinned
@@ -215,14 +215,18 @@ export async function gameImportRoutes(app: FastifyInstance) {
           dryRun: Type.Optional(Type.Boolean()),
           allowUpdate: Type.Optional(Type.Boolean()),
           expectedServerId: Type.Optional(Type.String()),
+          // Only applies when the import creates the game; PATCH /games/:id
+          // changes it later.
+          unlisted: Type.Optional(Type.Boolean()),
         }),
       },
     },
     async (req, reply) => {
-      const { dryRun = false, allowUpdate = false, expectedServerId } = req.query as {
+      const { dryRun = false, allowUpdate = false, expectedServerId, unlisted = false } = req.query as {
         dryRun?: boolean;
         allowUpdate?: boolean;
         expectedServerId?: string;
+        unlisted?: boolean;
       };
       const body = req.body as Record<string, unknown> | null | undefined;
       const shouldAllowUpdate = allowUpdate || Boolean(body?.allowUpdate);
@@ -236,6 +240,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
           dryRun,
           expectedServerId,
           allowUpdate: shouldAllowUpdate,
+          unlisted,
         });
 
         const status = result.status === "created" ? 201 : 200;

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  "$schema": "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   "id": "north-london-2026",
   "name": "North London 26-09",
   "serverId": "1059625399979606166",

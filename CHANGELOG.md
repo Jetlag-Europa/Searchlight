@@ -1,6 +1,6 @@
 # Changelog
 
-## Session invites and share copies (2026-10-16)
+## Session invites and share copies (2026-10-17)
 
 - The new-session form no longer asks for Private or Shared. The choice changed nothing: every session starts with only its creator, and it becomes shared when the creator invites someone. `POST /sessions` now treats `visibility` as optional, defaulting to `private`.
 - `POST /sessions/:id/invites` makes the session shared when it sends an invite to join, as creating a join link already did, and accepting one does too, for invites sent before this change. The web app no longer PATCHes visibility first. That PATCH replaced the active session with a response that lacked its revision fields, which could load the wrong game revision and hid the revision banner. `PATCH /sessions/:id` now returns those fields too.
@@ -10,6 +10,15 @@
 - Accepting a copy sent to you makes you a participant of the new session, as redeeming a share link already did, so you appear in its participant list.
 - A creator opening their own invite link is taken to the session instead of getting an error.
 - Kicking someone who isn't in the session answers 404 instead of 500.
+
+## Unlisted games and game links (2026-10-17)
+
+- A game can be unlisted: it is no longer offered when creating a session, and sessions of it start only from a game link, for everyone including game managers and admins (`POST /sessions` refuses it). `/games` still lists it for the server's game managers (`games.create`, `games.edit`, `games.delete` or `server.admin`; `GET /games?includeUnlisted=true`), who alone may still read its definitions. New games can be imported unlisted (the import dialog's **Unlisted** box, or `POST /games/import?unlisted=true`); game managers can change it on `/games` with **Make unlisted**/**Make listed** (`PATCH /games/:gameId`). Updating a game by import keeps its listing.
+- Game links start sessions of one game, listed or unlisted: `/play?token=…` asks for a session name and opens the new session on the map. Whoever holds a link can use it without server membership or the game's role gate. Links don't expire and don't change when the game is listed or unlisted; they end only when revoked. Game managers create, copy and revoke them on `/games` → **Links** (`GET`/`POST /games/:gameId/links`, `DELETE /games/:gameId/links/:linkId`). Sessions started from a link keep working after it is revoked, and can be upgraded to newer revisions while it is active.
+- When the server's game catalog can't be read, a session's game is labelled with its game name, not the session name.
+- The session picker has a cog that opens `/games` for users with `games.create`, `games.edit` or `games.delete` on any server.
+- The session picker still lists sessions on servers whose game catalog the user can't read, instead of failing to load them.
+- The `20261017000000_unlisted_games_and_game_links` migration adds `Game.unlisted`, the `GameLink` table and `GameSession.gameLinkId`.
 
 ## Overpass proxy limits (2026-10-16)
 

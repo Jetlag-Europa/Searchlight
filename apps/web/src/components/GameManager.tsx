@@ -3,20 +3,54 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import { GameLinksDialog } from "./GameLinksDialog";
 import { ImportGameDialog } from "./ImportGameDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+// Unlike the session picker's catalog, this page lists unlisted games too.
+const gamesUrl = (serverId: string) =>
+    `${API_BASE}/games?serverId=${encodeURIComponent(serverId)}&includeUnlisted=true`;
 
 function GameCard({
     game,
     permissions,
     onDeleted,
+    onUpdated,
 }: {
     game: Game;
     permissions: string[];
     onDeleted: (id: string) => void;
+    onUpdated: (game: Game) => void;
 }) {
     const [error, setError] = useState<string | null>(null);
+    const [savingListing, setSavingListing] = useState(false);
     const canDelete = permissions.includes("games.delete");
+    // Any game permission manages listing and links, as on the API.
+    const canManage = ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
+        permissions.includes(p),
+    );
+
+    const handleToggleListed = async () => {
+        setError(null);
+        setSavingListing(true);
+        try {
+            const res = await fetch(`${API_BASE}/games/${game.id}`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ unlisted: !game.unlisted }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({})) as { message?: string };
+                throw new Error(data.message ?? `${res.status}`);
+            }
+            onUpdated(await res.json());
+        } catch (e: unknown) {
+            setError((e as Error).message);
+        } finally {
+            setSavingListing(false);
+        }
+    };
     const handleDelete = async () => {
         if (!confirm(`Delete game "${game.name}"? This cannot be undone.`)) return;
         setError(null);
@@ -38,13 +72,39 @@ function GameCard({
     return (
         <div className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
-                <p className="text-sm font-medium">{game.name}</p>
+                <p className="text-sm font-medium flex items-center gap-2">
+                    {game.name}
+                    {game.unlisted && (
+                        <span
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                            title="Not offered when creating a session; sessions start from a game link, also for game managers"
+                        >
+                            Unlisted
+                        </span>
+                    )}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                     ID: {game.gameKey}
                 </p>
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                {canManage && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={savingListing}
+                        onClick={handleToggleListed}
+                        title={
+                            game.unlisted
+                                ? "Show this game to everyone who can play it"
+                                : "Stop offering this game when creating a session; sessions then start from game links"
+                        }
+                    >
+                        {game.unlisted ? "Make listed" : "Make unlisted"}
+                    </Button>
+                )}
+                {canManage && <GameLinksDialog game={game} />}
                 <Button
                     size="sm"
                     variant="outline"
@@ -91,7 +151,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`${API_BASE}/games?serverId=${server.id}`, { credentials: "include" })
+        fetch(gamesUrl(server.id), { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) { setGames([]); return; }
                 const data: GamesResponse = await res.json();
@@ -121,6 +181,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                             game={g}
                             permissions={server.permissions}
                             onDeleted={(id) => setGames((prev) => (prev ?? []).filter((x) => x.id !== id))}
+                            onUpdated={(game) => setGames((prev) => (prev ?? []).map((x) => (x.id === game.id ? game : x)))}
                         />
                     ))}
                 </div>
@@ -131,7 +192,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                     <ImportGameDialog
                         serverId={server.id}
                         onImported={() => {
-                            fetch(`${API_BASE}/games?serverId=${encodeURIComponent(server.id)}`, { credentials: "include" })
+                            fetch(gamesUrl(server.id), { credentials: "include" })
                                 .then((r) => (r.ok ? r.json() : null))
                                 .then((data: GamesResponse | null) => {
                                     if (data) setGames(data.games);

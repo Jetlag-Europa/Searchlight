@@ -9,8 +9,8 @@ A Searchlight game is one self-contained JSON file. **The file is the whole game
 
 Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/public/skills/create-game/` and online at:
 
-- `https://sl-dev.jl-e.org/skills/create-game/game-tools.mjs`: reads KML, GeoJSON and CSV, normalizes geometry, fetches OSM POIs and assembles layers (section 6).
-- `https://sl-dev.jl-e.org/skills/create-game/check-game.mjs`: checks a finished file, mirroring the server's validator and adding the play-quality checks it doesn't do. It also lists the questions the game will offer (section 7).
+- `https://searchlight.jetlageuropa.org/skills/create-game/game-tools.mjs`: reads KML, GeoJSON and CSV, normalizes geometry, fetches OSM POIs and assembles layers (section 6).
+- `https://searchlight.jetlageuropa.org/skills/create-game/check-game.mjs`: checks a finished file, mirroring the server's validator and adding the play-quality checks it doesn't do. It also lists the questions the game will offer (section 7).
 
 ## 1. Workflow
 
@@ -91,7 +91,7 @@ Transit line, station name length, street/path, photo questions and curses have 
 
 ```json
 {
-  "$schema": "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  "$schema": "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   "id": "paris-2026",
   "name": "Paris 15-08",
   "serverId": "1190673594649415730",
@@ -160,7 +160,7 @@ The import rejects unknown properties, both at the root and in each layer. Posit
 
 | Field | Required | Default | What it does |
 |---|---|---|---|
-| `$schema` | no | | `https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json` gives editors validation. |
+| `$schema` | no | | `https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json` gives editors validation. |
 | `id` | no | slug of `name` | The game's permanent key: lowercase letters and digits, separated by single hyphens. Importing a file with the same `id` updates that game. Use `<city>-<year>`, or `<city>-<yyyy-mm-dd>` when a city hosts several games. Don't change it after the first import. |
 | `revision` | no | | Leave it out. The server numbers revisions itself. |
 | `name` | yes | | Shown in the game picker, at most 120 characters. Convention: `"City DD-MM"`, e.g. `"Paris 15-08"`. |
@@ -309,7 +309,7 @@ const margin = [bounds[0] - 0.05, bounds[1] - 0.05, bounds[2] + 0.05, bounds[3] 
 const museums = gt.withIds(gt.dedupePoints(gt.normalize(await gt.overpassPoints(gt.OSM_TAGS.museum, margin))));
 
 const game = {
-  $schema: "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  $schema: "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   id: "testville-2026",
   name: "Testville 12-10",
   serverId: "home-games",
@@ -351,8 +351,9 @@ The checker ends with the question list and labels, which is what players will s
 ## 8. Import, update, export
 
 - **Web:** on `/games`, click **+ Import Game JSON** and pick the file. The dialog previews it with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
+- **Unlisted:** a new game can be imported unlisted (the dialog's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
-  - Add `?dryRun=true` to validate only, and `&allowUpdate=true` to replace an existing game with the same `id`.
+  - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id`, and `&unlisted=true` to create the game unlisted.
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.
 - **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them, `/games` shows no import button for that server.
   - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission or a server change; `409` if the game exists and `allowUpdate` isn't set.
