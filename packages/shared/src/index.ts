@@ -237,37 +237,6 @@ export interface RedeemLinkResponse {
   linkType: "join" | "fork";
 }
 
-// ── Feedback ──────────────────────────────────────────────────────────────────
-
-export interface FeedbackItem {
-  id: string;
-  type: "bug" | "feature";
-  title: string;
-  description: string;
-  severity?: "low" | "medium" | "high";
-  status: "open" | "closed";
-  resolution?: "added" | "denied" | null;
-  author: {
-    discordId: string;
-    displayName: string;
-    avatarUrl: string;
-  };
-  upvoteCount: number;
-  downvoteCount: number;
-  userVote: "up" | "down" | null;
-  voters?: { discordId: string; displayName: string }[];
-  imageIds: string[];
-  createdAt: string;
-}
-
-export interface FeedbackListResponse {
-  items: FeedbackItem[];
-}
-
-export interface CreateFeedbackResponse {
-  id: string;
-}
-
 // ── User search ───────────────────────────────────────────────────────────────
 
 export interface UserSearchResult {

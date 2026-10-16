@@ -780,14 +780,14 @@ const tutorialSteps: TutorialStep[] = [
                 <strong>Need Help?</strong> This tutorial is always available
                 via the Tutorial button. Feel free to{" "}
                 <a
-                    href="https://github.com/taibeled/JetLagHideAndSeek/issues"
+                    href="https://github.com/Jetlag-Europa/Searchlight/issues/new/choose"
                     className="text-blue-500 cursor-pointer"
                     target="_blank"
                     rel="noreferrer"
                 >
-                    report issues or request features on GitHub
+                    report bugs or suggest features on GitHub
                 </a>
-                . Your feedback helps improve the tool for everyone!
+                . Your reports help improve the tool for everyone!
                 <br />
                 <br />
                 <strong>Support the Project:</strong> If this tool enhances your

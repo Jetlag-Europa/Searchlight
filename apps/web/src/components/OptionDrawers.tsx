@@ -417,13 +417,15 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                         Tutorial
                     </Button>
                     <a
-                        href="/feedback"
+                        href="https://github.com/Jetlag-Europa/Searchlight/issues/new/choose"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="w-full"
                         onClick={() => setNavOpen(false)}
                     >
-                        <Button className="w-full shadow-md">Feedback</Button>
+                        <Button className="w-full h-auto whitespace-normal py-2 leading-tight shadow-md">
+                            Report a bug / suggest a feature
+                        </Button>
                     </a>
                     <ShareDrawer
                         className="w-full shadow-md"
