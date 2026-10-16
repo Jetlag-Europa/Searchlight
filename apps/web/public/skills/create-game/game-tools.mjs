@@ -23,6 +23,24 @@ export function slug(text) {
 
 // ── Reading sources ──────────────────────────────────────────────────────────
 
+/**
+ * Download URL for a Google My Maps link (…/maps/d/edit?mid=…, …/viewer?mid=…
+ * or a bare map ID): the whole map as one KML, every layer a folder. Works
+ * without signing in when the map is shared as "anyone with the link".
+ */
+export function myMapsKmlUrl(link) {
+  const mid = /[?&]mid=([\w-]+)/.exec(link)?.[1] ?? (/^[\w-]{20,}$/.test(link) ? link : null);
+  if (!mid) throw new Error(`myMapsKmlUrl: no map ID (mid=...) in ${link}`);
+  return `https://www.google.com/maps/d/kml?mid=${mid}&forcekml=1`;
+}
+
+/** Plain-text download URL for a Google Docs link (a rules document). */
+export function googleDocTextUrl(link) {
+  const id = /\/document\/d\/([\w-]+)/.exec(link)?.[1];
+  if (!id) throw new Error(`googleDocTextUrl: no document ID (/document/d/...) in ${link}`);
+  return `https://docs.google.com/document/d/${id}/export?format=txt`;
+}
+
 /** Features of a GeoJSON file (FeatureCollection, Feature, or bare geometry). */
 export function readGeoJson(path) {
   const json = JSON.parse(readFileSync(path, "utf8"));
@@ -260,26 +278,54 @@ function requireFeatures(features, fn) {
   return features;
 }
 
+const ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/**
+ * `text` without CDATA wrappers and with XML/HTML entities decoded. KML
+ * exports often carry them inside names and ExtendedData values
+ * ("<![CDATA[Gare d'Est]]>", "Art &amp; Craft"). Runs until nothing changes,
+ * so double-escaped "&amp;amp;" decodes fully.
+ */
+export function decodeText(text) {
+  let prev;
+  let out = String(text);
+  do {
+    prev = out;
+    out = out
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+      .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) =>
+        dec ? String.fromCodePoint(Number(dec))
+          : hex ? String.fromCodePoint(parseInt(hex, 16))
+          : ENTITIES[name.toLowerCase()] ?? m);
+  } while (out !== prev);
+  return out;
+}
+
 /**
  * Schema-valid copies of `features`: 2D positions rounded to 6 decimals, rings
  * closed, degenerate parts dropped, MultiPoint split, GeometryCollections
  * merged per geometry family. Properties are reduced to the `keep` keys, which
- * also drops the bulky descriptions and styles KML and OSM exports carry. A
- * numeric-looking `radius` (KML ExtendedData values are strings, e.g. "600")
- * becomes a number, since the app ignores string radii. Features with no
- * usable geometry are dropped. Throws if `features` isn't an array.
+ * also drops the bulky descriptions and styles KML and OSM exports carry.
+ * String values are trimmed and decoded (decodeText). A numeric-looking
+ * `radius` (KML ExtendedData values are strings, e.g. "600") becomes a number,
+ * since the app ignores string radii. Features with no usable geometry are
+ * dropped. Throws if `features` isn't an array.
+ *
+ * `name` names the property to read the name from when the placemark name is
+ * a placeholder ("Polygon 82") and the real one sits in ExtendedData, e.g.
+ * `{ name: "WD26NM" }`. A feature without that property keeps its own name.
  *
  * A GeometryCollection mixing families (a KML placemark with both a pin and
  * a shape) comes out as one feature per family, so filter the result by
  * `f.geometry.type` before putting it in a layer: a layer holds one family.
  */
-export function normalize(features, { keep = ["name"] } = {}) {
+export function normalize(features, { keep = ["name"], name: nameKey = "name" } = {}) {
   const out = [];
   for (const f of requireFeatures(features, "normalize")) {
     const properties = {};
     for (const key of keep) {
-      let value = f.properties?.[key];
-      if (typeof value === "string") value = value.trim();
+      let value = key === "name" ? (f.properties?.[nameKey] || f.properties?.name) : f.properties?.[key];
+      if (typeof value === "string") value = decodeText(value).trim();
       if (key === "radius" && typeof value === "string" && value !== "" && Number.isFinite(Number(value))) {
         value = Number(value);
       }
@@ -302,6 +348,70 @@ export function dedupePoints(features) {
     seen.add(key);
     return true;
   });
+}
+
+/**
+ * Merges lines or regions that share properties.name into one MultiLineString
+ * or MultiPolygon feature each, in first-seen order. Matching treats every
+ * feature as its own line or region, so a postcode drawn as five polygons or
+ * a river drawn in segments must become one feature. Points are returned as
+ * they are. Run it on normalized features of one geometry family.
+ */
+export function mergeByName(features) {
+  const groups = new Map(); // family:name -> { feature, parts }
+  const out = []; // features and groups, in input order
+  for (const f of requireFeatures(features, "mergeByName")) {
+    const name = f.properties?.name;
+    if (f.geometry.type === "Point" || !name) {
+      out.push({ feature: f });
+      continue;
+    }
+    const parts = f.geometry.type.startsWith("Multi") ? f.geometry.coordinates : [f.geometry.coordinates];
+    const key = `${family(f)}:${name}`;
+    if (groups.has(key)) groups.get(key).parts.push(...parts);
+    else {
+      const group = { feature: f, parts: [...parts] };
+      groups.set(key, group);
+      out.push(group);
+    }
+  }
+  return out.map(({ feature, parts }) => parts
+    ? { ...feature, geometry: (family(feature) === "lines" ? lines : polygons)(parts)[0] }
+    : feature);
+}
+
+/** Features grouped by a property value, e.g. groupBy(kml.get("POIs"), "styleUrl"). */
+export function groupBy(features, key) {
+  const groups = new Map();
+  for (const f of requireFeatures(features, "groupBy")) {
+    const value = f.properties?.[key];
+    if (!groups.has(value)) groups.set(value, []);
+    groups.get(value).push(f);
+  }
+  return groups;
+}
+
+const metersBetween = ([lng1, lat1], [lng2, lat2]) => {
+  const rad = Math.PI / 180;
+  const a = Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+    Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
+  return 2 * 6371008.8 * Math.asin(Math.sqrt(a));
+};
+
+/**
+ * Radius in meters of a circle drawn as a Polygon or closed LineString (how
+ * Google My Maps and most circle tools export hiding zones): the mean
+ * distance from the vertices' centre to the vertices, rounded to the metre.
+ * Use it to read the hiding radius off a map; take the most common value, as
+ * circles cut at the play-area edge come out smaller.
+ */
+export function circleRadius(feature) {
+  const g = feature.geometry;
+  const ring = g.type === "Polygon" ? g.coordinates[0] : g.type === "LineString" ? g.coordinates : null;
+  if (!ring || ring.length < 4) throw new Error(`circleRadius: expected a Polygon or closed LineString, got ${g.type}`);
+  const pts = ring.slice(0, -1);
+  const c = [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  return Math.round(pts.reduce((s, p) => s + metersBetween(c, p), 0) / pts.length);
 }
 
 /**

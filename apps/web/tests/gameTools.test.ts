@@ -95,4 +95,60 @@ describe("game-tools.mjs", () => {
             1,
         );
     });
+
+    it("builds download URLs from Google My Maps and Docs links", () => {
+        expect(
+            gt.myMapsKmlUrl("https://www.google.com/maps/d/edit?mid=1vZk1FFBbYBhjQ3B2Zbc0u1huoMV9E5c&usp=sharing"),
+        ).toBe("https://www.google.com/maps/d/kml?mid=1vZk1FFBbYBhjQ3B2Zbc0u1huoMV9E5c&forcekml=1");
+        expect(
+            gt.googleDocTextUrl("https://docs.google.com/document/d/1f_xLPFbmtMv4rvzUYvB5iEAN_3sGy71XM4QKiqYl13A/edit?usp=drivesdk"),
+        ).toBe("https://docs.google.com/document/d/1f_xLPFbmtMv4rvzUYvB5iEAN_3sGy71XM4QKiqYl13A/export?format=txt");
+        expect(() => gt.myMapsKmlUrl("https://example.com/map")).toThrow(/no map ID/);
+    });
+
+    it("decodes names and reads them from another property", () => {
+        expect(gt.decodeText("<![CDATA[Gare d'Est]]>")).toBe("Gare d'Est");
+        expect(gt.decodeText("Art &amp;amp; Craft &#233;")).toBe("Art & Craft é");
+        const [ward, plain] = gt.normalize(
+            [pin({ name: "Polygon 82", WD26NM: "Ridgeway &amp; Marsh Lane" }), pin({ name: "Kept" })],
+            { name: "WD26NM" },
+        );
+        expect(ward.properties).toEqual({ name: "Ridgeway & Marsh Lane" });
+        expect(plain.properties).toEqual({ name: "Kept" });
+    });
+
+    it("merges same-named regions and lines, keeping order", () => {
+        const square = (x: number) => ({
+            type: "Polygon",
+            coordinates: [[[x, 50], [x + 1, 50], [x + 1, 51], [x, 50]]],
+        });
+        const merged = gt.mergeByName([
+            pin({ name: "S60" }, square(0)),
+            pin({ name: "S1" }, square(2)),
+            pin({ name: "S60" }, square(4)),
+            pin({ name: "S60" }, { type: "LineString", coordinates: [[0, 50], [1, 50]] }),
+            pin({ name: "Stop" }),
+        ]);
+        expect(merged.map((f: any) => [f.properties.name, f.geometry.type])).toEqual([
+            ["S60", "MultiPolygon"],
+            ["S1", "Polygon"],
+            ["S60", "LineString"],
+            ["Stop", "Point"],
+        ]);
+        expect(merged[0].geometry.coordinates).toEqual([square(0).coordinates, square(4).coordinates]);
+    });
+
+    it("groups by a property and measures drawn circles", () => {
+        const groups = gt.groupBy([pin({ styleUrl: "#a" }), pin({ styleUrl: "#b" }), pin({ styleUrl: "#a" })], "styleUrl");
+        expect([...groups].map(([k, v]) => [k, v.length])).toEqual([["#a", 2], ["#b", 1]]);
+        // 250 m circle around Sheffield station, 64 segments.
+        const [lng, lat] = [-1.4625, 53.3781];
+        const ring = Array.from({ length: 65 }, (_, i) => {
+            const a = (i % 64) * (2 * Math.PI / 64);
+            return [lng + (250 * Math.sin(a)) / (111320 * Math.cos(lat * Math.PI / 180)), lat + (250 * Math.cos(a)) / 111132];
+        });
+        expect(gt.circleRadius(pin({}, { type: "Polygon", coordinates: [ring] }))).toBeCloseTo(250, -1);
+        expect(gt.circleRadius(pin({}, { type: "LineString", coordinates: ring }))).toBeCloseTo(250, -1);
+        expect(() => gt.circleRadius(pin({}))).toThrow(/expected a Polygon/);
+    });
 });

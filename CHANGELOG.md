@@ -1,5 +1,12 @@
 # Changelog
 
+## Game creation for game devs (2026-10-16)
+
+- The game creation skill (`/skills/create-game.md`) covers the usual starting point: a Discord announcement linking a rules Google Doc and a Google My Map. Section 1.1 explains how to download both, which fields come from where, and how to map the rules' feature table to question layers and kinds. It also covers common My Maps problems: mixed POI layers, placeholder names, regions drawn as several shapes and drawn zone circles. The game is copied as drawn, with nothing added, simplified or derived.
+- `game-tools.mjs` gains `myMapsKmlUrl()`, `googleDocTextUrl()`, `decodeText()`, `mergeByName()`, `groupBy()` and `circleRadius()`. `normalize()` decodes CDATA and entities in kept strings and takes a `name` option to read names from another property.
+- The guide and `docs/ADDING_GAMES.md` explain who can upload: a Discord role with `games.create`/`games.edit`, granted on `/admin` → **Manage Roles**. Home Games uploads are admin-only. The radar section matches the single Add Radius button.
+- The import dialog links to the guide.
+
 ## Simpler setup and deployment (2026-10-16)
 
 - Development is `cp .env.example .env`, four Discord/session values, `pnpm install`, `pnpm dev`. `pnpm dev` starts Postgres (`docker-compose.dev.yml`), builds and watches the shared package, and runs the API (migrating and creating servers first) and the web app. The web app reads `PUBLIC_API_BASE` from the root `.env`; `apps/web/.env` is gone. The API's `prisma`, `seed` and `seed:test` scripts read the root `.env` too.

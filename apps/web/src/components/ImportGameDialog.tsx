@@ -201,6 +201,16 @@ export function ImportGameDialog({
           <DialogTitle>Import Game Definition</DialogTitle>
           <DialogDescription>
             Upload a game definition JSON file to import a new map or update an existing map.
+            No file yet? Follow the{" "}
+            <a
+              href="/skills/create-game.md"
+              target="_blank"
+              rel="noreferrer"
+              className="underline"
+            >
+              game creation guide
+            </a>
+            , or give it to an AI agent along with your rules doc and map links.
           </DialogDescription>
         </DialogHeader>
 
