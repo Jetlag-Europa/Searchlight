@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  "$schema": "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   "id": "zurich-2026",
   "name": "Zurich 2026",
   "serverId": "1458858559952523305",

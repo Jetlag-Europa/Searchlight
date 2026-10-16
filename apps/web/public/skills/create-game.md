@@ -9,8 +9,8 @@ A Searchlight game is one self-contained JSON file. **The file is the whole game
 
 Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/public/skills/create-game/` and online at:
 
-- `https://sl-dev.jl-e.org/skills/create-game/game-tools.mjs`: reads KML, GeoJSON and CSV, normalizes geometry, fetches OSM POIs and assembles layers (section 6).
-- `https://sl-dev.jl-e.org/skills/create-game/check-game.mjs`: checks a finished file, mirroring the server's validator and adding the play-quality checks it doesn't do. It also lists the questions the game will offer (section 7).
+- `https://searchlight.jetlageuropa.org/skills/create-game/game-tools.mjs`: reads KML, GeoJSON and CSV, normalizes geometry, fetches OSM POIs and assembles layers (section 6).
+- `https://searchlight.jetlageuropa.org/skills/create-game/check-game.mjs`: checks a finished file, mirroring the server's validator and adding the play-quality checks it doesn't do. It also lists the questions the game will offer (section 7).
 
 ## 1. Workflow
 
@@ -91,7 +91,7 @@ Transit line, station name length, street/path, photo questions and curses have 
 
 ```json
 {
-  "$schema": "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  "$schema": "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   "id": "paris-2026",
   "name": "Paris 15-08",
   "serverId": "1190673594649415730",
@@ -160,7 +160,7 @@ The import rejects unknown properties, both at the root and in each layer. Posit
 
 | Field | Required | Default | What it does |
 |---|---|---|---|
-| `$schema` | no | | `https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json` gives editors validation. |
+| `$schema` | no | | `https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json` gives editors validation. |
 | `id` | no | slug of `name` | The game's permanent key: lowercase letters and digits, separated by single hyphens. Importing a file with the same `id` updates that game. Use `<city>-<year>`, or `<city>-<yyyy-mm-dd>` when a city hosts several games. Don't change it after the first import. |
 | `revision` | no | | Leave it out. The server numbers revisions itself. |
 | `name` | yes | | Shown in the game picker, at most 120 characters. Convention: `"City DD-MM"`, e.g. `"Paris 15-08"`. |
@@ -309,7 +309,7 @@ const margin = [bounds[0] - 0.05, bounds[1] - 0.05, bounds[2] + 0.05, bounds[3] 
 const museums = gt.withIds(gt.dedupePoints(gt.normalize(await gt.overpassPoints(gt.OSM_TAGS.museum, margin))));
 
 const game = {
-  $schema: "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  $schema: "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   id: "testville-2026",
   name: "Testville 12-10",
   serverId: "home-games",

@@ -1,5 +1,5 @@
 {
-  "$schema": "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json",
+  "$schema": "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
   "id": "luxembourg-2026-10-02",
   "name": "Hide + Seek: Luxembourg (2–3 October 2026)",
   "serverId": "1369664929975767120",
