@@ -69,6 +69,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $warningAlarm = useStore(warningAlarm);
     const $hiderMode = useStore(hiderMode);
     const $compiledGame = useStore(compiledGameAtom);
+    // The hider starts at the game's centre, so hider mode needs the game.
+    const hiderModeUnavailable = $hiderMode === false && !$compiledGame;
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
     const $planningMode = useStore(planningModeEnabled);
@@ -446,19 +448,20 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }
                                         />
                                     </div>
-                                    <div className="flex flex-row items-center gap-2">
+                                    <div
+                                        className="flex flex-row items-center gap-2"
+                                        title={
+                                            hiderModeUnavailable
+                                                ? "Available once the game has loaded"
+                                                : undefined
+                                        }
+                                    >
                                         <label className="text-2xl font-semibold font-poppins">
                                             Hider mode?
                                         </label>
                                         <Checkbox
                                             checked={!!$hiderMode}
-                                            // The hider starts at the
-                                            // game's centre, so hider mode
-                                            // needs the game.
-                                            disabled={
-                                                $hiderMode === false &&
-                                                !$compiledGame
-                                            }
+                                            disabled={hiderModeUnavailable}
                                             onCheckedChange={() => {
                                                 if ($hiderMode === false) {
                                                     if (!$compiledGame) return;

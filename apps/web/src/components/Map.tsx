@@ -512,9 +512,19 @@ export const Map = ({ className }: { className?: string }) => {
     useEffect(() => {
         const contextmenu = (map as any)?.contextmenu;
         if (!contextmenu) return;
-        ADD_QUESTION_MENU_ITEMS.forEach((_, item) =>
-            contextmenu.setDisabled(item, !$compiledGame),
-        );
+        ADD_QUESTION_MENU_ITEMS.forEach((_, item) => {
+            contextmenu.setDisabled(item, !$compiledGame);
+            // setDisabled only greys the item out; say why.
+            const el: HTMLElement | undefined = contextmenu._items[item]?.el;
+            if (!el) return;
+            if ($compiledGame) {
+                el.removeAttribute("title");
+                el.removeAttribute("aria-disabled");
+            } else {
+                el.title = "Available once the game has loaded";
+                el.setAttribute("aria-disabled", "true");
+            }
+        });
     }, [map, $compiledGame]);
 
     useEffect(() => {

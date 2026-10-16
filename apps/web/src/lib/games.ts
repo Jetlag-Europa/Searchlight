@@ -230,6 +230,30 @@ export function activateGameStations(
     switchToGame(game, options);
 }
 
+/**
+ * Clear what the active game put on the board: its definition, play area,
+ * zones and selection. A session switch calls this before its game loads, so
+ * a load that fails leaves no other game's board behind.
+ */
+export function resetGameState(): void {
+    gameDefinitionReady.set(false);
+    clearTentacleCache();
+    setActiveGameDefinition(null);
+    customStations.set([]);
+    trainStations.set([]);
+    useCustomStations.set(false);
+    includeDefaultStations.set(false);
+    polyGeoJSON.set(null);
+    mapGeoJSON.set(null);
+    additionalMapGeoLocations.set([]);
+    disabledStations.set([]);
+    permanentOverlay.set(null);
+    hidingZoneFocusedStationID.set("");
+    tierRadiusOverrides.set({});
+    writeStorage("sessionStorage", GAME_SS_KEY, "");
+    currentGameId.set("");
+}
+
 export function switchToGame(
     game: GameOption,
     options?: SwitchToGameOptions,
@@ -307,19 +331,7 @@ export function switchToGame(
     };
     pendingGameSwitch = selection;
 
-    gameDefinitionReady.set(false);
-    clearTentacleCache();
-    setActiveGameDefinition(null);
-    customStations.set([]);
-    trainStations.set([]);
-    useCustomStations.set(false);
-    includeDefaultStations.set(false);
-    polyGeoJSON.set(null);
-    mapGeoJSON.set(null);
-    additionalMapGeoLocations.set([]);
-    disabledStations.set([]);
-    permanentOverlay.set(null);
-    hidingZoneFocusedStationID.set("");
+    resetGameState();
 
     // The sidebar observes zone options; publish the owning selection first.
     writeStorage("sessionStorage", GAME_SS_KEY, game.id);

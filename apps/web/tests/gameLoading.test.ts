@@ -7,6 +7,7 @@ import {
     fetchGames,
     gamesAtom,
     gamesLoadingAtom,
+    resetGameState,
     resolveSessionGame,
     switchToGame,
     type GameOption,
@@ -26,7 +27,9 @@ import {
     hidingRadius,
     hidingRadiusUnits,
     mapGeoJSON,
+    polyGeoJSON,
     questions,
+    tierRadiusOverrides,
     useCustomStations,
 } from "@/lib/context";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
@@ -456,5 +459,39 @@ describe("resolveSessionGame", () => {
             label: "Paris 15-08",
             serverName: "JetLag EU",
         });
+    });
+});
+
+describe("leaving a game", () => {
+    beforeEach(() => {
+        vi.stubGlobal("sessionStorage", {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+        });
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        setActiveGameDefinition(null);
+    });
+
+    it("clears the game's board, so a failed session switch leaves no other game behind", () => {
+        applyGameDefinition(definition(500));
+        currentGameId.set(game.id);
+        tierRadiusOverrides.set({ "1": 2 });
+        expect(useCustomStations.get()).toBe(true);
+        expect(polyGeoJSON.get()).not.toBeNull();
+
+        resetGameState();
+
+        expect(compiledGameAtom.get()).toBeNull();
+        expect(gameDefinitionReady.get()).toBe(false);
+        expect(polyGeoJSON.get()).toBeNull();
+        expect(mapGeoJSON.get()).toBeNull();
+        expect(useCustomStations.get()).toBe(false);
+        expect(customStations.get()).toEqual([]);
+        expect(tierRadiusOverrides.get()).toEqual({});
+        expect(currentGameId.get()).toBe("");
     });
 });

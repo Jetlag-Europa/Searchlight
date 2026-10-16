@@ -39,6 +39,7 @@ import {
 import {
     fetchGames,
     type GameOption,
+    resetGameState,
     resolveSessionGame,
     switchToGame,
 } from "@/lib/games";
@@ -66,8 +67,11 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 function SessionPickerOverlay({
     onSessionSelected,
+    onClose,
 }: {
     onSessionSelected: (session: GameSessionSummary) => void;
+    // Returns to the active session's board; absent when there is none.
+    onClose?: () => void;
 }) {
     const [servers, setServers] = useState<ServersResponse["servers"] | null>(
         null,
@@ -235,18 +239,25 @@ function SessionPickerOverlay({
     return (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
             <div className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6">
-                <div className="flex items-start justify-between gap-3 mb-1">
+                <div className="flex items-start justify-between gap-2 mb-1">
                     <h1 className="text-xl font-bold">Select a Session</h1>
-                    {canManageGames && (
-                        <a
-                            href="/games"
-                            title="Manage games"
-                            aria-label="Manage games"
-                            className="shrink-0 -mr-1 -mt-0.5 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                        >
-                            <Settings className="h-5 w-5" />
-                        </a>
-                    )}
+                    <div className="flex shrink-0 items-center gap-1">
+                        {canManageGames && (
+                            <a
+                                href="/games"
+                                title="Manage games"
+                                aria-label="Manage games"
+                                className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                            >
+                                <Settings className="h-5 w-5" />
+                            </a>
+                        )}
+                        {onClose && (
+                            <Button size="sm" variant="ghost" onClick={onClose}>
+                                Back to board
+                            </Button>
+                        )}
+                    </div>
                 </div>
                 <p className="text-sm text-muted-foreground mb-5">
                     Choose an existing session or create a new one to get
@@ -975,6 +986,16 @@ export function SessionManager() {
                 selected.name,
             );
 
+            // Nothing is evaluated before the session's game loads, and
+            // another session's game must not outlast a failed load.
+            const switchingSession = selected.id !== outgoingId;
+            if (switchingSession) {
+                resetGameState();
+            } else {
+                gameDefinitionReady.set(false);
+                setActiveGameDefinition(null);
+            }
+
             // Check local cache for instant paint. If not cached, clear atoms so stale
             // content from the outgoing session is never published.
             const cached = getCachedSession(selected.id);
@@ -984,10 +1005,7 @@ export function SessionManager() {
             if (canPaintCache && cached) {
                 const derived = applyUnsyncedEvents(selected.id, cached);
                 // As in the stored-session restore above, the board is shown
-                // under the loading overlay until the server state replaces it,
-                // and nothing is evaluated before the game definition loads.
-                gameDefinitionReady.set(false);
-                setActiveGameDefinition(null);
+                // under the loading overlay until the server state replaces it.
                 suppressNextSaveRef.current = true;
                 strokes.set(derived.strokes);
                 questions.set(
@@ -997,8 +1015,6 @@ export function SessionManager() {
                     "[searchlight:session] painted from cache, loading server state",
                 );
             } else {
-                gameDefinitionReady.set(false);
-                setActiveGameDefinition(null);
                 suppressNextSaveRef.current = true;
                 strokes.set([]);
                 questions.set([]);
@@ -1104,6 +1120,18 @@ export function SessionManager() {
                     strokes.set([]);
                     questions.set([]);
                 }
+                if (switchingSession) {
+                    // The outgoing session's hider and planning mode aren't
+                    // this session's.
+                    if (hiderMode.get() !== false) {
+                        suppressNextHiderSaveRef.current = true;
+                        hiderMode.set(false);
+                    }
+                    if (planningModeEnabled.get()) {
+                        suppressNextPlanningModeRef.current = true;
+                        planningModeEnabled.set(false);
+                    }
+                }
             } finally {
                 if (isCurrent()) setLoading(false);
             }
@@ -1163,26 +1191,45 @@ export function SessionManager() {
         }
         const generation = ++sessionLoadGenerationRef.current;
         const isCurrent = () => generation === sessionLoadGenerationRef.current;
+        const fail = (message: string, error: unknown) => {
+            console.warn("[searchlight:session] retry failed:", error);
+            toast.error(message);
+        };
         setLoading(true);
         let selected: GameSessionSummary;
         try {
-            const res = await fetch(`${API_BASE}/sessions/${id}`, {
-                credentials: "include",
-            });
+            let res: Response;
+            try {
+                res = await fetch(`${API_BASE}/sessions/${id}`, {
+                    credentials: "include",
+                });
+            } catch (e) {
+                // fetch rejects only when the request couldn't be sent.
+                if (isCurrent()) {
+                    fail(
+                        "Couldn't reach the server. Check your connection and try again.",
+                        e,
+                    );
+                }
+                return;
+            }
             if (!isCurrent()) return;
             if (res.status === 403 || res.status === 404) {
                 forgetSession(id, res.status);
                 return;
             }
-            if (!res.ok) throw new Error(`${res.status}`);
-            selected = await res.json();
-        } catch (e) {
-            if (!isCurrent()) return;
-            console.warn("[searchlight:session] retry failed:", e);
-            toast.error(
-                "Couldn't reach the server. Check your connection and try again.",
-            );
-            return;
+            try {
+                if (!res.ok) throw new Error(`${res.status}`);
+                selected = await res.json();
+            } catch (e) {
+                if (isCurrent()) {
+                    fail(
+                        `The server couldn't load this session (${res.status}). Try again later.`,
+                        e,
+                    );
+                }
+                return;
+            }
         } finally {
             if (isCurrent()) setLoading(false);
         }
@@ -1213,6 +1260,12 @@ export function SessionManager() {
             {showPicker && (
                 <SessionPickerOverlay
                     onSessionSelected={handleSessionSelected}
+                    onClose={
+                        // Only back to a board the session has shown.
+                        sessionId && (session || gameNotLoaded)
+                            ? () => setShowPicker(false)
+                            : undefined
+                    }
                 />
             )}
             {!showPicker &&
