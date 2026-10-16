@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { assertCanEditGame, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertCanManageGame, findGameByIdOrKey } from "../lib/game-access.js";
 import { createSession } from "./sessions.js";
 
 // A game link lets whoever holds it start sessions of the game: it stands in
@@ -28,7 +28,7 @@ function serializeLink(link: {
   };
 }
 
-// Under /games: managing a game's links (games.edit in the game's server).
+// Under /games: managing a game's links (game managers of its server).
 export async function gameLinkManagementRoutes(app: FastifyInstance) {
   // GET /games/:gameId/links — active links
   app.get(
@@ -39,7 +39,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
       const { gameId } = req.params as { gameId: string };
       const game = await findGameByIdOrKey(gameId);
       if (!game) throw notFound("Game not found");
-      await assertCanEditGame(user.discordId, game, req.log);
+      await assertCanManageGame(user.discordId, game, req.log);
 
       const links = await prisma.gameLink.findMany({
         where: { gameId: game.id, revokedAt: null },
@@ -59,7 +59,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
       const { gameId } = req.params as { gameId: string };
       const game = await findGameByIdOrKey(gameId);
       if (!game) throw notFound("Game not found");
-      await assertCanEditGame(user.discordId, game, req.log);
+      await assertCanManageGame(user.discordId, game, req.log);
 
       const link = await prisma.gameLink.create({
         data: {
@@ -89,7 +89,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
       const { gameId, linkId } = req.params as { gameId: string; linkId: string };
       const game = await findGameByIdOrKey(gameId);
       if (!game) throw notFound("Game not found");
-      await assertCanEditGame(user.discordId, game, req.log);
+      await assertCanManageGame(user.discordId, game, req.log);
 
       const { count } = await prisma.gameLink.updateMany({
         where: { id: linkId, gameId: game.id, revokedAt: null },

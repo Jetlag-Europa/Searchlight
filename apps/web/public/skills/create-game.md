@@ -351,7 +351,7 @@ The checker ends with the question list and labels, which is what players will s
 ## 8. Import, update, export
 
 - **Web:** on `/games`, click **+ Import Game JSON** and pick the file. The dialog previews it with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
-- **Unlisted:** a new game can be imported unlisted (the dialog's **Unlisted** box, or `&unlisted=true` on the API). Only game managers of that server see it; everyone else starts sessions through a game link. Change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
+- **Unlisted:** a new game can be imported unlisted (the dialog's **Unlisted** box, or `&unlisted=true` on the API). Only game managers of that server see it; everyone else starts sessions through a game link. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
   - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id`, and `&unlisted=true` to create the game unlisted.
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.

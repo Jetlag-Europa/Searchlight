@@ -18,7 +18,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             <a href="/" class="text-sm text-white/50 hover:text-white/80 underline">Go to home</a>
         </div>
 
-        <form id="valid" class="hidden flex-col items-center gap-8 text-center max-w-md w-full">
+        <form id="valid" novalidate class="hidden flex-col items-center gap-8 text-center max-w-md w-full">
             <div class="flex flex-col gap-2">
                 <p class="text-sm text-white/50 uppercase tracking-widest">Start a session of</p>
                 <h1 id="game-name" class="text-3xl font-bold tracking-tight"></h1>
@@ -30,7 +30,6 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 <input
                     id="session-name"
                     type="text"
-                    required
                     maxlength="100"
                     class="rounded-lg border border-white/20 bg-white/5 px-3 py-2.5 text-base text-white placeholder:text-white/30 focus:border-primary focus:outline-none"
                 />
@@ -46,7 +45,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 <span id="start-label"></span>
             </button>
 
-            <a href="/" class="text-sm text-white/40 hover:text-white/70 underline">Not you? Log in with a different account</a>
+            <a id="not-you" href="/" class="hidden text-sm text-white/40 hover:text-white/70 underline">Not you? Log in with a different account</a>
         </form>
     </main>
 </Layout>
@@ -79,30 +78,49 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             if (me) {
                 $("session-name").value = linkInfo.gameName;
                 showEl("name-field");
+                showEl("not-you");
             }
             showEl("valid");
 
+            function showError(message) {
+                $("error").textContent = message;
+                $("error").classList.remove("hidden");
+            }
+
+            function logIn() {
+                // After login the map page sends the user back here.
+                localStorage.setItem("taibled-return-to", `${location.pathname}${location.search}`);
+                window.location.href = `${apiBase}/auth/discord/login`;
+            }
+
             $("valid").addEventListener("submit", async (event) => {
                 event.preventDefault();
-                $("start-btn").disabled = true;
-                $("start-label").textContent = "…";
                 $("error").classList.add("hidden");
 
                 if (!me) {
-                    // After login the map page sends the user back here.
-                    localStorage.setItem("taibled-return-to", `${location.pathname}${location.search}`);
-                    window.location.href = `${apiBase}/auth/discord/login`;
+                    $("start-btn").disabled = true;
+                    logIn();
                     return;
                 }
 
+                const name = $("session-name").value.trim();
+                if (!name) {
+                    showError("Give the session a name.");
+                    $("session-name").focus();
+                    return;
+                }
+
+                $("start-btn").disabled = true;
+                $("start-label").textContent = "…";
                 try {
                     const res = await fetch(`${apiBase}/game-links/${encodeURIComponent(token)}/sessions`, {
                         method: "POST",
                         credentials: "include",
                         headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name: $("session-name").value.trim(), visibility: "private" }),
+                        body: JSON.stringify({ name, visibility: "private" }),
                     });
                     if (res.status === 404) { showInvalid(); return; }
+                    if (res.status === 401) { logIn(); return; }
                     if (!res.ok) {
                         const data = await res.json().catch(() => ({}));
                         throw new Error(data.message || `${res.status}`);
@@ -111,8 +129,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                     localStorage.setItem("taibled-pending-link-session", id);
                     window.location.href = "/map";
                 } catch (err) {
-                    $("error").textContent = `Couldn't start the session: ${err.message}`;
-                    $("error").classList.remove("hidden");
+                    showError(`Couldn't start the session: ${err.message}`);
                     $("start-btn").disabled = false;
                     $("start-label").textContent = startLabel;
                 }

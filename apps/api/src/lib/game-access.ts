@@ -17,21 +17,22 @@ export async function findGameByIdOrKey<I extends Prisma.GameInclude = {}>(
   return game as Prisma.GameGetPayload<{ include: I }> | null;
 }
 
-// Any of these on a game's server lets a user see and use its unlisted games.
+// Any of these on a game's server lets a user see and use its unlisted games,
+// change its listing and manage its links.
 const GAME_MANAGER_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
 export function canManageGames(permissions: ReadonlySet<string>): boolean {
   return GAME_MANAGER_PERMISSIONS.some((p) => permissions.has(p));
 }
 
-/** Throws 403 unless the user may change the game's settings and links. */
-export async function assertCanEditGame(
+/** Throws 403 unless the user may change the game's listing and links. */
+export async function assertCanManageGame(
   userId: string,
   game: { serverId: string },
   logger?: FastifyBaseLogger,
 ): Promise<void> {
   const perms = await getUserPermissions(userId, game.serverId, true, logger);
-  if (!perms.has("games.edit") && !perms.has("server.admin")) {
+  if (!canManageGames(perms)) {
     throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
   }
 }
@@ -67,7 +68,9 @@ async function revisionVisibilities(revisionIds: (string | null | undefined)[]):
  * (virtual servers have no guild to check), game management permissions if
  * the game is unlisted, and the role gate of every given revision. Every way
  * of reaching a game's definitions or pinning a session to one of its
- * revisions goes through this check, except a game link (see game-links.ts).
+ * revisions goes through this check. Exceptions: a session's participants may
+ * read the revision it is pinned to, forks copy their source's revision, and
+ * a game link stands in for this check (see game-links.ts).
  */
 export async function assertGameAccess(
   userId: string,

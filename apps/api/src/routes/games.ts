@@ -5,7 +5,7 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
-import { assertCanEditGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertCanManageGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -103,7 +103,7 @@ export async function gameRoutes(app: FastifyInstance) {
     },
   );
 
-  // PATCH /games/:gameId — change a game's settings (games.edit in its server).
+  // PATCH /games/:gameId — list or unlist a game (game managers of its server).
   // Links to the game stay valid either way.
   app.patch(
     "/:gameId",
@@ -121,7 +121,7 @@ export async function gameRoutes(app: FastifyInstance) {
 
       const game = await findGameByIdOrKey(gameId);
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
-      await assertCanEditGame(user.discordId, game, req.log);
+      await assertCanManageGame(user.discordId, game, req.log);
 
       const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
       req.log.info({ gameId: game.id, unlisted, userId: user.discordId }, "[games] listing changed");

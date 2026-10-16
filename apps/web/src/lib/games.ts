@@ -154,7 +154,7 @@ export async function resolveSessionGame(
         getGameById(session.gameId) ?? {
             id: session.gameId,
             gameKey: session.gameId,
-            label: session.name,
+            label: session.gameName || session.name,
             serverId: session.serverId,
             serverName: session.serverId,
             size: "medium",

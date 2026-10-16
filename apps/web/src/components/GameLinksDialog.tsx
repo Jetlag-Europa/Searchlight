@@ -29,6 +29,8 @@ export function GameLinksDialog({ game }: { game: Game }) {
     const [creating, setCreating] = useState(false);
     const [revokingId, setRevokingId] = useState<string | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
+    // A link the clipboard refused (e.g. Safari after the create request).
+    const [uncopiedUrl, setUncopiedUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     const linksUrl = `${API_BASE}/games/${encodeURIComponent(game.id)}/links`;
@@ -46,7 +48,14 @@ export function GameLinksDialog({ game }: { game: Game }) {
     }, [linksUrl]);
 
     const copyLink = async (link: GameLinkSummary) => {
-        await navigator.clipboard.writeText(gameLinkUrl(link.token)).catch(() => {});
+        const url = gameLinkUrl(link.token);
+        try {
+            await navigator.clipboard.writeText(url);
+        } catch {
+            setUncopiedUrl(url);
+            return;
+        }
+        setUncopiedUrl(null);
         setCopiedId(link.id);
         setTimeout(() => setCopiedId((id) => (id === link.id ? null : id)), 2000);
     };
@@ -78,6 +87,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
             });
             if (!res.ok && res.status !== 404) throw new Error(await errorMessage(res));
             setLinks((prev) => (prev ?? []).filter((l) => l.id !== link.id));
+            if (uncopiedUrl === gameLinkUrl(link.token)) setUncopiedUrl(null);
         } catch (e: unknown) {
             setError(`Failed to revoke link: ${(e as Error).message}`);
         } finally {
@@ -90,6 +100,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
             open={open}
             onOpenChange={(v) => {
                 setOpen(v);
+                setUncopiedUrl(null);
                 if (v) fetchLinks();
             }}
         >
@@ -113,6 +124,20 @@ export function GameLinksDialog({ game }: { game: Game }) {
                     <Button className="w-full" disabled={creating} onClick={handleCreate}>
                         {creating ? "Creating…" : "Create link (copies it)"}
                     </Button>
+
+                    {uncopiedUrl && (
+                        <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground">
+                                Couldn’t copy automatically. Copy the link here:
+                            </p>
+                            <input
+                                readOnly
+                                value={uncopiedUrl}
+                                onFocus={(e) => e.currentTarget.select()}
+                                className="w-full border border-input rounded-md px-3 py-1.5 text-xs font-mono bg-background"
+                            />
+                        </div>
+                    )}
 
                     {error && (
                         <p className="text-sm text-destructive p-3 bg-destructive/10 rounded-md">

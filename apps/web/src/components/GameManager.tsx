@@ -21,7 +21,10 @@ function GameCard({
     const [error, setError] = useState<string | null>(null);
     const [savingListing, setSavingListing] = useState(false);
     const canDelete = permissions.includes("games.delete");
-    const canEdit = permissions.includes("games.edit") || permissions.includes("server.admin");
+    // Any game permission manages listing and links, as on the API.
+    const canManage = ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
+        permissions.includes(p),
+    );
 
     const handleToggleListed = async () => {
         setError(null);
@@ -82,7 +85,7 @@ function GameCard({
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
             <div className="flex flex-wrap justify-end gap-2 shrink-0">
-                {canEdit && (
+                {canManage && (
                     <Button
                         size="sm"
                         variant="outline"
@@ -97,7 +100,7 @@ function GameCard({
                         {game.unlisted ? "Make listed" : "Make unlisted"}
                     </Button>
                 )}
-                {canEdit && <GameLinksDialog game={game} />}
+                {canManage && <GameLinksDialog game={game} />}
                 <Button
                     size="sm"
                     variant="outline"
