@@ -27,7 +27,7 @@ Requires a running Postgres instance and a `.env` file at the repo root; see [`S
 
 ## Tests
 
-The tests run against a real, migrated Postgres database (they create and delete their own rows). `DATABASE_URL` defaults to `postgresql://taibled:devpassword@localhost:5434/taibled`; point it at your database otherwise:
+The tests run against a real, migrated Postgres database (they create and delete their own rows). `DATABASE_URL` defaults to `postgresql://taibled:devpassword@localhost:5433/taibled` (the local Postgres from `docker-compose.override.yml`); point it at your database otherwise:
 
 ```bash
 DATABASE_URL=postgresql://taibled:<password>@localhost:5433/taibled pnpm --filter api test
@@ -39,7 +39,6 @@ DATABASE_URL=postgresql://taibled:<password>@localhost:5433/taibled pnpm --filte
 | --- | --- |
 | `dev` | API with hot reload, reading `../../.env` |
 | `seed` / `seed:prod` | Create the Discord servers and default role mappings, resetting server names and restoring revoked default mappings (`seed:prod` runs the compiled seed in the image) |
-| `seed:dev` | `seed` against the `docker-compose.dev.yml` Postgres: takes `DATABASE_URL` from the root `.env`, rewriting the compose host `postgres:5432` to `localhost:5434` |
 | `seed:test` | e2e fixtures: the test user and a session on South Limburg 2026 (run after the API has preloaded games) |
 | `validate-game <id>` | Server validator on `games/preloaded/<id>.game.json` |
 
