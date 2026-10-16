@@ -16,6 +16,8 @@ export async function importGameDefinitionAPI(
   raw: unknown,
   dryRun = false,
   allowUpdate = false,
+  // Only applies when the import creates the game.
+  unlisted = false,
 ): Promise<GameImportResponse> {
   const url = buildApiUrl("/games/import");
   if (dryRun) {
@@ -23,6 +25,9 @@ export async function importGameDefinitionAPI(
   }
   if (allowUpdate) {
     url.searchParams.set("allowUpdate", "true");
+  }
+  if (unlisted) {
+    url.searchParams.set("unlisted", "true");
   }
   const res = await fetch(url.toString(), {
     method: "POST",

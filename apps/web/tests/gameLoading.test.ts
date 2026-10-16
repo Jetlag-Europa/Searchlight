@@ -410,6 +410,7 @@ describe("resolveSessionGame", () => {
         gameId: "game-db-id",
         serverId: "server-1",
         name: "Friday game",
+        gameName: "Paris 2026",
     } as Parameters<typeof resolveSessionGame>[0];
 
     afterEach(() => {
@@ -427,7 +428,7 @@ describe("resolveSessionGame", () => {
         expect(await resolveSessionGame(session)).toEqual({
             id: "game-db-id",
             gameKey: "game-db-id",
-            label: "Friday game",
+            label: "Paris 2026",
             serverId: "server-1",
             serverName: "server-1",
             size: "medium",

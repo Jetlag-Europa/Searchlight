@@ -75,6 +75,8 @@ export interface Game {
   serverId: string;
   name: string;
   size: "small" | "medium" | "large";
+  /** Sessions start only from game links; only the games page lists it, for game managers. */
+  unlisted: boolean;
   currentRevisionId?: string | null;
   archivedAt?: string | null;
 }
@@ -115,8 +117,26 @@ export interface CreateGameBody {
 }
 
 export interface UpdateGameBody {
-  name?: string;
-  size?: "small" | "medium" | "large";
+  unlisted: boolean;
+}
+
+// ── Game links ────────────────────────────────────────────────────────────────
+
+export interface GameLinkSummary {
+  id: string;
+  token: string;
+  createdAt: string;
+  createdByDisplayName: string;
+}
+
+export interface GameLinksResponse {
+  links: GameLinkSummary[];
+}
+
+export interface GameLinkInfoResponse {
+  valid: boolean;
+  gameName?: string;
+  serverName?: string;
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────

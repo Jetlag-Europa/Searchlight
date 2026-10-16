@@ -46,6 +46,7 @@ export function ImportGameDialog({
   const [fileName, setFileName] = useState<string | null>(null);
   const [parsedData, setParsedData] = useState<GameDefinition | null>(null);
   const [allowUpdate, setAllowUpdate] = useState<boolean>(true);
+  const [unlisted, setUnlisted] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<ValidationIssue[]>([]);
   const [validationWarnings, setValidationWarnings] = useState<ValidationIssue[]>([]);
   const [dryRunResult, setDryRunResult] = useState<GameImportResponse | null>(null);
@@ -77,6 +78,7 @@ export function ImportGameDialog({
     setValidationWarnings([]);
     setDryRunResult(null);
     setApiError(null);
+    setUnlisted(false);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -159,7 +161,7 @@ export function ImportGameDialog({
     setApiError(null);
     try {
       const toSend = { ...parsedData, serverId: selectedServerId };
-      await importGameDefinitionAPI(toSend, false, allowUpdate);
+      await importGameDefinitionAPI(toSend, false, allowUpdate, unlisted);
       setOpen(false);
       resetState();
       onImported();
@@ -176,7 +178,7 @@ export function ImportGameDialog({
   const hidingRadius = parsedData?.hidingZones?.radius ?? 400;
   // The file's server may not be one the user can import to; show it anyway
   // so the selector matches where the import is sent.
-  const unlistedServer =
+  const unknownServer =
     selectedServerId && !servers.some((s) => s.id === selectedServerId)
       ? selectedServerId
       : null;
@@ -254,7 +256,7 @@ export function ImportGameDialog({
               </div>
 
               {/* Server selector */}
-              {(servers.length > 0 || unlistedServer) && (
+              {(servers.length > 0 || unknownServer) && (
                 <div>
                   <label className="block text-xs font-medium text-muted-foreground mb-1">
                     Target Server
@@ -264,9 +266,9 @@ export function ImportGameDialog({
                     value={selectedServerId}
                     onChange={(e) => handleServerChange(e.target.value)}
                   >
-                    {unlistedServer && (
-                      <option value={unlistedServer}>
-                        {unlistedServer} (from file)
+                    {unknownServer && (
+                      <option value={unknownServer}>
+                        {unknownServer} (from file)
                       </option>
                     )}
                     {servers.map((s) => (
@@ -275,7 +277,7 @@ export function ImportGameDialog({
                       </option>
                     ))}
                   </select>
-                  {unlistedServer && (
+                  {unknownServer && (
                     <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                       Not one of the servers you can import to. The import will be refused unless you have game permissions there.
                     </p>
@@ -337,6 +339,28 @@ export function ImportGameDialog({
                   Allow updating if a map with ID <code>{gameId}</code> already exists
                 </label>
               </div>
+
+              {/* Listing applies to new games; existing ones change it on the games page */}
+              {dryRunResult?.status === "created" && (
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="unlisted-checkbox"
+                    checked={unlisted}
+                    onChange={(e) => setUnlisted(e.target.checked)}
+                    className="rounded border-input h-4 w-4 mt-0.5"
+                  />
+                  <label
+                    htmlFor="unlisted-checkbox"
+                    className="text-xs cursor-pointer text-foreground select-none"
+                  >
+                    <span className="font-medium">Unlisted</span>
+                    <span className="block text-muted-foreground">
+                      Not offered when creating a session, for anyone. Sessions start from game links; it stays on this page.
+                    </span>
+                  </label>
+                </div>
+              )}
             </div>
           )}
 

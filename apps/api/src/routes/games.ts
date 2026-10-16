@@ -5,7 +5,7 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
-import { findGameByIdOrKey } from "../lib/game-access.js";
+import { assertCanManageGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -13,18 +13,37 @@ const gameShape = Type.Object({
   serverId: Type.String(),
   name: Type.String(),
   size: Type.String(),
+  unlisted: Type.Boolean(),
   currentRevisionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   archivedAt: Type.Optional(Type.Union([Type.String(), Type.Null()])),
 });
 
+function serializeGame(game: Prisma.GameGetPayload<{}>) {
+  return {
+    id: game.id,
+    gameKey: game.gameKey,
+    serverId: game.serverId,
+    name: game.name,
+    size: game.size,
+    unlisted: game.unlisted,
+    currentRevisionId: game.currentRevisionId,
+    archivedAt: game.archivedAt?.toISOString() ?? null,
+  };
+}
 
 export async function gameRoutes(app: FastifyInstance) {
-  // GET /games?serverId= — list games for a server (must be a guild member)
+  // GET /games?serverId= — list games for a server (must be a guild member).
+  // Unlisted games are left out: sessions of them start from game links only.
+  // The games page lists them for the server's game managers with
+  // ?includeUnlisted=true.
   app.get(
     "/",
     {
       schema: {
-        querystring: Type.Object({ serverId: Type.String({ minLength: 1 }) }),
+        querystring: Type.Object({
+          serverId: Type.String({ minLength: 1 }),
+          includeUnlisted: Type.Optional(Type.Boolean()),
+        }),
         response: {
           200: Type.Object({ games: Type.Array(gameShape) }),
         },
@@ -32,7 +51,10 @@ export async function gameRoutes(app: FastifyInstance) {
     },
     async (req) => {
       const { user } = await resolveSession(req);
-      const { serverId } = req.query as { serverId: string };
+      const { serverId, includeUnlisted = false } = req.query as {
+        serverId: string;
+        includeUnlisted?: boolean;
+      };
 
       const server = await prisma.server.findUnique({ where: { id: serverId } });
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
@@ -43,10 +65,16 @@ export async function gameRoutes(app: FastifyInstance) {
         await assertServerMembership(user.discordId, serverId, req.log);
       }
 
-      const games = await prisma.game.findMany({
+      let games = await prisma.game.findMany({
         where: { serverId },
         orderBy: { name: "asc" },
       });
+      if (games.some((game) => game.unlisted)) {
+        const showUnlisted =
+          includeUnlisted &&
+          canManageGames(await getUserPermissions(user.discordId, serverId, false, req.log));
+        if (!showUnlisted) games = games.filter((game) => !game.unlisted);
+      }
 
       // Only `visibility` is needed here; loading every multi-MB definition
       // made listing a server's games pull its whole game catalogue.
@@ -79,9 +107,35 @@ export async function gameRoutes(app: FastifyInstance) {
             continue;
           }
         }
-        visible.push(game);
+        visible.push(serializeGame(game));
       }
       return { games: visible };
+    },
+  );
+
+  // PATCH /games/:gameId — list or unlist a game (game managers of its server).
+  // Links to the game stay valid either way.
+  app.patch(
+    "/:gameId",
+    {
+      schema: {
+        params: Type.Object({ gameId: Type.String() }),
+        body: Type.Object({ unlisted: Type.Boolean() }, { additionalProperties: false }),
+        response: { 200: gameShape },
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { gameId } = req.params as { gameId: string };
+      const { unlisted } = req.body as { unlisted: boolean };
+
+      const game = await findGameByIdOrKey(gameId);
+      if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      await assertCanManageGame(user.discordId, game, req.log);
+
+      const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
+      req.log.info({ gameId: game.id, unlisted, userId: user.discordId }, "[games] listing changed");
+      return serializeGame(updated);
     },
   );
 

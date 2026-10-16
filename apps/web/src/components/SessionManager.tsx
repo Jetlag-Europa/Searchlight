@@ -4,6 +4,7 @@ import type {
     ServersResponse,
     SessionsResponse,
 } from "@searchlight/shared";
+import { Settings } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
@@ -122,7 +123,12 @@ function SessionPickerOverlay({
                 fetch(`${API_BASE}/sessions?serverId=${serverId}`, {
                     credentials: "include",
                 }),
-                fetchGames(serverId),
+                // Sessions joined or started from a game link can be on a
+                // server whose catalog this user can't read (403).
+                fetchGames(serverId).catch((err) => {
+                    console.warn("[searchlight:session] game catalog unavailable:", err);
+                    return [] as GameOption[];
+                }),
             ]);
             if (reqId !== loadSessionsReqRef.current) return;
             if (!sessRes.ok) throw new Error(`${sessRes.status}`);
@@ -220,10 +226,29 @@ function SessionPickerOverlay({
         }
     };
 
+    // The same permissions that put a server on the /games page.
+    const canManageGames = servers?.some((server) =>
+        server.permissions.some((p) =>
+            ["games.create", "games.edit", "games.delete"].includes(p),
+        ),
+    );
+
     return (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
             <div className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6">
-                <h1 className="text-xl font-bold mb-1">Select a Session</h1>
+                <div className="flex items-start justify-between gap-3 mb-1">
+                    <h1 className="text-xl font-bold">Select a Session</h1>
+                    {canManageGames && (
+                        <a
+                            href="/games"
+                            title="Manage games"
+                            aria-label="Manage games"
+                            className="shrink-0 -mr-1 -mt-0.5 rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                            <Settings className="h-5 w-5" />
+                        </a>
+                    )}
+                </div>
                 <p className="text-sm text-muted-foreground mb-5">
                     Choose an existing session or create a new one to get
                     started.

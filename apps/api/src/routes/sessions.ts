@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
@@ -26,6 +26,7 @@ async function resolveParticipant(sessionId: string, userId: string) {
       game: {
         select: {
           name: true,
+          unlisted: true,
           currentRevisionId: true,
           currentRevision: { select: { id: true, revision: true } },
         },
@@ -50,6 +51,101 @@ async function resolveParticipant(sessionId: string, userId: string) {
   }
 
   return { session, participant, isCreator };
+}
+
+/**
+ * Throws 403 unless the user may move the session to `revisionId`, the game's
+ * current revision: either they may use the game, or the session was started
+ * from a game link that is still active (the link grants what it did then).
+ */
+async function assertUpgradeAccess(
+  userId: string,
+  session: { gameId: string; serverId: string; gameLinkId: string | null; game: { unlisted: boolean } },
+  revisionId: string | null,
+  logger: FastifyBaseLogger,
+) {
+  if (session.gameLinkId) {
+    const link = await prisma.gameLink.findUnique({
+      where: { id: session.gameLinkId },
+      select: { gameId: true, revokedAt: true },
+    });
+    if (link && !link.revokedAt && link.gameId === session.gameId) return;
+  }
+  await assertGameAccess(
+    userId,
+    { serverId: session.serverId, unlisted: session.game.unlisted },
+    [revisionId],
+    logger,
+  );
+}
+
+/**
+ * Creates a session pinned to `revision` with its creator as participant and
+ * returns its summary. Callers check access to the game first.
+ */
+export async function createSession({
+  game,
+  revision,
+  creatorId,
+  name,
+  visibility,
+  gameLinkId,
+}: {
+  game: {
+    id: string;
+    serverId: string;
+    name: string;
+    currentRevisionId: string | null;
+    currentRevision: { revision: number } | null;
+  };
+  revision: { id: string; revision: number };
+  creatorId: string;
+  name: string;
+  visibility: "private" | "shared";
+  gameLinkId?: string;
+}) {
+  const session = await prisma.$transaction(async (tx) => {
+    const s = await tx.gameSession.create({
+      data: {
+        gameId: game.id,
+        serverId: game.serverId,
+        creatorId,
+        name,
+        visibility,
+        gameRevisionId: revision.id,
+        gameLinkId,
+      },
+    });
+    await tx.sessionParticipant.create({
+      data: {
+        sessionId: s.id,
+        userId: creatorId,
+        role: "creator",
+        acceptedAt: new Date(),
+      },
+    });
+    return s;
+  });
+
+  return {
+    id: session.id,
+    gameId: session.gameId,
+    gameName: game.name,
+    serverId: session.serverId,
+    name: session.name,
+    visibility: session.visibility,
+    role: "creator" as const,
+    createdAt: session.createdAt.toISOString(),
+    hiderLat: null,
+    hiderLng: null,
+    planningModeEnabled: false,
+    gameRevisionId: session.gameRevisionId,
+    sessionRevision: revision.revision,
+    currentRevision: game.currentRevision?.revision ?? null,
+    hasNewerRevision: Boolean(
+      game.currentRevisionId && revision.id !== game.currentRevisionId,
+    ),
+  };
 }
 
 // ── route module ──────────────────────────────────────────────────────────────
@@ -153,6 +249,10 @@ export async function sessionRoutes(app: FastifyInstance) {
         currentRevision: { select: { id: true, revision: true } },
       });
       if (!game) throw notFound("Game not found");
+      // For everyone, game managers included; GET /games leaves them out too.
+      if (game.unlisted) {
+        throw forbidden("This game is unlisted; start sessions of it from a game link");
+      }
 
       let targetRevision: { id: string; revision: number };
       if (gameRevisionId) {
@@ -185,47 +285,14 @@ export async function sessionRoutes(app: FastifyInstance) {
         req.log,
       );
 
-      const session = await prisma.$transaction(async (tx) => {
-        const s = await tx.gameSession.create({
-          data: {
-            gameId: game.id,
-            serverId: game.serverId,
-            creatorId: user.discordId,
-            name,
-            visibility,
-            gameRevisionId: targetRevision.id,
-          },
-        });
-        await tx.sessionParticipant.create({
-          data: {
-            sessionId: s.id,
-            userId: user.discordId,
-            role: "creator",
-            acceptedAt: new Date(),
-          },
-        });
-        return s;
+      const session = await createSession({
+        game,
+        revision: targetRevision,
+        creatorId: user.discordId,
+        name,
+        visibility,
       });
-
-      return reply.status(201).send({
-        id: session.id,
-        gameId: session.gameId,
-        gameName: game.name,
-        serverId: session.serverId,
-        name: session.name,
-        visibility: session.visibility,
-        role: "creator",
-        createdAt: session.createdAt.toISOString(),
-        hiderLat: null,
-        hiderLng: null,
-        planningModeEnabled: false,
-        gameRevisionId: session.gameRevisionId,
-        sessionRevision: targetRevision.revision,
-        currentRevision: game.currentRevision?.revision ?? null,
-        hasNewerRevision: Boolean(
-          game.currentRevisionId && targetRevision.id !== game.currentRevisionId,
-        ),
-      });
+      return reply.status(201).send(session);
     },
   );
 
@@ -449,7 +516,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       // Upgrading shares the game's current revision with every participant,
       // so it requires the access that reading that revision does.
       let checkedRevisionId = session.game.currentRevisionId;
-      await assertGameAccess(user.discordId, session, [checkedRevisionId], req.log);
+      await assertUpgradeAccess(user.discordId, session, checkedRevisionId, req.log);
 
       type UpgradeResult = {
         status: "already-current" | "upgraded";
@@ -542,7 +609,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           throw conflict("The game was updated while upgrading; try again");
         }
         checkedRevisionId = upgradeResult.gameRevisionId;
-        await assertGameAccess(user.discordId, session, [checkedRevisionId], req.log);
+        await assertUpgradeAccess(user.discordId, session, checkedRevisionId, req.log);
         upgradeResult = await attemptUpgrade();
       }
 

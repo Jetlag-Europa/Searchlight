@@ -38,6 +38,7 @@ model User {
   strokes               Stroke[]
   events                Event[]
   createdLinks          SessionLink[]          @relation("CreatedLinks")
+  createdGameLinks      GameLink[]             @relation("CreatedGameLinks")
 }
 
 model AuthSession {
@@ -98,6 +99,9 @@ model Game {
   serverId          String
   name              String
   size              String         @default("medium") // "small" | "medium" | "large"
+  // Hidden from game lists and closed to direct use except for the server's
+  // game managers; anyone else needs a GameLink.
+  unlisted          Boolean        @default(false)
   currentRevisionId String?
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
@@ -107,9 +111,28 @@ model Game {
   sessions        GameSession[]
   revisions       GameRevision[]
   currentRevision GameRevision?  @relation("CurrentGameRevision", fields: [currentRevisionId], references: [id])
+  links           GameLink[]
 
   @@index([serverId])
   @@index([currentRevisionId])
+}
+
+// A link anyone can use to start sessions of a game, whether or not it is
+// listed and whether or not they could reach the game otherwise. Links only end
+// when revoked; listing or unlisting the game doesn't touch them.
+model GameLink {
+  id          String    @id @default(cuid())
+  token       String    @unique
+  gameId      String
+  createdById String
+  revokedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  game      Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  createdBy User          @relation("CreatedGameLinks", fields: [createdById], references: [discordId])
+  sessions  GameSession[]
+
+  @@index([gameId])
 }
 
 model GameRevision {
@@ -163,12 +186,16 @@ model GameSession {
   hiderLng            Float?
   planningModeEnabled Boolean       @default(false)
   gameRevisionId      String
+  // The game link the session was started from, if any. While it is active,
+  // the creator may upgrade the session without other access to the game.
+  gameLinkId          String?
   eventSequence       Int           @default(0)
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
   game         Game                 @relation(fields: [gameId], references: [id])
   gameRevision GameRevision         @relation(fields: [gameRevisionId], references: [id])
+  gameLink     GameLink?            @relation(fields: [gameLinkId], references: [id], onDelete: SetNull)
   server       Server               @relation(fields: [serverId], references: [id])
   creator      User                 @relation("SessionCreator", fields: [creatorId], references: [discordId])
   participants SessionParticipant[]
@@ -181,6 +208,7 @@ model GameSession {
   @@index([serverId])
   @@index([creatorId])
   @@index([gameRevisionId])
+  @@index([gameLinkId])
 }
 model SessionParticipant {
   sessionId  String
