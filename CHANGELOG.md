@@ -1,5 +1,11 @@
 # Changelog
 
+## Bug reports and feature requests on GitHub Issues (2026-10-16)
+
+- The in-app feedback feature is removed: the `/feedback` and `/admin/feedback` pages, the API's `/feedback` routes, the Discord feedback webhook (`DISCORD_FEEDBACK_WEBHOOK_URL`, and the `searchlight.png` avatar it posted with) and the shared feedback types.
+- The map menu's Feedback button is now "Report a bug / suggest a feature", which opens [GitHub Issues](https://github.com/Jetlag-Europa/Searchlight/issues/new/choose) in a new tab. The tutorial's help line links there too, instead of the upstream JetLagHideAndSeek issues.
+- The `20261016000000_drop_feedback` migration drops the `Feedback`, `FeedbackVote` and `FeedbackImage` tables and everything in them. Export them before deploying if you want to keep them.
+
 ## Docker images from main only (2026-10-16)
 
 - The "Docker images" workflow runs only on pushes to `main` and manual runs on `main`. Pull requests and other branches no longer build images.

@@ -20,7 +20,6 @@ import { boundaryRoutes } from "./routes/boundaries.js";
 import { overpassRoutes } from "./routes/overpass.js";
 import { eventRoutes } from "./routes/events.js";
 import { linkRoutes } from "./routes/links.js";
-import { feedbackRoutes } from "./routes/feedback.js";
 
 const app = Fastify({
   logger: {
@@ -73,7 +72,6 @@ await app.register(boundaryRoutes, { prefix: "/boundaries" });
 await app.register(overpassRoutes);
 await app.register(eventRoutes, { prefix: "/sessions" });
 await app.register(linkRoutes, { prefix: "/links" });
-await app.register(feedbackRoutes, { prefix: "/feedback" });
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const preloadCandidateDirs = [

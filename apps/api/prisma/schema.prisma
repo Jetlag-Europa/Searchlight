@@ -38,8 +38,6 @@ model User {
   strokes               Stroke[]
   events                Event[]
   createdLinks          SessionLink[]          @relation("CreatedLinks")
-  feedback              Feedback[]
-  feedbackVotes         FeedbackVote[]
 }
 
 model AuthSession {
@@ -306,55 +304,6 @@ model Event {
 
   @@index([sessionId, serverReceivedAt])
   @@unique([sessionId, sequence])
-}
-
-model Feedback {
-  id          String    @id @default(cuid())
-  userId      String
-  type        String    // "bug" | "feature"
-  title       String
-  description String
-  severity    String?   // "low" | "medium" | "high" (bugs only)
-  status             String    @default("open") // "open" | "closed"
-  resolution         String?   // "added" | "denied" (features only, set on close)
-  discordMessageId   String?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-
-  user   User            @relation(fields: [userId], references: [discordId])
-  votes  FeedbackVote[]
-  images FeedbackImage[]
-
-  @@index([type])
-  @@index([status])
-  @@index([createdAt])
-}
-
-model FeedbackVote {
-  id         String   @id @default(cuid())
-  feedbackId String
-  userId     String
-  voteType   String   @default("up") // "up" | "down"
-  createdAt  DateTime @default(now())
-
-  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [discordId])
-
-  @@unique([feedbackId, userId])
-  @@index([feedbackId])
-}
-
-model FeedbackImage {
-  id         String   @id @default(cuid())
-  feedbackId String
-  filename   String
-  mimeType   String
-  data       Bytes
-  createdAt  DateTime @default(now())
-
-  feedback Feedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
-
-  @@index([feedbackId])
 }
 
 model BoundaryCache {
