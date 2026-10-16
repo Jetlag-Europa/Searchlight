@@ -330,12 +330,15 @@ const TentacleLocationSelector = ({
         : null;
     // Until the sites are known, show the saved answer, not "Not Within".
     const savedAnswer =
-        !locationsKnown && data.location && !currentMatched
+        !locationsKnown &&
+        data.location &&
+        !currentMatched &&
+        Array.isArray(data.location.geometry?.coordinates)
             ? (data.location as Feature<Point>)
             : null;
     if (savedAnswer) {
         featureOptions[getFeatureKey(savedAnswer)] =
-            (savedAnswer.properties?.name as string | undefined) ?? "Location";
+            (savedAnswer.properties?.name as string | undefined) || "POI";
     }
     const currentValue = currentMatched
         ? getFeatureKey(currentMatched)
