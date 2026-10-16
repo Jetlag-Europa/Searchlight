@@ -1,5 +1,11 @@
 # Changelog
 
+## Overpass proxy limits (2026-10-16)
+
+- `POST /overpass` clamps each query's `[timeout]` to 80 s and `[maxsize]` to 512 MiB, adding them when the query doesn't set them.
+- Overpass responses are read up to `OVERPASS_MAX_RESPONSE_BYTES` (default 50 MiB). Larger ones are cancelled and fail with a 502, for `/overpass` and `/boundaries` alike.
+- `POST /overpass` is rate limited per user: bursts of 120 requests, then 60 per minute, and at most 6 at once. Over the limit it answers 429.
+
 ## Bug reports and feature requests on GitHub Issues (2026-10-16)
 
 - The in-app feedback feature is removed: the `/feedback` and `/admin/feedback` pages, the API's `/feedback` routes, the Discord feedback webhook (`DISCORD_FEEDBACK_WEBHOOK_URL`, and the `searchlight.png` avatar it posted with) and the shared feedback types.

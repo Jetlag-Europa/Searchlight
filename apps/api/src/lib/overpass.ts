@@ -5,6 +5,8 @@
 // call in the app (backend boundary routes and the /overpass proxy the frontend
 // uses) funnels through here.
 
+import { env } from "./env.js";
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 const PRIVATE_OVERPASS_URL = process.env.OVERPASS_URL;
@@ -37,6 +39,36 @@ function overpassHeaders(url: string): Record<string, string> {
     return headers;
 }
 
+// Errors the body once it passes maxBytes, which cancels the upstream download,
+// so one huge result can't make the API buffer it all and run out of memory.
+function limitBody(res: Response, maxBytes: number): Response {
+    if (!res.body) return res;
+    let received = 0;
+    const body = res.body.pipeThrough(
+        new TransformStream<Uint8Array, Uint8Array>({
+            transform(chunk, controller) {
+                received += chunk.byteLength;
+                if (received > maxBytes) {
+                    controller.error(
+                        Object.assign(new Error("Overpass response too large"), {
+                            statusCode: 502,
+                        }),
+                    );
+                    return;
+                }
+                controller.enqueue(chunk);
+            },
+        }),
+    );
+    return new Response(body, {
+        status: res.status,
+        statusText: res.statusText,
+        headers: res.headers,
+    });
+}
+
+// The returned body is capped at OVERPASS_MAX_RESPONSE_BYTES: reading past it
+// (e.g. res.json()) rejects with a 502-tagged error.
 export async function overpassFetch(
     query: string,
     opts: { timeoutMs?: number } = {},
@@ -55,12 +87,13 @@ export async function overpassFetch(
             body,
             signal: AbortSignal.timeout(timeoutMs),
         }).catch(() => null);
-        if (res?.ok) return res;
+        if (res?.ok) return limitBody(res, env.OVERPASS_MAX_RESPONSE_BYTES);
     }
     return null;
 }
 
-// Returns parsed Overpass JSON or throws a 502-tagged error.
+// Returns parsed Overpass JSON or throws a 502-tagged error, also when the
+// response is too large.
 export async function overpassJson(
     query: string,
     opts: { timeoutMs?: number; errorMessage?: string } = {},
