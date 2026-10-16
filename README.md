@@ -77,3 +77,13 @@ The API scripts read the root `.env`; so does the web app (for `PUBLIC_API_BASE`
 - **A game list is empty or `/games` returns 403:** the bot isn't in that
   Discord server. Put your user ID in `ADMIN_DISCORD_IDS` and restart.
 - **`Missing required env var`:** a value in `.env` is still empty.
+
+## Thanks
+
+Searchlight builds on
+[JetLagHideAndSeek](https://github.com/taibeled/JetLagHideAndSeek). Thanks to
+[taibeled](https://github.com/taibeled), who created it, and to its
+[22 contributors](https://github.com/taibeled/JetLagHideAndSeek/graphs/contributors).
+Thanks to [Jules](https://github.com/JulzyWulzy) for turning it into
+Searchlight, to [leandrocoding](https://github.com/leandrocoding), and to
+everyone who has played, tested and reported bugs along the way.
