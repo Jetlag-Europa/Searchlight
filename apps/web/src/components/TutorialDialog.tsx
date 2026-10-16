@@ -266,7 +266,7 @@ const tutorialSteps: TutorialStep[] = [
                                 lat: 35.6762,
                                 lng: 139.6503,
                                 radius: 10,
-                                unit: "miles",
+                                unit: "kilometers",
                                 color: "blue",
                                 within: false,
                                 enabled: true,
@@ -365,7 +365,7 @@ const tutorialSteps: TutorialStep[] = [
                                 lat: 35.6762,
                                 lng: 139.6503,
                                 radius: 15,
-                                unit: "miles",
+                                unit: "kilometers",
                                 color: "red",
                                 locationType: "theme_park",
                                 location: false,
@@ -646,9 +646,10 @@ const tutorialSteps: TutorialStep[] = [
                 <br />
                 <br />
                 <strong>Unit Preferences:</strong>
-                <br />• <strong>Default Unit:</strong> Miles, kilometers, or
-                meters for new questions. This becomes the default for all new
-                questions. Choose based on your region&apos;s conventions.
+                <br />• <strong>Default Unit:</strong> Kilometers (the default),
+                meters, or miles for new questions. This becomes the default for
+                all new questions. Choose based on your region&apos;s
+                conventions.
                 <br />• Affects all distance-based questions and measurements
                 throughout the entire game
                 <br />
