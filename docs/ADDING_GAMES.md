@@ -16,15 +16,9 @@ The authoring guide is the game creation skill, `apps/web/public/skills/create-g
    ```
 
    `check-game.mjs` fails on anything the import would reject, warns about problems that import fine but play badly (swapped coordinates, zones outside the play area, single-site matching, overlapping regions, heavy geometry), and prints the question list players will see. With `--strict` it also fails on the warnings that are always data defects (misplaced or swapped coordinates, duplicate zone or feature IDs, CDATA- or entity-wrapped names, single-feature matching, region layers no zone lies in). `pnpm verify:preloaded-games` runs the server validator, checks that each file name equals its game ID (the API refuses to preload otherwise), and applies the same strict checks to every preloaded game, exiting non-zero on any failure.
-3. Start the API. On boot, `preloadGameDefinitions` (`apps/api/src/games/preload.ts`) imports every `games/preloaded/*.game.json`, creating the game or adding a revision when the content changed. Content identical to an older revision re-activates that revision instead. A file that fails to import is logged at error level and skipped, and the other files still load, so check the log for `Failed to preload game definition`.
-4. In the browser (`pnpm dev`), switch to the game and confirm the play area, the hiding-zone count and radii, and that each question in the check's list appears and evaluates.
+3. Start (or restart) the API. On boot, `preloadGameDefinitions` (`apps/api/src/games/preload.ts`) imports every `games/preloaded/*.game.json`, creating the game or adding a revision when the content changed. Content identical to an older revision re-activates that revision instead. A file that fails to import is logged at error level and skipped, and the other files still load, so check the log for `Failed to preload game definition`.
+4. In the browser (`pnpm dev`, see the [README](../README.md)), switch to the game and confirm the play area, the hiding-zone count and radii, and that each question in the check's list appears and evaluates.
 
 Users with game permissions can instead import through the web UI (`/games` → **+ Import Game JSON**) or `POST /games/import`. Exports and historical definitions are served only from the database, with access checks. Sessions load their pinned revision, and fork snapshots keep the revision captured with their questions. A session gives its participants access to that revision only; creating a session or upgrading it to the current revision needs the same server membership and role as reading the game.
 
-## Appendix — Production deployment & preloading
-
-Preloading in production is automated:
-- The API container runs `preloadGameDefinitions` on startup, loading definitions from `games/preloaded/`.
-- Schema migrations (`prisma migrate deploy`) manage database schema updates independently of game content.
-- Preloading is idempotent: games are matched by canonical ID and updated if their revision or content changes. Existing revisions are never rewritten, since sessions are pinned to them.
-- Before the API starts, the container creates any missing Discord servers (`seed.js --missing-only`), because a game's server must exist for it to load. Existing servers' names and role mappings are left alone; `pnpm --filter @searchlight/api seed:prod` runs the full seed that resets them.
+On a server, game changes ship with a normal deploy: the definitions are part of the api image.

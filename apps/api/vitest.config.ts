@@ -2,8 +2,7 @@ import { defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
-    // Point at the local dev DB (mapped to localhost:5433 in docker-compose.override.yml).
-    // Production DATABASE_URL in .env uses the internal Docker hostname "postgres:5432".
+    // The dev database from docker-compose.dev.yml unless DATABASE_URL is set.
     env: {
       DATABASE_URL:
         process.env.DATABASE_URL ||

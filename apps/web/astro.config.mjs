@@ -1,4 +1,6 @@
 // @ts-check
+import { fileURLToPath } from "node:url";
+
 import partytown from "@astrojs/partytown";
 import react from "@astrojs/react";
 import tailwind from "@astrojs/tailwind";
@@ -51,6 +53,8 @@ export default defineConfig({
         }),
     ],
     vite: {
+        // Read PUBLIC_* settings from the repo-root .env shared with the API.
+        envDir: fileURLToPath(new URL("../..", import.meta.url)),
         worker: { format: "es" },
     },
     devToolbar: {

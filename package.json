@@ -6,7 +6,7 @@
         "node": "<25"
     },
     "scripts": {
-        "dev": "pnpm --filter web dev",
+        "dev": "docker compose -f docker-compose.dev.yml up -d --wait && pnpm --filter @searchlight/shared build && pnpm --recursive --parallel dev",
         "build": "pnpm -r build",
         "generate:game-schema": "tsx scripts/generate-game-json-schema.ts",
         "check:game-schema": "tsx scripts/generate-game-json-schema.ts --check",

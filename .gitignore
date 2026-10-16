@@ -1,9 +1,6 @@
 # build output
 dist/
-apps/*/dist/
-packages/*/dist/
-# Compiled production seed (apps/api/tsconfig.seed.json) — built into the image
-apps/*/dist-seed/
+dist-seed/
 
 # generated types
 .astro/
@@ -19,17 +16,12 @@ pnpm-debug.log*
 
 # environment variables
 .env
-.env.production
-.env.test
 
 # macOS-specific files
 .DS_Store
 
 # jetbrains setting folder
 .idea/
-
-# local-only migration note, never commit
-summary.md
 
 # Headless test harness debug output (SVG-on-failure)
 apps/web/test-results/
