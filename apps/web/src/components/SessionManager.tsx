@@ -427,9 +427,7 @@ function SessionPickerOverlay({
                                         >
                                             {availableGames.map((g) => (
                                                 <option key={g.id} value={g.id}>
-                                                    {g.unlisted
-                                                        ? `${g.label} (unlisted)`
-                                                        : g.label}
+                                                    {g.label}
                                                 </option>
                                             ))}
                                         </select>

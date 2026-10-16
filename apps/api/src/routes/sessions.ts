@@ -249,6 +249,10 @@ export async function sessionRoutes(app: FastifyInstance) {
         currentRevision: { select: { id: true, revision: true } },
       });
       if (!game) throw notFound("Game not found");
+      // For everyone, game managers included; GET /games leaves them out too.
+      if (game.unlisted) {
+        throw forbidden("This game is unlisted; start sessions of it from a game link");
+      }
 
       let targetRevision: { id: string; revision: number };
       if (gameRevisionId) {

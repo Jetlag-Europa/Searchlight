@@ -125,8 +125,9 @@ describe("unlisted games and game links", () => {
     await cleanup();
   });
 
-  const listGames = async (userId: string) => {
-    const res = await app.inject({ method: "GET", url: `/games?serverId=${SERVER_ID}`, headers: as(userId) });
+  const listGames = async (userId: string, includeUnlisted = false) => {
+    const query = includeUnlisted ? "&includeUnlisted=true" : "";
+    const res = await app.inject({ method: "GET", url: `/games?serverId=${SERVER_ID}${query}`, headers: as(userId) });
     expect(res.statusCode).toBe(200);
     return res.json().games as Array<{ id: string; unlisted: boolean }>;
   };
@@ -145,16 +146,20 @@ describe("unlisted games and game links", () => {
       payload: { name: "From link", visibility: "private" },
     });
 
-  test("unlisted games are only listed for game managers", async () => {
+  test("unlisted games are left out of game lists, except the games page's for game managers", async () => {
+    // The session picker's catalog, for everyone.
     expect((await listGames(PLAYER_ID)).map((g) => g.id)).toEqual([LISTED_GAME_ID]);
-    const managerGames = await listGames(MANAGER_ID);
+    expect((await listGames(MANAGER_ID)).map((g) => g.id)).toEqual([LISTED_GAME_ID]);
+    // The games page.
+    expect((await listGames(PLAYER_ID, true)).map((g) => g.id)).toEqual([LISTED_GAME_ID]);
+    const managerGames = await listGames(MANAGER_ID, true);
     expect(managerGames.map((g) => [g.id, g.unlisted])).toEqual([
       [LISTED_GAME_ID, false],
       [UNLISTED_GAME_ID, true],
     ]);
   });
 
-  test("only game managers can start sessions or read definitions of an unlisted game", async () => {
+  test("nobody starts sessions of an unlisted game directly; only game managers read its definitions", async () => {
     const create = (userId: string) =>
       app.inject({
         method: "POST",
@@ -163,7 +168,7 @@ describe("unlisted games and game links", () => {
         payload: { gameId: UNLISTED_GAME_ID, name: "Direct", visibility: "private" },
       });
     expect((await create(PLAYER_ID)).statusCode).toBe(403);
-    expect((await create(MANAGER_ID)).statusCode).toBe(201);
+    expect((await create(MANAGER_ID)).statusCode).toBe(403);
 
     const exportAs = (userId: string) =>
       app.inject({ method: "GET", url: `/games/${UNLISTED_GAME_ID}/export`, headers: as(userId) });
@@ -202,15 +207,15 @@ describe("unlisted games and game links", () => {
     expect(del.statusCode).toBe(403);
   });
 
-  test("a link starts sessions for anyone, survives listing changes, and stops when revoked", async () => {
+  test("a link starts sessions for anyone (game managers too), survives listing changes, and stops when revoked", async () => {
     const link = await createLink(UNLISTED_GAME_ID);
     expect(link.createdByDisplayName).toBe(MANAGER_ID);
 
     const info = await app.inject({ method: "GET", url: `/game-links/${link.token}` });
     expect(info.json()).toEqual({ valid: true, gameName: "Unlisted", serverName: "Game Link Server" });
 
-    // Neither a member without permissions nor a non-member could use the game directly.
-    for (const userId of [PLAYER_ID, OUTSIDER_ID]) {
+    // None of them can start a session of the unlisted game directly.
+    for (const userId of [PLAYER_ID, OUTSIDER_ID, MANAGER_ID]) {
       const res = await startFromLink(link.token, userId);
       expect(res.statusCode).toBe(201);
       expect(res.json()).toMatchObject({ gameId: UNLISTED_GAME_ID, role: "creator", name: "From link" });

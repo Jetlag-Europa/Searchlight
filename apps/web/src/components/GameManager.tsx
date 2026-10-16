@@ -7,6 +7,10 @@ import { GameLinksDialog } from "./GameLinksDialog";
 import { ImportGameDialog } from "./ImportGameDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
+// Unlike the session picker's catalog, this page lists unlisted games too.
+const gamesUrl = (serverId: string) =>
+    `${API_BASE}/games?serverId=${encodeURIComponent(serverId)}&includeUnlisted=true`;
+
 function GameCard({
     game,
     permissions,
@@ -73,7 +77,7 @@ function GameCard({
                     {game.unlisted && (
                         <span
                             className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
-                            title="Only game managers see this game; others need a link"
+                            title="Not offered when creating a session; sessions start from a game link, also for game managers"
                         >
                             Unlisted
                         </span>
@@ -94,7 +98,7 @@ function GameCard({
                         title={
                             game.unlisted
                                 ? "Show this game to everyone who can play it"
-                                : "Hide this game from everyone but game managers"
+                                : "Stop offering this game when creating a session; sessions then start from game links"
                         }
                     >
                         {game.unlisted ? "Make listed" : "Make unlisted"}
@@ -147,7 +151,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        fetch(`${API_BASE}/games?serverId=${server.id}`, { credentials: "include" })
+        fetch(gamesUrl(server.id), { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) { setGames([]); return; }
                 const data: GamesResponse = await res.json();
@@ -188,7 +192,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                     <ImportGameDialog
                         serverId={server.id}
                         onImported={() => {
-                            fetch(`${API_BASE}/games?serverId=${encodeURIComponent(server.id)}`, { credentials: "include" })
+                            fetch(gamesUrl(server.id), { credentials: "include" })
                                 .then((r) => (r.ok ? r.json() : null))
                                 .then((data: GamesResponse | null) => {
                                     if (data) setGames(data.games);

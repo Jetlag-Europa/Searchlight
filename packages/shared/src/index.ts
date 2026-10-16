@@ -75,7 +75,7 @@ export interface Game {
   serverId: string;
   name: string;
   size: "small" | "medium" | "large";
-  /** Listed only for the server's game managers; others need a game link. */
+  /** Sessions start only from game links; only the games page lists it, for game managers. */
   unlisted: boolean;
   currentRevisionId?: string | null;
   archivedAt?: string | null;

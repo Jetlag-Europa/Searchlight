@@ -17,8 +17,9 @@ export async function findGameByIdOrKey<I extends Prisma.GameInclude = {}>(
   return game as Prisma.GameGetPayload<{ include: I }> | null;
 }
 
-// Any of these on a game's server lets a user see and use its unlisted games,
-// change its listing and manage its links.
+// Any of these on a game's server lets a user see its unlisted games on the
+// games page, read their definitions, change listing and manage links.
+// Starting sessions of an unlisted game takes a game link, for them too.
 const GAME_MANAGER_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
 export function canManageGames(permissions: ReadonlySet<string>): boolean {
@@ -66,7 +67,8 @@ async function revisionVisibilities(revisionIds: (string | null | undefined)[]):
 /**
  * Throws 403 unless the user may use the game: membership of its server
  * (virtual servers have no guild to check), game management permissions if
- * the game is unlisted, and the role gate of every given revision. Every way
+ * the game is unlisted (POST /sessions refuses unlisted games to everyone),
+ * and the role gate of every given revision. Every way
  * of reaching a game's definitions or pinning a session to one of its
  * revisions goes through this check. Exceptions: a session's participants may
  * read the revision it is pinned to, forks copy their source's revision, and

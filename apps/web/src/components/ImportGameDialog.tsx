@@ -356,7 +356,7 @@ export function ImportGameDialog({
                   >
                     <span className="font-medium">Unlisted</span>
                     <span className="block text-muted-foreground">
-                      Only game managers see it. Share it with game links.
+                      Not offered when creating a session, for anyone. Sessions start from game links; it stays on this page.
                     </span>
                   </label>
                 </div>

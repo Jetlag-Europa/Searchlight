@@ -33,12 +33,17 @@ function serializeGame(game: Prisma.GameGetPayload<{}>) {
 
 export async function gameRoutes(app: FastifyInstance) {
   // GET /games?serverId= — list games for a server (must be a guild member).
-  // Unlisted games are only listed for the server's game managers.
+  // Unlisted games are left out: sessions of them start from game links only.
+  // The games page lists them for the server's game managers with
+  // ?includeUnlisted=true.
   app.get(
     "/",
     {
       schema: {
-        querystring: Type.Object({ serverId: Type.String({ minLength: 1 }) }),
+        querystring: Type.Object({
+          serverId: Type.String({ minLength: 1 }),
+          includeUnlisted: Type.Optional(Type.Boolean()),
+        }),
         response: {
           200: Type.Object({ games: Type.Array(gameShape) }),
         },
@@ -46,7 +51,10 @@ export async function gameRoutes(app: FastifyInstance) {
     },
     async (req) => {
       const { user } = await resolveSession(req);
-      const { serverId } = req.query as { serverId: string };
+      const { serverId, includeUnlisted = false } = req.query as {
+        serverId: string;
+        includeUnlisted?: boolean;
+      };
 
       const server = await prisma.server.findUnique({ where: { id: serverId } });
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
@@ -62,8 +70,10 @@ export async function gameRoutes(app: FastifyInstance) {
         orderBy: { name: "asc" },
       });
       if (games.some((game) => game.unlisted)) {
-        const perms = await getUserPermissions(user.discordId, serverId, false, req.log);
-        if (!canManageGames(perms)) games = games.filter((game) => !game.unlisted);
+        const showUnlisted =
+          includeUnlisted &&
+          canManageGames(await getUserPermissions(user.discordId, serverId, false, req.log));
+        if (!showUnlisted) games = games.filter((game) => !game.unlisted);
       }
 
       // Only `visibility` is needed here; loading every multi-MB definition
