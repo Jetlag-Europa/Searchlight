@@ -329,16 +329,33 @@ describe("maps dispatch and hider regression suite", () => {
         expect(tPoly).toBeDefined();
     });
 
-    it("answers player-drawn custom questions with their own handlers", async () => {
-        const west = turf.point([139.6, 35.65], { name: "West" });
-        const east = turf.point([139.9, 35.65], { name: "East" });
-        const inside = (region: unknown, lng: number, lat: number) =>
-            turf
-                .flatten(region as FeatureCollection<Polygon | MultiPolygon>)
-                .features.some((feature) =>
-                    turf.booleanPointInPolygon(turf.point([lng, lat]), feature),
-                );
+    // Player-drawn questions, west and east of the play area's middle.
+    const west = turf.point([139.6, 35.65], { name: "West" });
+    const east = turf.point([139.9, 35.65], { name: "East" });
+    const inside = (region: unknown, lng: number, lat: number) =>
+        turf
+            .flatten(region as FeatureCollection<Polygon | MultiPolygon>)
+            .features.some((feature) =>
+                turf.booleanPointInPolygon(turf.point([lng, lat]), feature),
+            );
+    // ArcGIS's geodesic buffer needs browser WASM: buffer the targets by the
+    // seeker's distance to the nearest of them.
+    const turfBufferToPoint = async (
+        features: FeatureCollection,
+        lat: number,
+        lng: number,
+    ) => {
+        const seeker = turf.point([lng, lat]);
+        let distance = Infinity;
+        turf.featureEach(turf.explode(features), (vertex) => {
+            distance = Math.min(distance, turf.distance(seeker, vertex));
+        });
+        return turf.buffer(features, distance)!.features[0] as Feature<
+            Polygon | MultiPolygon
+        >;
+    };
 
+    it("answers player-drawn custom questions with their own handlers", async () => {
         const customPoints = {
             id: "matching" as const,
             key: 20,
@@ -358,9 +375,25 @@ describe("maps dispatch and hider regression suite", () => {
         expect(inside(matched, 139.65, 35.7)).toBe(true);
         expect(inside(matched, 139.85, 35.7)).toBe(false);
 
+        const customZone = {
+            id: "matching" as const,
+            key: 21,
+            data: matchingQuestionSchema.parse({
+                type: "custom-zone",
+                geo: turf.bboxPolygon([139.5, 35.5, 139.75, 36.0]),
+                lat: 35.65,
+                lng: 139.62,
+                same: false,
+                drag: true,
+            }),
+        };
+        const zoned = await adjustMapGeoDataForQuestion(customZone, playArea);
+        expect(inside(zoned, 139.6, 35.7)).toBe(false);
+        expect(inside(zoned, 139.9, 35.7)).toBe(true);
+
         const customTentacle = {
             id: "tentacles" as const,
-            key: 21,
+            key: 22,
             data: tentacleQuestionSchema.parse({
                 locationType: "custom",
                 places: [west, east],
@@ -379,12 +412,122 @@ describe("maps dispatch and hider regression suite", () => {
         expect(inside(tentacled, 139.58, 35.65)).toBe(true);
         expect(inside(tentacled, 139.85, 35.65)).toBe(false);
 
+        const customMeasure = {
+            id: "measuring" as const,
+            key: 23,
+            data: measuringQuestionSchema.parse({
+                type: "custom-measure",
+                geo: turf.featureCollection([west]),
+                lat: 35.65,
+                lng: 139.62,
+                hiderCloser: true,
+                drag: true,
+            }),
+        };
+        const bufferSpy = vi
+            .spyOn(GeoUtils, "arcBufferToPoint")
+            .mockImplementation(turfBufferToPoint);
+        try {
+            const measured = await adjustMapGeoDataForQuestion(
+                customMeasure,
+                playArea,
+            );
+            expect(inside(measured, 139.6, 35.655)).toBe(true);
+            expect(inside(measured, 139.65, 35.65)).toBe(false);
+        } finally {
+            bufferSpy.mockRestore();
+        }
+
+        // Planning mode draws the unanswered questions' outlines.
+        for (const question of [customZone, customTentacle]) {
+            const outline = (await determinePlanningPolygon(question, true)) as
+                | Feature
+                | FeatureCollection;
+            expect(
+                turf.flatten(outline as never).features.length,
+            ).toBeGreaterThan(0);
+        }
+
         // The hider is nearest the other point.
         mapGeoJSON.set(playArea);
         hiderMode.set({ latitude: 35.65, longitude: 139.95 });
         try {
             await hiderifyQuestion(customPoints);
             expect(customPoints.data.same).toBe(false);
+        } finally {
+            mapGeoJSON.set(null);
+        }
+    });
+
+    it("eliminates nothing for custom questions with nothing drawn yet", async () => {
+        // As Add Question creates them: no geometry at all.
+        const blank = [
+            {
+                id: "matching" as const,
+                key: 30,
+                data: matchingQuestionSchema.parse({
+                    type: "custom-zone",
+                    lat: 35.65,
+                    lng: 139.62,
+                }),
+            },
+            {
+                id: "matching" as const,
+                key: 31,
+                data: matchingQuestionSchema.parse({
+                    type: "custom-points",
+                    lat: 35.65,
+                    lng: 139.62,
+                }),
+            },
+            {
+                id: "matching" as const,
+                key: 32,
+                data: matchingQuestionSchema.parse({
+                    type: "custom-zone",
+                    geo: turf.featureCollection([]),
+                    lat: 35.65,
+                    lng: 139.62,
+                }),
+            },
+            {
+                id: "measuring" as const,
+                key: 33,
+                data: measuringQuestionSchema.parse({
+                    type: "custom-measure",
+                    lat: 35.65,
+                    lng: 139.62,
+                }),
+            },
+            {
+                id: "tentacles" as const,
+                key: 34,
+                data: tentacleQuestionSchema.parse({
+                    locationType: "custom",
+                    places: [],
+                    location: west,
+                    lat: 35.65,
+                    lng: 139.62,
+                }),
+            },
+        ];
+        // Within the tentacle's radius: nothing to answer with.
+        mapGeoJSON.set(playArea);
+        hiderMode.set({ latitude: 35.66, longitude: 139.63 });
+        try {
+            for (const question of blank) {
+                expect(
+                    await adjustMapGeoDataForQuestion(question, playArea),
+                ).toBe(playArea);
+                if (question.id !== "tentacles") {
+                    expect(
+                        await determinePlanningPolygon(question as never, true),
+                    ).toBeFalsy();
+                }
+                const before = JSON.stringify(question.data);
+                await hiderifyQuestion(question as never);
+                expect(JSON.stringify(question.data)).toBe(before);
+            }
         } finally {
             mapGeoJSON.set(null);
         }

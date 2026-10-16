@@ -74,6 +74,38 @@ export const MatchingQuestionComponent = ({
             .indexOf(questionKey) + 1
     }`;
 
+    // Starts a custom question blank or, when copying custom points into a
+    // custom zone, as the seeker's cell. A game's question starts blank:
+    // copying its layer could make the session's questions too large to save.
+    const switchToCustom = async (
+        type: "custom-zone" | "custom-points",
+        copy: boolean,
+    ) => {
+        const currentSeq = ++prefillSeqRef.current;
+        let geo: unknown;
+        if (copy) {
+            setScopedLoading(prefillScope, true);
+            try {
+                geo = await determineMatchingBoundary(data);
+            } catch (error) {
+                console.error("Could not copy the question:", error);
+            } finally {
+                setScopedLoading(prefillScope, false);
+            }
+            if (prefillSeqRef.current !== currentSeq) return;
+        }
+        if (geo === undefined) {
+            toast.info(
+                type === "custom-zone"
+                    ? "Please draw the zone on the map."
+                    : "Please draw the points on the map.",
+            );
+        }
+        (data as { geo?: unknown }).geo =
+            geo ?? (type === "custom-zone" ? undefined : []);
+        questionModified((data.type = type));
+    };
+
     let questionSpecific = <></>;
 
     switch (data.type) {
@@ -131,37 +163,13 @@ export const MatchingQuestionComponent = ({
                 onOpenChange={setCustomDialogOpen}
                 onBlank={async () => {
                     if (!pendingCustomType) return;
-                    if (pendingCustomType === "custom-zone") {
-                        (data as any).geo = undefined;
-                        toast.info("Please draw the zone on the map.");
-                    } else {
-                        (data as any).geo = [];
-                        toast.info("Please draw the points on the map.");
-                    }
-                    data.type = pendingCustomType;
-                    questionModified();
+                    await switchToCustom(pendingCustomType, false);
                     setCustomDialogOpen(false);
                 }}
                 onPrefill={async () => {
                     if (!pendingCustomType) return;
-                    const currentSeq = ++prefillSeqRef.current;
-                    setScopedLoading(prefillScope, true);
-                    try {
-                        if (pendingCustomType === "custom-zone") {
-                            const boundary =
-                                await determineMatchingBoundary(data);
-                            if (prefillSeqRef.current !== currentSeq) return;
-                            (data as { geo?: unknown }).geo = boundary;
-                        } else {
-                            (data as { geo?: unknown }).geo = [];
-                            toast.info("Please draw the points on the map.");
-                        }
-                        data.type = pendingCustomType;
-                        questionModified();
-                        setCustomDialogOpen(false);
-                    } finally {
-                        setScopedLoading(prefillScope, false);
-                    }
+                    await switchToCustom(pendingCustomType, true);
+                    setCustomDialogOpen(false);
                 }}
             />
             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
@@ -185,53 +193,24 @@ export const MatchingQuestionComponent = ({
                             value === "custom-zone" ||
                             value === "custom-points"
                         ) {
-                            if ($customInitPref === "ask") {
+                            // Only custom points can be copied, into a zone.
+                            const copyable =
+                                value === "custom-zone" &&
+                                data.type === "custom-points";
+                            if (copyable && $customInitPref === "ask") {
                                 setPendingCustomType(value);
                                 setCustomDialogOpen(true);
                                 return;
                             }
-                            // Apply preference without dialog
-                            if ($customInitPref === "blank") {
-                                if (value === "custom-zone") {
-                                    (data as any).geo = undefined;
-                                    toast.info(
-                                        "Please draw the zone on the map.",
-                                    );
-                                } else {
-                                    (data as any).geo = [];
-                                    toast.info(
-                                        "Please draw the points on the map.",
-                                    );
-                                }
-                            } else if ($customInitPref === "prefill") {
-                                const currentSeq = ++prefillSeqRef.current;
-                                setScopedLoading(prefillScope, true);
-                                try {
-                                    if (value === "custom-zone") {
-                                        const boundary =
-                                            await determineMatchingBoundary(
-                                                data,
-                                            );
-                                        if (
-                                            prefillSeqRef.current !== currentSeq
-                                        )
-                                            return;
-                                        (data as { geo?: unknown }).geo =
-                                            boundary;
-                                    } else {
-                                        (data as { geo?: unknown }).geo = [];
-                                        toast.info(
-                                            "Please draw the points on the map.",
-                                        );
-                                    }
-                                } finally {
-                                    setScopedLoading(prefillScope, false);
-                                }
-                                if (prefillSeqRef.current !== currentSeq)
-                                    return;
-                            }
+                            await switchToCustom(
+                                value,
+                                copyable && $customInitPref === "prefill",
+                            );
+                            return;
                         }
 
+                        // A copy still in progress mustn't override this.
+                        prefillSeqRef.current++;
                         questionModified((data.type = value));
                     }}
                     disabled={!data.drag || $isLoading}

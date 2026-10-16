@@ -368,6 +368,11 @@ export const PolygonDraw = () => {
         }
     }, [$drawingQuestionKey]);
 
+    // A custom question may not have anything drawn yet.
+    const measuringGeo =
+        (question?.data as CustomMeasuringQuestion | undefined)?.geo ??
+        turf.featureCollection([]);
+
     return (
         <FeatureGroup ref={featureRef}>
             {question &&
@@ -382,17 +387,19 @@ export const PolygonDraw = () => {
             {question &&
                 question.id === "matching" &&
                 question.data.type === "custom-points" &&
-                (question.data as CustomMatchingQuestion).geo.map((x: any) => (
-                    <MatchingPointMarker
-                        key={x.geometry.coordinates.join(",")}
-                        point={x}
-                    />
-                ))}
+                ((question.data as CustomMatchingQuestion).geo ?? []).map(
+                    (x: any) => (
+                        <MatchingPointMarker
+                            key={x.geometry.coordinates.join(",")}
+                            point={x}
+                        />
+                    ),
+                )}
             {question &&
                 question.id === "measuring" &&
                 question.data.type === "custom-measure" &&
                 turf
-                    .flatten((question.data as CustomMeasuringQuestion).geo)
+                    .flatten(measuringGeo)
                     .features.filter((x: any) => turf.getType(x) === "Point")
                     .map((x: any) => (
                         <MeasuringPointMarker
@@ -404,7 +411,7 @@ export const PolygonDraw = () => {
                 question.id === "measuring" &&
                 question.data.type === "custom-measure" &&
                 turf
-                    .flatten((question.data as CustomMeasuringQuestion).geo)
+                    .flatten(measuringGeo)
                     .features.filter((x: any) => turf.getType(x) === "Polygon")
                     .map((x: any) => (
                         <Polygon
@@ -421,7 +428,7 @@ export const PolygonDraw = () => {
                 question.id === "measuring" &&
                 question.data.type === "custom-measure" &&
                 turf
-                    .flatten((question.data as CustomMeasuringQuestion).geo)
+                    .flatten(measuringGeo)
                     .features.filter(
                         (x: any) => turf.getType(x) === "LineString",
                     )

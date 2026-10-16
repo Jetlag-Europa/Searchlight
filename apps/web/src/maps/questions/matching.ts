@@ -25,7 +25,11 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
 
     switch (question.type) {
         case "custom-zone": {
-            boundary = (question as CustomMatchingQuestion).geo;
+            const geo = (question as CustomMatchingQuestion).geo;
+            // An empty collection is a zone with nothing drawn yet.
+            if (geo?.type === "FeatureCollection" && !geo.features?.length)
+                break;
+            boundary = geo;
             break;
         }
         case "custom-points": {
@@ -112,6 +116,8 @@ export const adjustPerMatching = async (
     if (mapData === null) return;
 
     const boundary = await determineMatchingBoundary(question);
+    // Nothing drawn yet: nothing to compare against.
+    if (!boundary) return mapData;
 
     return modifyMapData(mapData, boundary, question.same);
 };
@@ -154,6 +160,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
 export const matchingPlanningPolygon = async (question: MatchingQuestion) => {
     try {
         const boundary = await determineMatchingBoundary(question);
+        if (!boundary) return false;
 
         return turf.polygonToLine(boundary);
     } catch {

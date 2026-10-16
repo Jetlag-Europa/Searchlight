@@ -228,7 +228,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         onChange={defaultUnit.set}
                                     />
                                     <Separator className="bg-slate-300 w-[280px]" />
-                                    <Label>New Custom Question Defaults</Label>
+                                    <Label>Custom Points to Custom Zone</Label>
                                     <Select
                                         trigger="New custom default"
                                         options={{

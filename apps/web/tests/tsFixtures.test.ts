@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { defaultUnit } from "@/lib/context";
 import { questionSchema } from "@/maps/schema";
 
 describe("thermometer question schema", () => {
@@ -44,6 +45,22 @@ describe("question schema", () => {
                 data: { lat: 0, lng: 0 },
             }).success,
         ).toBe(false);
+    });
+
+    it("starts a tentacle at 15 of the default unit", () => {
+        const previous = defaultUnit.get();
+        try {
+            for (const unit of ["miles", "meters"] as const) {
+                defaultUnit.set(unit);
+                const tentacle = questionSchema.parse({
+                    id: "tentacles",
+                    data: { lat: 0, lng: 0, locationType: "tentacle-museums" },
+                });
+                expect(tentacle.data).toMatchObject({ radius: 15, unit });
+            }
+        } finally {
+            defaultUnit.set(previous);
+        }
     });
 
     it("parses game and player-drawn questions", () => {

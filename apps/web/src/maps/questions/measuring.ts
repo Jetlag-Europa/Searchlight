@@ -18,8 +18,10 @@ import type { MeasuringQuestion } from "@/maps/schema";
 /** The features a player-drawn measuring question measures to. */
 const determineMeasuringBoundary = (question: MeasuringQuestion) => {
     if (question.type !== "custom-measure") return false;
-    return turf.combine(turf.featureCollection((question as any).geo.features))
-        .features;
+    // Nothing drawn yet: nothing to measure to.
+    const features = (question as any).geo?.features;
+    if (!features?.length) return false;
+    return turf.combine(turf.featureCollection(features)).features;
 };
 
 // Manual memoize so a failed worker request can be evicted: _.memoize would

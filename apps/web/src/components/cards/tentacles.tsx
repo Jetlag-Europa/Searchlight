@@ -106,11 +106,12 @@ export const TentacleQuestionComponent = ({
                         type="number"
                         className="rounded-md p-2 w-16"
                         value={data.radius}
-                        onChange={(e) =>
-                            questionModified(
-                                (data.radius = parseFloat(e.target.value)),
-                            )
-                        }
+                        onChange={(e) => {
+                            // Keep the last radius while the field is cleared.
+                            const radius = parseFloat(e.target.value);
+                            if (isNaN(radius)) return;
+                            questionModified((data.radius = radius));
+                        }}
                         disabled={!data.drag || $isLoading}
                     />
                     <UnitSelect
