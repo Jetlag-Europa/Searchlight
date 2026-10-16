@@ -2,7 +2,7 @@ import { type Static, Type } from "@sinclair/typebox";
 import { DISTANCE_UNITS } from "./operators.js";
 
 export const GAME_DEFINITION_SCHEMA_URL =
-  "https://sl-dev.jl-e.org/schemas/game-definition.v1.schema.json" as const;
+  "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json" as const;
 
 // ── Visibility ───────────────────────────────────────────────────────────────
 
