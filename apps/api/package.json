@@ -4,13 +4,14 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "dev": "node --env-file=../../.env --watch --import tsx/esm src/index.ts",
+        "dev": "pnpm prisma migrate deploy && pnpm seed --missing-only && node --env-file=../../.env --watch --import tsx/esm src/index.ts",
+        "prisma": "node --env-file=../../.env node_modules/prisma/build/index.js",
         "build": "tsc",
         "build:seed": "tsc -p tsconfig.seed.json",
         "start": "node dist/index.js",
         "test": "vitest run",
-        "seed": "tsx prisma/seed.ts",
-        "seed:test": "tsx prisma/seed-test.ts",
+        "seed": "tsx --env-file=../../.env prisma/seed.ts",
+        "seed:test": "tsx --env-file=../../.env prisma/seed-test.ts",
         "seed:prod": "node dist-seed/seed.js",
         "validate-game": "tsx scripts/validate-game.ts",
         "postinstall": "prisma generate"

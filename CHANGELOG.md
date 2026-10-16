@@ -1,5 +1,13 @@
 # Changelog
 
+## Simpler setup and deployment (2026-10-16)
+
+- Development is `cp .env.example .env`, four Discord/session values, `pnpm install`, `pnpm dev`. `pnpm dev` starts Postgres (`docker-compose.dev.yml`), builds and watches the shared package, and runs the API (migrating and creating servers first) and the web app. The web app reads `PUBLIC_API_BASE` from the root `.env`; `apps/web/.env` is gone. The API's `prisma`, `seed` and `seed:test` scripts read the root `.env` too.
+- `docker-compose.yml` is the whole stack, pulling the CI images from GHCR or building them with the same names. Overlays add the way in: `docker-compose.cloudflared.yml` (production, was `docker-compose.vps.yml`) or `docker-compose.backend.yml` (API on a host port, now an overlay too). A server picks one with `COMPOSE_FILE` in `.env` and names its stack with `COMPOSE_PROJECT_NAME`, so `docker compose` needs no flags there. The API's `DATABASE_URL` is built from `POSTGRES_PASSWORD`.
+- `infra/deploy.sh` (was `deploy-vps.sh`) deploys whatever `.env` describes. `infra/backup.sh` uses the same settings.
+- The e2e stack is `searchlight-test` and needs no `.env.test`.
+- `README.md` (replacing `SETUP.md`), `DEPLOY.md` and `docs/TESTING.md` (replacing `TESTING_PLAN.md`) are rewritten for the current setup.
+
 ## Question layers for Brno, Brussels and OLD Luxembourg (2026-10-15)
 
 - Brno 2026, Brussels 2026 and OLD Luxembourg 2026 were converted with no question layers, so they offered no matching, measuring or tentacle questions; before the conversion these came from live OpenStreetMap lookups and bundled files. They now carry their own layers:

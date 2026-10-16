@@ -23,7 +23,7 @@ ARG PUBLIC_API_BASE
 ENV PUBLIC_API_BASE=${PUBLIC_API_BASE}
 
 # Test-only: when "1", bakes in window.__searchlight for Playwright e2e. Defaults to
-# off, so production/dev builds never expose it. Set only in the writemap-test stack.
+# off, so production/dev builds never expose it. Set only in the searchlight-test stack.
 ARG PUBLIC_ENABLE_TEST_HOOK=
 ENV PUBLIC_ENABLE_TEST_HOOK=${PUBLIC_ENABLE_TEST_HOOK}
 

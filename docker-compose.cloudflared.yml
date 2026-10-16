@@ -1,0 +1,18 @@
+# Overlay: a Cloudflare Tunnel is the only way in; no host ports are published.
+# cloudflared reaches the containers as http://web:80 and http://api:3000.
+#
+# The tunnel is locally managed: its credentials and config.yml (public
+# hostname -> service) live in CLOUDFLARED_DIR, by default ../cloudflared next
+# to the clone. See DEPLOY.md.
+services:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --config /etc/cloudflared/config.yml run
+    volumes:
+      - ${CLOUDFLARED_DIR:-../cloudflared}:/etc/cloudflared:ro
+    depends_on:
+      - web
+      - api
+    networks:
+      - internal

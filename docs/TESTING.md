@@ -1,0 +1,69 @@
+# Testing
+
+```bash
+pnpm --filter @searchlight/web exec vitest run   # web: question geometry, sync, game compiler (`test` watches)
+pnpm --filter @searchlight/shared test           # game definition schema, validator, checksum
+pnpm --filter @searchlight/api test              # API routes against a real Postgres
+pnpm verify:preloaded-games                      # every bundled game: validator and strict data checks
+pnpm check:game-schema                           # published JSON schema matches the TypeBox schema
+```
+
+The API tests need a migrated database. They use the dev one from
+`docker-compose.dev.yml` (`pnpm dev` migrates it) unless `DATABASE_URL` is set,
+and create and delete their own rows.
+
+## Question geometry
+
+`apps/web/tests/questions/` checks each question type's elimination mask
+against an independent **oracle**: the expected result worked out a second,
+simpler way (e.g. "a point survives a tentacle question iff it is within the
+radius and its nearest site is the answer") and sampled on a grid. Points
+within `edgeMargin` of a boundary are skipped, because the app's Voronoi cells
+are reprojected through Mercator and drift from the true geodesic boundaries
+(about 100 m near the sites, more further out). Keep scenarios small and
+tight for the same reason. A failing case writes an SVG to
+`apps/web/test-results/`.
+
+`@arcgis/core` can't run under Node, so `arcBuffer` and `arcBufferToPoint` are
+replaced with Turf equivalents (`vi.mock("@/maps/geo-utils")`); the Voronoi,
+union and intersection code stays under test.
+
+## End-to-end (Playwright)
+
+The e2e stack is the production images with test switches, on its own
+database: the API accepts `POST /auth/test-login` (`ENABLE_TEST_AUTH=1`), the
+web build exposes the map state as `window.__searchlight`
+(`PUBLIC_ENABLE_TEST_HOOK=1`), and Overpass is an nginx stub that returns no
+elements.
+
+```bash
+infra/deploy-test.sh                                        # build, start and seed (needs the dev .env)
+pnpm --filter @searchlight/web exec playwright install chromium  # once
+pnpm --filter @searchlight/web test:e2e
+docker compose -p searchlight-test down -v                  # tear down
+```
+
+The seed (`apps/api/prisma/seed-test.ts`) creates the `e2e-test-user` and the
+`e2e-session` on South Limburg 2026. Specs live in `apps/web/e2e/*.e2e.ts`.
+
+- Use `127.0.0.1`, not `localhost`: the stack listens on IPv4 only, and
+  Chromium resolves `localhost` to `::1`.
+- The Playwright context blocks the service worker, which would upgrade
+  navigations to https on the plain-http stack.
+- Run the API with `ENABLE_TEST_AUTH=1` anywhere else only with
+  `HOST=127.0.0.1`: test login skips Discord entirely.
+
+## In a real browser
+
+Unit tests can't show these; check them by hand after changing geometry or
+sync code:
+
+- Geometry runs in a module worker. With a large measuring dataset (Paris
+  libraries, North London's water lines), change answers while a calculation
+  is still running: the latest answer wins, one elimination layer remains, and
+  the page stays responsive.
+- Containing-region questions use ArcGIS's ellipsoidal distances in the
+  worker, where Turf (in the unit tests) is spherical; at the equator they
+  differ by about 120 m per degree.
+- On slow devices, Belgium 2026 (424 hiding zones) with several measuring
+  questions answered should keep the page responsive.

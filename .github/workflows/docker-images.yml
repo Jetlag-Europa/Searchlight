@@ -4,9 +4,9 @@ name: Docker images
 # to the GitHub Container Registry as ghcr.io/<owner>/searchlight-api and
 # ghcr.io/<owner>/searchlight-web, tagged sha-<short commit> (every push to main
 # or manual run) and latest (main). Each tag is a multi-platform image, so
-# `docker pull` picks the host's architecture. The server pulls them instead of
-# building: see infra/deploy-vps.sh and DEPLOY.md. Pull requests only build, to
-# catch a broken image before it reaches main.
+# `docker pull` picks the host's architecture. Servers pull them with
+# infra/deploy.sh (see DEPLOY.md). Pull requests only build, to catch a broken
+# image before it reaches main.
 #
 # Each platform builds natively on its own runner (no QEMU emulation) and is
 # pushed by digest; the merge job then tags the two digests as one image.
@@ -43,7 +43,7 @@ jobs:
                       runner: ubuntu-24.04-arm
                     - image: web
                       # Baked into the static bundle, so this image only talks to
-                      # the production API. Keep in step with docker-compose.vps.yml.
+                      # the production API. Same default as docker-compose.yml.
                       build-args: PUBLIC_API_BASE=https://api-searchlight.jetlageuropa.org
         steps:
             - name: Image name
