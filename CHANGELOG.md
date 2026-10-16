@@ -1,6 +1,6 @@
 # Changelog
 
-## Every session plays its game (2026-10-16)
+## Every session plays its game (2026-10-17)
 
 - Free play, inherited from JetLagHideAndSeek, is gone. It no longer runs behind the session picker (the default Luxembourg boundary isn't fetched any more) or when a session's game fails to load, and questions are only ever answered from the session's game.
 - When a session's game can't be loaded (offline, a server error, no access), a "Game not loaded" banner with Retry and Change session appears under the map, alongside the revision banner. The board stays visible and the drawing tools keep working, but until the game has loaded Add Question, the map's Add items and hider mode are disabled, no question is evaluated and no hiding zones are looked up in OSM. Radars, thermometers, the game's layer questions and custom questions are kept meanwhile, also in the cached board shown while loading; questions from the old built-in catalogue are hidden, as they already were once a game loaded. A revision upgrade that fails to load still shows the revision banner's own error. A session switch that fails no longer leaves the previous session's game, hider or planning mode on the board, and the session picker can be closed (Back to board, or Escape) whenever a session's board is showing. Browsing other servers in the picker no longer affects the session's hiding zones, and the zone sidebar only ever loads the session's own game, pinned to its revision.

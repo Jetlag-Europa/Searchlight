@@ -48,46 +48,49 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     <!-- SyncIndicator shows offline/syncing/synced status -->
     <SyncIndicator client:only="react" />
 
-    <SidebarProviderL client:load>
-        <SidebarProviderR client:load defaultOpen={false}>
-            <QuestionSidebar client:only />
-            <main class="flex h-svh min-w-0 flex-col flex-grow group">
-                <div
-                    id="map-modal-dialog-container-leaflet"
-                    class="min-h-0 flex-1"
-                >
-                    <div class="w-full h-full relative">
-                        <div
-                            class="absolute top-[72px] md:top-2 left-2 z-[1030] group-[.fullscreen]:hidden"
-                        >
-                            <SidebarTriggerL client:load />
+    <!-- The board; SessionManager makes it inert while the session picker is open -->
+    <div id="map-board" class="contents">
+        <SidebarProviderL client:load>
+            <SidebarProviderR client:load defaultOpen={false}>
+                <QuestionSidebar client:only />
+                <main class="flex h-svh min-w-0 flex-col flex-grow group">
+                    <div
+                        id="map-modal-dialog-container-leaflet"
+                        class="min-h-0 flex-1"
+                    >
+                        <div class="w-full h-full relative">
+                            <div
+                                class="absolute top-[72px] md:top-2 left-2 z-[1030] group-[.fullscreen]:hidden"
+                            >
+                                <SidebarTriggerL client:load />
+                            </div>
+                            <div
+                                class="absolute top-[72px] md:top-2 right-2 z-[1030] group-[.fullscreen]:hidden"
+                            >
+                                <SidebarTriggerR client:load />
+                            </div>
+                            <div
+                                class="bottom-5 left-2 right-2 mb-2 absolute z-[1030] group-[.fullscreen]:hidden"
+                            >
+                                <OptionDrawers client:only />
+                            </div>
+                            <div
+                                class="right-2 top-1/2 -translate-y-1/2 absolute z-[1030] group-[.fullscreen]:hidden max-h-[80vh] overflow-y-auto"
+                            >
+                                <AnnotationToolbar client:only />
+                            </div>
+                            <Map
+                                className="w-full !h-full group-[.fullscreen]:w-full"
+                                client:only
+                            />
                         </div>
-                        <div
-                            class="absolute top-[72px] md:top-2 right-2 z-[1030] group-[.fullscreen]:hidden"
-                        >
-                            <SidebarTriggerR client:load />
-                        </div>
-                        <div
-                            class="bottom-5 left-2 right-2 mb-2 absolute z-[1030] group-[.fullscreen]:hidden"
-                        >
-                            <OptionDrawers client:only />
-                        </div>
-                        <div
-                            class="right-2 top-1/2 -translate-y-1/2 absolute z-[1030] group-[.fullscreen]:hidden max-h-[80vh] overflow-y-auto"
-                        >
-                            <AnnotationToolbar client:only />
-                        </div>
-                        <Map
-                            className="w-full !h-full group-[.fullscreen]:w-full"
-                            client:only
-                        />
                     </div>
-                </div>
-                <!-- SessionManager renders the "game not loaded" banner here -->
-                <div id="game-not-loaded-banner" class="contents"></div>
-                <SessionUpgradeBanner client:only="react" />
-            </main>
-            <ZoneSidebar client:only />
-        </SidebarProviderR>
-    </SidebarProviderL>
+                    <!-- SessionManager renders the "game not loaded" banner here -->
+                    <div id="game-not-loaded-banner" class="contents"></div>
+                    <SessionUpgradeBanner client:only="react" />
+                </main>
+                <ZoneSidebar client:only />
+            </SidebarProviderR>
+        </SidebarProviderL>
+    </div>
 </Layout>

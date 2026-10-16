@@ -5,7 +5,7 @@ import type {
     SessionsResponse,
 } from "@searchlight/shared";
 import { Settings, TriangleAlert } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 
@@ -91,16 +91,28 @@ function SessionPickerOverlay({
     const [leavingId, setLeavingId] = useState<string | null>(null);
     const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
     const loadSessionsReqRef = useRef(0);
+    const titleId = useId();
+    const dialogRef = useRef<HTMLDivElement>(null);
+    const backButtonRef = useRef<HTMLButtonElement>(null);
+    // A session being created will be switched to: stay until it is.
+    const close = creatingSession ? undefined : onClose;
+
+    // Focus starts inside the picker; the board behind it is inert.
+    useEffect(() => {
+        (backButtonRef.current ?? dialogRef.current)?.focus();
+    }, []);
 
     // Escape returns to the board, like Back to board.
     useEffect(() => {
-        if (!onClose) return;
+        if (!close) return;
         const closeOnEscape = (event: KeyboardEvent) => {
-            if (event.key === "Escape") onClose();
+            if (event.key !== "Escape") return;
+            if (event.isComposing || event.defaultPrevented) return;
+            close();
         };
         window.addEventListener("keydown", closeOnEscape);
         return () => window.removeEventListener("keydown", closeOnEscape);
-    }, [onClose]);
+    }, [close]);
 
     useEffect(() => {
         let active = true;
@@ -248,9 +260,18 @@ function SessionPickerOverlay({
 
     return (
         <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
-            <div className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6">
+            <div
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                tabIndex={-1}
+                className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6 outline-none"
+            >
                 <div className="flex items-start justify-between gap-2 mb-1">
-                    <h1 className="text-xl font-bold">Select a Session</h1>
+                    <h1 id={titleId} className="text-xl font-bold">
+                        Select a Session
+                    </h1>
                     <div className="flex shrink-0 items-center gap-1">
                         {canManageGames && (
                             <a
@@ -263,7 +284,13 @@ function SessionPickerOverlay({
                             </a>
                         )}
                         {onClose && (
-                            <Button size="sm" variant="ghost" onClick={onClose}>
+                            <Button
+                                ref={backButtonRef}
+                                size="sm"
+                                variant="ghost"
+                                onClick={close}
+                                disabled={!close}
+                            >
                                 Back to board
                             </Button>
                         )}
@@ -519,9 +546,11 @@ function SessionPickerOverlay({
 function SessionChip({
     session,
     onChangeSession,
+    inert,
 }: {
     session: GameSessionSummary;
     onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
+    inert: boolean;
 }) {
     const sidebar = useStore(sidebarContextR);
     const right = sidebar.open ? "calc(16rem + 3.5rem)" : "3.5rem";
@@ -530,6 +559,7 @@ function SessionChip({
         <div
             className="fixed top-10 z-[1041] flex items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm transition-[right] duration-200 ease-linear"
             style={{ right }}
+            inert={inert}
         >
             <span
                 className="font-medium truncate max-w-[140px]"
@@ -614,15 +644,25 @@ export function SessionManager() {
     // The control that opened the picker gets focus back on Back to board;
     // the chip and banner stay mounted under the picker for that.
     const pickerOpenerRef = useRef<HTMLElement | null>(null);
+    const restorePickerFocusRef = useRef(false);
     const openPicker = (event: React.MouseEvent<HTMLElement>) => {
         pickerOpenerRef.current = event.currentTarget;
         setShowPicker(true);
     };
     const closePicker = useCallback(() => {
+        restorePickerFocusRef.current = true;
         setShowPicker(false);
-        pickerOpenerRef.current?.focus();
-        pickerOpenerRef.current = null;
     }, []);
+    // The board behind the picker is inert. Focus returns once it isn't.
+    useEffect(() => {
+        const board = document.getElementById("map-board");
+        if (board) board.inert = showPicker;
+        if (!showPicker && restorePickerFocusRef.current) {
+            restorePickerFocusRef.current = false;
+            pickerOpenerRef.current?.focus();
+            pickerOpenerRef.current = null;
+        }
+    }, [showPicker]);
     const sessionLoadGenerationRef = useRef(0);
     // Generation of the session load that is still replacing content, if any.
     // Save effects bail while it is current: the atoms can already hold the
@@ -1314,7 +1354,11 @@ export function SessionManager() {
                     bannerSlot,
                 )}
             {session && (
-                <SessionChip session={session} onChangeSession={openPicker} />
+                <SessionChip
+                    session={session}
+                    onChangeSession={openPicker}
+                    inert={showPicker}
+                />
             )}
         </>
     );
