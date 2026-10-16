@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import type { DistanceRadius } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import React from "react";
 import { toast } from "react-toastify";
@@ -12,7 +11,6 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog";
 import { SidebarMenuButton } from "@/components/ui/sidebar-l";
-import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
 import {
     addQuestion,
@@ -32,8 +30,6 @@ export const AddQuestionDialog = ({
     const hasRadius = compiled
         ? compiled.questions.some((q) => q.family === "radius")
         : true;
-    // A game declaring several radar radii gets one button per radius.
-    const radii = compiled ? radarRadii(compiled) : [];
     const hasThermometer = compiled
         ? compiled.questions.some((q) => q.family === "thermometer")
         : true;
@@ -48,7 +44,9 @@ export const AddQuestionDialog = ({
     const hasMeasuring = compiled
         ? compiled.questions.some((q) => q.family === "measuring")
         : true;
-    const runAddRadius = (radius?: DistanceRadius) => {
+    // addQuestion starts the radar at the game's first declared radius; the
+    // card offers the others as quick picks.
+    const runAddRadius = () => {
         const map = leafletMapContext.get();
         if (!map) return false;
         const center = map.getCenter();
@@ -57,7 +55,6 @@ export const AddQuestionDialog = ({
             data: {
                 lat: center.lat,
                 lng: center.lng,
-                ...(radius && { radius: radius.value, unit: radius.unit }),
             },
         });
         return true;
@@ -185,29 +182,15 @@ export const AddQuestionDialog = ({
                 </DialogDescription>
 
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {radii.length > 1 ? (
-                        radii.map((radius) => (
-                            <SidebarMenuButton
-                                key={`${radius.value}-${radius.unit}`}
-                                onClick={() => {
-                                    if (runAddRadius(radius)) setOpen(false);
-                                }}
-                                disabled={$isLoading}
-                            >
-                                Add Radius ({radius.value} {radius.unit})
-                            </SidebarMenuButton>
-                        ))
-                    ) : (
-                        <SidebarMenuButton
-                            onClick={() => {
-                                if (runAddRadius(radii[0])) setOpen(false);
-                            }}
-                            disabled={$isLoading || !hasRadius}
-                            className={!hasRadius ? "opacity-40 cursor-not-allowed" : ""}
-                        >
-                            Add Radius {!hasRadius && "(Disabled)"}
-                        </SidebarMenuButton>
-                    )}
+                    <SidebarMenuButton
+                        onClick={() => {
+                            if (runAddRadius()) setOpen(false);
+                        }}
+                        disabled={$isLoading || !hasRadius}
+                        className={!hasRadius ? "opacity-40 cursor-not-allowed" : ""}
+                    >
+                        Add Radius {!hasRadius && "(Disabled)"}
+                    </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
                             if (runAddThermometer()) setOpen(false);
