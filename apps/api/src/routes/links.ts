@@ -44,7 +44,14 @@ export async function linkRoutes(app: FastifyInstance) {
         include: { session: true, snapshot: true },
       });
       if (!link || link.revokedAt) throw notFound("Link is invalid or has been revoked");
-      if (link.session.creatorId === user.discordId) throw forbidden("Cannot redeem your own link");
+      if (link.session.creatorId === user.discordId) {
+        // The creator is already in the session; opening their own invite
+        // link just takes them there.
+        if (link.linkType === "join") {
+          return reply.status(200).send({ sessionId: link.session.id, linkType: "join" });
+        }
+        throw forbidden("Cannot redeem your own link");
+      }
 
       if (link.linkType === "fork") {
         const questions = (link.snapshot?.questions ?? []) as Array<{

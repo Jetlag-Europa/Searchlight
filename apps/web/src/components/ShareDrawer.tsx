@@ -23,6 +23,11 @@ import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
+async function errorMessage(res: Response): Promise<string> {
+    const body = await res.json().catch(() => null) as { message?: string } | null;
+    return body?.message ?? `Request failed (${res.status})`;
+}
+
 function TabBar({
     active,
     onChange,
@@ -62,6 +67,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
     const [searching, setSearching] = useState(false);
     const [sharingId, setSharingId] = useState<string | null>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
     const [sentInvites, setSentInvites] = useState<SessionInviteDetail[]>([]);
     const [loadingSent, setLoadingSent] = useState(false);
     const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
@@ -75,8 +81,8 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
             });
             if (!res.ok) return;
             const data: SessionInvitesResponse = await res.json();
-            // Only show fork invites in Share drawer
-            setSentInvites(data.invites);
+            // Join invites belong to the Invites drawer
+            setSentInvites(data.invites.filter((i) => i.inviteType === "fork"));
         } catch {
             // non-critical
         } finally {
@@ -110,6 +116,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     const handleShare = async (user: UserSearchResult) => {
         if (!session) return;
         setSharingId(user.discordId);
+        setSendError(null);
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}/invites`, {
                 method: "POST",
@@ -117,11 +124,15 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ invitedUserId: user.discordId, inviteType: "fork" }),
             });
-            if (res.ok) {
-                setQuery("");
-                setSearchResults([]);
-                await fetchSentInvites();
+            if (!res.ok) {
+                setSendError(await errorMessage(res));
+                return;
             }
+            setQuery("");
+            setSearchResults([]);
+            await fetchSentInvites();
+        } catch {
+            setSendError("Could not share the copy. Check your connection.");
         } finally {
             setSharingId(null);
         }
@@ -168,6 +179,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     const handleCreateLink = async () => {
         if (!session) return;
         setCreatingLink(true);
+        setSendError(null);
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
                 method: "POST",
@@ -175,14 +187,18 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ linkType: "fork" }),
             });
-            if (res.ok) {
-                const data: CreateLinkResponse = await res.json();
-                const url = `${window.location.origin}/join?token=${data.token}`;
-                await navigator.clipboard.writeText(url).catch(() => {});
-                await fetchLinks();
-                setCopiedLinkId(data.id);
-                setTimeout(() => setCopiedLinkId(null), 2000);
+            if (!res.ok) {
+                setSendError(await errorMessage(res));
+                return;
             }
+            const data: CreateLinkResponse = await res.json();
+            const url = `${window.location.origin}/join?token=${data.token}`;
+            await navigator.clipboard.writeText(url).catch(() => {});
+            await fetchLinks();
+            setCopiedLinkId(data.id);
+            setTimeout(() => setCopiedLinkId(null), 2000);
+        } catch {
+            setSendError("Could not create the link. Check your connection.");
         } finally {
             setCreatingLink(false);
         }
@@ -219,6 +235,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
         } else {
             setQuery("");
             setSearchResults([]);
+            setSendError(null);
         }
     };
 
@@ -228,23 +245,27 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
         <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerTrigger asChild>
                 <Button className={cn(className)}>
-                    Share
+                    Share a copy
                 </Button>
             </DrawerTrigger>
             <DrawerContent aria-describedby={undefined}>
                 <DrawerHeader>
                     <DrawerTitle>
-                        Share <span className="text-muted-foreground font-normal">{session?.name}</span>
+                        Share a copy of <span className="text-muted-foreground font-normal">{session?.name}</span>
                     </DrawerTitle>
                 </DrawerHeader>
 
                 <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto">
-                    <TabBar active={activeTab} onChange={setActiveTab} />
+                    <TabBar active={activeTab} onChange={(t) => { setActiveTab(t); setSendError(null); }} />
+
+                    {sendError && (
+                        <p className="text-xs text-destructive mb-3">{sendError}</p>
+                    )}
 
                     {activeTab === "user" && (
                         <div className="space-y-3">
                             <p className="text-xs text-muted-foreground">
-                                Send a personal copy of this session’s questions to a user. They get their own private snapshot.
+                                Send someone their own private copy of this session’s questions as they are now. Later changes on either side stay separate. To play together, use Invites instead.
                             </p>
 
                             <input
@@ -315,7 +336,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                     {activeTab === "link" && (
                         <div className="space-y-3">
                             <p className="text-xs text-muted-foreground">
-                                Anyone with this link gets their own private copy of your session’s questions.
+                                Anyone with this link gets their own private copy of this session’s questions as they are now. It does not let them into this session.
                             </p>
 
                             <Button

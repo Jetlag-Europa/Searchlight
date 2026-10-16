@@ -7,10 +7,11 @@ import type {
     SessionInvitesResponse,
     SessionLinksResponse,
     SessionLinkSummary,
+    SessionParticipantsResponse,
     UserSearchResponse,
     UserSearchResult,
 } from "@searchlight/shared";
-import type { ForkAcceptResponse,GameSessionSummary } from "@searchlight/shared";
+import type { ForkAcceptResponse } from "@searchlight/shared";
 import { useCallback,useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -21,12 +22,25 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
-import { activeSessionData, setActiveSession } from "@/lib/activeSession";
+import { activeSessionData } from "@/lib/activeSession";
 import { pendingSessionLoad } from "@/lib/context";
 import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_INTERVAL_MS = 30_000;
+
+async function errorMessage(res: Response): Promise<string> {
+    const body = await res.json().catch(() => null) as { message?: string } | null;
+    return body?.message ?? `Request failed (${res.status})`;
+}
+
+// The server marks a session shared when its creator invites someone.
+function markActiveSessionShared(sessionId: string) {
+    const current = activeSessionData.get();
+    if (current?.id === sessionId && current.visibility !== "shared") {
+        activeSessionData.set({ ...current, visibility: "shared" });
+    }
+}
 
 function TabBar({
     active,
@@ -163,6 +177,24 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
     const [searching, setSearching] = useState(false);
     const [invitingId, setInvitingId] = useState<string | null>(null);
+    const [sendError, setSendError] = useState<string | null>(null);
+    const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
+
+    const fetchMembers = useCallback(async () => {
+        if (!session || !isCreator) return;
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${session.id}/participants`, {
+                credentials: "include",
+            });
+            if (!res.ok) return;
+            const data: SessionParticipantsResponse = await res.json();
+            setMemberIds(new Set(
+                data.participants.filter((p) => p.acceptedAt !== null).map((p) => p.userId),
+            ));
+        } catch {
+            // non-critical
+        }
+    }, [session, isCreator]);
 
     useEffect(() => {
         const q = query.trim();
@@ -177,7 +209,9 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                 if (!res.ok) return;
                 const data: UserSearchResponse = await res.json();
                 const alreadyInvited = new Set(sentInvites.map((i) => i.invitedUserId));
-                setSearchResults(data.users.filter((u) => !alreadyInvited.has(u.discordId)));
+                setSearchResults(data.users.filter(
+                    (u) => !alreadyInvited.has(u.discordId) && !memberIds.has(u.discordId),
+                ));
             } catch {
                 // ignore
             } finally {
@@ -185,35 +219,29 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             }
         }, 300);
         return () => clearTimeout(t);
-    }, [query, session, isCreator, sentInvites]);
+    }, [query, session, isCreator, sentInvites, memberIds]);
 
     const handleInvite = async (invitedUser: UserSearchResult) => {
         if (!session) return;
         setInvitingId(invitedUser.discordId);
+        setSendError(null);
         try {
-            if (session.visibility === "private") {
-                const patchRes = await fetch(`${API_BASE}/sessions/${session.id}`, {
-                    method: "PATCH",
-                    credentials: "include",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ visibility: "shared" }),
-                });
-                if (patchRes.ok) {
-                    const updated = await patchRes.json() as GameSessionSummary;
-                    setActiveSession(updated);
-                }
-            }
             const res = await fetch(`${API_BASE}/sessions/${session.id}/invites`, {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ invitedUserId: invitedUser.discordId, inviteType: "join" }),
             });
-            if (res.ok) {
-                setQuery("");
-                setSearchResults([]);
-                await fetchSentInvites();
+            if (!res.ok) {
+                setSendError(await errorMessage(res));
+                return;
             }
+            markActiveSessionShared(session.id);
+            setQuery("");
+            setSearchResults([]);
+            await fetchSentInvites();
+        } catch {
+            setSendError("Could not send the invite. Check your connection.");
         } finally {
             setInvitingId(null);
         }
@@ -246,33 +274,27 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     const handleCreateLink = async () => {
         if (!session) return;
         setCreatingLink(true);
+        setSendError(null);
         try {
-            if (session.visibility === "private") {
-                const patchRes = await fetch(`${API_BASE}/sessions/${session.id}`, {
-                    method: "PATCH",
-                    credentials: "include",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ visibility: "shared" }),
-                });
-                if (patchRes.ok) {
-                    const updated = await patchRes.json() as GameSessionSummary;
-                    setActiveSession(updated);
-                }
-            }
             const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ linkType: "join" }),
             });
-            if (res.ok) {
-                const data: CreateLinkResponse = await res.json();
-                const url = `${window.location.origin}/join?token=${data.token}`;
-                await navigator.clipboard.writeText(url).catch(() => {});
-                await fetchLinks();
-                setCopiedLinkId(data.id);
-                setTimeout(() => setCopiedLinkId(null), 2000);
+            if (!res.ok) {
+                setSendError(await errorMessage(res));
+                return;
             }
+            markActiveSessionShared(session.id);
+            const data: CreateLinkResponse = await res.json();
+            const url = `${window.location.origin}/join?token=${data.token}`;
+            await navigator.clipboard.writeText(url).catch(() => {});
+            await fetchLinks();
+            setCopiedLinkId(data.id);
+            setTimeout(() => setCopiedLinkId(null), 2000);
+        } catch {
+            setSendError("Could not create the link. Check your connection.");
         } finally {
             setCreatingLink(false);
         }
@@ -305,10 +327,12 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         if (v) {
             onOpen?.();
             fetchSentInvites();
+            fetchMembers();
             fetchLinks();
         } else {
             setQuery("");
             setSearchResults([]);
+            setSendError(null);
         }
     };
 
@@ -338,12 +362,16 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                             <p className="text-sm font-medium mb-3">
                                 Invite to <span className="text-foreground">{session.name}</span>
                             </p>
-                            <TabBar active={activeTab} onChange={setActiveTab} />
+                            <TabBar active={activeTab} onChange={(t) => { setActiveTab(t); setSendError(null); }} />
+
+                            {sendError && (
+                                <p className="text-xs text-destructive mb-3">{sendError}</p>
+                            )}
 
                             {activeTab === "user" && (
                                 <div className="space-y-3">
                                     <p className="text-xs text-muted-foreground">
-                                        Invite someone to join your live session.
+                                        Invite someone to play this session with you. You both see and edit the same map live.
                                     </p>
 
                                     <input
@@ -414,7 +442,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                             {activeTab === "link" && (
                                 <div className="space-y-3">
                                     <p className="text-xs text-muted-foreground">
-                                        Anyone with this link can join your live session.
+                                        Anyone with this link can join this session and edit it live with you.
                                     </p>
 
                                     <Button

@@ -1,5 +1,16 @@
 # Changelog
 
+## Session invites and share copies (2026-10-17)
+
+- The new-session form no longer asks for Private or Shared. The choice changed nothing: every session starts with only its creator, and it becomes shared when the creator invites someone. `POST /sessions` now treats `visibility` as optional, defaulting to `private`.
+- `POST /sessions/:id/invites` makes the session shared when it sends an invite to join, as creating a join link already did, and accepting one does too, for invites sent before this change. The web app no longer PATCHes visibility first. That PATCH replaced the active session with a response that lacked its revision fields, which could load the wrong game revision and hid the revision banner. `PATCH /sessions/:id` now returns those fields too.
+- A user can have a pending invite to join and a pending copy at the same time; before, the second was refused with a 409 that the drawers didn't show. Inviting someone already in the session is refused, and the Invites search leaves current members out.
+- The Share drawer, now "Share a copy", lists only pending copies. It listed invites to join as well.
+- The Invites and Share a copy drawers show why sending failed, and the join page shows why redeeming a link failed.
+- Accepting a copy sent to you makes you a participant of the new session, as redeeming a share link already did, so you appear in its participant list.
+- A creator opening their own invite link is taken to the session instead of getting an error.
+- Kicking someone who isn't in the session answers 404 instead of 500.
+
 ## Unlisted games and game links (2026-10-17)
 
 - A game can be unlisted: it is no longer offered when creating a session, and sessions of it start only from a game link, for everyone including game managers and admins (`POST /sessions` refuses it). `/games` still lists it for the server's game managers (`games.create`, `games.edit`, `games.delete` or `server.admin`; `GET /games?includeUnlisted=true`), who alone may still read its definitions. New games can be imported unlisted (the import dialog's **Unlisted** box, or `POST /games/import?unlisted=true`); game managers can change it on `/games` with **Make unlisted**/**Make listed** (`PATCH /games/:gameId`). Updating a game by import keeps its listing.

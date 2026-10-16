@@ -172,6 +172,10 @@ export interface GameSessionDetail extends GameSessionSummary {
   participants: SessionParticipantDetail[];
 }
 
+export interface SessionParticipantsResponse {
+  participants: SessionParticipantDetail[];
+}
+
 export interface SessionsResponse {
   sessions: GameSessionSummary[];
 }
@@ -179,7 +183,8 @@ export interface SessionsResponse {
 export interface CreateSessionBody {
   gameId: string;
   name: string;
-  visibility: SessionVisibility;
+  /** Defaults to private; inviting someone makes the session shared. */
+  visibility?: SessionVisibility;
 }
 
 export interface UpdateSessionBody {

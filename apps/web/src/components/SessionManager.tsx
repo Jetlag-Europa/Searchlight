@@ -77,9 +77,6 @@ function SessionPickerOverlay({
     const [creatingSession, setCreatingSession] = useState(false);
     const [newSessionName, setNewSessionName] = useState("");
     const [newSessionGameId, setNewSessionGameId] = useState("");
-    const [newSessionVisibility, setNewSessionVisibility] = useState<
-        "private" | "shared"
-    >("private");
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -213,7 +210,6 @@ function SessionPickerOverlay({
                 body: JSON.stringify({
                     gameId: newSessionGameId,
                     name: newSessionName.trim(),
-                    visibility: newSessionVisibility,
                 }),
             });
             if (!res.ok) throw new Error(`${res.status}`);
@@ -458,39 +454,11 @@ function SessionPickerOverlay({
                                         sessions cannot be created.
                                     </p>
                                 )}
-                                <div>
-                                    <label className="text-xs text-muted-foreground block mb-1">
-                                        Visibility
-                                    </label>
-                                    <div className="flex gap-3 text-sm">
-                                        {(["private", "shared"] as const).map(
-                                            (v) => (
-                                                <label
-                                                    key={v}
-                                                    className="flex items-center gap-1.5 cursor-pointer"
-                                                >
-                                                    <input
-                                                        type="radio"
-                                                        name="visibility"
-                                                        value={v}
-                                                        checked={
-                                                            newSessionVisibility ===
-                                                            v
-                                                        }
-                                                        onChange={() =>
-                                                            setNewSessionVisibility(
-                                                                v,
-                                                            )
-                                                        }
-                                                    />
-                                                    <span className="capitalize">
-                                                        {v}
-                                                    </span>
-                                                </label>
-                                            ),
-                                        )}
-                                    </div>
-                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Only you can see a new session. Use
+                                    Invites to play it with others, or Share
+                                    a copy to give someone their own.
+                                </p>
                                 <div className="flex gap-2">
                                     <Button
                                         size="sm"
