@@ -37,9 +37,9 @@ import {
     setCachedSession,
 } from "@/lib/eventQueue";
 import {
-    fetchGames,
+    fetchGameCatalog,
     type GameOption,
-    resetGameState,
+    leaveGame,
     resolveSessionGame,
     switchToGame,
 } from "@/lib/games";
@@ -92,6 +92,16 @@ function SessionPickerOverlay({
     const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
     const loadSessionsReqRef = useRef(0);
 
+    // Escape returns to the board, like Back to board.
+    useEffect(() => {
+        if (!onClose) return;
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape") onClose();
+        };
+        window.addEventListener("keydown", closeOnEscape);
+        return () => window.removeEventListener("keydown", closeOnEscape);
+    }, [onClose]);
+
     useEffect(() => {
         let active = true;
         fetch(`${API_BASE}/servers`, { credentials: "include" })
@@ -129,7 +139,7 @@ function SessionPickerOverlay({
                 }),
                 // Sessions joined or started from a game link can be on a
                 // server whose catalog this user can't read (403).
-                fetchGames(serverId).catch((err) => {
+                fetchGameCatalog(serverId).catch((err) => {
                     console.warn("[searchlight:session] game catalog unavailable:", err);
                     return [] as GameOption[];
                 }),
@@ -511,7 +521,7 @@ function SessionChip({
     onChangeSession,
 }: {
     session: GameSessionSummary;
-    onChangeSession: () => void;
+    onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
     const sidebar = useStore(sidebarContextR);
     const right = sidebar.open ? "calc(16rem + 3.5rem)" : "3.5rem";
@@ -546,7 +556,7 @@ function GameNotLoadedBanner({
     onChangeSession,
 }: {
     onRetry: () => void;
-    onChangeSession: () => void;
+    onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
 }) {
     return (
         <section
@@ -601,6 +611,18 @@ export function SessionManager() {
     useEffect(() => {
         if (gameReady) setGameNotLoaded(false);
     }, [gameReady]);
+    // The control that opened the picker gets focus back on Back to board;
+    // the chip and banner stay mounted under the picker for that.
+    const pickerOpenerRef = useRef<HTMLElement | null>(null);
+    const openPicker = (event: React.MouseEvent<HTMLElement>) => {
+        pickerOpenerRef.current = event.currentTarget;
+        setShowPicker(true);
+    };
+    const closePicker = useCallback(() => {
+        setShowPicker(false);
+        pickerOpenerRef.current?.focus();
+        pickerOpenerRef.current = null;
+    }, []);
     const sessionLoadGenerationRef = useRef(0);
     // Generation of the session load that is still replacing content, if any.
     // Save effects bail while it is current: the atoms can already hold the
@@ -990,7 +1012,7 @@ export function SessionManager() {
             // another session's game must not outlast a failed load.
             const switchingSession = selected.id !== outgoingId;
             if (switchingSession) {
-                resetGameState();
+                leaveGame();
             } else {
                 gameDefinitionReady.set(false);
                 setActiveGameDefinition(null);
@@ -1218,13 +1240,26 @@ export function SessionManager() {
                 forgetSession(id, res.status);
                 return;
             }
+            if (res.status === 401) {
+                fail(
+                    "Your sign-in has expired. Reload the page to sign in again.",
+                    res.status,
+                );
+                return;
+            }
+            if (!res.ok) {
+                fail(
+                    `The server couldn't load this session (error ${res.status}). Try again later.`,
+                    res.status,
+                );
+                return;
+            }
             try {
-                if (!res.ok) throw new Error(`${res.status}`);
                 selected = await res.json();
             } catch (e) {
                 if (isCurrent()) {
                     fail(
-                        `The server couldn't load this session (${res.status}). Try again later.`,
+                        "The server's response couldn't be read. Try again later.",
                         e,
                     );
                 }
@@ -1263,27 +1298,23 @@ export function SessionManager() {
                     onClose={
                         // Only back to a board the session has shown.
                         sessionId && (session || gameNotLoaded)
-                            ? () => setShowPicker(false)
+                            ? closePicker
                             : undefined
                     }
                 />
             )}
-            {!showPicker &&
-                gameNotLoaded &&
+            {gameNotLoaded &&
                 !gameReady &&
                 bannerSlot &&
                 createPortal(
                     <GameNotLoadedBanner
                         onRetry={() => void retryGameLoad()}
-                        onChangeSession={() => setShowPicker(true)}
+                        onChangeSession={openPicker}
                     />,
                     bannerSlot,
                 )}
-            {!showPicker && session && (
-                <SessionChip
-                    session={session}
-                    onChangeSession={() => setShowPicker(true)}
-                />
+            {session && (
+                <SessionChip session={session} onChangeSession={openPicker} />
             )}
         </>
     );
