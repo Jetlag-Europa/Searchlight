@@ -47,6 +47,8 @@ export interface GameOption {
     serverId: string;
     serverName: string;
     size: "small" | "medium" | "large";
+    /** Only in game managers' catalogs. */
+    unlisted?: boolean;
 }
 
 export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
@@ -115,6 +117,7 @@ export async function fetchGames(serverId: string): Promise<GameOption[]> {
                 serverId: g.serverId,
                 serverName,
                 size: (g.size as "small" | "medium" | "large") ?? "medium",
+                unlisted: g.unlisted,
             };
         });
 

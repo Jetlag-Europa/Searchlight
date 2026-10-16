@@ -122,7 +122,12 @@ function SessionPickerOverlay({
                 fetch(`${API_BASE}/sessions?serverId=${serverId}`, {
                     credentials: "include",
                 }),
-                fetchGames(serverId),
+                // Sessions joined or started from a game link can be on a
+                // server whose catalog this user can't read (403).
+                fetchGames(serverId).catch((err) => {
+                    console.warn("[searchlight:session] game catalog unavailable:", err);
+                    return [] as GameOption[];
+                }),
             ]);
             if (reqId !== loadSessionsReqRef.current) return;
             if (!sessRes.ok) throw new Error(`${sessRes.status}`);
@@ -422,7 +427,9 @@ function SessionPickerOverlay({
                                         >
                                             {availableGames.map((g) => (
                                                 <option key={g.id} value={g.id}>
-                                                    {g.label}
+                                                    {g.unlisted
+                                                        ? `${g.label} (unlisted)`
+                                                        : g.label}
                                                 </option>
                                             ))}
                                         </select>

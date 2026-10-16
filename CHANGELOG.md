@@ -1,5 +1,12 @@
 # Changelog
 
+## Unlisted games and game links (2026-10-17)
+
+- A game can be unlisted: only the server's game managers (`games.create`, `games.edit`, `games.delete` or `server.admin`) see it in game lists, start sessions of it directly or read its definitions. New games can be imported unlisted (the import dialog's **Unlisted** box, or `POST /games/import?unlisted=true`); `/games` has **Make unlisted**/**Make listed** for existing ones (`PATCH /games/:gameId`, `games.edit`). Updating a game by import keeps its listing.
+- Game links start sessions of one game, listed or unlisted: `/play?token=…` asks for a session name and opens the new session on the map. Whoever holds a link can use it without server membership or the game's role gate. Links don't expire and don't change when the game is listed or unlisted; they end only when revoked. `/games` → **Links** creates, copies and revokes them (`games.edit`; `GET`/`POST /games/:gameId/links`, `DELETE /games/:gameId/links/:linkId`). Sessions started from a link keep working after it is revoked, and can be upgraded to newer revisions while it is active.
+- The session picker still lists sessions on servers whose game catalog the user can't read, instead of failing to load them.
+- The `20261017000000_unlisted_games_and_game_links` migration adds `Game.unlisted`, the `GameLink` table and `GameSession.gameLinkId`.
+
 ## Overpass proxy limits (2026-10-16)
 
 - `POST /overpass` clamps each query's `[timeout]` to 80 s and `[maxsize]` to 512 MiB, adding them when the query doesn't set them.

@@ -26,6 +26,8 @@ export interface ImportGameDefinitionParams {
   dryRun?: boolean;
   expectedServerId?: string;
   allowUpdate?: boolean;
+  // For a new game only: an existing game keeps its listing.
+  unlisted?: boolean;
 }
 
 export class ImportConflictError extends Error {
@@ -137,6 +139,7 @@ async function importDefinition(
     dryRun = false,
     expectedServerId,
     allowUpdate = false,
+    unlisted = false,
   } = params;
 
   // 1. Authorize against the target server before validating: validation is
@@ -240,6 +243,7 @@ async function importDefinition(
           serverId: def.serverId,
           name: def.name,
           size: def.size ?? "medium",
+          unlisted,
         },
       });
 

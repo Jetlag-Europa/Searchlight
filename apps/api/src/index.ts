@@ -20,6 +20,7 @@ import { boundaryRoutes } from "./routes/boundaries.js";
 import { overpassRoutes } from "./routes/overpass.js";
 import { eventRoutes } from "./routes/events.js";
 import { linkRoutes } from "./routes/links.js";
+import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
 
 const app = Fastify({
   logger: {
@@ -65,6 +66,7 @@ await app.register(meRoute);
 await app.register(serverRoutes, { prefix: "/servers" });
 await app.register(gameRoutes, { prefix: "/games" });
 await app.register(gameImportRoutes, { prefix: "/games" });
+await app.register(gameLinkManagementRoutes, { prefix: "/games" });
 await app.register(sessionRoutes, { prefix: "/sessions" });
 await app.register(sessionContentRoutes, { prefix: "/sessions" });
 await app.register(userRoutes, { prefix: "/users" });
@@ -72,6 +74,7 @@ await app.register(boundaryRoutes, { prefix: "/boundaries" });
 await app.register(overpassRoutes);
 await app.register(eventRoutes, { prefix: "/sessions" });
 await app.register(linkRoutes, { prefix: "/links" });
+await app.register(gameLinkRoutes, { prefix: "/game-links" });
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const preloadCandidateDirs = [

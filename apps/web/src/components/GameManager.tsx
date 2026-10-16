@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 
+import { GameLinksDialog } from "./GameLinksDialog";
 import { ImportGameDialog } from "./ImportGameDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -10,13 +11,39 @@ function GameCard({
     game,
     permissions,
     onDeleted,
+    onUpdated,
 }: {
     game: Game;
     permissions: string[];
     onDeleted: (id: string) => void;
+    onUpdated: (game: Game) => void;
 }) {
     const [error, setError] = useState<string | null>(null);
+    const [savingListing, setSavingListing] = useState(false);
     const canDelete = permissions.includes("games.delete");
+    const canEdit = permissions.includes("games.edit") || permissions.includes("server.admin");
+
+    const handleToggleListed = async () => {
+        setError(null);
+        setSavingListing(true);
+        try {
+            const res = await fetch(`${API_BASE}/games/${game.id}`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ unlisted: !game.unlisted }),
+            });
+            if (!res.ok) {
+                const data = await res.json().catch(() => ({})) as { message?: string };
+                throw new Error(data.message ?? `${res.status}`);
+            }
+            onUpdated(await res.json());
+        } catch (e: unknown) {
+            setError((e as Error).message);
+        } finally {
+            setSavingListing(false);
+        }
+    };
     const handleDelete = async () => {
         if (!confirm(`Delete game "${game.name}"? This cannot be undone.`)) return;
         setError(null);
@@ -38,13 +65,39 @@ function GameCard({
     return (
         <div className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
-                <p className="text-sm font-medium">{game.name}</p>
+                <p className="text-sm font-medium flex items-center gap-2">
+                    {game.name}
+                    {game.unlisted && (
+                        <span
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                            title="Only game managers see this game; others need a link"
+                        >
+                            Unlisted
+                        </span>
+                    )}
+                </p>
                 <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                     ID: {game.gameKey}
                 </p>
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
-            <div className="flex gap-2 shrink-0">
+            <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                {canEdit && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={savingListing}
+                        onClick={handleToggleListed}
+                        title={
+                            game.unlisted
+                                ? "Show this game to everyone who can play it"
+                                : "Hide this game from everyone but game managers"
+                        }
+                    >
+                        {game.unlisted ? "Make listed" : "Make unlisted"}
+                    </Button>
+                )}
+                {canEdit && <GameLinksDialog game={game} />}
                 <Button
                     size="sm"
                     variant="outline"
@@ -121,6 +174,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                             game={g}
                             permissions={server.permissions}
                             onDeleted={(id) => setGames((prev) => (prev ?? []).filter((x) => x.id !== id))}
+                            onUpdated={(game) => setGames((prev) => (prev ?? []).map((x) => (x.id === game.id ? game : x)))}
                         />
                     ))}
                 </div>

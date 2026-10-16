@@ -1,7 +1,7 @@
 import type { FastifyBaseLogger } from "fastify";
 import { Prisma } from "@prisma/client";
 import prisma from "./prisma.js";
-import { assertServerMembership, userPassesDiscordRoleGate } from "./permissions.js";
+import { assertServerMembership, getUserPermissions, userPassesDiscordRoleGate } from "./permissions.js";
 import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
 
 // Routes address a game by id or gameKey. Ids are generated here but gameKeys
@@ -15,6 +15,25 @@ export async function findGameByIdOrKey<I extends Prisma.GameInclude = {}>(
     (await prisma.game.findUnique({ where: { id: idOrKey }, include })) ??
     (await prisma.game.findUnique({ where: { gameKey: idOrKey }, include }));
   return game as Prisma.GameGetPayload<{ include: I }> | null;
+}
+
+// Any of these on a game's server lets a user see and use its unlisted games.
+const GAME_MANAGER_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+
+export function canManageGames(permissions: ReadonlySet<string>): boolean {
+  return GAME_MANAGER_PERMISSIONS.some((p) => permissions.has(p));
+}
+
+/** Throws 403 unless the user may change the game's settings and links. */
+export async function assertCanEditGame(
+  userId: string,
+  game: { serverId: string },
+  logger?: FastifyBaseLogger,
+): Promise<void> {
+  const perms = await getUserPermissions(userId, game.serverId, true, logger);
+  if (!perms.has("games.edit") && !perms.has("server.admin")) {
+    throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+  }
 }
 
 function getDiscordRoleGate(visibility: unknown): { guildId: string; roleId: string } | null {
@@ -45,18 +64,26 @@ async function revisionVisibilities(revisionIds: (string | null | undefined)[]):
 
 /**
  * Throws 403 unless the user may use the game: membership of its server
- * (virtual servers have no guild to check) and the role gate of every given
- * revision. Every way of reaching a game's definitions or pinning a session to
- * one of its revisions goes through this check.
+ * (virtual servers have no guild to check), game management permissions if
+ * the game is unlisted, and the role gate of every given revision. Every way
+ * of reaching a game's definitions or pinning a session to one of its
+ * revisions goes through this check, except a game link (see game-links.ts).
  */
 export async function assertGameAccess(
   userId: string,
-  game: { serverId: string },
+  game: { serverId: string; unlisted: boolean },
   revisionIds: (string | null | undefined)[],
   logger?: FastifyBaseLogger,
 ): Promise<void> {
   if (!VIRTUAL_SERVER_IDS.has(game.serverId)) {
     await assertServerMembership(userId, game.serverId, logger);
+  }
+
+  if (game.unlisted) {
+    const perms = await getUserPermissions(userId, game.serverId, true, logger);
+    if (!canManageGames(perms)) {
+      throw Object.assign(new Error("This game is unlisted"), { statusCode: 403 });
+    }
   }
 
   for (const visibility of await revisionVisibilities(revisionIds)) {
