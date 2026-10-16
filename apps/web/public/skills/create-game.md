@@ -1,6 +1,6 @@
 ---
 name: create-searchlight-game
-description: Create, convert, check and import a Searchlight game definition (*.game.json) from KML/KMZ, GeoJSON, CSV or OpenStreetMap data, covering the play area, hiding zones, radar/thermometer and matching, measuring and tentacle question layers. Use when asked to make, convert, fix or update a Searchlight game.
+description: Create, convert, check and import a Searchlight game definition (*.game.json) from a game announcement (a rules Google Doc and a Google My Map), KML/KMZ, GeoJSON, CSV or OpenStreetMap data, covering the play area, hiding zones, radar/thermometer and matching, measuring and tentacle question layers. Use when asked to make, convert, fix or update a Searchlight game.
 ---
 
 # Create a Searchlight game definition (v1)
@@ -14,7 +14,7 @@ Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/
 
 ## 1. Workflow
 
-1. **Gather inputs.** Use the table below. Ask the user for anything you can't derive from their files. Never invent a server ID, a radius, or which questions the game has.
+1. **Gather inputs.** Use the table below. Ask the user for anything you can't derive from their files. Never invent a server ID, a radius, or which questions the game has. Most games start as an announcement with a rules doc and a map link: see section 1.1.
 2. **Convert** each source into normalized GeoJSON features (section 6).
 3. **Assemble** the definition (section 2) and declare every question explicitly.
 4. **Check** with `node check-game.mjs <file>`. Fix every ERROR. Fix each WARN, or tell the user why it stays.
@@ -30,6 +30,62 @@ Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/
 | Hiding radius and per-tier radii | `hidingZones.radius`, `tierOverrides` | user, or the game's rules |
 | Radar sizes, thermometer yes/no | `radars`, `thermometer` | user, or the game's rules |
 | Question layers and which kinds each allows | `features[]` | user files. For standard POI categories without data, offer to fetch them from OSM (section 6) |
+
+### 1.1 Starting from a game announcement
+
+Organisers usually post a Discord message linking a rules Google Doc and a Google My Map. That is enough to build the game.
+
+**Copy the game, don't redesign it.** Take the stops, play area, regions, lines and POIs exactly as drawn, with their names as spelled on the map. Don't add stations or POIs, top up from OSM, simplify geometry, or derive layers the map doesn't draw. Only these fixes are allowed: decoding escaped names, merging one region drawn as several shapes, and dropping a duplicate pin at identical coordinates. Report each one. If the checker warns about heavy geometry, ask before simplifying.
+
+**Download both sources.** Neither needs a sign-in when shared as "anyone with the link":
+
+```bash
+curl -fsSL -o map.kml  "https://www.google.com/maps/d/kml?mid=<mid>&forcekml=1"           # gt.myMapsKmlUrl(link)
+curl -fsSL -o rules.txt "https://docs.google.com/document/d/<id>/export?format=txt"      # gt.googleDocTextUrl(link)
+```
+
+The KML holds the whole map, one folder per My Maps layer. If a download returns an HTML sign-in page, ask the user to share the file or to export it themselves.
+
+**Fill the fields from the announcement and rules:**
+
+| Field | Where it comes from |
+|---|---|
+| `name`, `id` | The game's city and date, e.g. "Hide + Seek: Sheffield (17th October)" gives `"Sheffield 17-10"` and `sheffield-2026`. |
+| `serverId` | The Discord server the announcement was posted in (section 3). Ask if you don't know it. A mention like `<@&1546157665368145941>` is a *role* ID, not a server. Use it for `visibility` only if the user wants the game restricted to that role. |
+| `size` | "a small/medium/large game". |
+| `hidingZones.radius` | The rules. If they don't state it, measure the map's drawn zone circles with `gt.circleRadius()` and take the most common value (circles cut at the play-area edge come out smaller). Otherwise ask. |
+| `tierOverrides` | Only when the map draws differently sized circles per stop style or folder, or the rules give per-mode radii. |
+| `radars` | The rules' radar list, converted to the game unit (`1 km` gives `1000`). A "Custom" entry needs nothing, since radii stay editable. |
+| `thermometer` | `true` if the rules list any thermometer. Players set its distance in the app. |
+| `features` | The rules' matching/measuring table and tentacle list (below). |
+
+**Map the rules' feature table to layers.** Rules usually list the rulebook categories, each with a source:
+
+- **"N/A" or blank:** no layer.
+- **"Use Custom Map 'X' layer":** a layer built from that folder. If no folder has that name (the rules say "2nd Administrative Divisions" but the map has "Wards" and "Postcodes"), match by meaning and tell the user what you chose and why.
+- **"Use Google Maps"**, or "anything with five or more reviews": Google Maps data can't be embedded. Leave the category out, and tell the user that players will use custom questions for it. Don't substitute OSM data without asking.
+- **A line layer standing in for areas** (e.g. landmasses separated by a Rivers layer): matching needs region polygons, which the map doesn't draw. Leave it out and say so.
+
+Name each layer after its rulebook category, in the singular. The question kinds follow the rulebook unless the rules restrict them, e.g. "Rail line (Measuring Only)":
+
+| Rulebook category | `matching` | `measuring` | `tentacle` |
+|---|:-:|:-:|:-:|
+| 1st and 2nd administrative division | yes | yes (border) | |
+| 3rd and 4th administrative division | yes | | |
+| Commercial airport | yes | yes | |
+| Rail station, high-speed or rail line, international border, coastline, body of water | | yes | |
+| Mountain, park, amusement park, zoo, aquarium, golf course, museum, cinema, hospital, library, foreign consulate | yes | yes | only if the rules list it under tentacles |
+| Landmass | yes (region polygons) | | |
+
+Transit line, station name length, street/path, photo questions and curses have no data-driven version in Searchlight. Leave them out.
+
+**Watch for these My Maps quirks:**
+
+- **Several categories in one folder** (a "POIs" layer): split it by `styleUrl` with `gt.groupBy(features, "styleUrl")`, not by the `icon` URL: different categories often share the same blank pin and differ only in colour. List each style's names, map every style to a category, and fail on an unmapped one.
+- **Placeholder names** ("Polygon 82", "Line 2"): look for the real name in the other properties (ExtendedData, e.g. a `WD26NM` ward name) and pass `{ name: "WD26NM" }` to `normalize()`. Lines used for measuring only can keep placeholder names, since players never see them.
+- **One region drawn as several shapes** (five polygons named `S60`): `gt.mergeByName()`.
+- **Drawn hiding-zone circles:** don't import them. The stop pins are the zones, and the app draws the circles from the radius.
+- **Folders no question uses:** list them for the user.
 
 ## 2. Complete example
 
@@ -131,6 +187,8 @@ Known `serverId` values:
 | JetLag Nordics | `1376560872029290708` |
 | Home Games (open to every signed-in user) | `home-games` |
 
+Only Searchlight admins can import into Home Games, since it has no Discord roles to grant import rights. A game dev imports into the Discord server where their role has game permissions (section 8).
+
 ## 4. Hiding zones
 
 ```json
@@ -156,11 +214,11 @@ A game offers only what it declares. The Add Question buttons for radar and ther
 |---|---|---|
 | `radars` | omitted or `false` | no radar questions |
 | | `true` | radar enabled. A new radar starts at the base hiding radius (`hidingZones.radius`). |
-| | `[400, 600]` | radar enabled. Add Question offers one button per radius (a single radius is used directly), and a radar added from the map's right-click menu starts at the first. List the radii the rules use: by convention the base radius plus each tier radius. |
+| | `[400, 600]` | radar enabled. A new radar, from Add Question or the map's right-click menu, starts at the first radius, and the radar card offers every listed radius as a quick pick. List the radii the rules use, e.g. the rules' radar list, or by convention the base radius plus each tier radius. |
 | `thermometer` | omitted or `false` | no thermometer |
 | | `true` | thermometer enabled |
 
-Radar radii are in the game unit (section 4). They are starting values, not limits: the radius stays editable on the radar card, which also offers the declared radii as quick picks when there are several.
+Radar radii are in the game unit (section 4). They are starting values, not limits: the radius stays editable on the radar card, next to the declared radii as quick picks (shown as "500 m", "2 km") when there are several.
 
 Write both fields explicitly in every game, even when the value is `false`.
 
@@ -229,7 +287,12 @@ npm i @tmcw/togeojson@7.1.2 @xmldom/xmldom@0.9.12
 | `readCsv(path)` | Header row with `lat`/`latitude` and `lng`/`lon`/`longitude`. Other columns become properties (e.g. `name`, `tier`, `category`). Quoted fields are handled. Rows with a blank or non-numeric lat or lng are skipped, and the count is printed. |
 | `overpassPoints(OSM_TAGS.museum, bbox)` | Named OSM sites in a bbox, as Points. `OSM_TAGS` covers the rulebook categories (airport means `aeroway=aerodrome` with an IATA code). Ask the user before using OSM, review the results with them, and run one query at a time against the public endpoint. |
 | `normalize(features, { keep })` | **Always run this.** It drops altitude, rounds to 6 decimals, closes rings, removes degenerate parts, splits MultiPoint, merges KML MultiGeometry (`GeometryCollection`) into MultiLineString/MultiPolygon, and keeps only the `keep` properties (default `["name"]`). A numeric-looking `radius` string becomes a number. A `GeometryCollection` that mixes families (a pin plus a shape) becomes one feature per family: filter by `geometry.type` before building a layer. |
+| `normalize(features, { name: "WD26NM" })` | Reads the name from another property when the placemark name is a placeholder. `normalize()` also strips CDATA and decodes entities in every kept string (`decodeText()`). |
 | `dedupePoints(features)` | Drops repeated coordinates. |
+| `mergeByName(features)` | Merges lines or regions that share a name into one MultiLineString or MultiPolygon. |
+| `groupBy(features, key)` | A `Map` from a property's value to its features, e.g. `groupBy(kml.get("POIs"), "styleUrl")` to split a mixed My Maps layer. |
+| `circleRadius(feature)` | Radius in meters of a circle drawn as a Polygon or closed LineString. |
+| `myMapsKmlUrl(link)`, `googleDocTextUrl(link)` | Download URLs for a Google My Maps link (KML) and a Google Docs link (plain text). |
 | `withIds(features, fallback)` | Assigns unique slug IDs from names. |
 | `layer(name, enabledFor, features)`, `collection(features)`, `bbox(features)`, `center(bbox)` | Assemble the file. `layer()` throws if the features mix geometry families. |
 
@@ -291,6 +354,7 @@ The checker ends with the question list and labels, which is what players will s
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
   - Add `?dryRun=true` to validate only, and `&allowUpdate=true` to replace an existing game with the same `id`.
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.
+- **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them, `/games` shows no import button for that server.
   - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission or a server change; `409` if the game exists and `allowUpdate` isn't set.
   - The body limit is 50 MB.
 - **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json`. The file name must equal the `id`. The API imports and updates these files on every start, so the file wins over an earlier web import of the same game. A file that fails to import is logged as an error and skipped; the other files still load.
