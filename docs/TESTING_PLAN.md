@@ -29,7 +29,7 @@ evidence of correctness, not just "the code agrees with itself".
 | 4 | Playwright: per-question rendering on the real map | Planned |
 | 5 | Playwright: multi-client SSE sync | Planned |
 
-Decisions locked with Jules: run **locally on demand** (Mac mini); gate on
+Decisions locked with Jules: run **locally on demand**; gate on
 **numeric/geometric assertions** (debug images are a failure aid only); e2e auth
 via a **test-only login endpoint**; logic layer fully **fixtured/offline**, e2e
 against an isolated **`writemap-test`** stack with Overpass stubbed.

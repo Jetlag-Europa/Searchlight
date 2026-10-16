@@ -4,7 +4,7 @@
 #
 # Requires a .env (base secrets) and .env.test (test overrides; see
 # .env.test.example) in the repo root. Seeding runs from the HOST against the
-# published test DB port (the runtime API image has no tsx), like seed:dev.
+# published test DB port (the runtime API image has no tsx).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
