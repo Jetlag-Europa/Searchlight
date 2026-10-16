@@ -14,6 +14,20 @@ const OSM_TYPE_MAP: Record<string, string> = {
 // each cached read a read plus a write.
 const TOUCH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
+// osmId is interpolated into the Overpass query and used as the cache key, so
+// accept only the canonical decimal form of a positive id: anything else could
+// inject Overpass QL, and "01"/"001" would each get their own cache row. OSM ids
+// are below 2^40 today; 16 digits leaves headroom and stays an exact JS number.
+const OSM_ID_PATTERN = "^[1-9][0-9]{0,15}$";
+
+// An empty result (unknown id, or an Overpass timeout that still returned 200)
+// isn't worth keeping forever, and caching it would let anyone fill the table
+// by walking through ids that don't exist.
+async function cacheBoundary(osmId: string, osmType: string, data: any) {
+    if (!data?.elements?.length) return;
+    await prisma.boundaryCache.create({ data: { osmId, osmType, geojson: data } });
+}
+
 async function touchBoundaryCache(entry: { osmId: string; osmType: string; lastAccessedAt: Date }) {
     if (Date.now() - entry.lastAccessedAt.getTime() < TOUCH_INTERVAL_MS) return;
     await prisma.boundaryCache.update({
@@ -34,7 +48,7 @@ export async function boundaryRoutes(app: FastifyInstance) {
                         Type.Literal("R"),
                         Type.Literal("N"),
                     ]),
-                    osmId: Type.String({ minLength: 1 }),
+                    osmId: Type.String({ pattern: OSM_ID_PATTERN }),
                 }),
             },
         },
@@ -57,7 +71,7 @@ export async function boundaryRoutes(app: FastifyInstance) {
             if (!response) throw Object.assign(new Error("Overpass API unavailable"), { statusCode: 502 });
 
             const data = await response.json();
-            await prisma.boundaryCache.create({ data: { osmId, osmType, geojson: data } });
+            await cacheBoundary(osmId, osmType, data);
             return data;
         },
     );
@@ -107,7 +121,7 @@ export async function boundaryRoutes(app: FastifyInstance) {
             if (!geoResponse) throw Object.assign(new Error("Overpass API unavailable (geometry)"), { statusCode: 502 });
 
             const geoData = await geoResponse.json();
-            await prisma.boundaryCache.create({ data: { osmId, osmType, geojson: geoData } });
+            await cacheBoundary(osmId, osmType, geoData);
             return geoData;
         },
     );
