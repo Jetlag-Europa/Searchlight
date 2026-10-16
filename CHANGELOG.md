@@ -1,5 +1,13 @@
 # Changelog
 
+## Question layers for Brno, Brussels and OLD Luxembourg (2026-10-15)
+
+- Brno 2026, Brussels 2026 and OLD Luxembourg 2026 were converted with no question layers, so they offered no matching, measuring or tentacle questions; before the conversion these came from live OpenStreetMap lookups and bundled files. They now carry their own layers:
+  - Brno 2026: its pre-conversion POI file (`brno-poi-v2.kml`): Museum, Airport, Park, Hospital, Library, Theme Park, Zoo, Golf Course, Cinema, Body of Water (measuring only, was `brno-water`) and its 29 districts (matching only, was `brno-district`).
+  - Brussels 2026: Belgium 01.08's Airport, Museum, Cinema, Golf Course, Theme Park, Zoo, Consulate, Library, Hospital and High-Speed Rail layers, keeping each site that is the nearest of its kind somewhere in the play area or within 25 km of it.
+  - OLD Luxembourg 2026: Luxembourg 2-3 October's layers for the same play area, without its stop-distance and Castle or Fort questions. Its four hospitals are the ones the old `lux-hospitals` question used.
+- Point layers where only one site is ever the nearest are measuring only (Brno's and Brussels' airports).
+
 ## Deployment: CI-built images and cleanup (2026-10-15)
 
 - A "Docker images" GitHub Actions workflow builds the `api` and `web` images for `linux/amd64` and `linux/arm64` (natively, one runner per platform) on every push to `main` and pushes them to GHCR as multi-platform `ghcr.io/jetlag-europa/searchlight-{api,web}`, tagged `sha-<commit>` and `latest`. Pull requests build them without pushing.
