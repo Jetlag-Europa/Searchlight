@@ -144,8 +144,79 @@ const addQuestionFromMenu = (question: Parameters<typeof addQuestion>[0]) => {
         toast.error((error as Error).message);
     }
 };
-// The context menu's first items add questions.
-const ADD_QUESTION_MENU_ITEMS = 5;
+// The context menu's first items, which add questions.
+const ADD_QUESTION_MENU_ITEMS = [
+    {
+        text: "Add Radius",
+        callback: (e: any) =>
+            addQuestionFromMenu({
+                id: "radius",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            }),
+    },
+    {
+        text: "Add Thermometer",
+        callback: (e: any) => {
+            const destination = turf.destination(
+                [e.latlng.lng, e.latlng.lat],
+                5,
+                90,
+                {
+                    units: "kilometers",
+                },
+            );
+
+            addQuestionFromMenu({
+                id: "thermometer",
+                data: {
+                    latA: e.latlng.lat,
+                    lngA: e.latlng.lng,
+                    latB: destination.geometry.coordinates[1],
+                    lngB: destination.geometry.coordinates[0],
+                },
+            });
+        },
+    },
+    {
+        text: "Add Tentacles",
+        callback: (e: any) => {
+            addQuestionFromMenu({
+                id: "tentacles",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            });
+        },
+    },
+    {
+        text: "Add Matching",
+        callback: (e: any) => {
+            addQuestionFromMenu({
+                id: "matching",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            });
+        },
+    },
+    {
+        text: "Add Measuring",
+        callback: (e: any) => {
+            addQuestionFromMenu({
+                id: "measuring",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            });
+        },
+    },
+];
 
 export const Map = ({ className }: { className?: string }) => {
     const $mapGeoLocation = useStore(mapGeoLocation);
@@ -380,76 +451,7 @@ export const Map = ({ className }: { className?: string }) => {
                 contextmenu={true}
                 contextmenuWidth={140}
                 contextmenuItems={[
-                    {
-                        text: "Add Radius",
-                        callback: (e: any) =>
-                            addQuestionFromMenu({
-                                id: "radius",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            }),
-                    },
-                    {
-                        text: "Add Thermometer",
-                        callback: (e: any) => {
-                            const destination = turf.destination(
-                                [e.latlng.lng, e.latlng.lat],
-                                5,
-                                90,
-                                {
-                                    units: "kilometers",
-                                },
-                            );
-
-                            addQuestionFromMenu({
-                                id: "thermometer",
-                                data: {
-                                    latA: e.latlng.lat,
-                                    lngA: e.latlng.lng,
-                                    latB: destination.geometry.coordinates[1],
-                                    lngB: destination.geometry.coordinates[0],
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Add Tentacles",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "tentacles",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Add Matching",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "matching",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Add Measuring",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "measuring",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            });
-                        },
-                    },
+                    ...ADD_QUESTION_MENU_ITEMS,
                     {
                         text: "Copy Coordinates",
                         callback: (e: any) => {
@@ -510,9 +512,9 @@ export const Map = ({ className }: { className?: string }) => {
     useEffect(() => {
         const contextmenu = (map as any)?.contextmenu;
         if (!contextmenu) return;
-        for (let item = 0; item < ADD_QUESTION_MENU_ITEMS; item++) {
-            contextmenu.setDisabled(item, !$compiledGame);
-        }
+        ADD_QUESTION_MENU_ITEMS.forEach((_, item) =>
+            contextmenu.setDisabled(item, !$compiledGame),
+        );
     }, [map, $compiledGame]);
 
     useEffect(() => {

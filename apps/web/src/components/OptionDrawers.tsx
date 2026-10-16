@@ -68,6 +68,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $autoZoom = useStore(autoZoom);
     const $warningAlarm = useStore(warningAlarm);
     const $hiderMode = useStore(hiderMode);
+    const $compiledGame = useStore(compiledGameAtom);
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
     const $planningMode = useStore(planningModeEnabled);
@@ -451,14 +452,18 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         </label>
                                         <Checkbox
                                             checked={!!$hiderMode}
+                                            // The hider starts at the
+                                            // game's centre, so hider mode
+                                            // needs the game.
+                                            disabled={
+                                                $hiderMode === false &&
+                                                !$compiledGame
+                                            }
                                             onCheckedChange={() => {
                                                 if ($hiderMode === false) {
-                                                    // The hider starts at
-                                                    // the game's centre.
-                                                    const center =
-                                                        compiledGameAtom.get()
-                                                            ?.center;
-                                                    if (!center) return;
+                                                    if (!$compiledGame) return;
+                                                    const { center } =
+                                                        $compiledGame;
                                                     hiderMode.set({
                                                         latitude: center[1],
                                                         longitude: center[0],

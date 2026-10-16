@@ -83,6 +83,8 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
                         />
                     </div>
                 </div>
+                <!-- SessionManager renders the "game not loaded" banner here -->
+                <div id="game-not-loaded-banner" class="contents"></div>
                 <SessionUpgradeBanner client:only="react" />
             </main>
             <ZoneSidebar client:only />

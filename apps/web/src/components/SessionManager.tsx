@@ -4,14 +4,17 @@ import type {
     ServersResponse,
     SessionsResponse,
 } from "@searchlight/shared";
-import { Settings } from "lucide-react";
+import { Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { toast } from "react-toastify";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { Button } from "@/components/ui/button";
 import {
     compiledGameAtom,
     filterSupportedQuestions,
+    setActiveGameDefinition,
 } from "@/game-definition/store";
 import {
     activeSessionData,
@@ -525,7 +528,9 @@ function SessionChip({
 
 // ── Game not loaded (session active, definition missing) ──────────────────────
 
-function GameNotLoadedOverlay({
+// Shown under the map beside the revision banner. The board stays visible,
+// but nothing is answered or added until the game loads.
+function GameNotLoadedBanner({
     onRetry,
     onChangeSession,
 }: {
@@ -533,31 +538,37 @@ function GameNotLoadedOverlay({
     onChangeSession: () => void;
 }) {
     return (
-        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
-            <div
-                role="alert"
-                className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6"
-            >
-                <h1 className="text-xl font-bold mb-1">Game not loaded</h1>
-                <p className="text-sm text-muted-foreground mb-5">
-                    This session&apos;s game could not be loaded. Questions
-                    can&apos;t be answered or added until it is. Check your
-                    connection and try again.
-                </p>
+        <section
+            aria-label="Session game"
+            className="shrink-0 border-b bg-background px-3 py-2 text-foreground sm:px-4"
+        >
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                <div className="flex min-w-0 items-center gap-2.5">
+                    <TriangleAlert
+                        aria-hidden="true"
+                        className="size-4 shrink-0 text-destructive"
+                    />
+                    <div className="text-xs">
+                        <p className="font-medium" role="alert">
+                            Game not loaded
+                        </p>
+                        <p className="mt-0.5 text-muted-foreground">
+                            This session&apos;s game couldn&apos;t be loaded.
+                            Questions can&apos;t be answered or added until it
+                            is.
+                        </p>
+                    </div>
+                </div>
                 <div className="flex gap-2">
-                    <Button size="sm" onClick={onRetry}>
+                    <Button size="sm" variant="outline" onClick={onRetry}>
                         Retry
                     </Button>
-                    <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={onChangeSession}
-                    >
+                    <Button size="sm" variant="ghost" onClick={onChangeSession}>
                         Change session
                     </Button>
                 </div>
             </div>
-        </div>
+        </section>
     );
 }
 
@@ -575,6 +586,10 @@ export function SessionManager() {
     const [loading, setLoading] = useState(false);
     // The last session load ended without the session's game definition.
     const [gameNotLoaded, setGameNotLoaded] = useState(false);
+    // Loading it later (a revision upgrade) clears the failure.
+    useEffect(() => {
+        if (gameReady) setGameNotLoaded(false);
+    }, [gameReady]);
     const sessionLoadGenerationRef = useRef(0);
     // Generation of the session load that is still replacing content, if any.
     // Save effects bail while it is current: the atoms can already hold the
@@ -796,9 +811,11 @@ export function SessionManager() {
             if (!canPaintCache || !cached) return false;
             const derived = applyUnsyncedEvents(storedId, cached);
             gameDefinitionReady.set(false);
+            setActiveGameDefinition(null);
             suppressNextSaveRef.current = true;
             strokes.set(derived.strokes);
-            questions.set(derived.questions);
+            // The game hasn't loaded: show only what it may support.
+            questions.set(filterSupportedQuestions(derived.questions, null));
             return true;
         };
         setLoading(true);
@@ -970,14 +987,18 @@ export function SessionManager() {
                 // under the loading overlay until the server state replaces it,
                 // and nothing is evaluated before the game definition loads.
                 gameDefinitionReady.set(false);
+                setActiveGameDefinition(null);
                 suppressNextSaveRef.current = true;
                 strokes.set(derived.strokes);
-                questions.set(derived.questions);
+                questions.set(
+                    filterSupportedQuestions(derived.questions, null),
+                );
                 console.info(
                     "[searchlight:session] painted from cache, loading server state",
                 );
             } else {
                 gameDefinitionReady.set(false);
+                setActiveGameDefinition(null);
                 suppressNextSaveRef.current = true;
                 strokes.set([]);
                 questions.set([]);
@@ -1075,7 +1096,9 @@ export function SessionManager() {
                     const derived = applyUnsyncedEvents(selected.id, cached);
                     suppressNextSaveRef.current = true;
                     strokes.set(derived.strokes);
-                    questions.set(derived.questions);
+                    questions.set(
+                        filterSupportedQuestions(derived.questions, null),
+                    );
                 } else {
                     // No cache and no server — leave atoms empty, don't publish stale session content
                     strokes.set([]);
@@ -1130,11 +1153,52 @@ export function SessionManager() {
         });
     }, [handleSessionSelected]);
 
-    // Load the session again, its game included.
-    const retryGameLoad = () => {
-        if (session) void handleSessionSelected(session);
-        else if (sessionId) pendingSessionLoad.set(sessionId);
+    // Load the session again, its game included. Fetching the session first
+    // also covers an offline restore, which never got the session's details.
+    const retryGameLoad = async () => {
+        const id = activeSessionId.get();
+        if (!id) {
+            setShowPicker(true);
+            return;
+        }
+        const generation = ++sessionLoadGenerationRef.current;
+        const isCurrent = () => generation === sessionLoadGenerationRef.current;
+        setLoading(true);
+        let selected: GameSessionSummary;
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${id}`, {
+                credentials: "include",
+            });
+            if (!isCurrent()) return;
+            if (res.status === 403 || res.status === 404) {
+                forgetSession(id, res.status);
+                return;
+            }
+            if (!res.ok) throw new Error(`${res.status}`);
+            selected = await res.json();
+        } catch (e) {
+            if (!isCurrent()) return;
+            console.warn("[searchlight:session] retry failed:", e);
+            toast.error(
+                "Couldn't reach the server. Check your connection and try again.",
+            );
+            return;
+        } finally {
+            if (isCurrent()) setLoading(false);
+        }
+        if (!isCurrent()) return;
+        await handleSessionSelected(selected);
+        // handleSessionSelected starts the next load generation.
+        if (
+            sessionLoadGenerationRef.current === generation + 1 &&
+            !gameDefinitionReady.get()
+        ) {
+            toast.error("The game still couldn't be loaded. Try again later.");
+        }
     };
+
+    // map.astro places the slot beside the revision banner.
+    const bannerSlot = document.getElementById("game-not-loaded-banner");
 
     if (loading) {
         return (
@@ -1151,12 +1215,17 @@ export function SessionManager() {
                     onSessionSelected={handleSessionSelected}
                 />
             )}
-            {!showPicker && gameNotLoaded && !gameReady && (
-                <GameNotLoadedOverlay
-                    onRetry={retryGameLoad}
-                    onChangeSession={() => setShowPicker(true)}
-                />
-            )}
+            {!showPicker &&
+                gameNotLoaded &&
+                !gameReady &&
+                bannerSlot &&
+                createPortal(
+                    <GameNotLoadedBanner
+                        onRetry={() => void retryGameLoad()}
+                        onChangeSession={() => setShowPicker(true)}
+                    />,
+                    bannerSlot,
+                )}
             {!showPicker && session && (
                 <SessionChip
                     session={session}
