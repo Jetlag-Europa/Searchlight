@@ -28,13 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { featuresMatch } from "@/maps/questions/operators/tentacle";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
-import {
-    determineUnionizedStrings,
-    NO_GROUP,
-    type TentacleQuestion,
-    tentacleQuestionSchema,
-    type TraditionalTentacleQuestion,
-} from "@/maps/schema";
+import type { TentacleQuestion } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
 
@@ -132,60 +126,24 @@ export const TentacleQuestionComponent = ({
                 <Select
                     trigger="Location Type"
                     value={data.locationType}
-                    options={
-                        compiled
-                            ? Object.fromEntries(
-                                  compiledTentacles.map((q) => [q.id, q.label]),
-                              )
-                            : Object.fromEntries(
-                                  tentacleQuestionSchema.options
-                                      .filter((x) => x.description === NO_GROUP)
-                                      .flatMap((x) =>
-                                          determineUnionizedStrings(
-                                              x.shape.locationType,
-                                          ),
-                                      )
-                                      .map((x) => [
-                                          (x._def as any).value,
-                                          x.description,
-                                      ]),
-                              )
-                    }
-                    groups={
-                        compiled
-                            ? {
-                                  Custom: {
-                                      disabled: false,
-                                      options: {
-                                          custom: "Custom Locations",
-                                      },
-                                  },
-                              }
-                            : Object.fromEntries(
-                                  tentacleQuestionSchema.options
-                                      .filter((x) => x.description !== NO_GROUP)
-                                      .map((x) => [
-                                          x.description,
-                                          Object.fromEntries(
-                                              determineUnionizedStrings(
-                                                  x.shape.locationType,
-                                              ).map((y) => [
-                                                  (y._def as any).value,
-                                                  y.description,
-                                              ]),
-                                          ),
-                                      ]),
-                              )
-                    }
+                    options={Object.fromEntries(
+                        compiledTentacles.map((q) => [q.id, q.label]),
+                    )}
+                    groups={{
+                        Custom: {
+                            disabled: false,
+                            options: {
+                                custom: "Custom Locations",
+                            },
+                        },
+                    }}
                     onValueChange={async (value) => {
                         const currentSeq = ++prefillSeqRef.current;
                         if (value === "custom") {
                             setScopedLoading(prefillScope, true);
                             try {
                                 const priorLocations =
-                                    await getLocationsForTentacleQuestion(
-                                        data as TraditionalTentacleQuestion,
-                                    );
+                                    await getLocationsForTentacleQuestion(data);
                                 if (prefillSeqRef.current !== currentSeq)
                                     return;
                                 data.locationType = "custom";

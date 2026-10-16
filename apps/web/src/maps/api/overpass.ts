@@ -1,6 +1,5 @@
 import * as turf from "@turf/turf";
 import type { FeatureCollection, MultiPolygon } from "geojson";
-import _ from "lodash";
 import osmtogeojson from "osmtogeojson";
 import { toast } from "react-toastify";
 
@@ -12,14 +11,7 @@ import {
 import { safeUnion } from "@/maps/geo-utils";
 
 import { cacheFetch, determineCache } from "./cache";
-import { LOCATION_FIRST_TAG, OVERPASS_CACHE_NS } from "./constants";
-import type {
-    HomeGameMatchingQuestions,
-    HomeGameMeasuringQuestions,
-    QuestionSpecificLocation,
-    TentacleQuestion,
-    TraditionalTentacleQuestion,
-} from "./types";
+import { OVERPASS_CACHE_NS } from "./constants";
 import { CacheType } from "./types";
 
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ?? (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ?? "") as string;
@@ -130,124 +122,6 @@ export const determineGeoJSON = async (
     };
 };
 
-export const findTentacleLocations = async (
-    question: TraditionalTentacleQuestion | TentacleQuestion,
-    text: string = "Determining tentacle locations...",
-) => {
-    const query = `
-[out:json][timeout:25];
-nwr["${LOCATION_FIRST_TAG[question.locationType as keyof typeof LOCATION_FIRST_TAG]}"="${question.locationType}"](around:${turf.convertLength(
-        question.radius,
-        question.unit,
-        "meters",
-    )}, ${question.lat}, ${question.lng});
-out center;
-    `;
-    const data = await getOverpassData(query, text);
-    const elements = data.elements;
-    const response = turf.points([]);
-    elements.forEach((element: any) => {
-        if (!element.tags["name"] && !element.tags["name:en"]) return;
-        if (element.lat && element.lon) {
-            const name = element.tags["name:en"] ?? element.tags["name"];
-            if (
-                response.features.find(
-                    (feature: any) => feature.properties.name === name,
-                )
-            )
-                return;
-            response.features.push(
-                turf.point([element.lon, element.lat], { name }),
-            );
-        }
-        if (!element.center || !element.center.lon || !element.center.lat)
-            return;
-        const name = element.tags["name:en"] ?? element.tags["name"];
-        if (
-            response.features.find(
-                (feature: any) => feature.properties.name === name,
-            )
-        )
-            return;
-        response.features.push(
-            turf.point([element.center.lon, element.center.lat], { name }),
-        );
-    });
-    return response;
-};
-
-export const findAdminBoundary = async (
-    latitude: number,
-    longitude: number,
-    adminLevel: 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10,
-) => {
-    // boundary=administrative excludes religious / electoral / etc. relations
-    // that share an admin_level — e.g. the Archdiocese of Luxembourg is
-    // tagged admin_level=6 with boundary=religious_administration and
-    // would otherwise outrank Canton Luxembourg in the result order.
-    const query = `
-[out:json];
-is_in(${latitude}, ${longitude})->.a;
-rel(pivot.a)["admin_level"="${adminLevel}"]["boundary"="administrative"];
-out geom;
-    `;
-    const data = await getOverpassData(query, "Determining matching zone...");
-    const geo = osmtogeojson(data);
-    return geo.features?.[0];
-};
-
-
-export const trainLineNodeFinder = async (node: string): Promise<number[]> => {
-    const nodeId = node.split("/")[1];
-    const tagQuery = `
-[out:json];
-node(${nodeId});
-wr(bn);
-out tags;
-`;
-    const tagData = await getOverpassData(tagQuery, "Finding train line...");
-    const query = `
-[out:json];
-(
-${tagData.elements
-    .map((element: any) => {
-        if (
-            !element.tags.name &&
-            !element.tags["name:en"] &&
-            !element.tags.network
-        )
-            return "";
-        let query = "";
-        if (element.tags.name) query += `wr["name"="${element.tags.name}"];`;
-        if (element.tags["name:en"])
-            query += `wr["name:en"="${element.tags["name:en"]}"];`;
-        if (element.tags["network"])
-            query += `wr["network"="${element.tags["network"]}"];`;
-        return query;
-    })
-    .join("\n")}
-);
-out geom;
-`;
-    const data = await getOverpassData(query, "Finding train lines...");
-    const geoJSON = osmtogeojson(data);
-    const nodes: number[] = [];
-    geoJSON.features.forEach((feature: any) => {
-        if (feature && feature.id && feature.id.startsWith("node")) {
-            nodes.push(parseInt(feature.id.split("/")[1]));
-        }
-    });
-    data.elements.forEach((element: any) => {
-        if (element && element.type === "node") {
-            nodes.push(element.id);
-        } else if (element && element.type === "way") {
-            nodes.push(...element.nodes);
-        }
-    });
-    const uniqNodes = _.uniq(nodes);
-    return uniqNodes;
-};
-
 export const findPlacesInZone = async (
     filter: string,
     loadingText?: string,
@@ -354,88 +228,6 @@ out ${outType};
         });
     }
     return data;
-};
-
-export const findInternationalBordersInZone = async () => {
-    const $polyGeoJSON = polyGeoJSON.get();
-    let query: string;
-
-    if ($polyGeoJSON) {
-        const polyStr = overpassPolyString($polyGeoJSON);
-        query = `
-[out:json][timeout:60];
-relation["boundary"="administrative"]["admin_level"="2"](poly:"${polyStr}")->.countries;
-way(r.countries)(poly:"${polyStr}");
-out geom;
-`;
-    } else {
-        const osmId = mapGeoLocation.get().properties.osm_id;
-        query = `
-[out:json][timeout:60];
-relation(${osmId});map_to_area->.region;
-relation["boundary"="administrative"]["admin_level"="2"](area.region)->.countries;
-way(r.countries)(area.region);
-out geom;
-`;
-    }
-
-    return getOverpassData(query, "Finding international borders...", CacheType.ZONE_CACHE);
-};
-
-export const findPlacesSpecificInZone = async (
-    location: `${QuestionSpecificLocation}`,
-) => {
-    const locations = (
-        await findPlacesInZone(
-            location,
-            `Finding ${
-                location === '["brand:wikidata"="Q38076"]'
-                    ? "McDonald's"
-                    : "7-Elevens"
-            }...`,
-        )
-    ).elements;
-    return turf.featureCollection(
-        locations.map((x: any) =>
-            turf.point([
-                x.center ? x.center.lon : x.lon,
-                x.center ? x.center.lat : x.lat,
-            ]),
-        ),
-    );
-};
-
-const MAX_NEAREST_RADIUS_MILES = 300;
-
-export const nearestToQuestion = async (
-    question: HomeGameMatchingQuestions | HomeGameMeasuringQuestions,
-) => {
-    let radius = 30;
-    let instances: any = { features: [] };
-    // Bounded: a failed lookup returns no features, which used to retry forever.
-    while (instances.features.length === 0 && radius <= MAX_NEAREST_RADIUS_MILES) {
-        instances = await findTentacleLocations(
-            {
-                lat: question.lat,
-                lng: question.lng,
-                radius: radius,
-                unit: "miles",
-                location: false,
-                locationType: question.type,
-                drag: false,
-                color: "black",
-                collapsed: false,
-                enabled: true,
-            },
-            "Finding matching locations...",
-        );
-        radius += 30;
-    }
-    if (instances.features.length === 0) {
-        throw new Error(`No ${question.type} found within ${MAX_NEAREST_RADIUS_MILES} miles`);
-    }
-    const questionPoint = turf.point([question.lng, question.lat]);
-    return turf.nearestPoint(questionPoint, instances as any);
 };
 
 export const determineMapBoundaries = async () => {

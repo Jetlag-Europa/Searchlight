@@ -17,7 +17,6 @@ import { compiledGameAtom } from "@/game-definition/store";
 import {
     autoLockQuestions,
     customInitPreference,
-    displayHidingZones,
     drawingQuestionKey,
     hiderMode,
     isLoading,
@@ -28,17 +27,8 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
-import {
-    determineMatchingBoundary,
-    findMatchingPlaces,
-} from "@/maps/questions/matching";
-import {
-    determineUnionizedStrings,
-    type MatchingQuestion,
-    matchingQuestionSchema,
-    NO_GROUP,
-    type ZoneMatchingQuestions,
-} from "@/maps/schema";
+import { determineMatchingBoundary } from "@/maps/questions/matching";
+import type { MatchingQuestion } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
 
@@ -56,7 +46,6 @@ export const MatchingQuestionComponent = ({
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
     const $questions = useStore(questions);
-    const $displayHidingZones = useStore(displayHidingZones);
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
     const $customInitPref = useStore(customInitPreference);
@@ -88,84 +77,6 @@ export const MatchingQuestionComponent = ({
     let questionSpecific = <></>;
 
     switch (data.type) {
-        case "zone":
-        case "letter-zone":
-            questionSpecific = (
-                <>
-                    <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
-                        <Select
-                            trigger="OSM Zone"
-                            options={{
-                                2: "OSM Zone 2 (Country)",
-                                3: "OSM Zone 3 (region in Japan)",
-                                4: "OSM Zone 4 (prefecture in Japan)",
-                                5: "OSM Zone 5",
-                                6: "OSM Zone 6",
-                                7: "OSM Zone 7",
-                                8: "OSM Zone 8",
-                                9: "OSM Zone 9",
-                                10: "OSM Zone 10",
-                            }}
-                            value={(
-                                data as ZoneMatchingQuestions
-                            ).cat.adminLevel.toString()}
-                            onValueChange={(value) =>
-                                questionModified(
-                                    ((
-                                        data as ZoneMatchingQuestions
-                                    ).cat.adminLevel = parseInt(value) as
-                                        | 2
-                                        | 3
-                                        | 4
-                                        | 5
-                                        | 6
-                                        | 7
-                                        | 8
-                                        | 9
-                                        | 10),
-                                )
-                            }
-                            disabled={!data.drag || $isLoading}
-                        />
-                    </SidebarMenuItem>
-                    {data.type === "letter-zone" && (
-                        <span className="px-2 text-center text-orange-500">
-                            Warning: The zone data has been simplified by
-                            &plusmn;360 feet (100 meters) in order for the
-                            browser to not crash.
-                        </span>
-                    )}
-                </>
-            );
-            break;
-        case "same-train-line":
-            questionSpecific = (
-                <span className="px-2 text-center text-orange-500">
-                    Warning: The train line data is based on OpenStreetMap and
-                    may have fewer train stations than expected. If you are
-                    using this tool, ensure that the other players are also
-                    using this tool.
-                </span>
-            );
-            break;
-        case "aquarium":
-        case "hospital":
-        case "peak":
-        case "museum":
-        case "theme_park":
-        case "zoo":
-        case "cinema":
-        case "library":
-        case "golf_course":
-        case "consulate":
-        case "park":
-            questionSpecific = (
-                <span className="px-2 text-center text-orange-500">
-                    This question will only influence the map when you click on
-                    a hiding zone in the hiding zone sidebar.
-                </span>
-            );
-            break;
         case "custom-zone":
         case "custom-points":
             if (data.drag) {
@@ -242,31 +153,8 @@ export const MatchingQuestionComponent = ({
                             if (prefillSeqRef.current !== currentSeq) return;
                             (data as { geo?: unknown }).geo = boundary;
                         } else {
-                            if (
-                                data.type === "airport" ||
-                                data.type === "major-city" ||
-                                data.type === "aquarium-full" ||
-                                data.type === "zoo-full" ||
-                                data.type === "theme_park-full" ||
-                                data.type === "peak-full" ||
-                                data.type === "museum-full" ||
-                                data.type === "hospital-full" ||
-                                data.type === "cinema-full" ||
-                                data.type === "library-full" ||
-                                data.type === "golf_course-full" ||
-                                data.type === "consulate-full" ||
-                                data.type === "park-full"
-                            ) {
-                                const places = await findMatchingPlaces(data);
-                                if (prefillSeqRef.current !== currentSeq)
-                                    return;
-                                (data as { geo?: unknown }).geo = places;
-                            } else {
-                                (data as { geo?: unknown }).geo = [];
-                                toast.info(
-                                    "Please draw the points on the map.",
-                                );
-                            }
+                            (data as { geo?: unknown }).geo = [];
+                            toast.info("Please draw the points on the map.");
                         }
                         data.type = pendingCustomType;
                         questionModified();
@@ -279,74 +167,18 @@ export const MatchingQuestionComponent = ({
             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                 <Select
                     trigger="Matching Type"
-                    options={
-                        compiled
-                            ? Object.fromEntries(
-                                  compiledMatching.map((q) => [q.id, q.label]),
-                              )
-                            : Object.fromEntries(
-                                  matchingQuestionSchema.options
-                                      .filter((x) => x.description === NO_GROUP)
-                                      .flatMap((x) =>
-                                          determineUnionizedStrings(
-                                              x.shape.type,
-                                          ),
-                                      )
-                                      .map((x) => [
-                                          (x._def as any).value,
-                                          x.description,
-                                      ]),
-                              )
-                    }
-                    groups={
-                        compiled
-                            ? {
-                                  Custom: {
-                                      disabled: false,
-                                      options: {
-                                          "custom-points": "Custom Points",
-                                          "custom-zone": "Custom Zone",
-                                      },
-                                  },
-                              }
-                            : matchingQuestionSchema.options
-                                  .filter((x) => x.description !== NO_GROUP)
-                                  .map((x) => [
-                                      x.description,
-                                      Object.fromEntries(
-                                          determineUnionizedStrings(
-                                              x.shape.type,
-                                          ).map((x) => [
-                                              (x._def as any).value,
-                                              x.description,
-                                          ]),
-                                      ),
-                                  ])
-                                  .reduce(
-                                      (acc, [key, value]) => {
-                                          const values = {
-                                              disabled: !$displayHidingZones,
-                                              options: value,
-                                          };
-                                          if (acc[key]) {
-                                              acc[key].options = {
-                                                  ...acc[key].options,
-                                                  ...value,
-                                              };
-                                          } else {
-                                              acc[key] = values;
-                                          }
-                                          return acc;
-                                      },
-                                      {} as Record<
-                                          string,
-                                          {
-                                              disabled: boolean;
-                                              options: Record<string, string>;
-                                          }
-                                      >,
-                                  )
-                    }
+                    options={Object.fromEntries(
+                        compiledMatching.map((q) => [q.id, q.label]),
+                    )}
+                    groups={{
+                        Custom: {
+                            disabled: false,
+                            options: {
+                                "custom-points": "Custom Points",
+                                "custom-zone": "Custom Zone",
+                            },
+                        },
+                    }}
                     value={data.type}
                     onValueChange={async (value) => {
                         if (
@@ -387,37 +219,10 @@ export const MatchingQuestionComponent = ({
                                         (data as { geo?: unknown }).geo =
                                             boundary;
                                     } else {
-                                        if (
-                                            data.type === "airport" ||
-                                            data.type === "major-city" ||
-                                            data.type === "aquarium-full" ||
-                                            data.type === "zoo-full" ||
-                                            data.type === "theme_park-full" ||
-                                            data.type === "peak-full" ||
-                                            data.type === "museum-full" ||
-                                            data.type === "hospital-full" ||
-                                            data.type === "cinema-full" ||
-                                            data.type === "library-full" ||
-                                            data.type === "golf_course-full" ||
-                                            data.type === "consulate-full" ||
-                                            data.type === "park-full"
-                                        ) {
-                                            const places =
-                                                await findMatchingPlaces(data);
-                                            if (
-                                                prefillSeqRef.current !==
-                                                currentSeq
-                                            )
-                                                return;
-                                            (data as { geo?: unknown }).geo =
-                                                places;
-                                        } else {
-                                            (data as { geo?: unknown }).geo =
-                                                [];
-                                            toast.info(
-                                                "Please draw the points on the map.",
-                                            );
-                                        }
+                                        (data as { geo?: unknown }).geo = [];
+                                        toast.info(
+                                            "Please draw the points on the map.",
+                                        );
                                     }
                                 } finally {
                                     setScopedLoading(prefillScope, false);
@@ -425,23 +230,8 @@ export const MatchingQuestionComponent = ({
                                 if (prefillSeqRef.current !== currentSeq)
                                     return;
                             }
-                            // The category should be defined such that no error is thrown if this is a zone question.
-                            if (!(data as any).cat) {
-                                (data as any).cat = { adminLevel: 3 };
-                            }
-                            questionModified((data.type = value));
-                            return;
                         }
 
-                        if (value === "same-length-station") {
-                            data.lengthComparison = "same";
-                            data.same = true;
-                        }
-
-                        // The category should be defined such that no error is thrown if this is a zone question.
-                        if (!(data as any).cat) {
-                            (data as any).cat = { adminLevel: 3 };
-                        }
                         questionModified((data.type = value));
                     }}
                     disabled={!data.drag || $isLoading}
@@ -467,78 +257,33 @@ export const MatchingQuestionComponent = ({
                     disabled={!data.drag || $isLoading}
                 />
             )}
-            <div
-                className={cn(
-                    "flex gap-2 items-center p-2",
-                    data.type === "same-length-station" && "flex-col",
-                )}
-            >
+            <div className="flex gap-2 items-center p-2">
                 <Label
                     className={cn(
                         "font-semibold text-lg",
                         $isLoading && "text-muted-foreground",
-                        data.type === "same-length-station" && "text-center",
                     )}
                 >
                     Result
                 </Label>
-                {data.type === "same-length-station" ? (
-                    <ToggleGroup
-                        className="grow"
-                        type="single"
-                        value={
-                            data.lengthComparison
-                                ? data.lengthComparison
-                                : data.same === true
-                                  ? "same"
-                                  : data.same === false
-                                    ? "different"
-                                    : "same"
+                <ToggleGroup
+                    className="grow"
+                    type="single"
+                    value={data.same ? "same" : "different"}
+                    onValueChange={(value) => {
+                        if (value === "same") {
+                            questionModified((data.same = true));
+                        } else if (value === "different") {
+                            questionModified((data.same = false));
                         }
-                        onValueChange={(
-                            value: "shorter" | "same" | "longer" | "different",
-                        ) => {
-                            if (value === "shorter" || value === "longer") {
-                                questionModified(
-                                    (data.lengthComparison = value),
-                                );
-                            } else if (value === "same") {
-                                questionModified(
-                                    (data.lengthComparison = "same"),
-                                );
-                                questionModified((data.same = true));
-                            } else if (value === "different") {
-                                questionModified((data.same = false));
-                            }
-                        }}
-                        disabled={!!$hiderMode || !data.drag || $isLoading}
-                    >
-                        <ToggleGroupItem value="shorter">
-                            Shorter
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="same">Same</ToggleGroupItem>
-                        <ToggleGroupItem value="longer">Longer</ToggleGroupItem>
-                    </ToggleGroup>
-                ) : (
-                    <ToggleGroup
-                        className="grow"
-                        type="single"
-                        value={data.same ? "same" : "different"}
-                        onValueChange={(value) => {
-                            if (value === "same") {
-                                questionModified((data.same = true));
-                            } else if (value === "different") {
-                                questionModified((data.same = false));
-                            }
-                        }}
-                        disabled={!!$hiderMode || !data.drag || $isLoading}
-                    >
-                        <ToggleGroupItem value="different">
-                            Different
-                        </ToggleGroupItem>
-                        <ToggleGroupItem value="same">Same</ToggleGroupItem>
-                    </ToggleGroup>
-                )}
+                    }}
+                    disabled={!!$hiderMode || !data.drag || $isLoading}
+                >
+                    <ToggleGroupItem value="different">
+                        Different
+                    </ToggleGroupItem>
+                    <ToggleGroupItem value="same">Same</ToggleGroupItem>
+                </ToggleGroup>
             </div>
         </QuestionCard>
     );

@@ -17,7 +17,7 @@ import type {
 } from "geojson";
 import * as GeoUtils from "@/maps/geo-utils";
 import { evaluateMeasuringOperator } from "@/maps/questions/operators/measuring";
-import { hiderMode } from "@/lib/context";
+import { hiderMode, mapGeoJSON } from "@/lib/context";
 import {
     setActiveGameDefinition,
     compiledGameAtom,
@@ -290,7 +290,7 @@ describe("maps dispatch and hider regression suite", () => {
         }
     });
 
-    it("routes radius and thermometer to legacy handlers and planning under compiled game", async () => {
+    it("routes radius and thermometer to their handlers and planning under compiled game", async () => {
         hiderMode.set({ latitude: 35.65, longitude: 139.7 });
 
         const radiusQ: any = {
@@ -327,6 +327,67 @@ describe("maps dispatch and hider regression suite", () => {
 
         const tPoly = await determinePlanningPolygon(thermoQ, true);
         expect(tPoly).toBeDefined();
+    });
+
+    it("answers player-drawn custom questions with their own handlers", async () => {
+        const west = turf.point([139.6, 35.65], { name: "West" });
+        const east = turf.point([139.9, 35.65], { name: "East" });
+        const inside = (region: unknown, lng: number, lat: number) =>
+            turf
+                .flatten(region as FeatureCollection<Polygon | MultiPolygon>)
+                .features.some((feature) =>
+                    turf.booleanPointInPolygon(turf.point([lng, lat]), feature),
+                );
+
+        const customPoints = {
+            id: "matching" as const,
+            key: 20,
+            data: matchingQuestionSchema.parse({
+                type: "custom-points",
+                geo: [west, east],
+                lat: 35.65,
+                lng: 139.62,
+                same: true,
+                drag: true,
+            }),
+        };
+        const matched = await adjustMapGeoDataForQuestion(
+            customPoints,
+            playArea,
+        );
+        expect(inside(matched, 139.65, 35.7)).toBe(true);
+        expect(inside(matched, 139.85, 35.7)).toBe(false);
+
+        const customTentacle = {
+            id: "tentacles" as const,
+            key: 21,
+            data: tentacleQuestionSchema.parse({
+                locationType: "custom",
+                places: [west, east],
+                location: west,
+                radius: 30,
+                unit: "kilometers",
+                lat: 35.65,
+                lng: 139.62,
+                drag: true,
+            }),
+        };
+        const tentacled = await adjustMapGeoDataForQuestion(
+            customTentacle,
+            playArea,
+        );
+        expect(inside(tentacled, 139.58, 35.65)).toBe(true);
+        expect(inside(tentacled, 139.85, 35.65)).toBe(false);
+
+        // The hider is nearest the other point.
+        mapGeoJSON.set(playArea);
+        hiderMode.set({ latitude: 35.65, longitude: 139.95 });
+        try {
+            await hiderifyQuestion(customPoints);
+            expect(customPoints.data.same).toBe(false);
+        } finally {
+            mapGeoJSON.set(null);
+        }
     });
 
     it("tentacle hider produces Feature<Point> and parses schema (or false if out of range)", async () => {

@@ -1,8 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { Label } from "@radix-ui/react-label";
-import * as React from "react";
 
-import CustomInitDialog from "@/components/CustomInitDialog";
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import PresetsDialog from "@/components/PresetsDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,25 +13,15 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
 import {
     autoLockQuestions,
-    customInitPreference,
-    displayHidingZones,
     drawingQuestionKey,
     hiderMode,
     isLoading,
     questionModified,
     questions,
-    resetScopedLoading,
-    setScopedLoading,
     triggerLocalRefresh,
 } from "@/lib/context";
 import { cn } from "@/lib/utils";
-import { determineMeasuringBoundary } from "@/maps/questions/measuring";
-import {
-    determineUnionizedStrings,
-    type MeasuringQuestion,
-    measuringQuestionSchema,
-    NO_GROUP,
-} from "@/maps/schema";
+import type { MeasuringQuestion } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
 
@@ -51,23 +39,11 @@ export const MeasuringQuestionComponent = ({
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
     const $questions = useStore(questions);
-    const $displayHidingZones = useStore(displayHidingZones);
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $isLoading = useStore(isLoading);
-    const $customInitPref = useStore(customInitPreference);
     const compiled = useStore(compiledGameAtom);
     const compiledMeasuring =
         compiled?.questions.filter((q) => q.family === "measuring") ?? [];
-    const [customDialogOpen, setCustomDialogOpen] = React.useState(false);
-    const prefillSeqRef = React.useRef(0);
-    const prefillScope = React.useMemo(() => Symbol("measuring-prefill"), []);
-
-    React.useEffect(() => {
-        return () => {
-            prefillSeqRef.current++;
-            resetScopedLoading(prefillScope);
-        };
-    }, [prefillScope]);
 
     const label = `Measuring
     ${
@@ -80,35 +56,6 @@ export const MeasuringQuestionComponent = ({
     let questionSpecific = <></>;
 
     switch (data.type) {
-        case "mcdonalds":
-        case "seven11":
-            questionSpecific = (
-                <span className="px-2 text-center text-orange-500">
-                    This question will eliminate hiding zones that don&apos;t
-                    fit the criteria. When you click on a zone, the parts of
-                    that zone that don&apos;t satisfy the criteria will be
-                    eliminated.
-                </span>
-            );
-            break;
-        case "aquarium":
-        case "hospital":
-        case "peak":
-        case "museum":
-        case "theme_park":
-        case "zoo":
-        case "cinema":
-        case "library":
-        case "golf_course":
-        case "consulate":
-        case "park":
-            questionSpecific = (
-                <span className="px-2 text-center text-orange-500">
-                    This question will only influence the map when you click on
-                    a hiding zone in the hiding zone sidebar.
-                </span>
-            );
-            break;
         case "custom-measure":
             if (data.drag) {
                 questionSpecific = (
@@ -156,183 +103,32 @@ export const MeasuringQuestionComponent = ({
             enabled={data.enabled ?? true}
             setEnabled={(v) => questionModified((data.enabled = v))}
         >
-            <CustomInitDialog
-                open={customDialogOpen}
-                onOpenChange={setCustomDialogOpen}
-                onBlank={async () => {
-                    if (!(data as any).geo) {
-                        (data as any).geo = {
-                            type: "FeatureCollection",
-                            features: [],
-                        };
-                    } else {
-                        (data as any).geo.features = [];
-                    }
-                    data.type = "custom-measure";
-                    questionModified();
-                    setCustomDialogOpen(false);
-                }}
-                onPrefill={async () => {
-                    const currentSeq = ++prefillSeqRef.current;
-                    setScopedLoading(prefillScope, true);
-                    try {
-                        const boundary = await determineMeasuringBoundary(data);
-                        if (prefillSeqRef.current !== currentSeq) return;
-                        if (
-                            !(
-                                data as {
-                                    geo?: { type: string; features: unknown[] };
-                                }
-                            ).geo
-                        ) {
-                            (
-                                data as {
-                                    geo?: { type: string; features: unknown[] };
-                                }
-                            ).geo = {
-                                type: "FeatureCollection",
-                                features: [],
-                            };
-                        }
-                        (
-                            data as { geo: { features: unknown[] } }
-                        ).geo.features = boundary ? boundary : [];
-                        data.type = "custom-measure";
-                        questionModified();
-                        setCustomDialogOpen(false);
-                    } finally {
-                        setScopedLoading(prefillScope, false);
-                    }
-                }}
-            />
             <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
                 <Select
                     trigger="Measuring Type"
-                    options={
-                        compiled
-                            ? Object.fromEntries(
-                                  compiledMeasuring.map((q) => [q.id, q.label]),
-                              )
-                            : Object.fromEntries(
-                                  measuringQuestionSchema.options
-                                      .filter((x) => x.description === NO_GROUP)
-                                      .flatMap((x) =>
-                                          determineUnionizedStrings(
-                                              x.shape.type,
-                                          ),
-                                      )
-                                      .map((x) => [
-                                          (x._def as any).value,
-                                          x.description,
-                                      ]),
-                              )
-                    }
-                    groups={
-                        compiled
-                            ? {
-                                  Custom: {
-                                      disabled: false,
-                                      options: {
-                                          "custom-measure": "Custom Measure",
-                                      },
-                                  },
-                              }
-                            : measuringQuestionSchema.options
-                                  .filter((x) => x.description !== NO_GROUP)
-                                  .map((x) => [
-                                      x.description,
-                                      Object.fromEntries(
-                                          determineUnionizedStrings(
-                                              x.shape.type,
-                                          ).map((x) => [
-                                              (x._def as any).value,
-                                              x.description,
-                                          ]),
-                                      ),
-                                  ])
-                                  .reduce(
-                                      (acc, [key, value]) => {
-                                          const values = {
-                                              disabled: !$displayHidingZones,
-                                              options: value,
-                                          };
-                                          if (acc[key]) {
-                                              acc[key].options = {
-                                                  ...acc[key].options,
-                                                  ...value,
-                                              };
-                                          } else {
-                                              acc[key] = values;
-                                          }
-                                          return acc;
-                                      },
-                                      {} as Record<
-                                          string,
-                                          {
-                                              disabled: boolean;
-                                              options: Record<string, string>;
-                                          }
-                                      >,
-                                  )
-                    }
+                    options={Object.fromEntries(
+                        compiledMeasuring.map((q) => [q.id, q.label]),
+                    )}
+                    groups={{
+                        Custom: {
+                            disabled: false,
+                            options: {
+                                "custom-measure": "Custom Measure",
+                            },
+                        },
+                    }}
                     value={data.type}
-                    onValueChange={async (value) => {
+                    onValueChange={(value) => {
+                        // A custom question starts with nothing to measure to.
                         if (value === "custom-measure") {
-                            if ($customInitPref === "ask") {
-                                setCustomDialogOpen(true);
-                                return;
+                            if (!(data as any).geo) {
+                                (data as any).geo = {
+                                    type: "FeatureCollection",
+                                    features: [],
+                                };
+                            } else {
+                                (data as any).geo.features = [];
                             }
-                            if ($customInitPref === "blank") {
-                                if (!(data as any).geo) {
-                                    (data as any).geo = {
-                                        type: "FeatureCollection",
-                                        features: [],
-                                    };
-                                } else {
-                                    (data as any).geo.features = [];
-                                }
-                            } else if ($customInitPref === "prefill") {
-                                const currentSeq = ++prefillSeqRef.current;
-                                setScopedLoading(prefillScope, true);
-                                try {
-                                    const boundary =
-                                        await determineMeasuringBoundary(data);
-                                    if (prefillSeqRef.current !== currentSeq)
-                                        return;
-                                    if (
-                                        !(
-                                            data as {
-                                                geo?: {
-                                                    type: string;
-                                                    features: unknown[];
-                                                };
-                                            }
-                                        ).geo
-                                    ) {
-                                        (
-                                            data as {
-                                                geo?: {
-                                                    type: string;
-                                                    features: unknown[];
-                                                };
-                                            }
-                                        ).geo = {
-                                            type: "FeatureCollection",
-                                            features: [],
-                                        };
-                                    }
-                                    (
-                                        data as { geo: { features: unknown[] } }
-                                    ).geo.features = boundary ? boundary : [];
-                                } finally {
-                                    setScopedLoading(prefillScope, false);
-                                }
-                                if (prefillSeqRef.current !== currentSeq)
-                                    return;
-                            }
-                            data.type = value;
-                            questionModified();
-                            return;
                         }
                         data.type = value;
                         questionModified();

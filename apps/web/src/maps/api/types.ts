@@ -35,11 +35,6 @@ export interface AdditionalMapGeoLocations {
     base: boolean;
 }
 
-export enum QuestionSpecificLocation {
-    McDonalds = '["brand:wikidata"="Q38076"]',
-    Seven11 = '["brand:wikidata"="Q259340"]',
-}
-
 export enum CacheType {
     CACHE = "jlhs-map-generator-cache",
     ZONE_CACHE = "jlhs-map-generator-zone-cache",
@@ -67,11 +62,3 @@ export interface StationPlaceProperties {
 
 export type StationPlace = Feature<Point, StationPlaceProperties>;
 export type StationCircle = Feature<Polygon, StationPlace>;
-
-export type {
-    APILocations,
-    HomeGameMatchingQuestions,
-    HomeGameMeasuringQuestions,
-    TentacleQuestion,
-    TraditionalTentacleQuestion,
-} from "@/maps/schema";
