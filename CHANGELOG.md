@@ -1,5 +1,9 @@
 # Changelog
 
+## Docker images from main only (2026-10-16)
+
+- The "Docker images" workflow runs only on pushes to `main` and manual runs on `main`. Pull requests and other branches no longer build images.
+
 ## Game creation for game devs (2026-10-16)
 
 - The game creation skill (`/skills/create-game.md`) covers the usual starting point: a Discord announcement linking a rules Google Doc and a Google My Map. Section 1.1 explains how to download both, which fields come from where, and how to map the rules' feature table to question layers and kinds. It also covers common My Maps problems: mixed POI layers, placeholder names, regions drawn as several shapes and drawn zone circles. The game is copied as drawn, with nothing added, simplified or derived.
