@@ -1,5 +1,13 @@
 # Changelog
 
+## Deployment: CI-built images and cleanup (2026-10-15)
+
+- A "Docker images" GitHub Actions workflow builds the `api` and `web` images for `linux/amd64` and `linux/arm64` (natively, one runner per platform) on every push to `main` and pushes them to GHCR as multi-platform `ghcr.io/jetlag-europa/searchlight-{api,web}`, tagged `sha-<commit>` and `latest`. Pull requests build them without pushing.
+- `infra/deploy-vps.sh` pulls the images of the checked-out commit instead of building on the server (`--build` keeps the build-from-source path) and removes unused images older than a week. The server needs a one-time `docker login ghcr.io` and a clone that tracks `Jetlag-Europa/Searchlight` (see `DEPLOY.md`).
+- `DEPLOY.md` is the one deployment guide (production and Discord redirects), without machine-specific details. `docs/VPS_Setup.md` is folded into it and the completed migration plan `docs/VPS_MIGRATION.md` is removed.
+- Removed the outdated Mac mini setups: the production and dev stacks (`docker-compose.prod.yml`, `docker-compose.dev.yml`, `infra/deploy-prod.sh`, `infra/deploy-dev.sh`, `.env.dev.example`, the API's `seed:dev`), their hostnames in the web app's site URL and social meta tags, and the remaining references in docs and comments. API tests default to the local Postgres on port 5433.
+- Removed the GitHub Pages workflow (it only ran on `master`, which this repo doesn't have) and the `TUNNEL_TOKEN` placeholder. `infra/backup.sh` writes to `backups/` next to the clone by default, so its cron line needs no overrides.
+
 ## Master integration and review fixes (2026-10-13)
 
 Games and data

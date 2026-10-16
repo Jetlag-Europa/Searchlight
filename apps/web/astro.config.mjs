@@ -56,16 +56,6 @@ export default defineConfig({
     devToolbar: {
         enabled: false,
     },
-    // Astro plumbs server.allowedHosts through to Vite's preview/dev server
-    // (see astro/core/preview/static-preview-server.js). Adding hostnames
-    // here lets a reverse proxy forward requests with those Host headers.
-    server: {
-        allowedHosts: [
-            "hideandseek.lucifersserver.com",
-            "dev.hideandseek.lucifersserver.com",
-            "devhideandseek.lucifersserver.com",
-        ],
-    },
-    site: "https://hideandseek.lucifersserver.com",
+    site: "https://searchlight.jetlageuropa.org",
     base: "/",
 });

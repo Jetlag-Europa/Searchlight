@@ -1,20 +1,30 @@
 # VPS production overlay — Cloudflare Tunnel, no published host ports.
 #
-# Launch with: infra/deploy-vps.sh
-# Or manually:
+# Launch with: infra/deploy-vps.sh (pulls the api/web images CI built for the
+# checked-out commit; `--build` builds them from the checkout instead).
+# Or manually, building from the checkout:
 #   docker compose -p writemap -f docker-compose.yml -f docker-compose.vps.yml up -d --build
 #
-# Unlike docker-compose.prod.yml (Mac mini, ports + Nginx Proxy Manager), nothing
-# is exposed on the host. cloudflared shares the `internal` network and reaches the
-# containers directly as http://web:80 and http://api:3000. The tunnel is
-# locally managed: its ingress (public hostname → service) lives in
-# /srv/WriteMap/cloudflared/config.yml, mounted below (see docs/VPS_Setup.md):
+# Nothing is exposed on the host. cloudflared shares the `internal` network and
+# reaches the containers directly as http://web:80 and http://api:3000. The
+# tunnel is locally managed: its ingress (public hostname → service) lives in
+# /srv/WriteMap/cloudflared/config.yml, mounted below (see DEPLOY.md):
 #   searchlight.jetlageuropa.org      -> http://web:80
 #   api-searchlight.jetlageuropa.org  -> http://api:3000
+#
+# The api/web image names are the GHCR ones .github/workflows/docker-images.yml
+# pushes; a local build is tagged with the same name. SEARCHLIGHT_IMAGE_TAG
+# picks the build (deploy-vps.sh sets sha-<commit>), SEARCHLIGHT_IMAGE_REGISTRY
+# the owner the images were pushed under.
 services:
+  api:
+    image: ${SEARCHLIGHT_IMAGE_REGISTRY:-ghcr.io/jetlag-europa}/searchlight-api:${SEARCHLIGHT_IMAGE_TAG:-latest}
+
   web:
+    image: ${SEARCHLIGHT_IMAGE_REGISTRY:-ghcr.io/jetlag-europa}/searchlight-web:${SEARCHLIGHT_IMAGE_TAG:-latest}
     build:
       args:
+        # Also baked into the CI image: keep in step with docker-images.yml.
         PUBLIC_API_BASE: https://api-searchlight.jetlageuropa.org
 
   cloudflared:
