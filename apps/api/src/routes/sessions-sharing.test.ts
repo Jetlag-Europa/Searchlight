@@ -192,6 +192,69 @@ describe("session sharing and links", () => {
     expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
   });
 
+  test("a revoked link no longer redeems, and members who joined stay in", async () => {
+    const token = await createLink("join");
+    expect((await redeem(token)).statusCode).toBe(200);
+
+    const link = await prisma.sessionLink.findUniqueOrThrow({ where: { token } });
+    const revoke = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/links/${link.id}`,
+      headers: { cookie: creatorCookie },
+    });
+    expect(revoke.statusCode).toBe(204);
+
+    expect((await redeem(token)).statusCode).toBe(404);
+    expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
+  });
+
+  test("a participant who left can rejoin through the same join link", async () => {
+    const token = await createLink("join");
+    expect((await redeem(token)).statusCode).toBe(200);
+
+    const leave = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/leave`,
+      headers: { cookie: friendCookie },
+    });
+    expect(leave.statusCode).toBe(204);
+    expect(await listedSessionIds(friendCookie)).not.toContain(SESSION_ID);
+
+    expect((await redeem(token)).statusCode).toBe(200);
+    expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
+  });
+
+  test("only the creator can create, list or revoke links", async () => {
+    const token = await createLink("join");
+    expect((await redeem(token)).statusCode).toBe(200);
+    const link = await prisma.sessionLink.findUniqueOrThrow({ where: { token } });
+
+    const create = await app.inject({
+      method: "POST",
+      url: `/sessions/${SESSION_ID}/links`,
+      headers: { cookie: friendCookie },
+      payload: { linkType: "join" },
+    });
+    expect(create.statusCode).toBe(403);
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/links`,
+      headers: { cookie: friendCookie },
+    });
+    expect(list.statusCode).toBe(403);
+
+    const revoke = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/links/${link.id}`,
+      headers: { cookie: friendCookie },
+    });
+    expect(revoke.statusCode).toBe(403);
+
+    const after = await prisma.sessionLink.findMany({ where: { sessionId: SESSION_ID } });
+    expect(after).toEqual([expect.objectContaining({ id: link.id, revokedAt: null })]);
+  });
+
   test("a share link gives the recipient a private copy they created", async () => {
     const token = await createLink("fork");
     const res = await redeem(token);
