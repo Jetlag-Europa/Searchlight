@@ -1,5 +1,9 @@
 # Changelog
 
+## Slow question results say they are calculating (2026-10-17)
+
+- When the map takes longer than half a second to work out the questions' results (the eliminated area and then the hiding zones left in it), a small "Calculating…" pill appears under the Live indicator until both are done, so a slow answer such as a region-boundary question on Belgium no longer looks like a hung page. Quick answers don't show it, and an answer replaced mid-calculation doesn't end it early.
+
 ## Question names (2026-10-17)
 
 - Every question card has a Name field, so a radar, thermometer, tentacle, matching or measuring question can be called "Airport radar" instead of only "Radius 2". A named card shows the name above its type and number, also while it is collapsed or hidden, and its map marker shows the name on hover. The name saves when you leave the field or press Enter, and syncs with the session like the rest of the question; clearing it goes back to the numbered label.

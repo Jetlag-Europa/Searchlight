@@ -16,6 +16,7 @@ import { AnnotationToolbar } from "@/annotations";
 import { AuthGuard } from "@/components/AuthGuard";
 import { SessionManager } from "@/components/SessionManager";
 import { SyncIndicator } from "@/components/SyncIndicator";
+import { CalculatingIndicator } from "@/components/CalculatingIndicator";
 import { PreferencesSync } from "@/components/PreferencesSync";
 import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
 ---
@@ -47,6 +48,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
 
     <!-- SyncIndicator shows offline/syncing/synced status -->
     <SyncIndicator client:only="react" />
+
+    <!-- CalculatingIndicator shows question results that take a while to work out -->
+    <CalculatingIndicator client:only="react" />
 
     <!-- The board; SessionManager makes it inert while the session picker is open -->
     <div id="map-board" class="contents">
