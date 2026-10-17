@@ -94,4 +94,11 @@ describe("POST /auth/test-login (ENABLE_TEST_AUTH=1)", () => {
       await prisma.user.deleteMany({ where: { discordId: other } });
     }
   });
+
+  test("/auth/dev-login does not exist without DEV_LOGIN_TOKEN", async () => {
+    const get = await app.inject({ method: "GET", url: "/auth/dev-login" });
+    expect(get.statusCode).toBe(404);
+    const post = await app.inject({ method: "POST", url: "/auth/dev-login" });
+    expect(post.statusCode).toBe(404);
+  });
 });

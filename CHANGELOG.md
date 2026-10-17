@@ -1,5 +1,9 @@
 # Changelog
 
+## Dev login on preview deployments (2026-10-17)
+
+- When `DEV_LOGIN_TOKEN` is set (at least 32 characters), the API registers `/auth/dev-login`: `GET` serves a small form, and `POST` (form, or JSON with `Authorization: Bearer <token>`) logs in as any Discord user ID without Discord, so testers and agents can act as specific users on PR previews. A real Discord user gets their profile from the bot and their servers and roles as usual; any other numeric ID becomes a placeholder user. A wrong token gets a 403. Prod never sets the token, and without it the routes don't exist. See `docs/TESTING.md`.
+
 ## Measuring questions show your distance (2026-10-17)
 
 - A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.243 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, in the Default Unit to three places (meters under 1 km, then 1.123 km; feet under 0.1 mi, then 1.123 mi), and updates when the seeker moves.
