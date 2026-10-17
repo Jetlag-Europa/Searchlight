@@ -16,9 +16,8 @@
 //
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.
-
-import { readFileSync, realpathSync, statSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+// Browsers import it too (Searchlight's import dialog and /designer page), so
+// it loads node: modules only when run from the command line (at the end).
 
 /** WARN codes that --strict treats as failures. */
 export const STRICT_CODES = new Set([
@@ -441,7 +440,7 @@ export function checkGame(def, { fileSize } = {}) {
 
 // ── Command line ─────────────────────────────────────────────────────────────
 
-function main(args) {
+function main(args, { readFileSync, statSync }) {
   const strict = args.includes("--strict");
   const file = args.find((a) => !a.startsWith("--"));
   if (!file) {
@@ -467,6 +466,12 @@ function main(args) {
   process.exit(errors.length || failures.length ? 1 : 0);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
-  main(process.argv.slice(2));
+// Module names in variables, so bundlers leave these imports alone.
+const NODE_FS = "node:fs";
+const NODE_URL = "node:url";
+const script = globalThis.process?.argv?.[1];
+if (script) {
+  Promise.all([import(/* @vite-ignore */ NODE_FS), import(/* @vite-ignore */ NODE_URL)]).then(([fs, url]) => {
+    if (import.meta.url === url.pathToFileURL(fs.realpathSync(script)).href) main(process.argv.slice(2), fs);
+  });
 }

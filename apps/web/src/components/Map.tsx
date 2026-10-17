@@ -13,6 +13,7 @@ import { toast } from "react-toastify";
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
 import { activeSessionData, activeSessionId } from "@/lib/activeSession";
+import { CARTO_API_KEY } from "@/lib/basemap";
 import { bootstrapDefaults } from "@/lib/bootstrap";
 import { startCalculation } from "@/lib/calculating";
 import {
@@ -62,12 +63,6 @@ import { DraggableMarkers } from "./DraggableMarkers";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
 import { MapPrint } from "./MapPrint";
 import { PolygonDraw } from "./PolygonDraw";
-
-// CARTO requires an API key on raster basemap tiles; unkeyed requests are served
-// with an "API KEY REQUIRED" watermark. Free key from
-// https://carto.com/basemaps/apikey/. Plain constant on purpose: this is a
-// client bundle, so the key ships to the browser wherever it is declared.
-const CARTO_API_KEY = "cb1_2e23_1_bd24b1a55d41442abf180516";
 
 // Before a game has loaded, the map shows the world, or the game it showed
 // last (see lastGameView).
