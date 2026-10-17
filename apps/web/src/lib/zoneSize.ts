@@ -7,17 +7,21 @@ export const isZoneSizeChange = (
     question: Pick<Question, "id">,
 ): question is ZoneSizeEntry => question.id === "zone-size";
 
-const multiplierOf = (question: Question): number => {
-    if (!isZoneSizeChange(question) || question.data.enabled === false)
-        return 1;
-    const { multiplier } = question.data;
-    // Session questions are stored unparsed: ignore a malformed one.
-    return typeof multiplier === "number" &&
-        Number.isFinite(multiplier) &&
-        multiplier > 0
+/**
+ * A zone size change's multiplier, or 1 for a malformed one: session
+ * questions are stored unparsed.
+ */
+export const validMultiplier = (multiplier: unknown): number =>
+    typeof multiplier === "number" &&
+    Number.isFinite(multiplier) &&
+    multiplier > 0
         ? multiplier
         : 1;
-};
+
+const multiplierOf = (question: Question): number =>
+    isZoneSizeChange(question) && question.data.enabled !== false
+        ? validMultiplier(question.data.multiplier)
+        : 1;
 
 /**
  * The hiding zones' size relative to the game's after the first `end`

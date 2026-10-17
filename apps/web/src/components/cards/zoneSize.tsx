@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import {
     formatMultiplier,
     isZoneSizeChange,
+    validMultiplier,
     zoneScaleAfter,
 } from "@/lib/zoneSize";
 import type { ZoneSizeChange } from "@/maps/schema";
@@ -54,15 +55,24 @@ export const ZoneSizeComponent = ({
     const $compiledGame = useStore(compiledGameAtom);
     const label = defaultQuestionLabel($questions, questionKey);
 
+    const multiplier = validMultiplier(data.multiplier);
     const index = $questions.findIndex((q) => q.key === questionKey);
     const scale = zoneScaleAfter($questions, index + 1);
     const affected = $questions
         .slice(index + 1)
-        .filter((q) => !isZoneSizeChange(q)).length;
-    const hasCircles =
-        $compiledGame?.hidingZones.stations?.some((zone) => !zone.area) ??
-        false;
+        .filter((q) => !isZoneSizeChange(q) && q.data.enabled !== false).length;
+    const circles = ($compiledGame?.hidingZones.stations ?? []).filter(
+        (zone) => !zone.area,
+    );
     const baseRadius = $compiledGame?.hidingZones.baseRadius;
+    // Tier and per-zone radii differ from the game's, as in the zone sidebar.
+    const varies =
+        !!baseRadius &&
+        circles.some(
+            (zone) =>
+                zone.radius?.value !== baseRadius.value ||
+                zone.radius?.unit !== baseRadius.unit,
+        );
 
     // Moving the change past a question changes which size that question
     // was asked at. Saved right away, like deleting.
@@ -81,7 +91,7 @@ export const ZoneSizeComponent = ({
             label={label}
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
-            sub={formatMultiplier(data.multiplier)}
+            sub={formatMultiplier(multiplier)}
             className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
@@ -103,9 +113,9 @@ export const ZoneSizeComponent = ({
                     <Input
                         type="number"
                         className="rounded-md p-2 grow"
-                        min={0}
+                        min={0.25}
                         step={0.25}
-                        value={data.multiplier}
+                        value={multiplier}
                         disabled={$isLoading}
                         onChange={(e) => {
                             // Keep the last multiplier while the field is
@@ -124,8 +134,8 @@ export const ZoneSizeComponent = ({
                     variant="outline"
                     size="sm"
                     value={
-                        QUICK_MULTIPLIERS.includes(data.multiplier)
-                            ? String(data.multiplier)
+                        QUICK_MULTIPLIERS.includes(multiplier)
+                            ? String(multiplier)
                             : ""
                     }
                     onValueChange={(value: string) => {
@@ -147,7 +157,7 @@ export const ZoneSizeComponent = ({
             <SidebarMenuItem
                 className={cn(MENU_ITEM_CLASSNAME, "text-sm block")}
             >
-                {hasCircles && baseRadius && (
+                {circles.length > 0 && baseRadius && (
                     <p>
                         Zones from here:{" "}
                         <span className="font-semibold">
@@ -155,6 +165,7 @@ export const ZoneSizeComponent = ({
                             {baseRadius.unit}
                         </span>{" "}
                         ({formatMultiplier(scale)} the game&apos;s)
+                        {varies && ", varies by zone"}
                     </p>
                 )}
                 <p className="text-muted-foreground">
