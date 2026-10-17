@@ -23,6 +23,7 @@ import {
     followMe,
     gameDefinitionReady,
     hiderMode,
+    hidingZoneScale,
     leafletMapContext,
     mapGeoJSON,
     permanentOverlay,
@@ -46,6 +47,7 @@ import {
 import { createLatestTask } from "@/lib/latestTask";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
+import { zoneScaleAfter } from "@/lib/zoneSize";
 import {
     computePerQuestionRegions,
     determinePlanningPolygon,
@@ -448,6 +450,7 @@ export const Map = ({ className }: { className?: string }) => {
                 });
                 triggerLocalRefresh.set(Math.random());
             }
+            hidingZoneScale.set(zoneScaleAfter(snapshot));
             perQuestionMapData.set(perQuestionRegions);
             questionFinishedMapData.set(mapGeoData);
 

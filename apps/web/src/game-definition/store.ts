@@ -47,6 +47,9 @@ export function isQuestionSupported(
 ): boolean {
     const { family, id } = canonicalQuestionId(question);
     if (!family) return false;
+    // A hiding zone size change belongs to no game: it fits every one.
+    if (family === "zone-size")
+        return questionSchema.safeParse(question).success;
     if (family === "radius" || family === "thermometer") {
         if (!compiled) return true;
         for (const definition of compiled.questionMap.values()) {

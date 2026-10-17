@@ -15,6 +15,7 @@ import {
     questions,
     save,
 } from "@/lib/context";
+import { isZoneSizeChange } from "@/lib/zoneSize";
 import { lngLatToText } from "@/maps/geo-utils";
 import type {
     CustomMatchingQuestion,
@@ -240,6 +241,7 @@ export const PolygonDraw = () => {
     if ($drawingQuestionKey !== -1) {
         question = $questions.find((q) => q.key === $drawingQuestionKey);
 
+        if (question && isZoneSizeChange(question)) question = undefined;
         if (question?.data.drag === false) {
             drawingQuestionKey.set(-1);
         }

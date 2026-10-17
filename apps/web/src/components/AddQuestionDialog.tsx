@@ -136,6 +136,13 @@ export const AddQuestionDialog = ({
         });
         return true;
     };
+    // A curse that resizes the hiding zones, cast now: it applies to the
+    // questions asked after it, which are added below it.
+    const runAddZoneSize = () => {
+        addQuestion({ id: "zone-size", data: {} });
+        return true;
+    };
+
     const runPasteQuestion = async () => {
         if (!navigator || !navigator.clipboard) {
             toast.error("Clipboard API not supported in your browser");
@@ -223,6 +230,14 @@ export const AddQuestionDialog = ({
                         disabled={disabled}
                     >
                         Add Measuring {compiled && !hasMeasuring && "(Custom)"}
+                    </SidebarMenuButton>
+                    <SidebarMenuButton
+                        onClick={() => {
+                            if (runAddZoneSize()) setOpen(false);
+                        }}
+                        disabled={disabled}
+                    >
+                        Resize Hiding Zones (Curse)
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={async () => {

@@ -196,6 +196,20 @@ export const measuringQuestionSchema = z.union([
     genericFeatureMeasuringQuestionSchema,
 ]);
 
+// A curse (or anything else) that resizes every circular hiding zone. It
+// applies to the questions below it in the list, which is the order they were
+// asked in; changes multiply, so two ×1.5 curses make the zones 2.25 times
+// the game's size.
+const zoneSizeChangeSchema = z.object({
+    multiplier: z
+        .number()
+        .positive("The multiplier must be greater than zero")
+        .default(1.5),
+    collapsed: z.boolean().default(false),
+    enabled: z.boolean().default(true),
+    name: questionNameSchema,
+});
+
 export const questionSchema = z.union([
     z.object({
         id: z.literal("radius"),
@@ -222,6 +236,11 @@ export const questionSchema = z.union([
         key: z.number().default(Math.random),
         data: matchingQuestionSchema,
     }),
+    z.object({
+        id: z.literal("zone-size"),
+        key: z.number().default(Math.random),
+        data: zoneSizeChangeSchema,
+    }),
 ]);
 
 export const questionsSchema = z.array(questionSchema);
@@ -238,6 +257,7 @@ export type CustomMeasuringQuestion = z.infer<
     typeof customMeasuringQuestionSchema
 >;
 export type MeasuringQuestion = z.infer<typeof measuringQuestionSchema>;
+export type ZoneSizeChange = z.infer<typeof zoneSizeChangeSchema>;
 export type Question = z.infer<typeof questionSchema>;
 export type Questions = z.infer<typeof questionsSchema>;
 export type DeepPartial<T> = {

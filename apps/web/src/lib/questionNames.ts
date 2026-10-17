@@ -8,6 +8,7 @@ const TYPE_LABELS: Record<Question["id"], string> = {
     tentacles: "Tentacles",
     matching: "Matching",
     measuring: "Measuring",
+    "zone-size": "Zone Size",
 };
 
 // "Radius 2": the type and the question's position among those of its type.
