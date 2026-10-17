@@ -5,6 +5,7 @@ import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
+import type { GpsFix } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
 import {
@@ -301,6 +302,9 @@ export const followMe = persistentAtom<boolean>("followMe", false, {
     encode: JSON.stringify,
     decode: JSON.parse,
 });
+// The last position Follow Me's watch reported. Not persisted: a fix from an
+// earlier visit says nothing about where the seeker is now.
+export const lastGpsFix = atom<GpsFix | null>(null);
 export const defaultCustomQuestions = persistentAtom<boolean>(
     "defaultCustomQuestions",
     false,

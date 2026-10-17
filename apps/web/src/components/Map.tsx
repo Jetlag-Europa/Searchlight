@@ -24,6 +24,7 @@ import {
     gameDefinitionReady,
     hiderMode,
     hidingZoneScale,
+    lastGpsFix,
     leafletMapContext,
     mapGeoJSON,
     permanentOverlay,
@@ -45,13 +46,11 @@ import {
     savedGameView,
 } from "@/lib/gameView";
 import { createLatestTask } from "@/lib/latestTask";
+import { newThermometerData } from "@/lib/questionPosition";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
-import {
-    computePerQuestionRegions,
-    determinePlanningPolygon,
-} from "@/maps";
+import { computePerQuestionRegions, determinePlanningPolygon } from "@/maps";
 import { hiderifyQuestion } from "@/maps";
 import { BLANK_GEOJSON } from "@/maps/api";
 import {
@@ -82,10 +81,7 @@ const WORLD_BOUNDS: L.LatLngBoundsExpression = [
     [90, 180],
 ];
 
-const fitGameBounds = (
-    map: L.Map,
-    [west, south, east, north]: GameBounds,
-) =>
+const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
     map.fitBounds(
         [
             [south, west],
@@ -200,23 +196,9 @@ const ADD_QUESTION_MENU_ITEMS = [
     {
         text: "Add Thermometer",
         callback: (e: any) => {
-            const destination = turf.destination(
-                [e.latlng.lng, e.latlng.lat],
-                5,
-                90,
-                {
-                    units: "kilometers",
-                },
-            );
-
             addQuestionFromMenu({
                 id: "thermometer",
-                data: {
-                    latA: e.latlng.lat,
-                    lngA: e.latlng.lng,
-                    latB: destination.geometry.coordinates[1],
-                    lngB: destination.geometry.coordinates[0],
-                },
+                data: newThermometerData(e.latlng),
             });
         },
     },
@@ -697,13 +679,16 @@ export const Map = ({ className }: { className?: string }) => {
                 navigator.geolocation.clearWatch(geoWatchIdRef.current);
                 geoWatchIdRef.current = null;
             }
+            lastGpsFix.set(null);
             return;
         }
 
+        let warnedNoFix = false;
         geoWatchIdRef.current = navigator.geolocation.watchPosition(
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
+                lastGpsFix.set({ lat, lng, timestamp: pos.timestamp });
                 if (followMeMarkerRef.current) {
                     followMeMarkerRef.current.setLatLng([lat, lng]);
                 } else {
@@ -718,9 +703,16 @@ export const Map = ({ className }: { className?: string }) => {
                     followMeMarkerRef.current = marker;
                 }
             },
-            () => {
-                toast.error("Unable to access your location.");
-                followMe.set(false);
+            (error) => {
+                // Only a refusal ends Follow Me. A slow or missing fix (indoors,
+                // on a train) times out now and then; the watch keeps trying.
+                if (error.code === error.PERMISSION_DENIED) {
+                    toast.error("Unable to access your location.");
+                    followMe.set(false);
+                } else if (!warnedNoFix) {
+                    warnedNoFix = true;
+                    toast.warn("Still looking for your location...");
+                }
             },
             { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
         );
