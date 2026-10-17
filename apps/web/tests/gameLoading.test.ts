@@ -5,14 +5,9 @@ import {
     applyGameDefinition,
     currentGameId,
     fetchGameCatalog,
-    fetchGames,
-    gamesAtom,
-    gamesLoadingAtom,
     leaveGame,
     resetGameState,
-    resolveSessionGame,
     switchToGame,
-    type GameOption,
 } from "@/lib/games";
 import {
     cacheRevisionDefinition,
@@ -37,7 +32,7 @@ import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { hidingZoneCircles } from "@/maps/geo-utils";
 import type { Questions } from "@/maps/schema";
 
-const game: GameOption = {
+const game = {
     id: "loading-game",
     gameKey: "loading-game-key",
     label: "Loading game",
@@ -139,8 +134,7 @@ describe("game loading concurrency", () => {
         expect(currentGameId.get()).toBe("");
     });
 
-    it("browses another server's catalog without publishing it", async () => {
-        gamesAtom.set([game]);
+    it("reads a server's game catalog", async () => {
         vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
             String(input).includes("/games?")
                 ? Response.json({
@@ -148,14 +142,9 @@ describe("game loading concurrency", () => {
                   })
                 : Response.json({ servers: [] }),
         );
-        try {
-            expect(
-                (await fetchGameCatalog("other")).map((entry) => entry.id),
-            ).toEqual(["other-game"]);
-            expect(gamesAtom.get()).toEqual([game]);
-        } finally {
-            gamesAtom.set([]);
-        }
+        expect(
+            (await fetchGameCatalog("other")).map((entry) => entry.id),
+        ).toEqual(["other-game"]);
     });
 
     it("gives concurrent callers one successful selection", async () => {
@@ -326,52 +315,6 @@ describe("game loading concurrency", () => {
         expect(turf.distance([west, 0], [east, 0])).toBeCloseTo(4, 1);
     });
 
-    it("keeps the newest server catalog visible while older loads finish", async () => {
-        const olderGames = deferred<Response>();
-        vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
-            const url = new URL(String(input));
-            if (
-                url.pathname === "/games" &&
-                url.searchParams.get("serverId") === "older"
-            ) {
-                return olderGames.promise;
-            }
-            if (url.pathname === "/games") {
-                return new Response(
-                    JSON.stringify({
-                        games: [
-                            { ...game, id: "newer-game", serverId: "newer" },
-                        ],
-                    }),
-                    { status: 200 },
-                );
-            }
-            return new Response(JSON.stringify({ servers: [] }), {
-                status: 200,
-            });
-        });
-        const older = fetchGames("older");
-        const newer = fetchGames("newer");
-        await newer;
-        expect(gamesAtom.get().map((entry) => entry.id)).toEqual([
-            "newer-game",
-        ]);
-        expect(gamesLoadingAtom.get()).toBe(true);
-        olderGames.resolve(
-            new Response(
-                JSON.stringify({
-                    games: [{ ...game, id: "older-game", serverId: "older" }],
-                }),
-                { status: 200 },
-            ),
-        );
-        await older;
-        expect(gamesAtom.get().map((entry) => entry.id)).toEqual([
-            "newer-game",
-        ]);
-        expect(gamesLoadingAtom.get()).toBe(false);
-    });
-
     it("bounds session-scoped full definitions while retaining recently visited revisions", () => {
         for (let index = 0; index < 5; index++) {
             cacheRevisionDefinition(
@@ -402,61 +345,6 @@ describe("game loading concurrency", () => {
         expect(
             getCachedRevisionDefinition(game.id, "revision-1", "session-1"),
         ).toBeDefined();
-    });
-});
-
-describe("resolveSessionGame", () => {
-    const session = {
-        id: "session-1",
-        gameId: "game-db-id",
-        serverId: "server-1",
-        name: "Friday game",
-        gameName: "Paris 2026",
-    } as Parameters<typeof resolveSessionGame>[0];
-
-    afterEach(() => {
-        vi.restoreAllMocks();
-        gamesAtom.set([]);
-    });
-
-    it("loads a session's game when the catalog refuses the participant", async () => {
-        // A participant who joined by link may not belong to the game's server:
-        // the catalog answers 403, but the pinned revision is still theirs.
-        vi.spyOn(globalThis, "fetch").mockResolvedValue(
-            new Response("Forbidden", { status: 403 }),
-        );
-        vi.spyOn(console, "warn").mockImplementation(() => {});
-        expect(await resolveSessionGame(session)).toEqual({
-            id: "game-db-id",
-            gameKey: "game-db-id",
-            label: "Paris 2026",
-            serverId: "server-1",
-            serverName: "server-1",
-            size: "medium",
-        });
-    });
-
-    it("uses the catalog entry when the catalog is available", async () => {
-        vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
-            String(input).includes("/games?")
-                ? Response.json({
-                      games: [
-                          {
-                              id: "game-db-id",
-                              gameKey: "paris-2026",
-                              name: "Paris 15-08",
-                              serverId: "server-1",
-                              size: "large",
-                          },
-                      ],
-                  })
-                : Response.json({ servers: [{ id: "server-1", name: "JetLag EU" }] }),
-        );
-        expect(await resolveSessionGame(session)).toMatchObject({
-            gameKey: "paris-2026",
-            label: "Paris 15-08",
-            serverName: "JetLag EU",
-        });
     });
 });
 

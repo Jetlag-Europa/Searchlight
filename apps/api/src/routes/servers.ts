@@ -56,15 +56,8 @@ export async function serverRoutes(app: FastifyInstance) {
       ]);
       const hasSessions = new Set(sessionServers.map((s) => s.serverId));
 
-      type ServerEntry = {
-        id: string;
-        name: string;
-        iconUrl: string | null;
-        permissions: string[];
-        isMember: boolean;
-      };
       const settled = await Promise.allSettled(
-        servers.map(async (server): Promise<ServerEntry | null> => {
+        servers.map(async (server) => {
           let isMember: boolean;
           try {
             isMember =

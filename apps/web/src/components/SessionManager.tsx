@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import type {
+    Game,
     GameSessionSummary,
     ServersResponse,
     SessionsResponse,
@@ -38,9 +39,7 @@ import {
 } from "@/lib/eventQueue";
 import {
     fetchGameCatalog,
-    type GameOption,
     leaveGame,
-    resolveSessionGame,
     switchToGame,
 } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
@@ -78,7 +77,7 @@ function SessionPickerOverlay({
     );
     const [selectedServerId, setSelectedServerId] = useState<string>("");
     const [sessions, setSessions] = useState<GameSessionSummary[] | null>(null);
-    const [availableGames, setAvailableGames] = useState<GameOption[]>([]);
+    const [availableGames, setAvailableGames] = useState<Game[]>([]);
     const [loadingServers, setLoadingServers] = useState(true);
     const [loadingSessions, setLoadingSessions] = useState(false);
     const [creatingSession, setCreatingSession] = useState(false);
@@ -159,9 +158,9 @@ function SessionPickerOverlay({
                                   "[searchlight:session] game catalog unavailable:",
                                   err,
                               );
-                              return [] as GameOption[];
+                              return [] as Game[];
                           })
-                        : Promise.resolve([] as GameOption[]),
+                        : Promise.resolve([] as Game[]),
                 ]);
                 if (reqId !== loadSessionsReqRef.current) return;
                 if (!sessRes.ok) throw new Error(`${sessRes.status}`);
@@ -182,8 +181,8 @@ function SessionPickerOverlay({
         [],
     );
 
-    const selectedServer = servers?.find((s) => s.id === selectedServerId);
-    const selectedIsMember = selectedServer?.isMember ?? false;
+    const selectedIsMember =
+        servers?.find((s) => s.id === selectedServerId)?.isMember ?? false;
 
     useEffect(() => {
         if (selectedServerId)
@@ -514,7 +513,7 @@ function SessionPickerOverlay({
                                         >
                                             {availableGames.map((g) => (
                                                 <option key={g.id} value={g.id}>
-                                                    {g.label}
+                                                    {g.name}
                                                 </option>
                                             ))}
                                         </select>
@@ -957,12 +956,13 @@ export function SessionManager() {
                         session: refreshedSession,
                     } = await loadSessionContent(storedId, authUserId);
                     if (!isCurrent()) return;
-                    const targetGame = await resolveSessionGame(refreshedSession);
-                    if (!isCurrent()) return;
-                    const definitionReady = await switchToGame(targetGame, {
-                        revisionId: refreshedSession.gameRevisionId,
-                        sessionId: refreshedSession.id,
-                    });
+                    const definitionReady = await switchToGame(
+                        { id: refreshedSession.gameId },
+                        {
+                            revisionId: refreshedSession.gameRevisionId,
+                            sessionId: refreshedSession.id,
+                        },
+                    );
                     if (!isCurrent()) return;
                     cancelPendingQuestionSave();
                     cancelPendingHiderSave();
@@ -1124,16 +1124,17 @@ export function SessionManager() {
                 if (!isCurrent()) return;
                 sessionToActivate = refreshedSession;
 
-                const targetGame = await resolveSessionGame(refreshedSession);
-                if (!isCurrent()) return;
                 console.info(
                     "[searchlight:session] applying game",
-                    targetGame.label,
+                    refreshedSession.gameName,
                 );
-                const definitionReady = await switchToGame(targetGame, {
-                    revisionId: refreshedSession.gameRevisionId,
-                    sessionId: refreshedSession.id,
-                });
+                const definitionReady = await switchToGame(
+                    { id: refreshedSession.gameId },
+                    {
+                        revisionId: refreshedSession.gameRevisionId,
+                        sessionId: refreshedSession.id,
+                    },
+                );
                 if (!isCurrent()) return;
 
                 // Reconcile any remaining pending events that were not flushed
