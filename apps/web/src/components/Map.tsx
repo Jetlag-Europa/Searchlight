@@ -14,6 +14,7 @@ import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
 import { activeSessionData, activeSessionId } from "@/lib/activeSession";
 import { bootstrapDefaults } from "@/lib/bootstrap";
+import { startCalculation } from "@/lib/calculating";
 import {
     addQuestion,
     animateMapMovements,
@@ -347,6 +348,7 @@ export const Map = ({ className }: { className?: string }) => {
             return;
         }
         setScopedLoading("map", true);
+        const finishCalculation = startCalculation("questions");
         try {
             // Question cards and markers mutate data in place, even when auto-save
             // is off. Take an immutable view before any awaited geometry work.
@@ -477,6 +479,7 @@ export const Map = ({ className }: { className?: string }) => {
             }
         } finally {
             setScopedLoading("map", false);
+            finishCalculation();
         }
     };
 
