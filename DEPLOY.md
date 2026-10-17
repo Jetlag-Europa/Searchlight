@@ -39,7 +39,12 @@ names the stack, so plain `docker compose` commands work there without flags.
 1. **Docker:** install Docker Engine with the Compose plugin
    (`curl -fsSL https://get.docker.com | sudo sh`) and add your user to the
    `docker` group.
-2. **Code:** the repo is private, so add a read-only deploy key (repo Settings
+2. **Code:**
+   ```bash
+   git clone https://github.com/Jetlag-Europa/Searchlight.git
+   cd Searchlight
+   ```
+   To clone over SSH instead, add a read-only deploy key (repo Settings
    → Deploy keys) and clone with it:
    ```bash
    ssh-keygen -t ed25519 -f ~/.ssh/searchlight_deploy -N ''   # add the .pub as the deploy key
@@ -48,8 +53,9 @@ names the stack, so plain `docker compose` commands work there without flags.
    cd Searchlight
    git config core.sshCommand 'ssh -i ~/.ssh/searchlight_deploy -o IdentitiesOnly=yes'
    ```
-3. **Images:** the packages are private too. Log in once with a classic GitHub
-   token that has only `read:packages` (skip this if you'll always `--build`):
+3. **Images:** if the GHCR packages are private, log in once with a classic
+   GitHub token that has only `read:packages`. Public packages need no login,
+   and neither does `--build`:
    ```bash
    docker login ghcr.io -u <github-user>
    ```
