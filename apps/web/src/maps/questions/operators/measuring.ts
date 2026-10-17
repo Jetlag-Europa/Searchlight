@@ -6,9 +6,11 @@ import {
     arcBuffer,
     arcBufferToPoint,
     arcDistanceToPoint,
-    safeUnion,
 } from "@/maps/geo-utils";
-import { bufferDeviation } from "@/maps/geo-utils/bufferReach";
+import {
+    bufferDeviation,
+    featuresReaching,
+} from "@/maps/geo-utils/bufferReach";
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 import {
@@ -96,23 +98,48 @@ export async function determineMeasuringTargets({
                       true,
                   )
                 : undefined;
-        case "distance-to-containing-region-boundary": {
-            const containing = containingRegion(
-                source.regions,
-                turf.point([data.lng, data.lat]),
-            );
-            if (!containing) return undefined;
-            return cachedGeometry(
-                source,
-                `measuring:region:${source.regions.indexOf(containing)}`,
-                () => regionLines(containing),
-                true,
-            );
-        }
+        case "distance-to-containing-region-boundary":
+            return boundaryLinesAt(source, data.lat, data.lng);
         default:
             return undefined;
     }
 }
+
+/** A region's own boundary, shared by answers and buffers. */
+function boundaryLines(source: GeometrySource, index: number) {
+    return cachedGeometry(
+        source,
+        `measuring:region:${index}`,
+        () => regionLines(source.regions[index]),
+        true,
+    );
+}
+
+/**
+ * The boundary a point is measured to: its own region's. The regions may fall
+ * short of the play area, as along a border or coast drawn from other data;
+ * a point in none of them is measured to the nearest region's boundary, as
+ * though it belonged to that region.
+ */
+function boundaryLinesAt(source: GeometrySource, lat: number, lng: number) {
+    if (!source.regions.length) return undefined;
+    const containing = containingRegion(source.regions, turf.point([lng, lat]));
+    if (containing) {
+        return boundaryLines(source, source.regions.indexOf(containing));
+    }
+    return cachedGeometry(
+        source,
+        "measuring:region:all",
+        () =>
+            turf.featureCollection(
+                source.regions.flatMap(
+                    (region) => regionLines(region).features,
+                ),
+            ),
+        true,
+    );
+}
+
 const MAX_CACHED_DISTANCES = 2;
 const regionBufferCaches = new WeakMap<
     GeometrySource,
@@ -122,7 +149,6 @@ const regionBufferCaches = new WeakMap<
 function getRegionBuffer(
     source: GeometrySource,
     index: number,
-    region: Region,
     distance: number,
 ): Promise<Region> {
     let distMap = regionBufferCaches.get(source);
@@ -144,20 +170,13 @@ function getRegionBuffer(
     }
     let pending = buffers.get(index);
     if (!pending) {
-        pending = (async () => {
-            const rLines = await cachedGeometry(
-                source,
-                `measuring:region:${index}`,
-                () => regionLines(region),
-                true,
-            );
-            return arcBuffer(
-                rLines,
+        pending = (async () =>
+            arcBuffer(
+                await boundaryLines(source, index),
                 distance,
                 "miles",
                 bufferDeviation(distance, "miles"),
-            );
-        })();
+            ))();
         buffers.set(index, pending);
         void pending.catch(() => {
             if (buffers?.get(index) === pending) {
@@ -173,82 +192,60 @@ async function getContainingRegionTargetGeometry(
     data: { lat: number; lng: number },
     mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null,
 ): Promise<Region | null> {
-    const mapBbox = mapGeoData?.features.length
-        ? turf.bbox(mapGeoData)
-        : undefined;
-    // The target is independent of the current map's shape once the relevant
-    // region IDs are known. A rounded bbox alone is not a safe cache key.
-    const candidates: { region: Region; index: number }[] = [];
-    for (let index = 0; index < source.regions.length; index++) {
-        const region = source.regions[index];
-        if (mapBbox) {
-            const bounds = turf.bbox(region);
-            if (
-                bounds[0] > mapBbox[2] ||
-                bounds[2] < mapBbox[0] ||
-                bounds[1] > mapBbox[3] ||
-                bounds[3] < mapBbox[1]
-            )
-                continue;
-            if (
-                !mapGeoData!.features.some((feature) =>
-                    turf.booleanIntersects(region, feature),
-                )
-            )
-                continue;
-        }
-        candidates.push({ region, index });
-    }
-    const key = `measuring:containing-target:${data.lat}:${data.lng}:${candidates.map(({ index }) => index).join(",")}`;
+    const seekerLines = await boundaryLinesAt(source, data.lat, data.lng);
+    if (!seekerLines) return null;
+    // Use the same ArcGIS geodetic metric that constructs the boundary
+    // buffers; Turf's spherical distance can differ by over 100 m here.
+    const threshold = await cachedGeometry(
+        source,
+        `measuring:region-distance:${data.lat}:${data.lng}`,
+        () => arcDistanceToPoint(seekerLines, data.lat, data.lng, "miles"),
+    );
+    if (!Number.isFinite(threshold) || threshold <= 0) return null;
+    // Only regions within the seeker's distance of the map can shape it. The
+    // target is independent of the current map's shape once they are known;
+    // a rounded bbox alone is not a safe cache key.
+    const candidates = mapGeoData?.features.length
+        ? featuresReaching(
+              source.regions,
+              turf.bbox(mapGeoData),
+              turf.convertLength(threshold, "miles", "kilometers"),
+          )
+        : source.regions.map((_, index) => index);
+    const key = `measuring:containing-target:${data.lat}:${data.lng}:${candidates.join(",")}`;
     return cachedBuffer(source, key, async () => {
         if (!candidates.length) return null;
-        const seekerPoint = turf.point([data.lng, data.lat]);
-        const containing = containingRegion(source.regions, seekerPoint);
-        // A seeker outside every region has infinite distance to their own
-        // boundary. Only candidates inside a region can be closer.
-        if (!containing) {
-            return safeUnion(
-                turf.featureCollection(candidates.map(({ region }) => region)),
-            );
-        }
-        const seekerIndex = source.regions.indexOf(containing);
-        const seekerLines = await cachedGeometry(
-            source,
-            `measuring:region:${seekerIndex}`,
-            () => regionLines(containing),
-            true,
-        );
-        // Use the same ArcGIS geodetic metric that constructs the boundary
-        // buffers; Turf's spherical distance can differ by over 100 m here.
-        const threshold = await arcDistanceToPoint(
-            seekerLines,
-            data.lat,
-            data.lng,
-            "miles",
-        );
-        if (!Number.isFinite(threshold) || threshold <= 0) return null;
-
-        const parts: Region[] = [];
-        for (const { region, index } of candidates) {
-            const buffer = await getRegionBuffer(
-                source,
-                index,
-                region,
-                threshold,
-            );
-            let part = turf.intersect(turf.featureCollection([region, buffer]));
-            if (!part) continue;
+        // A point in a region is closer within that region's buffer, and a
+        // point in none within any region's buffer, as it is measured to the
+        // nearest region. So the target is every buffer but the part of each
+        // region beyond its own buffer. Those parts never reach a region's
+        // edge, which leaves no seams for slivers between neighbouring regions.
+        const buffers: Region[] = [];
+        const farParts: Region[] = [];
+        for (const index of candidates) {
+            const region = source.regions[index];
+            const buffer = await getRegionBuffer(source, index, threshold);
+            buffers.push(buffer);
+            let far = turf.difference(turf.featureCollection([region, buffer]));
+            if (!far) continue;
             // When regions overlap, the first containing source wins for both
             // hider answers and map geometry.
             for (let previous = 0; previous < index; previous++) {
                 const earlier = source.regions[previous];
-                if (!turf.booleanIntersects(part, earlier)) continue;
-                part = turf.difference(turf.featureCollection([part, earlier]));
-                if (!part) break;
+                if (!turf.booleanIntersects(far, earlier)) continue;
+                far = turf.difference(turf.featureCollection([far, earlier]));
+                if (!far) break;
             }
-            if (part) parts.push(part);
+            if (far) farParts.push(far);
         }
-        return parts.length ? safeUnion(turf.featureCollection(parts)) : null;
+        // Combining whole buffers can take seconds on a large layer, so the
+        // worker does it.
+        return requestGeometry({
+            kind: "clip",
+            mapData: turf.featureCollection(buffers),
+            modifications: turf.featureCollection(farParts),
+            within: false,
+        });
     });
 }
 

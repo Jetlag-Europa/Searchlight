@@ -1,5 +1,10 @@
 # Changelog
 
+## Region-boundary questions cover the whole play area (2026-10-17)
+
+- A game's regions can fall short of its play area, as Belgium's provinces do along the French border, between neighbouring provinces and at sea. Distance-to-region-boundary questions treated a point in no region as infinitely far from any boundary, so those strips always survived "Hider Further" (drawn as dashed fragments along the border) and were always eliminated by "Hider Closer". A point in no region is now measured to the nearest region's boundary, for the seeker, the hider's automatic answer and the map alike.
+- The eliminated area is built as every region's boundary buffer minus the parts of each region farther than the seeker from its own boundary, in the geometry worker, so no hairline slivers are left along the seams between regions and less of the work blocks the page.
+
 ## No Overpass proxy or boundary lookups in the API (2026-10-17)
 
 - There is no free play: every session plays a JSON-defined game. The API drops what only free play used: the Overpass proxy (`POST /overpass`) and OSM boundary lookups (`/boundaries`). The web app stopped calling them in the same release (see below); cached clients that still do get 404s.
