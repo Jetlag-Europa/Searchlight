@@ -4,6 +4,8 @@ import fastifyCors from "@fastify/cors";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
 import { env } from "./lib/env.js";
+import prisma from "./lib/prisma.js";
+import { closeAllStreams } from "./lib/broadcaster.js";
 import { errorHandler } from "./lib/error-handler.js";
 import { rejectCrossOriginWrites } from "./lib/origin-check.js";
 import { existsSync } from "node:fs";
@@ -42,6 +44,15 @@ const app = Fastify({
 }).withTypeProvider<TypeBoxTypeProvider>();
 
 app.setErrorHandler(errorHandler);
+
+// app.close() waits for open requests, and live streams never end on their
+// own, so end them first. Clients reconnect and resume from their last sequence.
+app.addHook("preClose", async () => {
+  closeAllStreams();
+});
+app.addHook("onClose", async () => {
+  await prisma.$disconnect();
+});
 
 await app.register(fastifyCors, {
   origin: env.FRONTEND_ORIGIN,
@@ -106,3 +117,23 @@ if (activePreloadDir) {
 }
 
 const address = await app.listen({ port: env.PORT, host: env.HOST });
+
+// Node runs as PID 1 in the container, which has no default signal handling:
+// without this, `docker stop` waits out its timeout and kills the process
+// mid-request. Exit before Docker's 10 s timeout even if closing hangs.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    app.log.info({ signal }, "Shutting down");
+    setTimeout(() => {
+      app.log.error("Shutdown timed out, exiting");
+      process.exit(1);
+    }, 8_000).unref();
+    app.close().then(
+      () => process.exit(0),
+      (err: unknown) => {
+        app.log.error({ err }, "Shutdown failed");
+        process.exit(1);
+      },
+    );
+  });
+}

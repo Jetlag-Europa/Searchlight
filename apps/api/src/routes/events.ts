@@ -6,6 +6,9 @@ import { subscribe, addPresence, removePresence, getPresence, registerUserStream
 import type { PresenceUser } from "@searchlight/shared";
 import { env } from "../lib/env.js";
 
+// Unsent bytes a stream may hold before its client counts as stalled.
+const MAX_BUFFERED_BYTES = 1024 * 1024;
+
 async function assertParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
   if (!session) throw Object.assign(new Error("Session not found"), { statusCode: 404 });
@@ -186,6 +189,16 @@ export async function eventRoutes(app: FastifyInstance) {
         if (isClosed) return;
         req.log.info({ sessionId, eventType: event.type }, "[sse] pushing event to client");
         reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+        // A client that stopped reading would otherwise buffer every event in
+        // memory. Drop it; it reconnects and resumes from its last sequence.
+        if (reply.raw.writableLength > MAX_BUFFERED_BYTES) {
+          req.log.warn(
+            { sessionId, userId: user.discordId, buffered: reply.raw.writableLength },
+            "[sse] client not reading, closing stream",
+          );
+          doClose();
+          reply.raw.destroy();
+        }
       });
 
       // Send current presence roster to this client before registering them
@@ -206,7 +219,17 @@ export async function eventRoutes(app: FastifyInstance) {
         req.log.info({ sessionId, userId: user.discordId }, "[sse] client disconnected");
         doClose();
       });
-      await reply.hijack();
+      reply.hijack();
+
+      // A kick, leave or delete that landed between the check above and
+      // registerUserStream closed this user's streams before this one was
+      // registered. Check again now that any later one will find it.
+      try {
+        await assertParticipant(sessionId, user.discordId);
+      } catch {
+        req.log.info({ sessionId, userId: user.discordId }, "[sse] access lost while connecting, closing stream");
+        doClose();
+      }
     },
   );
 }

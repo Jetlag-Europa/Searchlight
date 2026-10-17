@@ -1,8 +1,11 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { get, type IncomingMessage } from "node:http";
+import type { AddressInfo } from "node:net";
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { broadcast, closeUserStreams, connectedUserIds } from "../lib/broadcaster.js";
 import { eventRoutes } from "./events.js";
 
 // ── IDs scoped to this test suite ───────────────────────────────────────────
@@ -447,6 +450,101 @@ describe("GET /sessions/:sessionId/events", () => {
       await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: REVOKED_USER_ID } });
       await prisma.authSession.deleteMany({ where: { id: REVOKED_AUTH_ID } });
       await prisma.user.deleteMany({ where: { discordId: REVOKED_USER_ID } });
+    }
+  });
+
+  test("stream: a participant kicked while the stream connects is disconnected", async () => {
+    const MEMBER_ID = "test-evroutes-member";
+    const MEMBER_AUTH_ID = "test-evroutes-member-auth";
+    await prisma.user.create({
+      data: {
+        discordId: MEMBER_ID,
+        username: "memberuser",
+        displayName: "Member User",
+        avatarUrl: "",
+        discordAccessToken: "tok-mem",
+        discordRefreshToken: "ref-mem",
+        discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    await prisma.authSession.create({
+      data: { id: MEMBER_AUTH_ID, userId: MEMBER_ID, expiresAt: new Date(Date.now() + 86_400_000) },
+    });
+    await prisma.sessionParticipant.create({
+      data: { sessionId: SESSION1_ID, userId: MEMBER_ID, role: "member", acceptedAt: new Date() },
+    });
+
+    // Kick the member during the stream's user lookup, after its access check
+    // passed, the way DELETE /participants/:userId does. Its closeUserStreams
+    // runs before the stream is registered, so it can't close it.
+    const findUser = prisma.user.findUnique.bind(prisma.user);
+    const spy = vi.spyOn(prisma.user, "findUnique").mockImplementationOnce((async (
+      args: Parameters<typeof findUser>[0],
+    ) => {
+      await prisma.sessionParticipant.updateMany({
+        where: { sessionId: SESSION1_ID, userId: MEMBER_ID },
+        data: { revokedAt: new Date() },
+      });
+      closeUserStreams(SESSION1_ID, MEMBER_ID);
+      return findUser(args);
+    }) as never);
+
+    try {
+      // inject() resolves only once the stream ends.
+      const res = await Promise.race([
+        app.inject({
+          method: "GET",
+          url: `/sessions/${SESSION1_ID}/stream`,
+          headers: { cookie: `session=${app.signCookie(MEMBER_AUTH_ID)}` },
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      expect(spy).toHaveBeenCalled();
+      expect(res, "stream still open").not.toBeNull();
+      expect(connectedUserIds().get(SESSION1_ID) ?? []).not.toContain(MEMBER_ID);
+    } finally {
+      // No mockRestore: it breaks Prisma's delegate, and later calls already
+      // go to the real findUnique.
+      closeUserStreams(SESSION1_ID, MEMBER_ID);
+      await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: MEMBER_ID } });
+      await prisma.authSession.deleteMany({ where: { id: MEMBER_AUTH_ID } });
+      await prisma.user.deleteMany({ where: { discordId: MEMBER_ID } });
+    }
+  });
+
+  test("stream: a client that stops reading is disconnected", async () => {
+    await app.listen({ port: 0, host: "127.0.0.1" });
+    const { port } = app.server.address() as AddressInfo;
+    const res = await new Promise<IncomingMessage>((resolve, reject) => {
+      get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } }, resolve).on(
+        "error",
+        reject,
+      );
+    });
+    try {
+      expect(res.statusCode).toBe(200);
+      res.pause();
+      const isConnected = () => (connectedUserIds().get(SESSION1_ID) ?? []).includes(USER1_ID);
+      expect(isConnected()).toBe(true);
+
+      // Push far more than the socket buffers hold, to a client that reads none of it.
+      const blob = "x".repeat(256 * 1024);
+      for (let i = 0; i < 200 && isConnected(); i++) {
+        broadcast(SESSION1_ID, {
+          id: `ev-stall-${i}`,
+          sessionId: SESSION1_ID,
+          userId: USER1_ID,
+          sequence: 100 + i,
+          type: "stroke.create",
+          payloadJson: { blob },
+          clientUuid: `stall-${i}`,
+          clientCreatedAt: new Date().toISOString(),
+          serverReceivedAt: new Date().toISOString(),
+        });
+      }
+      expect(isConnected()).toBe(false);
+    } finally {
+      res.destroy();
     }
   });
 });

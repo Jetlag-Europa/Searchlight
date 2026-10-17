@@ -112,3 +112,11 @@ export function closeSessionStreams(sessionId: string): void {
     }
   }
 }
+
+// Ends every open stream, for shutdown: the server can't close while streams
+// are open. Clients reconnect and resume from their last sequence.
+export function closeAllStreams(): void {
+  for (const sessionId of Array.from(userStreams.keys())) {
+    closeSessionStreams(sessionId);
+  }
+}

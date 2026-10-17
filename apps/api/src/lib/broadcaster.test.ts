@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { broadcast, subscribe, registerUserStream, closeUserStreams, closeSessionStreams } from "./broadcaster.js";
+import { broadcast, subscribe, registerUserStream, closeUserStreams, closeSessionStreams, closeAllStreams } from "./broadcaster.js";
 import type { EventRecord } from "@searchlight/shared";
 
 function makeEvent(overrides: Partial<EventRecord> = {}): EventRecord {
@@ -125,5 +125,20 @@ describe("registerUserStream / closeUserStreams / closeSessionStreams", () => {
         closeSessionStreams("sess-all");
         expect(closeFn1).toHaveBeenCalledOnce();
         expect(closeFn2).toHaveBeenCalledOnce();
+    });
+
+    test("closeAllStreams closes every stream of every session, once", () => {
+        const closeFn1 = vi.fn();
+        const closeFn2 = vi.fn();
+        const closeFn3 = vi.fn();
+        registerUserStream("sess-shutdown-a", "user-1", closeFn1);
+        registerUserStream("sess-shutdown-a", "user-2", closeFn2);
+        registerUserStream("sess-shutdown-b", "user-1", closeFn3);
+
+        closeAllStreams();
+        closeAllStreams();
+        expect(closeFn1).toHaveBeenCalledOnce();
+        expect(closeFn2).toHaveBeenCalledOnce();
+        expect(closeFn3).toHaveBeenCalledOnce();
     });
 });
