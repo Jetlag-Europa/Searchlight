@@ -139,43 +139,56 @@ function SessionPickerOverlay({
         };
     }, []);
 
-    const loadSessionsForServer = useCallback(async (serverId: string) => {
-        const reqId = ++loadSessionsReqRef.current;
-        setLoadingSessions(true);
-        setSessions(null);
-        setError(null);
-        try {
-            const [sessRes, games] = await Promise.all([
-                fetch(`${API_BASE}/sessions?serverId=${serverId}`, {
-                    credentials: "include",
-                }),
-                // Sessions joined or started from a game link can be on a
-                // server whose catalog this user can't read (403).
-                fetchGameCatalog(serverId).catch((err) => {
-                    console.warn("[searchlight:session] game catalog unavailable:", err);
-                    return [] as GameOption[];
-                }),
-            ]);
-            if (reqId !== loadSessionsReqRef.current) return;
-            if (!sessRes.ok) throw new Error(`${sessRes.status}`);
-            const data: SessionsResponse = await sessRes.json();
-            if (reqId !== loadSessionsReqRef.current) return;
-            setSessions(data.sessions);
-            setAvailableGames(games);
-            setNewSessionGameId(games.length > 0 ? games[0].id : "");
-        } catch (e: unknown) {
-            if (reqId !== loadSessionsReqRef.current) return;
-            setError(`Failed to load sessions: ${(e as Error).message}`);
-        } finally {
-            if (reqId === loadSessionsReqRef.current) {
-                setLoadingSessions(false);
+    const loadSessionsForServer = useCallback(
+        async (serverId: string, isMember: boolean) => {
+            const reqId = ++loadSessionsReqRef.current;
+            setLoadingSessions(true);
+            setSessions(null);
+            setError(null);
+            try {
+                const [sessRes, games] = await Promise.all([
+                    fetch(`${API_BASE}/sessions?serverId=${serverId}`, {
+                        credentials: "include",
+                    }),
+                    // A server is listed for non-members who have sessions
+                    // there (from a game link or an invite link); its catalog is
+                    // closed to them.
+                    isMember
+                        ? fetchGameCatalog(serverId).catch((err) => {
+                              console.warn(
+                                  "[searchlight:session] game catalog unavailable:",
+                                  err,
+                              );
+                              return [] as GameOption[];
+                          })
+                        : Promise.resolve([] as GameOption[]),
+                ]);
+                if (reqId !== loadSessionsReqRef.current) return;
+                if (!sessRes.ok) throw new Error(`${sessRes.status}`);
+                const data: SessionsResponse = await sessRes.json();
+                if (reqId !== loadSessionsReqRef.current) return;
+                setSessions(data.sessions);
+                setAvailableGames(games);
+                setNewSessionGameId(games.length > 0 ? games[0].id : "");
+            } catch (e: unknown) {
+                if (reqId !== loadSessionsReqRef.current) return;
+                setError(`Failed to load sessions: ${(e as Error).message}`);
+            } finally {
+                if (reqId === loadSessionsReqRef.current) {
+                    setLoadingSessions(false);
+                }
             }
-        }
-    }, []);
+        },
+        [],
+    );
+
+    const selectedServer = servers?.find((s) => s.id === selectedServerId);
+    const selectedIsMember = selectedServer?.isMember ?? false;
 
     useEffect(() => {
-        if (selectedServerId) loadSessionsForServer(selectedServerId);
-    }, [selectedServerId, loadSessionsForServer]);
+        if (selectedServerId)
+            loadSessionsForServer(selectedServerId, selectedIsMember);
+    }, [selectedServerId, selectedIsMember, loadSessionsForServer]);
 
     const handleDeleteSession = async (sessionId: string) => {
         if (confirmDeleteId !== sessionId) {
@@ -345,7 +358,9 @@ function SessionPickerOverlay({
                     <div className="mb-2">
                         {sessions.length === 0 ? (
                             <p className="text-sm text-muted-foreground italic mb-3">
-                                No sessions yet. Create one below.
+                                {selectedIsMember
+                                    ? "No sessions yet. Create one below."
+                                    : "No sessions on this server."}
                             </p>
                         ) : (
                             <div className="space-y-2 mb-3 max-h-64 overflow-y-auto pr-1">
@@ -447,7 +462,12 @@ function SessionPickerOverlay({
                             </div>
                         )}
 
-                        {!showCreateForm ? (
+                        {!selectedIsMember ? (
+                            <p className="text-xs text-muted-foreground">
+                                You aren’t in this Discord server, so you can
+                                only open sessions shared with you here.
+                            </p>
+                        ) : !showCreateForm ? (
                             <Button
                                 variant="outline"
                                 size="sm"
