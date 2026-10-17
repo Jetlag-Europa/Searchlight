@@ -156,6 +156,8 @@ export async function gameRoutes(app: FastifyInstance) {
       if (gameIds.length === 0) return { stats: [] };
 
       // A session's last activity is its newest event, or its creation.
+      // "createdAt" is a timestamp without time zone holding UTC (Event times
+      // are timestamptz), so read it as UTC whatever the database's TimeZone.
       const sessionRows = await prisma.$queryRaw<
         {
           gameId: string;
@@ -169,7 +171,7 @@ export async function gameRoutes(app: FastifyInstance) {
         WITH s AS (
           SELECT gs."gameId",
             GREATEST(
-              gs."createdAt",
+              gs."createdAt" AT TIME ZONE 'UTC',
               (SELECT MAX(e."serverReceivedAt") FROM "Event" e WHERE e."sessionId" = gs.id)
             ) AS "lastActivity",
             (SELECT COUNT(*) FROM "SessionQuestion" q WHERE q."sessionId" = gs.id) AS questions

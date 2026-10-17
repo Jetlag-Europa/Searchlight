@@ -18,9 +18,11 @@ const ADMIN_ROLE_ID = "test-gstats-admin-role";
 const MANAGER_ROLE_ID = "test-gstats-manager-role";
 const BUSY_GAME_ID = "test-gstats-busy";
 const QUIET_GAME_ID = "test-gstats-quiet";
-const GAMES = [BUSY_GAME_ID, QUIET_GAME_ID];
+const NEW_GAME_ID = "test-gstats-new";
+const GAMES = [BUSY_GAME_ID, QUIET_GAME_ID, NEW_GAME_ID];
 const RECENT_SESSION_ID = "test-gstats-recent";
 const OLD_SESSION_ID = "test-gstats-old";
+const NEW_SESSION_ID = "test-gstats-new-session";
 
 const DAY = 86_400_000;
 
@@ -48,11 +50,11 @@ async function cleanup() {
   await prisma.user.deleteMany({ where: { discordId: { in: USERS } } });
 }
 
-async function createSession(id: string, createdAt: Date, revisionId: string) {
+async function createSession(id: string, createdAt: Date, revisionId: string, gameId = BUSY_GAME_ID) {
   await prisma.gameSession.create({
     data: {
       id,
-      gameId: BUSY_GAME_ID,
+      gameId,
       serverId: SERVER_ID,
       creatorId: PLAYER_A,
       name: `${id} name`,
@@ -72,6 +74,7 @@ describe("GET /games/stats", () => {
   let app: FastifyInstance;
   const cookies: Record<string, string> = {};
   const as = (userId: string) => ({ cookie: cookies[userId] });
+  let newSessionCreatedAt: Date;
 
   beforeAll(async () => {
     await cleanup();
@@ -109,18 +112,18 @@ describe("GET /games/stats", () => {
     await prisma.game.createMany({
       data: GAMES.map((id) => ({ id, gameKey: id, serverId: SERVER_ID, name: id })),
     });
-    const revision = await prisma.gameRevision.create({
-      data: {
-        gameId: BUSY_GAME_ID,
-        revision: 1,
-        checksum: `${BUSY_GAME_ID}-r1`,
-        definition: { id: BUSY_GAME_ID, name: BUSY_GAME_ID, serverId: SERVER_ID },
-      },
-    });
+    const createRevision = (gameId: string) =>
+      prisma.gameRevision.create({
+        data: { gameId, revision: 1, checksum: `${gameId}-r1`, definition: { id: gameId, name: gameId, serverId: SERVER_ID } },
+      });
+    const revision = await createRevision(BUSY_GAME_ID);
 
     // One session played today, one last played 10 days ago.
     await createSession(RECENT_SESSION_ID, new Date(Date.now() - 3 * DAY), revision.id);
     await createSession(OLD_SESSION_ID, new Date(Date.now() - 20 * DAY), revision.id);
+    // Created 20 hours ago and never changed: its creation is its last activity.
+    newSessionCreatedAt = new Date(Date.now() - (20 * DAY) / 24);
+    await createSession(NEW_SESSION_ID, newSessionCreatedAt, (await createRevision(NEW_GAME_ID)).id, NEW_GAME_ID);
     await prisma.event.createMany({
       data: [
         { sessionId: RECENT_SESSION_ID, at: Date.now() - DAY / 24 },
@@ -197,8 +200,15 @@ describe("GET /games/stats", () => {
         lastActivityAt: null,
       });
 
+      expect(stats.find((s) => s.gameId === NEW_GAME_ID)).toMatchObject({
+        activeSessions24h: 1,
+        activeSessions7d: 1,
+        totalSessions: 1,
+        lastActivityAt: newSessionCreatedAt.toISOString(),
+      });
+
       // Nothing that leads to a session or a player.
-      for (const secret of [RECENT_SESSION_ID, OLD_SESSION_ID, PLAYER_A, PLAYER_B]) {
+      for (const secret of [RECENT_SESSION_ID, OLD_SESSION_ID, NEW_SESSION_ID, PLAYER_A, PLAYER_B]) {
         expect(res.body).not.toContain(secret);
       }
     } finally {
