@@ -700,36 +700,6 @@ export async function sessionRoutes(app: FastifyInstance) {
     },
   );
 
-  // GET /sessions/:sessionId/participants
-  app.get(
-    "/:sessionId/participants",
-    {
-      schema: {
-        params: Type.Object({ sessionId: Type.String() }),
-      },
-    },
-    async (req) => {
-      const { user } = await resolveSession(req);
-      const { sessionId } = req.params as { sessionId: string };
-      await resolveParticipant(sessionId, user.discordId);
-
-      const participants = await prisma.sessionParticipant.findMany({
-        where: { sessionId, revokedAt: null },
-        include: { user: { select: { discordId: true, displayName: true, avatarUrl: true } } },
-      });
-
-      return {
-        participants: participants.map((p) => ({
-          userId: p.userId,
-          displayName: p.user.displayName,
-          avatarUrl: p.user.avatarUrl,
-          role: p.role,
-          acceptedAt: p.acceptedAt?.toISOString() ?? null,
-        })),
-      };
-    },
-  );
-
   // DELETE /sessions/:sessionId/participants/:userId — kick (soft delete)
   app.delete(
     "/:sessionId/participants/:userId",
