@@ -135,13 +135,6 @@ export interface DiscordRole {
   position: number;
 }
 
-export interface DiscordGuild {
-  id: string;
-  name: string;
-  icon: string | null;
-  roles: DiscordRole[];
-}
-
 export const discord = {
   async getCurrentUser(accessToken: string, logger?: FastifyBaseLogger): Promise<DiscordUser> {
     const res = await request(

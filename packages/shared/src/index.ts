@@ -85,17 +85,6 @@ export interface Game {
   archivedAt?: string | null;
 }
 
-export interface GameRevisionSummary {
-  id: string;
-  gameId: string;
-  revision: number;
-  formatVersion: number;
-  checksum: string;
-  source: string;
-  createdBy: string | null;
-  createdAt: string;
-}
-
 export interface GameImportResponse {
   status: "created" | "updated" | "unchanged";
   gameId: string;
@@ -106,9 +95,6 @@ export interface GameImportResponse {
   warnings: ValidationIssue[];
 }
 
-export interface GameRevisionsResponse {
-  revisions: GameRevisionSummary[];
-}
 export interface GamesResponse {
   games: Game[];
 }
@@ -139,17 +125,6 @@ export interface GameStatsResponse {
   stats: GameStats[];
 }
 
-export interface CreateGameBody {
-  serverId: string;
-  name: string;
-  gameKey?: string;
-  size?: "small" | "medium" | "large";
-}
-
-export interface UpdateGameBody {
-  unlisted: boolean;
-}
-
 // ── Game links ────────────────────────────────────────────────────────────────
 
 export interface GameLinkSummary {
@@ -161,12 +136,6 @@ export interface GameLinkSummary {
 
 export interface GameLinksResponse {
   links: GameLinkSummary[];
-}
-
-export interface GameLinkInfoResponse {
-  valid: boolean;
-  gameName?: string;
-  serverName?: string;
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -190,34 +159,9 @@ export interface GameSessionSummary {
   currentRevision?: number | null;
   hasNewerRevision?: boolean;
 }
-export interface SessionParticipantDetail {
-  userId: string;
-  displayName: string;
-  avatarUrl: string;
-  role: "creator" | "member";
-  acceptedAt: string | null;
-}
-
-export interface GameSessionDetail extends GameSessionSummary {
-  participants: SessionParticipantDetail[];
-}
 
 export interface SessionsResponse {
   sessions: GameSessionSummary[];
-}
-
-export interface CreateSessionBody {
-  gameId: string;
-  name: string;
-  /** Defaults to private; creating a join link makes the session shared. */
-  visibility?: SessionVisibility;
-}
-
-export interface UpdateSessionBody {
-  name?: string;
-  visibility?: SessionVisibility;
-  hiderLat?: number | null;
-  hiderLng?: number | null;
 }
 
 // ── Session links ─────────────────────────────────────────────────────────────
@@ -236,52 +180,6 @@ export interface SessionLinksResponse {
 export interface CreateLinkResponse {
   id: string;
   token: string;
-}
-
-export interface LinkInfoResponse {
-  valid: boolean;
-  sessionName?: string;
-  gameName?: string;
-  linkType?: "join" | "fork";
-}
-
-export interface RedeemLinkResponse {
-  sessionId: string;
-  linkType: "join" | "fork";
-}
-
-// ── Session content ───────────────────────────────────────────────────────────
-
-export interface StrokeRecord {
-  id: string;
-  clientUuid: string;
-  userId: string;
-  payloadJson: unknown; // GeoJSON Feature
-  createdAt: string;
-}
-
-export interface StrokesResponse {
-  strokes: StrokeRecord[];
-}
-
-export interface SaveStrokeBody {
-  clientUuid: string;
-  payloadJson: unknown;
-}
-
-export interface QuestionRecord {
-  clientUuid: string;
-  ordinal: number;
-  payloadJson: unknown;
-}
-
-export interface QuestionsResponse {
-  questions: QuestionRecord[];
-}
-
-export interface ReplaceQuestionsBody {
-  questions: QuestionRecord[];
-  replacementId: string;
 }
 
 // ── Presence ─────────────────────────────────────────────────────────────────
@@ -326,13 +224,4 @@ export interface EventRecord {
   clientUuid: string;
   clientCreatedAt: string;
   serverReceivedAt: string;
-}
-
-export interface EventsResponse {
-  events: EventRecord[];
-  nextAfter: number | null;
-}
-
-export interface EventCursorResponse {
-  sequence: number;
 }

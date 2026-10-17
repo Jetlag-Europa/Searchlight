@@ -16,6 +16,7 @@ it("removes retired settings and OpenStreetMap caches, keeping the rest", () => 
         ["mapGeoLocation", "{}"],
         ["customStations", "[]"],
         ["showTutorials", "true"],
+        ["jetlag-annotations-v1", '{"version":1,"strokes":{}}'],
         ["disabledStations", '["a"]'],
         ["disabledZones", '{"s":["a"]}'],
     ]);

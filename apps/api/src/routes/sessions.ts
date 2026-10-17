@@ -740,7 +740,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
 
-      const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
+      const { isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (isCreator) throw forbidden("Session creator cannot leave — delete the session instead");
 
       await prisma.sessionParticipant.update({
@@ -750,7 +750,6 @@ export async function sessionRoutes(app: FastifyInstance) {
       closeUserStreams(sessionId, user.discordId);
 
       req.log.info({ sessionId, userId: user.discordId }, "[sessions] participant left session");
-      void session;
       return reply.status(204).send();
     },
   );
