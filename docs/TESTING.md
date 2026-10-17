@@ -6,6 +6,8 @@ pnpm --filter @searchlight/shared test           # game definition schema, valid
 pnpm --filter @searchlight/api test              # API routes against a real Postgres
 pnpm verify:preloaded-games                      # every bundled game: validator and strict data checks
 pnpm check:game-schema                           # published JSON schema matches the TypeBox schema
+pnpm --filter @searchlight/web typecheck         # web: astro sync + tsc (astro build doesn't type-check)
+pnpm --filter @searchlight/web lint:check        # web: ESLint without --fix (`lint` fixes and runs Prettier)
 ```
 
 The API tests need a migrated database. They use the dev one from
