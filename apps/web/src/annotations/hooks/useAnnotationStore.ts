@@ -60,9 +60,13 @@ export function addStroke(s: StrokeFeature): void {
 
 export function removeStrokes(predicate: (s: StrokeFeature) => boolean): void {
     const current = strokes.get();
-    const removed = current.filter(predicate);
-    const next = current.filter((s) => !predicate(s));
-    if (next.length === current.length) return;
+    const removed: StrokeFeature[] = [];
+    const next = current.filter((s) => {
+        if (!predicate(s)) return true;
+        removed.push(s);
+        return false;
+    });
+    if (removed.length === 0) return;
 
     strokes.set(next);
 

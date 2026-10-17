@@ -26,6 +26,7 @@ import {
 import { strokeIntersectsErasePoint } from "@/annotations/utils/eraserHit";
 import { pixelsToMeters } from "@/annotations/utils/geoMath";
 import {
+    isPenBarrel,
     isPenEraser,
     isSecondaryMouseButton,
 } from "@/annotations/utils/penButtons";
@@ -41,8 +42,8 @@ interface ActiveStrokeState {
 
 const ANNOT_STYLE_ID = "annot-style-tag";
 
-// How long after a pen erase to swallow a context menu. Windows sends the
-// barrel button as a right-click once the pen lifts.
+// How long after a pen lifts to swallow a context menu, when its barrel
+// button was held. Windows sends that button as a right-click on lift.
 const PEN_CONTEXT_MENU_GRACE_MS = 1000;
 
 function ensureStyleTag() {
@@ -76,9 +77,12 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     const [active, setActive] = useState<ActiveStrokeState | null>(null);
     const activeRef = useRef<ActiveStrokeState | null>(null);
     activeRef.current = active;
-    // Erasing is decided per gesture: the eraser tool, or a pen's eraser or
-    // barrel button whatever the tool.
+    // Erasing: the eraser tool, or a pen's eraser or barrel button held,
+    // whatever the tool.
     const erasingRef = useRef(false);
+    // The pen's barrel button was held during this gesture, so Windows will
+    // send a right-click when the pen lifts.
+    const barrelUsedRef = useRef(false);
     const suppressContextMenuUntilRef = useRef(0);
 
     ensureStyleTag();
@@ -104,8 +108,12 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         if (!map) return;
         const container = map.getContainer();
         const onContextMenu = (e: MouseEvent) => {
+            // Browsers that send contextmenu as a PointerEvent say where it
+            // came from; leave the mouse's and fingers' menus alone.
+            const pointerType = (e as Partial<PointerEvent>).pointerType;
+            if (pointerType && pointerType !== "pen") return;
             if (
-                !penEraserActive.get() &&
+                !barrelUsedRef.current &&
                 Date.now() > suppressContextMenuUntilRef.current
             ) {
                 return;
@@ -142,31 +150,34 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         (events: PointerEvent[]) => {
             if (!map) return;
             const rect = map.getContainer().getBoundingClientRect();
-            for (const e of events) {
-                const px = {
-                    x: e.clientX - rect.left,
-                    y: e.clientY - rect.top,
-                };
-                removeStrokes((s) =>
+            const pxs = events.map((e) => ({
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top,
+            }));
+            removeStrokes((s) =>
+                pxs.some((px) =>
                     strokeIntersectsErasePoint(
                         s,
                         map,
                         px,
                         ERASER_RADIUS_PIXELS,
                     ),
-                );
-            }
+                ),
+            );
         },
         [map],
     );
 
-    const onStart = useCallback(
+    // A gesture is a run of segments: pressing or releasing a pen's eraser
+    // or barrel button mid-gesture ends one segment and starts the other.
+    const beginSegment = useCallback(
         (e: PointerEvent, latlng: L.LatLng) => {
             if (!map) return;
             const penEraser = isPenEraser(e);
-            if ($tool === "eraser" || penEraser) {
-                erasingRef.current = true;
-                if (penEraser) penEraserActive.set(true);
+            if (isPenBarrel(e)) barrelUsedRef.current = true;
+            erasingRef.current = $tool === "eraser" || penEraser;
+            penEraserActive.set(penEraser);
+            if (erasingRef.current) {
                 eraseAt([e]);
                 return;
             }
@@ -191,34 +202,10 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         [map, $tool, $color, $widthPreset, eraseAt],
     );
 
-    const onMove = useCallback(
-        (events: PointerEvent[], latlngs: L.LatLng[]) => {
-            if (!map) return;
-            if (erasingRef.current) {
-                eraseAt(events);
-                return;
-            }
-            const cur = activeRef.current;
-            if (!cur) return;
-
-            const next: ActiveStrokeState = {
-                ...cur,
-                points: cur.points.concat(latlngs),
-            };
-            activeRef.current = next;
-            setActive(next);
-        },
-        [map, eraseAt],
-    );
-
-    const onEnd = useCallback(() => {
+    const endSegment = useCallback(() => {
         if (erasingRef.current) {
             erasingRef.current = false;
-            if (penEraserActive.get()) {
-                penEraserActive.set(false);
-                suppressContextMenuUntilRef.current =
-                    Date.now() + PEN_CONTEXT_MENU_GRACE_MS;
-            }
+            penEraserActive.set(false);
             return;
         }
         const cur = activeRef.current;
@@ -244,25 +231,57 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         addStroke(feature);
     }, []);
 
+    const onStart = useCallback(
+        (e: PointerEvent, latlng: L.LatLng) => {
+            barrelUsedRef.current = false;
+            beginSegment(e, latlng);
+        },
+        [beginSegment],
+    );
+
+    const onMove = useCallback(
+        (events: PointerEvent[], latlngs: L.LatLng[]) => {
+            if (!map) return;
+            const last = events[events.length - 1];
+            if (last && isPenBarrel(last)) barrelUsedRef.current = true;
+            const erase = $tool === "eraser" || (!!last && isPenEraser(last));
+            if (last && erase !== erasingRef.current) {
+                endSegment();
+                beginSegment(last, latlngs[latlngs.length - 1]);
+                return;
+            }
+            if (erasingRef.current) {
+                eraseAt(events);
+                return;
+            }
+            const cur = activeRef.current;
+            if (!cur) return;
+
+            const next: ActiveStrokeState = {
+                ...cur,
+                points: cur.points.concat(latlngs),
+            };
+            activeRef.current = next;
+            setActive(next);
+        },
+        [map, $tool, eraseAt, beginSegment, endSegment],
+    );
+
+    const onEnd = useCallback(() => {
+        endSegment();
+        if (barrelUsedRef.current) {
+            barrelUsedRef.current = false;
+            suppressContextMenuUntilRef.current =
+                Date.now() + PEN_CONTEXT_MENU_GRACE_MS;
+        }
+    }, [endSegment]);
+
     usePointerCapture(map, { shouldCapture, onStart, onMove, onEnd });
 
     if (!map) return null;
 
-    const renderActive = active
-        ? {
-              points: active.points,
-              color: active.color,
-              widthMeters: active.widthMeters,
-              tool: active.tool,
-          }
-        : null;
-
     return createPortal(
-        <SvgStrokeRenderer
-            map={map}
-            strokes={$strokes}
-            active={renderActive}
-        />,
+        <SvgStrokeRenderer map={map} strokes={$strokes} active={active} />,
         map.getContainer(),
     );
 }
