@@ -5,6 +5,10 @@
 - A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.243 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, in the Default Unit to three places (meters under 1 km, then 1.123 km; feet under 0.1 mi, then 1.123 mi), and updates when the seeker moves.
 - In hider mode the card also shows the hider's distance, so the automatic Closer/Further answer can be checked.
 
+## Slow question results say they are calculating (2026-10-17)
+
+- When the map takes longer than half a second to work out the questions' results (the eliminated area and then the hiding zones left in it), a small "Calculating…" pill appears under the Live indicator until both are done, so a slow answer such as a region-boundary question on Belgium no longer looks like a hung page. Quick answers don't show it, and an answer replaced mid-calculation doesn't end it early.
+
 ## Question names (2026-10-17)
 
 - Every question card has a Name field, so a radar, thermometer, tentacle, matching or measuring question can be called "Airport radar" instead of only "Radius 2". A named card shows the name above its type and number, also while it is collapsed or hidden, and its map marker shows the name on hover. The name saves when you leave the field or press Enter, and syncs with the session like the rest of the question; clearing it goes back to the numbered label.

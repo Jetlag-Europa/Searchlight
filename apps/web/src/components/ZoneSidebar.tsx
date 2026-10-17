@@ -21,6 +21,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-r";
 import { compiledGameAtom } from "@/game-definition/store";
+import { startCalculation } from "@/lib/calculating";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
     acquireScopedLoading,
@@ -265,6 +266,7 @@ export const ZoneSidebar = () => {
         if ($displayHidingZones && $questionFinishedMapData) {
             void zoneRefreshQueue.request(async (isCurrent) => {
                 setScopedLoading("zone", true);
+                const finishCalculation = startCalculation("zones");
                 try {
                     const circles = await initializeHidingZones(isCurrent);
                     if (isCurrent() && circles) setStations(circles);
@@ -280,6 +282,7 @@ export const ZoneSidebar = () => {
                     );
                 } finally {
                     setScopedLoading("zone", false);
+                    finishCalculation();
                 }
             });
         }
