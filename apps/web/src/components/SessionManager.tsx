@@ -25,7 +25,6 @@ import {
 } from "@/lib/activeSession";
 import {
     gameDefinitionReady,
-    pendingSessionLoad,
     questions,
     sessionPickerOpen,
     sidebarContextR,
@@ -1222,29 +1221,6 @@ export function SessionManager() {
         },
         [authUserId, forgetSession],
     );
-
-    // Listen for invite-accept session loads from InviteDrawer (separate island).
-    useEffect(() => {
-        return pendingSessionLoad.listen(async (sessionId) => {
-            if (!sessionId) return;
-            const generation = ++sessionLoadGenerationRef.current;
-            pendingSessionLoad.set(null);
-            try {
-                const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-                    credentials: "include",
-                });
-                if (!res.ok) return;
-                const data: GameSessionSummary = await res.json();
-                if (generation !== sessionLoadGenerationRef.current) return;
-                await handleSessionSelected(data);
-            } catch (e) {
-                console.warn(
-                    "[searchlight:session] invite-triggered load failed:",
-                    e,
-                );
-            }
-        });
-    }, [handleSessionSelected]);
 
     // Load the session again, its game included. Fetching the session first
     // also covers an offline restore, which never got the session's details.

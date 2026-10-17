@@ -34,7 +34,6 @@ async function deleteSessions() {
   const where = { gameId: GAME_ID };
   const ids = (await prisma.gameSession.findMany({ where, select: { id: true } })).map((s) => s.id);
   await prisma.sessionLink.deleteMany({ where: { sessionId: { in: ids } } });
-  await prisma.invite.deleteMany({ where: { sessionId: { in: ids } } });
   await prisma.sessionQuestion.deleteMany({ where: { sessionId: { in: ids } } });
   await prisma.event.deleteMany({ where: { sessionId: { in: ids } } });
   await prisma.sessionParticipant.deleteMany({ where: { sessionId: { in: ids } } });
@@ -51,7 +50,7 @@ async function cleanup() {
   await prisma.user.deleteMany({ where: { discordId: { in: USER_IDS } } });
 }
 
-describe("session invites, share copies and links", () => {
+describe("session sharing and links", () => {
   let app: FastifyInstance;
   let creatorCookie: string;
   let friendCookie: string;
@@ -135,20 +134,22 @@ describe("session invites, share copies and links", () => {
     await prisma.$disconnect();
   });
 
-  function invite(inviteType: "join" | "fork", invitedUserId = FRIEND_ID) {
-    return app.inject({
+  async function createLink(linkType: "join" | "fork") {
+    const res = await app.inject({
       method: "POST",
-      url: `/sessions/${SESSION_ID}/invites`,
+      url: `/sessions/${SESSION_ID}/links`,
       headers: { cookie: creatorCookie },
-      payload: { invitedUserId, inviteType },
+      payload: { linkType },
     });
+    expect(res.statusCode).toBe(201);
+    return (res.json() as { token: string }).token;
   }
 
-  function accept(inviteId: string) {
+  function redeem(token: string, cookie = friendCookie) {
     return app.inject({
       method: "POST",
-      url: `/sessions/invites/${inviteId}/accept`,
-      headers: { cookie: friendCookie },
+      url: `/links/${token}/redeem`,
+      headers: { cookie },
     });
   }
 
@@ -173,45 +174,92 @@ describe("session invites, share copies and links", () => {
     expect(res.json().visibility).toBe("private");
   });
 
-  test("an invite to join makes the session shared, so it is listed after accepting", async () => {
-    const res = await invite("join");
-    expect(res.statusCode).toBe(201);
+  test("a join link makes the session shared, so it is listed after joining", async () => {
+    const token = await createLink("join");
     const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
     expect(session.visibility).toBe("shared");
 
-    expect((await accept(res.json().id)).statusCode).toBe(204);
+    const res = await redeem(token);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ sessionId: SESSION_ID, linkType: "join" });
     expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
   });
 
-  test("accepting an invite to a still-private session makes it shared", async () => {
-    // As left by invites sent before sending one promoted the session.
-    const old = await prisma.invite.create({
-      data: { sessionId: SESSION_ID, invitedUserId: FRIEND_ID, invitedByUserId: CREATOR_ID, inviteType: "join" },
+  test("joining a still-private session by link makes it shared", async () => {
+    const token = await createLink("join");
+    await prisma.gameSession.update({ where: { id: SESSION_ID }, data: { visibility: "private" } });
+    expect((await redeem(token)).statusCode).toBe(200);
+    expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
+  });
+
+  test("a revoked link no longer redeems, and members who joined stay in", async () => {
+    const token = await createLink("join");
+    expect((await redeem(token)).statusCode).toBe(200);
+
+    const link = await prisma.sessionLink.findUniqueOrThrow({ where: { token } });
+    const revoke = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/links/${link.id}`,
+      headers: { cookie: creatorCookie },
     });
-    expect((await accept(old.id)).statusCode).toBe(204);
+    expect(revoke.statusCode).toBe(204);
+
+    expect((await redeem(token)).statusCode).toBe(404);
     expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
   });
 
-  test("a user can hold an invite to join and a copy at the same time", async () => {
-    expect((await invite("join")).statusCode).toBe(201);
-    expect((await invite("fork")).statusCode).toBe(201);
-    expect((await invite("join")).statusCode).toBe(409);
-    expect((await invite("fork")).statusCode).toBe(409);
+  test("a participant who left can rejoin through the same join link", async () => {
+    const token = await createLink("join");
+    expect((await redeem(token)).statusCode).toBe(200);
+
+    const leave = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/leave`,
+      headers: { cookie: friendCookie },
+    });
+    expect(leave.statusCode).toBe(204);
+    expect(await listedSessionIds(friendCookie)).not.toContain(SESSION_ID);
+
+    expect((await redeem(token)).statusCode).toBe(200);
+    expect(await listedSessionIds(friendCookie)).toContain(SESSION_ID);
   });
 
-  test("an active member cannot be invited to join again", async () => {
-    const res = await invite("join");
-    await accept(res.json().id);
-    const again = await invite("join");
-    expect(again.statusCode).toBe(409);
-    expect(again.json().message).toMatch(/already in the session/);
+  test("only the creator can create, list or revoke links", async () => {
+    const token = await createLink("join");
+    expect((await redeem(token)).statusCode).toBe(200);
+    const link = await prisma.sessionLink.findUniqueOrThrow({ where: { token } });
+
+    const create = await app.inject({
+      method: "POST",
+      url: `/sessions/${SESSION_ID}/links`,
+      headers: { cookie: friendCookie },
+      payload: { linkType: "join" },
+    });
+    expect(create.statusCode).toBe(403);
+
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/links`,
+      headers: { cookie: friendCookie },
+    });
+    expect(list.statusCode).toBe(403);
+
+    const revoke = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/links/${link.id}`,
+      headers: { cookie: friendCookie },
+    });
+    expect(revoke.statusCode).toBe(403);
+
+    const after = await prisma.sessionLink.findMany({ where: { sessionId: SESSION_ID } });
+    expect(after).toEqual([expect.objectContaining({ id: link.id, revokedAt: null })]);
   });
 
-  test("accepting a copy makes the recipient a participant of the new session", async () => {
-    const res = await invite("fork");
-    const accepted = await accept(res.json().id);
-    expect(accepted.statusCode).toBe(200);
-    const { sessionId } = accepted.json() as { sessionId: string };
+  test("a share link gives the recipient a private copy they created", async () => {
+    const token = await createLink("fork");
+    const res = await redeem(token);
+    expect(res.statusCode).toBe(200);
+    const { sessionId } = res.json() as { sessionId: string };
 
     const copy = await prisma.gameSession.findUniqueOrThrow({ where: { id: sessionId } });
     expect(copy.creatorId).toBe(FRIEND_ID);
@@ -259,34 +307,13 @@ describe("session invites, share copies and links", () => {
   });
 
   test("the creator opening their own join link is taken to the session", async () => {
-    const created = await app.inject({
-      method: "POST",
-      url: `/sessions/${SESSION_ID}/links`,
-      headers: { cookie: creatorCookie },
-      payload: { linkType: "join" },
-    });
-    expect(created.statusCode).toBe(201);
-    const res = await app.inject({
-      method: "POST",
-      url: `/links/${created.json().token}/redeem`,
-      headers: { cookie: creatorCookie },
-    });
+    const res = await redeem(await createLink("join"), creatorCookie);
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ sessionId: SESSION_ID, linkType: "join" });
   });
 
   test("the creator cannot take a copy from their own share link", async () => {
-    const created = await app.inject({
-      method: "POST",
-      url: `/sessions/${SESSION_ID}/links`,
-      headers: { cookie: creatorCookie },
-      payload: { linkType: "fork" },
-    });
-    const res = await app.inject({
-      method: "POST",
-      url: `/links/${created.json().token}/redeem`,
-      headers: { cookie: creatorCookie },
-    });
+    const res = await redeem(await createLink("fork"), creatorCookie);
     expect(res.statusCode).toBe(403);
     // A share link must not make the original shared.
     const original = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });

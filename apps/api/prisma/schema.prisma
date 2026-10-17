@@ -33,8 +33,6 @@ model User {
   membershipCaches      ServerMembershipCache[]
   createdSessions       GameSession[]          @relation("SessionCreator")
   sessionParticipants   SessionParticipant[]
-  receivedInvites       Invite[]               @relation("ReceivedInvites")
-  sentInvites           Invite[]               @relation("SentInvites")
   strokes               Stroke[]
   events                Event[]
   createdLinks          SessionLink[]          @relation("CreatedLinks")
@@ -149,7 +147,6 @@ model GameRevision {
   game       Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
   currentFor Game[]        @relation("CurrentGameRevision")
   sessions        GameSession[]
-  inviteSnapshots InviteSnapshot[]
   linkSnapshots   LinkSnapshot[]
 
   @@unique([gameId, revision])
@@ -199,7 +196,6 @@ model GameSession {
   server       Server               @relation(fields: [serverId], references: [id])
   creator      User                 @relation("SessionCreator", fields: [creatorId], references: [discordId])
   participants SessionParticipant[]
-  invites      Invite[]
   strokes      Stroke[]
   questions    SessionQuestion[]
   events       Event[]
@@ -223,39 +219,6 @@ model SessionParticipant {
 
   @@id([sessionId, userId])
   @@index([userId])
-}
-
-model Invite {
-  id              String    @id @default(cuid())
-  sessionId       String
-  invitedUserId   String
-  invitedByUserId String
-  inviteType      String    @default("join") // "join" | "fork"
-  createdAt       DateTime  @default(now())
-  acceptedAt      DateTime?
-  declinedAt      DateTime?
-  revokedAt       DateTime?
-
-  session     GameSession     @relation(fields: [sessionId],       references: [id], onDelete: Cascade)
-  invitedUser User            @relation("ReceivedInvites",         fields: [invitedUserId],   references: [discordId])
-  invitedBy   User            @relation("SentInvites",             fields: [invitedByUserId], references: [discordId])
-  snapshot    InviteSnapshot?
-
-  @@index([invitedUserId])
-  @@index([sessionId])
-}
-
-model InviteSnapshot {
-  id             String        @id @default(cuid())
-  inviteId       String        @unique
-  questions      Json          // Array of { payloadJson, ordinal, clientUuid }
-  gameRevisionId String?
-  createdAt      DateTime      @default(now())
-
-  invite         Invite        @relation(fields: [inviteId], references: [id], onDelete: Cascade)
-  gameRevision   GameRevision? @relation(fields: [gameRevisionId], references: [id], onDelete: SetNull)
-
-  @@index([gameRevisionId])
 }
 
 model SessionLink {

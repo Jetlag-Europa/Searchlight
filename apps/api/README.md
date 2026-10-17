@@ -5,7 +5,7 @@ Fastify + Prisma backend:
 - Discord OAuth login and cookie sessions (`/auth`, `/me`)
 - Discord servers, membership and role-based permissions (`/servers`), looked up with the bot token
 - The game catalog (`/games`): JSON game definitions stored as revisions, with import, export and access checks
-- Game sessions pinned to a game revision, with their questions, strokes, hider state, invites and share links (`/sessions`, `/links`)
+- Game sessions pinned to a game revision, with their questions, strokes and hider state, and the links that join or copy them (`/sessions`, `/links`)
 - Live sync: a server-sent event stream per session with ordered replay (`/sessions/:id/stream`, `/sessions/:id/events`)
 
 Routes validate with TypeBox (`@fastify/type-provider-typebox`). The game

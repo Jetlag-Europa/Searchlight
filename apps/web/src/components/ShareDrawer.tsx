@@ -1,14 +1,10 @@
 import { useStore } from "@nanostores/react";
 import type {
     CreateLinkResponse,
-    SessionInviteDetail,
-    SessionInvitesResponse,
     SessionLinksResponse,
     SessionLinkSummary,
-    UserSearchResponse,
-    UserSearchResult,
 } from "@searchlight/shared";
-import { useCallback,useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,131 +24,13 @@ async function errorMessage(res: Response): Promise<string> {
     return body?.message ?? `Request failed (${res.status})`;
 }
 
-function TabBar({
-    active,
-    onChange,
-}: {
-    active: "user" | "link";
-    onChange: (t: "user" | "link") => void;
-}) {
-    return (
-        <div className="flex border-b border-border mb-4">
-            {(["user", "link"] as const).map((t) => (
-                <button
-                    key={t}
-                    onClick={() => onChange(t)}
-                    className={cn(
-                        "px-4 py-2 text-sm font-medium capitalize transition-colors",
-                        active === t
-                            ? "border-b-2 border-primary text-foreground"
-                            : "text-muted-foreground hover:text-foreground",
-                    )}
-                >
-                    {t === "user" ? "Send to user" : "Link"}
-                </button>
-            ))}
-        </div>
-    );
-}
-
 export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
     const session = useStore(activeSessionData);
     const isCreator = session?.role === "creator";
 
     const [open, setOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<"user" | "link">("user");
-
-    // ── User tab ──────────────────────────────────────────────────────────────
-    const [query, setQuery] = useState("");
-    const [searchResults, setSearchResults] = useState<UserSearchResult[]>([]);
-    const [searching, setSearching] = useState(false);
-    const [sharingId, setSharingId] = useState<string | null>(null);
     const [sendError, setSendError] = useState<string | null>(null);
-    const [sentInvites, setSentInvites] = useState<SessionInviteDetail[]>([]);
-    const [loadingSent, setLoadingSent] = useState(false);
-    const [revokingInviteId, setRevokingInviteId] = useState<string | null>(null);
 
-    const fetchSentInvites = useCallback(async () => {
-        if (!session || !isCreator) return;
-        setLoadingSent(true);
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${session.id}/invites`, {
-                credentials: "include",
-            });
-            if (!res.ok) return;
-            const data: SessionInvitesResponse = await res.json();
-            // Join invites belong to the Invites drawer
-            setSentInvites(data.invites.filter((i) => i.inviteType === "fork"));
-        } catch {
-            // non-critical
-        } finally {
-            setLoadingSent(false);
-        }
-    }, [session, isCreator]);
-
-    useEffect(() => {
-        const q = query.trim();
-        if (!q || !session || !isCreator) { setSearchResults([]); return; }
-        const t = setTimeout(async () => {
-            setSearching(true);
-            try {
-                const res = await fetch(
-                    `${API_BASE}/users/search?serverId=${session.serverId}&q=${encodeURIComponent(q)}`,
-                    { credentials: "include" },
-                );
-                if (!res.ok) return;
-                const data: UserSearchResponse = await res.json();
-                const alreadyShared = new Set(sentInvites.map((i) => i.invitedUserId));
-                setSearchResults(data.users.filter((u) => !alreadyShared.has(u.discordId)));
-            } catch {
-                // ignore
-            } finally {
-                setSearching(false);
-            }
-        }, 300);
-        return () => clearTimeout(t);
-    }, [query, session, isCreator, sentInvites]);
-
-    const handleShare = async (user: UserSearchResult) => {
-        if (!session) return;
-        setSharingId(user.discordId);
-        setSendError(null);
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${session.id}/invites`, {
-                method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ invitedUserId: user.discordId, inviteType: "fork" }),
-            });
-            if (!res.ok) {
-                setSendError(await errorMessage(res));
-                return;
-            }
-            setQuery("");
-            setSearchResults([]);
-            await fetchSentInvites();
-        } catch {
-            setSendError("Could not share the copy. Check your connection.");
-        } finally {
-            setSharingId(null);
-        }
-    };
-
-    const handleRevokeInvite = async (inviteId: string) => {
-        if (!session) return;
-        setRevokingInviteId(inviteId);
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${session.id}/invites/${inviteId}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
-            if (res.ok) setSentInvites((prev) => prev.filter((i) => i.id !== inviteId));
-        } finally {
-            setRevokingInviteId(null);
-        }
-    };
-
-    // ── Link tab ──────────────────────────────────────────────────────────────
     const [links, setLinks] = useState<SessionLinkSummary[]>([]);
     const [loadingLinks, setLoadingLinks] = useState(false);
     const [creatingLink, setCreatingLink] = useState(false);
@@ -230,11 +108,8 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
         setOpen(v);
         if (v) {
             onOpen?.();
-            fetchSentInvites();
             fetchLinks();
         } else {
-            setQuery("");
-            setSearchResults([]);
             setSendError(null);
         }
     };
@@ -256,136 +131,61 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                 </DrawerHeader>
 
                 <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto">
-                    <TabBar active={activeTab} onChange={(t) => { setActiveTab(t); setSendError(null); }} />
-
                     {sendError && (
                         <p className="text-xs text-destructive mb-3">{sendError}</p>
                     )}
 
-                    {activeTab === "user" && (
-                        <div className="space-y-3">
-                            <p className="text-xs text-muted-foreground">
-                                Send someone their own private copy of this session’s questions as they are now. Later changes on either side stay separate. To play together, use Invites instead.
-                            </p>
+                    <div className="space-y-3">
+                        <p className="text-xs text-muted-foreground">
+                            Anyone with this link gets their own private copy of this session’s questions as they are now. It does not let them into this session.
+                        </p>
 
-                            <input
-                                type="text"
-                                placeholder="Search by name or username…"
-                                className="w-full border border-input rounded-md px-3 py-1.5 text-sm bg-background"
-                                value={query}
-                                onChange={(e) => setQuery(e.target.value)}
-                            />
+                        <Button
+                            className="w-full"
+                            disabled={creatingLink}
+                            onClick={handleCreateLink}
+                        >
+                            {creatingLink ? "Creating…" : "Create share link"}
+                        </Button>
 
-                            {searching && <p className="text-xs text-muted-foreground">Searching…</p>}
-
-                            {searchResults.length > 0 && (
-                                <div className="space-y-1.5">
-                                    {searchResults.map((u) => (
-                                        <div
-                                            key={u.discordId}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                        >
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-medium truncate">{u.displayName}</p>
-                                                <p className="text-xs text-muted-foreground">@{u.username}</p>
-                                            </div>
+                        {loadingLinks && links.length === 0 && (
+                            <p className="text-xs text-muted-foreground">Loading…</p>
+                        )}
+                        {links.length > 0 && (
+                            <div className="space-y-1.5">
+                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Active links</p>
+                                {links.map((l) => (
+                                    <div
+                                        key={l.id}
+                                        className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                                    >
+                                        <p className="text-xs text-muted-foreground truncate">
+                                            Created {new Date(l.createdAt).toLocaleDateString()}
+                                        </p>
+                                        <div className="flex gap-1.5 shrink-0">
                                             <Button
                                                 size="sm"
-                                                disabled={sharingId === u.discordId}
-                                                onClick={() => handleShare(u)}
+                                                variant="outline"
+                                                className="text-xs"
+                                                onClick={() => copyLink(l.token, l.id)}
                                             >
-                                                {sharingId === u.discordId ? "…" : "Share"}
+                                                {copiedLinkId === l.id ? "Copied!" : "Copy"}
                                             </Button>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {!searching && query.trim().length > 0 && searchResults.length === 0 && (
-                                <p className="text-xs text-muted-foreground">No users found.</p>
-                            )}
-
-                            {loadingSent && sentInvites.length === 0 && (
-                                <p className="text-xs text-muted-foreground">Loading…</p>
-                            )}
-                            {sentInvites.length > 0 && (
-                                <div className="space-y-1.5">
-                                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Pending</p>
-                                    {sentInvites.map((inv) => (
-                                        <div
-                                            key={inv.id}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                        >
-                                            <p className="text-sm truncate">{inv.invitedUserDisplayName}</p>
                                             <Button
                                                 size="sm"
                                                 variant="ghost"
-                                                disabled={revokingInviteId === inv.id}
-                                                onClick={() => handleRevokeInvite(inv.id)}
-                                                className="text-muted-foreground hover:text-destructive shrink-0"
+                                                disabled={revokingLinkId === l.id}
+                                                onClick={() => handleRevokeLink(l.id)}
+                                                className="text-muted-foreground hover:text-destructive"
                                             >
-                                                {revokingInviteId === inv.id ? "…" : "Revoke"}
+                                                {revokingLinkId === l.id ? "…" : "Revoke"}
                                             </Button>
                                         </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-
-                    {activeTab === "link" && (
-                        <div className="space-y-3">
-                            <p className="text-xs text-muted-foreground">
-                                Anyone with this link gets their own private copy of this session’s questions as they are now. It does not let them into this session.
-                            </p>
-
-                            <Button
-                                className="w-full"
-                                disabled={creatingLink}
-                                onClick={handleCreateLink}
-                            >
-                                {creatingLink ? "Creating…" : "Create share link"}
-                            </Button>
-
-                            {loadingLinks && links.length === 0 && (
-                                <p className="text-xs text-muted-foreground">Loading…</p>
-                            )}
-                            {links.length > 0 && (
-                                <div className="space-y-1.5">
-                                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Active links</p>
-                                    {links.map((l) => (
-                                        <div
-                                            key={l.id}
-                                            className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                        >
-                                            <p className="text-xs text-muted-foreground truncate">
-                                                Created {new Date(l.createdAt).toLocaleDateString()}
-                                            </p>
-                                            <div className="flex gap-1.5 shrink-0">
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    className="text-xs"
-                                                    onClick={() => copyLink(l.token, l.id)}
-                                                >
-                                                    {copiedLinkId === l.id ? "Copied!" : "Copy"}
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    disabled={revokingLinkId === l.id}
-                                                    onClick={() => handleRevokeLink(l.id)}
-                                                    className="text-muted-foreground hover:text-destructive"
-                                                >
-                                                    {revokingLinkId === l.id ? "…" : "Revoke"}
-                                                </Button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
                 </div>
             </DrawerContent>
         </Drawer>

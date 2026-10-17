@@ -1,5 +1,11 @@
 # Changelog
 
+## Sessions are shared by link only (2026-10-17)
+
+- Inviting a specific user by username is gone; links are how a session is shared. The Invites drawer makes, copies and revokes invite links that let anyone with the link join the session, and Share a copy does the same for share links that give them their own private copy. Both drawers lost their "Send to user" tab with its user search and pending list, the Invites button lost its badge and its list of incoming invites to accept or decline, and both buttons show only to the session's creator.
+- The API drops `GET /users/search`, `GET /sessions/pending-invites`, `POST /sessions/invites/:id/accept` and `/decline`, `GET`/`POST /sessions/:id/invites` and `DELETE /sessions/:id/invites/:id`, and `GET /sessions/:id/participants`, which only the user search used (`GET /sessions/:id` still lists participants). This fixes the review finding that user search let any logged-in user list every user of the app. Cached clients that still call these get 404s, which they treat as no invites and no search results.
+- The `20261017020000_drop_invites` migration drops the `Invite` and `InviteSnapshot` tables. Invites still pending are dropped with them; send a link instead. Players who already accepted an invite stay in the session, and share links keep their own question snapshots (`LinkSnapshot`).
+
 ## Security hardening (2026-10-17)
 
 - Hiding-zone names on the map and station names in their popups are shown as text. They come from the game definition, and Leaflet rendered them as HTML, so an imported game could run script in every player's browser.
