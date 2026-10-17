@@ -40,6 +40,10 @@ export const penToolbarVisible = persistentAtom<boolean>(
     { encode: JSON.stringify, decode: JSON.parse },
 );
 
+// True while a pen's eraser or barrel button erases, so the toolbar can show
+// the eraser as the tool in use without changing the chosen tool.
+export const penEraserActive = atom(false);
+
 // Strokes are populated by the SessionManager when a session is loaded.
 // They are no longer backed by localStorage.
 export const strokes = atom<StrokeFeature[]>([]);
@@ -56,9 +60,13 @@ export function addStroke(s: StrokeFeature): void {
 
 export function removeStrokes(predicate: (s: StrokeFeature) => boolean): void {
     const current = strokes.get();
-    const removed = current.filter(predicate);
-    const next = current.filter((s) => !predicate(s));
-    if (next.length === current.length) return;
+    const removed: StrokeFeature[] = [];
+    const next = current.filter((s) => {
+        if (!predicate(s)) return true;
+        removed.push(s);
+        return false;
+    });
+    if (removed.length === 0) return;
 
     strokes.set(next);
 
