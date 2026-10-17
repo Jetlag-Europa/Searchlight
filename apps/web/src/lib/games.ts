@@ -9,7 +9,7 @@ import {
 } from "@/game-definition/store";
 import { activeSessionId } from "@/lib/activeSession";
 import {
-    disabledStations,
+    boardGameId,
     displayHidingZones,
     displayHidingZonesStyle,
     gameDefinitionReady,
@@ -93,13 +93,15 @@ export interface SwitchToGameOptions {
 
 /**
  * Leave the active game before another session's game loads: cancel a switch
- * still loading (a revision upgrade, say) and clear the board, so a load that
- * fails leaves no other game behind.
+ * still loading (a revision upgrade, say) and clear the board and its overlay,
+ * so a load that fails leaves no other game behind.
  */
 export function leaveGame(): void {
     gameSwitchGeneration++;
     pendingGameSwitch = undefined;
     resetGameState();
+    permanentOverlay.set(null);
+    boardGameId.set("");
 }
 
 /**
@@ -113,8 +115,6 @@ export function resetGameState(): void {
     trainStations.set([]);
     polyGeoJSON.set(null);
     mapGeoJSON.set(null);
-    disabledStations.set([]);
-    permanentOverlay.set(null);
     hidingZoneFocusedStationID.set("");
     writeStorage("sessionStorage", GAME_SS_KEY, "");
     currentGameId.set("");
@@ -164,7 +164,13 @@ export function switchToGame(
 
     writeStorage("sessionStorage", GAME_SS_KEY, game.id);
     currentGameId.set(game.id);
-    displayHidingZones.set(true);
-    displayHidingZonesStyle.set("zones");
+    // Reloading the session or upgrading its game's revision keeps the
+    // overlay and how zones are shown; another game starts afresh.
+    if (boardGameId.get() !== game.id) {
+        boardGameId.set(game.id);
+        permanentOverlay.set(null);
+        displayHidingZones.set(true);
+        displayHidingZonesStyle.set("zones");
+    }
     return selection.promise;
 }

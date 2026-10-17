@@ -17,6 +17,7 @@ it("removes retired settings and OpenStreetMap caches, keeping the rest", () => 
         ["customStations", "[]"],
         ["showTutorials", "true"],
         ["disabledStations", '["a"]'],
+        ["disabledZones", '{"s":["a"]}'],
     ]);
     vi.stubGlobal("localStorage", {
         getItem: (key: string) => store.get(key) ?? null,
@@ -30,7 +31,7 @@ it("removes retired settings and OpenStreetMap caches, keeping the rest", () => 
 
     removeRetiredStorage();
 
-    expect([...store.keys()]).toEqual(["disabledStations"]);
+    expect([...store.keys()]).toEqual(["disabledZones"]);
     expect(deleteCache.mock.calls.map(([name]) => name)).toEqual(
         RETIRED_CACHES,
     );
@@ -81,7 +82,7 @@ it("removes no key the app still stores", () => {
             }
         }
     }
-    expect(live).toContain("disabledStations");
+    expect(live).toContain("disabledZones");
     expect(live).toContain("lastGameView");
     // Defined as a constant.
     expect(live).toContain("taibled-last-session");
