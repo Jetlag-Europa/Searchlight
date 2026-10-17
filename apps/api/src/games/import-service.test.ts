@@ -181,4 +181,51 @@ describe("preloadGameDefinitions", () => {
     ]);
     expect(await prisma.game.findUnique({ where: { gameKey: key } })).not.toBeNull();
   });
+
+  test("keeps an uploaded revision instead of re-activating the unchanged file", async () => {
+    const key = `${KEY_PREFIX}preload-upload`;
+    const gameDir = await mkdtemp(join(dir, "upload-"));
+    const file = join(gameDir, `${key}.game.json`);
+    const current = () =>
+      prisma.game.findUniqueOrThrow({
+        where: { gameKey: key },
+        include: { currentRevision: { select: { revision: true } } },
+      });
+
+    await writeFile(file, JSON.stringify(definition(key, "Preloaded")));
+    expect(await preloadGameDefinitions(gameDir)).toMatchObject({ created: 1 });
+
+    const upload = await importGameDefinition({
+      raw: definition(key, "Uploaded"),
+      source: "web",
+      allowUpdate: true,
+    });
+    expect(upload).toMatchObject({ status: "updated", revision: 2 });
+
+    // The next API start finds the file unchanged: revision 2 stays current.
+    const restart = await preloadGameDefinitions(gameDir);
+    expect(restart).toMatchObject({ unchanged: 1, updated: 0 });
+    expect(restart.results[0]).toMatchObject({ revision: 2, checksum: upload.checksum });
+    expect(restart.superseded).toEqual([
+      {
+        fileName: `${key}.game.json`,
+        message: "matches revision 1 but revision 2 (web import) is current; keeping 2",
+      },
+    ]);
+    expect(await current()).toMatchObject({ name: "Uploaded", currentRevision: { revision: 2 } });
+
+    // New file content still becomes the next revision.
+    await writeFile(file, JSON.stringify(definition(key, "Preloaded v3")));
+    const changed = await preloadGameDefinitions(gameDir);
+    expect(changed).toMatchObject({ updated: 1, superseded: [] });
+    expect(await current()).toMatchObject({
+      name: "Preloaded v3",
+      currentRevision: { revision: 3 },
+    });
+
+    // Reverting the file over a preloaded revision still re-activates the old one.
+    await writeFile(file, JSON.stringify(definition(key, "Preloaded")));
+    expect(await preloadGameDefinitions(gameDir)).toMatchObject({ updated: 1 });
+    expect(await current()).toMatchObject({ name: "Preloaded", currentRevision: { revision: 1 } });
+  });
 });

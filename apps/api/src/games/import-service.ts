@@ -12,6 +12,9 @@ import prisma from "../lib/prisma.js";
 // GameRevision.revision is a PostgreSQL integer.
 const MAX_REVISION = 2_147_483_647;
 
+// Warning code of a preload that kept a newer uploaded revision.
+export const PRELOAD_SUPERSEDED = "PRELOAD_SUPERSEDED";
+
 export interface ImportActor {
   userId?: string | null;
   type: "cookie" | "token";
@@ -318,7 +321,7 @@ async function importRevision(
     const cur = locked.currentRevisionId
       ? await tx.gameRevision.findUnique({
           where: { id: locked.currentRevisionId },
-          select: { checksum: true, revision: true },
+          select: { checksum: true, revision: true, source: true },
         })
       : null;
 
@@ -352,6 +355,29 @@ async function importRevision(
       where: { gameId_checksum: { gameId: game.id, checksum } },
       select: { id: true, revision: true },
     });
+    // A preloaded file matching an older revision while an upload (web or API)
+    // is current is the unchanged repo file, not a rollback: keep the upload
+    // instead of undoing it on every API start. When the current revision came
+    // from the file itself, the older content still re-activates (a git revert).
+    if (source === "preload" && previous && cur && cur.source !== "preload") {
+      return {
+        status: "unchanged" as const,
+        gameId: game.id,
+        gameKey,
+        revision: cur.revision,
+        checksum: cur.checksum,
+        errors: [],
+        warnings: [
+          ...warnings,
+          {
+            path: "",
+            code: PRELOAD_SUPERSEDED,
+            message: `matches revision ${previous.revision} but revision ${cur.revision} (${cur.source} import) is current; keeping ${cur.revision}`,
+          },
+        ],
+      };
+    }
+
     let targetRevision: number;
     if (previous) {
       targetRevision = previous.revision;

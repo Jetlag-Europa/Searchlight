@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { type GameImportResponse, resolveGameDefinitionId } from "@searchlight/shared";
-import { importGameDefinition } from "./import-service.js";
+import { importGameDefinition, PRELOAD_SUPERSEDED } from "./import-service.js";
 
 export interface PreloadSummary {
   total: number;
@@ -11,6 +11,8 @@ export interface PreloadSummary {
   results: GameImportResponse[];
   // Files that could not be imported; the others are imported regardless.
   failures: { fileName: string; error: unknown }[];
+  // Files left unapplied because an upload replaced their content.
+  superseded: { fileName: string; message: string }[];
 }
 
 /**
@@ -32,6 +34,7 @@ export async function preloadGameDefinitions(
       unchanged: 0,
       results: [],
       failures: [],
+      superseded: [],
     };
   }
 
@@ -41,6 +44,7 @@ export async function preloadGameDefinitions(
 
   const results: GameImportResponse[] = [];
   const failures: PreloadSummary["failures"] = [];
+  const superseded: PreloadSummary["superseded"] = [];
   let created = 0;
   let updated = 0;
   let unchanged = 0;
@@ -70,6 +74,11 @@ export async function preloadGameDefinitions(
     }
 
     results.push(result);
+    for (const warning of result.warnings) {
+      if (warning.code === PRELOAD_SUPERSEDED) {
+        superseded.push({ fileName, message: warning.message });
+      }
+    }
     if (result.status === "created") created++;
     else if (result.status === "updated") updated++;
     else if (result.status === "unchanged") unchanged++;
@@ -82,5 +91,6 @@ export async function preloadGameDefinitions(
     unchanged,
     results,
     failures,
+    superseded,
   };
 }
