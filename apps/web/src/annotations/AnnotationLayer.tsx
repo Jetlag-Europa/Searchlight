@@ -27,7 +27,7 @@ import { strokeIntersectsErasePoint } from "@/annotations/utils/eraserHit";
 import { pixelsToMeters } from "@/annotations/utils/geoMath";
 import {
     isPenBarrel,
-    isPenEraser,
+    isPenErasing,
     isSecondaryMouseButton,
 } from "@/annotations/utils/penButtons";
 import { randomUUID } from "@/lib/utils";
@@ -84,6 +84,10 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     // send a right-click when the pen lifts.
     const barrelUsedRef = useRef(false);
     const suppressContextMenuUntilRef = useRef(0);
+    // Strokes committed earlier in this gesture. Erasing that starts mid-stroke
+    // begins right at the end of the stroke just committed, so it must not
+    // remove those.
+    const gestureStrokesRef = useRef(new Set<string>());
 
     ensureStyleTag();
 
@@ -128,9 +132,12 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         container.addEventListener("contextmenu", onContextMenu, opts);
         return () => {
             container.removeEventListener("contextmenu", onContextMenu, opts);
-            penEraserActive.set(false);
         };
     }, [map]);
+
+    // A gesture cut short by unmounting never ends; don't leave the toolbar
+    // showing the eraser.
+    useEffect(() => () => penEraserActive.set(false), []);
 
     const shouldCapture = useCallback(
         (e: PointerEvent): boolean => {
@@ -154,18 +161,25 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
                 x: e.clientX - rect.left,
                 y: e.clientY - rect.top,
             }));
-            removeStrokes((s) =>
-                pxs.some((px) =>
-                    strokeIntersectsErasePoint(
-                        s,
-                        map,
-                        px,
-                        ERASER_RADIUS_PIXELS,
+            removeStrokes(
+                (s) =>
+                    !gestureStrokesRef.current.has(s.properties.clientUuid) &&
+                    pxs.some((px) =>
+                        strokeIntersectsErasePoint(
+                            s,
+                            map,
+                            px,
+                            ERASER_RADIUS_PIXELS,
+                        ),
                     ),
-                ),
             );
         },
         [map],
+    );
+
+    const wantsErase = useCallback(
+        (e: PointerEvent) => $tool === "eraser" || isPenErasing(e),
+        [$tool],
     );
 
     // A gesture is a run of segments: pressing or releasing a pen's eraser
@@ -173,10 +187,9 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     const beginSegment = useCallback(
         (e: PointerEvent, latlng: L.LatLng) => {
             if (!map) return;
-            const penEraser = isPenEraser(e);
             if (isPenBarrel(e)) barrelUsedRef.current = true;
-            erasingRef.current = $tool === "eraser" || penEraser;
-            penEraserActive.set(penEraser);
+            erasingRef.current = wantsErase(e);
+            penEraserActive.set(isPenErasing(e));
             if (erasingRef.current) {
                 eraseAt([e]);
                 return;
@@ -199,7 +212,7 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             activeRef.current = initial;
             setActive(initial);
         },
-        [map, $tool, $color, $widthPreset, eraseAt],
+        [map, $tool, $color, $widthPreset, wantsErase, eraseAt],
     );
 
     const endSegment = useCallback(() => {
@@ -229,27 +242,21 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             },
         };
         addStroke(feature);
+        gestureStrokesRef.current.add(feature.properties.clientUuid);
     }, []);
 
     const onStart = useCallback(
         (e: PointerEvent, latlng: L.LatLng) => {
             barrelUsedRef.current = false;
+            gestureStrokesRef.current.clear();
             beginSegment(e, latlng);
         },
         [beginSegment],
     );
 
-    const onMove = useCallback(
+    const continueSegment = useCallback(
         (events: PointerEvent[], latlngs: L.LatLng[]) => {
-            if (!map) return;
-            const last = events[events.length - 1];
-            if (last && isPenBarrel(last)) barrelUsedRef.current = true;
-            const erase = $tool === "eraser" || (!!last && isPenEraser(last));
-            if (last && erase !== erasingRef.current) {
-                endSegment();
-                beginSegment(last, latlngs[latlngs.length - 1]);
-                return;
-            }
+            if (events.length === 0) return;
             if (erasingRef.current) {
                 eraseAt(events);
                 return;
@@ -264,7 +271,29 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             activeRef.current = next;
             setActive(next);
         },
-        [map, $tool, eraseAt, beginSegment, endSegment],
+        [eraseAt],
+    );
+
+    const onMove = useCallback(
+        (events: PointerEvent[], latlngs: L.LatLng[]) => {
+            if (!map) return;
+            // Follow the buttons sample by sample, so a segment switches
+            // exactly where the button was pressed or released.
+            let from = 0;
+            for (let i = 0; i <= events.length; i++) {
+                const e = events[i];
+                if (e) {
+                    if (isPenBarrel(e)) barrelUsedRef.current = true;
+                    if (wantsErase(e) === erasingRef.current) continue;
+                }
+                continueSegment(events.slice(from, i), latlngs.slice(from, i));
+                if (!e) break;
+                endSegment();
+                beginSegment(e, latlngs[i]);
+                from = i + 1;
+            }
+        },
+        [map, wantsErase, continueSegment, beginSegment, endSegment],
     );
 
     const onEnd = useCallback(() => {

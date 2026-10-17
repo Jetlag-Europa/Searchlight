@@ -22,9 +22,9 @@ export function isPenBarrel(e: ButtonState): boolean {
     );
 }
 
-// A pen held as an eraser: its eraser end or eraser button, or a barrel
-// button, which erases too as it does in most drawing apps.
-export function isPenEraser(e: ButtonState): boolean {
+// A pen held to erase: its eraser end or eraser button, or a barrel button,
+// which erases too as it does in most drawing apps.
+export function isPenErasing(e: ButtonState): boolean {
     if (e.pointerType !== "pen") return false;
     return (
         e.button === ERASER_BUTTON ||

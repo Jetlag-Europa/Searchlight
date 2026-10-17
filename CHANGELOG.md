@@ -2,8 +2,8 @@
 
 ## Pens erase with their eraser button (2026-10-17)
 
-- In Pen Mode, a pen's eraser (the flipped end, or the eraser button on pens like the Lenovo Pen Pro or Surface Pen) and its barrel (side) button erase while held, whatever tool is chosen. Letting go returns to that tool, and the toolbar shows the eraser as active meanwhile. The barrel button's right-click no longer opens the map menu after erasing.
-- In Pen Mode, right or middle mouse button no longer draws a stroke, and right-click opens the map menu as it does outside Pen Mode.
+- In Pen Mode, a pen's eraser (the flipped end, or the eraser button on pens like the Lenovo Pen Pro or Surface Pen) and its barrel (side) button erase, whatever tool is chosen. Hold the button as the pen touches down: Windows reports these buttons only then, while browsers that report a press mid-stroke switch on the spot. Letting go returns to that tool, and the toolbar shows the eraser as active meanwhile. The barrel button's right-click no longer opens the map menu after erasing.
+- In Pen Mode, a right or middle mouse button no longer draws a stroke.
 
 ## Dev login on preview deployments (2026-10-17)
 
