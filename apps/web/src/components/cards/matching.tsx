@@ -26,6 +26,11 @@ import {
     setScopedLoading,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    defaultQuestionLabel,
+    questionName,
+    setQuestionName,
+} from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import {
     customSwitchStart,
@@ -69,13 +74,7 @@ export const MatchingQuestionComponent = ({
         };
     }, [prefillScope]);
 
-    const label = `Matching
-    ${
-        $questions
-            .filter((q) => q.id === "matching")
-            .map((q) => q.key)
-            .indexOf(questionKey) + 1
-    }`;
+    const label = defaultQuestionLabel($questions, questionKey);
 
     // Starts a custom question blank or, copying custom points into a custom
     // zone, as the seeker's cell (see customSwitchStart).
@@ -149,6 +148,8 @@ export const MatchingQuestionComponent = ({
         <QuestionCard
             questionKey={questionKey}
             label={label}
+            name={questionName(data)}
+            setName={(name) => questionModified(setQuestionName(data, name))}
             sub={compiled?.questionMap.get(data.type)?.label ?? sub}
             className={className}
             collapsed={data.collapsed}

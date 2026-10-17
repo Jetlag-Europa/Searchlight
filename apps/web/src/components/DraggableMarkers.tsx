@@ -2,7 +2,7 @@ import { useStore } from "@nanostores/react";
 import { type DragEndEvent, Icon } from "leaflet";
 import { useMemo, useState } from "react";
 import { Fragment } from "react/jsx-runtime";
-import { Marker } from "react-leaflet";
+import { Marker, Tooltip } from "react-leaflet";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -14,6 +14,7 @@ import {
     trainStations,
     triggerLocalRefresh,
 } from "@/lib/context";
+import { questionName } from "@/lib/questionNames";
 import type { ICON_COLORS } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -57,6 +58,7 @@ const ColoredMarker = ({
     onChange,
     questionKey,
     sub = "",
+    name,
 }: {
     onChange: (event: DragEndEvent) => void;
     latitude: number;
@@ -64,6 +66,7 @@ const ColoredMarker = ({
     color: keyof typeof ICON_COLORS;
     questionKey: number;
     sub?: string;
+    name?: string;
 }) => {
     const $questions = useStore(questions);
     const $hiderMode = useStore(hiderMode);
@@ -106,9 +109,17 @@ const ColoredMarker = ({
                         }
                     },
                 }}
-            />
+            >
+                {name && (
+                    <Tooltip direction="top" offset={[0, -34]}>
+                        {sub ? `${name} (${sub})` : name}
+                    </Tooltip>
+                )}
+            </Marker>
             <DialogContent aria-describedby={undefined} className="!bg-[hsl(var(--sidebar-background))] !text-white">
-                <DialogTitle className="sr-only">Question</DialogTitle>
+                <DialogTitle className="sr-only">
+                    {name ?? "Question"}
+                </DialogTitle>
                 {questionKey === -1 && $hiderMode !== false && (
                     <>
                         <h2 className="text-center text-2xl font-bold font-poppins">
@@ -262,6 +273,7 @@ export const DraggableMarkers = () => {
                                 color={question.data.color}
                                 key={question.key}
                                 questionKey={question.key}
+                                name={questionName(question.data)}
                                 latitude={question.data.lat}
                                 longitude={question.data.lng}
                                 onChange={(e) => {
@@ -280,6 +292,7 @@ export const DraggableMarkers = () => {
                                     color={question.data.colorA}
                                     key={"a" + question.key.toString()}
                                     questionKey={question.key}
+                                    name={questionName(question.data)}
                                     sub="Start"
                                     latitude={question.data.latA}
                                     longitude={question.data.lngA}
@@ -295,6 +308,7 @@ export const DraggableMarkers = () => {
                                     color={question.data.colorB}
                                     key={"b" + question.key.toString()}
                                     questionKey={question.key}
+                                    name={questionName(question.data)}
                                     sub="End"
                                     latitude={question.data.latB}
                                     longitude={question.data.lngB}

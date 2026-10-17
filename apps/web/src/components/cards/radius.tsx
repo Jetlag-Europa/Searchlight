@@ -20,6 +20,11 @@ import {
     questions,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    defaultQuestionLabel,
+    questionName,
+    setQuestionName,
+} from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import type { RadiusQuestion } from "@/maps/schema";
 
@@ -58,18 +63,14 @@ export const RadiusQuestionComponent = ({
     const declaredIndex = declaredRadii.findIndex(
         (r) => r.value === data.radius && r.unit === data.unit,
     );
-    const label = `Radius
-    ${
-        $questions
-            .filter((q) => q.id === "radius")
-            .map((q) => q.key)
-            .indexOf(questionKey) + 1
-    }`;
+    const label = defaultQuestionLabel($questions, questionKey);
 
     return (
         <QuestionCard
             questionKey={questionKey}
             label={label}
+            name={questionName(data)}
+            setName={(name) => questionModified(setQuestionName(data, name))}
             sub={sub}
             className={className}
             collapsed={data.collapsed}

@@ -20,6 +20,11 @@ import {
     questions,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    defaultQuestionLabel,
+    questionName,
+    setQuestionName,
+} from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import type { MeasuringQuestion } from "@/maps/schema";
 
@@ -45,13 +50,7 @@ export const MeasuringQuestionComponent = ({
     const compiledMeasuring =
         compiled?.questions.filter((q) => q.family === "measuring") ?? [];
 
-    const label = `Measuring
-    ${
-        $questions
-            .filter((q) => q.id === "measuring")
-            .map((q) => q.key)
-            .indexOf(questionKey) + 1
-    }`;
+    const label = defaultQuestionLabel($questions, questionKey);
 
     let questionSpecific = <></>;
 
@@ -92,6 +91,8 @@ export const MeasuringQuestionComponent = ({
         <QuestionCard
             questionKey={questionKey}
             label={label}
+            name={questionName(data)}
+            setName={(name) => questionModified(setQuestionName(data, name))}
             sub={compiled?.questionMap.get(data.type)?.label ?? sub}
             className={className}
             collapsed={data.collapsed}

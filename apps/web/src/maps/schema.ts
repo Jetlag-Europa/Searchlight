@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { defaultUnit } from "@/lib/context";
+import { normalizeQuestionName } from "@/lib/questionNames";
 
 import { ICON_COLORS } from "./api/constants";
 
@@ -36,6 +37,14 @@ const randomColorExcluding = (excluded: IconColor[] = []) => {
     return options[Math.floor(Math.random() * options.length)];
 };
 
+// A player's label for the question, shown on its card. A malformed one is
+// dropped rather than rejecting the question.
+const questionNameSchema = z
+    .string()
+    .transform(normalizeQuestionName)
+    .optional()
+    .catch(undefined);
+
 const thermometerQuestionSchema = z
     .object({
         latA: z
@@ -61,6 +70,7 @@ const thermometerQuestionSchema = z
         drag: z.boolean().default(true),
         collapsed: z.boolean().default(false),
         enabled: z.boolean().default(true),
+        name: questionNameSchema,
     })
     .transform((question) => {
         if (question.colorA === question.colorB) {
@@ -84,6 +94,7 @@ const baseQuestionSchema = z.object({
     color: iconColorSchema.default(randomColor),
     collapsed: z.boolean().default(false),
     enabled: z.boolean().default(true),
+    name: questionNameSchema,
 });
 
 const getDefaultUnit = () => {
