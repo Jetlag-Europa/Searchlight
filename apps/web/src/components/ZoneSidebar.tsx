@@ -1,11 +1,6 @@
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
-import type {
-    Feature,
-    FeatureCollection,
-    MultiPolygon,
-    Polygon,
-} from "geojson";
+import type { Feature, FeatureCollection } from "geojson";
 import * as L from "leaflet";
 import _ from "lodash";
 import { SidebarCloseIcon } from "lucide-react";
@@ -32,6 +27,7 @@ import {
     displayHidingZonesStyle,
     gameDefinitionReady,
     hidingZoneFocusedStationID,
+    hidingZoneScale,
     isLoading,
     leafletMapContext,
     perQuestionMapData,
@@ -43,13 +39,14 @@ import {
 import { currentGameId, gamesAtom, zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
+import { formatMultiplier } from "@/lib/zoneSize";
 import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
     extractStationName,
-    hidingZoneCircles,
     lngLatToText,
     safeUnion,
+    survivingHidingZones,
 } from "@/maps/geo-utils";
 import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
 
@@ -72,6 +69,7 @@ export const ZoneSidebar = () => {
     const $displayHidingZones = useStore(displayHidingZones);
     const $questionFinishedMapData = useStore(questionFinishedMapData);
     const $perQuestionMapData = useStore(perQuestionMapData);
+    const $hidingZoneScale = useStore(hidingZoneScale);
     const $displayHidingZonesStyle = useStore(displayHidingZonesStyle);
     const $isLoading = useStore(isLoading);
     const map = useStore(leafletMapContext);
@@ -91,7 +89,8 @@ export const ZoneSidebar = () => {
     const zoneRefreshQueue = useMemo(() => createLatestTask(), []);
     const selectionTaskQueue = useMemo(() => createLatestTask(), []);
 
-    // The game's hiding radius, for reference: zones take theirs from the game.
+    // The game's hiding radius, for reference: zones take theirs from the
+    // game, resized by any zone size change in the questions.
     const radiusLabel = useMemo(() => {
         const zones = ($compiledGame?.hidingZones.stations ?? []).filter(
             (zone) => !zone.area,
@@ -102,8 +101,12 @@ export const ZoneSidebar = () => {
             (zone) =>
                 zone.radius?.value !== value || zone.radius?.unit !== unit,
         );
-        return `${value} ${unit}${varies ? " (varies by zone)" : ""}`;
-    }, [$compiledGame]);
+        const scaled =
+            $hidingZoneScale === 1
+                ? `${value} ${unit}`
+                : `${Number((value * $hidingZoneScale).toFixed(3))} ${unit} (${formatMultiplier($hidingZoneScale)})`;
+        return `${scaled}${varies ? " (varies by zone)" : ""}`;
+    }, [$compiledGame, $hidingZoneScale]);
 
     // Hide zone name labels when zoomed out too far to avoid overlap
     const activeGame = $games.find((g) => g.id === $currentGameId);
@@ -224,43 +227,19 @@ export const ZoneSidebar = () => {
             // effect with the game's zones.
             if (!$gameDefinitionReady || !$compiledGame) return;
 
-            const allCircles = hidingZoneCircles($compiledGame);
-
             // Dodge-aware survival: a hider may move within their zone, so a zone
             // is valid as long as it overlaps EACH question's still-possible region
             // independently — not the (intersected) combined area. Two questions
             // that can each be dodged from a different edge of the same zone used to
-            // wipe the zone off the map entirely. See DissapearingAct.
-            //
-            // Each region is unioned to a single feature for booleanIntersects. A
-            // null region means that question eliminates everywhere → drop all.
-            // Extract per-question regions for dodge-aware EACH region overlap
-            const questionRegions: FeatureCollection<Polygon | MultiPolygon>[] =
-                $perQuestionMapData
-                    .map(({ region }) => region)
-                    .filter(
-                        (r): r is FeatureCollection<Polygon | MultiPolygon> =>
-                            Boolean(r),
-                    );
-
-            let circles: StationCircle[] = [];
-            if (allCircles.length === 0) {
-                circles = [];
-            } else if ($perQuestionMapData.length === 0) {
-                circles = allCircles;
-            } else if (questionRegions.length < $perQuestionMapData.length) {
-                // A question eliminated everywhere (empty region) -> 0 circles survive
-                circles = [];
-            } else {
-                const survivingIndexes = await filterZoneIndexes(
-                    allCircles,
-                    questionRegions,
-                );
-                if (!isCurrent()) return;
-                circles = survivingIndexes.map((idx) => allCircles[idx]);
-            }
-
-            return circles;
+            // wipe the zone off the map entirely. See DissapearingAct. Each
+            // question tests the zones at the size they had when it was asked.
+            return survivingHidingZones(
+                $compiledGame,
+                $perQuestionMapData,
+                $hidingZoneScale,
+                filterZoneIndexes,
+                isCurrent,
+            );
         };
 
         if ($displayHidingZones && $questionFinishedMapData) {
@@ -294,6 +273,7 @@ export const ZoneSidebar = () => {
         $displayHidingZones,
         $compiledGame,
         $gameDefinitionReady,
+        $hidingZoneScale,
     ]);
 
     useEffect(() => {

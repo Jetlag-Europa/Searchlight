@@ -15,6 +15,7 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { questionName } from "@/lib/questionNames";
+import { isZoneSizeChange } from "@/lib/zoneSize";
 import type { ICON_COLORS } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -256,6 +257,7 @@ export const DraggableMarkers = () => {
             {$questions.map((question) => {
                 if (!question.data) return null;
                 if (question.data.enabled === false) return null;
+                if (isZoneSizeChange(question)) return null;
                 if (!question.data.drag) return null;
                 if (
                     question.id === "matching" &&

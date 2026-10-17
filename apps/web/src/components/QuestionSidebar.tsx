@@ -39,6 +39,7 @@ import {
     RadiusQuestionComponent,
     TentacleQuestionComponent,
     ThermometerQuestionComponent,
+    ZoneSizeComponent,
 } from "./QuestionCards";
 
 export const QuestionSidebar = () => {
@@ -121,6 +122,14 @@ export const QuestionSidebar = () => {
                         case "measuring":
                             return (
                                 <MeasuringQuestionComponent
+                                    data={question.data}
+                                    key={question.key}
+                                    questionKey={question.key}
+                                />
+                            );
+                        case "zone-size":
+                            return (
+                                <ZoneSizeComponent
                                     data={question.data}
                                     key={question.key}
                                     questionKey={question.key}

@@ -4,6 +4,7 @@ import type { Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
+import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 
 import { arcDistanceToPoint } from "./geo-utils";
 import {
@@ -239,6 +240,7 @@ function questionStatus(question: any): "ready" | "pending" | "unsupported" {
 
 export const hiderifyQuestion = async (question: Question) => {
     if (question.data.enabled === false) return null;
+    if (isZoneSizeChange(question)) return question;
     if (question.data.drag) {
         if (questionStatus(question) !== "ready") return question;
         const compiled = compiledGameAtom.get()!;
@@ -286,6 +288,7 @@ export const determinePlanningPolygon = async (
     planningModeEnabled: boolean,
 ) => {
     if (question.data.enabled === false) return undefined;
+    if (isZoneSizeChange(question)) return undefined;
     if (planningModeEnabled && question.data.drag) {
         if (questionStatus(question) !== "ready") return undefined;
         const compiled = compiledGameAtom.get()!;
@@ -439,18 +442,22 @@ export async function computePerQuestionRegions(
     questions: Questions,
     baseMapGeoData: any,
     planningModeEnabled: boolean,
-): Promise<{ question: Question; region: any }[]> {
-    const regions: { question: Question; region: any }[] = [];
+): Promise<{ question: Question; region: any; zoneScale: number }[]> {
+    const regions: { question: Question; region: any; zoneScale: number }[] =
+        [];
     // Editing one question must not re-evaluate the others against a large
     // boundary. Only regions still in use are kept, bounding the cache.
     const cache = regionCacheFor(baseMapGeoData);
     const used = new Map<string, any>();
 
-    for (const question of questions) {
+    for (const [index, question] of questions.entries()) {
         // `enabled` lives on most (not all) members of the question.data union;
         // narrow locally until the shared base type lands (see Bucket 1 cleanup).
         if ((question.data as { enabled?: boolean }).enabled === false)
             continue;
+        // A zone size change eliminates nothing itself: it sizes the hiding
+        // zones the questions below it are tested against.
+        if (isZoneSizeChange(question)) continue;
         if (planningModeEnabled && question.data.drag) continue;
 
         // A card's name and collapsed state change no region (JSON drops the
@@ -475,7 +482,11 @@ export async function computePerQuestionRegions(
         }
         used.set(key, region);
 
-        regions.push({ question, region });
+        regions.push({
+            question,
+            region,
+            zoneScale: zoneScaleAfter(questions, index),
+        });
     }
 
     if (regionCache?.regions === cache) regionCache.regions = used;
@@ -493,6 +504,7 @@ export async function applyQuestionsToMapGeoData(
 ): Promise<any> {
     for (const question of questions) {
         if (question.data.enabled === false) continue;
+        if (isZoneSizeChange(question)) continue;
         if (planningModeCallback) {
             const planningPolygon = await determinePlanningPolygon(
                 question,

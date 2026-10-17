@@ -124,8 +124,14 @@ export const questionFinishedMapData = atom<any>(null);
 
 // Per-question standalone "still-possible" regions, used for dodge-aware hiding
 // zone survival (a zone survives if it overlaps EACH question's region
-// independently). See computePerQuestionRegions / DissapearingAct.
-export const perQuestionMapData = atom<{ question: any; region: any }[]>([]);
+// independently). See computePerQuestionRegions / DissapearingAct. Each
+// carries the zones' size, relative to the game's, when it was asked.
+export const perQuestionMapData = atom<
+    { question: any; region: any; zoneScale?: number }[]
+>([]);
+// The zones' size now, relative to the game's, after every zone size change
+// in the question list. Published with perQuestionMapData.
+export const hidingZoneScale = atom<number>(1);
 
 export const trainStations = atom<StationCircle[]>([]);
 onSet(trainStations, ({ newValue }) => {
