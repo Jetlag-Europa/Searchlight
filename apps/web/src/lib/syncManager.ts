@@ -2,6 +2,8 @@ import type { StrokeFeature } from "@/annotations/types";
 import { activeSessionId } from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
+    discardEvent,
+    type EventType,
     getCachedSession,
     getPendingEvents,
     isReplacementEventType,
@@ -19,6 +21,52 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 // hidden tab that is not unloaded can still deliver it.
 const KEEPALIVE_BODY_LIMIT = 64 * 1024;
 
+/** The server answered an edit with an error status. */
+export class SyncRequestError extends Error {
+    readonly status: number;
+
+    constructor(type: EventType, status: number) {
+        super(`${type} failed: ${status}`);
+        this.status = status;
+    }
+}
+
+export type SendFailure = "retry" | "unavailable" | "rejected";
+
+/**
+ * What a failed send means. A 403 or 404 means the session is gone or this
+ * user lost access to it. Any other 4xx but 401, 408 and 429 refuses the edit
+ * itself (too large, invalid, a conflict): resending it would fail again and
+ * block the edits behind it, and incoming updates to its field, forever. A
+ * network error (no status), a 5xx, 401, 408 or 429 may pass on a retry.
+ */
+export function classifySendFailure(status: number | undefined): SendFailure {
+    if (status === undefined || status < 400 || status >= 500) return "retry";
+    if (status === 401 || status === 408 || status === 429) return "retry";
+    if (status === 403 || status === 404) return "unavailable";
+    return "rejected";
+}
+
+function failureOf(err: unknown): { kind: SendFailure; status?: number } {
+    const status = err instanceof SyncRequestError ? err.status : undefined;
+    return { kind: classifySendFailure(status), status };
+}
+
+type RejectionListener = (event: PendingEvent, status: number) => void;
+const rejectionListeners = new Set<RejectionListener>();
+
+/**
+ * Hear about edits the server refused for good. A rejected edit has already
+ * left the queue, so the listener should show the server's state for its
+ * field again. An edit to an unavailable session (403/404) stays queued.
+ */
+export function onEventRejected(listener: RejectionListener): () => void {
+    rejectionListeners.add(listener);
+    return () => {
+        rejectionListeners.delete(listener);
+    };
+}
+
 async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void> {
     const { sessionId } = event;
 
@@ -33,14 +81,15 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
                 payloadJson: stroke,
             }),
         });
-        if (!res.ok) throw new Error(`stroke.create failed: ${res.status}`);
+        if (!res.ok) throw new SyncRequestError("stroke.create", res.status);
     } else if (event.type === "stroke.delete") {
         const { clientUuid } = event.payloadJson as { clientUuid: string };
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
             method: "DELETE",
             credentials: "include",
         });
-        if (!res.ok && res.status !== 404) throw new Error(`stroke.delete failed: ${res.status}`);
+        if (!res.ok && res.status !== 404)
+            throw new SyncRequestError("stroke.delete", res.status);
     } else if (event.type === "questions.replace") {
         const { replacementId, questions } = event.payloadJson as {
             replacementId: string;
@@ -54,7 +103,8 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
             body,
             keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
         });
-        if (!res.ok) throw new Error(`questions.replace failed: ${res.status}`);
+        if (!res.ok)
+            throw new SyncRequestError("questions.replace", res.status);
     } else if (event.type === "hider.update") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -63,7 +113,7 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
             body: JSON.stringify(event.payloadJson),
             keepalive,
         });
-        if (!res.ok) throw new Error(`hider.update failed: ${res.status}`);
+        if (!res.ok) throw new SyncRequestError("hider.update", res.status);
     } else if (event.type === "planning.toggle") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -72,7 +122,7 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
             body: JSON.stringify(event.payloadJson),
             keepalive,
         });
-        if (!res.ok) throw new Error(`planning.toggle failed: ${res.status}`);
+        if (!res.ok) throw new SyncRequestError("planning.toggle", res.status);
     }
 }
 
@@ -90,6 +140,29 @@ let retryDelay = RETRY_MIN_MS;
 
 function hasUnsyncedEvents(sessionId: string): boolean {
     return getPendingEvents(sessionId).some((event) => event.status !== "synced");
+}
+
+/**
+ * Record a failed send of `event`: keep it queued for a retry, or drop it if
+ * the server rejected it. Returns whether it was dropped.
+ */
+export function recordSendFailure(event: PendingEvent, err: unknown): boolean {
+    const { sessionId, localId } = event;
+    const { kind, status } = failureOf(err);
+    // A newer snapshot may have replaced it meanwhile; that one is sent next.
+    const queued = getPendingEvents(sessionId).some(
+        (candidate) => candidate.localId === localId,
+    );
+    if (kind === "rejected") {
+        if (queued) discardEvent(sessionId, localId);
+    } else {
+        markEventFailed(sessionId, localId);
+        scheduleRetry(sessionId);
+    }
+    if (kind !== "retry" && queued && status !== undefined) {
+        for (const listener of rejectionListeners) listener(event, status);
+    }
+    return kind === "rejected";
 }
 
 function cancelRetry(): void {
@@ -167,9 +240,7 @@ async function dispatchQueuedEvent(
         }
         markEventSynced(sessionId, event.localId);
     } catch (err) {
-        markEventFailed(sessionId, event.localId);
-        syncStatus.set("offline");
-        scheduleRetry(sessionId);
+        if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;
     } finally {
         refreshSyncCounts(sessionId);
@@ -201,6 +272,8 @@ export async function flushPendingEvents(sessionId: string): Promise<void> {
         try {
             await sendPendingEvent(event);
         } catch (err) {
+            // A rejected edit has left the queue: the ones after it can sync.
+            if (failureOf(err).kind === "rejected") continue;
             console.warn("[searchlight:sync] event send failed, stopping flush:", err);
             return;
         }
