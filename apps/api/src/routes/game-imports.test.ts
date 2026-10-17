@@ -112,22 +112,11 @@ async function cleanupFixtures(): Promise<void> {
   const fixtureSessionIds = fixtureSessions.map((s) => s.id);
 
   if (fixtureSessionIds.length > 0) {
-    await prisma.inviteSnapshot.deleteMany({
-      where: { invite: { sessionId: { in: fixtureSessionIds } } },
-    });
     await prisma.linkSnapshot.deleteMany({
       where: { link: { sessionId: { in: fixtureSessionIds } } },
     });
   }
 
-  await prisma.invite.deleteMany({
-    where: {
-      OR: [
-        { invitedUserId: { in: FIXTURE_USERS } },
-        { invitedByUserId: { in: FIXTURE_USERS } },
-      ],
-    },
-  });
   await prisma.sessionLink.deleteMany({
     where: { createdById: { in: FIXTURE_USERS } },
   });
@@ -326,7 +315,7 @@ describe("Game Definition Access & Revision Security", () => {
     });
     gameNoDefId = gameNoDef.id;
 
-    // Create a shared session where USER_NONMEMBER is invited participant
+    // Create a shared session where USER_NONMEMBER is a participant
     const session = await prisma.gameSession.create({
       data: {
         gameId: gameA.id,
@@ -863,7 +852,7 @@ describe("Game Definition Access & Revision Security", () => {
 
   // ── 8. Fork Snapshots Retain Revision (Review Item 8) ────────────────────
 
-  describe("Item 8: Fork links and invite snapshots capture revision", () => {
+  describe("Item 8: Fork link snapshots capture revision", () => {
     test("fork link captures revision and redeems with that captured revision", async () => {
       // 1. Creator creates fork link on session (currently at rev1)
       const linkRes = await app.inject({
@@ -906,58 +895,6 @@ describe("Game Definition Access & Revision Security", () => {
         where: { id: newSessionId },
       });
       expect(newSession?.gameRevisionId).toBe(gameARev1Id);
-    });
-
-    test("fork invite captures revision and redeems with that captured revision", async () => {
-      // Reset session to rev1
-      await prisma.gameSession.update({
-        where: { id: sharedSessionId },
-        data: { gameRevisionId: gameARev1Id },
-      });
-
-      // 1. Creator sends fork invite to member
-      const inviteRes = await app.inject({
-        method: "POST",
-        url: `/sessions/${sharedSessionId}/invites`,
-        headers: {
-          cookie: signedCookie(app, AUTH_CREATOR),
-        },
-        payload: {
-          invitedUserId: USER_MEMBER,
-          inviteType: "fork",
-        },
-      });
-      expect(inviteRes.statusCode).toBe(201);
-      const { id: inviteId } = JSON.parse(inviteRes.body);
-
-      // Verify invite snapshot has gameRevisionId saved
-      const savedSnapshot = await prisma.inviteSnapshot.findUnique({
-        where: { inviteId },
-      });
-      expect(savedSnapshot?.gameRevisionId).toBe(gameARev1Id);
-
-      // 2. Upgrade original session to rev2
-      await prisma.gameSession.update({
-        where: { id: sharedSessionId },
-        data: { gameRevisionId: gameARev2Id },
-      });
-
-      // 3. Member accepts the fork invite
-      const acceptRes = await app.inject({
-        method: "POST",
-        url: `/sessions/invites/${inviteId}/accept`,
-        headers: {
-          cookie: signedCookie(app, AUTH_MEMBER),
-        },
-      });
-      expect(acceptRes.statusCode).toBe(200);
-      const { sessionId: forkedSessionId } = JSON.parse(acceptRes.body);
-
-      // 4. Verify forked session has captured rev1, NOT upgraded rev2!
-      const forkedSession = await prisma.gameSession.findUnique({
-        where: { id: forkedSessionId },
-      });
-      expect(forkedSession?.gameRevisionId).toBe(gameARev1Id);
     });
   });
 

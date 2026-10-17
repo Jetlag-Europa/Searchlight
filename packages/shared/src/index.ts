@@ -181,7 +181,7 @@ export interface SessionsResponse {
 export interface CreateSessionBody {
   gameId: string;
   name: string;
-  /** Defaults to private; inviting someone makes the session shared. */
+  /** Defaults to private; creating a join link makes the session shared. */
   visibility?: SessionVisibility;
 }
 
@@ -190,44 +190,6 @@ export interface UpdateSessionBody {
   visibility?: SessionVisibility;
   hiderLat?: number | null;
   hiderLng?: number | null;
-}
-
-// ── Invites ───────────────────────────────────────────────────────────────────
-
-export interface InviteSummary {
-  id: string;
-  sessionId: string;
-  sessionName: string;
-  gameName: string;
-  invitedByDisplayName: string;
-  inviteType: "join" | "fork";
-  createdAt: string;
-}
-
-export interface PendingInvitesResponse {
-  invites: InviteSummary[];
-}
-
-export interface SendInviteBody {
-  invitedUserId: string;
-  inviteType?: "join" | "fork";
-}
-
-export interface ForkAcceptResponse {
-  sessionId: string;
-}
-
-export interface SessionInviteDetail {
-  id: string;
-  invitedUserId: string;
-  invitedUserDisplayName: string;
-  invitedByUserId: string;
-  inviteType: "join" | "fork";
-  createdAt: string;
-}
-
-export interface SessionInvitesResponse {
-  invites: SessionInviteDetail[];
 }
 
 // ── Session links ─────────────────────────────────────────────────────────────
@@ -258,19 +220,6 @@ export interface LinkInfoResponse {
 export interface RedeemLinkResponse {
   sessionId: string;
   linkType: "join" | "fork";
-}
-
-// ── User search ───────────────────────────────────────────────────────────────
-
-export interface UserSearchResult {
-  discordId: string;
-  displayName: string;
-  username: string;
-  avatarUrl: string;
-}
-
-export interface UserSearchResponse {
-  users: UserSearchResult[];
 }
 
 // ── Session content ───────────────────────────────────────────────────────────
