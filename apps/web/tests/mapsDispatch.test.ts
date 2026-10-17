@@ -27,6 +27,7 @@ import {
     hiderifyQuestion,
     determinePlanningPolygon,
     adjustMapGeoDataForQuestion,
+    measuringDistance,
 } from "@/maps";
 import {
     matchingQuestionSchema,
@@ -67,18 +68,25 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
         ) => {
             const origin = turf.point([lng, lat]);
             let nearest = Infinity;
+            const toLine = (line: Feature<LineString>) =>
+                turf.pointToLineDistance(origin, line, { units: unit });
             turf.flattenEach(features, (feature) => {
+                const { geometry } = feature;
                 nearest = Math.min(
                     nearest,
-                    feature.geometry.type === "Point"
-                        ? turf.distance(origin, feature as Feature<Point>, {
-                              units: unit,
-                          })
-                        : turf.pointToLineDistance(
-                              origin,
-                              feature as Feature<LineString>,
-                              { units: unit },
-                          ),
+                    geometry.type === "Point"
+                        ? turf.distance(origin, geometry, { units: unit })
+                        : geometry.type === "Polygon"
+                          ? turf.booleanPointInPolygon(origin, geometry)
+                              ? 0
+                              : Math.min(
+                                    ...turf
+                                        .flatten(turf.polygonToLine(geometry))
+                                        .features.map((line) =>
+                                            toLine(line as Feature<LineString>),
+                                        ),
+                                )
+                          : toLine(feature as Feature<LineString>),
                 );
             });
             return nearest;
@@ -662,6 +670,121 @@ describe("maps dispatch and hider regression suite", () => {
         expect(JSON.stringify(dataset("measuring-multiline-shore"))).toBe(
             dsShoreBefore,
         );
+    });
+
+    it("measures the seeker's and hider's distances the answer compares", async () => {
+        const km = (from: [number, number], to: [number, number]) =>
+            turf.distance(turf.point(from), turf.point(to)) * 1000;
+        const shrines = measuringQuestionSchema.parse({
+            type: "measuring-shrines",
+            lat: 35.65,
+            lng: 139.69,
+        });
+        const seeker = await measuringDistance(shrines);
+        expect(seeker?.name).toBe("Meiji Shrine");
+        expect(seeker?.boundary).toBeUndefined();
+        expect(seeker?.meters).toBeCloseTo(
+            km([139.69, 35.65], [139.7, 35.65]),
+            3,
+        );
+        // Measured from another point, such as the hider's.
+        const hider = await measuringDistance(shrines, 35.66, 139.73);
+        expect(hider?.name).toBe("Nezu Shrine");
+        expect(hider?.meters).toBeCloseTo(
+            km([139.73, 35.66], [139.72, 35.66]),
+            3,
+        );
+
+        const shore = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "measuring-multiline-shore",
+                lat: 35.6,
+                lng: 139.65,
+            }),
+        );
+        expect(shore?.name).toBe("Shore");
+        expect(shore?.meters).toBeCloseTo(
+            km([139.65, 35.6], [139.65, 35.55]),
+            -2,
+        );
+
+        // A region boundary is the seeker's own region's.
+        const district = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "measuring-districts",
+                lat: 35.62,
+                lng: 139.64,
+            }),
+        );
+        expect(district?.name).toBe("District Exclave");
+        expect(district?.boundary).toBe(true);
+        // Outside every region: the nearest region's boundary.
+        const outside = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "measuring-districts",
+                lat: 35.62,
+                lng: 139.8,
+            }),
+        );
+        expect(outside?.name).toBe("District Exclave");
+        expect(outside?.boundary).toBe(true);
+        expect(outside?.meters).toBeCloseTo(
+            km([139.8, 35.62], [139.7, 35.62]),
+            -2,
+        );
+        expect(district?.meters).toBeCloseTo(
+            km([139.64, 35.62], [139.65, 35.62]),
+            -1,
+        );
+    });
+
+    it("measures custom measures to what is drawn, and nothing before", async () => {
+        const drawn = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "custom-measure",
+                geo: turf.featureCollection([turf.point([139.62, 35.66])]),
+                lat: 35.65,
+                lng: 139.62,
+            }),
+        );
+        expect(drawn?.name).toBeUndefined();
+        expect(drawn?.meters).toBeCloseTo(
+            turf.distance([139.62, 35.65], [139.62, 35.66]) * 1000,
+            3,
+        );
+        // Inside a drawn area the distance is 0, and not named for a
+        // farther point.
+        const area = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "custom-measure",
+                geo: turf.featureCollection<Polygon | Point>([
+                    turf.bboxPolygon([139.6, 35.6, 139.7, 35.7]),
+                    turf.point([139.9, 35.9], { name: "Far point" }),
+                ]),
+                lat: 35.65,
+                lng: 139.62,
+            }),
+        );
+        expect(area?.meters).toBe(0);
+        expect(area?.name).not.toBe("Far point");
+        const blank = measuringQuestionSchema.parse({
+            type: "custom-measure",
+            lat: 35.65,
+            lng: 139.62,
+        });
+        expect(await measuringDistance(blank)).toBeUndefined();
+
+        // Nothing is measured while the game loads.
+        setActiveGameDefinition(null);
+        expect(
+            await measuringDistance(
+                measuringQuestionSchema.parse({
+                    type: "measuring-shrines",
+                    lat: 35.65,
+                    lng: 139.69,
+                }),
+            ),
+        ).toBeUndefined();
     });
 
     it("loads every shipped Rotterdam hiding zone with decoded display names", () => {

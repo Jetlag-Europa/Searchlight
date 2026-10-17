@@ -1,6 +1,12 @@
 import type { Evaluator } from "@searchlight/shared";
 import * as turf from "@turf/turf";
-import type { BBox, FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import type {
+    BBox,
+    FeatureCollection,
+    Geometry,
+    MultiPolygon,
+    Polygon,
+} from "geojson";
 
 import {
     arcBuffer,
@@ -138,6 +144,66 @@ function boundaryLinesAt(source: GeometrySource, lat: number, lng: number) {
             ),
         true,
     );
+}
+
+export interface MeasuredDistance {
+    meters: number;
+    /** The nearest target's name, when it has one. */
+    name?: string;
+    /** Measured to a region's boundary, so `name` is the region's. */
+    boundary?: boolean;
+}
+
+/**
+ * How far a point is from the nearest of a measuring question's targets, in
+ * the geodetic metric the map's buffers are built from, so it matches the
+ * line drawn on the map. The name is picked with Turf's spherical distance,
+ * which can only disagree on a near tie.
+ */
+export async function measureToTargets(
+    targets: FeatureCollection,
+    lat: number,
+    lng: number,
+): Promise<MeasuredDistance | undefined> {
+    if (!targets.features.length) return undefined;
+    const meters = await arcDistanceToPoint(targets, lat, lng, "meters");
+    if (!Number.isFinite(meters)) return undefined;
+    const point = turf.point([lng, lat]);
+    let name: unknown;
+    let nearest = Infinity;
+    turf.flattenEach(
+        targets as FeatureCollection<Geometry>,
+        ({ geometry, properties }) => {
+            let distance: number;
+            if (geometry.type === "Point") {
+                distance = turf.distance(point, geometry);
+            } else if (geometry.type === "LineString") {
+                distance = turf.pointToLineDistance(point, geometry);
+            } else if (geometry.type === "Polygon") {
+                // A drawn custom measure can hold areas, measured from their
+                // edge and 0 inside, as the map's buffers measure them.
+                distance = turf.booleanPointInPolygon(point, geometry)
+                    ? 0
+                    : Math.min(
+                          ...turf
+                              .flatten(turf.polygonToLine(geometry))
+                              .features.map((line) =>
+                                  turf.pointToLineDistance(point, line),
+                              ),
+                      );
+            } else {
+                return;
+            }
+            if (distance < nearest) {
+                nearest = distance;
+                name = properties?.name;
+            }
+        },
+    );
+    return {
+        meters,
+        name: typeof name === "string" && name.trim() ? name : undefined,
+    };
 }
 
 const MAX_CACHED_DISTANCES = 2;

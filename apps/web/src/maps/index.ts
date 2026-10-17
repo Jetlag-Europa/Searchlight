@@ -13,6 +13,7 @@ import {
 } from "./questions/matching";
 import {
     adjustPerMeasuring,
+    determineMeasuringBoundary,
     hiderifyMeasuring,
     measuringPlanningPolygon,
 } from "./questions/measuring";
@@ -28,6 +29,8 @@ import {
     determineMeasuringGeometry,
     determineMeasuringTargets,
     isEmptyBuffer,
+    type MeasuredDistance,
+    measureToTargets,
 } from "./questions/operators/measuring";
 import {
     determineTentacleGeometry,
@@ -47,7 +50,12 @@ import {
     hiderifyThermometer,
     thermometerPlanningPolygon,
 } from "./questions/thermometer";
-import type { Question, Questions, TentacleQuestion } from "./schema";
+import type {
+    MeasuringQuestion,
+    Question,
+    Questions,
+    TentacleQuestion,
+} from "./schema";
 
 interface CompiledFeatureQuestionData {
     lat: number;
@@ -77,6 +85,24 @@ export function resolveCompiledQuestion(question: any, compiled: any): any {
     const definition = compiled.questionMap.get(id ?? question.id);
     return definition?.family === family ? definition : undefined;
 }
+
+/**
+ * What a game's measuring question measures to from a point. For a region
+ * boundary that is the point's own region's, so the seeker and the hider
+ * each measure to their own.
+ */
+const measuringTargetsAt = (
+    questionDef: QuestionDefinition,
+    datasets: Record<string, unknown>,
+    data: object,
+    lat: number,
+    lng: number,
+) =>
+    determineMeasuringTargets({
+        evaluator: questionDef.evaluator,
+        datasets,
+        data: { ...data, lat, lng },
+    });
 
 async function hiderifyCompiledQuestion(
     question: { data: CompiledFeatureQuestionData },
@@ -111,38 +137,23 @@ async function hiderifyCompiledQuestion(
             }
         }
     } else if (questionDef.family === "measuring") {
-        const targets = await determineMeasuringTargets({
-            evaluator,
-            datasets,
-            data,
-        });
-        // Containing-region questions compare each person's own region boundary.
-        const hiderTargets =
-            evaluator.operator === "distance-to-containing-region-boundary"
-                ? await determineMeasuringTargets({
-                      evaluator,
-                      datasets,
-                      data: { lat: hiderPos.latitude, lng: hiderPos.longitude },
-                  })
-                : targets;
         // Answer with the geodetic distance the map's buffers are built from.
         // Turf's spherical distance differs by up to about 0.5%, enough to put
         // a hider near the buffer edge on the wrong side of it.
-        const distance = async (
-            point: Feature<Point>,
-            features: typeof targets,
-        ) => {
-            if (!features?.features.length) return Infinity;
-            return arcDistanceToPoint(
-                features,
-                point.geometry.coordinates[1],
-                point.geometry.coordinates[0],
-                "miles",
+        const distance = async (lat: number, lng: number) => {
+            const targets = await measuringTargetsAt(
+                questionDef,
+                datasets,
+                data,
+                lat,
+                lng,
             );
+            if (!targets?.features.length) return Infinity;
+            return arcDistanceToPoint(targets, lat, lng, "miles");
         };
         data.hiderCloser =
-            (await distance(hiderPt, hiderTargets)) <
-            (await distance(seekerPt, targets));
+            (await distance(hiderPos.latitude, hiderPos.longitude)) <
+            (await distance(data.lat, data.lng));
     } else if (questionDef.family === "tentacle") {
         // Answer from the circle and sites the map is clipped with.
         const { circle, points } = await determineTentacleGeometry({
@@ -304,6 +315,46 @@ export const determinePlanningPolygon = async (
         }
     }
 };
+
+/**
+ * How far a point (the seeker's, unless given another) is from what a
+ * measuring question measures to: the distance its answer compares. For a
+ * region boundary that is the boundary of the point's own region, so the
+ * hider's distance is to theirs. Undefined while the game loads or while
+ * there is nothing to measure to.
+ */
+export async function measuringDistance(
+    data: MeasuringQuestion,
+    lat = data.lat,
+    lng = data.lng,
+): Promise<MeasuredDistance | undefined> {
+    const question = { id: "measuring", data };
+    if (questionStatus(question) !== "ready") return undefined;
+    const compiled = compiledGameAtom.get()!;
+    const questionDef = resolveCompiledQuestion(question, compiled);
+    let targets: FeatureCollection | undefined;
+    if (questionDef) {
+        targets = await measuringTargetsAt(
+            questionDef,
+            compiled.datasets,
+            data,
+            lat,
+            lng,
+        );
+    } else {
+        const drawn = determineMeasuringBoundary(data);
+        if (drawn) targets = turf.featureCollection(drawn);
+    }
+    const measured = targets && (await measureToTargets(targets, lat, lng));
+    if (
+        measured &&
+        questionDef?.evaluator.operator ===
+            "distance-to-containing-region-boundary"
+    ) {
+        measured.boundary = true;
+    }
+    return measured;
+}
 
 export async function adjustMapGeoDataForQuestion(
     question: any,

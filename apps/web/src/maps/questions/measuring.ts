@@ -1,10 +1,6 @@
 import * as turf from "@turf/turf";
 
-import {
-    hiderMode,
-    mapGeoJSON,
-    polyGeoJSON,
-} from "@/lib/context";
+import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 import {
     arcBufferToPoint,
     holedMask,
@@ -15,7 +11,7 @@ import {
 import type { MeasuringQuestion } from "@/maps/schema";
 
 /** The features a player-drawn measuring question measures to. */
-const determineMeasuringBoundary = (question: MeasuringQuestion) => {
+export const determineMeasuringBoundary = (question: MeasuringQuestion) => {
     if (question.type !== "custom-measure") return false;
     // Nothing drawn yet: nothing to measure to.
     const features = (question as any).geo?.features;
