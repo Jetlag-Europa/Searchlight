@@ -28,6 +28,8 @@ import {
     determineMeasuringGeometry,
     determineMeasuringTargets,
     isEmptyBuffer,
+    type MeasuredDistance,
+    measureToTargets,
 } from "./questions/operators/measuring";
 import {
     determineTentacleGeometry,
@@ -47,7 +49,12 @@ import {
     hiderifyThermometer,
     thermometerPlanningPolygon,
 } from "./questions/thermometer";
-import type { Question, Questions, TentacleQuestion } from "./schema";
+import type {
+    MeasuringQuestion,
+    Question,
+    Questions,
+    TentacleQuestion,
+} from "./schema";
 
 interface CompiledFeatureQuestionData {
     lat: number;
@@ -304,6 +311,42 @@ export const determinePlanningPolygon = async (
         }
     }
 };
+
+/**
+ * How far a point (the seeker's, unless given another) is from what a
+ * measuring question measures to: the distance its answer compares. For a
+ * region boundary that is the boundary of the point's own region, so the
+ * hider's distance is to theirs. Undefined while the game loads or while
+ * there is nothing to measure to.
+ */
+export async function measuringDistance(
+    data: MeasuringQuestion,
+    lat = data.lat,
+    lng = data.lng,
+): Promise<MeasuredDistance | undefined> {
+    const question = { id: "measuring", data };
+    if (questionStatus(question) !== "ready") return undefined;
+    const compiled = compiledGameAtom.get()!;
+    const questionDef = resolveCompiledQuestion(question, compiled);
+    const targets = questionDef
+        ? await determineMeasuringTargets({
+              evaluator: questionDef.evaluator,
+              datasets: compiled.datasets,
+              data: { ...data, lat, lng },
+          })
+        : data.type === "custom-measure"
+          ? turf.featureCollection((data as any).geo?.features ?? [])
+          : undefined;
+    const measured = targets && (await measureToTargets(targets, lat, lng));
+    if (
+        measured &&
+        questionDef?.evaluator.operator ===
+            "distance-to-containing-region-boundary"
+    ) {
+        measured.boundary = true;
+    }
+    return measured;
+}
 
 export async function adjustMapGeoDataForQuestion(
     question: any,
