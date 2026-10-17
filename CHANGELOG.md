@@ -5,6 +5,13 @@
 - `DEPLOY.md` clones the repo over HTTPS. A read-only deploy key is still the way to clone over SSH. A server only needs `docker login ghcr.io` if the GHCR packages are private; public packages and `--build` need no login.
 - A new `SECURITY.md` asks for vulnerabilities to be reported privately on the repo's Security tab, not in public issues.
 
+## Game stats for server admins (2026-10-17)
+
+- On the games page, each game shows how much it is played, to anyone with `server.admin` on its server (global admins have that on every server): sessions live now and the players connected to them, sessions active in the last 24 hours and 7 days, sessions and players in total, questions asked across all sessions, and when it was last played. A session counts as active when it was created or had an event in that window.
+- The numbers come from the new `GET /games/stats?serverId=`. It answers counts per game only, with no session ids, names, players, contents or links, so it can't lead anyone into a session. Game managers without `server.admin` get a 403.
+- "Live now" counts the sessions with an open live-sync connection to this API process. It starts at 0 after the API restarts.
+- The games page now also lists the servers where someone holds only `server.admin`. Its buttons show only what the API already allowed them, such as listing and links.
+
 ## The server picker lists only your servers (2026-10-17)
 
 - The session picker lists the Discord servers you're in, plus Home Games. Servers you aren't in no longer show up, so picking one no longer leaves an empty game list (the API refused their catalog with a 403).

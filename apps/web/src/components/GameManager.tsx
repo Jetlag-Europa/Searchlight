@@ -1,4 +1,4 @@
-import type { Game,GamesResponse, ServersResponse, ServerWithPermissions } from "@searchlight/shared";
+import type { Game, GamesResponse, GameStats, GameStatsResponse, ServersResponse, ServerWithPermissions } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,60 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const gamesUrl = (serverId: string) =>
     `${API_BASE}/games?serverId=${encodeURIComponent(serverId)}&includeUnlisted=true`;
 
+// Server admins (and global admins, on every server) see each game's usage.
+const GAME_PAGE_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+
+const relativeTime = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+
+function timeAgo(iso: string): string {
+    const minutes = Math.round((Date.parse(iso) - Date.now()) / 60_000);
+    if (minutes > -60) return relativeTime.format(minutes, "minute");
+    const hours = Math.round(minutes / 60);
+    if (hours > -24) return relativeTime.format(hours, "hour");
+    return relativeTime.format(Math.round(hours / 24), "day");
+}
+
+function Stat({ label, value, title }: { label: string; value: string | number; title: string }) {
+    return (
+        <span title={title}>
+            <span className="text-foreground font-medium tabular-nums">{value}</span> {label}
+        </span>
+    );
+}
+
+function GameStatsLine({ stats }: { stats: GameStats }) {
+    return (
+        <p className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+            <span title="Sessions with a player connected right now, and the players connected to them">
+                {stats.liveSessions > 0 && (
+                    <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 mr-1 align-middle" />
+                )}
+                <span className="text-foreground font-medium tabular-nums">{stats.liveSessions}</span> live
+                {stats.livePlayers > 0 && ` (${stats.livePlayers} ${stats.livePlayers === 1 ? "player" : "players"})`}
+            </span>
+            <Stat label="active 24h" value={stats.activeSessions24h} title="Sessions created or changed in the last 24 hours" />
+            <Stat label="active 7d" value={stats.activeSessions7d} title="Sessions created or changed in the last 7 days" />
+            <Stat label={stats.totalSessions === 1 ? "session" : "sessions"} value={stats.totalSessions} title="Sessions ever started" />
+            <Stat label={stats.players === 1 ? "player" : "players"} value={stats.players} title="Players who ever joined a session" />
+            <Stat label={stats.questions === 1 ? "question" : "questions"} value={stats.questions} title="Questions across all sessions" />
+            {stats.lastActivityAt && (
+                <span title={new Date(stats.lastActivityAt).toLocaleString()}>
+                    last played {timeAgo(stats.lastActivityAt)}
+                </span>
+            )}
+        </p>
+    );
+}
+
 function GameCard({
     game,
+    stats,
     permissions,
     onDeleted,
     onUpdated,
 }: {
     game: Game;
+    stats: GameStats | undefined;
     permissions: string[];
     onDeleted: (id: string) => void;
     onUpdated: (game: Game) => void;
@@ -86,6 +133,7 @@ function GameCard({
                 <p className="text-xs text-muted-foreground mt-0.5 font-mono">
                     ID: {game.gameKey}
                 </p>
+                {stats && <GameStatsLine stats={stats} />}
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
             <div className="flex flex-wrap justify-end gap-2 shrink-0">
@@ -144,10 +192,12 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     const canCreate = server.permissions.includes("games.create");
     const canEdit = server.permissions.includes("games.edit");
     const canDelete = server.permissions.includes("games.delete");
-    const hasAnyGamePerm = canCreate || canEdit || canDelete;
+    const isServerAdmin = server.permissions.includes("server.admin");
+    const hasAnyGamePerm = canCreate || canEdit || canDelete || isServerAdmin;
     const canImport = canCreate || canEdit;
 
     const [games, setGames] = useState<Game[] | null>(null);
+    const [stats, setStats] = useState<Map<string, GameStats>>(new Map());
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -160,6 +210,16 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
             .catch(() => setGames([]))
             .finally(() => setLoading(false));
     }, [server.id]);
+
+    useEffect(() => {
+        if (!isServerAdmin) return;
+        fetch(`${API_BASE}/games/stats?serverId=${encodeURIComponent(server.id)}`, { credentials: "include" })
+            .then((res) => (res.ok ? res.json() : null))
+            .then((data: GameStatsResponse | null) => {
+                if (data) setStats(new Map(data.stats.map((s) => [s.gameId, s])));
+            })
+            .catch(() => {});
+    }, [server.id, isServerAdmin]);
 
 
     if (!hasAnyGamePerm) return null;
@@ -179,6 +239,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                         <GameCard
                             key={g.id}
                             game={g}
+                            stats={stats.get(g.id)}
                             permissions={server.permissions}
                             onDeleted={(id) => setGames((prev) => (prev ?? []).filter((x) => x.id !== id))}
                             onUpdated={(game) => setGames((prev) => (prev ?? []).map((x) => (x.id === game.id ? game : x)))}
@@ -224,7 +285,7 @@ export function GameManager() {
     if (!servers) return <p className="text-muted-foreground">Loading…</p>;
 
     const adminServers = servers.filter((s) =>
-        s.permissions.some((p) => ["games.create", "games.edit", "games.delete"].includes(p)),
+        s.permissions.some((p) => GAME_PAGE_PERMISSIONS.includes(p)),
     );
     const importableServers = servers.filter((s) =>
         s.permissions.some((p) => ["games.create", "games.edit"].includes(p)),

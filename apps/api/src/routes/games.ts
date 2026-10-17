@@ -6,6 +6,7 @@ import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { assertCanManageGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
+import { connectedUserIds } from "../lib/broadcaster.js";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -110,6 +111,131 @@ export async function gameRoutes(app: FastifyInstance) {
         visible.push(serializeGame(game));
       }
       return { games: visible };
+    },
+  );
+
+  // GET /games/stats?serverId= — usage of each of the server's games, for its
+  // server admins (global admins hold server.admin everywhere). Only counts
+  // per game: no session ids, names, players or contents, so the stats can't
+  // lead anyone into a session.
+  app.get(
+    "/stats",
+    {
+      schema: {
+        querystring: Type.Object({ serverId: Type.String({ minLength: 1 }) }),
+        response: {
+          200: Type.Object({
+            stats: Type.Array(
+              Type.Object({
+                gameId: Type.String(),
+                liveSessions: Type.Integer(),
+                livePlayers: Type.Integer(),
+                activeSessions24h: Type.Integer(),
+                activeSessions7d: Type.Integer(),
+                totalSessions: Type.Integer(),
+                players: Type.Integer(),
+                questions: Type.Integer(),
+                lastActivityAt: Type.Union([Type.String(), Type.Null()]),
+              }),
+            ),
+          }),
+        },
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { serverId } = req.query as { serverId: string };
+
+      const server = await prisma.server.findUnique({ where: { id: serverId } });
+      if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
+      const perms = await getUserPermissions(user.discordId, serverId, true, req.log);
+      if (!perms.has("server.admin")) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+
+      const games = await prisma.game.findMany({ where: { serverId }, select: { id: true } });
+      const gameIds = games.map((game) => game.id);
+      if (gameIds.length === 0) return { stats: [] };
+
+      // A session's last activity is its newest event, or its creation.
+      const sessionRows = await prisma.$queryRaw<
+        {
+          gameId: string;
+          totalSessions: number;
+          activeSessions24h: number;
+          activeSessions7d: number;
+          questions: number;
+          lastActivityAt: Date | null;
+        }[]
+      >`
+        WITH s AS (
+          SELECT gs."gameId",
+            GREATEST(
+              gs."createdAt",
+              (SELECT MAX(e."serverReceivedAt") FROM "Event" e WHERE e."sessionId" = gs.id)
+            ) AS "lastActivity",
+            (SELECT COUNT(*) FROM "SessionQuestion" q WHERE q."sessionId" = gs.id) AS questions
+          FROM "GameSession" gs
+          WHERE gs."gameId" IN (${Prisma.join(gameIds)})
+        )
+        SELECT "gameId",
+          COUNT(*)::int AS "totalSessions",
+          COUNT(*) FILTER (WHERE "lastActivity" > now() - interval '1 day')::int AS "activeSessions24h",
+          COUNT(*) FILTER (WHERE "lastActivity" > now() - interval '7 days')::int AS "activeSessions7d",
+          SUM(questions)::int AS questions,
+          MAX("lastActivity") AS "lastActivityAt"
+        FROM s
+        GROUP BY "gameId"
+      `;
+      const playerRows = await prisma.$queryRaw<{ gameId: string; players: number }[]>`
+        SELECT gs."gameId", COUNT(DISTINCT p."userId")::int AS players
+        FROM "SessionParticipant" p
+        JOIN "GameSession" gs ON gs.id = p."sessionId"
+        WHERE gs."gameId" IN (${Prisma.join(gameIds)}) AND p."acceptedAt" IS NOT NULL
+        GROUP BY gs."gameId"
+      `;
+
+      const connected = connectedUserIds();
+      const liveSessions =
+        connected.size === 0
+          ? []
+          : await prisma.gameSession.findMany({
+              where: { id: { in: [...connected.keys()] }, gameId: { in: gameIds } },
+              select: { id: true, gameId: true },
+            });
+
+      const stats = new Map(
+        gameIds.map((gameId) => [
+          gameId,
+          {
+            gameId,
+            liveSessions: 0,
+            livePlayers: new Set<string>(),
+            activeSessions24h: 0,
+            activeSessions7d: 0,
+            totalSessions: 0,
+            players: 0,
+            questions: 0,
+            lastActivityAt: null as string | null,
+          },
+        ]),
+      );
+      for (const row of sessionRows) {
+        const entry = stats.get(row.gameId)!;
+        entry.totalSessions = row.totalSessions;
+        entry.activeSessions24h = row.activeSessions24h;
+        entry.activeSessions7d = row.activeSessions7d;
+        entry.questions = row.questions;
+        entry.lastActivityAt = row.lastActivityAt?.toISOString() ?? null;
+      }
+      for (const row of playerRows) stats.get(row.gameId)!.players = row.players;
+      for (const session of liveSessions) {
+        const entry = stats.get(session.gameId)!;
+        entry.liveSessions++;
+        for (const userId of connected.get(session.id)!) entry.livePlayers.add(userId);
+      }
+
+      return {
+        stats: [...stats.values()].map((entry) => ({ ...entry, livePlayers: entry.livePlayers.size })),
+      };
     },
   );
 

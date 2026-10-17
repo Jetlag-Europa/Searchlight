@@ -113,6 +113,32 @@ export interface GamesResponse {
   games: Game[];
 }
 
+/**
+ * Usage of one game, summed over its sessions. Server admins see it on the
+ * games page; nothing in it identifies a session or a player.
+ */
+export interface GameStats {
+  gameId: string;
+  /** Sessions with at least one player connected right now. */
+  liveSessions: number;
+  /** Distinct players connected to those sessions right now. */
+  livePlayers: number;
+  /** Sessions created or changed in the last 24 hours / 7 days. */
+  activeSessions24h: number;
+  activeSessions7d: number;
+  totalSessions: number;
+  /** Distinct players who ever joined a session of the game. */
+  players: number;
+  /** Questions across all sessions. */
+  questions: number;
+  /** When a session of the game was last created or changed. */
+  lastActivityAt: string | null;
+}
+
+export interface GameStatsResponse {
+  stats: GameStats[];
+}
+
 export interface CreateGameBody {
   serverId: string;
   name: string;
