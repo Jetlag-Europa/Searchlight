@@ -46,13 +46,14 @@ export async function hasPermissionOnSomeServer(
   }
 
   // Others only get permissions through role mappings, on servers they are in.
-  // Only servers the user is cached as a member of are checked (GET /servers
-  // caches every server), and their roles are refreshed as for any
-  // permission-gated request.
+  // Only servers with a cached membership are checked (GET /servers caches
+  // every server): the user's, and those where a "not a member" has expired
+  // as in assertServerMembership, so someone who just joined isn't refused
+  // for an hour. Roles are refreshed as for any permission-gated request.
   const memberships = await prisma.serverMembershipCache.findMany({
     where: {
       userId,
-      isMember: true,
+      OR: [{ isMember: true }, { cachedAt: { lt: new Date(Date.now() - PRIVILEGED_TTL_MS) } }],
       server: { rolePermissions: { some: { permission: { in: permissions } } } },
     },
     select: { serverId: true },
