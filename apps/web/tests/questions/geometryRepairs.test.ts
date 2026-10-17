@@ -466,62 +466,54 @@ describe("Geometry Repairs & Regressions", () => {
             ).toBe(true);
         });
 
-        it("outside-seeker rule: when seeker is outside all regions, closer keeps inside and farther keeps outside", async () => {
-            // Seeker is outside both regions at [15, 5]
-            const seekerOutsidePt: [number, number] = [15, 5];
-            const hiderInsidePt: [number, number] = [20.5, 5]; // inside Region B
-            const hiderOutsidePt: [number, number] = [14, 5]; // outside all regions
-
-            // hiderCloser = true: finite < Infinity -> inside regions survive, outside points eliminated
-            const closerResult = (await evaluateMeasuringOperator({
-                evaluator,
-                datasets,
-                data: {
-                    lat: seekerOutsidePt[1],
-                    lng: seekerOutsidePt[0],
-                    hiderCloser: true,
-                },
-                mapGeoData,
-            })) as Feature<Polygon | MultiPolygon>;
-            expect(closerResult).toBeDefined();
-            expect(
-                turf.booleanPointInPolygon(
-                    turf.point(hiderInsidePt),
-                    closerResult,
-                ),
-            ).toBe(true);
-            expect(
-                turf.booleanPointInPolygon(
-                    turf.point(hiderOutsidePt),
-                    closerResult,
-                ),
-            ).toBe(false);
-
-            // hiderCloser = false: finite >= Infinity is false -> inside regions eliminated, outside points survive
-            const fartherResult = (await evaluateMeasuringOperator({
-                evaluator,
-                datasets,
-                data: {
-                    lat: seekerOutsidePt[1],
-                    lng: seekerOutsidePt[0],
-                    hiderCloser: false,
-                },
-                mapGeoData,
-            })) as Feature<Polygon | MultiPolygon>;
-            expect(fartherResult).toBeDefined();
-            expect(
-                turf.booleanPointInPolygon(
-                    turf.point(hiderInsidePt),
-                    fartherResult,
-                ),
-            ).toBe(false);
-            expect(
-                turf.booleanPointInPolygon(
-                    turf.point(hiderOutsidePt),
-                    fartherResult,
-                ),
-            ).toBe(true);
-        });
+        it.each([
+            {
+                // Seeker in Region A, 1° from its boundary.
+                seeker: seekerPt,
+                closer: [
+                    [-0.5, 5], // just outside Region A
+                    [20.5, 5],
+                ],
+                farther: [
+                    [-4, 5],
+                    [15, 5], // 5° from both regions
+                ],
+            },
+            {
+                // Seeker in neither region, 2° from Region A.
+                seeker: [12, 5],
+                closer: [
+                    [11, 5],
+                    [20.5, 5],
+                ],
+                farther: [
+                    [15, 5],
+                    [25, 5], // Region B's centre, 5° from its boundary
+                ],
+            },
+        ])(
+            "measures a point outside every region to the nearest region's boundary (seeker at $seeker)",
+            async ({ seeker, closer, farther }) => {
+                for (const hiderCloser of [true, false]) {
+                    const result = (await evaluateMeasuringOperator({
+                        evaluator,
+                        datasets,
+                        data: { lat: seeker[1], lng: seeker[0], hiderCloser },
+                        mapGeoData,
+                    })) as Feature<Polygon | MultiPolygon>;
+                    for (const point of closer) {
+                        expect(turf.booleanPointInPolygon(point, result)).toBe(
+                            hiderCloser,
+                        );
+                    }
+                    for (const point of farther) {
+                        expect(turf.booleanPointInPolygon(point, result)).toBe(
+                            !hiderCloser,
+                        );
+                    }
+                }
+            },
+        );
 
         it("handles disjoint current area: closer eliminates all, farther keeps all", async () => {
             const disjointMap = turf.featureCollection([

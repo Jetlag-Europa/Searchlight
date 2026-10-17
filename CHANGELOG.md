@@ -2,8 +2,13 @@
 
 ## Measuring questions show your distance (2026-10-17)
 
-- A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.243 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, to the meter in the Default Unit (meters under 1 km, then km to three places; feet under 0.1 mi, then miles to four places), and updates when the seeker moves.
+- A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.243 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, in the Default Unit to three places (meters under 1 km, then 1.123 km; feet under 0.1 mi, then 1.123 mi), and updates when the seeker moves.
 - In hider mode the card also shows the hider's distance, so the automatic Closer/Further answer can be checked.
+
+## Region-boundary questions cover the whole play area (2026-10-17)
+
+- A game's regions can fall short of its play area, as Belgium's provinces do along the French border, between neighbouring provinces and at sea. Distance-to-region-boundary questions treated a point in no region as infinitely far from any boundary, so those strips always survived "Hider Further" (drawn as dashed fragments along the border) and were always eliminated by "Hider Closer". A point in no region is now measured to the nearest region's boundary, for the seeker, the hider's automatic answer and the map alike.
+- The eliminated area is built as every region's boundary buffer minus the parts of each region farther than the seeker from its own boundary, in the geometry worker, so no hairline slivers are left along the seams between regions and less of the work blocks the page.
 
 ## No Overpass proxy or boundary lookups in the API (2026-10-17)
 
