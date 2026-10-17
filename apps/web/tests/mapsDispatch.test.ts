@@ -605,6 +605,32 @@ describe("maps dispatch and hider regression suite", () => {
         );
     });
 
+    it("eliminates nothing for a game tentacle stored without a radius", async () => {
+        // Older cards saved a cleared radius field as null.
+        hiderMode.set({ latitude: 35.651, longitude: 139.701 });
+        const question: any = {
+            id: "tentacles",
+            data: {
+                lat: 35.65,
+                lng: 139.7,
+                radius: null,
+                unit: "kilometers",
+                location: false,
+                locationType: "tentacle-shrines",
+                drag: true,
+            },
+        };
+
+        expect(await adjustMapGeoDataForQuestion(question, playArea)).toEqual(
+            playArea,
+        );
+        expect(await determinePlanningPolygon(question, true)).toBeNull();
+        const answered = await hiderifyQuestion(question);
+        expect(answered?.id === "tentacles" && answered.data.location).toBe(
+            false,
+        );
+    });
+
     it("matching hider compares point identity by coordinate/id, not duplicate display name", async () => {
         hiderMode.set({ latitude: 35.65, longitude: 139.8 }); // At east station
 

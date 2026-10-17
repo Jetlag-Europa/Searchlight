@@ -350,6 +350,13 @@ export const ZoneSidebar = () => {
         hidingZoneModeStationID,
         stations,
     ]);
+    // Unset when a question rules out the zone being viewed.
+    const focusedStation = hidingZoneModeStationID
+        ? stations.find(
+              (x) => x.properties.properties.id === hidingZoneModeStationID,
+          )
+        : undefined;
+
     return (
         <Sidebar side="right">
             <div className="flex items-center justify-between">
@@ -453,7 +460,7 @@ export const ZoneSidebar = () => {
                                     No Overlap
                                 </SidebarMenuItem>
                             )}
-                            {$displayHidingZones && hidingZoneModeStationID && (
+                            {$displayHidingZones && focusedStation && (
                                 <SidebarMenuItem
                                     className={cn(
                                         MENU_ITEM_CLASSNAME,
@@ -463,15 +470,10 @@ export const ZoneSidebar = () => {
                                 >
                                     Current:{" "}
                                     {(() => {
-                                        const selected = stations.find(
-                                            (x) =>
-                                                x.properties.properties.id ===
-                                                hidingZoneModeStationID,
-                                        );
                                         const displayName = extractStationLabel(
-                                            selected?.properties,
+                                            focusedStation.properties,
                                         );
-                                        const coords = selected?.properties
+                                        const coords = focusedStation.properties
                                             .geometry.coordinates as [
                                             number,
                                             number,

@@ -194,7 +194,7 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     const canDelete = server.permissions.includes("games.delete");
     const isServerAdmin = server.permissions.includes("server.admin");
     const hasAnyGamePerm = canCreate || canEdit || canDelete || isServerAdmin;
-    const canImport = canCreate || canEdit;
+    const canImport = canCreate || canEdit || isServerAdmin;
 
     const [games, setGames] = useState<Game[] | null>(null);
     const [stats, setStats] = useState<Map<string, GameStats>>(new Map());
@@ -288,7 +288,7 @@ export function GameManager() {
         s.permissions.some((p) => GAME_PAGE_PERMISSIONS.includes(p)),
     );
     const importableServers = servers.filter((s) =>
-        s.permissions.some((p) => ["games.create", "games.edit"].includes(p)),
+        s.permissions.some((p) => ["games.create", "games.edit", "server.admin"].includes(p)),
     );
 
     if (adminServers.length === 0) {
