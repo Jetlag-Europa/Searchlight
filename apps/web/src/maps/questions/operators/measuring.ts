@@ -144,22 +144,35 @@ export async function measureToTargets(
     const point = turf.point([lng, lat]);
     let name: unknown;
     let nearest = Infinity;
-    const parts = turf.flatten(targets as FeatureCollection<Geometry>);
-    for (const feature of parts.features) {
-        const { geometry } = feature;
-        let distance: number;
-        if (geometry.type === "Point") {
-            distance = turf.distance(point, geometry);
-        } else if (geometry.type === "LineString") {
-            distance = turf.pointToLineDistance(point, geometry);
-        } else {
-            continue;
-        }
-        if (distance < nearest) {
-            nearest = distance;
-            name = feature.properties?.name;
-        }
-    }
+    turf.flattenEach(
+        targets as FeatureCollection<Geometry>,
+        ({ geometry, properties }) => {
+            let distance: number;
+            if (geometry.type === "Point") {
+                distance = turf.distance(point, geometry);
+            } else if (geometry.type === "LineString") {
+                distance = turf.pointToLineDistance(point, geometry);
+            } else if (geometry.type === "Polygon") {
+                // A drawn custom measure can hold areas, measured from their
+                // edge and 0 inside, as the map's buffers measure them.
+                distance = turf.booleanPointInPolygon(point, geometry)
+                    ? 0
+                    : Math.min(
+                          ...turf
+                              .flatten(turf.polygonToLine(geometry))
+                              .features.map((line) =>
+                                  turf.pointToLineDistance(point, line),
+                              ),
+                      );
+            } else {
+                return;
+            }
+            if (distance < nearest) {
+                nearest = distance;
+                name = properties?.name;
+            }
+        },
+    );
     return {
         meters,
         name: typeof name === "string" && name.trim() ? name : undefined,

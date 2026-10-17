@@ -30,12 +30,16 @@ import type { MeasuringQuestion } from "@/maps/schema";
 import { QuestionCard } from "./base";
 
 /**
- * The seeker's and, in hider mode, the hider's distance to what the question
- * measures to, kept from the last position until the new one is measured.
+ * The seeker's distance to what the question measures to and, while hider
+ * mode answers the question, the hider's. Kept from the last position until
+ * the new one is measured.
  */
 function useMeasuredDistances(data: MeasuringQuestion) {
     const compiled = useStore(compiledGameAtom);
     const $hiderMode = useStore(hiderMode);
+    const enabled = data.enabled ?? true;
+    // Hider mode answers only unlocked questions.
+    const hider = enabled && data.drag ? $hiderMode : false;
     const [distances, setDistances] = useState<{
         seeker?: MeasuredDistance;
         hider?: MeasuredDistance;
@@ -46,18 +50,15 @@ function useMeasuredDistances(data: MeasuringQuestion) {
         data.lat,
         data.lng,
         data.type === "custom-measure" ? data.geo : null,
-        $hiderMode,
+        enabled,
+        hider,
     ]);
     useEffect(() => {
         let current = true;
         Promise.all([
-            measuringDistance(data),
-            $hiderMode
-                ? measuringDistance(
-                      data,
-                      $hiderMode.latitude,
-                      $hiderMode.longitude,
-                  )
+            enabled ? measuringDistance(data) : undefined,
+            hider
+                ? measuringDistance(data, hider.latitude, hider.longitude)
                 : undefined,
         ])
             .then(([seeker, hider]) => {
@@ -85,7 +86,7 @@ const DistanceLine = ({
         <p>
             {label}:{" "}
             <span className="font-medium text-foreground">
-                {formatDistance(distance.meters, $defaultUnit ?? "kilometers")}
+                {formatDistance(distance.meters, $defaultUnit)}
             </span>
             {distance.name &&
                 (distance.boundary

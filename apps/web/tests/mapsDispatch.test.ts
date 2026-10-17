@@ -68,18 +68,25 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
         ) => {
             const origin = turf.point([lng, lat]);
             let nearest = Infinity;
+            const toLine = (line: Feature<LineString>) =>
+                turf.pointToLineDistance(origin, line, { units: unit });
             turf.flattenEach(features, (feature) => {
+                const { geometry } = feature;
                 nearest = Math.min(
                     nearest,
-                    feature.geometry.type === "Point"
-                        ? turf.distance(origin, feature as Feature<Point>, {
-                              units: unit,
-                          })
-                        : turf.pointToLineDistance(
-                              origin,
-                              feature as Feature<LineString>,
-                              { units: unit },
-                          ),
+                    geometry.type === "Point"
+                        ? turf.distance(origin, geometry, { units: unit })
+                        : geometry.type === "Polygon"
+                          ? turf.booleanPointInPolygon(origin, geometry)
+                              ? 0
+                              : Math.min(
+                                    ...turf
+                                        .flatten(turf.polygonToLine(geometry))
+                                        .features.map((line) =>
+                                            toLine(line as Feature<LineString>),
+                                        ),
+                                )
+                          : toLine(feature as Feature<LineString>),
                 );
             });
             return nearest;
@@ -731,6 +738,21 @@ describe("maps dispatch and hider regression suite", () => {
             turf.distance([139.62, 35.65], [139.62, 35.66]) * 1000,
             3,
         );
+        // Inside a drawn area the distance is 0, and not named for a
+        // farther point.
+        const area = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "custom-measure",
+                geo: turf.featureCollection<Polygon | Point>([
+                    turf.bboxPolygon([139.6, 35.6, 139.7, 35.7]),
+                    turf.point([139.9, 35.9], { name: "Far point" }),
+                ]),
+                lat: 35.65,
+                lng: 139.62,
+            }),
+        );
+        expect(area?.meters).toBe(0);
+        expect(area?.name).not.toBe("Far point");
         const blank = measuringQuestionSchema.parse({
             type: "custom-measure",
             lat: 35.65,

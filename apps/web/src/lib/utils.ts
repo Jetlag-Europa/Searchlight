@@ -34,7 +34,7 @@ export function formatDistance(
         if (miles < 0.1) return `${Math.round(meters / 0.3048)} ft`;
         return `${miles.toFixed(2)} mi`;
     }
-    if (unit === "meters" || meters < 1000) {
+    if (unit === "meters" || Math.round(meters) < 1000) {
         return `${Math.round(meters).toLocaleString("en")} m`;
     }
     return `${(meters / 1000).toFixed(2)} km`;

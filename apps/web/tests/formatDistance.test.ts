@@ -5,6 +5,7 @@ import { formatDistance } from "@/lib/utils";
 describe("formatDistance", () => {
     it("shows short kilometre distances in meters", () => {
         expect(formatDistance(849.6, "kilometers")).toBe("850 m");
+        expect(formatDistance(999.7, "kilometers")).toBe("1.00 km");
         expect(formatDistance(12_345, "kilometers")).toBe("12.35 km");
     });
 
