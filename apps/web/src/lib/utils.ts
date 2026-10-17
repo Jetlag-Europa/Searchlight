@@ -22,8 +22,9 @@ export const mapToObj = <T, K extends string, V>(
 ) => Object.fromEntries(arr.map(fn));
 
 /**
- * A distance for display in the player's unit: "850 m" or "12.34 km" in
- * kilometres, "0.53 mi" or "420 ft" in miles, "12,345 m" in meters.
+ * A distance for display in the player's unit, to the meter: "850 m" or
+ * "12.345 km" in kilometres, "0.5312 mi" or "420 ft" in miles, "12,345 m"
+ * in meters.
  */
 export function formatDistance(
     meters: number,
@@ -32,10 +33,12 @@ export function formatDistance(
     if (unit === "miles") {
         const miles = meters / 1609.344;
         if (miles < 0.1) return `${Math.round(meters / 0.3048)} ft`;
-        return `${miles.toFixed(2)} mi`;
+        // 0.0001 mi is 16 cm; three places would step by 1.6 m.
+        return `${miles.toFixed(4)} mi`;
     }
-    if (unit === "meters" || Math.round(meters) < 1000) {
-        return `${Math.round(meters).toLocaleString("en")} m`;
+    const rounded = Math.round(meters);
+    if (unit === "meters" || rounded < 1000) {
+        return `${rounded.toLocaleString("en")} m`;
     }
-    return `${(meters / 1000).toFixed(2)} km`;
+    return `${(rounded / 1000).toFixed(3)} km`;
 }

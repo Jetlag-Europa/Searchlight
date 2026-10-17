@@ -2,7 +2,7 @@
 
 ## Measuring questions show your distance (2026-10-17)
 
-- A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.24 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, in the Default Unit (meters under 1 km, feet under 0.1 mi), and updates when the seeker moves.
+- A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.243 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, to the meter in the Default Unit (meters under 1 km, then km to three places; feet under 0.1 mi, then miles to four places), and updates when the seeker moves.
 - In hider mode the card also shows the hider's distance, so the automatic Closer/Further answer can be checked.
 
 ## No Overpass proxy or boundary lookups in the API (2026-10-17)
