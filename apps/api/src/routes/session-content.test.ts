@@ -660,6 +660,19 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       expect(res.statusCode).toBe(400);
     });
 
+    test("rejects 400 Bad Request for an ordinal too large for the column", async () => {
+      const res = await app.inject({
+        method: "PUT",
+        url: `/sessions/${SESSION_ID}/questions`,
+        headers: { cookie },
+        payload: {
+          questions: [{ clientUuid: "q-huge-ordinal", ordinal: 2147483648, payloadJson: {} }],
+          replacementId: "replace-huge-ordinal",
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
     test("mutations allocate contiguous strictly increasing sequence numbers matching GameSession.eventSequence", async () => {
       const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
       const initialSeq = session.eventSequence;

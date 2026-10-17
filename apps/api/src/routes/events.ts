@@ -54,7 +54,7 @@ export async function eventRoutes(app: FastifyInstance) {
       schema: {
         params: Type.Object({ sessionId: Type.String() }),
         querystring: Type.Object({
-          after: Type.Optional(Type.Integer({ minimum: 0 })),
+          after: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })),
           limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 250 })),
         }),
         response: {

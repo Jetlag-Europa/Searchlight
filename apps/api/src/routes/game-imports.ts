@@ -432,9 +432,12 @@ export async function gameImportRoutes(app: FastifyInstance) {
       }
 
       const revisionNum = parseInt(revision, 10);
+      // Out of the column's INT4 range, Prisma throws instead of finding nothing.
       const isInt =
         !Number.isNaN(revisionNum) &&
-        String(revisionNum) === revision.trim();
+        String(revisionNum) === revision.trim() &&
+        revisionNum >= 1 &&
+        revisionNum <= 2147483647;
 
       const select = { id: true, checksum: true } as const;
       let rev: { id: string; checksum: string } | null = null;

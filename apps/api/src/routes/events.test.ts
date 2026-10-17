@@ -283,6 +283,15 @@ describe("GET /sessions/:sessionId/events", () => {
     expect(nextAfter).toBeNull();
   });
 
+  test("400 for ?after too large for the sequence column", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/events?after=2147483648`,
+      headers: { cookie },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+
   test("404 for a session that does not exist", async () => {
     const res = await app.inject({
       method: "GET",

@@ -647,6 +647,17 @@ describe("Game Definition Access & Revision Security", () => {
       expect(data.name).toBe("Test Game A");
     });
 
+    test("GET /games/:gameId/revisions/:revision returns 404 for a revision number too large for the column", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/games/${gameAId}/revisions/2147483648`,
+        headers: {
+          cookie: signedCookie(app, AUTH_MEMBER),
+        },
+      });
+      expect(res.statusCode).toBe(404);
+    });
+
     test("GET /games/:gameId/revisions/:revision returns revision by revision UUID for authorized member", async () => {
       const res = await app.inject({
         method: "GET",
