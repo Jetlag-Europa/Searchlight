@@ -31,8 +31,8 @@ import type { ZoneSizeChange } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
 
-// Curses usually double or halve the zones.
-const QUICK_MULTIPLIERS = [0.5, 2];
+// The game's curses usually shrink the zones by half or grow them by half.
+const QUICK_MULTIPLIERS = [0.5, 1.5];
 
 /**
  * A curse that resizes the hiding zones. Its place in the list is when it was
@@ -97,10 +97,12 @@ export const ZoneSizeComponent = ({
                         "gap-2 flex flex-row items-center",
                     )}
                 >
-                    <Label className="font-semibold">Multiply by</Label>
+                    <Label className="font-semibold whitespace-nowrap">
+                        Multiply by
+                    </Label>
                     <Input
                         type="number"
-                        className="rounded-md p-2 w-20"
+                        className="rounded-md p-2 grow"
                         min={0}
                         step={0.25}
                         value={data.multiplier}
@@ -113,31 +115,34 @@ export const ZoneSizeComponent = ({
                             questionModified((data.multiplier = multiplier));
                         }}
                     />
-                    <ToggleGroup
-                        type="single"
-                        variant="outline"
-                        size="sm"
-                        value={
-                            QUICK_MULTIPLIERS.includes(data.multiplier)
-                                ? String(data.multiplier)
-                                : ""
-                        }
-                        onValueChange={(value: string) => {
-                            if (!value) return;
-                            questionModified((data.multiplier = Number(value)));
-                        }}
-                        disabled={$isLoading}
-                    >
-                        {QUICK_MULTIPLIERS.map((multiplier) => (
-                            <ToggleGroupItem
-                                key={multiplier}
-                                value={String(multiplier)}
-                            >
-                                {formatMultiplier(multiplier)}
-                            </ToggleGroupItem>
-                        ))}
-                    </ToggleGroup>
                 </div>
+            </SidebarMenuItem>
+            <SidebarMenuItem>
+                <ToggleGroup
+                    className="grid grid-cols-2 gap-1 px-2 pb-2"
+                    type="single"
+                    variant="outline"
+                    size="sm"
+                    value={
+                        QUICK_MULTIPLIERS.includes(data.multiplier)
+                            ? String(data.multiplier)
+                            : ""
+                    }
+                    onValueChange={(value: string) => {
+                        if (!value) return;
+                        questionModified((data.multiplier = Number(value)));
+                    }}
+                    disabled={$isLoading}
+                >
+                    {QUICK_MULTIPLIERS.map((multiplier) => (
+                        <ToggleGroupItem
+                            key={multiplier}
+                            value={String(multiplier)}
+                        >
+                            {formatMultiplier(multiplier)}
+                        </ToggleGroupItem>
+                    ))}
+                </ToggleGroup>
             </SidebarMenuItem>
             <SidebarMenuItem
                 className={cn(MENU_ITEM_CLASSNAME, "text-sm block")}

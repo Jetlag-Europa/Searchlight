@@ -198,13 +198,13 @@ export const measuringQuestionSchema = z.union([
 
 // A curse (or anything else) that resizes every circular hiding zone. It
 // applies to the questions below it in the list, which is the order they were
-// asked in; changes multiply, so two ×2 curses make the zones four times the
-// game's size.
+// asked in; changes multiply, so two ×1.5 curses make the zones 2.25 times
+// the game's size.
 const zoneSizeChangeSchema = z.object({
     multiplier: z
         .number()
         .positive("The multiplier must be greater than zero")
-        .default(2),
+        .default(1.5),
     collapsed: z.boolean().default(false),
     enabled: z.boolean().default(true),
     name: questionNameSchema,

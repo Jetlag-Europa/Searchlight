@@ -2,10 +2,10 @@
 
 ## Curses that resize the hiding zones (2026-10-17)
 
-- A curse that makes the hiding zones bigger or smaller can be added to the question list with Add Question → Resize Hiding Zones (Curse). Its card takes a multiplier (×2 and ×0.5 are one tap; any positive number can be typed) and shows the zone radius from that point on.
+- A curse that makes the hiding zones bigger or smaller can be added to the question list with Add Question → Resize Hiding Zones (Curse). Its card takes a multiplier (starting at ×1.5; ×1.5 and ×0.5, the game's usual curses, are one tap; any positive number can be typed) and shows the zone radius from that point on.
 - The list runs in the order things happened: questions below the curse are checked against zones at the new size, questions above it against the size they were asked at. A hider who answered from the edge of a 1 km zone isn't wrongly ruled out when the zones later shrink to 500 m, and a question asked after the zones doubled counts the whole larger zone. A curse added late can be moved to where it was cast with its Earlier and Later buttons.
-- Curses multiply (two ×2 curses make zones four times the game's size; a ×0.5 undoes a ×2), a hidden curse counts as ×1, and the zones on the map and the Hiding Zone Radius in the zone sidebar are drawn at the current size. Polygon zones keep their own area.
-- A curse is stored in the session's question list as `{"id": "zone-size", "data": {"multiplier": 2}}`, so it syncs, shares and pastes like a question. Clients from before this release don't know it and hide it; if one of them then edits the list, it saves the list without the curse.
+- Curses multiply (two ×1.5 curses make zones 2.25 times the game's size; a ×0.5 undoes a ×2), a hidden curse counts as ×1, and the zones on the map and the Hiding Zone Radius in the zone sidebar are drawn at the current size. Polygon zones keep their own area.
+- A curse is stored in the session's question list as `{"id": "zone-size", "data": {"multiplier": 1.5}}`, so it syncs, shares and pastes like a question. Clients from before this release don't know it and hide it; if one of them then edits the list, it saves the list without the curse.
 
 ## Pens erase with their eraser button (2026-10-17)
 
