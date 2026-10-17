@@ -333,7 +333,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           questions: Type.Array(
             Type.Object({
               clientUuid: Type.String({ minLength: 1 }),
-              ordinal: Type.Number({ minimum: 0 }),
+              ordinal: Type.Integer({ minimum: 0, maximum: 2147483647 }),
               payloadJson: Type.Unknown(),
             }),
           ),

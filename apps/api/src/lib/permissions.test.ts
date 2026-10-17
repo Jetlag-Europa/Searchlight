@@ -11,6 +11,7 @@ import {
     assertServerMembership,
     getUserPermissions,
     getUserRoleIds,
+    hasPermissionOnSomeServer,
     userPassesDiscordRoleGate,
 } from "./permissions.js";
 
@@ -25,6 +26,15 @@ async function setCache(roles: string[], ageMs: number) {
         where: { userId_serverId: { userId: USER_ID, serverId: SERVER_ID } },
         update: { isMember: true, roles, cachedAt },
         create: { userId: USER_ID, serverId: SERVER_ID, isMember: true, roles, cachedAt },
+    });
+}
+
+async function setNonMemberCache(ageMs: number) {
+    const cachedAt = new Date(Date.now() - ageMs);
+    await prisma.serverMembershipCache.upsert({
+        where: { userId_serverId: { userId: USER_ID, serverId: SERVER_ID } },
+        update: { isMember: false, roles: [], cachedAt },
+        create: { userId: USER_ID, serverId: SERVER_ID, isMember: false, roles: [], cachedAt },
     });
 }
 
@@ -156,5 +166,77 @@ describe("assertServerMembership — cached membership", () => {
         mockGetMember.mockResolvedValue({ roles: [], nick: null });
         await assertServerMembership(USER_ID, SERVER_ID);
         expect(mockGetMember).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe("hasPermissionOnSomeServer", () => {
+    const ROLE_ID = "test-perm-ttl-importer";
+
+    beforeAll(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
+        await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+        await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+
+        await prisma.user.create({
+            data: {
+                discordId: USER_ID,
+                username: "perm-ttl",
+                displayName: "Perm TTL",
+                avatarUrl: "https://example.com/a.png",
+                discordAccessToken: "tok",
+                discordRefreshToken: "ref",
+                discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+            },
+        });
+        await prisma.server.create({ data: { id: SERVER_ID, name: "Perm TTL Server" } });
+        await prisma.rolePermission.create({
+            data: { serverId: SERVER_ID, discordRoleId: ROLE_ID, permission: "games.create" },
+        });
+    });
+
+    afterAll(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
+        await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+        await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+    });
+
+    beforeEach(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        mockGetMember.mockReset();
+    });
+
+    test("finds a permission held through a cached member's role", async () => {
+        await setCache([ROLE_ID], 10 * 1000);
+        expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(true);
+        expect(await hasPermissionOnSomeServer(USER_ID, ["server.admin"])).toBe(false);
+        expect(mockGetMember).not.toHaveBeenCalled();
+    });
+
+    test("re-checks the roles of a membership cached over a minute ago", async () => {
+        await setCache([ROLE_ID], 2 * 60 * 1000);
+        mockGetMember.mockResolvedValue({ roles: [], nick: null });
+        expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(false);
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+
+    test("doesn't look up servers the user has no cached membership on", async () => {
+        expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(false);
+        expect(mockGetMember).not.toHaveBeenCalled();
+    });
+
+    test("serves a recently cached non-member without calling Discord", async () => {
+        await setNonMemberCache(10 * 1000);
+        mockGetMember.mockResolvedValue({ roles: [ROLE_ID], nick: null });
+        expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(false);
+        expect(mockGetMember).not.toHaveBeenCalled();
+    });
+
+    test("re-checks a non-member cached over a minute ago, so a new role takes effect", async () => {
+        await setNonMemberCache(30 * 60 * 1000);
+        mockGetMember.mockResolvedValue({ roles: [ROLE_ID], nick: null });
+        expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(true);
+        expect(mockGetMember).toHaveBeenCalledOnce();
     });
 });

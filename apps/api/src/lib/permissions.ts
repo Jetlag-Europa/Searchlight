@@ -34,6 +34,42 @@ export async function getUserPermissions(
   return new Set(rows.map((r) => r.permission));
 }
 
+// Whether the user holds any of `permissions` on at least one server.
+export async function hasPermissionOnSomeServer(
+  userId: string,
+  permissions: string[],
+  logger?: FastifyBaseLogger,
+): Promise<boolean> {
+  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (adminIds.includes(userId)) {
+    return true;
+  }
+
+  // Others only get permissions through role mappings, on servers they are in.
+  // Only servers with a cached membership are checked (GET /servers caches
+  // every server): the user's, and those where a "not a member" has expired
+  // as in assertServerMembership, so someone who just joined isn't refused
+  // for an hour. Roles are refreshed as for any permission-gated request.
+  const memberships = await prisma.serverMembershipCache.findMany({
+    where: {
+      userId,
+      OR: [{ isMember: true }, { cachedAt: { lt: new Date(Date.now() - PRIVILEGED_TTL_MS) } }],
+      server: { rolePermissions: { some: { permission: { in: permissions } } } },
+    },
+    select: { serverId: true },
+  });
+
+  for (const { serverId } of memberships) {
+    try {
+      const perms = await getUserPermissions(userId, serverId, true, logger);
+      if (permissions.some((permission) => perms.has(permission))) return true;
+    } catch (error) {
+      logger?.warn({ serverId, userId, err: error }, "Could not check permissions on a server");
+    }
+  }
+  return false;
+}
+
 export async function userPassesDiscordRoleGate(
   userId: string,
   guildId: string,

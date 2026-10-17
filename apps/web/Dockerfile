@@ -32,5 +32,6 @@ RUN pnpm --filter web build
 # Runtime stage — nginx:alpine serving the static output
 FROM nginx:alpine AS runner
 COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx-security-headers.conf /etc/nginx/security-headers.conf
 COPY --from=builder /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80

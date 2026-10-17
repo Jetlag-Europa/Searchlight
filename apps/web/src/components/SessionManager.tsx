@@ -811,7 +811,7 @@ export function SessionManager() {
         if (pendingToken) {
             removeStorage("localStorage", "taibled-pending-link");
             setLoading(true);
-            fetch(`${API_BASE}/links/${pendingToken}/redeem`, {
+            fetch(`${API_BASE}/links/${encodeURIComponent(pendingToken)}/redeem`, {
                 method: "POST",
                 credentials: "include",
             })

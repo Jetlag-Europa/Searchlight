@@ -1,5 +1,14 @@
 # Changelog
 
+## Security hardening (2026-10-17)
+
+- Hiding-zone names on the map and station names in their popups are shown as text. They come from the game definition, and Leaflet rendered them as HTML, so an imported game could run script in every player's browser.
+- `POST /games/import` turns away a logged-in user who can't import on any server (no `games.create`, `games.edit` or `server.admin` on a server they are in, and not a global admin) with a 403 before reading the body, which can be up to 50 MB. Import tokens, and the check against the target server, are unchanged.
+- Server errors (5xx) answer "Internal Server Error" instead of the error's own message, which could carry database details; the full error is logged. Client errors (4xx), including validation errors, keep their messages. `PUT /sessions/:id/questions` rejects a fractional `ordinal`, or one above 2147483647, with a 400 instead of failing in the database, as `GET /sessions/:id/events` does for such an `after`; `GET /games/:id/revisions/:revision` answers 404 for such a revision number.
+- The API refuses to start with `ENABLE_TEST_AUTH=1` when `NODE_ENV` is `production`. The e2e stack sets `NODE_ENV=development`, so it keeps its test login.
+- The join page and the login redirect after it encode the link token in their API requests, as the play page does.
+- The web server sends `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin` and `X-Frame-Options: DENY` with every response, so other sites can't frame the app. `public/_headers` sends the same when the web app is served from Cloudflare.
+
 ## Curses that resize the hiding zones (2026-10-17)
 
 - A curse that makes the hiding zones bigger or smaller can be added to the question list with Add Question → Resize Hiding Zones (Curse). Its card takes a multiplier (starting at ×1.5; ×1.5 and ×0.5, the game's usual curses, are one tap; any positive number can be typed) and shows the zone radius from that point on.

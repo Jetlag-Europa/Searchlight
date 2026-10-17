@@ -50,7 +50,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
         showEl("invalid");
     } else {
         Promise.all([
-            fetch(`${apiBase}/links/${token}`).then((r) => r.json()),
+            fetch(`${apiBase}/links/${encodeURIComponent(token)}`).then((r) => r.json()),
             fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
         ]).then(([linkInfo, me]) => {
             $("loading").classList.add("hidden");
@@ -85,7 +85,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 }
 
                 try {
-                    const res = await fetch(`${apiBase}/links/${token}/redeem`, {
+                    const res = await fetch(`${apiBase}/links/${encodeURIComponent(token)}/redeem`, {
                         method: "POST",
                         credentials: "include",
                     });

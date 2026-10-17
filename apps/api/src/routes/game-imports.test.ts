@@ -376,12 +376,34 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.statusCode).toBe(401);
     });
 
-    test("rejects callers without import permission before validating", async () => {
+    test("rejects users who can't import on any server before parsing the body", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/games/import?dryRun=true",
-        headers: { cookie: signedCookie(app, AUTH_MEMBER) },
-        payload: { ...importableDefinition(TEST_SERVER_A), map: "invalid" },
+        headers: { cookie: signedCookie(app, AUTH_MEMBER), "content-type": "application/json" },
+        payload: "{ not json",
+      });
+      expect(res.statusCode).toBe(403);
+      expect(res.json().code).toBe("FORBIDDEN");
+    });
+
+    test("parses the body of a user who can import on some server", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/games/import?dryRun=true",
+        headers: { cookie: signedCookie(app, AUTH_CREATOR), "content-type": "application/json" },
+        payload: "{ not json",
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
+    test("rejects callers without import permission on the target server before validating", async () => {
+      // USER_CREATOR may import on server A only.
+      const res = await app.inject({
+        method: "POST",
+        url: "/games/import?dryRun=true",
+        headers: { cookie: signedCookie(app, AUTH_CREATOR) },
+        payload: { ...importableDefinition(TEST_SERVER_B), map: "invalid" },
       });
       expect(res.statusCode).toBe(403);
       expect(res.json().errors).toBeUndefined();
@@ -409,7 +431,7 @@ describe("Game Definition Access & Revision Security", () => {
       const res = await app.inject({
         method: "POST",
         url: "/games/import?dryRun=true",
-        headers: { cookie: signedCookie(app, AUTH_MEMBER) },
+        headers: { cookie: signedCookie(app, AUTH_CREATOR) },
         payload: importableDefinition("unregistered-server-id"),
       });
       expect(res.statusCode).toBe(400);
@@ -429,7 +451,7 @@ describe("Game Definition Access & Revision Security", () => {
       const res = await app.inject({
         method: "POST",
         url: "/games/import?dryRun=true",
-        headers: { cookie: signedCookie(app, AUTH_MEMBER) },
+        headers: { cookie: signedCookie(app, AUTH_CREATOR) },
         payload: importableDefinition("home-games"),
       });
       expect(res.statusCode).toBe(403);
@@ -623,6 +645,17 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.statusCode).toBe(200);
       const data = JSON.parse(res.body);
       expect(data.name).toBe("Test Game A");
+    });
+
+    test("GET /games/:gameId/revisions/:revision returns 404 for a revision number too large for the column", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/games/${gameAId}/revisions/2147483648`,
+        headers: {
+          cookie: signedCookie(app, AUTH_MEMBER),
+        },
+      });
+      expect(res.statusCode).toBe(404);
     });
 
     test("GET /games/:gameId/revisions/:revision returns revision by revision UUID for authorized member", async () => {

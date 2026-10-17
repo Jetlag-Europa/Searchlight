@@ -182,7 +182,11 @@ export const ZoneSidebar = () => {
                         feature.properties?.name ||
                         "";
                     if (name) {
-                        (layer as L.Polygon).bindTooltip(name, {
+                        // Names come from the game definition: Leaflet renders
+                        // a string as HTML, so pass it as text.
+                        const label = document.createElement("span");
+                        label.textContent = name;
+                        (layer as L.Polygon).bindTooltip(label, {
                             permanent: true,
                             direction: "center",
                             className: "zone-name-label",
@@ -198,13 +202,13 @@ export const ZoneSidebar = () => {
                     }),
                 });
 
-                marker.bindPopup(
-                    `<b>${
-                        extractStationName(geoJsonPoint) || "No Name Found"
-                    } (${lngLatToText(
-                        geoJsonPoint.geometry.coordinates as [number, number],
-                    )})</b>`,
-                );
+                const popup = document.createElement("b");
+                popup.textContent = `${
+                    extractStationName(geoJsonPoint) || "No Name Found"
+                } (${lngLatToText(
+                    geoJsonPoint.geometry.coordinates as [number, number],
+                )})`;
+                marker.bindPopup(popup);
 
                 return marker;
             },
