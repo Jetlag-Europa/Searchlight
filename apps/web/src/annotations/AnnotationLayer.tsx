@@ -8,6 +8,7 @@ import {
     color as colorStore,
     detectPencilOnly,
     drawingEnabled,
+    penEraserActive,
     removeStrokes,
     strokes as strokesStore,
     tool as toolStore,
@@ -24,6 +25,10 @@ import {
 } from "@/annotations/types";
 import { strokeIntersectsErasePoint } from "@/annotations/utils/eraserHit";
 import { pixelsToMeters } from "@/annotations/utils/geoMath";
+import {
+    isPenEraser,
+    isSecondaryMouseButton,
+} from "@/annotations/utils/penButtons";
 import { randomUUID } from "@/lib/utils";
 
 interface ActiveStrokeState {
@@ -35,6 +40,10 @@ interface ActiveStrokeState {
 }
 
 const ANNOT_STYLE_ID = "annot-style-tag";
+
+// How long after a pen erase to swallow a context menu. Windows sends the
+// barrel button as a right-click once the pen lifts.
+const PEN_CONTEXT_MENU_GRACE_MS = 1000;
 
 function ensureStyleTag() {
     if (typeof document === "undefined") return;
@@ -67,6 +76,10 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     const [active, setActive] = useState<ActiveStrokeState | null>(null);
     const activeRef = useRef<ActiveStrokeState | null>(null);
     activeRef.current = active;
+    // Erasing is decided per gesture: the eraser tool, or a pen's eraser or
+    // barrel button whatever the tool.
+    const erasingRef = useRef(false);
+    const suppressContextMenuUntilRef = useRef(0);
 
     ensureStyleTag();
 
@@ -85,11 +98,38 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         };
     }, [map, $drawingEnabled]);
 
+    // A pen's barrel button doubles as a right-click, which would open the
+    // map's context menu over what was just erased.
+    useEffect(() => {
+        if (!map) return;
+        const container = map.getContainer();
+        const onContextMenu = (e: MouseEvent) => {
+            if (
+                !penEraserActive.get() &&
+                Date.now() > suppressContextMenuUntilRef.current
+            ) {
+                return;
+            }
+            suppressContextMenuUntilRef.current = 0;
+            e.preventDefault();
+            // Capture listeners run first even on the container itself, so
+            // this stops Leaflet's own listener there too.
+            e.stopImmediatePropagation();
+        };
+        const opts: AddEventListenerOptions = { capture: true };
+        container.addEventListener("contextmenu", onContextMenu, opts);
+        return () => {
+            container.removeEventListener("contextmenu", onContextMenu, opts);
+            penEraserActive.set(false);
+        };
+    }, [map]);
+
     const shouldCapture = useCallback(
         (e: PointerEvent): boolean => {
             if (!map) return false;
             if (!$drawingEnabled) return false;
             if (e.pointerType === "touch" && $detectPencil) return false;
+            if (isSecondaryMouseButton(e)) return false;
             // Don't fight Leaflet over its own UI controls.
             const target = e.target as Element | null;
             if (target?.closest(".leaflet-control")) return false;
@@ -98,14 +138,14 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
         [map, $drawingEnabled, $detectPencil],
     );
 
-    const onStart = useCallback(
-        (_e: PointerEvent, latlng: L.LatLng) => {
+    const eraseAt = useCallback(
+        (events: PointerEvent[]) => {
             if (!map) return;
-            if ($tool === "eraser") {
-                const rect = map.getContainer().getBoundingClientRect();
+            const rect = map.getContainer().getBoundingClientRect();
+            for (const e of events) {
                 const px = {
-                    x: _e.clientX - rect.left,
-                    y: _e.clientY - rect.top,
+                    x: e.clientX - rect.left,
+                    y: e.clientY - rect.top,
                 };
                 removeStrokes((s) =>
                     strokeIntersectsErasePoint(
@@ -115,16 +155,19 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
                         ERASER_RADIUS_PIXELS,
                     ),
                 );
-                // Eraser keeps an "active" sentinel so onMove knows to keep erasing.
-                const eraserSentinel: ActiveStrokeState = {
-                    points: [latlng],
-                    color: "transparent",
-                    widthMeters: 0,
-                    tool: "pen",
-                    createdAt: Date.now(),
-                };
-                activeRef.current = eraserSentinel;
-                setActive(eraserSentinel);
+            }
+        },
+        [map],
+    );
+
+    const onStart = useCallback(
+        (e: PointerEvent, latlng: L.LatLng) => {
+            if (!map) return;
+            const penEraser = isPenEraser(e);
+            if ($tool === "eraser" || penEraser) {
+                erasingRef.current = true;
+                if (penEraser) penEraserActive.set(true);
+                eraseAt([e]);
                 return;
             }
 
@@ -145,33 +188,18 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             activeRef.current = initial;
             setActive(initial);
         },
-        [map, $tool, $color, $widthPreset],
+        [map, $tool, $color, $widthPreset, eraseAt],
     );
 
     const onMove = useCallback(
         (events: PointerEvent[], latlngs: L.LatLng[]) => {
             if (!map) return;
-            const cur = activeRef.current;
-            if (!cur) return;
-
-            if ($tool === "eraser") {
-                const rect = map.getContainer().getBoundingClientRect();
-                for (const e of events) {
-                    const px = {
-                        x: e.clientX - rect.left,
-                        y: e.clientY - rect.top,
-                    };
-                    removeStrokes((s) =>
-                        strokeIntersectsErasePoint(
-                            s,
-                            map,
-                            px,
-                            ERASER_RADIUS_PIXELS,
-                        ),
-                    );
-                }
+            if (erasingRef.current) {
+                eraseAt(events);
                 return;
             }
+            const cur = activeRef.current;
+            if (!cur) return;
 
             const next: ActiveStrokeState = {
                 ...cur,
@@ -180,15 +208,23 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             activeRef.current = next;
             setActive(next);
         },
-        [map, $tool],
+        [map, eraseAt],
     );
 
     const onEnd = useCallback(() => {
+        if (erasingRef.current) {
+            erasingRef.current = false;
+            if (penEraserActive.get()) {
+                penEraserActive.set(false);
+                suppressContextMenuUntilRef.current =
+                    Date.now() + PEN_CONTEXT_MENU_GRACE_MS;
+            }
+            return;
+        }
         const cur = activeRef.current;
         activeRef.current = null;
         setActive(null);
         if (!cur) return;
-        if ($tool === "eraser") return;
         if (cur.points.length < 1) return;
 
         const feature: StrokeFeature = {
@@ -206,21 +242,20 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
             },
         };
         addStroke(feature);
-    }, [$tool]);
+    }, []);
 
     usePointerCapture(map, { shouldCapture, onStart, onMove, onEnd });
 
     if (!map) return null;
 
-    const renderActive =
-        active && $tool !== "eraser" && active.color !== "transparent"
-            ? {
-                  points: active.points,
-                  color: active.color,
-                  widthMeters: active.widthMeters,
-                  tool: active.tool,
-              }
-            : null;
+    const renderActive = active
+        ? {
+              points: active.points,
+              color: active.color,
+              widthMeters: active.widthMeters,
+              tool: active.tool,
+          }
+        : null;
 
     return createPortal(
         <SvgStrokeRenderer

@@ -7,6 +7,7 @@ import {
     color as colorStore,
     detectPencilOnly,
     drawingEnabled,
+    penEraserActive,
     penToolbarVisible,
     tool as toolStore,
     widthPreset as widthPresetStore,
@@ -36,18 +37,19 @@ const tapClass = "min-h-[44px] min-w-[44px]";
 interface ToolButtonProps {
     icon: React.ReactNode;
     label: string;
+    title?: string;
     active: boolean;
     onClick: () => void;
 }
 
-function ToolButton({ icon, label, active, onClick }: ToolButtonProps) {
+function ToolButton({ icon, label, title, active, onClick }: ToolButtonProps) {
     return (
         <Button
             type="button"
             size="icon"
             variant={active ? "default" : "outline"}
             aria-label={label}
-            title={label}
+            title={title ?? label}
             onClick={onClick}
             style={tapStyle}
             className={tapClass}
@@ -88,12 +90,15 @@ export function AnnotationToolbar() {
     const $drawingEnabled = useStore(drawingEnabled);
     const $detectPencil = useStore(detectPencilOnly);
     const $visible = useStore(penToolbarVisible);
+    const $penEraser = useStore(penEraserActive);
     const [confirmOpen, setConfirmOpen] = useState(false);
 
     if (!$visible) return null;
 
     const setTool = (t: AnnotationTool) => toolStore.set(t);
     const setWidth = (w: StrokeWidthPreset) => widthPresetStore.set(w);
+    // A pen's eraser button erases whatever tool is chosen; show that.
+    const toolInUse: AnnotationTool = $penEraser ? "eraser" : $tool;
 
     return (
         <div
@@ -126,19 +131,20 @@ export function AnnotationToolbar() {
                     <ToolButton
                         icon={<Pen />}
                         label="Pen"
-                        active={$tool === "pen"}
+                        active={toolInUse === "pen"}
                         onClick={() => setTool("pen")}
                     />
                     <ToolButton
                         icon={<Eraser />}
                         label="Eraser"
-                        active={$tool === "eraser"}
+                        title="Eraser (or your pen's eraser or side button)"
+                        active={toolInUse === "eraser"}
                         onClick={() => setTool("eraser")}
                     />
                     <ToolButton
                         icon={<X strokeWidth={3} />}
                         label="Cross-out"
-                        active={$tool === "crossout"}
+                        active={toolInUse === "crossout"}
                         onClick={() => setTool("crossout")}
                     />
 

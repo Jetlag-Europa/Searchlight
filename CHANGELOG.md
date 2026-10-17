@@ -1,5 +1,10 @@
 # Changelog
 
+## Pens erase with their eraser button (2026-10-17)
+
+- In Pen Mode, a pen's eraser (the flipped end, or the eraser button on pens like the Lenovo Pen Pro or Surface Pen) and its barrel (side) button erase while held, whatever tool is chosen. Letting go returns to that tool, and the toolbar shows the eraser as active meanwhile. The barrel button's right-click no longer opens the map menu after erasing.
+- In Pen Mode, right or middle mouse button no longer draws a stroke, and right-click opens the map menu as it does outside Pen Mode.
+
 ## Dev login on preview deployments (2026-10-17)
 
 - When `DEV_LOGIN_TOKEN` is set (at least 32 characters), the API registers `/auth/dev-login`: `GET` serves a small form, and `POST` (form, or JSON with `Authorization: Bearer <token>`) logs in as any Discord user ID without Discord, so testers and agents can act as specific users on PR previews. A real Discord user gets their profile from the bot and their servers and roles as usual; any other numeric ID becomes a placeholder user. A wrong token gets a 403. Prod never sets the token, and without it the routes don't exist. See `docs/TESTING.md`.
