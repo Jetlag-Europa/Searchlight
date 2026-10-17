@@ -1,5 +1,9 @@
 # Changelog
 
+## Tests run on pull requests (2026-10-17)
+
+- A new "Tests" workflow runs on every pull request and every push to `main`. It builds the workspace, then runs the shared, web and API unit tests (the API tests against a Postgres service), `pnpm verify:preloaded-games` and `pnpm check:game-schema`. Before this, CI never ran the tests. Pull requests only had the image builds, and those stopped running on pull requests on 2026-10-16. The Playwright e2e tests still run by hand only.
+
 ## Sessions are shared by link only (2026-10-17)
 
 - Inviting a specific user by username is gone; links are how a session is shared. The Invites drawer makes, copies and revokes invite links that let anyone with the link join the session, and Share a copy does the same for share links that give them their own private copy. Both drawers lost their "Send to user" tab with its user search and pending list, the Invites button lost its badge and its list of incoming invites to accept or decline, and both buttons show only to the session's creator.

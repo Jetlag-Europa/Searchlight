@@ -12,6 +12,9 @@ The API tests need a migrated database. They use the dev one from
 `docker-compose.dev.yml` (`pnpm dev` migrates it) unless `DATABASE_URL` is set,
 and create and delete their own rows.
 
+CI (`.github/workflows/test.yml`) runs all of the above on every pull request
+and push to `main`, after `pnpm build`.
+
 ## Question geometry
 
 `apps/web/tests/questions/` checks each question type's elimination mask
