@@ -1,5 +1,11 @@
 # Changelog
 
+## No Overpass proxy or boundary lookups in the API (2026-10-17)
+
+- There is no free play: every session plays a JSON-defined game. The API drops what only free play used: the Overpass proxy (`POST /overpass`) and OSM boundary lookups (`/boundaries`). The web app stopped calling them in the same release (see below); cached clients that still do get 404s.
+- The `20261017010000_drop_boundary_cache` migration drops the `BoundaryCache` table, a cache of OSM boundaries.
+- `OVERPASS_URL`, `OVERPASS_CF_ACCESS_CLIENT_ID`, `OVERPASS_CF_ACCESS_CLIENT_SECRET` and `OVERPASS_MAX_RESPONSE_BYTES` are no longer read; remove them from a server's `.env`. The e2e stack has no Overpass stub (`infra/overpass-stub.conf` is removed), and `infra/deploy-test.sh` removes the old stub container.
+
 ## Every session plays its game (2026-10-17)
 
 - Free play, inherited from JetLagHideAndSeek, is gone. It no longer runs behind the session picker (the default Luxembourg boundary isn't fetched any more) or when a session's game fails to load, and questions are only ever answered from the session's game.

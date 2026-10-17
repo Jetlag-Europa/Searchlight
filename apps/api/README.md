@@ -7,7 +7,6 @@ Fastify + Prisma backend:
 - The game catalog (`/games`): JSON game definitions stored as revisions, with import, export and access checks
 - Game sessions pinned to a game revision, with their questions, strokes, hider state, invites and share links (`/sessions`, `/links`)
 - Live sync: a server-sent event stream per session with ordered replay (`/sessions/:id/stream`, `/sessions/:id/events`)
-- An Overpass proxy and OSM boundary lookups for free play (`/overpass`, `/boundaries`)
 
 Routes validate with TypeBox (`@fastify/type-provider-typebox`). The game
 definition schema and validator live in `packages/shared`, shared with the web
