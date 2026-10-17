@@ -1,18 +1,24 @@
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { type GameImportResponse, resolveGameDefinitionId } from "@searchlight/shared";
-import { importGameDefinition, PRELOAD_SUPERSEDED } from "./import-service.js";
+import {
+  computeGameDefinitionChecksum,
+  type GameDefinition,
+  type GameImportResponse,
+  resolveGameDefinitionId,
+} from "@searchlight/shared";
+import { importGameDefinition } from "./import-service.js";
 
 export interface PreloadSummary {
   total: number;
   created: number;
   updated: number;
   unchanged: number;
+  // Files unchanged since the last start while another revision was made
+  // current since; the game keeps that revision.
+  kept: { fileName: string; revision: number }[];
   results: GameImportResponse[];
   // Files that could not be imported; the others are imported regardless.
   failures: { fileName: string; error: unknown }[];
-  // Files left unapplied because an upload replaced their content.
-  superseded: { fileName: string; message: string }[];
 }
 
 /**
@@ -32,9 +38,9 @@ export async function preloadGameDefinitions(
       created: 0,
       updated: 0,
       unchanged: 0,
+      kept: [],
       results: [],
       failures: [],
-      superseded: [],
     };
   }
 
@@ -44,17 +50,18 @@ export async function preloadGameDefinitions(
 
   const results: GameImportResponse[] = [];
   const failures: PreloadSummary["failures"] = [];
-  const superseded: PreloadSummary["superseded"] = [];
+  const kept: PreloadSummary["kept"] = [];
   let created = 0;
   let updated = 0;
   let unchanged = 0;
 
   for (const fileName of gameFiles) {
     let result: GameImportResponse;
+    let parsed: GameDefinition;
     try {
       const fullPath = resolve(dirPath, fileName);
       const content = await readFile(fullPath, "utf8");
-      const parsed = JSON.parse(content);
+      parsed = JSON.parse(content);
 
       const gameId = resolveGameDefinitionId(parsed);
       const expectedFileName = `${gameId}.game.json`;
@@ -74,14 +81,13 @@ export async function preloadGameDefinitions(
     }
 
     results.push(result);
-    for (const warning of result.warnings) {
-      if (warning.code === PRELOAD_SUPERSEDED) {
-        superseded.push({ fileName, message: warning.message });
-      }
-    }
     if (result.status === "created") created++;
     else if (result.status === "updated") updated++;
-    else if (result.status === "unchanged") unchanged++;
+    // An unchanged result names the current revision, so another checksum
+    // means it was made current since the last start.
+    else if (result.checksum !== computeGameDefinitionChecksum(parsed)) {
+      kept.push({ fileName, revision: result.revision });
+    } else unchanged++;
   }
 
   return {
@@ -89,8 +95,8 @@ export async function preloadGameDefinitions(
     created,
     updated,
     unchanged,
+    kept,
     results,
     failures,
-    superseded,
   };
 }

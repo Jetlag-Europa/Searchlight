@@ -182,18 +182,30 @@ describe("preloadGameDefinitions", () => {
     expect(await prisma.game.findUnique({ where: { gameKey: key } })).not.toBeNull();
   });
 
-  test("keeps an uploaded revision instead of re-activating the unchanged file", async () => {
-    const key = `${KEY_PREFIX}preload-upload`;
-    const gameDir = await mkdtemp(join(dir, "upload-"));
-    const file = join(gameDir, `${key}.game.json`);
-    const current = () =>
-      prisma.game.findUniqueOrThrow({
-        where: { gameKey: key },
-        include: { currentRevision: { select: { revision: true } } },
-      });
+  // A directory holding only the given game's file; start(name) writes it
+  // with that name and preloads, like an API start.
+  async function preloadDir(key: string) {
+    const gameDir = await mkdtemp(join(dir, "game-"));
+    return {
+      start: async (name: string) => {
+        await writeFile(join(gameDir, `${key}.game.json`), JSON.stringify(definition(key, name)));
+        return preloadGameDefinitions(gameDir);
+      },
+      current: () =>
+        prisma.game.findUniqueOrThrow({
+          where: { gameKey: key },
+          include: { currentRevision: { select: { revision: true, checksum: true } } },
+        }),
+    };
+  }
 
-    await writeFile(file, JSON.stringify(definition(key, "Preloaded")));
-    expect(await preloadGameDefinitions(gameDir)).toMatchObject({ created: 1 });
+  test("an upload survives restarts until the file's content changes", async () => {
+    const key = `${KEY_PREFIX}preload-upload`;
+    const { start, current } = await preloadDir(key);
+
+    const first = await start("Preloaded");
+    expect(first).toMatchObject({ created: 1 });
+    expect((await current()).preloadChecksum).toBe(first.results[0].checksum);
 
     const upload = await importGameDefinition({
       raw: definition(key, "Uploaded"),
@@ -202,30 +214,56 @@ describe("preloadGameDefinitions", () => {
     });
     expect(upload).toMatchObject({ status: "updated", revision: 2 });
 
-    // The next API start finds the file unchanged: revision 2 stays current.
-    const restart = await preloadGameDefinitions(gameDir);
-    expect(restart).toMatchObject({ unchanged: 1, updated: 0 });
-    expect(restart.results[0]).toMatchObject({ revision: 2, checksum: upload.checksum });
-    expect(restart.superseded).toEqual([
-      {
-        fileName: `${key}.game.json`,
-        message: "matches revision 1 but revision 2 (web import) is current; keeping 2",
-      },
-    ]);
+    // The next start finds the file unchanged and keeps the upload.
+    const restart = await start("Preloaded");
+    expect(restart).toMatchObject({ unchanged: 0, updated: 0 });
+    expect(restart.kept).toEqual([{ fileName: `${key}.game.json`, revision: 2 }]);
     expect(await current()).toMatchObject({ name: "Uploaded", currentRevision: { revision: 2 } });
 
-    // New file content still becomes the next revision.
-    await writeFile(file, JSON.stringify(definition(key, "Preloaded v3")));
-    const changed = await preloadGameDefinitions(gameDir);
-    expect(changed).toMatchObject({ updated: 1, superseded: [] });
+    // New file content becomes the next revision, replacing the upload.
+    const changed = await start("Preloaded v3");
+    expect(changed).toMatchObject({ updated: 1, kept: [] });
     expect(await current()).toMatchObject({
       name: "Preloaded v3",
+      preloadChecksum: changed.results[0].checksum,
       currentRevision: { revision: 3 },
     });
+    expect(await start("Preloaded v3")).toMatchObject({ unchanged: 1, kept: [] });
+  });
 
-    // Reverting the file over a preloaded revision still re-activates the old one.
-    await writeFile(file, JSON.stringify(definition(key, "Preloaded")));
-    expect(await preloadGameDefinitions(gameDir)).toMatchObject({ updated: 1 });
-    expect(await current()).toMatchObject({ name: "Preloaded", currentRevision: { revision: 1 } });
+  test("a rollback by upload to an older preloaded revision survives restarts", async () => {
+    const key = `${KEY_PREFIX}preload-rollback`;
+    const { start, current } = await preloadDir(key);
+    await start("A");
+    await start("B");
+    expect(await current()).toMatchObject({ currentRevision: { revision: 2 } });
+
+    // Uploading A again re-activates revision 1, which the preload created.
+    const rollback = await importGameDefinition({
+      raw: definition(key, "A"),
+      source: "web",
+      allowUpdate: true,
+    });
+    expect(rollback).toMatchObject({ status: "updated", revision: 1 });
+
+    const restart = await start("B");
+    expect(restart.kept).toEqual([{ fileName: `${key}.game.json`, revision: 1 }]);
+    expect(await current()).toMatchObject({ name: "A", currentRevision: { revision: 1 } });
+  });
+
+  test("reverting the file to older content re-activates that revision", async () => {
+    const key = `${KEY_PREFIX}preload-revert`;
+    const { start, current } = await preloadDir(key);
+    const a = await start("A");
+    await start("B");
+
+    const reverted = await start("A");
+    expect(reverted).toMatchObject({ updated: 1, kept: [] });
+    expect(await current()).toMatchObject({
+      name: "A",
+      preloadChecksum: a.results[0].checksum,
+      currentRevision: { revision: 1, checksum: a.results[0].checksum },
+    });
+    expect((await revisionsOf(key)).map((r) => r.revision)).toEqual([1, 2]);
   });
 });
