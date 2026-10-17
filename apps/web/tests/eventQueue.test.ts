@@ -595,6 +595,7 @@ describe("active session restoration", () => {
         hiderLat: null,
         hiderLng: null,
         planningModeEnabled: false,
+        gameRevisionId: "test-revision",
     };
 
     async function reloadSession() {

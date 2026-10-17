@@ -6,13 +6,14 @@ import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
 import type { FeatureCollection, Polygon } from "geojson";
 import * as L from "leaflet";
-import { useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
-import { bootstrapDefaults } from "@/lib/bootstrapCustomStations";
+import { activeSessionData, activeSessionId } from "@/lib/activeSession";
+import { bootstrapDefaults } from "@/lib/bootstrap";
 import {
     addQuestion,
     animateMapMovements,
@@ -23,7 +24,6 @@ import {
     hiderMode,
     leafletMapContext,
     mapGeoJSON,
-    mapGeoLocation,
     permanentOverlay,
     perQuestionMapData,
     planningModeEnabled,
@@ -35,6 +35,13 @@ import {
     triggerLocalRefresh,
 } from "@/lib/context";
 import { currentGameId } from "@/lib/games";
+import {
+    type GameBounds,
+    isGameBounds,
+    lastGameView,
+    rememberGameView,
+    savedGameView,
+} from "@/lib/gameView";
 import { createLatestTask } from "@/lib/latestTask";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
@@ -60,6 +67,30 @@ import { PolygonDraw } from "./PolygonDraw";
 // client bundle, so the key ships to the browser wherever it is declared.
 const CARTO_API_KEY = "cb1_2e23_1_bd24b1a55d41442abf180516";
 
+// Before a game has loaded, the map shows the world, or the game it showed
+// last (see lastGameView).
+const WORLD_CENTER: L.LatLngTuple = [20, 0];
+// The lowest zoom at which the world, which doesn't wrap, fills the width.
+const worldZoom = (width: number) =>
+    Math.max(2, Math.ceil(Math.log2(width / 256)));
+// Basemap tiles exist only within the world; outside it they answer 400.
+const WORLD_BOUNDS: L.LatLngBoundsExpression = [
+    [-90, -180],
+    [90, 180],
+];
+
+const fitGameBounds = (
+    map: L.Map,
+    [west, south, east, north]: GameBounds,
+) =>
+    map.fitBounds(
+        [
+            [south, west],
+            [north, east],
+        ],
+        { animate: false },
+    );
+
 const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     switch (tileLayer) {
         case "light":
@@ -71,6 +102,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
                     minZoom={2}
                     noWrap
+                    bounds={WORLD_BOUNDS}
                 />
             );
 
@@ -83,6 +115,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
                     minZoom={2}
                     noWrap
+                    bounds={WORLD_BOUNDS}
                 />
             );
 
@@ -95,6 +128,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                         maxZoom={22}
                         minZoom={2}
                         noWrap
+                        bounds={WORLD_BOUNDS}
                     />
                 );
             break;
@@ -108,6 +142,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                         maxZoom={22}
                         minZoom={2}
                         noWrap
+                        bounds={WORLD_BOUNDS}
                     />
                 );
             break;
@@ -120,6 +155,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={19}
                     minZoom={2}
                     noWrap
+                    bounds={WORLD_BOUNDS}
                 />
             );
     }
@@ -132,6 +168,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
             maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
             minZoom={2}
             noWrap
+            bounds={WORLD_BOUNDS}
         />
     );
 };
@@ -219,7 +256,6 @@ const ADD_QUESTION_MENU_ITEMS = [
 ];
 
 export const Map = ({ className }: { className?: string }) => {
-    const $mapGeoLocation = useStore(mapGeoLocation);
     const $questions = useStore(questions);
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
@@ -232,8 +268,14 @@ export const Map = ({ className }: { className?: string }) => {
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const map = useStore(leafletMapContext);
     const $currentGameId = useStore(currentGameId);
+    const $activeSession = useStore(activeSessionData);
+    const $activeSessionId = useStore(activeSessionId);
+    const $lastGameView = useStore(lastGameView);
     const refreshQueue = useMemo(() => createLatestTask(), []);
     const renderedGameIdRef = useRef<string | null>(null);
+    const framedGameIdRef = useRef<string | null>(null);
+    // The framed game is a saved view, not yet confirmed by its loaded game.
+    const provisionalViewRef = useRef(false);
 
     const clearQuestionLayers = (targetMap: L.Map) => {
         targetMap.eachLayer((layer) => {
@@ -268,7 +310,6 @@ export const Map = ({ className }: { className?: string }) => {
         const compiled = compiledGameAtom.get();
         const hider = hiderMode.get();
         const boundary = polyGeoJSON.get();
-        const location = mapGeoLocation.get();
         const definitionReady = gameDefinitionReady.get();
         const activeGameId = currentGameId.get();
 
@@ -291,7 +332,6 @@ export const Map = ({ className }: { className?: string }) => {
             compiledGameAtom.get() === compiled &&
             hiderMode.get() === hider &&
             polyGeoJSON.get() === boundary &&
-            mapGeoLocation.get() === location &&
             gameDefinitionReady.get() === definitionReady;
 
         if (sourceQuestions.length > 0 && !definitionReady) {
@@ -443,8 +483,8 @@ export const Map = ({ className }: { className?: string }) => {
     const displayMap = useMemo(
         () => (
             <MapContainer
-                center={$mapGeoLocation.geometry.coordinates}
-                zoom={5}
+                center={WORLD_CENTER}
+                zoom={worldZoom(window.innerWidth)}
                 className={cn("w-[500px] h-[500px]", className)}
                 ref={leafletMapContext.set}
                 // @ts-expect-error Typing doesn't update from react-contextmenu
@@ -482,7 +522,11 @@ export const Map = ({ className }: { className?: string }) => {
                     },
                 ]}
             >
-                {getTileLayer($baseTileLayer, $thunderforestApiKey)}
+                {/* A new layer per basemap: react-leaflet only updates a
+                    layer's URL, not its zoom range or attribution. */}
+                <Fragment key={$baseTileLayer}>
+                    {getTileLayer($baseTileLayer, $thunderforestApiKey)}
+                </Fragment>
                 <DraggableMarkers />
                 <div className="leaflet-top leaflet-right">
                     <div className="leaflet-control flex-col flex gap-2">
@@ -527,6 +571,57 @@ export const Map = ({ className }: { className?: string }) => {
         });
     }, [map, $compiledGame]);
 
+    // Until a game has loaded, open on this tab's game, or the session being
+    // restored, as last framed: a definition can take a while to load, or
+    // fail to offline. Should the board turn out to be another game's (a join
+    // link, another session picked) or nobody's (a new user), go back to the
+    // world. Only such a restored view is reset: switching away from a game
+    // that did load keeps its view until the next game loads, as before.
+    useEffect(() => {
+        if (!map) return;
+        const provisional = provisionalViewRef.current;
+        if (framedGameIdRef.current !== null && !provisional) return;
+        const view = savedGameView($currentGameId, $activeSessionId);
+        if (view && view.gameId === framedGameIdRef.current) return;
+        if (view) {
+            framedGameIdRef.current = view.gameId;
+            provisionalViewRef.current = true;
+            fitGameBounds(map, view.bounds);
+        } else if (provisional) {
+            framedGameIdRef.current = null;
+            provisionalViewRef.current = false;
+            map.setView(WORLD_CENTER, worldZoom(map.getSize().x), {
+                animate: false,
+            });
+        }
+    }, [map, $currentGameId, $activeSessionId, $lastGameView]);
+
+    // Show each game when it loads; a new revision of the same game keeps
+    // the view.
+    useEffect(() => {
+        if (!map || !$compiledGame) return;
+        provisionalViewRef.current = false;
+        if (framedGameIdRef.current !== $currentGameId) {
+            framedGameIdRef.current = $currentGameId;
+            fitGameBounds(map, $compiledGame.bounds);
+        }
+        if (!isGameBounds($compiledGame.bounds)) return;
+        const session = activeSessionData.get();
+        rememberGameView(
+            $currentGameId,
+            $compiledGame.bounds,
+            session?.gameId === $currentGameId ? session.id : undefined,
+        );
+    }, [map, $compiledGame, $currentGameId]);
+
+    // A session selected after its game loaded plays the framed game too.
+    useEffect(() => {
+        const view = lastGameView.get();
+        if (!$activeSession || view?.gameId !== $activeSession.gameId) return;
+        if (view.sessionId === $activeSession.id) return;
+        rememberGameView(view.gameId, view.bounds, $activeSession.id);
+    }, [$activeSession]);
+
     useEffect(() => {
         bootstrapDefaults();
     }, []);
@@ -535,6 +630,13 @@ export const Map = ({ className }: { className?: string }) => {
         if (!map) return;
         const resizeObserver = new ResizeObserver(() => {
             map.invalidateSize({ pan: false });
+            // Until a game is shown, keep the world filling the map, whose
+            // width the sidebars settle after it is created.
+            if (framedGameIdRef.current === null) {
+                map.setView(WORLD_CENTER, worldZoom(map.getSize().x), {
+                    animate: false,
+                });
+            }
         });
         resizeObserver.observe(map.getContainer());
         return () => resizeObserver.disconnect();
@@ -549,7 +651,6 @@ export const Map = ({ className }: { className?: string }) => {
         $hiderMode,
         $planningMode,
         $compiledGame,
-        $mapGeoLocation,
         $polyGeoJSON,
         $gameDefinitionReady,
         $currentGameId,

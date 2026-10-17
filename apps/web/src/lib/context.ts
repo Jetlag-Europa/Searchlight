@@ -5,12 +5,7 @@ import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
-import type {
-    AdditionalMapGeoLocations,
-    CustomStation,
-    OpenStreetMap,
-    StationCircle,
-} from "@/maps/api";
+import type { StationCircle } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
 import {
     type DeepPartial,
@@ -20,40 +15,6 @@ import {
     type Units,
 } from "@/maps/schema";
 
-export const mapGeoLocation = persistentAtom<OpenStreetMap>(
-    "mapGeoLocation",
-    {
-        geometry: {
-            coordinates: [49.8158683, 6.1296751],
-            type: "Point",
-        },
-        type: "Feature",
-        properties: {
-            osm_type: "R",
-            osm_id: 2171347,
-            extent: [50.1827989, 5.7356988, 49.4478587, 6.5312481],
-            country: "Luxembourg",
-            osm_key: "place",
-            countrycode: "LU",
-            osm_value: "country",
-            name: "Luxembourg",
-            type: "country",
-        },
-    },
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
-
-export const additionalMapGeoLocations = persistentAtom<
-    AdditionalMapGeoLocations[]
->("additionalMapGeoLocations", [], {
-    encode: JSON.stringify,
-    decode: JSON.parse,
-    listen: false,
-});
 export const permanentOverlay = persistentAtom<FeatureCollection | null>(
     "permanentOverlay",
     null,
@@ -64,16 +25,14 @@ export const permanentOverlay = persistentAtom<FeatureCollection | null>(
     },
 );
 
+// The game's play area, set when its definition is applied. Not persisted:
+// until a game loads, there is none.
 export const mapGeoJSON = atom<FeatureCollection<
     Polygon | MultiPolygon
 > | null>(null);
-export const polyGeoJSON = persistentAtom<FeatureCollection<
+export const polyGeoJSON = atom<FeatureCollection<
     Polygon | MultiPolygon
-> | null>("polyGeoJSON", null, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
-    listen: false,
-});
+> | null>(null);
 
 // Questions are server-backed and restored on session selection.
 export const questions = atom<Questions>([]);
@@ -154,15 +113,6 @@ export const displayHidingZones = persistentAtom<boolean>(
         listen: false,
     },
 );
-export const displayHidingZonesOptions = persistentAtom<string[]>(
-    "displayHidingZonesOptions",
-    ["[railway=station]"],
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
 export const displayHidingZonesStyle = persistentAtom<
     "zones" | "stations" | "no-overlap" | "no-display"
 >("displayHidingZonesStyle", "zones", { listen: false });
@@ -186,61 +136,12 @@ onSet(trainStations, ({ newValue }) => {
     });
 });
 
-export const useCustomStations = persistentAtom<boolean>(
-    "useCustomStations",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
-export const customStations = persistentAtom<CustomStation[]>(
-    "customStations",
-    [],
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
-export const mergeDuplicates = persistentAtom<boolean>(
-    "removeDuplicates",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
-export const includeDefaultStations = persistentAtom<boolean>(
-    "includeDefaultStations",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
 export const animateMapMovements = persistentAtom<boolean>(
     "animateMapMovements",
     false,
     {
         encode: JSON.stringify,
         decode: JSON.parse,
-    },
-);
-export const hidingRadius = persistentAtom<number>("hidingRadius", 1, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
-    listen: false,
-});
-export const hidingRadiusUnits = persistentAtom<Units>(
-    "hidingRadiusUnits",
-    "kilometers",
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
     },
 );
 export const disabledStations = persistentAtom<string[]>(
@@ -321,8 +222,6 @@ export const updateCustomPreset = (
 export const deleteCustomPreset = (id: string) => {
     customPresets.set(customPresets.get().filter((p) => p.id !== id));
 };
-
-export const tierRadiusOverrides = atom<Record<string, number>>({});
 
 // True once the session's game definition has been applied: false before the
 // first game loads, from the start of a game switch, and after loading failed.

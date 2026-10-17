@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameDefinition, GameSessionSummary } from "@searchlight/shared";
+import * as turf from "@turf/turf";
 import {
-    activateGameStations,
     applyGameDefinition,
     currentGameId,
     fetchGameCatalog,
@@ -27,18 +27,14 @@ import {
     setActiveSession,
 } from "@/lib/activeSession";
 import {
-    customStations,
-    displayHidingZonesOptions,
     gameDefinitionReady,
-    hidingRadius,
-    hidingRadiusUnits,
     mapGeoJSON,
     polyGeoJSON,
     questions,
-    tierRadiusOverrides,
-    useCustomStations,
+    trainStations,
 } from "@/lib/context";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
+import { hidingZoneCircles } from "@/maps/geo-utils";
 import type { Questions } from "@/maps/schema";
 
 const game: GameOption = {
@@ -98,6 +94,13 @@ function response(radius: number): Response {
     return new Response(JSON.stringify(definition(radius)), { status: 200 });
 }
 
+// Every switch loads a session's pinned revision.
+const pinned = { revisionId: "revision-one", sessionId: "session-one" };
+
+/** The game-wide hiding radius of the applied definition. */
+const appliedRadius = () =>
+    compiledGameAtom.get()?.hidingZones.baseRadius.value;
+
 describe("game loading concurrency", () => {
     beforeEach(() => {
         vi.stubGlobal("sessionStorage", {
@@ -109,7 +112,6 @@ describe("game loading concurrency", () => {
         clearActiveSession();
         setActiveGameDefinition(null);
         currentGameId.set("");
-        displayHidingZonesOptions.set([]);
     });
 
     afterEach(() => {
@@ -118,72 +120,6 @@ describe("game loading concurrency", () => {
         clearDefinitionCache();
         clearActiveSession();
         setActiveGameDefinition(null);
-    });
-
-    it("does not reenter a pinned switch when the sidebar observes its published selection", async () => {
-        const request = deferred<Response>();
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockReturnValue(request.promise);
-        const unsubscribe = displayHidingZonesOptions.listen((options) => {
-            if (options.includes(game.gameKey)) activateGameStations(game);
-        });
-        try {
-            const loaded = switchToGame(game, {
-                revisionId: "revision-one",
-                sessionId: "session-one",
-            });
-            request.resolve(response(300));
-            expect(await loaded).toBe(true);
-            expect(fetchSpy).toHaveBeenCalledTimes(1);
-            expect(String(fetchSpy.mock.calls[0][0])).toContain(
-                "/revisions/revision-one?sessionId=session-one",
-            );
-            expect(hidingRadius.get()).toBe(300);
-            expect(gameDefinitionReady.get()).toBe(true);
-        } finally {
-            unsubscribe();
-        }
-    });
-
-    it("activates the session's restored selection, pinned, and reactivates it after deselection", async () => {
-        setActiveSession(pinnedSession);
-        currentGameId.set(game.id);
-        displayHidingZonesOptions.set([game.gameKey]);
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockImplementation(async () => response(350));
-        activateGameStations(game);
-        // A switch without options joins the session's pinned one.
-        expect(await switchToGame(game)).toBe(true);
-        expect(useCustomStations.get()).toBe(true);
-        expect(String(fetchSpy.mock.calls[0][0])).toContain(
-            "/revisions/revision-one?sessionId=session-one",
-        );
-
-        displayHidingZonesOptions.set([]);
-        useCustomStations.set(false);
-        displayHidingZonesOptions.set([game.gameKey]);
-        activateGameStations(game);
-        expect(await switchToGame(game)).toBe(true);
-        expect(useCustomStations.get()).toBe(true);
-        // The pinned revision is cached.
-        expect(fetchSpy).toHaveBeenCalledTimes(1);
-    });
-
-    it("never activates a game other than the active session's", async () => {
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockImplementation(async () => response(350));
-        currentGameId.set(game.id);
-        displayHidingZonesOptions.set([game.gameKey]);
-        // No session details yet, as after an offline restore.
-        activateGameStations(game);
-        // Another game's session, as after a failed switch to it.
-        setActiveSession({ ...pinnedSession, gameId: "other-game" });
-        activateGameStations(game);
-        expect(fetchSpy).not.toHaveBeenCalled();
-        expect(compiledGameAtom.get()).toBeNull();
     });
 
     it("leaving a game cancels its switch still loading", async () => {
@@ -227,24 +163,16 @@ describe("game loading concurrency", () => {
         const fetchSpy = vi
             .spyOn(globalThis, "fetch")
             .mockReturnValue(request.promise);
-        const first = switchToGame(game);
-        const second = switchToGame(game);
+        const first = switchToGame(game, pinned);
+        const second = switchToGame(game, pinned);
         request.resolve(response(400));
         expect(await Promise.all([first, second])).toEqual([true, true]);
         expect(fetchSpy).toHaveBeenCalledTimes(1);
-        expect(hidingRadius.get()).toBe(400);
-    });
-
-    it("loads a game's latest definition afresh, so a newly published revision applies", async () => {
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockResolvedValueOnce(response(100))
-            .mockResolvedValueOnce(response(500));
-        expect(await switchToGame(game)).toBe(true);
-        expect(hidingRadius.get()).toBe(100);
-        expect(await switchToGame(game)).toBe(true);
-        expect(hidingRadius.get()).toBe(500);
-        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        expect(String(fetchSpy.mock.calls[0][0])).toContain(
+            "/revisions/revision-one?sessionId=session-one",
+        );
+        expect(appliedRadius()).toBe(400);
+        expect(gameDefinitionReady.get()).toBe(true);
     });
 
     it("reuses an in-flight target when selected again without allowing an intervening completion to overwrite it", async () => {
@@ -255,15 +183,15 @@ describe("game loading concurrency", () => {
             .spyOn(globalThis, "fetch")
             .mockReturnValueOnce(firstRequest.promise)
             .mockReturnValueOnce(otherRequest.promise);
-        const first = switchToGame(game);
-        const other = switchToGame(otherGame);
-        const latest = switchToGame(game);
+        const first = switchToGame(game, pinned);
+        const other = switchToGame(otherGame, pinned);
+        const latest = switchToGame(game, pinned);
         firstRequest.resolve(response(600));
         expect(await Promise.all([first, latest])).toEqual([false, true]);
         otherRequest.resolve(response(900));
         expect(await other).toBe(false);
         expect(currentGameId.get()).toBe(game.id);
-        expect(hidingRadius.get()).toBe(600);
+        expect(appliedRadius()).toBe(600);
         expect(gameDefinitionReady.get()).toBe(true);
         expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
@@ -305,32 +233,31 @@ describe("game loading concurrency", () => {
         expect(await second).toBe(true);
         firstRequest.resolve(response(300));
         expect(await first).toBe(false);
-        expect(hidingRadius.get()).toBe(700);
+        expect(appliedRadius()).toBe(700);
         expect(await switchToGame(game, firstOptions)).toBe(true);
-        expect(hidingRadius.get()).toBe(300);
+        expect(appliedRadius()).toBe(300);
         expect(await switchToGame(game, secondOptions)).toBe(true);
-        expect(hidingRadius.get()).toBe(700);
+        expect(appliedRadius()).toBe(700);
         expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
 
-    it("honors explicit revisions without a session and keeps concurrent revisions isolated", async () => {
+    it("keeps concurrent revisions isolated", async () => {
         const firstRequest = deferred<Response>();
         const secondRequest = deferred<Response>();
         const fetchSpy = vi
             .spyOn(globalThis, "fetch")
             .mockReturnValueOnce(firstRequest.promise)
             .mockReturnValueOnce(secondRequest.promise);
-        const first = switchToGame(game, { revisionId: "revision-one" });
-        const second = switchToGame(game, { revisionId: "revision-two" });
+        const revisionTwo = { ...pinned, revisionId: "revision-two" };
+        const first = switchToGame(game, pinned);
+        const second = switchToGame(game, revisionTwo);
         secondRequest.resolve(response(800));
         expect(await second).toBe(true);
         firstRequest.resolve(response(200));
         expect(await first).toBe(false);
-        expect(hidingRadius.get()).toBe(800);
-        expect(await switchToGame(game, { revisionId: "revision-one" })).toBe(
-            true,
-        );
-        expect(hidingRadius.get()).toBe(200);
+        expect(appliedRadius()).toBe(800);
+        expect(await switchToGame(game, pinned)).toBe(true);
+        expect(appliedRadius()).toBe(200);
         expect(
             fetchSpy.mock.calls.map(([url]) => new URL(String(url)).pathname),
         ).toEqual([
@@ -347,15 +274,15 @@ describe("game loading concurrency", () => {
             .mockReturnValueOnce(failedRequest.promise)
             .mockResolvedValueOnce(response(900));
         vi.spyOn(console, "warn").mockImplementation(() => {});
-        const failed = switchToGame(game);
+        const failed = switchToGame(game, pinned);
         failedRequest.reject(new Error("Connection lost"));
         expect(await failed).toBe(false);
         expect(compiledGameAtom.get()).toBeNull();
-        expect(customStations.get()).toEqual([]);
+        expect(trainStations.get()).toEqual([]);
         expect(mapGeoJSON.get()).toBeNull();
         expect(gameDefinitionReady.get()).toBe(false);
-        expect(await switchToGame(game)).toBe(true);
-        expect(hidingRadius.get()).toBe(900);
+        expect(await switchToGame(game, pinned)).toBe(true);
+        expect(appliedRadius()).toBe(900);
         expect(gameDefinitionReady.get()).toBe(true);
         expect(fetchSpy).toHaveBeenCalledTimes(2);
     });
@@ -388,11 +315,15 @@ describe("game loading concurrency", () => {
             properties: { name: "Station", radius: 2 },
         });
         applyGameDefinition(zoned);
-        expect(hidingRadius.get()).toBe(400);
-        expect(hidingRadiusUnits.get()).toBe("kilometers");
-        expect(customStations.get()).toEqual([
-            { id: "0", name: "Station", lat: 0, lng: 0, radius: 2, unit: "kilometers" },
-        ]);
+        expect(compiledGameAtom.get()?.hidingZones.baseRadius).toEqual({
+            value: 400,
+            unit: "kilometers",
+        });
+        const [zone] = hidingZoneCircles(compiledGameAtom.get()!);
+        expect(zone.properties.properties).toEqual({ id: "0", name: "Station" });
+        // A 2 km circle, not the game-wide 400 km.
+        const [west, , east] = turf.bbox(zone);
+        expect(turf.distance([west, 0], [east, 0])).toBeCloseTo(4, 1);
     });
 
     it("keeps the newest server catalog visible while older loads finish", async () => {
@@ -546,8 +477,8 @@ describe("leaving a game", () => {
     it("clears the game's board, so a failed session switch leaves no other game behind", () => {
         applyGameDefinition(definition(500));
         currentGameId.set(game.id);
-        tierRadiusOverrides.set({ "1": 2 });
-        expect(useCustomStations.get()).toBe(true);
+        trainStations.set(hidingZoneCircles(compiledGameAtom.get()!));
+        expect(trainStations.get()).not.toEqual([]);
         expect(polyGeoJSON.get()).not.toBeNull();
 
         resetGameState();
@@ -556,9 +487,7 @@ describe("leaving a game", () => {
         expect(gameDefinitionReady.get()).toBe(false);
         expect(polyGeoJSON.get()).toBeNull();
         expect(mapGeoJSON.get()).toBeNull();
-        expect(useCustomStations.get()).toBe(false);
-        expect(customStations.get()).toEqual([]);
-        expect(tierRadiusOverrides.get()).toEqual({});
+        expect(trainStations.get()).toEqual([]);
         expect(currentGameId.get()).toBe("");
     });
 });

@@ -169,7 +169,7 @@ The import rejects unknown properties, both at the root and in each layer. Posit
 | `visibility` | no | `{"kind":"server-members"}` | Or `{"kind":"discord-role","guildId":"…","roleId":"…"}` to restrict the game to one role. |
 | `unit` | no | | Avoid it. Set `hidingZones.unit` instead (section 4). |
 | `map.center` | yes | | `[lng, lat]`. Use the play area's centre. |
-| `map.bounds` | no | from `center` and zones ±0.05° | `[west, south, east, north]`. Set it to the play area's bbox plus a small margin. Matching cells are computed over this box, so a box much larger than the play area only slows matching down. |
+| `map.bounds` | no | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`. Set it to the play area's bbox plus a small margin. Matching cells are computed over this box, so a box much larger than the play area only slows matching down. |
 | `map.playArea` | yes | | A FeatureCollection of Polygon/MultiPolygon features. It is the starting map: everything outside it is eliminated from the start, and the view fits to it. |
 | `hidingZones` | yes | | Section 4. |
 | `radars`, `thermometer` | no | **off** | Section 5.1. |
@@ -195,7 +195,7 @@ Only Searchlight admins can import into Home Games, since it has no Discord role
 "hidingZones": { "radius": 400, "unit": "meters", "tierOverrides": { "Outer": 600 }, "features": { "type": "FeatureCollection", "features": [ … ] } }
 ```
 
-- **Use Point features.** Polygon and MultiPolygon zones pass validation, but the app only draws and uses Point zones.
+- **Use Point features.** A Polygon or MultiPolygon zone also works: the app uses it as its own area, so no radius or tier applies to it, but `check-game.mjs` can't tell whether it lies inside the play area.
 - **`id`:** give every zone a unique, stable string ID (the slug of its name, with `-2`, `-3` for repeats). Without one the zone name is used as the ID, so two stops with the same name collide.
 - **`properties.name`** is the name shown to players.
 - **`properties.tier`** selects a radius from `tierOverrides`. Write tiers as strings, like the `tierOverrides` keys (a number `1` is read as `"1"`). Tier names are case-sensitive: `"outer"` does not match `"Outer"`. Zones whose tier has no override use the base radius.

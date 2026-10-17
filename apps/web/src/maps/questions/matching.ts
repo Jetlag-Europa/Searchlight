@@ -3,7 +3,6 @@ import * as turf from "@turf/turf";
 import {
     hiderMode,
     mapGeoJSON,
-    mapGeoLocation,
     polyGeoJSON,
 } from "@/lib/context";
 import {
@@ -100,7 +99,8 @@ export const determineMatchingBoundary = async (question: MatchingQuestion) => {
         lat: question.lat,
         lng: question.lng,
         geo: question.geo,
-        entirety: identityKey(polyGeoJSON.get() ?? mapGeoLocation.get()),
+        // Each loaded game or revision has its own play area object.
+        entirety: identityKey(polyGeoJSON.get()),
     });
     if (_matchingBoundaryCache.has(key)) return _matchingBoundaryCache.get(key);
     const result = await determineMatchingBoundaryInner(question);

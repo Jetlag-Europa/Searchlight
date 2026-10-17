@@ -43,7 +43,10 @@ it("switches games when sessionStorage writes throw", async () => {
         serverName: "Server",
         size: "medium" as const,
     };
-    const loaded = switchToGame(game);
+    const loaded = switchToGame(game, {
+        revisionId: "storage-revision",
+        sessionId: "storage-session",
+    });
     expect(currentGameId.get()).toBe(game.id);
     expect(await loaded).toBe(false);
 });

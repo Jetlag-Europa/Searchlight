@@ -285,7 +285,7 @@ export function checkGame(def, { fileSize } = {}) {
     if (!zones.length) warn("/hidingZones/features", "no hiding zones", "no-zones");
     const polyZones = zones.filter((f) => f.geometry.type !== "Point");
     if (polyZones.length) {
-      warn("/hidingZones/features", `${polyZones.length} Polygon/MultiPolygon zone(s): they pass validation but the app only draws and uses Point zones`, "polygon-zones");
+      warn("/hidingZones/features", `${polyZones.length} Polygon/MultiPolygon zone(s): the app uses each as its own area (no radius or tier applies), and these checks can't tell whether they lie inside the play area`, "polygon-zones");
     }
     const pointZones = zones.filter(pointOf);
     const zoneIds = new Map();

@@ -52,25 +52,6 @@ export async function importGameDefinitionAPI(
   return res.json();
 }
 
-export async function exportGameDefinitionAPI(
-  gameId: string,
-  sessionId?: string,
-): Promise<GameDefinition> {
-  const url = buildApiUrl(`/games/${encodeURIComponent(gameId)}/export`);
-  if (sessionId) {
-    url.searchParams.set("sessionId", sessionId);
-  }
-  const res = await fetch(url.toString(), {
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    throw new Error(`Export failed with status ${res.status}`);
-  }
-
-  return res.json();
-}
-
 export async function fetchGameRevisionsAPI(
   gameId: string,
   sessionId?: string,

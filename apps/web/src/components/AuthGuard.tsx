@@ -2,6 +2,7 @@ import type { MeResponse } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { clearActiveSession, verifiedUserId } from "@/lib/activeSession";
+import { forgetGameViews } from "@/lib/gameView";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
 
 import { UserChip } from "./UserChip";
@@ -48,6 +49,7 @@ export function AuthGuard() {
                         "— clearing active session",
                     );
                     clearActiveSession();
+                    forgetGameViews();
                 }
                 writeStorage("localStorage", STORED_USER_KEY, data.user.discordId);
                 verifiedUserId.set(data.user.discordId);

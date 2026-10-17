@@ -3,6 +3,7 @@ import type { User } from "@searchlight/shared";
 
 import { clearActiveSession, verifiedUserId } from "@/lib/activeSession";
 import { sessionPickerOpen, sidebarContextR } from "@/lib/context";
+import { forgetGameViews } from "@/lib/gameView";
 import { removeStorage } from "@/lib/safeStorage";
 
 interface Props {
@@ -23,6 +24,7 @@ export function UserChip({ user, apiBase }: Props) {
         });
         verifiedUserId.set(null);
         clearActiveSession();
+        forgetGameViews();
         removeStorage("localStorage", "taibled-authed-user");
         console.info(
             "[searchlight] logged out — active session and user cleared",

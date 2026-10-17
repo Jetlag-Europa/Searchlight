@@ -1,7 +1,5 @@
-import type { Feature, Point, Polygon } from "geojson";
+import type { Feature, MultiPolygon, Point, Polygon } from "geojson";
 import type { LatLngTuple } from "leaflet";
-
-import type { Question, Units } from "@/maps/schema";
 
 export interface OpenStreetMap {
     type: string;
@@ -25,40 +23,16 @@ export interface OpenStreetMapProperties {
     osm_value: string;
     name: string;
     type: string;
-    isHidingZone?: boolean;
-    questions?: Question[];
-}
-
-export interface AdditionalMapGeoLocations {
-    added: boolean;
-    location: OpenStreetMap;
-    base: boolean;
-}
-
-export enum CacheType {
-    CACHE = "jlhs-map-generator-cache",
-    ZONE_CACHE = "jlhs-map-generator-zone-cache",
-    PERMANENT_CACHE = "jlhs-map-generator-permanent-cache",
-}
-
-export interface CustomStation {
-    id: string;
-    name?: string;
-    lat: number;
-    lng: number;
-    tier?: string;
-    radius?: number;
-    unit?: Units;
 }
 
 export interface StationPlaceProperties {
     id: string;
     name?: string;
     tier?: string;
-    radius?: number;
-    unit?: Units;
     [key: string]: unknown;
 }
 
+/** A hiding zone's station, or the point marking a polygon zone. */
 export type StationPlace = Feature<Point, StationPlaceProperties>;
-export type StationCircle = Feature<Polygon, StationPlace>;
+/** A hiding zone's area: a circle around its station, or a polygon zone. */
+export type StationCircle = Feature<Polygon | MultiPolygon, StationPlace>;
