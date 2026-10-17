@@ -1,0 +1,78 @@
+name: Tests
+
+# Builds the workspace and runs every test suite from docs/TESTING.md except
+# the Playwright e2e tests, which need the full Docker stack. Runs on every pull
+# request and on pushes to main. The API tests use the Postgres service below.
+
+on:
+    pull_request:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+# A new push to a pull request cancels its older run.
+concurrency:
+    group: tests-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+    contents: read
+
+jobs:
+    test:
+        name: Build and test
+        runs-on: ubuntu-24.04
+        timeout-minutes: 20
+        services:
+            postgres:
+                image: postgres:16
+                env:
+                    POSTGRES_DB: searchlight
+                    POSTGRES_USER: searchlight
+                    POSTGRES_PASSWORD: ci
+                ports:
+                    - 5432:5432
+                options: >-
+                    --health-cmd "pg_isready -U searchlight -d searchlight"
+                    --health-interval 2s
+                    --health-timeout 5s
+                    --health-retries 15
+        env:
+            DATABASE_URL: postgresql://searchlight:ci@localhost:5432/searchlight
+        steps:
+            - uses: actions/checkout@v6
+
+            # Uses the pnpm version from package.json#packageManager.
+            - uses: pnpm/action-setup@v6
+
+            - uses: actions/setup-node@v7
+              with:
+                  node-version: 22
+                  cache: pnpm
+
+            - name: Install
+              run: pnpm install --frozen-lockfile
+
+            # Type-checks the API (tsc) and builds shared, which the other
+            # packages import from its dist.
+            - name: Build
+              run: pnpm build
+
+            - name: Migrate the test database
+              working-directory: apps/api
+              run: pnpm exec prisma migrate deploy
+
+            - name: Shared tests
+              run: pnpm --filter @searchlight/shared test
+
+            - name: Web tests
+              run: pnpm --filter @searchlight/web exec vitest run
+
+            - name: API tests
+              run: pnpm --filter @searchlight/api test
+
+            - name: Preloaded games
+              run: pnpm verify:preloaded-games
+
+            - name: Game JSON schema
+              run: pnpm check:game-schema
