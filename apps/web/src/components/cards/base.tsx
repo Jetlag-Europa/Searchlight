@@ -3,6 +3,7 @@ import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { VscChevronDown, VscShare, VscTrash } from "react-icons/vsc";
 
+import { deleteQuestionsWithUndo } from "@/components/DeleteUndoToast";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -237,9 +238,9 @@ export const QuestionCard = ({
                                             Are you absolutely sure?
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This action cannot be undone. This
-                                            will permanently delete{" "}
-                                            {deleteTarget}.
+                                            This will delete {deleteTarget} for
+                                            everyone in the session. You can
+                                            undo it for a few seconds.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -247,15 +248,11 @@ export const QuestionCard = ({
                                             Cancel
                                         </AlertDialogCancel>
                                         <AlertDialogAction
-                                            onClick={() => {
-                                                questions.set(
-                                                    $questions.filter(
-                                                        (q) =>
-                                                            q.key !==
-                                                            questionKey,
-                                                    ),
-                                                );
-                                            }}
+                                            onClick={() =>
+                                                deleteQuestionsWithUndo([
+                                                    questionKey,
+                                                ])
+                                            }
                                         >
                                             Delete Question
                                         </AlertDialogAction>
