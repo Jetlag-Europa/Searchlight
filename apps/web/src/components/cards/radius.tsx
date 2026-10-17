@@ -136,12 +136,12 @@ export const RadiusQuestionComponent = ({
                                 className={cn(
                                     "whitespace-nowrap",
                                     asked &&
-                                        "gap-0.5 data-[state=off]:text-muted-foreground",
+                                        "gap-1 data-[state=off]:text-muted-foreground [&_svg]:size-3",
                                 )}
                                 title={asked ? "Asked already" : undefined}
                             >
                                 {formatRadius(radius)}
-                                {asked && <CheckIcon className="h-3 w-3" />}
+                                {asked && <CheckIcon />}
                             </ToggleGroupItem>
                         );
                     })}
