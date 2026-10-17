@@ -6,7 +6,7 @@ import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
 import type { FeatureCollection, Polygon } from "geojson";
 import * as L from "leaflet";
-import { useEffect, useMemo, useRef } from "react";
+import { Fragment, useEffect, useMemo, useRef } from "react";
 import { MapContainer, ScaleControl, TileLayer } from "react-leaflet";
 import { toast } from "react-toastify";
 
@@ -522,7 +522,11 @@ export const Map = ({ className }: { className?: string }) => {
                     },
                 ]}
             >
-                {getTileLayer($baseTileLayer, $thunderforestApiKey)}
+                {/* A new layer per basemap: react-leaflet only updates a
+                    layer's URL, not its zoom range or attribution. */}
+                <Fragment key={$baseTileLayer}>
+                    {getTileLayer($baseTileLayer, $thunderforestApiKey)}
+                </Fragment>
                 <DraggableMarkers />
                 <div className="leaflet-top leaflet-right">
                     <div className="leaflet-control flex-col flex gap-2">
@@ -626,6 +630,13 @@ export const Map = ({ className }: { className?: string }) => {
         if (!map) return;
         const resizeObserver = new ResizeObserver(() => {
             map.invalidateSize({ pan: false });
+            // Until a game is shown, keep the world filling the map, whose
+            // width the sidebars settle after it is created.
+            if (framedGameIdRef.current === null) {
+                map.setView(WORLD_CENTER, worldZoom(map.getSize().x), {
+                    animate: false,
+                });
+            }
         });
         resizeObserver.observe(map.getContainer());
         return () => resizeObserver.disconnect();
