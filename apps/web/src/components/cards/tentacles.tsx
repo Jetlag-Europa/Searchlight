@@ -25,6 +25,11 @@ import {
     setScopedLoading,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    defaultQuestionLabel,
+    questionName,
+    setQuestionName,
+} from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import { featuresMatch } from "@/maps/questions/operators/tentacle";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
@@ -78,17 +83,13 @@ export const TentacleQuestionComponent = ({
         };
     }, [prefillScope]);
 
-    const label = `Tentacles
-    ${
-        $questions
-            .filter((q) => q.id === "tentacles")
-            .map((q) => q.key)
-            .indexOf(questionKey) + 1
-    }`;
+    const label = defaultQuestionLabel($questions, questionKey);
     return (
         <QuestionCard
             questionKey={questionKey}
             label={label}
+            name={questionName(data)}
+            setName={(name) => questionModified(setQuestionName(data, name))}
             sub={compiled?.questionMap.get(data.locationType)?.label ?? sub}
             className={className}
             collapsed={data.collapsed}

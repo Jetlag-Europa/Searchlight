@@ -79,3 +79,17 @@ it("reuses unchanged questions' regions and re-evaluates only edited ones", asyn
     expect(moved[0].region).not.toBe(first[0].region);
     expect(moved[0].region).toEqual(first[0].region);
 });
+
+it("keeps a question's region when only its name or collapsed state changes", async () => {
+    const base = turf.featureCollection([turf.bboxPolygon([4, 51, 5, 52])]);
+    const [first] = await computePerQuestionRegions(
+        [radius(1, 4.3, true)],
+        base,
+        false,
+    );
+    const renamed = radius(1, 4.3, true);
+    renamed.data.name = "Airport radar";
+    renamed.data.collapsed = true;
+    const [second] = await computePerQuestionRegions([renamed], base, false);
+    expect(second.region).toBe(first.region);
+});

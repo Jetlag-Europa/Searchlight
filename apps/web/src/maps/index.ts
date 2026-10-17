@@ -402,7 +402,12 @@ export async function computePerQuestionRegions(
             continue;
         if (planningModeEnabled && question.data.drag) continue;
 
-        const key = JSON.stringify([question.id, question.data]);
+        // A card's name and collapsed state change no region (JSON drops the
+        // undefined keys).
+        const key = JSON.stringify([
+            question.id,
+            { ...question.data, name: undefined, collapsed: undefined },
+        ]);
         let region = cache.get(key);
         if (!region) {
             // Each question is evaluated against a fresh copy of the base

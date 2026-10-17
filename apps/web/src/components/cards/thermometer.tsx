@@ -12,6 +12,11 @@ import {
     questions,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    defaultQuestionLabel,
+    questionName,
+    setQuestionName,
+} from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import type { ThermometerQuestion } from "@/maps/schema";
 
@@ -36,13 +41,7 @@ export const ThermometerQuestionComponent = ({
     const $defaultUnit = useStore(defaultUnit);
     const DISTANCE_UNIT = $defaultUnit ?? "kilometers";
 
-    const label = `Thermometer
-    ${
-        $questions
-            .filter((q) => q.id === "thermometer")
-            .map((q) => q.key)
-            .indexOf(questionKey) + 1
-    }`;
+    const label = defaultQuestionLabel($questions, questionKey);
 
     const hasCoords =
         data.latA !== null &&
@@ -69,6 +68,8 @@ export const ThermometerQuestionComponent = ({
         <QuestionCard
             questionKey={questionKey}
             label={label}
+            name={questionName(data)}
+            setName={(name) => questionModified(setQuestionName(data, name))}
             sub={sub}
             className={className}
             collapsed={data.collapsed}
