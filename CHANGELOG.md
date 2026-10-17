@@ -5,6 +5,11 @@
 - A measuring question's card shows how far the seeker is from what it measures to, and which one is nearest when the game names them: "Your distance: 1.243 km to Brussels Airport", or "… to the Antwerpen boundary" for a region boundary. Custom measures show the distance to what is drawn. The distance is the geodetic one the map's measuring circle is drawn with, in the Default Unit to three places (meters under 1 km, then 1.123 km; feet under 0.1 mi, then 1.123 mi), and updates when the seeker moves.
 - In hider mode the card also shows the hider's distance, so the automatic Closer/Further answer can be checked.
 
+## Question names (2026-10-17)
+
+- Every question card has a Name field, so a radar, thermometer, tentacle, matching or measuring question can be called "Airport radar" instead of only "Radius 2". A named card shows the name above its type and number, also while it is collapsed or hidden, and its map marker shows the name on hover. The name saves when you leave the field or press Enter, and syncs with the session like the rest of the question; clearing it goes back to the numbered label.
+- Names travel with a question's JSON (`data.name`, at most 60 characters), so Share and Paste Question keep them. A question without a name has no `name` key, and a malformed name is ignored rather than rejecting the question.
+
 ## Region-boundary questions cover the whole play area (2026-10-17)
 
 - A game's regions can fall short of its play area, as Belgium's provinces do along the French border, between neighbouring provinces and at sea. Distance-to-region-boundary questions treated a point in no region as infinitely far from any boundary, so those strips always survived "Hider Further" (drawn as dashed fragments along the border) and were always eliminated by "Hider Closer". A point in no region is now measured to the nearest region's boundary, for the seeker, the hider's automatic answer and the map alike.

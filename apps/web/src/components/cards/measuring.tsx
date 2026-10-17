@@ -22,6 +22,11 @@ import {
     questions,
     triggerLocalRefresh,
 } from "@/lib/context";
+import {
+    defaultQuestionLabel,
+    questionName,
+    setQuestionName,
+} from "@/lib/questionNames";
 import { cn, formatDistance } from "@/lib/utils";
 import { measuringDistance } from "@/maps";
 import type { MeasuredDistance } from "@/maps/questions/operators/measuring";
@@ -117,13 +122,7 @@ export const MeasuringQuestionComponent = ({
         compiled?.questions.filter((q) => q.family === "measuring") ?? [];
     const distances = useMeasuredDistances(data);
 
-    const label = `Measuring
-    ${
-        $questions
-            .filter((q) => q.id === "measuring")
-            .map((q) => q.key)
-            .indexOf(questionKey) + 1
-    }`;
+    const label = defaultQuestionLabel($questions, questionKey);
 
     let questionSpecific = <></>;
 
@@ -164,6 +163,8 @@ export const MeasuringQuestionComponent = ({
         <QuestionCard
             questionKey={questionKey}
             label={label}
+            name={questionName(data)}
+            setName={(name) => questionModified(setQuestionName(data, name))}
             sub={compiled?.questionMap.get(data.type)?.label ?? sub}
             className={className}
             collapsed={data.collapsed}
