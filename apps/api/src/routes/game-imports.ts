@@ -9,7 +9,7 @@ import {
   ImportValidationError,
 } from "../games/import-service.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
-import { getUserPermissions } from "../lib/permissions.js";
+import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 
@@ -19,6 +19,8 @@ const MAX_GAME_IMPORT_BYTES = 50 * 1024 * 1024;
 // A broken multi-MB definition can produce an issue per feature; the message
 // still states the total.
 const MAX_REPORTED_ISSUES = 100;
+// What canCreateGames and canEditGames accept from a logged-in user.
+const IMPORT_PERMISSIONS = ["games.create", "games.edit", "server.admin"];
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -72,6 +74,11 @@ export async function resolveImportActor(
 
   // Session cookie auth
   const { user } = await resolveSession(req);
+  // Turn away users who can't import anywhere before the body is parsed; the
+  // import checks the target server.
+  if (!(await hasPermissionOnSomeServer(user.discordId, IMPORT_PERMISSIONS, req.log))) {
+    throw new ImportForbiddenError("You do not have permission to import games");
+  }
   return {
     userId: user.discordId,
     type: "cookie",
@@ -205,8 +212,8 @@ export async function gameImportRoutes(app: FastifyInstance) {
     "/import",
     {
       bodyLimit: MAX_GAME_IMPORT_BYTES,
-      // Authenticate before Fastify reads and parses a body of up to
-      // MAX_GAME_IMPORT_BYTES.
+      // Authenticate, and check the caller may import on some server, before
+      // Fastify reads and parses a body of up to MAX_GAME_IMPORT_BYTES.
       onRequest: async (req) => {
         req.importActor = await resolveImportActor(req);
       },

@@ -647,6 +647,19 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       expect(resEmpty.statusCode).toBe(400);
     });
 
+    test("rejects 400 Bad Request for a fractional ordinal (the column is an integer)", async () => {
+      const res = await app.inject({
+        method: "PUT",
+        url: `/sessions/${SESSION_ID}/questions`,
+        headers: { cookie },
+        payload: {
+          questions: [{ clientUuid: "q-fraction", ordinal: 0.5, payloadJson: {} }],
+          replacementId: "replace-fractional-ordinal",
+        },
+      });
+      expect(res.statusCode).toBe(400);
+    });
+
     test("mutations allocate contiguous strictly increasing sequence numbers matching GameSession.eventSequence", async () => {
       const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
       const initialSeq = session.eventSequence;

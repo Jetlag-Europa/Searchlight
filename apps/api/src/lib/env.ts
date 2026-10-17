@@ -6,6 +6,15 @@ function devLoginToken(): string {
   return val;
 }
 
+// Test login needs no credential, so a production API refuses to start with it.
+function enableTestAuth(): boolean {
+  const on = process.env["ENABLE_TEST_AUTH"] === "1";
+  if (on && process.env["NODE_ENV"] === "production") {
+    throw new Error("ENABLE_TEST_AUTH=1 is not allowed with NODE_ENV=production");
+  }
+  return on;
+}
+
 function required(name: string): string {
   const val = process.env[name];
   if (!val) throw new Error(`Missing required env var: ${name}`);
@@ -27,7 +36,7 @@ export const env = {
   ADMIN_DISCORD_IDS: process.env["ADMIN_DISCORD_IDS"] ?? "",
   // Test-only: when "1", enables POST /auth/test-login (mints a session cookie
   // for a seeded user, skipping Discord) for Playwright e2e. NEVER set in prod.
-  ENABLE_TEST_AUTH: process.env["ENABLE_TEST_AUTH"] === "1",
+  ENABLE_TEST_AUTH: enableTestAuth(),
   TEST_AUTH_USER_ID: process.env["TEST_AUTH_USER_ID"] ?? "e2e-test-user",
   // Preview deployments only: when set, enables /auth/dev-login, which logs in as
   // any Discord user ID given this token. NEVER set in prod.

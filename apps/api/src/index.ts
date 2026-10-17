@@ -4,6 +4,7 @@ import fastifyCors from "@fastify/cors";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { Type } from "@sinclair/typebox";
 import { env } from "./lib/env.js";
+import { errorHandler } from "./lib/error-handler.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +40,8 @@ const app = Fastify({
     },
   },
 }).withTypeProvider<TypeBoxTypeProvider>();
+
+app.setErrorHandler(errorHandler);
 
 await app.register(fastifyCors, {
   origin: env.FRONTEND_ORIGIN,
