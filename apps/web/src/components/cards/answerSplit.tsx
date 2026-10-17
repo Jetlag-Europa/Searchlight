@@ -118,9 +118,12 @@ export const AnswerSplitPreview = ({
                     ? split.map(({ label, zones }, index) => (
                           <span key={label}>
                               {index > 0 && " · "}
-                              {label} →{" "}
-                              <span className="font-medium text-foreground">
-                                  {zones} {zones === 1 ? "zone" : "zones"}
+                              {/* Wraps between answers, not within one. */}
+                              <span className="whitespace-nowrap">
+                                  {label} →{" "}
+                                  <span className="font-medium text-foreground">
+                                      {zones} {zones === 1 ? "zone" : "zones"}
+                                  </span>
                               </span>
                           </span>
                       ))
