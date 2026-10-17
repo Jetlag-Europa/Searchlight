@@ -718,6 +718,20 @@ describe("maps dispatch and hider regression suite", () => {
         );
         expect(district?.name).toBe("District Exclave");
         expect(district?.boundary).toBe(true);
+        // Outside every region: the nearest region's boundary.
+        const outside = await measuringDistance(
+            measuringQuestionSchema.parse({
+                type: "measuring-districts",
+                lat: 35.62,
+                lng: 139.8,
+            }),
+        );
+        expect(outside?.name).toBe("District Exclave");
+        expect(outside?.boundary).toBe(true);
+        expect(outside?.meters).toBeCloseTo(
+            km([139.8, 35.62], [139.7, 35.62]),
+            -2,
+        );
         expect(district?.meters).toBeCloseTo(
             km([139.64, 35.62], [139.65, 35.62]),
             -1,

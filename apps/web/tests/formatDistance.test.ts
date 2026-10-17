@@ -18,6 +18,6 @@ describe("formatDistance", () => {
 
     it("shows short mile distances in feet", () => {
         expect(formatDistance(128, "miles")).toBe("420 ft");
-        expect(formatDistance(1609.344 * 3.45678, "miles")).toBe("3.4568 mi");
+        expect(formatDistance(1609.344 * 3.45678, "miles")).toBe("3.457 mi");
     });
 });
