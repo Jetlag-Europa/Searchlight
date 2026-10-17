@@ -17,6 +17,7 @@ import {
     isLoading,
     setScopedLoading,
 } from "@/lib/context";
+import { splitPlusCode } from "@/lib/plusCode";
 import { cn } from "@/lib/utils";
 import { determineName, geocode, ICON_COLORS } from "@/maps/api";
 
@@ -133,22 +134,26 @@ const LatLngEditForm = ({
 
     useEffect(() => {
         if (localLocations) return;
-        if (debouncedValue === "") {
-            setResults([]);
+        setError(false);
+        setResults([]);
+        if (debouncedValue.trim() === "") {
+            setLoading(false);
             return;
-        } else {
-            setLoading(true);
-            setResults([]);
-            geocode(debouncedValue, "en", false)
-                .then((x) => {
-                    setResults(x);
-                    setLoading(false);
-                })
-                .catch(() => {
-                    setError(true);
-                    setLoading(false);
-                });
         }
+        // Drop the answer for a query the player has already typed past.
+        const controller = new AbortController();
+        setLoading(true);
+        geocode(debouncedValue, "en", false, controller.signal)
+            .then((x) => {
+                if (!controller.signal.aborted) setResults(x);
+            })
+            .catch(() => {
+                if (!controller.signal.aborted) setError(true);
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
+        return () => controller.abort();
     }, [debouncedValue, localLocations]);
 
     const _latlngLabels = results.map((r) => determineName(r));
@@ -313,7 +318,9 @@ const LatLngEditForm = ({
                                 const olc =
                                     new OpenLocationCode() as typeof OpenLocationCode;
 
-                                let codeBase = code.split(" ")[0];
+                                const { code: parsedCode, locality } =
+                                    splitPlusCode(code);
+                                let codeBase = parsedCode;
 
                                 if (!olc.isValid(codeBase)) {
                                     toast.error("Invalid Google Plus code");
@@ -321,21 +328,27 @@ const LatLngEditForm = ({
                                 }
 
                                 if (olc.isShort(codeBase)) {
-                                    const location = code.split(" ")[1];
+                                    if (locality === "") {
+                                        toast.error(
+                                            "Add a town after a short Plus code, e.g. Q9CM+3P Narita",
+                                        );
+                                        return;
+                                    }
 
                                     setLoading(true);
 
                                     const geo = await geocode(
-                                        location,
+                                        locality,
                                         "en",
                                         false,
-                                    );
+                                    )
+                                        .catch(() => [])
+                                        .finally(() => setLoading(false));
 
                                     if (geo.length === 0) {
                                         toast.error(
                                             "Could not resolve location for short code",
                                         );
-                                        setLoading(false);
                                         return;
                                     }
 
@@ -346,8 +359,6 @@ const LatLngEditForm = ({
                                         center[0],
                                         center[1],
                                     );
-
-                                    setLoading(false);
                                 }
 
                                 const coordinates = olc.decode(codeBase);

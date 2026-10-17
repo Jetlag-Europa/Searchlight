@@ -6,6 +6,7 @@ import type {
 } from "@searchlight/shared";
 import { useCallback, useState } from "react";
 
+import { UncopiedLinkField, useCopyLink } from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Drawer,
@@ -18,6 +19,10 @@ import { activeSessionData } from "@/lib/activeSession";
 import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+function linkUrl(token: string): string {
+    return `${window.location.origin}/join?token=${token}`;
+}
 
 async function errorMessage(res: Response): Promise<string> {
     const body = await res.json().catch(() => null) as { message?: string } | null;
@@ -35,7 +40,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     const [loadingLinks, setLoadingLinks] = useState(false);
     const [creatingLink, setCreatingLink] = useState(false);
     const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
-    const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+    const { copiedId: copiedLinkId, uncopiedUrl, setUncopiedUrl, copyLink } = useCopyLink();
 
     const fetchLinks = useCallback(async () => {
         if (!session || !isCreator) return;
@@ -70,11 +75,8 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                 return;
             }
             const data: CreateLinkResponse = await res.json();
-            const url = `${window.location.origin}/join?token=${data.token}`;
-            await navigator.clipboard.writeText(url).catch(() => {});
+            await copyLink(data.id, linkUrl(data.token));
             await fetchLinks();
-            setCopiedLinkId(data.id);
-            setTimeout(() => setCopiedLinkId(null), 2000);
         } catch {
             setSendError("Could not create the link. Check your connection.");
         } finally {
@@ -82,30 +84,33 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
         }
     };
 
-    const handleRevokeLink = async (linkId: string) => {
+    const handleRevokeLink = async (linkId: string, token: string) => {
         if (!session) return;
         setRevokingLinkId(linkId);
+        setSendError(null);
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}/links/${linkId}`, {
                 method: "DELETE",
                 credentials: "include",
             });
-            if (res.ok) setLinks((prev) => prev.filter((l) => l.id !== linkId));
+            // A 404 means it is already gone.
+            if (!res.ok && res.status !== 404) {
+                setSendError(await errorMessage(res));
+                return;
+            }
+            setLinks((prev) => prev.filter((l) => l.id !== linkId));
+            if (uncopiedUrl === linkUrl(token)) setUncopiedUrl(null);
+        } catch {
+            setSendError("Could not revoke the link. Check your connection.");
         } finally {
             setRevokingLinkId(null);
         }
     };
 
-    const copyLink = async (token: string, linkId: string) => {
-        const url = `${window.location.origin}/join?token=${token}`;
-        await navigator.clipboard.writeText(url).catch(() => {});
-        setCopiedLinkId(linkId);
-        setTimeout(() => setCopiedLinkId(null), 2000);
-    };
-
     // ── Drawer open/close ─────────────────────────────────────────────────────
     const handleOpenChange = (v: boolean) => {
         setOpen(v);
+        setUncopiedUrl(null);
         if (v) {
             onOpen?.();
             fetchLinks();
@@ -148,6 +153,8 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                             {creatingLink ? "Creating…" : "Create share link"}
                         </Button>
 
+                        <UncopiedLinkField url={uncopiedUrl} />
+
                         {loadingLinks && links.length === 0 && (
                             <p className="text-xs text-muted-foreground">Loading…</p>
                         )}
@@ -167,7 +174,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                                                 size="sm"
                                                 variant="outline"
                                                 className="text-xs"
-                                                onClick={() => copyLink(l.token, l.id)}
+                                                onClick={() => copyLink(l.id, linkUrl(l.token))}
                                             >
                                                 {copiedLinkId === l.id ? "Copied!" : "Copy"}
                                             </Button>
@@ -175,7 +182,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                                                 size="sm"
                                                 variant="ghost"
                                                 disabled={revokingLinkId === l.id}
-                                                onClick={() => handleRevokeLink(l.id)}
+                                                onClick={() => handleRevokeLink(l.id, l.token)}
                                                 className="text-muted-foreground hover:text-destructive"
                                             >
                                                 {revokingLinkId === l.id ? "…" : "Revoke"}

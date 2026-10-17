@@ -1,6 +1,7 @@
 import type { Game, GameLinksResponse,GameLinkSummary } from "@searchlight/shared";
 import { useCallback, useState } from "react";
 
+import { UncopiedLinkField, useCopyLink } from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -28,9 +29,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
     const [links, setLinks] = useState<GameLinkSummary[] | null>(null);
     const [creating, setCreating] = useState(false);
     const [revokingId, setRevokingId] = useState<string | null>(null);
-    const [copiedId, setCopiedId] = useState<string | null>(null);
-    // A link the clipboard refused (e.g. Safari after the create request).
-    const [uncopiedUrl, setUncopiedUrl] = useState<string | null>(null);
+    const { copiedId, uncopiedUrl, setUncopiedUrl, copyLink: copy } = useCopyLink();
     const [error, setError] = useState<string | null>(null);
 
     const linksUrl = `${API_BASE}/games/${encodeURIComponent(game.id)}/links`;
@@ -47,18 +46,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
         }
     }, [linksUrl]);
 
-    const copyLink = async (link: GameLinkSummary) => {
-        const url = gameLinkUrl(link.token);
-        try {
-            await navigator.clipboard.writeText(url);
-        } catch {
-            setUncopiedUrl(url);
-            return;
-        }
-        setUncopiedUrl(null);
-        setCopiedId(link.id);
-        setTimeout(() => setCopiedId((id) => (id === link.id ? null : id)), 2000);
-    };
+    const copyLink = (link: GameLinkSummary) => copy(link.id, gameLinkUrl(link.token));
 
     const handleCreate = async () => {
         setCreating(true);
@@ -125,19 +113,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
                         {creating ? "Creating…" : "Create link (copies it)"}
                     </Button>
 
-                    {uncopiedUrl && (
-                        <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">
-                                Couldn’t copy automatically. Copy the link here:
-                            </p>
-                            <input
-                                readOnly
-                                value={uncopiedUrl}
-                                onFocus={(e) => e.currentTarget.select()}
-                                className="w-full border border-input rounded-md px-3 py-1.5 text-xs font-mono bg-background"
-                            />
-                        </div>
-                    )}
+                    <UncopiedLinkField url={uncopiedUrl} />
 
                     {error && (
                         <p className="text-sm text-destructive p-3 bg-destructive/10 rounded-md">
