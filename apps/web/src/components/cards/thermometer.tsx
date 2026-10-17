@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { ThermometerQuestion } from "@/maps/schema";
 
+import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
 
 export const ThermometerQuestionComponent = ({
@@ -142,6 +143,7 @@ export const ThermometerQuestionComponent = ({
                     <ToggleGroupItem value="warmer">Warmer</ToggleGroupItem>
                 </ToggleGroup>
             </div>
+            <AnswerSplitPreview questionKey={questionKey} data={data} />
         </QuestionCard>
     );
 };

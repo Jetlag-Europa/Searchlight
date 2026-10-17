@@ -58,7 +58,7 @@ export interface AnsweredRegion {
     zoneScale?: number;
 }
 
-type FilterZones = (
+export type FilterZones = (
     circles: Feature<Polygon | MultiPolygon>[],
     regions: FeatureCollection<Polygon | MultiPolygon>[],
 ) => Promise<number[]> | number[];
@@ -79,7 +79,30 @@ export async function survivingHidingZones(
     isCurrent: () => boolean = () => true,
 ): Promise<StationCircle[] | undefined> {
     const current = hidingZoneCircles(compiled, currentScale);
-    if (current.length === 0 || answered.length === 0) return current;
+    const surviving = await survivingZoneIndexes(
+        compiled,
+        answered,
+        filterZones,
+        isCurrent,
+        { scale: currentScale, circles: current },
+    );
+    return surviving?.map((index) => current[index]);
+}
+
+/**
+ * Indexes into the game's zones of those {@link survivingHidingZones} keeps.
+ * `known` passes zones already drawn at one scale, to reuse them.
+ */
+export async function survivingZoneIndexes(
+    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    answered: readonly AnsweredRegion[],
+    filterZones: FilterZones,
+    isCurrent: () => boolean = () => true,
+    known?: { scale: number; circles: StationCircle[] },
+): Promise<number[] | undefined> {
+    const count = compiled.hidingZones.stations?.length ?? 0;
+    let surviving = Array.from({ length: count }, (_, index) => index);
+    if (count === 0 || answered.length === 0) return surviving;
     if (answered.some(({ region }) => !region)) return [];
 
     const regionsByScale = new Map<
@@ -92,12 +115,11 @@ export async function survivingHidingZones(
         regionsByScale.set(zoneScale, regions);
     }
 
-    // Indexes into the game's zones, narrowed by each zone size in turn.
-    let surviving = current.map((_, index) => index);
+    // Narrowed by each zone size in turn.
     for (const [scale, regions] of regionsByScale) {
         const circles =
-            scale === currentScale
-                ? current
+            scale === known?.scale
+                ? known.circles
                 : hidingZoneCircles(compiled, scale);
         const kept = await filterZones(
             surviving.map((index) => circles[index]),
@@ -107,5 +129,5 @@ export async function survivingHidingZones(
         surviving = kept.map((index) => surviving[index]);
         if (surviving.length === 0) break;
     }
-    return surviving.map((index) => current[index]);
+    return surviving;
 }

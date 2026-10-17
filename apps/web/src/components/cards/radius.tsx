@@ -30,6 +30,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { RadiusQuestion } from "@/maps/schema";
 
+import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
 
 const UNIT_ABBREVIATIONS: Record<DistanceRadius["unit"], string> = {
@@ -195,6 +196,7 @@ export const RadiusQuestionComponent = ({
                     <ToggleGroupItem value="inside">Inside</ToggleGroupItem>
                 </ToggleGroup>
             </div>
+            <AnswerSplitPreview questionKey={questionKey} data={data} />
         </QuestionCard>
     );
 };
