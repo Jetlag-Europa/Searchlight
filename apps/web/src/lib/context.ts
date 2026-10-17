@@ -5,6 +5,11 @@ import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
+import {
+    askedVariants,
+    firstUnasked,
+    radarVariant,
+} from "@/lib/askedQuestions";
 import type { LatLng } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
@@ -60,7 +65,13 @@ export const addQuestion = (question: DeepPartial<Question>) => {
     if (family) {
         const idField = family === "tentacle" ? "locationType" : "type";
         if (candidate.data[idField] === undefined) {
-            const first = compiled.questions.find((q) => q.family === family);
+            // The first of the family's questions not asked yet.
+            const asked = askedVariants(questions.get(), candidate.id);
+            const first = firstUnasked(
+                compiled.questions.filter((q) => q.family === family),
+                asked,
+                (q) => q.id,
+            );
             // A game with no layer for this family still allows custom ones.
             if (first) candidate.data[idField] = first.id;
             else {
@@ -71,10 +82,14 @@ export const addQuestion = (question: DeepPartial<Question>) => {
             }
         }
     }
-    // A game's radar starts at its first declared radius, not the schema's
-    // generic default.
+    // A game's radar starts at its first declared radius not asked yet, not
+    // the schema's generic default.
     if (candidate.id === "radius" && candidate.data.radius === undefined) {
-        const [radius] = radarRadii(compiled);
+        const radius = firstUnasked(
+            radarRadii(compiled),
+            askedVariants(questions.get(), "radius"),
+            (r) => radarVariant(r.value, r.unit),
+        );
         if (radius) {
             candidate.data.radius = radius.value;
             candidate.data.unit = radius.unit;

@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar-l";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
+import { askedHints } from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     customInitPreference,
@@ -181,6 +182,7 @@ export const MatchingQuestionComponent = ({
                     options={Object.fromEntries(
                         compiledMatching.map((q) => [q.id, q.label]),
                     )}
+                    hints={askedHints($questions, "matching", questionKey)}
                     groups={{
                         Custom: {
                             disabled: false,

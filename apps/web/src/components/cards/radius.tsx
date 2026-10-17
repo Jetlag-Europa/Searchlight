@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import type { DistanceRadius } from "@searchlight/shared";
+import { CheckIcon } from "lucide-react";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
+import { askedVariants, radarVariant } from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     hiderMode,
@@ -63,6 +65,8 @@ export const RadiusQuestionComponent = ({
     const declaredIndex = declaredRadii.findIndex(
         (r) => r.value === data.radius && r.unit === data.unit,
     );
+    // Sizes other radars asked, marked (but still offered) in the quick picks.
+    const askedRadii = askedVariants($questions, "radius", questionKey);
     const label = defaultQuestionLabel($questions, questionKey);
 
     return (
@@ -121,15 +125,26 @@ export const RadiusQuestionComponent = ({
                     }}
                     disabled={!data.drag || $isLoading}
                 >
-                    {declaredRadii.map((radius, index) => (
-                        <ToggleGroupItem
-                            key={index}
-                            value={String(index)}
-                            className="whitespace-nowrap"
-                        >
-                            {formatRadius(radius)}
-                        </ToggleGroupItem>
-                    ))}
+                    {declaredRadii.map((radius, index) => {
+                        const asked = askedRadii.has(
+                            radarVariant(radius.value, radius.unit),
+                        );
+                        return (
+                            <ToggleGroupItem
+                                key={index}
+                                value={String(index)}
+                                className={cn(
+                                    "whitespace-nowrap",
+                                    asked &&
+                                        "gap-0.5 data-[state=off]:text-muted-foreground",
+                                )}
+                                title={asked ? "Asked already" : undefined}
+                            >
+                                {formatRadius(radius)}
+                                {asked && <CheckIcon className="h-3 w-3" />}
+                            </ToggleGroupItem>
+                        );
+                    })}
                 </ToggleGroup>
             )}
             <LatitudeLongitude

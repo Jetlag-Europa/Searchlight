@@ -60,8 +60,8 @@ export const AddQuestionDialog = ({
         compiled?.questions.some((q) => q.family === "matching") ?? false;
     const hasMeasuring =
         compiled?.questions.some((q) => q.family === "measuring") ?? false;
-    // addQuestion starts the radar at the game's first declared radius; the
-    // card offers the others as quick picks.
+    // addQuestion starts each question at the first type (or radar size) not
+    // asked yet; the card offers the others.
     const runAddRadius = () => {
         const center = startPosition();
         if (!center) return false;
@@ -85,9 +85,6 @@ export const AddQuestionDialog = ({
     const runAddTentacles = () => {
         const center = startPosition();
         if (!center) return false;
-        const firstTentacle = compiled?.questions.find(
-            (q) => q.family === "tentacle",
-        );
         addQuestion({
             id: "tentacles",
             data: defaultCustomQuestions.get()
@@ -97,13 +94,7 @@ export const AddQuestionDialog = ({
                       locationType: "custom",
                       places: [],
                   }
-                : {
-                      lat: center.lat,
-                      lng: center.lng,
-                      locationType: firstTentacle
-                          ? firstTentacle.id
-                          : undefined,
-                  },
+                : { lat: center.lat, lng: center.lng },
         });
         return true;
     };
@@ -111,18 +102,11 @@ export const AddQuestionDialog = ({
     const runAddMatching = () => {
         const center = startPosition();
         if (!center) return false;
-        const firstMatching = compiled?.questions.find(
-            (q) => q.family === "matching",
-        );
         addQuestion({
             id: "matching",
             data: defaultCustomQuestions.get()
                 ? { lat: center.lat, lng: center.lng, type: "custom-points" }
-                : {
-                      lat: center.lat,
-                      lng: center.lng,
-                      type: firstMatching ? firstMatching.id : undefined,
-                  },
+                : { lat: center.lat, lng: center.lng },
         });
         return true;
     };
@@ -130,18 +114,11 @@ export const AddQuestionDialog = ({
     const runAddMeasuring = () => {
         const center = startPosition();
         if (!center) return false;
-        const firstMeasuring = compiled?.questions.find(
-            (q) => q.family === "measuring",
-        );
         addQuestion({
             id: "measuring",
             data: defaultCustomQuestions.get()
                 ? { lat: center.lat, lng: center.lng, type: "custom-measure" }
-                : {
-                      lat: center.lat,
-                      lng: center.lng,
-                      type: firstMeasuring ? firstMeasuring.id : undefined,
-                  },
+                : { lat: center.lat, lng: center.lng },
         });
         return true;
     };

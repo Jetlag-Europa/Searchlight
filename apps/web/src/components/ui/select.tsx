@@ -9,6 +9,7 @@ const Select = <T extends string>({
     trigger,
     options,
     groups,
+    hints,
     ...rest
 }: {
     disabled?: boolean;
@@ -18,6 +19,8 @@ const Select = <T extends string>({
         string,
         { disabled: boolean; options: Options<T> } | Options<T>
     >;
+    // A muted note after an option, in the list only (not the trigger).
+    hints?: Options<T>;
     onValueChange?: (value: T) => void;
     value: T;
 }) => {
@@ -35,7 +38,11 @@ const Select = <T extends string>({
         disabled?: boolean;
     }) =>
         mapObj(options, (value, children) => (
-            <SelectItem key={value} {...{ ...rest, value, children }} />
+            <SelectItem
+                key={value}
+                hint={hints?.[value as T]}
+                {...{ ...rest, value, children }}
+            />
         ));
     // Resolve the display label for the current value so SelectValue shows the
     // correct text even before the user has opened the dropdown (Radix only
@@ -44,10 +51,13 @@ const Select = <T extends string>({
         if (options && rest.value in options) return options[rest.value as T];
         if (groups) {
             for (const groupValue of Object.values(groups)) {
-                const opts = ("options" in groupValue && typeof groupValue.options === "object")
-                    ? groupValue.options
-                    : (groupValue as Options<T>);
-                if (rest.value in opts) return (opts as Options<T>)[rest.value as T];
+                const opts =
+                    "options" in groupValue &&
+                    typeof groupValue.options === "object"
+                        ? groupValue.options
+                        : (groupValue as Options<T>);
+                if (rest.value in opts)
+                    return (opts as Options<T>)[rest.value as T];
             }
         }
         return undefined;
@@ -55,7 +65,9 @@ const Select = <T extends string>({
     return (
         <SelectPrimitive.Root {...rest}>
             <SelectTrigger {...{ className }}>
-                <SelectValue placeholder={placeholder}>{currentLabel}</SelectValue>
+                <SelectValue placeholder={placeholder}>
+                    {currentLabel}
+                </SelectValue>
             </SelectTrigger>
             <SelectContent>
                 {options && <Options {...{ options }} />}
@@ -195,8 +207,10 @@ SelectLabel.displayName = SelectPrimitive.Label.displayName;
 
 const SelectItem = React.forwardRef<
     React.ElementRef<typeof SelectPrimitive.Item>,
-    React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+    React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
+        hint?: string;
+    }
+>(({ className, children, hint, ...props }, ref) => (
     <SelectPrimitive.Item
         ref={ref}
         className={cn(
@@ -212,6 +226,11 @@ const SelectItem = React.forwardRef<
         </span>
 
         <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+        {hint && (
+            <span className="ml-auto pl-3 text-xs text-muted-foreground">
+                {hint}
+            </span>
+        )}
     </SelectPrimitive.Item>
 ));
 SelectItem.displayName = SelectPrimitive.Item.displayName;
