@@ -24,10 +24,13 @@ export const defaultQuestionLabel = (
     return `${TYPE_LABELS[question.id]} ${position}`;
 };
 
-// What the player typed, tidied: blank means no name.
+// What the player typed, tidied: blank means no name. Cut by code point, so
+// an emoji at the limit isn't split in half.
 export const normalizeQuestionName = (name: string): string | undefined =>
-    name.replace(/\s+/g, " ").trim().slice(0, QUESTION_NAME_MAX_LENGTH) ||
-    undefined;
+    Array.from(name.replace(/\s+/g, " ").trim())
+        .slice(0, QUESTION_NAME_MAX_LENGTH)
+        .join("")
+        .trim() || undefined;
 
 // Session questions are stored unparsed, so a name from another client may be
 // anything.

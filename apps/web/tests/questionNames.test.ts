@@ -34,6 +34,13 @@ describe("question names", () => {
         expect(normalizeQuestionName("x".repeat(100))).toHaveLength(
             QUESTION_NAME_MAX_LENGTH,
         );
+        // An emoji at the limit is kept whole or dropped, never split.
+        const atLimit = normalizeQuestionName(
+            "x".repeat(QUESTION_NAME_MAX_LENGTH - 1) + "🚉🚉",
+        )!;
+        expect(Array.from(atLimit)).toHaveLength(QUESTION_NAME_MAX_LENGTH);
+        expect(atLimit.endsWith("🚉")).toBe(true);
+        expect(atLimit.isWellFormed()).toBe(true);
     });
 
     it("reads only string names", () => {

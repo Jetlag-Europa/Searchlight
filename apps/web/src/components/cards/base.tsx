@@ -31,6 +31,7 @@ import {
     SidebarGroupContent,
     SidebarGroupLabel,
     SidebarMenu,
+    SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
 import { isLoading, questions } from "@/lib/context";
 import {
@@ -130,7 +131,6 @@ export const QuestionCard = ({
                                 <QuestionNameInput
                                     name={name}
                                     onCommit={setName}
-                                    disabled={$isLoading}
                                 />
                             )}
                             {children}
@@ -310,43 +310,55 @@ const QuestionJson = ({ questionKey }: { questionKey: number }) => {
 
 // Saves on blur, Enter or unmount (a marker's dialog can close mid-edit), not
 // per keystroke: every saved change re-renders the map and syncs the session.
+// Never disabled: the name changes no answer, and the field would lose focus
+// whenever the map recalculates.
 const QuestionNameInput = ({
     name,
     onCommit,
-    disabled,
 }: {
     name?: string;
     onCommit: (name: string | undefined) => void;
-    disabled?: boolean;
 }) => {
     const id = useId();
     const [draft, setDraft] = useState(name ?? "");
-    const editingRef = useRef(false);
     const draftRef = useRef(draft);
+    // The draft when the field was focused; null when it isn't being edited.
+    const startRef = useRef<string | null>(null);
     const latest = useRef({ name, onCommit });
     latest.current = { name, onCommit };
-
-    // Another player's rename shows up unless this one is mid-edit.
-    useEffect(() => {
-        if (!editingRef.current) setDraft(name ?? "");
-    }, [name]);
 
     const update = (value: string) => {
         draftRef.current = value;
         setDraft(value);
     };
 
-    const commit = () => {
-        if (!editingRef.current) return;
-        editingRef.current = false;
+    // A rename elsewhere (the other card, another player) shows up unless
+    // this one is mid-edit.
+    useEffect(() => {
+        if (startRef.current === null) update(name ?? "");
+    }, [name]);
+
+    // Only an actual edit is saved, so focusing and leaving the field can't
+    // overwrite a rename made meanwhile.
+    const commit = (): string | undefined => {
+        const start = startRef.current;
+        startRef.current = null;
+        if (start === null || draftRef.current === start)
+            return latest.current.name;
         const next = normalizeQuestionName(draftRef.current);
         if (next !== latest.current.name) latest.current.onCommit(next);
+        return next;
     };
 
-    useEffect(() => commit, []);
+    useEffect(
+        () => () => {
+            commit();
+        },
+        [],
+    );
 
     return (
-        <div className="flex gap-2 items-center px-2 pt-1">
+        <SidebarMenuItem className="flex gap-2 items-center px-2 pt-1">
             <Label htmlFor={id} className="min-w-12">
                 Name
             </Label>
@@ -356,20 +368,16 @@ const QuestionNameInput = ({
                 value={draft}
                 placeholder="Add a name"
                 maxLength={QUESTION_NAME_MAX_LENGTH}
-                disabled={disabled}
                 autoComplete="off"
                 onFocus={() => {
-                    editingRef.current = true;
+                    startRef.current = draftRef.current;
                 }}
                 onChange={(e) => update(e.target.value)}
-                onBlur={() => {
-                    commit();
-                    update(normalizeQuestionName(draftRef.current) ?? "");
-                }}
+                onBlur={() => update(commit() ?? "")}
                 onKeyDown={(e) => {
                     if (e.key === "Enter") e.currentTarget.blur();
                 }}
             />
-        </div>
+        </SidebarMenuItem>
     );
 };
