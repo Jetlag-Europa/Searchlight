@@ -1,5 +1,10 @@
 # Changelog
 
+## Hider mode turns off again (2026-10-17)
+
+- Turning hider mode off saved the hider's position as 0, 0 instead of clearing it, so hider mode came straight back on at that point, also after a reload. `PATCH /sessions/:id` now stores `hiderLat`/`hiderLng` `null` as null and 0 as 0: its body schema checked them as a number first, and the request validator turned `null` into 0.
+- The `20261017003000_clear_zero_hider_positions` migration clears the 0, 0 positions sessions saved this way, so they no longer open in hider mode.
+
 ## Session invites and share copies (2026-10-17)
 
 - The new-session form no longer asks for Private or Shared. The choice changed nothing: every session starts with only its creator, and it becomes shared when the creator invites someone. `POST /sessions` now treats `visibility` as optional, defaulting to `private`.

@@ -227,6 +227,28 @@ describe("PATCH /sessions/:sessionId permissions", () => {
     expect(s.planningModeEnabled).toBe(true);
   });
 
+  test("clearing the hider position stores null, not 0", async () => {
+    await patch(memberCookie, { hiderLat: 47.1, hiderLng: 8.5 });
+    const res = await patch(memberCookie, { hiderLat: null, hiderLng: null });
+    expect(res.statusCode).toBe(200);
+    const s = await loadSession();
+    expect(s.hiderLat).toBeNull();
+    expect(s.hiderLng).toBeNull();
+  });
+
+  test("a hider position on the equator or the prime meridian stays 0", async () => {
+    const res = await patch(memberCookie, { hiderLat: 0, hiderLng: -0.1 });
+    expect(res.statusCode).toBe(200);
+    expect((await loadSession()).hiderLat).toBe(0);
+    await patch(memberCookie, { hiderLat: 51.5, hiderLng: 0 });
+    expect((await loadSession()).hiderLng).toBe(0);
+  });
+
+  test("a hider position must be a number or null", async () => {
+    const res = await patch(memberCookie, { hiderLat: [5], hiderLng: 1 });
+    expect(res.statusCode).toBe(400);
+  });
+
   test("the creator can still rename the session", async () => {
     const res = await patch(creatorCookie, { name: "Renamed" });
     expect(res.statusCode).toBe(200);

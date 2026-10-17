@@ -19,6 +19,8 @@ function conflict(msg: string) {
   return Object.assign(new Error(msg), { statusCode: 409 });
 }
 
+const nullableNumber = Type.Unsafe<number | null>({ type: ["number", "null"] });
+
 async function resolveParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({
     where: { id: sessionId },
@@ -674,8 +676,11 @@ export async function sessionRoutes(app: FastifyInstance) {
           visibility: Type.Optional(
             Type.Union([Type.Literal("private"), Type.Literal("shared")]),
           ),
-          hiderLat: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
-          hiderLng: Type.Optional(Type.Union([Type.Number(), Type.Null()])),
+          // One type list, not a union: Ajv coerces types, so a union's first
+          // branch would turn a cleared position (null) into 0, or a 0 into
+          // null. With a list it coerces only values neither type matches.
+          hiderLat: Type.Optional(nullableNumber),
+          hiderLng: Type.Optional(nullableNumber),
           planningModeEnabled: Type.Optional(Type.Boolean()),
         }, { additionalProperties: false }),
       },
