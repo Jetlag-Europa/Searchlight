@@ -486,3 +486,5 @@ export const connectedUsers = atom<PresenceUser[]>([]);
 // ── Cross-island session load request ─────────────────────────────────────────
 // InviteDrawer sets this to a sessionId; SessionManager listens and loads it.
 export const pendingSessionLoad = atom<string | null>(null);
+// Whether the session picker covers the map; what it covers is inert.
+export const sessionPickerOpen = atom<boolean>(false);

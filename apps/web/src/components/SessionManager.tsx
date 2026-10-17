@@ -27,6 +27,7 @@ import {
     gameDefinitionReady,
     pendingSessionLoad,
     questions,
+    sessionPickerOpen,
     sidebarContextR,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
@@ -653,10 +654,12 @@ export function SessionManager() {
         restorePickerFocusRef.current = true;
         setShowPicker(false);
     }, []);
-    // The board behind the picker is inert. Focus returns once it isn't.
+    // The board behind the picker is inert, and so is the user chip (it reads
+    // sessionPickerOpen). Focus returns once they aren't.
     useEffect(() => {
         const board = document.getElementById("map-board");
         if (board) board.inert = showPicker;
+        sessionPickerOpen.set(showPicker);
         if (!showPicker && restorePickerFocusRef.current) {
             restorePickerFocusRef.current = false;
             pickerOpenerRef.current?.focus();
