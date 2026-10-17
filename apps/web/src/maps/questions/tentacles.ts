@@ -3,10 +3,9 @@ import type { BBox, Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode } from "@/lib/context";
-import { findTentacleLocations, LOCATION_FIRST_TAG } from "@/maps/api";
-import { arcBuffer, safeUnion, setBounded } from "@/maps/geo-utils";
+import { arcBuffer, safeUnion } from "@/maps/geo-utils";
 import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
-import type { TentacleQuestion, Units } from "@/maps/schema";
+import type { TentacleQuestion } from "@/maps/schema";
 
 import { determineTentacleGeometry, featuresMatch } from "./operators/tentacle";
 
@@ -28,23 +27,6 @@ function tentacleVoronoiBbox(
     const px = (c - a) * 0.1 || 0.1;
     const py = (d - b) * 0.1 || 0.1;
     return [a - px, b - py, c + px, d + py];
-}
-
-// Promise cache for Overpass-backed tentacle lookups.
-// getLocationsForTentacleQuestion is called up to 3-4× per refresh (per-question
-// region + elimination + planning + hiderify), and refreshes fire on every atom
-// change — without this, each call re-hits Overpass and the user sees a storm of
-// "Determining tentacle locations…" toasts that never settle. Caching the
-// *promise* (not just the result) also dedupes concurrent in-flight calls so one
-// refresh fires at most one request per unique query. Results (including empty)
-// are kept so we don't refetch; on error the entry is evicted to allow a retry.
-// Cleared on game switch.
-const _tentacleCache = new Map<string, Promise<FeatureCollection<Point>>>();
-// Keys include the seeker position, so every marker drag adds an entry.
-const MAX_CACHED_TENTACLE_LOOKUPS = 50;
-
-export function clearTentacleCache(): void {
-    _tentacleCache.clear();
 }
 
 export async function getLocationsForTentacleQuestion(
@@ -98,67 +80,22 @@ export async function getLocationsForTentacleQuestion(
                 );
             }
         }
-        // A game's tentacle locations come only from its own layers.
-        return turf.featureCollection([]) as FeatureCollection<Point>;
     }
-
-    // Don't call Overpass for types it can't handle: a type outside
-    // LOCATION_FIRST_TAG would produce a malformed query.
-    if (!(question.locationType in LOCATION_FIRST_TAG)) {
-        return turf.featureCollection([]) as FeatureCollection<Point>;
-    }
-
-    const key = JSON.stringify({
-        t: question.locationType,
-        lat: question.lat?.toFixed(5),
-        lng: question.lng?.toFixed(5),
-        r: question.radius,
-        u: question.unit,
-    });
-    let pending = _tentacleCache.get(key);
-    if (!pending) {
-        pending = findTentacleLocations(
-            question as Exclude<TentacleQuestion, { locationType: "custom" }>,
-        ).catch((e) => {
-            _tentacleCache.delete(key); // allow a later refresh to retry
-            throw e;
-        });
-        setBounded(_tentacleCache, key, pending, MAX_CACHED_TENTACLE_LOOKUPS);
-    }
-    return pending;
+    // A game's tentacle locations come only from its own layers.
+    return turf.featureCollection([]) as FeatureCollection<Point>;
 }
 
-const filterPointsWithinRadius = (
-    points: any,
-    centerLng: number,
-    centerLat: number,
-    radius: number,
-    unit: Units,
-) => {
-    if (
-        centerLng === null ||
-        centerLat === null ||
-        radius === undefined ||
-        radius === null
-    ) {
-        return points;
-    }
-    const center = turf.point([centerLng, centerLat]);
-
+// Only player-drawn tentacles reach the handlers below: a game's tentacles are
+// answered by the tentacle operator. Their places and position were checked by
+// the question schema. Without places, nothing is divided.
+const placesWithinRadius = (question: TentacleQuestion) => {
+    const center = turf.point([question.lng, question.lat]);
     return turf.featureCollection(
-        points.features.filter((feature: any) => {
-            const coords =
-                feature?.geometry?.coordinates ??
-                (feature?.properties?.lon && feature?.properties?.lat
-                    ? [feature.properties.lon, feature.properties.lat]
-                    : null);
-
-            if (!coords) return false;
-
-            const pt = turf.point(coords);
-            const dist = turf.distance(center, pt, { units: unit });
-            return dist <= radius;
-        }),
+        ((question.places ?? []) as Feature<Point>[]).filter(
+            (place) =>
+                turf.distance(center, place, { units: question.unit }) <=
+                question.radius,
+        ),
     );
 };
 
@@ -171,21 +108,7 @@ export const adjustPerTentacle = async (
         throw new Error("Must have a location");
     }
 
-    const rawPoints =
-        question.locationType === "custom"
-            ? turf.featureCollection(question.places ?? [])
-            : await getLocationsForTentacleQuestion(question);
-
-    const points =
-        question.locationType === "custom"
-            ? filterPointsWithinRadius(
-                  rawPoints,
-                  question.lng,
-                  question.lat,
-                  question.radius,
-                  question.unit,
-              )
-            : rawPoints;
+    const points = placesWithinRadius(question);
 
     if (points.features.length === 1) {
         if (!featuresMatch(points.features[0], question.location)) {
@@ -229,21 +152,7 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
         return question;
     }
 
-    const rawPoints =
-        question.locationType === "custom"
-            ? turf.featureCollection(question.places ?? [])
-            : await getLocationsForTentacleQuestion(question);
-
-    const points =
-        question.locationType === "custom"
-            ? filterPointsWithinRadius(
-                  rawPoints,
-                  question.lng,
-                  question.lat,
-                  question.radius,
-                  question.unit,
-              )
-            : rawPoints;
+    const points = placesWithinRadius(question);
 
     const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
 
@@ -282,21 +191,7 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
 };
 
 export const tentaclesPlanningPolygon = async (question: TentacleQuestion) => {
-    const rawPoints =
-        question.locationType === "custom"
-            ? turf.featureCollection(question.places ?? [])
-            : await getLocationsForTentacleQuestion(question);
-
-    const points =
-        question.locationType === "custom"
-            ? filterPointsWithinRadius(
-                  rawPoints,
-                  question.lng,
-                  question.lat,
-                  question.radius,
-                  question.unit,
-              )
-            : rawPoints;
+    const points = placesWithinRadius(question);
 
     const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
     const circle = await arcBuffer(

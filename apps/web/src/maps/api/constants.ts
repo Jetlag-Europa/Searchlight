@@ -17,28 +17,6 @@ export const ICON_COLORS = {
     violet: "#9C2BCB",
 };
 
-export const LOCATION_FIRST_TAG: {
-    [key in "aquarium" | "hospital" | "peak" | "museum" | "theme_park" | "zoo"
-           | "cinema" | "library" | "golf_course" | "consulate" | "park"]:
-        | "amenity"
-        | "tourism"
-        | "leisure"
-        | "diplomatic"
-        | "natural";
-} = {
-    aquarium: "tourism",
-    hospital: "amenity",
-    peak: "natural",
-    museum: "tourism",
-    theme_park: "tourism",
-    zoo: "tourism",
-    cinema: "amenity",
-    library: "amenity",
-    golf_course: "leisure",
-    consulate: "diplomatic",
-    park: "leisure",
-};
-
 export const BLANK_GEOJSON = {
     type: "FeatureCollection",
     features: [

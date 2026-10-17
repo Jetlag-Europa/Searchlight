@@ -28,13 +28,7 @@ import {
 import { cn } from "@/lib/utils";
 import { featuresMatch } from "@/maps/questions/operators/tentacle";
 import { getLocationsForTentacleQuestion } from "@/maps/questions/tentacles";
-import {
-    determineUnionizedStrings,
-    NO_GROUP,
-    type TentacleQuestion,
-    tentacleQuestionSchema,
-    type TraditionalTentacleQuestion,
-} from "@/maps/schema";
+import type { TentacleQuestion } from "@/maps/schema";
 
 import { QuestionCard } from "./base";
 
@@ -112,11 +106,12 @@ export const TentacleQuestionComponent = ({
                         type="number"
                         className="rounded-md p-2 w-16"
                         value={data.radius}
-                        onChange={(e) =>
-                            questionModified(
-                                (data.radius = parseFloat(e.target.value)),
-                            )
-                        }
+                        onChange={(e) => {
+                            // Keep the last radius while the field is cleared.
+                            const radius = parseFloat(e.target.value);
+                            if (isNaN(radius)) return;
+                            questionModified((data.radius = radius));
+                        }}
                         disabled={!data.drag || $isLoading}
                     />
                     <UnitSelect
@@ -132,60 +127,24 @@ export const TentacleQuestionComponent = ({
                 <Select
                     trigger="Location Type"
                     value={data.locationType}
-                    options={
-                        compiled
-                            ? Object.fromEntries(
-                                  compiledTentacles.map((q) => [q.id, q.label]),
-                              )
-                            : Object.fromEntries(
-                                  tentacleQuestionSchema.options
-                                      .filter((x) => x.description === NO_GROUP)
-                                      .flatMap((x) =>
-                                          determineUnionizedStrings(
-                                              x.shape.locationType,
-                                          ),
-                                      )
-                                      .map((x) => [
-                                          (x._def as any).value,
-                                          x.description,
-                                      ]),
-                              )
-                    }
-                    groups={
-                        compiled
-                            ? {
-                                  Custom: {
-                                      disabled: false,
-                                      options: {
-                                          custom: "Custom Locations",
-                                      },
-                                  },
-                              }
-                            : Object.fromEntries(
-                                  tentacleQuestionSchema.options
-                                      .filter((x) => x.description !== NO_GROUP)
-                                      .map((x) => [
-                                          x.description,
-                                          Object.fromEntries(
-                                              determineUnionizedStrings(
-                                                  x.shape.locationType,
-                                              ).map((y) => [
-                                                  (y._def as any).value,
-                                                  y.description,
-                                              ]),
-                                          ),
-                                      ]),
-                              )
-                    }
+                    options={Object.fromEntries(
+                        compiledTentacles.map((q) => [q.id, q.label]),
+                    )}
+                    groups={{
+                        Custom: {
+                            disabled: false,
+                            options: {
+                                custom: "Custom Locations",
+                            },
+                        },
+                    }}
                     onValueChange={async (value) => {
                         const currentSeq = ++prefillSeqRef.current;
                         if (value === "custom") {
                             setScopedLoading(prefillScope, true);
                             try {
                                 const priorLocations =
-                                    await getLocationsForTentacleQuestion(
-                                        data as TraditionalTentacleQuestion,
-                                    );
+                                    await getLocationsForTentacleQuestion(data);
                                 if (prefillSeqRef.current !== currentSeq)
                                     return;
                                 data.locationType = "custom";
@@ -369,9 +328,23 @@ const TentacleLocationSelector = ({
     const currentMatched = data.location
         ? filteredFeatures.find((f) => featuresMatch(f, data.location))
         : null;
+    // Until the sites are known, show the saved answer, not "Not Within".
+    const savedAnswer =
+        !locationsKnown &&
+        data.location &&
+        !currentMatched &&
+        Array.isArray(data.location.geometry?.coordinates)
+            ? (data.location as Feature<Point>)
+            : null;
+    if (savedAnswer) {
+        featureOptions[getFeatureKey(savedAnswer)] =
+            (savedAnswer.properties?.name as string | undefined) || "POI";
+    }
     const currentValue = currentMatched
         ? getFeatureKey(currentMatched)
-        : "false";
+        : savedAnswer
+          ? getFeatureKey(savedAnswer)
+          : "false";
 
     return (
         <Select

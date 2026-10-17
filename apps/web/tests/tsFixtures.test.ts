@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { prettifyLocation } from "@/maps/api/geo";
-import type { APILocations } from "@/maps/api/types";
+import { defaultUnit } from "@/lib/context";
 import { questionSchema } from "@/maps/schema";
 
 describe("thermometer question schema", () => {
@@ -22,38 +21,70 @@ describe("thermometer question schema", () => {
     });
 });
 
-describe("zone matching question schema", () => {
-    it("carries cat.adminLevel with default 3", () => {
-        const q = questionSchema.parse({
-            id: "matching",
-            data: { type: "zone", lat: 0, lng: 0, same: true },
-        });
-        expect((q.data as any).cat.adminLevel).toBe(3);
-    });
-});
-
-describe("prettifyLocation", () => {
+describe("question schema", () => {
+    // Older sessions may still hold questions from the retired built-in
+    // catalogue; they no longer parse.
     it.each([
-        ["aquarium", "Aquarium"],
-        ["hospital", "Hospital"],
-        ["cinema", "Cinema"],
-        ["library", "Library"],
-        ["golf_course", "Golf Course"],
-        ["consulate", "Foreign Consulate"],
-        ["park", "Park"],
-        ["museum", "Museum"],
-        ["theme_park", "Theme Park"],
-        ["zoo", "Zoo"],
-    ] as const)("prettifyLocation(%s) === %s", (loc: APILocations, expected: string) => {
-        expect(prettifyLocation(loc)).toBe(expected);
+        ["matching", { type: "airport" }],
+        ["matching", { type: "zone" }],
+        ["matching", { type: "same-train-line" }],
+        ["measuring", { type: "mcdonalds" }],
+        ["measuring", { type: "museum-full" }],
+        ["tentacles", { locationType: "theme_park" }],
+    ] as const)("rejects the retired %s question %o", (id, data) => {
+        expect(
+            questionSchema.safeParse({ id, data: { lat: 0, lng: 0, ...data } })
+                .success,
+        ).toBe(false);
     });
 
-    it("pluralises library correctly", () => {
-        expect(prettifyLocation("library", true)).toBe("Libraries");
+    it("no longer defaults a matching question to an airport", () => {
+        expect(
+            questionSchema.safeParse({
+                id: "matching",
+                data: { lat: 0, lng: 0 },
+            }).success,
+        ).toBe(false);
     });
 
-    it("pluralises other types with an s suffix", () => {
-        expect(prettifyLocation("aquarium", true)).toBe("Aquariums");
-        expect(prettifyLocation("museum", true)).toBe("Museums");
+    it("starts a tentacle at 15 of the default unit", () => {
+        const previous = defaultUnit.get();
+        try {
+            for (const unit of ["miles", "meters"] as const) {
+                defaultUnit.set(unit);
+                const tentacle = questionSchema.parse({
+                    id: "tentacles",
+                    data: { lat: 0, lng: 0, locationType: "tentacle-museums" },
+                });
+                expect(tentacle.data).toMatchObject({ radius: 15, unit });
+            }
+        } finally {
+            defaultUnit.set(previous);
+        }
+    });
+
+    it("parses game and player-drawn questions", () => {
+        const tentacle = questionSchema.parse({
+            id: "tentacles",
+            data: { lat: 0, lng: 0, locationType: "tentacle-museums" },
+        });
+        expect(tentacle.data).toMatchObject({ radius: 15, location: false });
+        for (const data of [
+            { type: "matching-zones" },
+            { type: "custom-zone", geo: null },
+            { type: "custom-points", geo: [] },
+        ])
+            expect(
+                questionSchema.safeParse({
+                    id: "matching",
+                    data: { lat: 0, lng: 0, ...data },
+                }).success,
+            ).toBe(true);
+        expect(
+            questionSchema.safeParse({
+                id: "measuring",
+                data: { lat: 0, lng: 0, type: "custom-measure", geo: null },
+            }).success,
+        ).toBe(true);
     });
 });

@@ -4,7 +4,6 @@ import type {
     Feature,
     FeatureCollection,
     MultiPolygon,
-    Point,
     Polygon,
 } from "geojson";
 import * as L from "leaflet";
@@ -41,9 +40,7 @@ import {
     leafletMapContext,
     mergeDuplicates as mergeDuplicatesAtom,
     perQuestionMapData,
-    planningModeEnabled,
     questionFinishedMapData,
-    questions,
     setScopedLoading,
     showZoneNames,
     tierRadiusOverrides,
@@ -61,30 +58,21 @@ import {
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import {
-    BLANK_GEOJSON,
     findPlacesInZone,
-    findPlacesSpecificInZone,
-    findTentacleLocations,
-    nearestToQuestion,
     normalizeToStationFeatures,
     parseCustomStationsFromText,
-    QuestionSpecificLocation,
     type StationCircle,
     type StationPlace,
-    trainLineNodeFinder,
 } from "@/maps/api";
 import {
     extractStationLabel,
     extractStationName,
-    geoSpatialVoronoi,
-    holedMask,
     lngLatToText,
     mergeDuplicateStation,
     safeUnion,
 } from "@/maps/geo-utils";
 import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
-import { featuresMatch } from "@/maps/questions/operators/tentacle";
-import type { TraditionalTentacleQuestion, Units } from "@/maps/schema";
+import type { Units } from "@/maps/schema";
 
 import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
@@ -277,9 +265,6 @@ export const ZoneSidebar = () => {
         if (!map) return;
 
         const initializeHidingZones = async (isCurrent: () => boolean) => {
-            const questionSnapshot = questions.get();
-            const planning = planningModeEnabled.get();
-
             // Zones come from the game. switchToGame publishes the game's key
             // before its definition (and bundled stations) arrives, and the
             // definition may fail to load: until it has been applied, don't
@@ -409,9 +394,6 @@ export const ZoneSidebar = () => {
             //
             // Each region is unioned to a single feature for booleanIntersects. A
             // null region means that question eliminates everywhere → drop all.
-            // Questions that pass through unchanged (e.g. mcdonalds/seven11,
-            // same-*-station — handled by the dedicated filters below) yield the
-            // full boundary here, so this test keeps them and the filters refine.
             const allCircles: StationCircle[] = places.map((place) => {
                 const placeProps: Record<string, unknown> =
                     place.properties ?? {};
@@ -491,166 +473,6 @@ export const ZoneSidebar = () => {
                 circles = survivingIndexes.map((idx) => allCircles[idx]);
             }
 
-            for (const question of questionSnapshot) {
-                if (question.data.enabled === false) continue;
-                if (planning && question.data.drag) {
-                    continue;
-                }
-
-                if (
-                    question.id === "matching" &&
-                    (question.data.type === "same-first-letter-station" ||
-                        question.data.type === "same-length-station" ||
-                        question.data.type === "same-train-line")
-                ) {
-                    const location = turf.point([
-                        question.data.lng,
-                        question.data.lat,
-                    ]);
-
-                    if (!circles.length) {
-                        return [];
-                    }
-                    const nearestTrainStation = turf.nearestPoint(
-                        location,
-                        turf.featureCollection(
-                            circles.map((x) => x.properties),
-                        ) as any,
-                    );
-
-                    if (question.data.type === "same-train-line") {
-                        // Custom-only lists don't have reliable OSM IDs
-                        if (useCustomStations && !includeDefaultStations) {
-                            toast.warning(
-                                "'Same train line' isn't supported with custom-only station lists; skipping this filter.",
-                            );
-                        } else {
-                            const nid = nearestTrainStation.properties.id as
-                                | string
-                                | undefined;
-                            if (!nid || !nid.includes("/")) {
-                                toast.warning(
-                                    "Nearest station has no OSM id; skipping 'same train line' filter.",
-                                );
-                                continue;
-                            }
-
-                            const nodes = await trainLineNodeFinder(nid);
-                            if (!isCurrent()) return;
-
-                            if (nodes.length === 0) {
-                                toast.warning(
-                                    `No train line found for ${extractStationName(
-                                        nearestTrainStation,
-                                    )}`,
-                                );
-                                continue;
-                            } else {
-                                circles = circles.filter((circle) => {
-                                    const idProp =
-                                        circle.properties.properties.id;
-                                    if (!idProp || !idProp.includes("/"))
-                                        return false;
-                                    const id = parseInt(idProp.split("/")[1]);
-
-                                    return question.data.same
-                                        ? nodes.includes(id)
-                                        : !nodes.includes(id);
-                                });
-                            }
-                        }
-                    }
-
-                    const englishName = extractStationName(nearestTrainStation);
-
-                    if (!englishName) {
-                        toast.error("No English name found");
-                        return;
-                    }
-
-                    if (question.data.type === "same-first-letter-station") {
-                        const letter = englishName[0].toUpperCase();
-
-                        circles = circles.filter((circle) => {
-                            const name = extractStationName(circle.properties);
-                            if (!name) return false;
-
-                            return question.data.same
-                                ? name[0].toUpperCase() === letter
-                                : name[0].toUpperCase() !== letter;
-                        });
-                    } else if (question.data.type === "same-length-station") {
-                        const seekerLength = englishName.length;
-                        const comparison = question.data.lengthComparison;
-
-                        circles = circles.filter((circle) => {
-                            const name = extractStationName(circle.properties);
-                            if (!name) return false;
-
-                            if (comparison === "same") {
-                                return name.length === seekerLength;
-                            } else if (comparison === "shorter") {
-                                return name.length < seekerLength;
-                            } else if (comparison === "longer") {
-                                return name.length > seekerLength;
-                            }
-                            return false;
-                        });
-                    }
-                }
-                if (
-                    question.id === "measuring" &&
-                    (question.data.type === "mcdonalds" ||
-                        question.data.type === "seven11")
-                ) {
-                    if (!circles.length) {
-                        return [];
-                    }
-                    const points = await findPlacesSpecificInZone(
-                        question.data.type === "mcdonalds"
-                            ? QuestionSpecificLocation.McDonalds
-                            : QuestionSpecificLocation.Seven11,
-                    );
-                    if (!isCurrent()) return;
-
-                    if (!points?.features?.length) {
-                        continue;
-                    }
-
-                    const nearestPoint = turf.nearestPoint(
-                        turf.point([question.data.lng, question.data.lat]),
-                        points as any,
-                    );
-
-                    const distance = turf.distance(
-                        turf.point([question.data.lng, question.data.lat]),
-                        nearestPoint as any,
-                        {
-                            units: "miles",
-                        },
-                    );
-
-                    circles = circles.filter((circle) => {
-                        const point = turf.point(
-                            turf.getCoord(circle.properties),
-                        );
-
-                        if (!points?.features?.length) return false;
-                        const nearest = turf.nearestPoint(point, points as any);
-
-                        return question.data.hiderCloser
-                            ? turf.distance(point, nearest as any, {
-                                  units: "miles",
-                              }) <
-                                  distance + $hidingRadius
-                            : turf.distance(point, nearest as any, {
-                                  units: "miles",
-                              }) >
-                                  distance - $hidingRadius;
-                    });
-                }
-            }
-
             return circles;
         };
 
@@ -708,11 +530,8 @@ export const ZoneSidebar = () => {
                         await selectionProcess(
                             hiderStation,
                             map,
-                            stations,
                             showGeoJSON,
                             $questionFinishedMapData,
-                            $hidingRadius,
-                            $tierRadiusOverrides,
                             isCurrent,
                         );
                     } catch (error) {
@@ -743,8 +562,6 @@ export const ZoneSidebar = () => {
         hidingZoneModeStationID,
         stations,
         $questionFinishedMapData,
-        $hidingRadius,
-        $tierRadiusOverrides,
     ]);
 
     useEffect(() => {
@@ -1421,124 +1238,13 @@ function styleStations(
     }
 }
 
-interface TentacleSearchParams {
-    lat: number;
-    lng: number;
-    effectiveRadius: number;
-    locationType: TraditionalTentacleQuestion["locationType"];
-    isCurrent: () => boolean;
-}
-
-async function findNearestPointsForZone(
-    params: TentacleSearchParams,
-): Promise<Feature<Point>[]> {
-    const { lat, lng, effectiveRadius, locationType, isCurrent } = params;
-
-    let radius = 30;
-    const MAX_RADIUS = 12500;
-    const MAX_ATTEMPTS = 8;
-    let attempts = 0;
-    const nearestPoints: Feature<Point>[] = [];
-    const stationPoint = turf.point([lng, lat]);
-
-    while (
-        nearestPoints.length === 0 &&
-        attempts < MAX_ATTEMPTS &&
-        radius <= MAX_RADIUS
-    ) {
-        attempts++;
-        if (!isCurrent()) return [];
-        const instances = await findTentacleLocations(
-            {
-                lat,
-                lng,
-                radius,
-                unit: "miles",
-                location: false,
-                locationType,
-                drag: false,
-                color: "black",
-                collapsed: false,
-                enabled: true,
-            },
-            "Finding matching locations to hiding zone...",
-        );
-        if (!isCurrent()) return [];
-
-        const distances = instances.features.map((point) => ({
-            distance: turf.distance(point, stationPoint, { units: "miles" }),
-            point,
-        }));
-
-        if (distances.length === 0) {
-            radius = Math.min(MAX_RADIUS + 1, radius * 2);
-            continue;
-        }
-
-        const minimumPoint = distances.reduce((min, cur) =>
-            cur.distance < min.distance ? cur : min,
-        );
-        const neededRadius = minimumPoint.distance + effectiveRadius * 2;
-
-        if (neededRadius > radius) {
-            radius = Math.min(
-                MAX_RADIUS + 1,
-                Math.max(radius * 2, neededRadius),
-            );
-            continue;
-        }
-
-        const matchingNamed = distances
-            .filter(
-                (x) => x.distance <= neededRadius && x.point.properties?.name,
-            )
-            .map((x) => x.point);
-
-        if (matchingNamed.length === 0) {
-            radius = Math.min(MAX_RADIUS + 1, radius * 2);
-            continue;
-        }
-
-        nearestPoints.push(...matchingNamed);
-        break;
-    }
-
-    return nearestPoints;
-}
-
 async function selectionProcess(
     station: any,
     map: L.Map,
-    stations: any[],
     showGeoJSON: (geoJSONData: any) => void,
     $questionFinishedMapData: any,
-    $hidingRadius: number,
-    tierOverrides: Record<string, number> | undefined,
     isCurrent: () => boolean,
 ) {
-    const stationPlace = station.properties as StationPlace | undefined;
-    const stationProps = (stationPlace?.properties || {}) as Record<
-        string,
-        unknown
-    >;
-    const stationTier =
-        typeof stationProps.tier === "string" ||
-        typeof stationProps.tier === "number"
-            ? String(stationProps.tier)
-            : undefined;
-    const explicitRadius =
-        typeof stationProps.radius === "number"
-            ? stationProps.radius
-            : typeof (stationProps.radius as { value?: unknown } | undefined)
-                    ?.value === "number"
-              ? (stationProps.radius as { value: number }).value
-              : undefined;
-    const effectiveRadius =
-        explicitRadius !== undefined
-            ? explicitRadius
-            : stationTier && tierOverrides?.[stationTier] !== undefined
-              ? tierOverrides[stationTier]
-              : $hidingRadius;
     const bbox = turf.bbox(station);
 
     const bounds: [[number, number], [number, number]] = [
@@ -1546,7 +1252,7 @@ async function selectionProcess(
         [bbox[3], bbox[2]],
     ];
 
-    let mapData: any = turf.featureCollection([
+    const mapData = turf.featureCollection([
         safeUnion(
             turf.featureCollection([
                 ...$questionFinishedMapData.features,
@@ -1554,217 +1260,6 @@ async function selectionProcess(
             ]),
         ),
     ]);
-
-    for (const question of questions.get()) {
-        if (!isCurrent()) return;
-        if (planningModeEnabled.get() && question.data.drag) {
-            continue;
-        }
-
-        if (
-            (question.id === "measuring" || question.id === "matching") &&
-            (question.data.type === "aquarium" ||
-                question.data.type === "zoo" ||
-                question.data.type === "theme_park" ||
-                question.data.type === "peak" ||
-                question.data.type === "museum" ||
-                question.data.type === "hospital" ||
-                question.data.type === "cinema" ||
-                question.data.type === "library" ||
-                question.data.type === "golf_course" ||
-                question.data.type === "consulate" ||
-                question.data.type === "park")
-        ) {
-            const nearestQuestion = await nearestToQuestion(
-                question.data as Parameters<typeof nearestToQuestion>[0],
-            );
-            if (!isCurrent()) return;
-            if (!nearestQuestion?.geometry) {
-                toast.warning(
-                    `Could not resolve reference location for ${question.data.type}; skipping this filter.`,
-                    { toastId: `unresolved-ref-${question.data.type}` },
-                );
-                continue;
-            }
-
-            const nearestPoints = await findNearestPointsForZone({
-                lat: station.properties.geometry.coordinates[1],
-                lng: station.properties.geometry.coordinates[0],
-                effectiveRadius,
-                locationType: question.data
-                    .type as TraditionalTentacleQuestion["locationType"],
-                isCurrent,
-            });
-            if (!isCurrent()) return;
-            if (nearestPoints.length === 0) {
-                toast.warning(
-                    `Could not resolve nearby ${question.data.type} locations for this zone; skipping this filter.`,
-                    { toastId: `unresolved-${question.data.type}` },
-                );
-                continue;
-            }
-
-            if (question.id === "matching") {
-                const voronoi = geoSpatialVoronoi(
-                    turf.featureCollection(nearestPoints),
-                );
-
-                const correctPolygon = voronoi.features.find((feature) =>
-                    featuresMatch(feature.properties?.site, nearestQuestion),
-                );
-
-                if (!correctPolygon) {
-                    if (question.data.same) {
-                        mapData = BLANK_GEOJSON;
-                    }
-
-                    continue;
-                }
-
-                if (question.data.same) {
-                    mapData = safeUnion(
-                        turf.featureCollection([
-                            ...mapData.features,
-                            turf.mask(correctPolygon),
-                        ]),
-                    );
-                } else {
-                    mapData = safeUnion(
-                        turf.featureCollection([
-                            ...mapData.features,
-                            correctPolygon,
-                        ]),
-                    );
-                }
-            } else {
-                const circles = nearestPoints.map((x) =>
-                    turf.circle(
-                        turf.getCoord(x),
-                        nearestQuestion.properties.distanceToPoint,
-                    ),
-                );
-
-                if (question.data.hiderCloser) {
-                    mapData = safeUnion(
-                        turf.featureCollection([
-                            ...mapData.features,
-                            holedMask(turf.featureCollection(circles)),
-                        ]),
-                    );
-                } else {
-                    mapData = safeUnion(
-                        turf.featureCollection([
-                            ...mapData.features,
-                            ...circles,
-                        ]),
-                    );
-                }
-            }
-        }
-        if (
-            question.id === "measuring" &&
-            question.data.type === "rail-measure"
-        ) {
-            if (!stations.length) {
-                continue;
-            }
-            const location = turf.point([question.data.lng, question.data.lat]);
-
-            const nearestTrainStation = turf.nearestPoint(
-                location,
-                turf.featureCollection(
-                    stations.map((x) => x.properties.geometry),
-                ),
-            );
-            const distance = turf.distance(location, nearestTrainStation);
-
-            const circles = stations
-                .filter(
-                    (x) =>
-                        turf.distance(
-                            station.properties.geometry,
-                            x.properties.geometry,
-                        ) <
-                        distance + 1.61 * effectiveRadius,
-                )
-                .map((x) => turf.circle(x.properties.geometry, distance));
-
-            if (question.data.hiderCloser) {
-                mapData = safeUnion(
-                    turf.featureCollection([
-                        ...mapData.features,
-                        holedMask(turf.featureCollection(circles)),
-                    ]),
-                );
-            } else {
-                mapData = safeUnion(
-                    turf.featureCollection([...mapData.features, ...circles]),
-                );
-            }
-        }
-        if (
-            question.id === "measuring" &&
-            (question.data.type === "mcdonalds" ||
-                question.data.type === "seven11")
-        ) {
-            const points = await findPlacesSpecificInZone(
-                question.data.type === "mcdonalds"
-                    ? QuestionSpecificLocation.McDonalds
-                    : QuestionSpecificLocation.Seven11,
-            );
-            if (!isCurrent()) return;
-
-            if (!points?.features?.length) {
-                continue;
-            }
-
-            const seeker = turf.point([question.data.lng, question.data.lat]);
-            const nearest = turf.nearestPoint(seeker, points as any);
-            const distance = turf.distance(seeker, nearest, {
-                units: "miles",
-            });
-
-            const filtered = points.features.filter(
-                (x) =>
-                    turf.distance(x as any, station.properties.geometry, {
-                        units: "miles",
-                    }) <
-                    distance + effectiveRadius,
-            );
-
-            const circles = filtered.map((x) =>
-                turf.circle(x as any, distance, {
-                    units: "miles",
-                }),
-            );
-
-            if (question.data.hiderCloser) {
-                mapData = safeUnion(
-                    turf.featureCollection([
-                        ...mapData.features,
-                        holedMask(turf.featureCollection(circles)),
-                    ]),
-                );
-            } else {
-                mapData = safeUnion(
-                    turf.featureCollection([...mapData.features, ...circles]),
-                );
-            }
-        }
-
-        if (mapData.type !== "FeatureCollection") {
-            mapData = {
-                type: "FeatureCollection",
-                features: [mapData],
-            };
-        }
-    }
-
-    if (_.isEqual(mapData, BLANK_GEOJSON)) {
-        toast.warning(
-            "The hider cannot be in this hiding zone. This wasn't eliminated on the sidebar as its absence was caused by multiple criteria.",
-        );
-    }
 
     if (!isCurrent()) return;
     showGeoJSON(mapData);

@@ -6,7 +6,10 @@ import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { hiderMode } from "@/lib/context";
-import { adjustPerMatching } from "@/maps/questions/matching";
+import {
+    adjustPerMatching,
+    customSwitchStart,
+} from "@/maps/questions/matching";
 
 import { gridAgreement, sampleGrid } from "./oracleCommon";
 import { failuresToBad, renderDebugSVG } from "./debugRender";
@@ -135,5 +138,37 @@ describe("adjustPerMatching — bundled municipality (exact, winding-agnostic)",
         const mask = await maskFor(base, seeker, true);
         expect(mask).not.toBeNull();
         expect(turf.area(mask!)).toBeLessThanOrEqual(turf.area(base));
+    });
+});
+
+describe("customSwitchStart", () => {
+    it("copies only custom points into a custom zone, as preferred", () => {
+        expect(customSwitchStart("custom-points", "custom-zone", "ask")).toBe(
+            "ask",
+        );
+        expect(
+            customSwitchStart("custom-points", "custom-zone", "prefill"),
+        ).toBe("copy");
+        expect(customSwitchStart("custom-points", "custom-zone", "blank")).toBe(
+            "blank",
+        );
+    });
+
+    it("starts everything else blank without asking", () => {
+        for (const preference of ["ask", "blank", "prefill"] as const) {
+            expect(
+                customSwitchStart("matching-museum", "custom-zone", preference),
+            ).toBe("blank");
+            expect(
+                customSwitchStart(
+                    "matching-museum",
+                    "custom-points",
+                    preference,
+                ),
+            ).toBe("blank");
+            expect(
+                customSwitchStart("custom-zone", "custom-points", preference),
+            ).toBe("blank");
+        }
     });
 });

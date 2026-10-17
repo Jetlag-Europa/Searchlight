@@ -50,11 +50,10 @@ import {
     tentaclesPlanningPolygon,
 } from "./questions/tentacles";
 import {
-    adjustPerThermometer,
     hiderifyThermometer,
     thermometerPlanningPolygon,
 } from "./questions/thermometer";
-import type { Question, Questions } from "./schema";
+import type { Question, Questions, TentacleQuestion } from "./schema";
 
 interface CompiledFeatureQuestionData {
     lat: number;
@@ -155,11 +154,7 @@ async function hiderifyCompiledQuestion(
         const { circle, points } = await determineTentacleGeometry({
             evaluator,
             datasets,
-            data: {
-                ...data,
-                radius: data.radius ?? 15,
-                unit: data.unit ?? "miles",
-            },
+            data: data as TentacleQuestion,
         });
         if (!turf.booleanPointInPolygon(hiderPt, circle) || !points.length) {
             data.location = false;
@@ -215,11 +210,7 @@ async function determinePlanningPolygonCompiled(
     if (questionDef.family === "tentacle") {
         const { circle, cells } = await determineTentacleGeometry({
             ...params,
-            data: {
-                ...question.data,
-                radius: question.data.radius ?? 15,
-                unit: question.data.unit ?? "miles",
-            },
+            data: question.data as TentacleQuestion,
         });
         const regions = cells.features.length ? cells.features : [circle];
         return turf.featureCollection(
@@ -245,38 +236,31 @@ export const hiderifyQuestion = async (question: Question) => {
     if (question.data.enabled === false) return null;
     if (question.data.drag) {
         if (questionStatus(question) !== "ready") return question;
-        const compiled = compiledGameAtom.get();
-        if (compiled) {
-            const questionDef = resolveCompiledQuestion(question, compiled);
-            if (questionDef) {
-                if (question.id === "radius") {
-                    question.data = hiderifyRadius(question.data);
-                    return question;
-                }
-                if (question.id === "thermometer") {
-                    question.data = await hiderifyThermometer(question.data);
-                    return question;
-                }
-                const $hiderMode = hiderMode.get();
-                if ($hiderMode !== false) {
-                    await hiderifyCompiledQuestion(
-                        question,
-                        questionDef,
-                        compiled.datasets,
-                        $hiderMode,
-                    );
-                }
+        const compiled = compiledGameAtom.get()!;
+        const questionDef = resolveCompiledQuestion(question, compiled);
+        if (questionDef) {
+            if (question.id === "radius") {
+                question.data = hiderifyRadius(question.data);
                 return question;
             }
+            if (question.id === "thermometer") {
+                question.data = await hiderifyThermometer(question.data);
+                return question;
+            }
+            const $hiderMode = hiderMode.get();
+            if ($hiderMode !== false) {
+                await hiderifyCompiledQuestion(
+                    question,
+                    questionDef,
+                    compiled.datasets,
+                    $hiderMode,
+                );
+            }
+            return question;
         }
 
+        // Player-drawn custom questions aren't in the game's question map.
         switch (question.id) {
-            case "radius":
-                question.data = hiderifyRadius(question.data);
-                break;
-            case "thermometer":
-                question.data = await hiderifyThermometer(question.data);
-                break;
             case "tentacles":
                 question.data = await hiderifyTentacles(question.data);
                 break;
@@ -299,29 +283,24 @@ export const determinePlanningPolygon = async (
     if (question.data.enabled === false) return undefined;
     if (planningModeEnabled && question.data.drag) {
         if (questionStatus(question) !== "ready") return undefined;
-        const compiled = compiledGameAtom.get();
-        if (compiled) {
-            const questionDef = resolveCompiledQuestion(question, compiled);
-            if (questionDef) {
-                if (question.id === "radius") {
-                    return radiusPlanningPolygon(question.data);
-                }
-                if (question.id === "thermometer") {
-                    return thermometerPlanningPolygon(question.data);
-                }
-                return determinePlanningPolygonCompiled(
-                    question,
-                    questionDef,
-                    compiled.datasets,
-                );
+        const compiled = compiledGameAtom.get()!;
+        const questionDef = resolveCompiledQuestion(question, compiled);
+        if (questionDef) {
+            if (question.id === "radius") {
+                return radiusPlanningPolygon(question.data);
             }
+            if (question.id === "thermometer") {
+                return thermometerPlanningPolygon(question.data);
+            }
+            return determinePlanningPolygonCompiled(
+                question,
+                questionDef,
+                compiled.datasets,
+            );
         }
 
+        // Player-drawn custom questions aren't in the game's question map.
         switch (question.id) {
-            case "radius":
-                return radiusPlanningPolygon(question.data);
-            case "thermometer":
-                return thermometerPlanningPolygon(question.data);
             case "tentacles":
                 return tentaclesPlanningPolygon(question.data);
             case "matching":
@@ -336,7 +315,6 @@ export async function adjustMapGeoDataForQuestion(
     question: any,
     mapGeoData: any,
 ) {
-    const compiled = compiledGameAtom.get();
     const status = questionStatus(question);
     if (status === "unsupported") {
         throw new Error(
@@ -350,24 +328,20 @@ export async function adjustMapGeoDataForQuestion(
         mapGeoData.features.length === 0
     )
         return mapGeoData;
-    if (compiled) {
-        const questionDef = resolveCompiledQuestion(question, compiled);
-        if (questionDef) {
-            return await evaluateQuestionOperator({
-                questionDef,
-                datasets: compiled.datasets,
-                data: question.data,
-                mapGeoData,
-                requestKey: requestKeyFor(question),
-            });
-        }
+    const compiled = compiledGameAtom.get()!;
+    const questionDef = resolveCompiledQuestion(question, compiled);
+    if (questionDef) {
+        return await evaluateQuestionOperator({
+            questionDef,
+            datasets: compiled.datasets,
+            data: question.data,
+            mapGeoData,
+            requestKey: requestKeyFor(question),
+        });
     }
 
+    // Player-drawn custom questions aren't in the game's question map.
     switch (question?.id) {
-        case "radius":
-            return await adjustPerRadius(question.data, mapGeoData);
-        case "thermometer":
-            return await adjustPerThermometer(question.data, mapGeoData);
         case "tentacles":
             if (question.data.location === false) {
                 return adjustPerRadius(

@@ -34,7 +34,6 @@ import {
 } from "@/lib/context";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
-import { clearTentacleCache } from "@/maps/questions/tentacles";
 import type { Units } from "@/maps/schema";
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
     (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
@@ -270,7 +269,6 @@ export function leaveGame(): void {
  */
 export function resetGameState(): void {
     gameDefinitionReady.set(false);
-    clearTentacleCache();
     setActiveGameDefinition(null);
     customStations.set([]);
     trainStations.set([]);

@@ -34,9 +34,8 @@ const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
  * Every question belongs to a game. Once its definition is ready, a game
  * offers only what it declares: radar and thermometer when its definition
  * enables them, its compiled feature questions, and player-drawn custom
- * questions. Generic question types (which would query OSM/Overpass) are never
- * supported, so neither a stale or wrong-game definition nor a pasted question
- * falls through to OSM evaluation.
+ * questions. Anything else, such as a question from the retired built-in
+ * catalogue still stored in an older session, is never supported.
  *
  * While the definition is loading (`compiled` is null), the questions a game
  * could support are retained: radar, thermometer, canonical feature IDs and

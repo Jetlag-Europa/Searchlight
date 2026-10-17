@@ -88,11 +88,12 @@ export const RadiusQuestionComponent = ({
                         className="rounded-md p-2 w-16"
                         value={data.radius}
                         disabled={!data.drag || $isLoading}
-                        onChange={(e) =>
-                            questionModified(
-                                (data.radius = parseFloat(e.target.value)),
-                            )
-                        }
+                        onChange={(e) => {
+                            // Keep the last radius while the field is cleared.
+                            const radius = parseFloat(e.target.value);
+                            if (isNaN(radius)) return;
+                            questionModified((data.radius = radius));
+                        }}
                     />
                     <UnitSelect
                         unit={data.unit}
