@@ -4,7 +4,6 @@
 
 - Hiding-zone names on the map and station names in their popups are shown as text. They come from the game definition, and Leaflet rendered them as HTML, so an imported game could run script in every player's browser.
 - `POST /games/import` turns away a logged-in user who can't import on any server (no `games.create`, `games.edit` or `server.admin` on a server they are in, and not a global admin) with a 403 before reading the body, which can be up to 50 MB. Import tokens, and the check against the target server, are unchanged.
-- User search (`GET /users/search`, behind Invite and Share) only finds the server's members and only answers callers in that server (403 otherwise, 404 for an unknown server). It also found users who had been looked up and turned out not to be in it.
 - Server errors (500) answer "Internal Server Error" instead of the error's own message, which could carry database details; the full error is logged. Client errors (4xx), including validation errors, keep their messages. `PUT /sessions/:id/questions` rejects a fractional `ordinal` with a 400 instead of failing in the database.
 - The API refuses to start with `ENABLE_TEST_AUTH=1` when `NODE_ENV` is `production`. The e2e stack sets `NODE_ENV=development`, so it keeps its test login.
 - The join page and the login redirect after it encode the link token in their API requests, as the play page does.
