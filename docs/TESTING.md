@@ -52,6 +52,35 @@ The seed (`apps/api/prisma/seed-test.ts`) creates the `e2e-test-user` and the
 - Run the API with `ENABLE_TEST_AUTH=1` anywhere else only with
   `HOST=127.0.0.1`: test login skips Discord entirely.
 
+## On a preview deployment
+
+On PR previews and staging (`https://sl-pr-<N>.dev.jl-e.org`) you can log in
+as any Discord user without Discord: the API registers `/auth/dev-login` when
+`DEV_LOGIN_TOKEN` is set (at least 32 characters). Prod never sets it. The token is `DEV_LOGIN_TOKEN` in the preview server's
+`secrets/preview.env`.
+
+- In a browser, open `https://sl-pr-<N>-api.dev.jl-e.org/auth/dev-login`,
+  enter a Discord user ID and the token, and you land on `/map` as that user.
+- From a script or Playwright, `POST` it with the token as a bearer token. In
+  Playwright, use the page's own request context so the browser gets the cookie:
+
+  ```ts
+  await page.request.post(`${API}/auth/dev-login`, {
+      headers: { authorization: `Bearer ${process.env.DEV_LOGIN_TOKEN}` },
+      data: { discordId: "123456789012345678" },
+  });
+  await page.goto(`${WEB}/map`);
+  ```
+
+  With curl, keep the cookie in a jar: `curl -c jar -H "authorization: Bearer
+  $DEV_LOGIN_TOKEN" -H 'content-type: application/json' -d
+  '{"discordId":"…"}' $API/auth/dev-login`, then `curl -b jar $API/me`.
+
+A real Discord ID gets that user's name and avatar, and their servers and roles
+through the bot as usual. Any other numeric ID (15–21 digits, e.g.
+`100000000000000001`) becomes a placeholder user who is in no server. Use
+several of those to play as more than one person.
+
 ## In a real browser
 
 Unit tests can't show these; check them by hand after changing geometry or

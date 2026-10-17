@@ -155,6 +155,20 @@ export const discord = {
     return res.json() as Promise<DiscordUser>;
   },
 
+  // Any user's public profile, via the bot token. Returns null for unknown users.
+  async getUser(userId: string, logger?: FastifyBaseLogger): Promise<DiscordUser | null> {
+    const res = await request(
+      `/users/${userId}`,
+      { headers: { Authorization: `Bot ${env.DISCORD_BOT_TOKEN}` } },
+      logger,
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) {
+      throw new Error(`Discord /users/${userId} failed: ${res.status}`);
+    }
+    return res.json() as Promise<DiscordUser>;
+  },
+
   // Returns null when the user is not a member of the guild.
   // Uses the bot token so OAuth only needs the identify scope.
   async getGuildMember(
