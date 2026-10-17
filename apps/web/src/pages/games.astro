@@ -26,7 +26,8 @@ import { GameManager } from "@/components/GameManager";
         <p class="text-sm text-muted-foreground mb-8">
             Manage game definitions for each JetLag server.
             Only servers where you hold <code>games.create</code>, <code>games.edit</code>,
-            or <code>games.delete</code> permissions are shown.
+            <code>games.delete</code> or <code>server.admin</code> permissions are shown.
+            Server admins also see how much each game is played.
         </p>
         <GameManager client:only="react" />
     </main>
