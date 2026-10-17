@@ -1,8 +1,4 @@
-import {
-    type Game as ServerGame,
-    type GameDefinition,
-    type GameSessionSummary,
-} from "@searchlight/shared";
+import type { Game, GameDefinition, GamesResponse } from "@searchlight/shared";
 import { atom } from "nanostores";
 
 import {
@@ -31,15 +27,6 @@ const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
     (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
     "") as string;
 
-export interface GameOption {
-    id: string;
-    gameKey: string;
-    label: string;
-    serverId: string;
-    serverName: string;
-    size: "small" | "medium" | "large";
-}
-
 export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
     switch (size) {
         case "large":
@@ -52,12 +39,6 @@ export function zoneLabelMinZoom(size?: "small" | "medium" | "large"): number {
             return 13;
     }
 }
-// Server-fetched games.
-export const gamesAtom = atom<GameOption[]>([]);
-export const gamesLoadingAtom = atom<boolean>(false);
-let latestCatalogRequest = 0;
-let activeCatalogRequests = 0;
-
 let gameSwitchGeneration = 0;
 interface PendingGameSwitch {
     key: string;
@@ -71,88 +52,15 @@ export const currentGameId = atom<string>(
 );
 
 /**
- * A server's game catalog, without publishing it. The session picker browses
- * other servers' catalogs, while gamesAtom holds the active session's: the
- * zone sidebar reads its game's size there, which sets the zoom level from
- * which zone names show.
+ * A server's game catalog, for starting a session. Only members of the
+ * server may read it; a session's own game comes with the session.
  */
-export async function fetchGameCatalog(
-    serverId: string,
-): Promise<GameOption[]> {
-    const [gamesRes, serversRes] = await Promise.all([
-        fetch(`${API_BASE}/games?serverId=${serverId}`, {
-            credentials: "include",
-        }),
-        fetch(`${API_BASE}/servers`, { credentials: "include" }),
-    ]);
-    if (!gamesRes.ok)
-        throw new Error(`Failed to fetch games: ${gamesRes.status}`);
-    const gamesData = (await gamesRes.json()) as { games: ServerGame[] };
-
-    let serverName = serverId;
-    if (serversRes.ok) {
-        const serversData = (await serversRes.json()) as {
-            servers: Array<{ id: string; name: string }>;
-        };
-        serverName =
-            serversData.servers.find((s) => s.id === serverId)?.name ??
-            serverId;
-    }
-
-    return gamesData.games.map((g): GameOption => {
-        return {
-            id: g.id,
-            gameKey: g.gameKey,
-            label: g.name,
-            serverId: g.serverId,
-            serverName,
-            size: (g.size as "small" | "medium" | "large") ?? "medium",
-        };
+export async function fetchGameCatalog(serverId: string): Promise<Game[]> {
+    const res = await fetch(`${API_BASE}/games?serverId=${serverId}`, {
+        credentials: "include",
     });
-}
-
-/** The active session's server catalog, published as gamesAtom. */
-export async function fetchGames(serverId: string): Promise<GameOption[]> {
-    const request = ++latestCatalogRequest;
-    activeCatalogRequests++;
-    gamesLoadingAtom.set(true);
-    try {
-        const defs = await fetchGameCatalog(serverId);
-        if (request === latestCatalogRequest) gamesAtom.set(defs);
-        return defs;
-    } finally {
-        if (--activeCatalogRequests === 0) gamesLoadingAtom.set(false);
-    }
-}
-
-export function getGameById(id: string): GameOption | undefined {
-    return gamesAtom.get().find((g) => g.id === id);
-}
-
-/**
- * The game a session plays. The server's catalog only names it: participants
- * may load the session's pinned revision without access to that catalog (403
- * for non-members), and a Discord outage fails it too, so fall back to the
- * session's own ids instead of failing the load.
- */
-export async function resolveSessionGame(
-    session: GameSessionSummary,
-): Promise<GameOption> {
-    const games = await fetchGames(session.serverId).catch((err) => {
-        console.warn("[searchlight:session] game catalog unavailable:", err);
-        return [] as GameOption[];
-    });
-    return (
-        games.find((game) => game.id === session.gameId) ??
-        getGameById(session.gameId) ?? {
-            id: session.gameId,
-            gameKey: session.gameId,
-            label: session.gameName || session.name,
-            serverId: session.serverId,
-            serverName: session.serverId,
-            size: "medium",
-        }
-    );
+    if (!res.ok) throw new Error(`Failed to fetch games: ${res.status}`);
+    return ((await res.json()) as GamesResponse).games;
 }
 
 export function applyGameDefinition(def: GameDefinition): void {
@@ -213,7 +121,7 @@ export function resetGameState(): void {
 }
 
 export function switchToGame(
-    game: GameOption,
+    game: { id: string },
     { revisionId, sessionId }: SwitchToGameOptions,
 ): Promise<boolean> {
     const startingSessionId = activeSessionId.get();

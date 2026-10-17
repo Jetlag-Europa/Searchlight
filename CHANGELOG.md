@@ -1,5 +1,12 @@
 # Changelog
 
+## The server picker lists only your servers (2026-10-17)
+
+- The session picker lists the Discord servers you're in, plus Home Games. Servers you aren't in no longer show up, so picking one no longer leaves an empty game list (the API refused their catalog with a 403).
+- A server you aren't in still shows up when you have sessions there, e.g. from a game link or an invite link. Its sessions open as before; instead of "+ New session" the picker says you can only open sessions shared with you there. Such a server stays listed while Discord can't be reached, since its sessions don't need Discord.
+- Opening such a session no longer asks for the server's game list either (another 403 in the console). The board only used it for the game's size, which sets the zoom from which zone names show, and fell back to "medium" without it. It now reads the size from the game it loaded, so it also follows the session's pinned revision.
+- `GET /servers` returns these servers with a new `isMember` flag (false for servers listed only for their sessions, with no permissions). Admins (`ADMIN_DISCORD_IDS`) still see every server. The list re-checks servers you weren't in every 10 minutes, so after joining a Discord server it shows up within 10 minutes.
+
 ## Tests run on pull requests (2026-10-17)
 
 - A new "Tests" workflow runs on every pull request and every push to `main`. It builds the workspace, then runs the shared, web and API unit tests (the API tests against a Postgres service), `pnpm verify:preloaded-games` and `pnpm check:game-schema`. Before this, CI never ran the tests. Pull requests only had the image builds, and those stopped running on pull requests on 2026-10-16. The Playwright e2e tests still run by hand only.

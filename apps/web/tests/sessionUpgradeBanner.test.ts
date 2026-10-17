@@ -2,7 +2,6 @@ import type { GameSessionSummary } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const games = vi.hoisted(() => ({
-    getGameById: vi.fn(),
     switchToGame: vi.fn<() => Promise<boolean>>(),
 }));
 vi.mock("@/lib/games", () => games);
@@ -51,7 +50,6 @@ const session: GameSessionSummary = {
 };
 
 beforeEach(() => {
-    games.getGameById.mockReturnValue(undefined);
     games.switchToGame.mockReset();
     toast.success.mockReset();
     setActiveSession(session);

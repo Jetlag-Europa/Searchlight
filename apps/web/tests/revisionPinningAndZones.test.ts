@@ -1,11 +1,7 @@
 import * as turf from "@turf/turf";
 import type { Polygon } from "geojson";
 import { describe, expect, it, beforeEach, afterAll, vi } from "vitest";
-import {
-  applyGameDefinition,
-  switchToGame,
-  type GameOption,
-} from "@/lib/games";
+import { applyGameDefinition, switchToGame } from "@/lib/games";
 import {
   cacheRevisionDefinition,
   clearDefinitionCache,
@@ -263,7 +259,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
 
   describe("Review 5: Revision pinning in loading, caching, and upgrading", () => {
     it("R1 restore after R2 import loads R1 instead of R2", async () => {
-      const gameDef: GameOption = {
+      const gameDef = {
         id: "game-abc",
         gameKey: "game-abc",
         label: "Game ABC",
@@ -307,7 +303,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
     });
 
     it("live upgrade loads R2 even when R1 was previously cached", async () => {
-      const gameDef: GameOption = {
+      const gameDef = {
         id: "game-xyz",
         gameKey: "game-xyz",
         label: "Game XYZ",
@@ -363,7 +359,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
     });
 
     it("pinned fetch failure does not fall back to mutable export or load current", async () => {
-      const gameDef: GameOption = {
+      const gameDef = {
         id: "game-pinned-fail",
         gameKey: "game-pinned-fail",
         label: "Game Fail",
@@ -406,7 +402,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
     });
 
     it("isolates two games sharing the same revision ID in cache", async () => {
-      const gameDef1: GameOption = {
+      const gameDef1 = {
         id: "game-one",
         gameKey: "game-one",
         label: "Game One",
@@ -415,7 +411,7 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
         size: "medium",
       };
 
-      const gameDef2: GameOption = {
+      const gameDef2 = {
         id: "game-two",
         gameKey: "game-two",
         label: "Game Two",

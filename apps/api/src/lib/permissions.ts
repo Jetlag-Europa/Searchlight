@@ -134,28 +134,39 @@ async function fetchAndCacheMembership(
   return membership;
 }
 
+// Listing servers checks every server, so it re-checks a cached "not a
+// member" less often than access checks do.
+export const LISTING_NON_MEMBER_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+export async function isServerMember(
+  userId: string,
+  serverId: string,
+  logger?: FastifyBaseLogger,
+  nonMemberTtlMs = PRIVILEGED_TTL_MS,
+): Promise<boolean> {
+  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
+  if (adminIds.includes(userId)) {
+    return true;
+  }
+
+  // Membership is cached like roles for normal reads, but a cached "not a
+  // member" expires sooner (after a minute by default) so someone who just
+  // joined the server isn't locked out for an hour.
+  const cached = await prisma.serverMembershipCache.findUnique({
+    where: { userId_serverId: { userId, serverId } },
+  });
+  const ttl = cached?.isMember ? DEFAULT_TTL_MS : nonMemberTtlMs;
+  return cached && Date.now() - cached.cachedAt.getTime() < ttl
+    ? cached.isMember
+    : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+}
+
 export async function assertServerMembership(
   userId: string,
   serverId: string,
   logger?: FastifyBaseLogger,
 ): Promise<void> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
-    return;
-  }
-
-  // Membership is cached like roles for normal reads, but a cached "not a
-  // member" expires after PRIVILEGED_TTL_MS so someone who just joined the
-  // server isn't locked out for an hour.
-  const cached = await prisma.serverMembershipCache.findUnique({
-    where: { userId_serverId: { userId, serverId } },
-  });
-  const ttl = cached?.isMember ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
-  const isMember =
-    cached && Date.now() - cached.cachedAt.getTime() < ttl
-      ? cached.isMember
-      : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
-  if (!isMember) {
+  if (!(await isServerMember(userId, serverId, logger))) {
     throw Object.assign(new Error("Not a member of this server"), { statusCode: 403 });
   }
 }

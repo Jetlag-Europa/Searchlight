@@ -54,6 +54,12 @@ export interface RolePermissionEntry {
 
 export interface ServerWithPermissions extends Server {
   permissions: string[];
+  /**
+   * False for a server listed only because the user has sessions there
+   * (joined from a game link or an invite link) without being in its Discord
+   * guild: its game catalog is closed to them, so they can't start sessions.
+   */
+  isMember: boolean;
 }
 
 export interface ServersResponse {

@@ -36,7 +36,7 @@ import {
     showZoneNames,
     trainStations,
 } from "@/lib/context";
-import { currentGameId, gamesAtom, zoneLabelMinZoom } from "@/lib/games";
+import { zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
@@ -79,8 +79,6 @@ export const ZoneSidebar = () => {
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
     const $showZoneNames = useStore(showZoneNames);
-    const $games = useStore(gamesAtom);
-    const $currentGameId = useStore(currentGameId);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
     const isStationSearchActive = stationSearch.trim().length > 0;
@@ -109,8 +107,7 @@ export const ZoneSidebar = () => {
     }, [$compiledGame, $hidingZoneScale]);
 
     // Hide zone name labels when zoomed out too far to avoid overlap
-    const activeGame = $games.find((g) => g.id === $currentGameId);
-    const LABEL_MIN_ZOOM = zoneLabelMinZoom(activeGame?.size);
+    const LABEL_MIN_ZOOM = zoneLabelMinZoom($compiledGame?.size);
     useEffect(() => {
         if (!map || !$showZoneNames) {
             map?.getContainer().classList.remove("zone-labels-hidden");
