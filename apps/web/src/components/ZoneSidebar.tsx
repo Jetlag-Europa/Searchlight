@@ -41,6 +41,7 @@ import { zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
+import { survivingZones, zonesLeft } from "@/lib/zonesLeft";
 import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
@@ -80,6 +81,7 @@ export const ZoneSidebar = () => {
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
     const $showZoneNames = useStore(showZoneNames);
+    const $zonesLeft = useStore(zonesLeft);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
     const isStationSearchActive = stationSearch.trim().length > 0;
@@ -250,7 +252,15 @@ export const ZoneSidebar = () => {
                 const finishCalculation = startCalculation("zones");
                 try {
                     const circles = await initializeHidingZones(isCurrent);
-                    if (isCurrent() && circles) setStations(circles);
+                    if (isCurrent() && circles) {
+                        setStations(circles);
+                        survivingZones.set({
+                            ids: circles.map((c) => c.properties.properties.id),
+                            total:
+                                $compiledGame?.hidingZones.stations?.length ??
+                                0,
+                        });
+                    }
                 } catch (error) {
                     if (!isCurrent()) return;
                     console.error(
@@ -266,6 +276,9 @@ export const ZoneSidebar = () => {
                     finishCalculation();
                 }
             });
+        } else if (!$displayHidingZones) {
+            // Hidden zones aren't recalculated, so their count would go stale.
+            survivingZones.set(null);
         }
         return () => zoneRefreshQueue.cancel();
     }, [
@@ -385,6 +398,25 @@ export const ZoneSidebar = () => {
                                     disabled={$isLoading}
                                 />
                             </SidebarMenuItem>
+                            {$displayHidingZones && $zonesLeft && (
+                                <SidebarMenuItem
+                                    className={cn(
+                                        MENU_ITEM_CLASSNAME,
+                                        "flex-col items-start gap-0",
+                                    )}
+                                >
+                                    <span className="font-semibold font-poppins">
+                                        {$zonesLeft.left} of {$zonesLeft.total}{" "}
+                                        hiding zones left
+                                    </span>
+                                    {$zonesLeft.disabled > 0 && (
+                                        <span className="text-sm text-muted-foreground">
+                                            {$zonesLeft.disabled} more disabled
+                                            by hand
+                                        </span>
+                                    )}
+                                </SidebarMenuItem>
+                            )}
                             <SidebarMenuItem
                                 className={cn(
                                     MENU_ITEM_CLASSNAME,

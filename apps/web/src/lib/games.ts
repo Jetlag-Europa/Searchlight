@@ -22,6 +22,7 @@ import {
 import { GAME_SS_KEY } from "@/lib/gameView";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
+import { survivingZones } from "@/lib/zonesLeft";
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
     (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
     "") as string;
@@ -81,6 +82,7 @@ export function applyGameDefinition(def: GameDefinition): void {
     mapGeoJSON.set(compiled.playArea ?? null);
     // The zone sidebar redraws the zones from the new definition.
     trainStations.set([]);
+    survivingZones.set(null);
 
     const currentQuestions = questions.get();
     const visibleQuestions = filterSupportedQuestions(
@@ -124,6 +126,7 @@ export function resetGameState(): void {
     gameDefinitionReady.set(false);
     setActiveGameDefinition(null);
     trainStations.set([]);
+    survivingZones.set(null);
     polyGeoJSON.set(null);
     mapGeoJSON.set(null);
     hidingZoneFocusedStationID.set("");
