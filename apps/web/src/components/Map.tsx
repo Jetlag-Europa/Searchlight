@@ -70,7 +70,14 @@ const CARTO_API_KEY = "cb1_2e23_1_bd24b1a55d41442abf180516";
 // Before a game has loaded, the map shows the world, or the game it showed
 // last (see lastGameView).
 const WORLD_CENTER: L.LatLngTuple = [20, 0];
-const WORLD_ZOOM = 2;
+// The lowest zoom at which the world, which doesn't wrap, fills the width.
+const worldZoom = (width: number) =>
+    Math.max(2, Math.ceil(Math.log2(width / 256)));
+// Basemap tiles exist only within the world; outside it they answer 400.
+const WORLD_BOUNDS: L.LatLngBoundsExpression = [
+    [-90, -180],
+    [90, 180],
+];
 
 const fitGameBounds = (
     map: L.Map,
@@ -95,6 +102,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
                     minZoom={2}
                     noWrap
+                    bounds={WORLD_BOUNDS}
                 />
             );
 
@@ -107,6 +115,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
                     minZoom={2}
                     noWrap
+                    bounds={WORLD_BOUNDS}
                 />
             );
 
@@ -119,6 +128,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                         maxZoom={22}
                         minZoom={2}
                         noWrap
+                        bounds={WORLD_BOUNDS}
                     />
                 );
             break;
@@ -132,6 +142,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                         maxZoom={22}
                         minZoom={2}
                         noWrap
+                        bounds={WORLD_BOUNDS}
                     />
                 );
             break;
@@ -144,6 +155,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={19}
                     minZoom={2}
                     noWrap
+                    bounds={WORLD_BOUNDS}
                 />
             );
     }
@@ -156,6 +168,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
             maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
             minZoom={2}
             noWrap
+            bounds={WORLD_BOUNDS}
         />
     );
 };
@@ -471,7 +484,7 @@ export const Map = ({ className }: { className?: string }) => {
         () => (
             <MapContainer
                 center={WORLD_CENTER}
-                zoom={WORLD_ZOOM}
+                zoom={worldZoom(window.innerWidth)}
                 className={cn("w-[500px] h-[500px]", className)}
                 ref={leafletMapContext.set}
                 // @ts-expect-error Typing doesn't update from react-contextmenu
@@ -558,7 +571,8 @@ export const Map = ({ className }: { className?: string }) => {
     // restored, as last framed: a definition can take a while to load, or
     // fail to offline. Should the board turn out to be another game's (a join
     // link, another session picked) or nobody's (a new user), go back to the
-    // world.
+    // world. Only such a restored view is reset: switching away from a game
+    // that did load keeps its view until the next game loads, as before.
     useEffect(() => {
         if (!map) return;
         const provisional = provisionalViewRef.current;
@@ -572,7 +586,9 @@ export const Map = ({ className }: { className?: string }) => {
         } else if (provisional) {
             framedGameIdRef.current = null;
             provisionalViewRef.current = false;
-            map.setView(WORLD_CENTER, WORLD_ZOOM, { animate: false });
+            map.setView(WORLD_CENTER, worldZoom(map.getSize().x), {
+                animate: false,
+            });
         }
     }, [map, $currentGameId, $activeSessionId, $lastGameView]);
 
