@@ -2,11 +2,7 @@ import type { DistanceUnit, QuestionDefinition } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, Point } from "geojson";
 
-import {
-    compiledGameAtom,
-    hasCompiledQuestionId,
-    isQuestionSupported,
-} from "@/game-definition/store";
+import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import {
     hiderMode,
     mapGeoJSON,
@@ -14,7 +10,6 @@ import {
     polyGeoJSON,
     trainStations,
 } from "@/lib/context";
-import { currentGameId } from "@/lib/games";
 
 import { arcDistanceToPoint } from "./geo-utils";
 import {
@@ -236,21 +231,14 @@ async function determinePlanningPolygonCompiled(
 export * from "./geo-utils";
 
 /**
- * Whether a question can be answered now. A question about a game layer
- * waits while its game's definition loads, and outside any game it is
- * unsupported: the generic handlers have no layer to answer it from.
+ * Whether a question can be answered now. Every question belongs to a game,
+ * so each one waits while the game's definition loads; once it has loaded,
+ * the game decides which questions it supports.
  */
 function questionStatus(question: any): "ready" | "pending" | "unsupported" {
     const compiled = compiledGameAtom.get();
-    if (compiled) {
-        return isQuestionSupported(question, compiled) ? "ready" : "unsupported";
-    }
-    if (!hasCompiledQuestionId(question)) return "ready";
-    return isQuestionSupported(question, null, {
-        inGame: currentGameId.get() !== "",
-    })
-        ? "pending"
-        : "unsupported";
+    if (!compiled) return "pending";
+    return isQuestionSupported(question, compiled) ? "ready" : "unsupported";
 }
 
 export const hiderifyQuestion = async (question: Question) => {
@@ -352,9 +340,7 @@ export async function adjustMapGeoDataForQuestion(
     const status = questionStatus(question);
     if (status === "unsupported") {
         throw new Error(
-            compiled
-                ? "Question is not supported by the active game definition"
-                : "Question belongs to a game that is not active",
+            "Question is not supported by the active game definition",
         );
     }
     // Answered once the game's definition has loaded.

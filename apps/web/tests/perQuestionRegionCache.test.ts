@@ -1,7 +1,9 @@
+import type { GameDefinition } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import type { FeatureCollection, Point } from "geojson";
-import { expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
+import { setActiveGameDefinition } from "@/game-definition/store";
 import { computePerQuestionRegions } from "@/maps";
 import type * as GeoUtils from "@/maps/geo-utils";
 
@@ -14,6 +16,26 @@ vi.mock("@/maps/geo-utils", async (importActual) => ({
         unit: turf.Units,
     ) => turf.buffer(fc.features[0], radius, { units: unit }),
 }));
+
+// Questions are answered only within a game; this one offers radars.
+const game = {
+    id: "region-cache",
+    name: "Region Cache",
+    serverId: "home-games",
+    radars: true,
+    map: {
+        center: [4.5, 51.5],
+        playArea: { type: "FeatureCollection", features: [] },
+    },
+    hidingZones: {
+        radius: 1,
+        unit: "kilometers",
+        features: { type: "FeatureCollection", features: [] },
+    },
+} as unknown as GameDefinition;
+
+beforeEach(() => setActiveGameDefinition(game));
+afterEach(() => setActiveGameDefinition(null));
 
 const radius = (key: number, lng: number, within: boolean): any => ({
     id: "radius",
@@ -38,6 +60,7 @@ it("reuses unchanged questions' regions and re-evaluates only edited ones", asyn
         false,
     );
     expect(first).toHaveLength(2);
+    expect(first[0].region).not.toEqual(base);
 
     const edited = await computePerQuestionRegions(
         [radius(1, 4.3, true), radius(2, 4.6, false)],

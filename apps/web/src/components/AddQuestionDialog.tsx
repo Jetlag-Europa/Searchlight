@@ -27,23 +27,20 @@ export const AddQuestionDialog = ({
     const compiled = useStore(compiledGameAtom);
     const [open, setOpen] = React.useState(false);
 
-    const hasRadius = compiled
-        ? compiled.questions.some((q) => q.family === "radius")
-        : true;
-    const hasThermometer = compiled
-        ? compiled.questions.some((q) => q.family === "thermometer")
-        : true;
+    // Questions come from the game: nothing can be added until it has loaded.
+    const disabled = $isLoading || !compiled;
+    const hasRadius =
+        compiled?.questions.some((q) => q.family === "radius") ?? false;
+    const hasThermometer =
+        compiled?.questions.some((q) => q.family === "thermometer") ?? false;
     // Player-drawn custom questions are allowed in every game, so a family
     // without compiled questions still adds its custom variant (addQuestion).
-    const hasTentacles = compiled
-        ? compiled.questions.some((q) => q.family === "tentacle")
-        : true;
-    const hasMatching = compiled
-        ? compiled.questions.some((q) => q.family === "matching")
-        : true;
-    const hasMeasuring = compiled
-        ? compiled.questions.some((q) => q.family === "measuring")
-        : true;
+    const hasTentacles =
+        compiled?.questions.some((q) => q.family === "tentacle") ?? false;
+    const hasMatching =
+        compiled?.questions.some((q) => q.family === "matching") ?? false;
+    const hasMeasuring =
+        compiled?.questions.some((q) => q.family === "measuring") ?? false;
     // addQuestion starts the radar at the game's first declared radius; the
     // card offers the others as quick picks.
     const runAddRadius = () => {
@@ -178,7 +175,9 @@ export const AddQuestionDialog = ({
             <DialogContent>
                 <DialogTitle>Add Question</DialogTitle>
                 <DialogDescription>
-                    Select which question type you would like to add.
+                    {compiled
+                        ? "Select which question type you would like to add."
+                        : "Questions can be added once the game has loaded."}
                 </DialogDescription>
 
                 <div className="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -186,50 +185,51 @@ export const AddQuestionDialog = ({
                         onClick={() => {
                             if (runAddRadius()) setOpen(false);
                         }}
-                        disabled={$isLoading || !hasRadius}
+                        disabled={disabled || !hasRadius}
                         className={!hasRadius ? "opacity-40 cursor-not-allowed" : ""}
                     >
-                        Add Radius {!hasRadius && "(Disabled)"}
+                        Add Radius {compiled && !hasRadius && "(Disabled)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
                             if (runAddThermometer()) setOpen(false);
                         }}
-                        disabled={$isLoading || !hasThermometer}
+                        disabled={disabled || !hasThermometer}
                         className={!hasThermometer ? "opacity-40 cursor-not-allowed" : ""}
                     >
-                        Add Thermometer {!hasThermometer && "(Disabled)"}
+                        Add Thermometer{" "}
+                        {compiled && !hasThermometer && "(Disabled)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
                             if (runAddTentacles()) setOpen(false);
                         }}
-                        disabled={$isLoading}
+                        disabled={disabled}
                     >
-                        Add Tentacles {!hasTentacles && "(Custom)"}
+                        Add Tentacles {compiled && !hasTentacles && "(Custom)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
                             if (runAddMatching()) setOpen(false);
                         }}
-                        disabled={$isLoading}
+                        disabled={disabled}
                     >
-                        Add Matching {!hasMatching && "(Custom)"}
+                        Add Matching {compiled && !hasMatching && "(Custom)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={() => {
                             if (runAddMeasuring()) setOpen(false);
                         }}
-                        disabled={$isLoading}
+                        disabled={disabled}
                     >
-                        Add Measuring {!hasMeasuring && "(Custom)"}
+                        Add Measuring {compiled && !hasMeasuring && "(Custom)"}
                     </SidebarMenuButton>
                     <SidebarMenuButton
                         onClick={async () => {
                             const ok = await runPasteQuestion();
                             if (ok) setOpen(false);
                         }}
-                        disabled={$isLoading}
+                        disabled={disabled}
                     >
                         Paste Question
                     </SidebarMenuButton>

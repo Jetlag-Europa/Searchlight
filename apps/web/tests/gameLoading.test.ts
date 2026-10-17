@@ -1,12 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { GameDefinition } from "@searchlight/shared";
+import type { GameDefinition, GameSessionSummary } from "@searchlight/shared";
 import {
     activateGameStations,
     applyGameDefinition,
     currentGameId,
+    fetchGameCatalog,
     fetchGames,
     gamesAtom,
     gamesLoadingAtom,
+    leaveGame,
+    resetGameState,
     resolveSessionGame,
     switchToGame,
     type GameOption,
@@ -18,7 +21,11 @@ import {
     getCachedRevisionDefinition,
     setActiveGameDefinition,
 } from "@/game-definition/store";
-import { activeSessionId, clearActiveSession } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    clearActiveSession,
+    setActiveSession,
+} from "@/lib/activeSession";
 import {
     customStations,
     displayHidingZonesOptions,
@@ -26,7 +33,9 @@ import {
     hidingRadius,
     hidingRadiusUnits,
     mapGeoJSON,
+    polyGeoJSON,
     questions,
+    tierRadiusOverrides,
     useCustomStations,
 } from "@/lib/context";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
@@ -65,6 +74,15 @@ function definition(radius: number): GameDefinition {
         },
     };
 }
+
+// A session playing `game`, pinned to a revision.
+const pinnedSession = {
+    id: "session-one",
+    name: "Session one",
+    gameId: game.id,
+    serverId: game.serverId,
+    gameRevisionId: "revision-one",
+} as GameSessionSummary;
 
 function deferred<T>() {
     let resolve!: (value: T) => void;
@@ -128,19 +146,20 @@ describe("game loading concurrency", () => {
         }
     });
 
-    it("activates a restored same-ID selection and reactivates it after deselection", async () => {
+    it("activates the session's restored selection, pinned, and reactivates it after deselection", async () => {
+        setActiveSession(pinnedSession);
         currentGameId.set(game.id);
         displayHidingZonesOptions.set([game.gameKey]);
-        const request = deferred<Response>();
         const fetchSpy = vi
             .spyOn(globalThis, "fetch")
-            .mockReturnValueOnce(request.promise)
             .mockImplementation(async () => response(350));
         activateGameStations(game);
-        const loaded = switchToGame(game);
-        request.resolve(response(350));
-        expect(await loaded).toBe(true);
+        // A switch without options joins the session's pinned one.
+        expect(await switchToGame(game)).toBe(true);
         expect(useCustomStations.get()).toBe(true);
+        expect(String(fetchSpy.mock.calls[0][0])).toContain(
+            "/revisions/revision-one?sessionId=session-one",
+        );
 
         displayHidingZonesOptions.set([]);
         useCustomStations.set(false);
@@ -148,8 +167,59 @@ describe("game loading concurrency", () => {
         activateGameStations(game);
         expect(await switchToGame(game)).toBe(true);
         expect(useCustomStations.get()).toBe(true);
-        // Selecting the game again loads its latest definition again.
-        expect(fetchSpy).toHaveBeenCalledTimes(2);
+        // The pinned revision is cached.
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it("never activates a game other than the active session's", async () => {
+        const fetchSpy = vi
+            .spyOn(globalThis, "fetch")
+            .mockImplementation(async () => response(350));
+        currentGameId.set(game.id);
+        displayHidingZonesOptions.set([game.gameKey]);
+        // No session details yet, as after an offline restore.
+        activateGameStations(game);
+        // Another game's session, as after a failed switch to it.
+        setActiveSession({ ...pinnedSession, gameId: "other-game" });
+        activateGameStations(game);
+        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(compiledGameAtom.get()).toBeNull();
+    });
+
+    it("leaving a game cancels its switch still loading", async () => {
+        setActiveSession(pinnedSession);
+        const request = deferred<Response>();
+        vi.spyOn(globalThis, "fetch").mockReturnValue(request.promise);
+        // A revision upgrade is loading when another session is selected.
+        const upgrade = switchToGame(game, {
+            revisionId: "revision-two",
+            sessionId: pinnedSession.id,
+        });
+        leaveGame();
+        request.resolve(response(900));
+        expect(await upgrade).toBe(false);
+        expect(compiledGameAtom.get()).toBeNull();
+        expect(gameDefinitionReady.get()).toBe(false);
+        expect(currentGameId.get()).toBe("");
+    });
+
+    it("browses another server's catalog without publishing it", async () => {
+        gamesAtom.set([game]);
+        vi.spyOn(globalThis, "fetch").mockImplementation(async (input) =>
+            String(input).includes("/games?")
+                ? Response.json({
+                      games: [{ ...game, id: "other-game", serverId: "other" }],
+                  })
+                : Response.json({ servers: [] }),
+        );
+        try {
+            expect(
+                (await fetchGameCatalog("other")).map((entry) => entry.id),
+            ).toEqual(["other-game"]);
+            expect(gamesAtom.get()).toEqual([game]);
+        } finally {
+            gamesAtom.set([]);
+        }
     });
 
     it("gives concurrent callers one successful selection", async () => {
@@ -456,5 +526,39 @@ describe("resolveSessionGame", () => {
             label: "Paris 15-08",
             serverName: "JetLag EU",
         });
+    });
+});
+
+describe("leaving a game", () => {
+    beforeEach(() => {
+        vi.stubGlobal("sessionStorage", {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+        });
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        setActiveGameDefinition(null);
+    });
+
+    it("clears the game's board, so a failed session switch leaves no other game behind", () => {
+        applyGameDefinition(definition(500));
+        currentGameId.set(game.id);
+        tierRadiusOverrides.set({ "1": 2 });
+        expect(useCustomStations.get()).toBe(true);
+        expect(polyGeoJSON.get()).not.toBeNull();
+
+        resetGameState();
+
+        expect(compiledGameAtom.get()).toBeNull();
+        expect(gameDefinitionReady.get()).toBe(false);
+        expect(polyGeoJSON.get()).toBeNull();
+        expect(mapGeoJSON.get()).toBeNull();
+        expect(useCustomStations.get()).toBe(false);
+        expect(customStations.get()).toEqual([]);
+        expect(tierRadiusOverrides.get()).toEqual({});
+        expect(currentGameId.get()).toBe("");
     });
 });

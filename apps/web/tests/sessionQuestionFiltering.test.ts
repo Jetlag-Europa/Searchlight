@@ -37,27 +37,27 @@ describe("session question support filtering", () => {
         expect(isQuestionSupported(thermometer, compiled(["thermometer", "thermometer"]))).toBe(true);
     });
 
-    it("never falls back to generic OSM-backed questions in a game", () => {
-        expect(isQuestionSupported(genericMatching, null)).toBe(true);
+    it("never falls back to generic OSM-backed questions, even while the definition is loading", () => {
+        expect(isQuestionSupported(genericMatching, null)).toBe(false);
+        expect(isQuestionSupported(genericTentacle, null)).toBe(false);
         expect(isQuestionSupported(genericMatching, compiled(["matching-museum", "matching"]))).toBe(false);
         expect(isQuestionSupported(genericTentacle, compiled(["tentacle-museum", "tentacle"]))).toBe(false);
         expect(isQuestionSupported(customTentacle, compiled(["tentacle-museum", "tentacle"]))).toBe(true);
     });
 
-    it("does not discard canonical questions while the definition is loading", () => {
+    it("keeps what the game may support while its definition is loading", () => {
         expect(isQuestionSupported(canonical, null)).toBe(true);
-        expect(isQuestionSupported(legacy, null)).toBe(false);
-    });
-
-    it("does not support canonical questions outside any game", () => {
-        expect(isQuestionSupported(canonical, null, { inGame: false })).toBe(false);
         expect(isQuestionSupported(
             { id: "tentacles", data: { locationType: "tentacle-museum", lat: 1, lng: 2 } },
             null,
-            { inGame: false },
-        )).toBe(false);
-        expect(isQuestionSupported(genericMatching, null, { inGame: false })).toBe(true);
-        expect(isQuestionSupported(customTentacle, null, { inGame: false })).toBe(true);
+        )).toBe(true);
+        expect(isQuestionSupported(legacy, null)).toBe(false);
+        expect(
+            filterSupportedQuestions(
+                [radius, thermometer, custom, customTentacle, genericMatching, legacy],
+                null,
+            ),
+        ).toEqual([radius, thermometer, custom, customTentacle]);
     });
 
     it("requires canonical questions to belong to the ready game's family map", () => {

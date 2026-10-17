@@ -4,7 +4,6 @@ import type { WritableAtom } from "nanostores";
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
 import {
     allowGooglePlusCodes,
-    alwaysUsePastebin,
     animateMapMovements,
     autoLockQuestions,
     autoSave,
@@ -13,7 +12,6 @@ import {
     customInitPreference,
     defaultCustomQuestions,
     defaultUnit,
-    pastebinApiKey,
     showZoneNames,
     thunderforestApiKey,
     warningAlarm,
@@ -24,9 +22,7 @@ export const PREF_ENTRIES: { key: keyof UserPreferences; atom: WritableAtom<any>
     { key: "customInitPreference", atom: customInitPreference },
     { key: "baseTileLayer", atom: baseTileLayer },
     { key: "thunderforestApiKey", atom: thunderforestApiKey },
-    { key: "pastebinApiKey", atom: pastebinApiKey },
     { key: "animateMapMovements", atom: animateMapMovements },
-    { key: "alwaysUsePastebin", atom: alwaysUsePastebin },
     { key: "autoSave", atom: autoSave },
     { key: "warningAlarm", atom: warningAlarm },
     { key: "autoZoom", atom: autoZoom },

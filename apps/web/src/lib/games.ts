@@ -82,42 +82,53 @@ export const currentGameId = atom<string>(
     readStorage("sessionStorage", GAME_SS_KEY) ?? "",
 );
 
+/**
+ * A server's game catalog, without publishing it. The session picker browses
+ * other servers' catalogs; the zone sidebar must not mistake them for the
+ * active session's.
+ */
+export async function fetchGameCatalog(
+    serverId: string,
+): Promise<GameOption[]> {
+    const [gamesRes, serversRes] = await Promise.all([
+        fetch(`${API_BASE}/games?serverId=${serverId}`, {
+            credentials: "include",
+        }),
+        fetch(`${API_BASE}/servers`, { credentials: "include" }),
+    ]);
+    if (!gamesRes.ok)
+        throw new Error(`Failed to fetch games: ${gamesRes.status}`);
+    const gamesData = (await gamesRes.json()) as { games: ServerGame[] };
+
+    let serverName = serverId;
+    if (serversRes.ok) {
+        const serversData = (await serversRes.json()) as {
+            servers: Array<{ id: string; name: string }>;
+        };
+        serverName =
+            serversData.servers.find((s) => s.id === serverId)?.name ??
+            serverId;
+    }
+
+    return gamesData.games.map((g): GameOption => {
+        return {
+            id: g.id,
+            gameKey: g.gameKey,
+            label: g.name,
+            serverId: g.serverId,
+            serverName,
+            size: (g.size as "small" | "medium" | "large") ?? "medium",
+        };
+    });
+}
+
+/** The active session's server catalog, published as gamesAtom. */
 export async function fetchGames(serverId: string): Promise<GameOption[]> {
     const request = ++latestCatalogRequest;
     activeCatalogRequests++;
     gamesLoadingAtom.set(true);
     try {
-        const [gamesRes, serversRes] = await Promise.all([
-            fetch(`${API_BASE}/games?serverId=${serverId}`, {
-                credentials: "include",
-            }),
-            fetch(`${API_BASE}/servers`, { credentials: "include" }),
-        ]);
-        if (!gamesRes.ok)
-            throw new Error(`Failed to fetch games: ${gamesRes.status}`);
-        const gamesData = (await gamesRes.json()) as { games: ServerGame[] };
-
-        let serverName = serverId;
-        if (serversRes.ok) {
-            const serversData = (await serversRes.json()) as {
-                servers: Array<{ id: string; name: string }>;
-            };
-            serverName =
-                serversData.servers.find((s) => s.id === serverId)?.name ??
-                serverId;
-        }
-
-        const defs = gamesData.games.map((g): GameOption => {
-            return {
-                id: g.id,
-                gameKey: g.gameKey,
-                label: g.name,
-                serverId: g.serverId,
-                serverName,
-                size: (g.size as "small" | "medium" | "large") ?? "medium",
-            };
-        });
-
+        const defs = await fetchGameCatalog(serverId);
         if (request === latestCatalogRequest) gamesAtom.set(defs);
         return defs;
     } finally {
@@ -215,24 +226,65 @@ export interface SwitchToGameOptions {
     sessionId?: string | null;
 }
 
-export function activateGameStations(
-    game: GameOption,
-    options?: SwitchToGameOptions,
-): void {
+/**
+ * Load the stations of a game the zone options name. Only the active
+ * session's game is loaded, pinned to the session's revision: restored zone
+ * options can name another game, whose definition must never reach this
+ * session's board.
+ */
+export function activateGameStations(game: GameOption): void {
+    const session = activeSessionData.get();
+    if (
+        !session?.gameRevisionId ||
+        (session.gameId !== game.id && session.gameId !== game.gameKey)
+    )
+        return;
     // Ignore the selection published by switchToGame, not restored or user-edited
     // options. The current ID alone cannot distinguish those initialization paths.
     if (
-        !options &&
         currentGameId.get() === game.id &&
         displayHidingZonesOptions.get() === publishedGameOptions
     )
         return;
-    switchToGame(game, options);
+    switchToGame(game, {
+        revisionId: session.gameRevisionId,
+        sessionId: session.id,
+    });
 }
 
-/** True while switchToGame is loading a definition that hasn't been applied. */
-export function isGameSwitchPending(): boolean {
-    return pendingGameSwitch !== undefined;
+/**
+ * Leave the active game before another session's game loads: cancel a switch
+ * still loading (a revision upgrade, say) and clear the board, so a load that
+ * fails leaves no other game behind.
+ */
+export function leaveGame(): void {
+    gameSwitchGeneration++;
+    pendingGameSwitch = undefined;
+    resetGameState();
+}
+
+/**
+ * Clear what the active game put on the board: its definition, play area,
+ * zones and selection. switchToGame calls this after registering its own load;
+ * leaveGame also cancels any switch in flight.
+ */
+export function resetGameState(): void {
+    gameDefinitionReady.set(false);
+    clearTentacleCache();
+    setActiveGameDefinition(null);
+    customStations.set([]);
+    trainStations.set([]);
+    useCustomStations.set(false);
+    includeDefaultStations.set(false);
+    polyGeoJSON.set(null);
+    mapGeoJSON.set(null);
+    additionalMapGeoLocations.set([]);
+    disabledStations.set([]);
+    permanentOverlay.set(null);
+    hidingZoneFocusedStationID.set("");
+    tierRadiusOverrides.set({});
+    writeStorage("sessionStorage", GAME_SS_KEY, "");
+    currentGameId.set("");
 }
 
 export function switchToGame(
@@ -312,19 +364,7 @@ export function switchToGame(
     };
     pendingGameSwitch = selection;
 
-    gameDefinitionReady.set(false);
-    clearTentacleCache();
-    setActiveGameDefinition(null);
-    customStations.set([]);
-    trainStations.set([]);
-    useCustomStations.set(false);
-    includeDefaultStations.set(false);
-    polyGeoJSON.set(null);
-    mapGeoJSON.set(null);
-    additionalMapGeoLocations.set([]);
-    disabledStations.set([]);
-    permanentOverlay.set(null);
-    hidingZoneFocusedStationID.set("");
+    resetGameState();
 
     // The sidebar observes zone options; publish the owning selection first.
     writeStorage("sessionStorage", GAME_SS_KEY, game.id);

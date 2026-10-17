@@ -56,7 +56,6 @@ import {
     gamesAtom,
     getGameByKey,
     getGameKeys,
-    isGameSwitchPending,
     zoneLabelMinZoom,
 } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
@@ -281,12 +280,13 @@ export const ZoneSidebar = () => {
             const questionSnapshot = questions.get();
             const planning = planningModeEnabled.get();
 
-            // switchToGame publishes the game's key before its definition (and
-            // bundled stations) arrives. While that load is in flight the
-            // selection is transient: don't flag it as a user error, and don't
-            // send the game key to Overpass. applyGameDefinition flips
-            // gameDefinitionReady and re-runs this effect with the real stations.
-            if (!$gameDefinitionReady && isGameSwitchPending()) return;
+            // Zones come from the game. switchToGame publishes the game's key
+            // before its definition (and bundled stations) arrives, and the
+            // definition may fail to load: until it has been applied, don't
+            // flag the selection as a user error or query Overpass.
+            // applyGameDefinition flips gameDefinitionReady and re-runs this
+            // effect with the real stations.
+            if (!$gameDefinitionReady) return;
 
             const needsDefault = !useCustomStations || includeDefaultStations;
             // Strip every game key before any Overpass call — they're

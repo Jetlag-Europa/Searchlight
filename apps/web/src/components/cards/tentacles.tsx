@@ -307,7 +307,11 @@ const TentacleLocationSelector = ({
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
+    const compiled = useStore(compiledGameAtom);
     const locations = use(promise);
+    // Until its game loads, a game tentacle's sites are unknown, not absent:
+    // its answer must be kept, not cleared.
+    const locationsKnown = data.locationType === "custom" || compiled !== null;
 
     const allFeatures = (locations.features || []).filter(
         (f): f is Feature<Point> => f.geometry?.type === "Point",
@@ -334,6 +338,7 @@ const TentacleLocationSelector = ({
 
     // If the currently selected location is no longer within radius, clear it.
     if (
+        locationsKnown &&
         data.location &&
         !filteredFeatures.some((f) => featuresMatch(f, data.location))
     ) {
@@ -396,7 +401,7 @@ const TentacleLocationSelector = ({
 
                 questionModified();
             }}
-            disabled={!!$hiderMode || disabled}
+            disabled={!!$hiderMode || disabled || !locationsKnown}
         />
     );
 };

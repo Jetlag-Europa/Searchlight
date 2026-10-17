@@ -50,3 +50,22 @@ describe("custom questions in a game without layers", () => {
         expect(questions.get()).toEqual([]);
     });
 });
+
+describe("adding questions without a game", () => {
+    it("throws until the game's definition has loaded", () => {
+        setActiveGameDefinition(null);
+        expect(() =>
+            addQuestion({ id: "radius", data: { lat: 50, lng: 10 } }),
+        ).toThrow("The game has not loaded yet");
+        expect(() =>
+            addQuestion({ id: "matching", data: { lat: 50, lng: 10 } }),
+        ).toThrow("The game has not loaded yet");
+        expect(() =>
+            addQuestion({
+                id: "tentacles",
+                data: { lat: 50, lng: 10, locationType: "custom" },
+            }),
+        ).toThrow("The game has not loaded yet");
+        expect(questions.get()).toEqual([]);
+    });
+});

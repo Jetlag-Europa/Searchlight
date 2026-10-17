@@ -1,7 +1,7 @@
 import { useStore } from "@nanostores/react";
 import { resolveGameDefinitionId } from "@searchlight/shared";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "react-toastify";
 
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
@@ -14,58 +14,36 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
-import { activeGameDefinitionAtom } from "@/game-definition/store";
 import {
-    additionalMapGeoLocations,
+    activeGameDefinitionAtom,
+    compiledGameAtom,
+} from "@/game-definition/store";
+import {
     allowGooglePlusCodes,
-    alwaysUsePastebin,
     animateMapMovements,
     autoLockQuestions,
     autoSave,
     autoZoom,
     baseTileLayer,
     customInitPreference,
-    customPresets,
-    customStations,
     defaultCustomQuestions,
     defaultUnit,
-    disabledStations,
     displayHidingZones,
-    displayHidingZonesOptions,
     displayHidingZonesStyle,
     followMe,
     hiderMode,
-    hidingRadius,
-    hidingRadiusUnits,
-    hidingZone,
     hidingZoneFocusedStationID,
-    includeDefaultStations,
-    mapGeoJSON,
-    mapGeoLocation,
-    pastebinApiKey,
     permanentOverlay,
     planningModeEnabled,
-    polyGeoJSON,
-    questions,
     save,
-    showTutorial,
     showZoneNames,
     thunderforestApiKey,
     trainStations,
     triggerLocalRefresh,
-    useCustomStations,
     warningAlarm,
 } from "@/lib/context";
-import {
-    cn,
-    compress,
-    decompress,
-    fetchFromPastebin,
-    shareOrFallback,
-    uploadToPastebin,
-} from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
-import { questionsSchema } from "@/maps/schema";
 
 import { LatitudeLongitude, type LocalLocation } from "./LatLngPicker";
 import { Button } from "./ui/button";
@@ -81,9 +59,6 @@ import {
 } from "./ui/sidebar-l";
 import { UnitSelect } from "./UnitSelect";
 
-const HIDING_ZONE_COMPRESSED_URL_PARAM = "hzc";
-const PASTEBIN_URL_PARAM = "pb";
-
 export const OptionDrawers = ({ className }: { className?: string }) => {
     useStore(triggerLocalRefresh);
     const $defaultCustomQuestions = useStore(defaultCustomQuestions);
@@ -93,205 +68,21 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $autoZoom = useStore(autoZoom);
     const $warningAlarm = useStore(warningAlarm);
     const $hiderMode = useStore(hiderMode);
+    const $compiledGame = useStore(compiledGameAtom);
+    // The hider starts at the game's centre, so hider mode needs the game.
+    const hiderModeUnavailable = $hiderMode === false && !$compiledGame;
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
-    // hidingZone is read only when sharing; subscribing kept the derived store
-    // (with its structuredClones) recomputing on every question/station change.
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
-    const $pastebinApiKey = useStore(pastebinApiKey);
-    const $alwaysUsePastebin = useStore(alwaysUsePastebin);
     const $autoLockQuestions = useStore(autoLockQuestions);
     const $followMe = useStore(followMe);
     const $customInitPref = useStore(customInitPreference);
     const $penToolbarVisible = useStore(penToolbarVisible);
-    const lastDefaultUnit = useRef($defaultUnit);
-    const hasSyncedInitialUnit = useRef(false);
     const $showZoneNames = useStore(showZoneNames);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
-
-    useEffect(() => {
-        const currentDefault = $defaultUnit;
-
-        if (!hasSyncedInitialUnit.current) {
-            hasSyncedInitialUnit.current = true;
-            if (hidingRadiusUnits.get() !== currentDefault) {
-                hidingRadiusUnits.set(currentDefault);
-            }
-        } else if (lastDefaultUnit.current !== currentDefault) {
-            hidingRadiusUnits.set(currentDefault);
-        }
-
-        lastDefaultUnit.current = currentDefault;
-    }, [$defaultUnit]);
-    useEffect(() => {
-        let active = true;
-        const params = new URL(window.location.toString()).searchParams;
-        const hidingZoneCompressed = params.get(
-            HIDING_ZONE_COMPRESSED_URL_PARAM,
-        );
-        const pastebinId = params.get(PASTEBIN_URL_PARAM);
-
-        if (hidingZoneCompressed !== null) {
-            // Modern compressed format
-            decompress(hidingZoneCompressed).then((data) => {
-                if (!active) return;
-                try {
-                    loadHidingZone(data);
-                    // Remove hiding zone parameter after initial load
-                    window.history.replaceState(
-                        {},
-                        "",
-                        window.location.pathname,
-                    );
-                } catch (e) {
-                    if (active)
-                        toast.error(`Invalid hiding zone settings: ${e}`);
-                }
-            });
-        } else if (pastebinId !== null) {
-            fetchFromPastebin(pastebinId)
-                .then((data) => {
-                    if (!active) return;
-                    try {
-                        loadHidingZone(data);
-                        // Remove pb parameter after initial load
-                        window.history.replaceState(
-                            {},
-                            "",
-                            window.location.pathname,
-                        );
-                        toast.success(
-                            "Successfully loaded data from Pastebin link!",
-                        );
-                    } catch (e) {
-                        if (active)
-                            toast.error(`Invalid data from Pastebin: ${e}`);
-                    }
-                })
-                .catch((error) => {
-                    if (!active) return;
-                    console.error("Failed to fetch from Pastebin:", error);
-                    toast.error(
-                        `Failed to load from Pastebin: ${error.message}`,
-                    );
-                });
-        }
-        return () => {
-            active = false;
-        };
-    }, []);
-
-    const loadHidingZone = (hidingZone: string) => {
-        try {
-            const geojson = JSON.parse(hidingZone);
-
-            if (
-                geojson.properties &&
-                geojson.properties.isHidingZone === true
-            ) {
-                questions.set(
-                    questionsSchema.parse(geojson.properties.questions ?? []),
-                );
-                mapGeoLocation.set(geojson);
-                mapGeoJSON.set(null);
-                polyGeoJSON.set(null);
-
-                if (geojson.alternateLocations) {
-                    additionalMapGeoLocations.set(geojson.alternateLocations);
-                } else {
-                    additionalMapGeoLocations.set([]);
-                }
-            } else {
-                if (geojson.questions) {
-                    questions.set(questionsSchema.parse(geojson.questions));
-                    delete geojson.questions;
-
-                    mapGeoJSON.set(geojson);
-                    polyGeoJSON.set(geojson);
-                } else {
-                    questions.set([]);
-                    mapGeoJSON.set(geojson);
-                    polyGeoJSON.set(geojson);
-                }
-            }
-
-            const incomingPresets =
-                geojson.presets ?? geojson.properties?.presets;
-            if (incomingPresets && Array.isArray(incomingPresets)) {
-                try {
-                    const normalized = (incomingPresets as any[])
-                        .filter((p) => p && p.data)
-                        .map((p) => {
-                            return {
-                                id:
-                                    p.id ??
-                                    (typeof crypto !== "undefined" &&
-                                    typeof (crypto as any).randomUUID ===
-                                        "function"
-                                        ? (crypto as any).randomUUID()
-                                        : String(Date.now()) + Math.random()),
-                                name: p.name ?? "Imported preset",
-                                type: p.type ?? "custom",
-                                data: p.data,
-                                createdAt:
-                                    p.createdAt ?? new Date().toISOString(),
-                            };
-                        });
-                    if (normalized.length > 0) {
-                        customPresets.set(normalized);
-                        toast.info(`Imported ${normalized.length} preset(s)`);
-                    }
-                } catch (err) {
-                    console.warn("Failed to import presets", err);
-                }
-            }
-
-            if (
-                geojson.disabledStations !== null &&
-                geojson.disabledStations.constructor === Array
-            ) {
-                disabledStations.set(geojson.disabledStations);
-            }
-
-            if (geojson.hidingRadius !== null) {
-                hidingRadius.set(geojson.hidingRadius);
-            }
-
-            if (geojson.zoneOptions) {
-                displayHidingZonesOptions.set(geojson.zoneOptions ?? []);
-            }
-
-            if (typeof geojson.useCustomStations === "boolean") {
-                useCustomStations.set(geojson.useCustomStations);
-            }
-
-            if (
-                geojson.customStations &&
-                geojson.customStations.constructor === Array
-            ) {
-                customStations.set(geojson.customStations);
-            }
-
-            if (typeof geojson.includeDefaultStations === "boolean") {
-                includeDefaultStations.set(geojson.includeDefaultStations);
-            }
-
-            if (geojson.permanentOverlay) {
-                permanentOverlay.set(geojson.permanentOverlay);
-            } else {
-                permanentOverlay.set(null);
-            }
-
-            toast.success("Hiding zone loaded successfully", {
-                autoClose: 2000,
-            });
-        } catch (e) {
-            toast.error(`Invalid hiding zone settings: ${e}`);
-        }
-    };
 
     return (
         <div className={cn("flex flex-col items-end gap-2", className)}>
@@ -318,86 +109,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                 )}
             >
                 <div className="min-h-0 overflow-hidden flex flex-col gap-2 pt-0 pb-0">
-                    {/* Share — hidden but kept in DOM */}
-                    <Button
-                        className="w-full shadow-md hidden"
-                        onClick={async () => {
-                            setNavOpen(false);
-                            const hidingZoneString =
-                                JSON.stringify(hidingZone.get());
-                            let compressedData;
-                            try {
-                                compressedData =
-                                    await compress(hidingZoneString);
-                            } catch (error) {
-                                console.error("Compression failed:", error);
-                                toast.error(
-                                    `Failed to prepare data for sharing`,
-                                );
-                                return;
-                            }
-
-                            const baseUrl = `${window.location.protocol}//${window.location.host}${window.location.pathname}`;
-                            let shareUrl = `${baseUrl}?${HIDING_ZONE_COMPRESSED_URL_PARAM}=${compressedData}`;
-
-                            if ($alwaysUsePastebin || shareUrl.length > 2000) {
-                                if (!$pastebinApiKey) {
-                                    toast.error(
-                                        "Data is too large for a URL or Pastebin is forced. Please enter a Pastebin API key in Options to share via Pastebin.",
-                                    );
-                                    return;
-                                }
-                                try {
-                                    toast.info(
-                                        "Data is being shared via Pastebin...",
-                                    );
-                                    const pastebinUrl = await uploadToPastebin(
-                                        $pastebinApiKey,
-                                        hidingZoneString,
-                                    );
-                                    const pasteId = pastebinUrl.substring(
-                                        pastebinUrl.lastIndexOf("/") + 1,
-                                    );
-                                    shareUrl = `${baseUrl}?${PASTEBIN_URL_PARAM}=${pasteId}`;
-                                    toast.success(
-                                        "Successfully uploaded to Pastebin! URL is ready to be shared.",
-                                    );
-                                } catch (error) {
-                                    console.error(
-                                        "Pastebin upload failed:",
-                                        error,
-                                    );
-                                    toast.error(
-                                        `Pastebin upload failed. Please check your API key and try again.`,
-                                    );
-                                    return;
-                                }
-                            }
-
-                            // Show platform native share sheet if possible
-                            await shareOrFallback(shareUrl).then((result) => {
-                                console.log(`result ${result}`);
-                                if (result === false) {
-                                    return toast.error(
-                                        `Clipboard not supported. Try manually copying/pasting: ${shareUrl}`,
-                                        { className: "p-0 w-[1000px]" },
-                                    );
-                                }
-
-                                if (result === "clipboard") {
-                                    toast.success(
-                                        "Hiding zone URL copied to clipboard",
-                                        {
-                                            autoClose: 2000,
-                                        },
-                                    );
-                                }
-                            });
-                        }}
-                        data-tutorial-id="share-old"
-                    >
-                        Share
-                    </Button>
                     <Button
                         className="w-full shadow-md"
                         variant={$showZoneNames ? "default" : "outline"}
@@ -406,15 +117,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                         }}
                     >
                         Zone Labels
-                    </Button>
-                    <Button
-                        className="w-full shadow-md hidden"
-                        onClick={() => {
-                            setNavOpen(false);
-                            showTutorial.set(true);
-                        }}
-                    >
-                        Tutorial
                     </Button>
                     <a
                         href="https://github.com/Jetlag-Europa/Searchlight/issues/new/choose"
@@ -443,10 +145,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                         }}
                     >
                         <DrawerTrigger className="w-full" asChild>
-                            <Button
-                                className="w-full shadow-md"
-                                data-tutorial-id="option-questions-button"
-                            >
+                            <Button className="w-full shadow-md">
                                 Options
                             </Button>
                         </DrawerTrigger>
@@ -459,44 +158,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                 </DrawerHeader>
                                 <div className="overflow-y-scroll max-h-[40vh] flex flex-col items-center gap-4 max-w-[1000px] px-12">
                                     <div className="flex flex-row max-[330px]:flex-col gap-4">
-                                        <Button
-                                            onClick={() => {
-                                                if (
-                                                    !navigator ||
-                                                    !navigator.clipboard
-                                                )
-                                                    return toast.error(
-                                                        "Clipboard not supported",
-                                                    );
-                                                navigator.clipboard.writeText(
-                                                    JSON.stringify(hidingZone.get()),
-                                                );
-                                                toast.success(
-                                                    "Hiding zone copied successfully",
-                                                    {
-                                                        autoClose: 2000,
-                                                    },
-                                                );
-                                            }}
-                                        >
-                                            Copy Hiding Zone
-                                        </Button>
-                                        <Button
-                                            onClick={() => {
-                                                if (
-                                                    !navigator ||
-                                                    !navigator.clipboard
-                                                )
-                                                    return toast.error(
-                                                        "Clipboard not supported",
-                                                    );
-                                                navigator.clipboard
-                                                    .readText()
-                                                    .then(loadHidingZone);
-                                            }}
-                                        >
-                                            Paste Hiding Zone
-                                        </Button>
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -627,34 +288,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         </p>
                                     </div>
                                     <Separator className="bg-slate-300 w-[280px]" />
-                                    <div className="flex flex-col items-center gap-2">
-                                        <Label>Pastebin API Key</Label>
-                                        <Input
-                                            type="text"
-                                            value={$pastebinApiKey}
-                                            id="pastebinApiKey"
-                                            onChange={(e) =>
-                                                pastebinApiKey.set(
-                                                    e.target.value,
-                                                )
-                                            }
-                                            placeholder="Enter your Pastebin API key"
-                                        />
-                                        <p className="text-xs text-gray-500">
-                                            Needed for sharing large game data.
-                                            Create a key{" "}
-                                            <a
-                                                href="https://pastebin.com/doc_api"
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="text-blue-500 cursor-pointer"
-                                            >
-                                                here
-                                            </a>
-                                            .
-                                        </p>
-                                    </div>
-                                    <Separator className="bg-slate-300 w-[280px]" />
                                     <Label>Permanent Map Overlay</Label>
                                     <div className="flex flex-row max-[330px]:flex-col gap-4">
                                         <Button
@@ -704,19 +337,6 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                     !$animateMapMovements,
                                                 );
                                             }}
-                                        />
-                                    </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Force Pastebin for sharing?
-                                        </label>
-                                        <Checkbox
-                                            checked={$alwaysUsePastebin}
-                                            onCheckedChange={() =>
-                                                alwaysUsePastebin.set(
-                                                    !$alwaysUsePastebin,
-                                                )
-                                            }
                                         />
                                     </div>
                                     <div className="flex flex-row items-center gap-2">
@@ -828,21 +448,28 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }
                                         />
                                     </div>
-                                    <div className="flex flex-row items-center gap-2">
+                                    <div
+                                        className="flex flex-row items-center gap-2"
+                                        title={
+                                            hiderModeUnavailable
+                                                ? "Available once the game has loaded"
+                                                : undefined
+                                        }
+                                    >
                                         <label className="text-2xl font-semibold font-poppins">
                                             Hider mode?
                                         </label>
                                         <Checkbox
                                             checked={!!$hiderMode}
+                                            disabled={hiderModeUnavailable}
                                             onCheckedChange={() => {
                                                 if ($hiderMode === false) {
-                                                    const coords =
-                                                        mapGeoLocation.get()
-                                                            .geometry
-                                                            .coordinates;
+                                                    if (!$compiledGame) return;
+                                                    const { center } =
+                                                        $compiledGame;
                                                     hiderMode.set({
-                                                        latitude: coords[0],
-                                                        longitude: coords[1],
+                                                        latitude: center[1],
+                                                        longitude: center[0],
                                                     });
                                                 } else {
                                                     hiderMode.set(false);

@@ -12,10 +12,8 @@ import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
-import { activeSessionId } from "@/lib/activeSession";
 import { bootstrapDefaults } from "@/lib/bootstrapCustomStations";
 import {
-    additionalMapGeoLocations,
     addQuestion,
     animateMapMovements,
     autoZoom,
@@ -36,7 +34,7 @@ import {
     thunderforestApiKey,
     triggerLocalRefresh,
 } from "@/lib/context";
-import { currentGameId, isGameSwitchPending } from "@/lib/games";
+import { currentGameId } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
@@ -45,11 +43,7 @@ import {
     determinePlanningPolygon,
 } from "@/maps";
 import { hiderifyQuestion } from "@/maps";
-import {
-    BLANK_GEOJSON,
-    clearCache,
-    determineMapBoundaries,
-} from "@/maps/api";
+import { BLANK_GEOJSON } from "@/maps/api";
 import {
     requestGeometry,
     SupersededError,
@@ -142,7 +136,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     );
 };
 
-// The active game may not offer the requested question type.
+// The game may not have loaded, or may not offer the requested question type.
 const addQuestionFromMenu = (question: Parameters<typeof addQuestion>[0]) => {
     try {
         addQuestion(question);
@@ -150,9 +144,81 @@ const addQuestionFromMenu = (question: Parameters<typeof addQuestion>[0]) => {
         toast.error((error as Error).message);
     }
 };
+// The context menu's first items, which add questions.
+const ADD_QUESTION_MENU_ITEMS = [
+    {
+        text: "Add Radius",
+        callback: (e: any) =>
+            addQuestionFromMenu({
+                id: "radius",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            }),
+    },
+    {
+        text: "Add Thermometer",
+        callback: (e: any) => {
+            const destination = turf.destination(
+                [e.latlng.lng, e.latlng.lat],
+                5,
+                90,
+                {
+                    units: "kilometers",
+                },
+            );
+
+            addQuestionFromMenu({
+                id: "thermometer",
+                data: {
+                    latA: e.latlng.lat,
+                    lngA: e.latlng.lng,
+                    latB: destination.geometry.coordinates[1],
+                    lngB: destination.geometry.coordinates[0],
+                },
+            });
+        },
+    },
+    {
+        text: "Add Tentacles",
+        callback: (e: any) => {
+            addQuestionFromMenu({
+                id: "tentacles",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            });
+        },
+    },
+    {
+        text: "Add Matching",
+        callback: (e: any) => {
+            addQuestionFromMenu({
+                id: "matching",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            });
+        },
+    },
+    {
+        text: "Add Measuring",
+        callback: (e: any) => {
+            addQuestionFromMenu({
+                id: "measuring",
+                data: {
+                    lat: e.latlng.lat,
+                    lng: e.latlng.lng,
+                },
+            });
+        },
+    },
+];
 
 export const Map = ({ className }: { className?: string }) => {
-    useStore(additionalMapGeoLocations);
     const $mapGeoLocation = useStore(mapGeoLocation);
     const $questions = useStore(questions);
     const $baseTileLayer = useStore(baseTileLayer);
@@ -245,35 +311,19 @@ export const Map = ({ className }: { className?: string }) => {
             // Question cards and markers mutate data in place, even when auto-save
             // is off. Take an immutable view before any awaited geometry work.
             const snapshot = structuredClone(sourceQuestions);
-            if (snapshot.length === 0) {
-                await clearCache();
-                if (!isCurrent()) return;
-            }
 
             let mapGeoData = boundary ?? mapGeoJSON.get();
             if (!mapGeoData) {
-                // A game brings its own play area, and every session has a
-                // game: while one is selected, loading or being restored, wait
-                // for it instead of fetching the free-play boundary.
+                // The play area comes from the game: wait for it to load.
                 if (
-                    currentGameId.get() ||
-                    activeSessionId.get() ||
-                    isGameSwitchPending()
+                    renderedGameIdRef.current !== null &&
+                    !compiled &&
+                    !definitionReady
                 ) {
-                    if (
-                        renderedGameIdRef.current !== null &&
-                        !compiled &&
-                        !definitionReady
-                    ) {
-                        clearQuestionLayers(map);
-                        renderedGameIdRef.current = null;
-                    }
-                    return;
+                    clearQuestionLayers(map);
+                    renderedGameIdRef.current = null;
                 }
-                mapGeoData = await toast.promise(determineMapBoundaries(), {
-                    error: "Couldn't load map boundaries — Overpass API may be slow. Try again.",
-                });
-                if (!isCurrent()) return;
+                return;
             }
             if (mapGeoJSON.get() !== mapGeoData) mapGeoJSON.set(mapGeoData);
             if (hider !== false) {
@@ -401,93 +451,7 @@ export const Map = ({ className }: { className?: string }) => {
                 contextmenu={true}
                 contextmenuWidth={140}
                 contextmenuItems={[
-                    {
-                        text: "Add Radius",
-                        callback: (e: any) =>
-                            addQuestionFromMenu({
-                                id: "radius",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            }),
-                    },
-                    {
-                        text: "Add Thermometer",
-                        callback: (e: any) => {
-                            const destination = turf.destination(
-                                [e.latlng.lng, e.latlng.lat],
-                                5,
-                                90,
-                                {
-                                    units: "kilometers",
-                                },
-                            );
-
-                            addQuestionFromMenu({
-                                id: "thermometer",
-                                data: {
-                                    latA: e.latlng.lat,
-                                    lngA: e.latlng.lng,
-                                    latB: destination.geometry.coordinates[1],
-                                    lngB: destination.geometry.coordinates[0],
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Add Tentacles",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "tentacles",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Add Matching",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "matching",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Add Measuring",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "measuring",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                },
-                            });
-                        },
-                    },
-                    {
-                        text: "Exclude Country",
-                        callback: (e: any) => {
-                            addQuestionFromMenu({
-                                id: "matching",
-                                data: {
-                                    lat: e.latlng.lat,
-                                    lng: e.latlng.lng,
-                                    same: false,
-                                    cat: {
-                                        adminLevel: 2,
-                                    },
-                                    type: "zone",
-                                },
-                            });
-                        },
-                    },
+                    ...ADD_QUESTION_MENU_ITEMS,
                     {
                         text: "Copy Coordinates",
                         callback: (e: any) => {
@@ -543,6 +507,25 @@ export const Map = ({ className }: { className?: string }) => {
         ),
         [map, $baseTileLayer, $thunderforestApiKey],
     );
+
+    // Questions come from the game: none can be added before it has loaded.
+    useEffect(() => {
+        const contextmenu = (map as any)?.contextmenu;
+        if (!contextmenu) return;
+        ADD_QUESTION_MENU_ITEMS.forEach((_, item) => {
+            contextmenu.setDisabled(item, !$compiledGame);
+            // setDisabled only greys the item out; say why.
+            const el: HTMLElement | undefined = contextmenu._items[item]?.el;
+            if (!el) return;
+            if ($compiledGame) {
+                el.removeAttribute("title");
+                el.removeAttribute("aria-disabled");
+            } else {
+                el.title = "Available once the game has loaded";
+                el.setAttribute("aria-disabled", "true");
+            }
+        });
+    }, [map, $compiledGame]);
 
     useEffect(() => {
         bootstrapDefaults();

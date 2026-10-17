@@ -2,11 +2,6 @@ import "leaflet-draw/dist/leaflet.draw.css";
 
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
-import type {
-    FeatureCollection,
-    MultiPolygon,
-    Polygon as GeoJSONPolygon,
-} from "geojson";
 import * as L from "leaflet";
 import _ from "lodash";
 import { useEffect, useRef, useState } from "react";
@@ -16,13 +11,10 @@ import { EditControl } from "react-leaflet-draw";
 import {
     autoSave,
     drawingQuestionKey,
-    mapGeoJSON,
-    polyGeoJSON,
     questionModified,
     questions,
     save,
 } from "@/lib/context";
-import { CacheType, clearCache } from "@/maps/api";
 import { lngLatToText } from "@/maps/geo-utils";
 import type {
     CustomMatchingQuestion,
@@ -242,11 +234,10 @@ export const PolygonDraw = () => {
 
     const featureRef = useRef<any | null>(null);
 
+    // Drawing is only for the custom question being edited.
     let question: Question | undefined;
 
-    if ($drawingQuestionKey === -1) {
-        L.drawLocal.draw.toolbar.buttons.polygon = "Draw the hiding zone!";
-    } else {
+    if ($drawingQuestionKey !== -1) {
         question = $questions.find((q) => q.key === $drawingQuestionKey);
 
         if (question?.data.drag === false) {
@@ -263,22 +254,7 @@ export const PolygonDraw = () => {
     }
 
     const onChange = () => {
-        if (drawingQuestionKey.get() === -1) {
-            if (!featureRef.current?._layers) return;
-
-            const layers = featureRef.current._layers;
-            const geoJSONs = Object.values(layers).map((layer: any) =>
-                layer.toGeoJSON(),
-            );
-            const geoJSON = turf.featureCollection(
-                geoJSONs,
-            ) as FeatureCollection<GeoJSONPolygon | MultiPolygon>;
-
-            mapGeoJSON.set(geoJSON);
-            polyGeoJSON.set(geoJSON);
-            questions.set([]);
-            clearCache(CacheType.ZONE_CACHE);
-        } else if (
+        if (
             question?.id === "tentacles" &&
             question.data.locationType === "custom"
         ) {
@@ -478,33 +454,35 @@ export const PolygonDraw = () => {
                         fill={false}
                     />
                 ))}
-            <EditControl
-                position="bottomleft"
-                draw={{
-                    rectangle: false,
-                    circle: false,
-                    circlemarker: false,
-                    marker:
-                        question?.id === "tentacles" ||
-                        (question?.id === "matching" &&
-                            question.data.type === "custom-points") ||
-                        question?.id === "measuring"
-                            ? true
-                            : false,
-                    polyline: question?.id === "measuring",
-                    polygon:
-                        question?.id === "tentacles" ||
-                        (question?.id === "matching" &&
-                            question.data.type === "custom-points")
-                            ? false
-                            : {
-                                  shapeOptions: { fillOpacity: 0 },
-                              },
-                }}
-                onCreated={onChange}
-                onEdited={onChange}
-                onDeleted={onChange}
-            />
+            {question && (
+                <EditControl
+                    position="bottomleft"
+                    draw={{
+                        rectangle: false,
+                        circle: false,
+                        circlemarker: false,
+                        marker:
+                            question.id === "tentacles" ||
+                            (question.id === "matching" &&
+                                question.data.type === "custom-points") ||
+                            question.id === "measuring"
+                                ? true
+                                : false,
+                        polyline: question.id === "measuring",
+                        polygon:
+                            question.id === "tentacles" ||
+                            (question.id === "matching" &&
+                                question.data.type === "custom-points")
+                                ? false
+                                : {
+                                      shapeOptions: { fillOpacity: 0 },
+                                  },
+                    }}
+                    onCreated={onChange}
+                    onEdited={onChange}
+                    onDeleted={onChange}
+                />
+            )}
         </FeatureGroup>
     );
 };
