@@ -116,7 +116,8 @@ static assets: `wrangler.json` (repo root) and `apps/web/wrangler.json` (for a
 project rooted in `apps/web`) point at the build output. Build with
 `pnpm install && pnpm --filter @searchlight/web build` and `PUBLIC_API_BASE`
 set to the API's URL, then `npx wrangler deploy`. Set the API's
-`FRONTEND_ORIGIN` to the site's origin.
+`FRONTEND_ORIGIN` to the site's exact origin: the API rejects writes from
+browsers on any other origin with a 403.
 
 ## Operations
 

@@ -69,8 +69,9 @@ The API scripts read the root `.env`; so does the web app (for `PUBLIC_API_BASE`
 
 ### When something doesn't work
 
-- **CORS errors in the browser:** `FRONTEND_ORIGIN` must be exactly
-  `http://localhost:4321`.
+- **CORS errors in the browser, or 403 "Cross-origin request not allowed":**
+  `FRONTEND_ORIGIN` must be exactly `http://localhost:4321`, the origin you
+  open the web app on.
 - **Discord login fails (`invalid_grant`, redirect error):** the redirect in
   your Discord application must equal `DISCORD_REDIRECT_URI` character for
   character.
