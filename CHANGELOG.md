@@ -1,5 +1,10 @@
 # Changelog
 
+## Docs for a public repo (2026-10-18)
+
+- `DEPLOY.md` clones the repo over HTTPS. A read-only deploy key is still the way to clone over SSH. A server only needs `docker login ghcr.io` if the GHCR packages are private; public packages and `--build` need no login.
+- A new `SECURITY.md` asks for vulnerabilities to be reported privately on the repo's Security tab, not in public issues.
+
 ## The server picker lists only your servers (2026-10-17)
 
 - The session picker lists the Discord servers you're in, plus Home Games. Servers you aren't in no longer show up, so picking one no longer leaves an empty game list (the API refused their catalog with a 403).
