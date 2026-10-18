@@ -1,7 +1,6 @@
 import type {
   GameDefinition,
   GameImportResponse,
-  GameRevisionsResponse,
 } from "@searchlight/shared";
 
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ?? (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ?? "") as string;
@@ -47,25 +46,6 @@ export async function importGameDefinitionAPI(
         ...errorBody,
       },
     );
-  }
-
-  return res.json();
-}
-
-export async function fetchGameRevisionsAPI(
-  gameId: string,
-  sessionId?: string,
-): Promise<GameRevisionsResponse> {
-  const url = buildApiUrl(`/games/${encodeURIComponent(gameId)}/revisions`);
-  if (sessionId) {
-    url.searchParams.set("sessionId", sessionId);
-  }
-  const res = await fetch(url.toString(), {
-    credentials: "include",
-  });
-
-  if (!res.ok) {
-    throw new Error(`Failed to fetch revisions: ${res.status}`);
   }
 
   return res.json();

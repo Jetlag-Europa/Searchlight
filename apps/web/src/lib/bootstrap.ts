@@ -5,7 +5,8 @@ let hasRun = false;
 
 // Settings of retired features: the picked place and drawn play area, custom
 // station lists, the zone sidebar's OSM options and radius, the tutorial,
-// Pastebin and the disabled zones of every game in one list.
+// Pastebin, the disabled zones of every game in one list, and drawings kept
+// only on the device (they now sync per session).
 export const RETIRED_STORAGE_KEYS = [
     "mapGeoLocation",
     "additionalMapGeoLocations",
@@ -21,6 +22,7 @@ export const RETIRED_STORAGE_KEYS = [
     "pastebinApiKey",
     "alwaysUsePastebin",
     "disabledStations",
+    "jetlag-annotations-v1",
 ];
 // Browser caches of OpenStreetMap lookups.
 export const RETIRED_CACHES = [

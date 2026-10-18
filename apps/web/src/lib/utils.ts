@@ -16,11 +16,6 @@ export function randomUUID(): string {
     return `${h.slice(0,8)}-${h.slice(8,12)}-${h.slice(12,16)}-${h.slice(16,20)}-${h.slice(20)}`;
 }
 
-export const mapToObj = <T, K extends string, V>(
-    arr: T[],
-    fn: (item: T) => [K, V],
-) => Object.fromEntries(arr.map(fn));
-
 /**
  * A distance for display in the player's unit: "850 m" or "12.345 km" in
  * kilometres, "0.531 mi" or "420 ft" in miles, "12,345 m" in meters.
