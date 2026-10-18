@@ -75,6 +75,16 @@ export interface TentacleEvaluationParams {
     mapGeoData: FeatureCollection<Polygon | MultiPolygon> | null | undefined;
 }
 
+/**
+ * Whether a tentacle question has a radius to draw its circle with. Older
+ * cards stored a cleared radius field as null; such a question eliminates
+ * nothing until the player enters one.
+ */
+export const hasTentacleRadius = (data: { radius?: unknown }) =>
+    typeof data.radius === "number" &&
+    Number.isFinite(data.radius) &&
+    data.radius > 0;
+
 export async function determineTentacleGeometry({
     evaluator,
     datasets,
@@ -136,7 +146,7 @@ export async function evaluateTentacleOperator(
     Feature<Polygon | MultiPolygon> | TentacleEvaluationParams["mapGeoData"]
 > {
     const { data, mapGeoData } = params;
-    if (!mapGeoData) return mapGeoData;
+    if (!mapGeoData || !hasTentacleRadius(data)) return mapGeoData;
     const { circle, cells } = await determineTentacleGeometry(params);
     if (data.location === false) {
         return requestGeometry({

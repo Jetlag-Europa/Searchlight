@@ -36,6 +36,7 @@ import {
 import {
     determineTentacleGeometry,
     featuresMatch,
+    hasTentacleRadius,
 } from "./questions/operators/tentacle";
 import {
     adjustPerRadius,
@@ -156,6 +157,7 @@ async function hiderifyCompiledQuestion(
             (await distance(hiderPos.latitude, hiderPos.longitude)) <
             (await distance(data.lat, data.lng));
     } else if (questionDef.family === "tentacle") {
+        if (!hasTentacleRadius(data)) return;
         // Answer from the circle and sites the map is clipped with.
         const { circle, points } = await determineTentacleGeometry({
             evaluator,
@@ -214,6 +216,7 @@ async function determinePlanningPolygonCompiled(
             : null;
     }
     if (questionDef.family === "tentacle") {
+        if (!hasTentacleRadius(question.data)) return null;
         const { circle, cells } = await determineTentacleGeometry({
             ...params,
             data: question.data as TentacleQuestion,

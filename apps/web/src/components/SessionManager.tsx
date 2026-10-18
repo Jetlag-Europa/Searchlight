@@ -266,7 +266,7 @@ function SessionPickerOverlay({
     // The same permissions that put a server on the /games page.
     const canManageGames = servers?.some((server) =>
         server.permissions.some((p) =>
-            ["games.create", "games.edit", "games.delete"].includes(p),
+            ["games.create", "games.edit", "games.delete", "server.admin"].includes(p),
         ),
     );
 

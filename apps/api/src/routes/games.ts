@@ -73,7 +73,7 @@ export async function gameRoutes(app: FastifyInstance) {
       if (games.some((game) => game.unlisted)) {
         const showUnlisted =
           includeUnlisted &&
-          canManageGames(await getUserPermissions(user.discordId, serverId, false, req.log));
+          canManageGames(await getUserPermissions(user.discordId, serverId, true, req.log));
         if (!showUnlisted) games = games.filter((game) => !game.unlisted);
       }
 
