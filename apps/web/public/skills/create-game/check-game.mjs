@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 // Checks a Searchlight game definition before import. Node 18+, no dependencies.
 //
 //   node check-game.mjs my-game.game.json
@@ -17,7 +16,8 @@
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.
 // Browsers import it too (Searchlight's import dialog and /designer page), so
-// it loads node: modules only when run from the command line (at the end).
+// it loads node: modules only in Node (at the end). No shebang line either:
+// Vite's dev server prepends imports to the file, which would break one.
 
 /** WARN codes that --strict treats as failures. */
 export const STRICT_CODES = new Set([

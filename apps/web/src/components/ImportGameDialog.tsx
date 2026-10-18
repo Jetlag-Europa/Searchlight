@@ -122,7 +122,7 @@ export function ImportGameDialog({
             .then((issues) => {
               if (check === latestCheck.current) setValidationWarnings([...warnings, ...issues]);
             })
-            .catch(() => {});
+            .catch((err) => console.error("Game checks couldn't run:", err));
         }
 
         // Auto dry-run test

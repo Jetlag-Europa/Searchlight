@@ -1,6 +1,9 @@
 import type { QuestionFamily } from "@searchlight/shared";
 
-import type { CompiledGame } from "@/game-definition/compile";
+import {
+    type CompiledGame,
+    detectFeatureGeometry,
+} from "@/game-definition/compile";
 
 /** An issue check-game.mjs found in a file that the validator accepts. */
 export interface QualityIssue {
@@ -55,13 +58,6 @@ export interface LayerSummary {
     questions: QuestionFamily[];
 }
 
-const geometryFamily = (type: string | undefined) =>
-    type === "Point"
-        ? "points"
-        : type === "LineString" || type === "MultiLineString"
-          ? "lines"
-          : "polygons";
-
 /** One entry per feature layer of a compiled game, in file order. */
 export function summarizeLayers(
     compiled: Pick<CompiledGame, "definition" | "questions">,
@@ -73,9 +69,8 @@ export function summarizeLayers(
         return {
             index,
             name: layer.name,
-            geometry: features.length
-                ? geometryFamily(features[0].geometry?.type)
-                : "empty",
+            // As the app reads it, so the summary matches the questions.
+            geometry: features.length ? detectFeatureGeometry(layer) : "empty",
             featureCount: features.length,
             questions: compiled.questions
                 .filter((q) => q.evaluator.source?.datasetId === datasetId)

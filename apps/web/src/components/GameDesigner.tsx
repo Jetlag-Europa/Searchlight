@@ -152,7 +152,19 @@ async function inspectFile(file: File): Promise<Loaded> {
         result.errors = validation.errors;
         return result;
     }
-    result.issues = await checkGameQuality(parsed, file.size);
+    // The checker loads lazily: after a deploy its chunk may be gone.
+    try {
+        result.issues = await checkGameQuality(parsed, file.size);
+    } catch (err: any) {
+        result.issues = [
+            {
+                level: "warning",
+                path: "/",
+                message: `Checks couldn't run: ${err.message}`,
+                strict: false,
+            },
+        ];
+    }
     try {
         result.compiled = compileGameDefinition(parsed as GameDefinition);
     } catch (err: any) {
@@ -293,11 +305,15 @@ export function GameDesigner() {
         <div
             className="flex min-h-dvh flex-col md:h-dvh md:flex-row"
             onDragOver={(e) => {
+                if (!e.dataTransfer.types.includes("Files")) return;
                 e.preventDefault();
                 setDragging(true);
             }}
             onDragLeave={(e) => {
-                if (e.currentTarget === e.target) setDragging(false);
+                // Moving onto a child isn't leaving the page.
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                    setDragging(false);
+                }
             }}
             onDrop={(e) => {
                 e.preventDefault();
@@ -533,10 +549,16 @@ export function GameDesigner() {
                             >
                                 {layer.name}
                                 <span className="block text-xs text-muted-foreground">
-                                    {layer.featureCount}{" "}
-                                    {layer.featureCount === 1
-                                        ? layer.geometry.replace(/s$/, "")
-                                        : layer.geometry}
+                                    {layer.featureCount === 0
+                                        ? "no features"
+                                        : `${layer.featureCount} ${
+                                              layer.featureCount === 1
+                                                  ? layer.geometry.replace(
+                                                        /s$/,
+                                                        "",
+                                                    )
+                                                  : layer.geometry
+                                          }`}
                                     {layer.questions.length > 0
                                         ? ` · ${layer.questions.join(", ")}`
                                         : " · no questions"}
