@@ -3,6 +3,11 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Uploaded fixes to preloaded games survive restarts (2026-10-18)
+
+- When a game manager uploads a new version of a preloaded game (one that ships with Searchlight, such as paris-2026), or rolls it back to an older one, a server restart no longer quietly puts the shipped version back. The shipped file replaces the game again only once the file itself changes.
+- **Upgrading:** the first start after this update can still reset a preloaded game to its file once, if the file holds content the server never preloaded before, such as a reverted file or an upload copied into it.
+
 ## Smoother server restarts (2026-10-18)
 
 - Restarting or updating the server no longer cuts off requests in flight. The API now shuts down within a second instead of being killed after 10 seconds, and players' live sync reconnects and catches up, as after any dropped connection.

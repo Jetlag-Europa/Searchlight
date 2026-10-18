@@ -122,12 +122,19 @@ if (activePreloadDir) {
     for (const { fileName, error } of summary.failures) {
       app.log.error({ err: error, file: fileName }, "Failed to preload game definition; skipped");
     }
+    for (const { fileName, revision } of summary.kept) {
+      app.log.warn(
+        { file: fileName, revision },
+        `games/preloaded/${fileName} is unchanged since the last start, but revision ${revision} was made current since; keeping ${revision}`,
+      );
+    }
     app.log.info(
       {
         total: summary.total,
         created: summary.created,
         updated: summary.updated,
         unchanged: summary.unchanged,
+        kept: summary.kept.length,
         failed: summary.failures.length,
       },
       "Preloaded game definitions",

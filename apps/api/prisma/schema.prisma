@@ -101,6 +101,10 @@ model Game {
   // game managers; anyone else needs a GameLink.
   unlisted          Boolean        @default(false)
   currentRevisionId String?
+  // Checksum of its games/preloaded file at the last API start that saw it
+  // (null if never preloaded): the file only changes the game when its
+  // content changes.
+  preloadChecksum   String?
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
