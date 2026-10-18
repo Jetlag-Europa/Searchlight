@@ -82,6 +82,28 @@ describe("check-game.mjs", () => {
         ]);
     });
 
+    it("accepts the game's date and rules link, and rejects them like the server", () => {
+        const ok = checkGame(
+            game({
+                date: "2026-10-02",
+                endDate: "2026-10-03",
+                rulesUrl: "https://docs.google.com/document/d/x/edit",
+            }),
+        );
+        expect(ok.errors).toEqual([]);
+        const paths = (overrides: Record<string, unknown>) =>
+            checkGame(game(overrides)).errors.map((e) => e.path);
+        expect(paths({ date: "2026-02-30" })).toEqual(["/date"]);
+        expect(paths({ date: "19-09-2026" })).toEqual(["/date"]);
+        expect(paths({ endDate: "2026-10-03" })).toEqual(["/endDate"]);
+        expect(paths({ date: "2026-10-03", endDate: "2026-10-02" })).toEqual([
+            "/endDate",
+        ]);
+        expect(paths({ rulesUrl: "http://example.com" })).toEqual([
+            "/rulesUrl",
+        ]);
+    });
+
     it("rejects out-of-range bounds like the server", () => {
         const def = game();
         def.map.bounds = [-190, 49.9, 11.1, 51.1];

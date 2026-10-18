@@ -6,10 +6,13 @@ import { resolveSession } from "../lib/session.js";
 import { isServerMember, LISTING_NON_MEMBER_TTL_MS, userPassesDiscordRoleGate } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { getDiscordRoleGate } from "../lib/game-access.js";
+import { fromDbDate } from "../lib/game-details.js";
+import { compareByEventDate } from "@searchlight/shared";
 
 // The game browser: every game the user can start a session of, across all
-// their servers, with where it is played, and, locked, the listed games of
-// servers they haven't joined whose admins offer an invite to join.
+// their servers, with where and when it is played, and, locked, the listed
+// games of servers they haven't joined whose admins offer an invite to join.
+// Archived games (past events) come flagged, for the browser to show on request.
 
 const nullableBounds = Type.Unsafe<[number, number, number, number] | null>({
   anyOf: [
@@ -29,6 +32,10 @@ const catalogGameShape = Type.Object({
   bounds: nullableBounds,
   zoneCount: Type.Integer(),
   updatedAt: Type.String(),
+  date: Type.Union([Type.String(), Type.Null()]),
+  endDate: Type.Union([Type.String(), Type.Null()]),
+  rulesUrl: Type.Union([Type.String(), Type.Null()]),
+  archived: Type.Boolean(),
   locked: Type.Boolean(),
   joinUrl: Type.Union([Type.String(), Type.Null()]),
 });
@@ -142,7 +149,6 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
         where: {
           serverId: { in: [...serverInfo.keys()] },
           unlisted: false,
-          archivedAt: null,
           currentRevisionId: { not: null },
         },
         select: {
@@ -152,6 +158,10 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
           size: true,
           serverId: true,
           currentRevisionId: true,
+          date: true,
+          endDate: true,
+          rulesUrl: true,
+          archivedAt: true,
         },
       });
       if (games.length === 0) return empty;
@@ -178,6 +188,8 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
             const revision = revisions.get(game.currentRevisionId!);
             if (!revision?.center) return null;
             const server = serverInfo.get(game.serverId)!;
+            // A past event of a server they aren't in is no reason to join it.
+            if (server.locked && game.archivedAt) return null;
             // Joining the server wouldn't open a role-gated game: leave it out.
             if (server.locked) {
               if (getDiscordRoleGate(revision.visibility)) return null;
@@ -203,12 +215,16 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
             bounds: revision.bounds,
             zoneCount: revision.zoneCount,
             updatedAt: revision.createdAt,
+            date: fromDbDate(game.date),
+            endDate: fromDbDate(game.endDate),
+            rulesUrl: game.rulesUrl,
+            archived: game.archivedAt !== null,
             locked: server.locked,
             joinUrl: server.locked ? server.inviteUrl : null,
           }))
           .sort(
             (a, b) =>
-              Number(a.locked) - Number(b.locked) || a.name.localeCompare(b.name),
+              Number(a.locked) - Number(b.locked) || compareByEventDate(a, b),
           ),
         unavailableServers,
       };

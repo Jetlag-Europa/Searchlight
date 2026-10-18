@@ -13,16 +13,19 @@ const { getGuildMember } = vi.hoisted(() => ({
 }));
 vi.mock("../lib/discord-client.js", () => ({ discord: { getGuildMember } }));
 
-// The catalog checks membership of every server, including other suites'
-// (created and deleted while this runs). Caching memberships there would block
-// their cleanup and asking Discord would leave the machine: for the catalog,
-// this suite's users belong to no server but its own.
+// The catalog checks membership of every server, and the role gates of Home
+// Games, including other suites' (created and deleted while this runs).
+// Caching memberships there would block their cleanup and asking Discord would
+// leave the machine: for the catalog, this suite's users belong to no server
+// but its own and hold no roles elsewhere.
 vi.mock("../lib/permissions.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../lib/permissions.js")>();
   return {
     ...original,
     isServerMember: async (...args: Parameters<typeof original.isServerMember>) =>
       args[1].startsWith("test-catalog-") ? original.isServerMember(...args) : false,
+    userPassesDiscordRoleGate: async (...args: Parameters<typeof original.userPassesDiscordRoleGate>) =>
+      args[1].startsWith("test-catalog-") ? original.userPassesDiscordRoleGate(...args) : false,
   };
 });
 
@@ -111,6 +114,10 @@ type CatalogGame = {
   center: [number, number];
   bounds: [number, number, number, number] | null;
   zoneCount: number;
+  date: string | null;
+  endDate: string | null;
+  rulesUrl: string | null;
+  archived: boolean;
   locked: boolean;
   joinUrl: string | null;
 };
@@ -211,7 +218,7 @@ describe("game catalog", () => {
   };
   test("lists the playable games of the user's servers with where they are", async () => {
     const games = await catalog(PLAYER_ID);
-    const playable = games.filter((g) => !g.locked);
+    const playable = games.filter((g) => !g.locked && !g.archived);
     expect(playable.map((g) => g.id).sort()).toEqual([BERN, GATED, MANCHESTER].sort());
 
     const manchester = games.find((g) => g.id === MANCHESTER)!;
@@ -229,11 +236,40 @@ describe("game catalog", () => {
 
   test("leaves out role-gated games the user can't pass", async () => {
     const games = await catalog(OTHER_ID);
-    expect(games.filter((g) => !g.locked).map((g) => g.id).sort()).toEqual([BERN, MANCHESTER].sort());
+    expect(games.filter((g) => !g.locked && !g.archived).map((g) => g.id).sort()).toEqual([BERN, MANCHESTER].sort());
   });
 
-  test("leaves out archived games", async () => {
-    expect((await catalog(PLAYER_ID)).map((g) => g.id)).not.toContain(ARCHIVED);
+  test("flags archived games, newest event first, and leaves those of other servers out", async () => {
+    await prisma.game.update({
+      where: { id: MANCHESTER },
+      data: { date: new Date("2026-09-19"), rulesUrl: "https://docs.google.com/document/d/manchester/edit" },
+    });
+    await prisma.game.update({
+      where: { id: BERN },
+      data: { date: new Date("2026-06-06"), endDate: new Date("2026-06-07") },
+    });
+    try {
+      const games = await catalog(PLAYER_ID);
+      expect(games.find((g) => g.id === ARCHIVED)).toMatchObject({ archived: true, locked: false });
+      expect(games.find((g) => g.id === MANCHESTER)).toMatchObject({
+        date: "2026-09-19",
+        endDate: null,
+        rulesUrl: "https://docs.google.com/document/d/manchester/edit",
+        archived: false,
+      });
+      expect(games.find((g) => g.id === BERN)).toMatchObject({ date: "2026-06-06", endDate: "2026-06-07" });
+      // Dated games first, newest first; then the undated ones by name.
+      expect(games.filter((g) => !g.locked).map((g) => g.id)).toEqual([MANCHESTER, BERN, ARCHIVED, GATED]);
+
+      await prisma.game.update({ where: { id: ELSEWHERE }, data: { archivedAt: new Date() } });
+      expect((await catalog(OTHER_ID)).map((g) => g.id)).not.toContain(ELSEWHERE);
+    } finally {
+      await prisma.game.updateMany({
+        where: { id: { in: [MANCHESTER, BERN] } },
+        data: { date: null, endDate: null, rulesUrl: null },
+      });
+      await prisma.game.update({ where: { id: ELSEWHERE }, data: { archivedAt: null } });
+    }
   });
 
   test("lists the games of servers the user hasn't joined, locked, only where the server offers an invite", async () => {

@@ -3,6 +3,9 @@
   "id": "belgium-2026",
   "name": "Belgium 01.08",
   "serverId": "1369664929975767120",
+  "date": "2026-08-01",
+  "endDate": "2026-08-02",
+  "rulesUrl": "https://docs.google.com/document/d/1zJHv2L091PvqKUSCpITjMD6PaapqdBUu5wJSKVqrC1o/edit",
   "size": "large",
   "visibility": {
     "kind": "server-members"

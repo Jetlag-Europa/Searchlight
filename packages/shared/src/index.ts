@@ -90,7 +90,22 @@ export interface Game {
   /** Sessions start only from game links; only the games page lists it, for game managers. */
   unlisted: boolean;
   currentRevisionId?: string | null;
+  /** Set when its managers archived it: a past event, left out of new-session lists. */
   archivedAt?: string | null;
+  /** The game's event day, `YYYY-MM-DD`, and its last day for a multi-day event. */
+  date: string | null;
+  endDate: string | null;
+  /** The game's rules doc. */
+  rulesUrl: string | null;
+}
+
+/** PATCH /games/:gameId: what game managers change. Set the date and end date together. */
+export interface UpdateGameBody {
+  unlisted?: boolean;
+  archived?: boolean;
+  date?: string | null;
+  endDate?: string | null;
+  rulesUrl?: string | null;
 }
 
 export interface GameImportResponse {
@@ -99,6 +114,8 @@ export interface GameImportResponse {
   gameKey: string;
   revision: number;
   checksum: string;
+  /** The game's date or rules link changed (they never make a revision). */
+  detailsChanged: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
 }
@@ -150,6 +167,13 @@ export interface CatalogGame {
   zoneCount: number;
   /** When the current revision was published. */
   updatedAt: string;
+  /** The game's event day, `YYYY-MM-DD`, and its last day for a multi-day event. */
+  date: string | null;
+  endDate: string | null;
+  /** The game's rules doc, if its managers linked one. */
+  rulesUrl: string | null;
+  /** A past event, archived by its managers: shown on request, still playable. */
+  archived: boolean;
   /** On a server the user hasn't joined: shown, but not playable until they join. */
   locked: boolean;
   /** For a locked game, the server's Discord invite: only servers whose admins set one show their games to non-members. */
@@ -183,6 +207,8 @@ export interface GameSessionSummary {
   id: string;
   gameId: string;
   gameName: string;
+  /** The game's rules doc, if its managers linked one. */
+  rulesUrl?: string | null;
   serverId: string;
   name: string;
   visibility: SessionVisibility;

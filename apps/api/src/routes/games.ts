@@ -7,6 +7,8 @@ import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership }
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { assertCanManageGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
 import { connectedUserIds } from "../lib/broadcaster.js";
+import { detailsData, fromDbDate } from "../lib/game-details.js";
+import { type GameDetails, validateGameDetails } from "@searchlight/shared";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -17,7 +19,13 @@ const gameShape = Type.Object({
   unlisted: Type.Boolean(),
   currentRevisionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   archivedAt: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  date: Type.Union([Type.String(), Type.Null()]),
+  endDate: Type.Union([Type.String(), Type.Null()]),
+  rulesUrl: Type.Union([Type.String(), Type.Null()]),
 });
+
+// Not a union: request coercion would turn null into "" for its string branch.
+const nullableString = Type.Unsafe<string | null>({ type: ["string", "null"] });
 
 function serializeGame(game: Prisma.GameGetPayload<{}>) {
   return {
@@ -29,14 +37,19 @@ function serializeGame(game: Prisma.GameGetPayload<{}>) {
     unlisted: game.unlisted,
     currentRevisionId: game.currentRevisionId,
     archivedAt: game.archivedAt?.toISOString() ?? null,
+    date: fromDbDate(game.date),
+    endDate: fromDbDate(game.endDate),
+    rulesUrl: game.rulesUrl,
   };
 }
 
 export async function gameRoutes(app: FastifyInstance) {
-  // GET /games?serverId= — list games for a server (must be a guild member).
-  // Unlisted games are left out: sessions of them start from game links only.
-  // The games page lists them for the server's game managers with
-  // ?includeUnlisted=true.
+  // GET /games?serverId= — list games for a server (must be a guild member),
+  // newest event first, then undated games by name. Unlisted games are left
+  // out: sessions of them start from game links only. The games page lists
+  // them for the server's game managers with ?includeUnlisted=true. Archived
+  // games (past events) are left out of new-session lists; ?includeArchived=true
+  // lists them too, for anyone (Find a game shows them on request).
   app.get(
     "/",
     {
@@ -44,6 +57,7 @@ export async function gameRoutes(app: FastifyInstance) {
         querystring: Type.Object({
           serverId: Type.String({ minLength: 1 }),
           includeUnlisted: Type.Optional(Type.Boolean()),
+          includeArchived: Type.Optional(Type.Boolean()),
         }),
         response: {
           200: Type.Object({ games: Type.Array(gameShape) }),
@@ -52,9 +66,10 @@ export async function gameRoutes(app: FastifyInstance) {
     },
     async (req) => {
       const { user } = await resolveSession(req);
-      const { serverId, includeUnlisted = false } = req.query as {
+      const { serverId, includeUnlisted = false, includeArchived = false } = req.query as {
         serverId: string;
         includeUnlisted?: boolean;
+        includeArchived?: boolean;
       };
 
       const server = await prisma.server.findUnique({ where: { id: serverId } });
@@ -67,8 +82,8 @@ export async function gameRoutes(app: FastifyInstance) {
       }
 
       let games = await prisma.game.findMany({
-        where: { serverId },
-        orderBy: { name: "asc" },
+        where: { serverId, ...(includeArchived ? {} : { archivedAt: null }) },
+        orderBy: [{ date: { sort: "desc", nulls: "last" } }, { name: "asc" }],
       });
       if (games.some((game) => game.unlisted)) {
         const showUnlisted =
@@ -241,28 +256,60 @@ export async function gameRoutes(app: FastifyInstance) {
     },
   );
 
-  // PATCH /games/:gameId — list or unlist a game (game managers of its server).
-  // Links to the game stay valid either way.
+  // PATCH /games/:gameId — what the server's game managers change on the games
+  // page: listing, archiving and the game's details. A date and an end date
+  // are set together (null clears), so they always fit each other.
   app.patch(
     "/:gameId",
     {
       schema: {
         params: Type.Object({ gameId: Type.String() }),
-        body: Type.Object({ unlisted: Type.Boolean() }, { additionalProperties: false }),
+        body: Type.Object(
+          {
+            unlisted: Type.Optional(Type.Boolean()),
+            archived: Type.Optional(Type.Boolean()),
+            date: Type.Optional(nullableString),
+            endDate: Type.Optional(nullableString),
+            rulesUrl: Type.Optional(nullableString),
+          },
+          { additionalProperties: false, minProperties: 1 },
+        ),
         response: { 200: gameShape },
       },
     },
     async (req) => {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };
-      const { unlisted } = req.body as { unlisted: boolean };
+      const { unlisted, archived, ...details } = req.body as {
+        unlisted?: boolean;
+        archived?: boolean;
+      } & Partial<GameDetails>;
+
+      if (("date" in details) !== ("endDate" in details)) {
+        throw Object.assign(new Error("Set the date and the end date together"), { statusCode: 400 });
+      }
+      const issues = validateGameDetails(details);
+      if (issues.length > 0) {
+        throw Object.assign(new Error(issues.map((issue) => issue.message).join("; ")), {
+          statusCode: 400,
+        });
+      }
 
       const game = await findGameByIdOrKey(gameId);
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
       await assertCanManageGame(user.discordId, game, req.log);
 
-      const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
-      req.log.info({ gameId: game.id, unlisted, userId: user.discordId }, "[games] listing changed");
+      const updated = await prisma.game.update({
+        where: { id: game.id },
+        data: {
+          ...detailsData(details),
+          ...(unlisted !== undefined ? { unlisted } : {}),
+          ...(archived !== undefined
+            ? { archivedAt: archived ? (game.archivedAt ?? new Date()) : null }
+            : {}),
+        },
+      });
+      req.log.info({ gameId: game.id, changes: req.body, userId: user.discordId }, "[games] game changed");
       return serializeGame(updated);
     },
   );
@@ -295,7 +342,9 @@ export async function gameRoutes(app: FastifyInstance) {
       const sessionCount = await prisma.gameSession.count({ where: { gameId: game.id } });
       if (sessionCount > 0) {
         throw Object.assign(
-          new Error("Cannot delete a game that has sessions. Delete all sessions first."),
+          new Error(
+            "This game has sessions, so it can't be deleted. Archive it instead: it leaves new-session lists, and its sessions and links keep working.",
+          ),
           { statusCode: 409 },
         );
       }

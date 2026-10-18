@@ -3,6 +3,8 @@
   "id": "bucharest-2026",
   "name": "Bucharest 2026",
   "serverId": "1190673594649415730",
+  "date": "2026-06-21",
+  "rulesUrl": "https://docs.google.com/document/d/1ekVti1096YDttAK5WCm3msRJICC3t5Ob2LvpBU5ENJE/edit",
   "size": "medium",
   "visibility": {
     "kind": "server-members"

@@ -1,3 +1,4 @@
+import { splitGameDetails } from "./details.js";
 import { type GameDefinition, resolveGameDefinitionId } from "./schema.js";
 
 /**
@@ -155,7 +156,8 @@ export function canonicalizePrettyJson(value: unknown): string {
 }
 
 export function computeGameDefinitionChecksum(definition: GameDefinition): string {
-  const materialized = materializeCanonicalDefaults(definition);
+  // The game's details aren't part of the map: changing only them keeps the checksum.
+  const materialized = materializeCanonicalDefaults(splitGameDetails(definition).map as GameDefinition);
   const canonical = canonicalizeJson(materialized);
   return sha256Utf8(canonical);
 }

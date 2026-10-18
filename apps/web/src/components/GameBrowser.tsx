@@ -6,7 +6,15 @@ import type {
     GameSessionSummary,
 } from "@searchlight/shared";
 import L from "leaflet";
-import { Lock, LogIn, MapPin, Play, Search } from "lucide-react";
+import {
+    BookOpen,
+    CalendarDays,
+    Lock,
+    LogIn,
+    MapPin,
+    Play,
+    Search,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     CircleMarker,
@@ -22,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { useDebounce } from "@/hooks/useDebounce";
 import { PENDING_SESSION_KEY } from "@/lib/activeSession";
 import { CARTO_API_KEY } from "@/lib/basemap";
+import { formatEventDate, rulesLink } from "@/lib/eventDate";
 import {
     type CatalogMatch,
     type CatalogSort,
@@ -37,8 +46,8 @@ const MIN_PLACE_QUERY = 3;
 
 const SORT_LABELS: Record<CatalogSort, string> = {
     nearest: "Nearest",
+    date: "Newest event",
     name: "Name",
-    newest: "Recently updated",
 };
 
 const latLng = ([lng, lat]: [number, number]): L.LatLngTuple => [lat, lng];
@@ -224,6 +233,7 @@ function GameCard({
     onRecheck: () => void;
 }) {
     const { game } = match;
+    const rules = rulesLink(game.rulesUrl);
     // A locked game's details are greyed out; its join actions are not.
     const dimmed = game.locked ? "opacity-50 grayscale" : "";
     return (
@@ -255,6 +265,14 @@ function GameCard({
                         {game.name}
                     </button>
                 </h2>
+                {game.archived && (
+                    <span
+                        className="mb-1 inline-block rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                        title="A past event: its managers archived it. You can still play it."
+                    >
+                        Archived
+                    </span>
+                )}
                 <p className="text-xs text-muted-foreground mt-1">
                     {game.serverName} ·{" "}
                     <span className="capitalize">{game.size}</span> ·{" "}
@@ -271,7 +289,28 @@ function GameCard({
                             {formatDistance(match, place.name)}
                         </span>
                     )}
-                    <span>Updated {formatDate(game.updatedAt)}</span>
+                    {game.date ? (
+                        <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" />
+                            <time dateTime={game.date}>
+                                {formatEventDate(game.date, game.endDate)}
+                            </time>
+                        </span>
+                    ) : (
+                        <span>Updated {formatDate(game.updatedAt)}</span>
+                    )}
+                    {rules && (
+                        <a
+                            href={rules}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 underline hover:text-foreground"
+                            aria-label={`Rules of ${game.name} (opens in a new tab)`}
+                        >
+                            <BookOpen className="h-3 w-3" />
+                            Rules
+                        </a>
+                    )}
                 </div>
                 {game.locked ? (
                     <div className="flex shrink-0 flex-col items-end gap-1">
@@ -315,8 +354,9 @@ export function GameBrowser() {
         () => new URLSearchParams(window.location.search).get("q") ?? "",
     );
     const [serverId, setServerId] = useState("");
-    // Nearest once the search names a place, by name until then.
+    // Nearest once the search names a place, newest event until then.
     const [sort, setSort] = useState<CatalogSort>("nearest");
+    const [showArchived, setShowArchived] = useState(false);
     const [geocoded, setGeocoded] = useState<{
         query: string;
         place: Place | null;
@@ -375,7 +415,7 @@ export function GameBrowser() {
     // Only the place of the query shown applies, not one still resolving.
     const place =
         geocoded && geocoded.query === query.trim() ? geocoded.place : null;
-    const effectiveSort = sort === "nearest" && !place ? "name" : sort;
+    const effectiveSort = sort === "nearest" && !place ? "date" : sort;
 
     const servers = useMemo(() => {
         const names = new Map<string, string>();
@@ -391,9 +431,11 @@ export function GameBrowser() {
                 place,
                 serverId,
                 sort: effectiveSort,
+                showArchived,
             }),
-        [games, query, place, serverId, effectiveSort],
+        [games, query, place, serverId, effectiveSort, showArchived],
     );
+    const archivedCount = (games ?? []).filter((g) => g.archived).length;
     const nearPlace = matches.filter((m) => m.near).length;
     const lockedCount = matches.filter((m) => m.game.locked).length;
     const selected =
@@ -567,6 +609,17 @@ export function GameBrowser() {
                         ? ", on a server you haven't joined"
                         : ", all on servers you haven't joined"}
             </p>
+            {archivedCount > 0 && (
+                <label className="-mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                    <input
+                        type="checkbox"
+                        checked={showArchived}
+                        onChange={(e) => setShowArchived(e.target.checked)}
+                        className="h-4 w-4 accent-current"
+                    />
+                    Show past events ({archivedCount} archived)
+                </label>
+            )}
             {unavailableServers.length > 0 && (
                 <p className="text-sm text-amber-400">
                     Couldn&apos;t check your membership of{" "}

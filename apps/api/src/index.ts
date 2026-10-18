@@ -137,6 +137,7 @@ if (activePreloadDir) {
         updated: summary.updated,
         unchanged: summary.unchanged,
         kept: summary.kept.length,
+        detailsUpdated: summary.detailsUpdated,
         failed: summary.failures.length,
       },
       "Preloaded game definitions",

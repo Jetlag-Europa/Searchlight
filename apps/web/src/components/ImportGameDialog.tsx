@@ -269,6 +269,8 @@ export function ImportGameDialog({
                       ? "New Map"
                       : dryRunResult.status === "updated"
                       ? `Update (Rev ${dryRunResult.revision})`
+                      : dryRunResult.detailsChanged
+                      ? "Same map, new date or rules link"
                       : "Identical (Up to date)"}
                   </span>
                 )}

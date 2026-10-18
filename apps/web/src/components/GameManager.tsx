@@ -1,17 +1,30 @@
 import { useStore } from "@nanostores/react";
-import type { Game, GamesResponse, GameStats, GameStatsResponse, ServersResponse, ServerWithPermissions } from "@searchlight/shared";
+import {
+    compareByEventDate,
+    type Game,
+    type GamesResponse,
+    type GameStats,
+    type GameStatsResponse,
+    type ServersResponse,
+    type ServerWithPermissions,
+    type UpdateGameBody,
+} from "@searchlight/shared";
+import { BookOpen } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { verifiedUserId } from "@/lib/activeSession";
+import { formatEventDate, rulesLink } from "@/lib/eventDate";
 
+import { GameDetailsDialog } from "./GameDetailsDialog";
 import { GameLinksDialog } from "./GameLinksDialog";
 import { ImportGameDialog } from "./ImportGameDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
-// Unlike the session picker's catalog, this page lists unlisted games too.
+// Unlike the session picker's catalog, this page lists unlisted and archived
+// games too.
 const gamesUrl = (serverId: string) =>
-    `${API_BASE}/games?serverId=${encodeURIComponent(serverId)}&includeUnlisted=true`;
+    `${API_BASE}/games?serverId=${encodeURIComponent(serverId)}&includeUnlisted=true&includeArchived=true`;
 
 // Server admins (and global admins, on every server) see each game's usage.
 const GAME_PAGE_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
@@ -72,22 +85,22 @@ function GameCard({
     onUpdated: (game: Game) => void;
 }) {
     const [error, setError] = useState<string | null>(null);
-    const [savingListing, setSavingListing] = useState(false);
+    const [saving, setSaving] = useState(false);
     const canDelete = permissions.includes("games.delete");
     // Any game permission manages listing and links, as on the API.
     const canManage = ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
         permissions.includes(p),
     );
 
-    const handleToggleListed = async () => {
+    const patchGame = async (body: UpdateGameBody) => {
         setError(null);
-        setSavingListing(true);
+        setSaving(true);
         try {
             const res = await fetch(`${API_BASE}/games/${game.id}`, {
                 method: "PATCH",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ unlisted: !game.unlisted }),
+                body: JSON.stringify(body),
             });
             if (!res.ok) {
                 const data = await res.json().catch(() => ({})) as { message?: string };
@@ -97,7 +110,7 @@ function GameCard({
         } catch (e: unknown) {
             setError((e as Error).message);
         } finally {
-            setSavingListing(false);
+            setSaving(false);
         }
     };
     const handleDelete = async () => {
@@ -118,11 +131,20 @@ function GameCard({
         }
     };
 
+    const rules = rulesLink(game.rulesUrl);
     return (
         <div className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
             <div className="min-w-0">
-                <p className="text-sm font-medium flex items-center gap-2">
+                <p className="text-sm font-medium flex flex-wrap items-center gap-2">
                     {game.name}
+                    {game.archivedAt && (
+                        <span
+                            className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
+                            title="A past event: not offered when creating a session, and shown in Find a game only on request. Its sessions and links keep working."
+                        >
+                            Archived
+                        </span>
+                    )}
                     {game.unlisted && (
                         <span
                             className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -132,19 +154,47 @@ function GameCard({
                         </span>
                     )}
                 </p>
-                <p className="text-xs text-muted-foreground mt-0.5 font-mono">
-                    ID: {game.gameKey}
+                <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                    <span className="font-mono">ID: {game.gameKey}</span>
+                    {game.date && <span>{formatEventDate(game.date, game.endDate)}</span>}
+                    {rules && (
+                        <a
+                            href={rules}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 underline hover:text-foreground"
+                        >
+                            <BookOpen className="h-3 w-3" />
+                            Rules
+                        </a>
+                    )}
                 </p>
                 {stats && <GameStatsLine stats={stats} />}
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
             <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                {canManage && <GameDetailsDialog game={game} onUpdated={onUpdated} />}
                 {canManage && (
                     <Button
                         size="sm"
                         variant="outline"
-                        disabled={savingListing}
-                        onClick={handleToggleListed}
+                        disabled={saving}
+                        onClick={() => patchGame({ archived: !game.archivedAt })}
+                        title={
+                            game.archivedAt
+                                ? "Offer this game again when creating a session"
+                                : "A past event: stop offering it when creating a session and in Find a game. Its sessions and links keep working."
+                        }
+                    >
+                        {game.archivedAt ? "Unarchive" : "Archive"}
+                    </Button>
+                )}
+                {canManage && (
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={saving}
+                        onClick={() => patchGame({ unlisted: !game.unlisted })}
                         title={
                             game.unlisted
                                 ? "Show this game to everyone who can play it"
@@ -226,6 +276,21 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
 
     if (!hasAnyGamePerm) return null;
 
+    // Newest event first, as the API lists them; archived games apart.
+    const sorted = [...(games ?? [])].sort(compareByEventDate);
+    const currentGames = sorted.filter((g) => !g.archivedAt);
+    const archivedGames = sorted.filter((g) => g.archivedAt);
+    const card = (g: Game) => (
+        <GameCard
+            key={g.id}
+            game={g}
+            stats={stats.get(g.id)}
+            permissions={server.permissions}
+            onDeleted={(id) => setGames((prev) => (prev ?? []).filter((x) => x.id !== id))}
+            onUpdated={(game) => setGames((prev) => (prev ?? []).map((x) => (x.id === game.id ? game : x)))}
+        />
+    );
+
     return (
         <div className="mb-8">
             <h2 className="text-base font-semibold mb-3">{server.name}</h2>
@@ -237,16 +302,15 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
                     {games.length === 0 && (
                         <p className="text-sm text-muted-foreground italic">No games yet.</p>
                     )}
-                    {games.map((g) => (
-                        <GameCard
-                            key={g.id}
-                            game={g}
-                            stats={stats.get(g.id)}
-                            permissions={server.permissions}
-                            onDeleted={(id) => setGames((prev) => (prev ?? []).filter((x) => x.id !== id))}
-                            onUpdated={(game) => setGames((prev) => (prev ?? []).map((x) => (x.id === game.id ? game : x)))}
-                        />
-                    ))}
+                    {currentGames.map(card)}
+                    {archivedGames.length > 0 && (
+                        <details className="group">
+                            <summary className="cursor-pointer select-none text-sm text-muted-foreground hover:text-foreground py-1">
+                                Archived ({archivedGames.length})
+                            </summary>
+                            <div className="space-y-2 mt-2">{archivedGames.map(card)}</div>
+                        </details>
+                    )}
                 </div>
             )}
 

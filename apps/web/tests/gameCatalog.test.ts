@@ -20,6 +20,10 @@ const game = (overrides: Partial<CatalogGame>): CatalogGame => ({
     bounds: null,
     zoneCount: 10,
     updatedAt: "2026-09-01T00:00:00.000Z",
+    date: null,
+    endDate: null,
+    rulesUrl: null,
+    archived: false,
     locked: false,
     joinUrl: null,
     ...overrides,
@@ -108,20 +112,43 @@ describe("searchCatalog", () => {
         ]);
     });
 
-    test("sorts by distance from the place, newest or name", () => {
+    test("sorts by distance from the place, newest event or name", () => {
         expect(
             search("Switzerland", { place: BERN_CITY, sort: "nearest" })[0],
         ).toBe("bern-2026");
-        expect(search("", { sort: "newest" })).toEqual([
-            "zurich-2026",
-            "greater-manchester-2026",
-            "bern-2026",
-        ]);
+        // Undated games come after dated ones, by name.
+        const dated = [
+            { ...manchester, date: "2026-09-19" },
+            { ...bern, date: "2026-06-06" },
+            zurich,
+        ];
+        expect(
+            searchCatalog(dated, {
+                query: "",
+                place: null,
+                serverId: "",
+                sort: "date",
+            }).map((m) => m.game.gameKey),
+        ).toEqual(["greater-manchester-2026", "bern-2026", "zurich-2026"]);
         expect(search("", { sort: "name" })).toEqual([
             "bern-2026",
             "greater-manchester-2026",
             "zurich-2026",
         ]);
+    });
+
+    test("leaves archived games out unless asked for", () => {
+        const archivedBern = { ...bern, archived: true };
+        const keys = (showArchived: boolean) =>
+            searchCatalog([archivedBern, manchester], {
+                query: "",
+                place: null,
+                serverId: "",
+                sort: "name",
+                showArchived,
+            }).map((m) => m.game.gameKey);
+        expect(keys(false)).toEqual(["greater-manchester-2026"]);
+        expect(keys(true)).toEqual(["bern-2026", "greater-manchester-2026"]);
     });
 
     test("lists games of servers the user hasn't joined after the playable ones", () => {

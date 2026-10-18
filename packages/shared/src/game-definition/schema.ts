@@ -197,6 +197,28 @@ export const GameDefinitionSchema = Type.Object(
       ]),
     ),
     visibility: Type.Optional(VisibilitySchema),
+    // The game's details (see details.ts): copied onto the game at import, not
+    // part of the map. Dates are calendar days; an end date marks a multi-day
+    // event.
+    date: Type.Optional(
+      Type.String({
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+        description: "The event day, YYYY-MM-DD. Game lists show the newest event first.",
+      }),
+    ),
+    endDate: Type.Optional(
+      Type.String({
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$",
+        description: "The last day of a multi-day event, YYYY-MM-DD; needs date.",
+      }),
+    ),
+    rulesUrl: Type.Optional(
+      Type.String({
+        minLength: 1,
+        maxLength: 2048,
+        description: "An https link to the game's rules doc, opened by the Rules button.",
+      }),
+    ),
     unit: Type.Optional(
       Type.Union(DISTANCE_UNITS.map((u) => Type.Literal(u))),
     ),

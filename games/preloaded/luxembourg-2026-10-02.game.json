@@ -3,6 +3,9 @@
   "id": "luxembourg-2026-10-02",
   "name": "Hide + Seek: Luxembourg (2–3 October 2026)",
   "serverId": "1369664929975767120",
+  "date": "2026-10-02",
+  "endDate": "2026-10-03",
+  "rulesUrl": "https://docs.google.com/document/d/1ShpaRvsNQcMbJyaRPAfvoyzER9qTOnXLGQjElkT5Iec/edit",
   "size": "large",
   "visibility": {
     "kind": "server-members"

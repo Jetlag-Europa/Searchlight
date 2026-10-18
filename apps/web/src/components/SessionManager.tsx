@@ -5,7 +5,7 @@ import type {
     ServersResponse,
     SessionsResponse,
 } from "@searchlight/shared";
-import { Compass, Settings, TriangleAlert } from "lucide-react";
+import { BookOpen, Compass, Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
@@ -32,6 +32,7 @@ import {
     sidebarContextR,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
+import { formatEventDate, rulesLink } from "@/lib/eventDate";
 import {
     applyUnsyncedEvents,
     discardSessionData,
@@ -529,9 +530,13 @@ function SessionPickerOverlay({
                                                 )
                                             }
                                         >
+                                            {/* Newest event first, as the API lists them. */}
                                             {availableGames.map((g) => (
                                                 <option key={g.id} value={g.id}>
                                                     {g.name}
+                                                    {g.date
+                                                        ? ` · ${formatEventDate(g.date, g.endDate)}`
+                                                        : ""}
                                                 </option>
                                             ))}
                                         </select>
@@ -601,6 +606,7 @@ function SessionChip({
 }) {
     const sidebar = useStore(sidebarContextR);
     const right = sidebar.open ? "calc(16rem + 3.5rem)" : "3.5rem";
+    const rules = rulesLink(session.rulesUrl);
 
     return (
         <div
@@ -614,6 +620,19 @@ function SessionChip({
             >
                 {session.name}
             </span>
+            {rules && (
+                <a
+                    href={rules}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-muted-foreground hover:text-foreground underline whitespace-nowrap"
+                    aria-label="Game rules (opens in a new tab)"
+                    title="The game's rules doc"
+                >
+                    <BookOpen className="size-3" aria-hidden="true" />
+                    Rules
+                </a>
+            )}
             <button
                 onClick={onChangeSession}
                 className="text-muted-foreground hover:text-foreground underline whitespace-nowrap"

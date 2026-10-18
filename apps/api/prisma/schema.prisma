@@ -108,6 +108,17 @@ model Game {
   // (null if never preloaded): the file only changes the game when its
   // content changes.
   preloadChecksum   String?
+  // Its details (date, end date, rules link) as its games/preloaded file had
+  // them at the last API start: like the map, a detail only changes the game
+  // when the file's value changes, so edits made since stay.
+  preloadDetails    Json?
+  // When the game's event is, as calendar days (endDate for multi-day events),
+  // and its rules doc. Not part of any revision: changing them makes none.
+  date              DateTime?      @db.Date
+  endDate           DateTime?      @db.Date
+  rulesUrl          String?
+  // Archived games are past events: left out of new-session lists and Find a
+  // game's default view, but their sessions and links keep working.
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt

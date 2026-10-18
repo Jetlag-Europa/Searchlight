@@ -1,4 +1,4 @@
-import type { CatalogGame } from "@searchlight/shared";
+import { type CatalogGame, compareByEventDate } from "@searchlight/shared";
 
 import { GEOCODER_API } from "@/maps/api/constants";
 
@@ -23,7 +23,7 @@ export interface CatalogMatch {
     distanceKm: number | null;
 }
 
-export type CatalogSort = "nearest" | "newest" | "name";
+export type CatalogSort = "nearest" | "date" | "name";
 
 // A game is near a place within its bounds or this far from its center.
 const NEAR_KM = 30;
@@ -99,7 +99,7 @@ function matchPlace(
 /**
  * The games the search finds, sorted, playable ones first. A game matches by
  * its name, server or key, or by being played at the place the query resolved
- * to.
+ * to. Archived games (past events) only with `showArchived`.
  */
 export function searchCatalog(
     games: CatalogGame[],
@@ -108,14 +108,17 @@ export function searchCatalog(
         place,
         serverId,
         sort,
+        showArchived = false,
     }: {
         query: string;
         place: Place | null;
         serverId: string;
         sort: CatalogSort;
+        showArchived?: boolean;
     },
 ): CatalogMatch[] {
     const matches = games
+        .filter((game) => showArchived || !game.archived)
         .filter((game) => !serverId || game.serverId === serverId)
         .map((game): CatalogMatch => ({ game, ...matchPlace(game, place) }))
         .filter((match) => match.near || matchesText(match.game, query));
@@ -129,8 +132,8 @@ export function searchCatalog(
         nearest: (a, b) =>
             (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) ||
             byName(a, b),
-        newest: (a, b) =>
-            b.game.updatedAt.localeCompare(a.game.updatedAt) || byName(a, b),
+        // Newest event first, then undated games by name.
+        date: (a, b) => compareByEventDate(a.game, b.game),
         name: byName,
     };
     // Games the user can play come first; those of servers they haven't

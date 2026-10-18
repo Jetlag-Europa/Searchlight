@@ -267,3 +267,148 @@ describe("preloadGameDefinitions", () => {
     expect((await revisionsOf(key)).map((r) => r.revision)).toEqual([1, 2]);
   });
 });
+
+describe("game details (date, end date, rules link)", () => {
+  const RULES = "https://docs.google.com/document/d/rules/edit";
+  const withDetails = (id: string, name: string, details: Record<string, string | undefined>) => ({
+    ...definition(id, name),
+    ...details,
+  });
+  const details = (gameKey: string) =>
+    prisma.game.findUniqueOrThrow({
+      where: { gameKey },
+      select: { date: true, endDate: true, rulesUrl: true, archivedAt: true, currentRevisionId: true },
+    });
+  const day = (date: Date | null) => date?.toISOString().slice(0, 10) ?? null;
+
+  beforeAll(async () => {
+    await cleanup();
+    await prisma.server.create({ data: { id: SERVER_ID, name: "Import Service Server" } });
+  });
+
+  afterAll(cleanup);
+
+  test("are copied onto the game, not into the revision or its checksum", async () => {
+    const key = `${KEY_PREFIX}details-copy`;
+    const result = await importGameDefinition({
+      raw: withDetails(key, "A", { date: "2026-10-02", endDate: "2026-10-03", rulesUrl: RULES }),
+    });
+    expect(result).toMatchObject({ status: "created", detailsChanged: true });
+
+    const game = await details(key);
+    expect([day(game.date), day(game.endDate), game.rulesUrl]).toEqual(["2026-10-02", "2026-10-03", RULES]);
+    const [rev] = await revisionsOf(key);
+    expect(rev.definition).not.toHaveProperty("date");
+    expect(rev.definition).not.toHaveProperty("rulesUrl");
+    // The same map without the details is the same revision.
+    const again = await importGameDefinition({ raw: definition(key, "A"), allowUpdate: true });
+    expect(again).toMatchObject({ status: "unchanged", detailsChanged: false, checksum: result.checksum });
+  });
+
+  test("changing only them updates the game without a revision, even without allowUpdate", async () => {
+    const key = `${KEY_PREFIX}details-only`;
+    await importGameDefinition({ raw: withDetails(key, "A", { date: "2026-08-01" }) });
+    const before = await details(key);
+
+    const dry = await importGameDefinition({
+      raw: withDetails(key, "A", { date: "2026-08-02", rulesUrl: RULES }),
+      dryRun: true,
+    });
+    expect(dry).toMatchObject({ status: "unchanged", detailsChanged: true });
+    expect(day((await details(key)).date)).toBe("2026-08-01");
+
+    const result = await importGameDefinition({
+      raw: withDetails(key, "A", { date: "2026-08-02", rulesUrl: RULES }),
+      source: "web",
+    });
+    expect(result).toMatchObject({ status: "unchanged", revision: 1, detailsChanged: true });
+    const after = await details(key);
+    expect([day(after.date), after.rulesUrl, after.currentRevisionId]).toEqual([
+      "2026-08-02",
+      RULES,
+      before.currentRevisionId,
+    ]);
+    expect(await revisionsOf(key)).toHaveLength(1);
+  });
+
+  test("a file only speaks for the details it sets, and a date alone clears the end date", async () => {
+    const key = `${KEY_PREFIX}details-partial`;
+    await importGameDefinition({
+      raw: withDetails(key, "A", { date: "2026-10-02", endDate: "2026-10-03", rulesUrl: RULES }),
+    });
+
+    // An export or an older file has no details: the game keeps its own.
+    await importGameDefinition({ raw: definition(key, "B"), allowUpdate: true });
+    let game = await details(key);
+    expect([day(game.date), day(game.endDate), game.rulesUrl]).toEqual(["2026-10-02", "2026-10-03", RULES]);
+
+    await importGameDefinition({ raw: withDetails(key, "B", { date: "2026-10-09" }), allowUpdate: true });
+    game = await details(key);
+    expect([day(game.date), day(game.endDate), game.rulesUrl]).toEqual(["2026-10-09", null, RULES]);
+  });
+
+  test("a new revision keeps the game archived", async () => {
+    const key = `${KEY_PREFIX}details-archived`;
+    await importGameDefinition({ raw: definition(key, "A") });
+    await prisma.game.update({ where: { gameKey: key }, data: { archivedAt: new Date() } });
+    const result = await importGameDefinition({ raw: definition(key, "B"), allowUpdate: true });
+    expect(result.status).toBe("updated");
+    expect((await details(key)).archivedAt).not.toBeNull();
+  });
+
+  test("a preloaded file's details apply when they change in the file; edits made since stay until then", async () => {
+    const key = `${KEY_PREFIX}details-preload`;
+    const dir = await mkdtemp(join(tmpdir(), "searchlight-details-"));
+    const start = async (fileDetails: Record<string, string>, name = "Preloaded") => {
+      await writeFile(join(dir, `${key}.game.json`), JSON.stringify(withDetails(key, name, fileDetails)));
+      return preloadGameDefinitions(dir);
+    };
+    try {
+      await start({});
+      // A deploy adds details to the file: applied without a new revision.
+      const backfill = await start({ date: "2026-09-19", rulesUrl: RULES });
+      expect(backfill).toMatchObject({ unchanged: 1, updated: 0, detailsUpdated: 1 });
+      expect(await revisionsOf(key)).toHaveLength(1);
+
+      // A manager fixes the link on the games page; restarts keep the fix.
+      const FIXED = "https://docs.google.com/document/d/fixed/edit";
+      await prisma.game.update({ where: { gameKey: key }, data: { rulesUrl: FIXED } });
+      expect(await start({ date: "2026-09-19", rulesUrl: RULES })).toMatchObject({ detailsUpdated: 0 });
+      expect((await details(key)).rulesUrl).toBe(FIXED);
+
+      // The file's date changes: the date follows, the fixed link stays.
+      expect(await start({ date: "2026-09-20", rulesUrl: RULES })).toMatchObject({ detailsUpdated: 1 });
+      let game = await details(key);
+      expect([day(game.date), game.rulesUrl]).toEqual(["2026-09-20", FIXED]);
+
+      // The file's link changes too: now the file wins.
+      const NEW = "https://docs.google.com/document/d/new/edit";
+      await start({ date: "2026-09-20", rulesUrl: NEW });
+      expect((await details(key)).rulesUrl).toBe(NEW);
+
+      // An upload kept over the file still gets the file's changed details.
+      await importGameDefinition({ raw: definition(key, "Uploaded"), source: "web", allowUpdate: true });
+      const kept = await start({ date: "2026-09-21", rulesUrl: NEW });
+      expect(kept.kept).toHaveLength(1);
+      game = await details(key);
+      expect(day(game.date)).toBe("2026-09-21");
+      expect(await prisma.game.findUniqueOrThrow({ where: { gameKey: key } })).toMatchObject({ name: "Uploaded" });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("rejects impossible dates, an end date before the date and non-https rules links", async () => {
+    const key = `${KEY_PREFIX}details-invalid`;
+    for (const bad of [
+      { date: "2026-02-30" },
+      { date: "2026-10-03", endDate: "2026-10-02" },
+      { endDate: "2026-10-02" },
+      { rulesUrl: "http://example.com/rules" },
+    ]) {
+      await expect(importGameDefinition({ raw: withDetails(key, "A", bad) })).rejects.toMatchObject({
+        statusCode: 400,
+      });
+    }
+  });
+});
