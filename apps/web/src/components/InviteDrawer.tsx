@@ -129,7 +129,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerTrigger asChild>
                 <Button className={cn(className)}>
-                    Invites
+                    Invite
                 </Button>
             </DrawerTrigger>
             <DrawerContent aria-describedby={undefined}>
