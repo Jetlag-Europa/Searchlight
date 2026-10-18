@@ -18,9 +18,12 @@ function sessionCookieOptions(expiresAt: Date) {
   const isProd = env.NODE_ENV === "production";
   return {
     httpOnly: true,
-    // SameSite=None is required when the frontend and API are on different subdomains
-    // (e.g. searchlight.jetlageuropa.org vs api-searchlight.jetlageuropa.org).
-    // SameSite=Lax blocks cookies on cross-origin fetch, causing an infinite login loop.
+    // Subdomains of one site (searchlight.jetlageuropa.org and
+    // api-searchlight.jetlageuropa.org) are same-site, so SameSite=Lax would work for
+    // them. None is kept for deployments where the web app and API are different
+    // sites, e.g. the web app on Cloudflare Workers (*.workers.dev; see DEPLOY.md),
+    // where Lax cookies aren't sent on the app's fetches. With None, cross-site forms
+    // also carry the cookie; lib/origin-check.ts rejects their writes.
     sameSite: (isProd ? "none" : "lax") as "none" | "lax",
     signed: true,
     expires: expiresAt,
