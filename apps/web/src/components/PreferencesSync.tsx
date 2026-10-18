@@ -1,11 +1,15 @@
+import { useStore } from "@nanostores/react";
 import type { MeResponse } from "@searchlight/shared";
 import { useEffect, useRef } from "react";
 
+import { verifiedUserId } from "@/lib/activeSession";
+import { authRetryDelay } from "@/lib/authCheck";
 import { applyPreferences, collectPreferences,PREF_ENTRIES } from "@/lib/preferencesSync";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 export function PreferencesSync() {
+    const userId = useStore(verifiedUserId);
     const suppressSave = useRef(true);
     const pendingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -38,19 +42,6 @@ export function PreferencesSync() {
         // Listen for changes (fires on change only, not on initial subscribe)
         const unlisteners = PREF_ENTRIES.map(({ atom }) => atom.listen(schedSave));
 
-        // Load from server and apply, overriding whatever localStorage had
-        fetch(`${API_BASE}/me`, { credentials: "include" })
-            .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-            .then(({ preferences }: MeResponse) => {
-                if (!preferences || Object.keys(preferences).length === 0) return;
-                applyPreferences(preferences);
-                console.info("[searchlight:prefs] loaded from server", preferences);
-            })
-            .catch((e) => console.warn("[searchlight:prefs] load failed", e))
-            .finally(() => {
-                suppressSave.current = false;
-            });
-
         return () => {
             unlisteners.forEach((u) => u());
             clearTimeout(pendingTimer.current);
@@ -58,6 +49,42 @@ export function PreferencesSync() {
             window.removeEventListener("pagehide", onUnload);
         };
     }, []);
+
+    // Load from server and apply, overriding whatever localStorage had. Wait
+    // for AuthGuard's verified login, which waits out a server that's down,
+    // and retry until it loads: saving before that would overwrite the
+    // server's preferences with the local ones.
+    useEffect(() => {
+        if (!userId) return;
+        let stopped = false;
+        let failures = 0;
+        let retryTimer: ReturnType<typeof setTimeout> | undefined;
+        const load = () => {
+            fetch(`${API_BASE}/me`, { credentials: "include" })
+                .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+                .then(({ preferences }: MeResponse) => {
+                    if (stopped) return;
+                    if (preferences && Object.keys(preferences).length > 0) {
+                        applyPreferences(preferences);
+                        console.info(
+                            "[searchlight:prefs] loaded from server",
+                            preferences,
+                        );
+                    }
+                    suppressSave.current = false;
+                })
+                .catch((e) => {
+                    if (stopped) return;
+                    console.warn("[searchlight:prefs] load failed", e);
+                    retryTimer = setTimeout(load, authRetryDelay(++failures));
+                });
+        };
+        load();
+        return () => {
+            stopped = true;
+            clearTimeout(retryTimer);
+        };
+    }, [userId]);
 
     return null;
 }
