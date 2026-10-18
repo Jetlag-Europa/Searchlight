@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Hiding zones left (2026-10-18)
+
+- The map and the zone sidebar show how many hiding zones are left, such as "23 of 155 zones left", while "Display hiding zones?" is on. Zones you disabled by hand don't count, and the sidebar says how many it left out.
+- The "Calculating…" pill now sits below the session name, where the count goes, so it no longer covers the session name on narrower screens. On phones the count hides while a sidebar is open.
+- Switching sessions no longer briefly shows the previous session's zones.
+
 ## A lighter map page (2026-10-18)
 
 - The map page loads about 50 KB less JavaScript (gzipped) and the games page about 27 KB less, so both open faster on slow connections.
