@@ -25,10 +25,19 @@ describe("newQuestionPosition", () => {
 });
 
 describe("geoErrorAction", () => {
-    it("stops Follow Me only when the permission is refused", () => {
-        expect(geoErrorAction(1)).toBe("stop"); // PERMISSION_DENIED
-        expect(geoErrorAction(2)).toBe("keep"); // POSITION_UNAVAILABLE
-        expect(geoErrorAction(3)).toBe("keep"); // TIMEOUT
+    it("stops Follow Me when the permission is refused", () => {
+        expect(geoErrorAction(1, false)).toBe("stop");
+        expect(geoErrorAction(1, true)).toBe("stop");
+    });
+
+    it("keeps searching on any other error before the first fix", () => {
+        expect(geoErrorAction(2, false)).toBe("searching");
+        expect(geoErrorAction(3, false)).toBe("searching");
+    });
+
+    it("drops the fix only when the position is unavailable", () => {
+        expect(geoErrorAction(2, true)).toBe("lost"); // POSITION_UNAVAILABLE
+        expect(geoErrorAction(3, true)).toBe("ignore"); // TIMEOUT
     });
 });
 

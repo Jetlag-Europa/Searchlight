@@ -18,13 +18,20 @@ export const newQuestionPosition = (
         ? { lat: fix.lat, lng: fix.lng }
         : { lat: center.lat, lng: center.lng };
 
-// What Follow Me does on a geolocation error: only a refusal ends it. A slow
-// or missing fix (indoors, on a train) times out now and then, and the watch
-// keeps trying.
-export const geoErrorAction = (code: number): "stop" | "keep" =>
-    code === 1 /* GeolocationPositionError.PERMISSION_DENIED */
-        ? "stop"
-        : "keep";
+// What Follow Me does on a geolocation error. Only a refusal ends it; the
+// watch keeps trying after anything else.
+// - TIMEOUT only means no new position for a while, which some phones report
+//   over and over while the seeker stands still: once there is a fix, keep it.
+// - POSITION_UNAVAILABLE means the fix is lost: drop it.
+// - Either one before the first fix: still searching.
+export const geoErrorAction = (
+    code: number,
+    hasFix: boolean,
+): "stop" | "lost" | "searching" | "ignore" => {
+    if (code === 1 /* PERMISSION_DENIED */) return "stop";
+    if (!hasFix) return "searching";
+    return code === 2 /* POSITION_UNAVAILABLE */ ? "lost" : "ignore";
+};
 
 // A new thermometer starts (A) at the given point and ends (B) 5 km east of it.
 export const newThermometerData = (start: LatLng) => {

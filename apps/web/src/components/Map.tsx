@@ -682,7 +682,13 @@ export const Map = ({ className }: { className?: string }) => {
             return;
         }
 
-        let warned = false;
+        // Each warning shows once per Follow Me session.
+        const warned = new Set<string>();
+        const warnOnce = (message: string) => {
+            if (warned.has(message)) return;
+            warned.add(message);
+            toast.warn(message);
+        };
         geoWatchIdRef.current = navigator.geolocation.watchPosition(
             (pos) => {
                 const lat = pos.coords.latitude;
@@ -704,24 +710,22 @@ export const Map = ({ className }: { className?: string }) => {
                 }
             },
             (error) => {
-                if (geoErrorAction(error.code) === "stop") {
+                const action = geoErrorAction(
+                    error.code,
+                    lastGpsFix.get() !== null,
+                );
+                if (action === "stop") {
                     toast.error("Unable to access your location.");
                     followMe.set(false);
-                    return;
-                }
-                // The watch keeps trying, but the last fix may be far behind
-                // now: new questions go back to the map centre, and the dot
-                // fades, until the next fix.
-                const hadFix = lastGpsFix.get() !== null;
-                lastGpsFix.set(null);
-                followMeMarkerRef.current?.setOpacity(0.4);
-                if (!warned) {
-                    warned = true;
-                    toast.warn(
-                        hadFix
-                            ? "Lost your location, still trying..."
-                            : "Still looking for your location...",
-                    );
+                } else if (action === "searching" && warned.size === 0) {
+                    // Not again after "Lost your location".
+                    warnOnce("Still looking for your location...");
+                } else if (action === "lost") {
+                    // New questions go back to the map centre, and the dot
+                    // fades, until the next fix.
+                    lastGpsFix.set(null);
+                    followMeMarkerRef.current?.setOpacity(0.4);
+                    warnOnce("Lost your location, still trying...");
                 }
             },
             { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
