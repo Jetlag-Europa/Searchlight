@@ -21,7 +21,8 @@ const NO_ZONES: string[] = [];
 // The active session's disabled zones.
 export const disabledStations = computed(
     [activeSessionId, disabledZonesBySession],
-    (sessionId, bySession) => bySession[sessionId] ?? NO_ZONES,
+    // Another tab removing the key leaves the atom undefined.
+    (sessionId, bySession) => (bySession ?? {})[sessionId] ?? NO_ZONES,
 );
 
 function storeDisabledZones(sessionId: string, ids: string[]): void {
@@ -34,7 +35,7 @@ function storeDisabledZones(sessionId: string, ids: string[]): void {
     } catch {
         // A corrupt entry is replaced.
     }
-    bySession = { ...bySession };
+    bySession = { ...(bySession ?? {}) };
     if (ids.length > 0) bySession[sessionId] = ids;
     else delete bySession[sessionId];
     disabledZonesBySession.set(bySession);

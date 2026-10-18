@@ -507,6 +507,17 @@ describe("keeping the board", () => {
         expect(displayHidingZonesStyle.get()).toBe("stations");
     });
 
+    it("keeps a new tab's zone display once another tab loads another game", async () => {
+        // A new tab takes the last tab's game.
+        sharedStorage.set("boardGameId", game.id);
+        await switchToGame(game, pinned);
+        displayHidingZonesStyle.set("stations");
+        sharedStorage.set("boardGameId", "other-game");
+
+        await switchToGame(game, pinned);
+        expect(displayHidingZonesStyle.get()).toBe("stations");
+    });
+
     it("clears the overlay when leaving the game", async () => {
         await switchToGame(game, pinned);
         permanentOverlay.set(overlay);

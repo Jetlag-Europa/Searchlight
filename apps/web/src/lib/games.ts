@@ -178,10 +178,12 @@ export function switchToGame(
     // Reloading the session or upgrading its game's revision keeps the
     // overlay and how zones are shown; another game starts afresh.
     if (boardGameId() !== game.id) {
-        setBoardGameId(game.id);
         permanentOverlay.set(null);
         displayHidingZones.set(true);
         displayHidingZonesStyle.set("zones");
     }
+    // A new tab adopts the game it took from the last tab, so another tab's
+    // game can't change it.
+    setBoardGameId(game.id);
     return selection.promise;
 }
