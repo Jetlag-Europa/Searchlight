@@ -10,14 +10,18 @@ import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
 const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 const PRIVILEGED_TTL_MS = 60 * 1000; // 1 minute
 
+/** Listed in ADMIN_DISCORD_IDS: every permission on every server. */
+export function isGlobalAdmin(userId: string): boolean {
+  return env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean).includes(userId);
+}
+
 export async function getUserPermissions(
   userId: string,
   serverId: string,
   privileged = false,
   logger?: FastifyBaseLogger,
 ): Promise<Set<string>> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isGlobalAdmin(userId)) {
     return new Set(["games.create", "games.edit", "games.delete", "server.admin"]);
   }
   // Virtual servers have no Discord guild to look roles up in.
@@ -40,8 +44,7 @@ export async function hasPermissionOnSomeServer(
   permissions: string[],
   logger?: FastifyBaseLogger,
 ): Promise<boolean> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isGlobalAdmin(userId)) {
     return true;
   }
 
@@ -76,8 +79,7 @@ export async function userPassesDiscordRoleGate(
   roleId: string,
   logger?: FastifyBaseLogger,
 ): Promise<boolean> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isGlobalAdmin(userId)) {
     return true;
   }
 
@@ -144,8 +146,7 @@ export async function isServerMember(
   logger?: FastifyBaseLogger,
   nonMemberTtlMs = PRIVILEGED_TTL_MS,
 ): Promise<boolean> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isGlobalAdmin(userId)) {
     return true;
   }
 
@@ -159,6 +160,45 @@ export async function isServerMember(
   return cached && Date.now() - cached.cachedAt.getTime() < ttl
     ? cached.isMember
     : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+}
+
+// A recheck asks Discord at most this often per (user, server), whatever the
+// cache holds: the first recheck after joining always reaches Discord.
+const RECHECK_MIN_INTERVAL_MS = 10 * 1000;
+const lastRecheck = new Map<string, number>();
+
+/**
+ * Asks Discord again whether the user is in the server, past the cache, so
+ * someone who just joined can use its games right away. Returns membership;
+ * throws 429 when asked again within RECHECK_MIN_INTERVAL_MS and 503 when
+ * Discord doesn't answer.
+ */
+export async function recheckServerMembership(
+  userId: string,
+  serverId: string,
+  logger?: FastifyBaseLogger,
+): Promise<boolean> {
+  if (isGlobalAdmin(userId) || VIRTUAL_SERVER_IDS.has(serverId)) return true;
+
+  const now = Date.now();
+  const key = `${userId}:${serverId}`;
+  const last = lastRecheck.get(key);
+  if (last !== undefined && now - last < RECHECK_MIN_INTERVAL_MS) {
+    throw Object.assign(new Error("Checked a moment ago; try again in a few seconds"), {
+      statusCode: 429,
+    });
+  }
+  if (lastRecheck.size > 10_000) {
+    for (const [k, t] of lastRecheck) if (now - t >= RECHECK_MIN_INTERVAL_MS) lastRecheck.delete(k);
+  }
+  lastRecheck.set(key, now);
+
+  try {
+    return (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+  } catch (err) {
+    logger?.warn({ userId, serverId, err }, "Could not recheck server membership");
+    throw Object.assign(new Error("Couldn't reach Discord; try again shortly"), { statusCode: 503 });
+  }
 }
 
 export async function assertServerMembership(

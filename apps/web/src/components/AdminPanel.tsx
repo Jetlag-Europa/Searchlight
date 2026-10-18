@@ -1,11 +1,78 @@
 import { useStore } from "@nanostores/react";
-import type { DiscordRole, RolePermissionEntry, ServerRolesResponse,ServersResponse, ServerWithPermissions } from "@searchlight/shared";
+import {
+  type DiscordRole,
+  type RolePermissionEntry,
+  type ServerRolesResponse,
+  type ServersResponse,
+  type ServerWithPermissions,
+  VIRTUAL_SERVER_IDS,
+} from "@searchlight/shared";
 import { useCallback,useEffect, useState } from "react";
 
 import { verifiedUserId } from "@/lib/activeSession";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"] as const;
+
+// The game browser offers this link on the games of servers a user isn't in.
+function InviteLink({ server }: { server: ServerWithPermissions }) {
+  const [value, setValue] = useState(server.inviteUrl ?? "");
+  const [saved, setSaved] = useState(server.inviteUrl ?? "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/servers/${server.id}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ inviteUrl: value.trim() || null }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { inviteUrl?: string | null; message?: string };
+      if (!res.ok) throw new Error(data.message ?? `${res.status}`);
+      setSaved(data.inviteUrl ?? "");
+      setValue(data.inviteUrl ?? "");
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      <label className="text-sm font-medium" htmlFor={`invite-${server.id}`}>
+        Discord invite link
+      </label>
+      <p className="text-xs text-muted-foreground">
+        Setting one shows this server&apos;s listed games in Find a game to players who aren&apos;t in
+        the server, greyed out, with <strong>Join</strong> opening this invite. Leave empty to show
+        them to members only.
+      </p>
+      <div className="mt-1 flex gap-2">
+        <input
+          id={`invite-${server.id}`}
+          type="url"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          placeholder="https://discord.gg/…"
+          className="flex-1 rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+        />
+        <button
+          onClick={save}
+          disabled={saving || value.trim() === saved}
+          className="px-3 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          {saving ? "Saving…" : "Save"}
+        </button>
+      </div>
+      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
 
 function ServerCard({ server }: { server: ServerWithPermissions }) {
   const isAdmin = server.permissions.includes("server.admin");
@@ -66,6 +133,9 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
           <span className="text-sm text-muted-foreground">No admin access</span>
         )}
       </div>
+
+      {/* Virtual servers (Home Games) have no Discord server to invite to. */}
+      {isAdmin && !VIRTUAL_SERVER_IDS.has(server.id) && <InviteLink server={server} />}
 
       {expanded && isAdmin && (
         <div className="mt-4">

@@ -56,6 +56,9 @@ model Server {
   name              String
   iconUrl           String?
   managementGuildId String?
+  // A Discord invite to the server, set by its admins. The game browser offers
+  // it on the games of servers a user hasn't joined.
+  inviteUrl         String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 

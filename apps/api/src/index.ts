@@ -22,6 +22,7 @@ import { sessionContentRoutes } from "./routes/session-content.js";
 import { eventRoutes } from "./routes/events.js";
 import { linkRoutes } from "./routes/links.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
+import { gameCatalogRoutes } from "./routes/game-catalog.js";
 
 const app = Fastify({
   logger: {
@@ -81,6 +82,7 @@ await app.register(serverRoutes, { prefix: "/servers" });
 await app.register(gameRoutes, { prefix: "/games" });
 await app.register(gameImportRoutes, { prefix: "/games" });
 await app.register(gameLinkManagementRoutes, { prefix: "/games" });
+await app.register(gameCatalogRoutes, { prefix: "/games" });
 await app.register(sessionRoutes, { prefix: "/sessions" });
 await app.register(sessionContentRoutes, { prefix: "/sessions" });
 await app.register(eventRoutes, { prefix: "/sessions" });

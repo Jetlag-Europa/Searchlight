@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Find a game (2026-10-18)
+
+- A new **Find a game** page (`/browse`, linked from the session picker) lists the games of all your servers on a map and as cards. Search for a game, a server or a place: "Manchester" finds Greater Manchester, "Switzerland" both Swiss games. Sort by distance from the place, name or last update, and press **Play** to start a session. Searches stay in the address, so they can be shared.
+- Server admins can set the server's Discord invite on the admin page. A server with an invite also shows its listed games to players who aren't in it, greyed out, with **Join** and **Joined? Check again**, which unlocks them as soon as Discord lists you. Servers without an invite show their games to members only, as before. Role-gated and unlisted games never show to people who can't play them.
+- **Upgrading:** the `20261018100000_add_server_invite_url` migration adds `Server.inviteUrl`.
+
 ## Game designer page (2026-10-18)
 
 - A new page, `/designer`, shows a game file on a map before you import it: its play area, bounds, hiding zones and each feature layer, with a panel listing its details, the questions players will be offered and any problems found. No login is needed, and the file never leaves your browser.

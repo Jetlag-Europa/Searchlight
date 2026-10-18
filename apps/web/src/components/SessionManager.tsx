@@ -5,7 +5,7 @@ import type {
     ServersResponse,
     SessionsResponse,
 } from "@searchlight/shared";
-import { Settings, TriangleAlert } from "lucide-react";
+import { Compass, Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
@@ -21,6 +21,7 @@ import {
     activeSessionData,
     activeSessionId,
     clearActiveSession,
+    PENDING_SESSION_KEY,
     setActiveSession,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -463,18 +464,34 @@ function SessionPickerOverlay({
                         )}
 
                         {!selectedIsMember ? (
-                            <p className="text-xs text-muted-foreground">
-                                You aren’t in this Discord server, so you can
-                                only open sessions shared with you here.
-                            </p>
+                            <div className="flex flex-col items-start gap-2">
+                                <p className="text-xs text-muted-foreground">
+                                    You aren’t in this Discord server, so you can
+                                    only open sessions shared with you here.
+                                </p>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <a href="/browse">
+                                        <Compass />
+                                        Find a game
+                                    </a>
+                                </Button>
+                            </div>
                         ) : !showCreateForm ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowCreateForm(true)}
-                            >
-                                + New session
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowCreateForm(true)}
+                                >
+                                    + New session
+                                </Button>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <a href="/browse">
+                                        <Compass />
+                                        Find a game
+                                    </a>
+                                </Button>
+                            </div>
                         ) : (
                             <div className="border border-border rounded-lg p-4 space-y-3 mt-3">
                                 <p className="text-sm font-medium">
@@ -525,6 +542,16 @@ function SessionPickerOverlay({
                                         sessions cannot be created.
                                     </p>
                                 )}
+                                <p className="text-xs text-muted-foreground">
+                                    Looking for somewhere else to play?{" "}
+                                    <a
+                                        href="/browse"
+                                        className="underline hover:text-foreground"
+                                    >
+                                        Browse every game you can play
+                                    </a>
+                                    .
+                                </p>
                                 <p className="text-xs text-muted-foreground">
                                     Only you can see a new session. Use
                                     Invite to play it with others, or Share
@@ -824,10 +851,10 @@ export function SessionManager() {
         // A session the user just started or joined from /play or /join
         const pendingLinkSession = readStorage(
             "localStorage",
-            "taibled-pending-link-session",
+            PENDING_SESSION_KEY,
         );
         if (pendingLinkSession) {
-            removeStorage("localStorage", "taibled-pending-link-session");
+            removeStorage("localStorage", PENDING_SESSION_KEY);
             setLoading(true);
             fetch(`${API_BASE}/sessions/${pendingLinkSession}`, {
                 credentials: "include",
