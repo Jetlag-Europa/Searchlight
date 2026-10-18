@@ -126,8 +126,11 @@ describe("registerUserStream / closeUserStreams / closeSessionStreams", () => {
         expect(closeFn1).toHaveBeenCalledOnce();
         expect(closeFn2).toHaveBeenCalledOnce();
     });
+});
 
-    test("closeAllStreams closes every stream of every session, once", () => {
+// Last in the file: closeAllStreams marks the process as shutting down for good.
+describe("closeAllStreams", () => {
+    test("closes every stream of every session, once", () => {
         const closeFn1 = vi.fn();
         const closeFn2 = vi.fn();
         const closeFn3 = vi.fn();
@@ -140,5 +143,14 @@ describe("registerUserStream / closeUserStreams / closeSessionStreams", () => {
         expect(closeFn1).toHaveBeenCalledOnce();
         expect(closeFn2).toHaveBeenCalledOnce();
         expect(closeFn3).toHaveBeenCalledOnce();
+    });
+
+    test("closes a stream registered after it ran right away", () => {
+        const closeFn = vi.fn();
+        const unregister = registerUserStream("sess-shutdown-late", "user-1", closeFn);
+        expect(closeFn).toHaveBeenCalledOnce();
+        expect(() => unregister()).not.toThrow();
+        closeUserStreams("sess-shutdown-late", "user-1");
+        expect(closeFn).toHaveBeenCalledOnce();
     });
 });

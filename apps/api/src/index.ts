@@ -87,6 +87,27 @@ await app.register(eventRoutes, { prefix: "/sessions" });
 await app.register(linkRoutes, { prefix: "/links" });
 await app.register(gameLinkRoutes, { prefix: "/game-links" });
 
+// Node runs as PID 1 in the container, which has no default signal handling:
+// without this, `docker stop` waits out its timeout and kills the process
+// mid-request. Registered before the game preload so a stop during boot works
+// too. Exit before Docker's 10 s timeout even if closing hangs.
+for (const signal of ["SIGTERM", "SIGINT"] as const) {
+  process.once(signal, () => {
+    app.log.info({ signal }, "Shutting down");
+    setTimeout(() => {
+      app.log.error("Shutdown timed out, exiting");
+      process.exit(1);
+    }, 8_000).unref();
+    app.close().then(
+      () => process.exit(0),
+      (err: unknown) => {
+        app.log.error({ err }, "Shutdown failed");
+        process.exit(1);
+      },
+    );
+  });
+}
+
 const __dir = dirname(fileURLToPath(import.meta.url));
 const preloadCandidateDirs = [
   resolve(process.cwd(), "games/preloaded"),
@@ -117,23 +138,3 @@ if (activePreloadDir) {
 }
 
 const address = await app.listen({ port: env.PORT, host: env.HOST });
-
-// Node runs as PID 1 in the container, which has no default signal handling:
-// without this, `docker stop` waits out its timeout and kills the process
-// mid-request. Exit before Docker's 10 s timeout even if closing hangs.
-for (const signal of ["SIGTERM", "SIGINT"] as const) {
-  process.once(signal, () => {
-    app.log.info({ signal }, "Shutting down");
-    setTimeout(() => {
-      app.log.error("Shutdown timed out, exiting");
-      process.exit(1);
-    }, 8_000).unref();
-    app.close().then(
-      () => process.exit(0),
-      (err: unknown) => {
-        app.log.error({ err }, "Shutdown failed");
-        process.exit(1);
-      },
-    );
-  });
-}

@@ -6,7 +6,7 @@ import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
 import { broadcast, closeUserStreams, connectedUserIds } from "../lib/broadcaster.js";
-import { eventRoutes } from "./events.js";
+import { eventRoutes, stallTimeout } from "./events.js";
 
 // ── IDs scoped to this test suite ───────────────────────────────────────────
 const USER1_ID = "test-evroutes-user1";
@@ -501,6 +501,8 @@ describe("GET /sessions/:sessionId/events", () => {
       ]);
       expect(spy).toHaveBeenCalled();
       expect(res, "stream still open").not.toBeNull();
+      // Closed before it was subscribed or announced: no roster, no events.
+      expect(res!.body).not.toContain("data:");
       expect(connectedUserIds().get(SESSION1_ID) ?? []).not.toContain(MEMBER_ID);
     } finally {
       // No mockRestore: it breaks Prisma's delegate, and later calls already
@@ -512,8 +514,9 @@ describe("GET /sessions/:sessionId/events", () => {
     }
   });
 
-  test("stream: a client that stops reading is disconnected", async () => {
-    await app.listen({ port: 0, host: "127.0.0.1" });
+  // ── Stalled clients: a real socket, since inject() has no backpressure ──────
+  async function openRealStream(): Promise<IncomingMessage> {
+    if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
     const { port } = app.server.address() as AddressInfo;
     const res = await new Promise<IncomingMessage>((resolve, reject) => {
       get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } }, resolve).on(
@@ -521,30 +524,65 @@ describe("GET /sessions/:sessionId/events", () => {
         reject,
       );
     });
-    try {
-      expect(res.statusCode).toBe(200);
-      res.pause();
-      const isConnected = () => (connectedUserIds().get(SESSION1_ID) ?? []).includes(USER1_ID);
-      expect(isConnected()).toBe(true);
+    expect(res.statusCode).toBe(200);
+    await vi.waitFor(() => expect(isConnected()).toBe(true));
+    return res;
+  }
+  const isConnected = () => (connectedUserIds().get(SESSION1_ID) ?? []).includes(USER1_ID);
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  function broadcastBlob(i: number, bytes: number) {
+    broadcast(SESSION1_ID, {
+      id: `ev-big-${i}`,
+      sessionId: SESSION1_ID,
+      userId: USER1_ID,
+      sequence: 100 + i,
+      type: "stroke.create",
+      payloadJson: { blob: "x".repeat(bytes) },
+      clientUuid: `big-${i}`,
+      clientCreatedAt: new Date().toISOString(),
+      serverReceivedAt: new Date().toISOString(),
+    });
+  }
 
-      // Push far more than the socket buffers hold, to a client that reads none of it.
-      const blob = "x".repeat(256 * 1024);
+  test("stream: a client that stops reading is disconnected", async () => {
+    const saved = stallTimeout.ms;
+    stallTimeout.ms = 200;
+    const res = await openRealStream();
+    try {
+      res.pause();
+      // One event per tick, so each gets the chance to flush, until the
+      // socket buffers fill up and the stall timeout runs out.
       for (let i = 0; i < 200 && isConnected(); i++) {
-        broadcast(SESSION1_ID, {
-          id: `ev-stall-${i}`,
-          sessionId: SESSION1_ID,
-          userId: USER1_ID,
-          sequence: 100 + i,
-          type: "stroke.create",
-          payloadJson: { blob },
-          clientUuid: `stall-${i}`,
-          clientCreatedAt: new Date().toISOString(),
-          serverReceivedAt: new Date().toISOString(),
-        });
+        broadcastBlob(i, 256 * 1024);
+        await sleep(20);
       }
       expect(isConnected()).toBe(false);
     } finally {
+      stallTimeout.ms = saved;
       res.destroy();
+    }
+  });
+
+  test("stream: a reading client stays connected through large events", async () => {
+    const saved = stallTimeout.ms;
+    stallTimeout.ms = 200;
+    const res = await openRealStream();
+    let received = "";
+    res.setEncoding("utf8");
+    res.on("data", (chunk: string) => {
+      received += chunk;
+    });
+    try {
+      // A 1.5 MB event, then a burst of four 512 KB events in the same tick.
+      broadcastBlob(0, 1536 * 1024);
+      for (let i = 1; i <= 4; i++) broadcastBlob(i, 512 * 1024);
+      await vi.waitFor(() => expect(received).toContain('"id":"ev-big-4"'), { timeout: 5000 });
+      await sleep(stallTimeout.ms * 3);
+      expect(isConnected()).toBe(true);
+    } finally {
+      stallTimeout.ms = saved;
+      res.destroy();
+      await vi.waitFor(() => expect(isConnected()).toBe(false));
     }
   });
 });
