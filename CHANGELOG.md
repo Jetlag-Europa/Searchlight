@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Game designer page (2026-10-18)
+
+- A new page, `/designer`, shows a game file on a map before you import it: its play area, bounds, hiding zones and each feature layer, with a panel listing its details, the questions players will be offered and any problems found. No login is needed, and the file never leaves your browser.
+- Importing a game on the games page now shows the game checker's warnings and notes, and marks the ones that are always data mistakes as defects. They don't block the import.
+- `check-game.mjs` no longer starts with `#!/usr/bin/env node`, so run it as `node check-game.mjs`, as the game guide does.
+
 ## Planning mode previews each answer (2026-10-18)
 
 - In planning mode, unlocked radar, thermometer, matching and measuring cards show how many hiding zones each answer would leave, such as "Outside → 31 zones" and "Inside → 12 zones", so you can pick the question that splits the zones most evenly. The counts start from what the locked questions leave and skip zones you disabled by hand.
