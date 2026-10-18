@@ -3,6 +3,11 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## A lighter map page (2026-10-18)
+
+- The map page loads about 50 KB less JavaScript (gzipped) and the games page about 27 KB less, so both open faster on slow connections.
+- Browsers delete an old local copy of drawings from before drawings synced with the session, which could take up megabytes of storage.
+
 ## The board survives a reload (2026-10-18)
 
 - Zones you disabled by hand stay disabled when you reload the page or the game gets a new revision. They are kept per session, so each session has its own, and switching back brings yours back. Zones disabled before this update are cleared once.
