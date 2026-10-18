@@ -4,8 +4,8 @@ import { removeStorage } from "@/lib/safeStorage";
 let hasRun = false;
 
 // Settings of retired features: the picked place and drawn play area, custom
-// station lists, the zone sidebar's OSM options and radius, the tutorial and
-// Pastebin.
+// station lists, the zone sidebar's OSM options and radius, the tutorial,
+// Pastebin and the disabled zones of every game in one list.
 export const RETIRED_STORAGE_KEYS = [
     "mapGeoLocation",
     "additionalMapGeoLocations",
@@ -20,6 +20,7 @@ export const RETIRED_STORAGE_KEYS = [
     "showTutorials",
     "pastebinApiKey",
     "alwaysUsePastebin",
+    "disabledStations",
 ];
 // Browser caches of OpenStreetMap lookups.
 export const RETIRED_CACHES = [

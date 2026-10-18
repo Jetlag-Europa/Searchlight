@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## The board survives a reload (2026-10-18)
+
+- Zones you disabled by hand stay disabled when you reload the page or the game gets a new revision. They are kept per session, so each session has its own, and switching back brings yours back. Zones disabled before this update are cleared once.
+- A pasted overlay and the zone display settings also survive a reload and a new revision. Opening another session still resets them.
+- Zone names now appear from the zoom that suits the game's size, instead of a medium game's until they were toggled.
+
 ## Network blips no longer log you out (2026-10-18)
 
 - A slow connection or a server error, such as during a deploy, no longer sends you to the login page. The page shows "Can't reach the server, retrying…" and carries on once the server answers. Only being logged out takes you to the login page.

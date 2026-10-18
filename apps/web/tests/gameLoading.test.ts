@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { GameDefinition, GameSessionSummary } from "@searchlight/shared";
 import * as turf from "@turf/turf";
+import type { FeatureCollection } from "geojson";
 import {
     applyGameDefinition,
     currentGameId,
@@ -22,12 +23,18 @@ import {
     setActiveSession,
 } from "@/lib/activeSession";
 import {
+    disabledStations,
+    displayHidingZones,
+    displayHidingZonesStyle,
     gameDefinitionReady,
     mapGeoJSON,
+    permanentOverlay,
     polyGeoJSON,
     questions,
+    setDisabledStations,
     trainStations,
 } from "@/lib/context";
+import { discardSessionData } from "@/lib/eventQueue";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { hidingZoneCircles } from "@/maps/geo-utils";
 import type { Questions } from "@/maps/schema";
@@ -377,5 +384,149 @@ describe("leaving a game", () => {
         expect(mapGeoJSON.get()).toBeNull();
         expect(trainStations.get()).toEqual([]);
         expect(currentGameId.get()).toBe("");
+    });
+});
+
+describe("keeping the board", () => {
+    const overlay: FeatureCollection = {
+        type: "FeatureCollection",
+        features: [],
+    };
+    const otherSession = {
+        ...pinnedSession,
+        id: "session-two",
+    } as GameSessionSummary;
+    // This tab's sessionStorage, and the localStorage all tabs share.
+    let tabStorage: Map<string, string>;
+    let sharedStorage: Map<string, string>;
+    const storage = (store: Map<string, string>) => ({
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => store.set(key, value),
+        removeItem: (key: string) => store.delete(key),
+    });
+
+    beforeEach(() => {
+        tabStorage = new Map();
+        sharedStorage = new Map();
+        vi.stubGlobal("sessionStorage", storage(tabStorage));
+        vi.stubGlobal("localStorage", storage(sharedStorage));
+        vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+            response(500),
+        );
+        clearDefinitionCache();
+        setActiveSession(pinnedSession);
+    });
+
+    afterEach(() => {
+        for (const session of [pinnedSession, otherSession]) {
+            setActiveSession(session);
+            setDisabledStations([]);
+        }
+        leaveGame();
+        clearActiveSession();
+        vi.restoreAllMocks();
+        vi.unstubAllGlobals();
+        clearDefinitionCache();
+    });
+
+    it("keeps each session's disabled zones when its game loads again", async () => {
+        expect(await switchToGame(game, pinned)).toBe(true);
+        expect(appliedRadius()).toBe(500);
+        setDisabledStations(["a", "b"]);
+
+        // Reloading the session loads its game again.
+        expect(await switchToGame(game, pinned)).toBe(true);
+        expect(disabledStations.get()).toEqual(["a", "b"]);
+
+        leaveGame();
+        setActiveSession(otherSession);
+        await switchToGame(game, {
+            revisionId: "revision-one",
+            sessionId: otherSession.id,
+        });
+        expect(disabledStations.get()).toEqual([]);
+        setDisabledStations(["c"]);
+
+        leaveGame();
+        setActiveSession(pinnedSession);
+        await switchToGame(game, pinned);
+        expect(disabledStations.get()).toEqual(["a", "b"]);
+    });
+
+    it("keeps the disabled zones another tab stored for its session", () => {
+        // Another tab, on the other session, disabled a zone since this tab
+        // last read the zones.
+        sharedStorage.set(
+            "disabledZones",
+            JSON.stringify({ [otherSession.id]: ["x"] }),
+        );
+        setDisabledStations(["a"]);
+
+        setActiveSession(otherSession);
+        expect(disabledStations.get()).toEqual(["x"]);
+        setActiveSession(pinnedSession);
+        expect(disabledStations.get()).toEqual(["a"]);
+    });
+
+    it("forgets a discarded session's disabled zones", () => {
+        setDisabledStations(["a"]);
+        discardSessionData(pinnedSession.id);
+        expect(disabledStations.get()).toEqual([]);
+    });
+
+    it("keeps the overlay and zone display for the same game only", async () => {
+        await switchToGame(game, pinned);
+        permanentOverlay.set(overlay);
+        displayHidingZones.set(false);
+        displayHidingZonesStyle.set("stations");
+
+        // A revision upgrade keeps the game.
+        expect(
+            await switchToGame(game, {
+                revisionId: "revision-two",
+                sessionId: pinnedSession.id,
+            }),
+        ).toBe(true);
+        expect(permanentOverlay.get()).toEqual(overlay);
+        expect(displayHidingZones.get()).toBe(false);
+        expect(displayHidingZonesStyle.get()).toBe("stations");
+
+        await switchToGame({ id: "other-game" }, pinned);
+        expect(permanentOverlay.get()).toBeNull();
+        expect(displayHidingZones.get()).toBe(true);
+        expect(displayHidingZonesStyle.get()).toBe("zones");
+    });
+
+    it("keeps the zone display when another tab loads another game", async () => {
+        await switchToGame(game, pinned);
+        displayHidingZonesStyle.set("stations");
+        // Another tab's game.
+        sharedStorage.set("boardGameId", "other-game");
+
+        await switchToGame(game, pinned);
+        expect(displayHidingZonesStyle.get()).toBe("stations");
+    });
+
+    it("keeps a new tab's zone display once another tab loads another game", async () => {
+        // A new tab takes the last tab's game.
+        sharedStorage.set("boardGameId", game.id);
+        await switchToGame(game, pinned);
+        displayHidingZonesStyle.set("stations");
+        sharedStorage.set("boardGameId", "other-game");
+
+        await switchToGame(game, pinned);
+        expect(displayHidingZonesStyle.get()).toBe("stations");
+    });
+
+    it("clears the overlay when leaving the game", async () => {
+        await switchToGame(game, pinned);
+        permanentOverlay.set(overlay);
+        displayHidingZones.set(false);
+
+        leaveGame();
+        expect(permanentOverlay.get()).toBeNull();
+
+        await switchToGame(game, pinned);
+        expect(displayHidingZones.get()).toBe(true);
     });
 });

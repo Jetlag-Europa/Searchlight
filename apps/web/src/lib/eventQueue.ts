@@ -1,6 +1,7 @@
 import type { SessionVisibility } from "@searchlight/shared";
 
 import type { StrokeFeature } from "@/annotations/types";
+import { forgetDisabledZones } from "@/lib/disabledZones";
 import type { Questions } from "@/maps/schema";
 
 export type EventType =
@@ -277,8 +278,9 @@ export function clearCachedSession(sessionId: string): void {
 
 // For a session that can never sync again (deleted, or this user removed):
 // unlike cache eviction, also drop its queue, which would otherwise pin the
-// snapshot in storage forever.
+// snapshot in storage forever, and its disabled zones.
 export function discardSessionData(sessionId: string): void {
+    forgetDisabledZones(sessionId);
     try {
         localStorage.removeItem(pendingKey(sessionId));
         localStorage.removeItem(cacheKey(sessionId));
