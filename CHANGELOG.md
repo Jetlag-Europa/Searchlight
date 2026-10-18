@@ -1,158 +1,158 @@
 # Changelog
 
-What changed for players, game managers and server admins. Entries marked
-**Upgrading** need action from whoever runs a Searchlight server.
+Notable changes for players, game managers and server admins, newest first.
+Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 ## Game stats for server admins (2026-10-17)
 
-- Server admins see on the games page how much each game is played: sessions live now and their players, sessions active in the last 24 hours and 7 days, sessions, players and questions in total, and when it was last played.
-- "Live now" starts again at 0 whenever the server restarts.
+- The games page now shows server admins how much each game is played: how many sessions are live and how many players are connected to them, how many were active in the last day and week, totals for sessions, players and questions asked, and when the game was last played.
+- The live count starts from zero whenever the server restarts.
 
-## The server picker lists only your servers (2026-10-17)
+## A server picker with only your servers (2026-10-17)
 
-- The session picker lists the Discord servers you're in, plus Home Games, instead of every server with an empty game list for the ones you aren't in.
-- A server you aren't in still shows up while you have sessions there, e.g. from a game or join link, so you can open them. A server you just joined shows up within 10 minutes.
+- The session picker lists the Discord servers you belong to, plus Home Games. Servers you aren't in no longer appear with an empty game list.
+- A server you aren't in still appears while you have sessions there, for example from a game link or a join link, so you can always get back to them. After you join a Discord server, it shows up within about 10 minutes.
 
-## Sessions are shared by link only (2026-10-17)
+## Sharing sessions by link (2026-10-17)
 
-- Inviting a specific user by name is gone. A session's creator shares it with links: **Invites** makes join links, and **Share a copy** makes links that give each person their own copy. Both can be revoked.
-- The new-session form no longer asks for Private or Shared; a session is shared once its creator makes a join link.
-- The join page says why a link didn't work, and a creator opening their own join link is taken to the session.
-- No one can look up the app's users any more; the invite search let any logged-in user list them all.
-- **Upgrading:** invites still pending are deleted. Players who already accepted one stay in the session.
+- Sessions are now shared with links instead of invitations to specific users. From **Invites**, a session's creator makes join links that bring people into the session; from **Share a copy**, they make links that give each person a private copy of it. Either kind can be revoked at any time.
+- New sessions no longer ask whether they are private or shared: a session becomes shared once its creator makes a join link.
+- If a link doesn't work, the join page now says why. A creator who opens their own join link is simply taken to the session.
+- Searchlight no longer lets anyone search its users. The invitation search had let any logged-in user list every account.
+- **Upgrading:** pending invitations are deleted. Players who had already accepted one stay in their sessions.
 
 ## Security fixes (2026-10-17)
 
-- Hiding-zone and station names from a game are shown as plain text. An imported game could use them to run script in every player's browser.
-- Other sites can no longer embed Searchlight in a frame.
+- Names in a game, such as hiding-zone and station names, are now always shown as plain text. Before, a maliciously crafted game could run code in the browser of everyone playing it.
+- Other websites can no longer embed Searchlight in a frame.
 
 ## Curses that resize the hiding zones (2026-10-17)
 
-- Add Question → **Resize Hiding Zones (Curse)** adds a card with a multiplier (×1.5 and ×0.5 are one tap; any positive number can be typed) that shows the zone radius from then on.
-- The question list runs in the order things happened: questions below a curse are checked against the resized zones, questions above it against the size they were asked at. A curse added late can be moved to where it was cast with **Earlier** and **Later**.
-- Curses multiply, a hidden curse counts as ×1, and the map and zone sidebar show the current size. Polygon zones keep their own area.
-- Everyone in a session should reload the page after this update: an older page hides curses, and removes them for everyone if it then saves the question list.
+- Curses that make the hiding zones bigger or smaller can be added from **Add Question → Resize Hiding Zones (Curse)**. The card takes a multiplier, with ×1.5 and ×0.5 a tap away, and shows the zone radius from that point on.
+- The question list follows the order in which things happened. Questions below a curse are checked against the resized zones, and questions above it against the size the zones had when they were asked, so a hider who answered from the edge of a large zone isn't ruled out when the zones later shrink. A curse added late can be moved to where it was cast with **Earlier** and **Later**.
+- Several curses multiply together, a hidden curse has no effect, and the map and zone sidebar always show the current size. Polygon zones keep their shape.
+- Everyone in a session should reload the page after this update. An older page doesn't know about curses, and if it saves the question list, it removes them for everyone.
 
-## Pens erase with their eraser button (2026-10-17)
+## Erasing with a pen's eraser button (2026-10-17)
 
-- In Pen Mode, a pen's eraser end or barrel button erases, whatever tool is chosen; letting go returns to that tool. On Windows, hold the button before the pen touches the screen. The barrel button no longer opens the map menu.
-- In Pen Mode, the right and middle mouse buttons no longer draw.
+- In Pen Mode, the eraser end of a pen and its side button now erase, whichever tool is selected, and letting go switches back. On Windows, press the button before the pen touches the screen. The side button no longer opens the map menu.
+- The right and middle mouse buttons no longer draw in Pen Mode.
 
-## Measuring questions show your distance (2026-10-17)
+## Your distance on measuring questions (2026-10-17)
 
-- A measuring question's card shows how far the seeker is from what it measures to, and which one, e.g. "Your distance: 1.243 km to Brussels Airport". In hider mode it also shows the hider's distance, so the automatic Closer/Further answer can be checked.
+- Measuring questions show how far the seeker is from the nearest thing being measured, and which one it is, for example "Your distance: 1.243 km to Brussels Airport". In hider mode, the hider's distance is shown too, so the automatic Closer or Further answer is easy to check.
 
-## Slow results say they are calculating (2026-10-17)
+## A sign when results take a while (2026-10-17)
 
-- When the map takes more than half a second to work out the questions' results, a "Calculating…" pill shows under the Live indicator until it's done.
+- When the map needs more than half a second to work out the questions' results, a small "Calculating…" pill appears under the Live indicator until it's done, so a slow question no longer looks like a frozen page.
 
 ## Question names (2026-10-17)
 
-- Every question card has a Name field, so a question can be called "Airport radar" instead of "Radius 2". The name shows on the card and on its map marker, and syncs with the session.
+- Questions can be given a name, such as "Airport radar" instead of "Radius 2". The name appears on the question's card and its map marker, and everyone in the session sees it.
 
-## Region-boundary questions cover the whole play area (2026-10-17)
+## Region-boundary questions across the whole play area (2026-10-17)
 
-- Where a game's regions don't cover its whole play area (such as Belgium's provinces along the French border and at sea), distance-to-boundary questions always kept those strips for "Hider Further" and always eliminated them for "Hider Closer". They are now measured to the nearest region's boundary.
-- These questions no longer leave hairline slivers along the borders between regions.
+- Some games' regions don't quite cover their play area, such as Belgium's provinces along the French border and at sea. Questions about the distance to a region boundary used to get those strips wrong: they were always kept for "Hider Further" and always eliminated for "Hider Closer". They are now measured to the nearest region's boundary.
+- These questions also no longer leave thin slivers along the borders between regions.
 
-## Free play is removed (2026-10-17)
+## Every session plays a game (2026-10-17)
 
-- Every session plays a game; free play, inherited from JetLagHideAndSeek, is gone. Questions and hiding zones come only from the game, never from live OpenStreetMap lookups.
-- When a session's game can't be loaded (offline, a server error, no access), a "Game not loaded" banner offers Retry and Change session. The board and drawing tools keep working meanwhile, but questions wait for the game.
-- Removed with free play: the place picker, drawing a play area, "Exclude Country", Copy/Paste Hiding Zone and its links, the tutorial, and the zone sidebar's station lookups, station imports and editable radius. A game's polygon hiding zones are drawn as areas.
-- The old built-in question types (airports, major cities, McDonald's and 7-Eleven, train stations and lines, OSM zones, international borders, the built-in tentacles and others) are gone. Questions of these types in a session are hidden.
-- Custom questions with nothing drawn yet no longer break the map, and clearing a radar or tentacle radius keeps the last value.
-- The map opens on the game you last played, hider mode starts at the game's centre, and the session picker can be closed with Back to board or Escape.
-- **Upgrading:** remove `OVERPASS_URL`, `OVERPASS_CF_ACCESS_CLIENT_ID` and `OVERPASS_CF_ACCESS_CLIENT_SECRET` from the server's `.env`; they are no longer used.
+- Free play, inherited from JetLagHideAndSeek, is gone: every session now plays one of Searchlight's games. Questions and hiding zones come from the game itself rather than from live OpenStreetMap lookups.
+- If a session's game can't be loaded, for example while offline, a "Game not loaded" banner offers to retry or change session. The board and drawing tools keep working in the meantime, and questions resume once the game has loaded.
+- The free-play tools went with it: the place picker, drawing a custom play area, "Exclude Country", copying and pasting hiding zones, the tutorial, and the zone sidebar's station lookups and imports. A game's polygon hiding zones are now drawn as areas.
+- The old built-in question types are gone, among them airports, major cities, McDonald's and 7-Eleven, train lines, OSM zones and international borders. Any such questions left in a session are hidden.
+- New custom questions with nothing drawn yet no longer break the map, and clearing a radar or tentacle radius keeps the previous value.
+- The map reopens on the game you last played, hider mode starts at the centre of the game, and the session picker can be closed with **Back to board** or Escape.
+- **Upgrading:** `OVERPASS_URL`, `OVERPASS_CF_ACCESS_CLIENT_ID` and `OVERPASS_CF_ACCESS_CLIENT_SECRET` are no longer used and can be removed from `.env`.
 
 ## Hider mode turns off again (2026-10-17)
 
-- Turning hider mode off didn't stick: it came straight back on, also after a reload. Sessions this happened to open normally again.
+- Turning hider mode off didn't stick: it came straight back on, even after a reload. This is fixed, and sessions it happened to open normally again.
 
 ## Unlisted games and game links (2026-10-17)
 
-- A game can be unlisted: it isn't offered when creating a session, and sessions of it start only from a game link. Game managers still see it on `/games`, where they can list or unlist it, and can import a game unlisted.
-- A game link (`/play?token=…`) lets anyone holding it start a session of that game, listed or not, even if they aren't on the game's server. Game managers make, copy and revoke links on `/games` → **Links**. Links don't expire. Sessions started from a link keep working after it is revoked.
-- The session picker has a cog that opens `/games` for game managers.
+- Games can be unlisted. An unlisted game isn't offered when creating a session; sessions of it can only be started from a game link. Game managers still see it on `/games`, where they can list or unlist it, and they can import a new game as unlisted.
+- A game link (`/play?token=…`) lets anyone who has it start a session of that game, listed or not, even without being on the game's Discord server. Game managers create, copy and revoke links from **Links** on `/games`. Links don't expire, and sessions started from one keep working after it is revoked.
+- Game managers can reach `/games` from a new cog in the session picker.
 
 ## Kilometres by default (2026-10-16)
 
-- Players who haven't picked a unit see kilometres instead of miles, and new thermometers start 5 km apart. A unit you picked is kept.
+- Players who haven't chosen a unit now get kilometres rather than miles, and new thermometers start 5 km apart. A unit you've already chosen is kept.
 
-## Bug reports and feature requests on GitHub Issues (2026-10-16)
+## Feedback moves to GitHub Issues (2026-10-16)
 
-- The map menu's "Report a bug / suggest a feature" opens [GitHub Issues](https://github.com/Jetlag-Europa/Searchlight/issues/new/choose), replacing the in-app feedback pages.
-- **Upgrading:** all in-app feedback is deleted; export it first if you want to keep it. `DISCORD_FEEDBACK_WEBHOOK_URL` is no longer used.
+- "Report a bug / suggest a feature" in the map menu now opens [GitHub Issues](https://github.com/Jetlag-Europa/Searchlight/issues/new/choose) and replaces the in-app feedback pages.
+- **Upgrading:** all in-app feedback is deleted, so export it first if you want to keep it. `DISCORD_FEEDBACK_WEBHOOK_URL` is no longer used.
 
-## Game creation for game devs (2026-10-16)
+## Making games from an announcement (2026-10-16)
 
-- The game creation guide (`/skills/create-game.md`) starts from the usual source, a Discord announcement linking a rules Google Doc and a Google My Map, and covers common My Maps problems such as mixed POI layers, placeholder names and regions drawn as several shapes. `game-tools.mjs` has helpers for both sources.
-- The guide explains who can upload games: a Discord role with `games.create` or `games.edit`, granted on `/admin` → **Manage Roles**. The import dialog links to the guide.
-- Game files' `$schema` now points at `https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json`.
+- The game creation guide (`/skills/create-game.md`) now starts where most games do: a Discord announcement linking a rules document and a Google My Map. It walks through turning both into a game and handling the usual My Maps problems, such as mixed point layers, placeholder names and regions drawn in several pieces.
+- The guide explains who can upload games (a Discord role with `games.create` or `games.edit`, granted under **Manage Roles** on `/admin`), and the import dialog links to it.
+- Game files now point their `$schema` at `https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json`.
 
-## Self-hosting with prebuilt images (2026-10-16)
+## Prebuilt images for self-hosting (2026-10-16)
 
-- Searchlight's Docker images are published as `ghcr.io/jetlag-europa/searchlight-{api,web}` for amd64 and arm64, so a server can pull them instead of building. See `DEPLOY.md`.
-- **Upgrading:** `docker-compose.vps.yml` is now `docker-compose.cloudflared.yml`, and `infra/deploy-vps.sh` is gone: set `COMPOSE_FILE` and `COMPOSE_PROJECT_NAME` (required) in `.env`, then deploy with `docker compose pull && docker compose up -d`.
+- Searchlight's Docker images are published as `ghcr.io/jetlag-europa/searchlight-{api,web}` for amd64 and arm64, so a server can pull them instead of building its own. See `DEPLOY.md`.
+- **Upgrading:** `docker-compose.vps.yml` is renamed `docker-compose.cloudflared.yml`, and `infra/deploy-vps.sh` is removed. Set `COMPOSE_FILE` and `COMPOSE_PROJECT_NAME` in `.env` (the project name is required), then update with `docker compose pull && docker compose up -d`.
 
 ## Question layers for Brno, Brussels and OLD Luxembourg (2026-10-15)
 
-- Brno 2026, Brussels 2026 and OLD Luxembourg 2026 offered no matching, measuring or tentacle questions. They now have their own:
-  - Brno 2026: Museum, Airport, Park, Hospital, Library, Theme Park, Zoo, Golf Course, Cinema, Body of Water and its 29 districts.
-  - Brussels 2026: Belgium 01.08's Airport, Museum, Cinema, Golf Course, Theme Park, Zoo, Consulate, Library, Hospital and High-Speed Rail, for the sites near its play area.
-  - OLD Luxembourg 2026: Luxembourg 2-3 October's layers, without its stop-distance and Castle or Fort questions.
+- Brno 2026, Brussels 2026 and OLD Luxembourg 2026 had no matching, measuring or tentacle questions. They now have their own:
+  - **Brno 2026:** museums, airport, parks, hospitals, libraries, theme parks, zoo, golf courses, cinemas, bodies of water and its 29 districts.
+  - **Brussels 2026:** the airport, museum, cinema, golf course, theme park, zoo, consulate, library, hospital and high-speed rail layers of Belgium 01.08, limited to the sites that matter in its play area.
+  - **OLD Luxembourg 2026:** the layers of Luxembourg 2–3 October, apart from its stop-distance and castle questions.
 
-## New games and sync fixes (2026-10-13)
+## New games and more reliable sync (2026-10-13)
 
 - New games: Greater Manchester 19-09, North London 26-09 (with its 55 council-listed parks) and Stockholm 19-09.
-- Brno 2026, Brussels 2026 and OLD Luxembourg 2026 had every hiding zone outside the map; they are back in place.
-- Switching sessions can no longer save one session's questions into another, and edits that haven't reached the server yet are kept. Failed saves retry, and a reconnected session catches up on what it missed.
-- Nearest-line matching questions answer in milliseconds instead of seconds to minutes per marker move.
+- Brno 2026, Brussels 2026 and OLD Luxembourg 2026 placed every hiding zone off the map; their zones are back where they belong.
+- Switching sessions can no longer save one session's questions into another, and edits that haven't reached the server yet are no longer lost. Failed saves are retried, and a session that reconnects catches up on everything it missed.
+- Nearest-line matching questions now update in milliseconds when a marker moves, where they could take minutes.
 - A hider just inside a tentacle's radius is no longer eliminated.
-- Radars start at the radii the game declares, and Export Game JSON exports the version of the game being played.
-- **Upgrading:** the database was reset with this release; sessions from before it are gone.
+- Radars start at the radii the game sets, and **Export Game JSON** exports the version of the game being played.
+- **Upgrading:** this release starts from an empty database; sessions from before it are not kept.
 
-## Games declare all their questions (2026-10-12)
+## Games decide their own questions (2026-10-12)
 
-- A game offers only the questions its definition declares; radar and thermometer must be turned on (`radars`, `thermometer`). Every preloaded game has both.
+- A game offers exactly the questions its definition declares. Radar and thermometer questions are now switched on in the game (`radars`, `thermometer`); every preloaded game has both.
 - Tentacle, matching and measuring questions come only from the game's own layers, never from live OpenStreetMap lookups.
 - The game creation guide is rewritten, with `game-tools.mjs` for converting map data and `check-game.mjs` for checking a game before uploading it.
 
 ## Luxembourg 2–3 October (2026-10-01)
 
 - New game: Luxembourg 2–3 October 2026.
-- No more "At least one place type must be selected" message when a session loads.
+- Sessions no longer show a stray "At least one place type must be selected" message while loading.
 
-## Save fixes (2026-09-25)
+## Safer saving (2026-09-25)
 
-- A failed save can no longer undo newer answers or settings.
-- The game update notice is smaller, stays out of the map controls and asks before upgrading.
+- A save that fails can no longer undo newer answers or settings.
+- The game update notice is smaller, stays clear of the map controls and asks before upgrading.
 
 ## Answer and sync fixes (2026-09-23)
 
-- Matching and tentacle answers stay tied to the right place even when a game reuses feature IDs.
+- Matching and tentacle answers stay tied to the right place, even when a game reuses feature IDs.
 - Unsent edits survive switching sessions, and offline edits stay with the account that made them.
-- A deleted drawing can no longer come back.
+- Deleted drawings no longer reappear.
 
 ## Faster questions (2026-09-22)
 
-- Questions are worked out in the background, once each, so the map stays responsive while answers change.
+- Question results are worked out in the background and reused where possible, so the map stays responsive while answers change.
 - Planning mode shows matching and measuring outlines and tentacle areas again.
 
 ## Rotterdam 12-09 (2026-09-11)
 
-- New game: Rotterdam 12-09, with NS stations for matching and measuring and municipal borders for nearest-border measuring.
-- Your session reopens after the browser clears the tab's storage.
+- New game: Rotterdam 12-09, with NS stations for matching and measuring questions and municipal borders for measuring to the nearest border.
+- Your session reopens even after the browser clears the tab's storage.
 
-## Games from JSON (2026-09-07)
+## Games defined in JSON (2026-09-07)
 
-- Games are created and updated by importing their JSON definition. Each session stays on the version of its game it started with.
-- A game's definition is only shown to players who may see the game.
+- Games are created and updated by importing their JSON definition, and each session stays on the version of its game it started with.
+- A game's definition is only available to players allowed to see the game.
 
 ## Roles and permissions (2026-05-21)
 
-- Server admins map their Discord server's roles to Searchlight permissions on `/admin`.
+- Server admins choose on `/admin` which of their Discord server's roles may manage games and settings in Searchlight.
 
-## Log in with Discord (2026-05-21)
+## Discord login (2026-05-21)
 
-- Searchlight needs a Discord login; the map is at `/map`.
+- Searchlight now requires logging in with Discord, and the map moves to `/map`.
