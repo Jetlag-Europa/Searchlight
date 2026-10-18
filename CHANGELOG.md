@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Smoother server restarts (2026-10-18)
+
+- Restarting or updating the server no longer cuts off requests in flight. The API now shuts down within a second instead of being killed after 10 seconds, and players' live sync reconnects and catches up, as after any dropped connection.
+- A player removed from a session, or whose session was deleted, while their live connection was being set up could keep receiving the session's updates. That connection is now refused.
+- A player whose connection stalls is disconnected after 30 seconds and catches up once it recovers, instead of the server holding every update for them in memory.
+
 ## Changes from other websites are refused (2026-10-18)
 
 - Another website can no longer make changes in Searchlight with a logged-in player's account. Before, a page elsewhere could, for example, join a visiting player to a session through one of its links, which showed the page's owner the player's Discord name and avatar.
