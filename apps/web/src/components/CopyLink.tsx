@@ -6,6 +6,23 @@ export function sessionLinkUrl(token: string): string {
 }
 
 /**
+ * A loaded link list, plus the links created since the load started
+ * (`createdIds`) that it lacks: a list read just before a link was created
+ * must not hide that link.
+ */
+export function withCreatedLinks<T extends { id: string }>(
+    loaded: T[],
+    current: T[],
+    createdIds: ReadonlySet<string>,
+): T[] {
+    const loadedIds = new Set(loaded.map((l) => l.id));
+    return [
+        ...current.filter((l) => createdIds.has(l.id) && !loadedIds.has(l.id)),
+        ...loaded,
+    ];
+}
+
+/**
  * Copies links to the clipboard. `copiedId` is the link to show "Copied!" on
  * for 2 seconds; `uncopiedUrl` is a link the clipboard refused (e.g. Safari
  * after an awaited request, or no clipboard on a non-secure origin), for

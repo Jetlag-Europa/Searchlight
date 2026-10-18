@@ -1,7 +1,7 @@
 import type { Game, GameLinksResponse,GameLinkSummary } from "@searchlight/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
-import { UncopiedLinkField, useCopyLink } from "@/components/CopyLink";
+import { UncopiedLinkField, useCopyLink, withCreatedLinks } from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -30,17 +30,20 @@ export function GameLinksDialog({ game }: { game: Game }) {
     const [creating, setCreating] = useState(false);
     const [revokingId, setRevokingId] = useState<string | null>(null);
     const { copiedId, uncopiedUrl, setUncopiedUrl, copyLink: copy } = useCopyLink();
+    // Links created since the list started loading.
+    const createdLinkIds = useRef(new Set<string>());
     const [error, setError] = useState<string | null>(null);
 
     const linksUrl = `${API_BASE}/games/${encodeURIComponent(game.id)}/links`;
 
     const fetchLinks = useCallback(async () => {
         setError(null);
+        createdLinkIds.current.clear();
         try {
             const res = await fetch(linksUrl, { credentials: "include" });
             if (!res.ok) throw new Error(await errorMessage(res));
             const data: GameLinksResponse = await res.json();
-            setLinks(data.links);
+            setLinks((prev) => withCreatedLinks(data.links, prev ?? [], createdLinkIds.current));
         } catch (e: unknown) {
             setError(`Failed to load links: ${(e as Error).message}`);
         }
@@ -55,6 +58,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
             const res = await fetch(linksUrl, { method: "POST", credentials: "include" });
             if (!res.ok) throw new Error(await errorMessage(res));
             const link: GameLinkSummary = await res.json();
+            createdLinkIds.current.add(link.id);
             setLinks((prev) => [link, ...(prev ?? [])]);
             await copyLink(link);
         } catch (e: unknown) {

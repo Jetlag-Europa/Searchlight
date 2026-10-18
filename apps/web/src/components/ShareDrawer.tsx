@@ -4,9 +4,14 @@ import type {
     SessionLinksResponse,
     SessionLinkSummary,
 } from "@searchlight/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
-import { sessionLinkUrl, UncopiedLinkField, useCopyLink } from "@/components/CopyLink";
+import {
+    sessionLinkUrl,
+    UncopiedLinkField,
+    useCopyLink,
+    withCreatedLinks,
+} from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Drawer,
@@ -37,17 +42,21 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     const [creatingLink, setCreatingLink] = useState(false);
     const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
     const { copiedId: copiedLinkId, uncopiedUrl, setUncopiedUrl, copyLink } = useCopyLink();
+    // Links created since the list started loading.
+    const createdLinkIds = useRef(new Set<string>());
 
     const fetchLinks = useCallback(async () => {
         if (!session || !isCreator) return;
         setLoadingLinks(true);
+        createdLinkIds.current.clear();
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
                 credentials: "include",
             });
             if (!res.ok) return;
             const data: SessionLinksResponse = await res.json();
-            setLinks(data.links.filter((l) => l.linkType === "fork"));
+            const loaded = data.links.filter((l) => l.linkType === "fork");
+            setLinks((prev) => withCreatedLinks(loaded, prev, createdLinkIds.current));
         } catch {
             // non-critical
         } finally {
@@ -72,6 +81,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
             }
             const data: CreateLinkResponse = await res.json();
             // Listed right away, so its "Copied!" shows for the full 2 s.
+            createdLinkIds.current.add(data.id);
             setLinks((prev) => [
                 {
                     id: data.id,
