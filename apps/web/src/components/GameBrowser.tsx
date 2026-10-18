@@ -435,7 +435,18 @@ export function GameBrowser() {
             }),
         [games, query, place, serverId, effectiveSort, showArchived],
     );
-    const archivedCount = (games ?? []).filter((g) => g.archived).length;
+    // Past events the current search and server filter would show.
+    const archivedCount = useMemo(
+        () =>
+            searchCatalog(games ?? [], {
+                query,
+                place,
+                serverId,
+                sort: effectiveSort,
+                showArchived: true,
+            }).filter((m) => m.game.archived).length,
+        [games, query, place, serverId, effectiveSort],
+    );
     const nearPlace = matches.filter((m) => m.near).length;
     const lockedCount = matches.filter((m) => m.game.locked).length;
     const selected =

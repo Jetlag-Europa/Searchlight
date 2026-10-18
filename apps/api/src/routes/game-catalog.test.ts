@@ -261,6 +261,9 @@ describe("game catalog", () => {
       // Dated games first, newest first; then the undated ones by name.
       expect(games.filter((g) => !g.locked).map((g) => g.id)).toEqual([MANCHESTER, BERN, ARCHIVED, GATED]);
 
+      // Locked cards don't pass on a server's rules doc.
+      await prisma.game.update({ where: { id: ELSEWHERE }, data: { rulesUrl: "https://discord.com/channels/1/2/3" } });
+      expect((await catalog(OTHER_ID)).find((g) => g.id === ELSEWHERE)).toMatchObject({ locked: true, rulesUrl: null });
       await prisma.game.update({ where: { id: ELSEWHERE }, data: { archivedAt: new Date() } });
       expect((await catalog(OTHER_ID)).map((g) => g.id)).not.toContain(ELSEWHERE);
     } finally {
@@ -268,7 +271,7 @@ describe("game catalog", () => {
         where: { id: { in: [MANCHESTER, BERN] } },
         data: { date: null, endDate: null, rulesUrl: null },
       });
-      await prisma.game.update({ where: { id: ELSEWHERE }, data: { archivedAt: null } });
+      await prisma.game.update({ where: { id: ELSEWHERE }, data: { archivedAt: null, rulesUrl: null } });
     }
   });
 

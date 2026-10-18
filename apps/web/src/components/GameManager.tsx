@@ -163,6 +163,7 @@ function GameCard({
                             target="_blank"
                             rel="noopener noreferrer"
                             className="inline-flex items-center gap-1 underline hover:text-foreground"
+                            aria-label={`Rules of ${game.name} (opens in a new tab)`}
                         >
                             <BookOpen className="h-3 w-3" />
                             Rules

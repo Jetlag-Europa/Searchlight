@@ -217,7 +217,8 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
             updatedAt: revision.createdAt,
             date: fromDbDate(game.date),
             endDate: fromDbDate(game.endDate),
-            rulesUrl: game.rulesUrl,
+            // A server's rules docs are for its members (often Discord links).
+            rulesUrl: server.locked ? null : game.rulesUrl,
             archived: game.archivedAt !== null,
             locked: server.locked,
             joinUrl: server.locked ? server.inviteUrl : null,

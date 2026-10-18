@@ -347,6 +347,15 @@ describe("game details (date, end date, rules link)", () => {
     expect([day(game.date), day(game.endDate), game.rulesUrl]).toEqual(["2026-10-09", null, RULES]);
   });
 
+  test("a map change refused for want of allowUpdate leaves the details alone", async () => {
+    const key = `${KEY_PREFIX}details-conflict`;
+    await importGameDefinition({ raw: withDetails(key, "A", { date: "2026-08-01" }) });
+    await expect(
+      importGameDefinition({ raw: withDetails(key, "B", { date: "2026-08-02" }), source: "web" }),
+    ).rejects.toMatchObject({ code: "GAME_EXISTS" });
+    expect(day((await details(key)).date)).toBe("2026-08-01");
+  });
+
   test("a new revision keeps the game archived", async () => {
     const key = `${KEY_PREFIX}details-archived`;
     await importGameDefinition({ raw: definition(key, "A") });

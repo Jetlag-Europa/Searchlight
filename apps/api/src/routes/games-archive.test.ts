@@ -5,6 +5,7 @@ import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
 import { gameRoutes } from "./games.js";
+import { gameImportRoutes } from "./game-imports.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./game-links.js";
 import { sessionRoutes } from "./sessions.js";
 
@@ -24,6 +25,7 @@ async function buildTestApp() {
   const app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
   await app.register(fastifyCookie, { secret: process.env["SESSION_COOKIE_SECRET"]! });
   await app.register(gameRoutes, { prefix: "/games" });
+  await app.register(gameImportRoutes, { prefix: "/games" });
   await app.register(gameLinkManagementRoutes, { prefix: "/games" });
   await app.register(gameLinkRoutes, { prefix: "/game-links" });
   await app.register(sessionRoutes, { prefix: "/sessions" });
@@ -166,9 +168,27 @@ describe("archived games and game details", () => {
     expect(session.json().rulesUrl).toBe(RULES);
     const listed = await app.inject({ method: "GET", url: `/sessions?serverId=${SERVER_ID}`, headers: as(PLAYER_ID) });
     expect(listed.json().sessions.find((s: { id: string }) => s.id === session.json().id).rulesUrl).toBe(RULES);
+    const opened = await app.inject({ method: "GET", url: `/sessions/${session.json().id}`, headers: as(PLAYER_ID) });
+    expect(opened.json().rulesUrl).toBe(RULES);
+    const link = await app.inject({ method: "POST", url: `/games/${PAST_GAME_ID}/links`, headers: as(MANAGER_ID) });
+    const fromLink = await app.inject({
+      method: "POST",
+      url: `/game-links/${link.json().token}/sessions`,
+      headers: as(PLAYER_ID),
+      payload: { name: "From link", visibility: "private" },
+    });
+    expect(fromLink.json().rulesUrl).toBe(RULES);
+
+    // Exports carry the details, so a saved export keeps them; the ETag follows them.
+    const exported = await app.inject({ method: "GET", url: `/games/${PAST_GAME_ID}/export`, headers: as(MANAGER_ID) });
+    expect(exported.json()).toMatchObject({ date: "2026-05-30", endDate: "2026-05-31", rulesUrl: RULES });
+    expect(Object.keys(exported.json()).slice(0, 4)).toEqual(["id", "name", "serverId", "date"]);
 
     const cleared = await patch(MANAGER_ID, PAST_GAME_ID, { endDate: null, date: "2026-05-30", rulesUrl: null });
     expect(cleared.json()).toMatchObject({ date: "2026-05-30", endDate: null, rulesUrl: null });
+    const reexported = await app.inject({ method: "GET", url: `/games/${PAST_GAME_ID}/export`, headers: as(MANAGER_ID) });
+    expect(reexported.json()).not.toHaveProperty("rulesUrl");
+    expect(reexported.headers.etag).not.toBe(exported.headers.etag);
   });
 
   test("refuses details that don't fit, and a date without its end date", async () => {
@@ -179,6 +199,7 @@ describe("archived games and game details", () => {
       { date: null, endDate: "2026-05-29" },
       { rulesUrl: "http://example.com/rules" },
       {},
+      { archive: true }, // a typo: unknown keys are stripped, leaving nothing to change
     ]) {
       expect((await patch(MANAGER_ID, PAST_GAME_ID, body)).statusCode).toBe(400);
     }

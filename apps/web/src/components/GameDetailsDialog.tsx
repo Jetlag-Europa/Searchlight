@@ -92,8 +92,9 @@ export function GameDetailsDialog({
                     <DialogDescription>
                         When the game is played, which orders game lists (newest
                         first), and its rules doc, which players open with the
-                        Rules button. A game file that sets these changes them
-                        again when its values change.
+                        Rules button. Importing a game file that sets them
+                        replaces them; a preloaded file only when its values
+                        change.
                     </DialogDescription>
                 </DialogHeader>
                 <form
@@ -137,12 +138,17 @@ export function GameDetailsDialog({
                         />
                     </label>
                     {issues.length > 0 && (
-                        <p className="text-xs text-destructive">
+                        <p
+                            className="text-xs text-destructive"
+                            aria-live="polite"
+                        >
                             {issues.map((issue) => issue.message).join(". ")}
                         </p>
                     )}
                     {error && (
-                        <p className="text-xs text-destructive">{error}</p>
+                        <p className="text-xs text-destructive" role="alert">
+                            {error}
+                        </p>
                     )}
                     <div className="flex justify-end gap-2">
                         <Button

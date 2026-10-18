@@ -284,6 +284,10 @@ export async function gameRoutes(app: FastifyInstance) {
         unlisted?: boolean;
         archived?: boolean;
       } & Partial<GameDetails>;
+      // Unknown keys are stripped before this, so a typo leaves nothing to do.
+      if (unlisted === undefined && archived === undefined && Object.keys(details).length === 0) {
+        throw Object.assign(new Error("Nothing to change"), { statusCode: 400 });
+      }
 
       if (("date" in details) !== ("endDate" in details)) {
         throw Object.assign(new Error("Set the date and the end date together"), { statusCode: 400 });
