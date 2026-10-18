@@ -9,7 +9,6 @@ import {
 } from "@/game-definition/store";
 import { activeSessionId } from "@/lib/activeSession";
 import {
-    boardGameId,
     displayHidingZones,
     displayHidingZonesStyle,
     gameDefinitionReady,
@@ -50,6 +49,18 @@ let pendingGameSwitch: PendingGameSwitch | undefined;
 export const currentGameId = atom<string>(
     readStorage("sessionStorage", GAME_SS_KEY) ?? "",
 );
+
+// The game the overlay and the zone display settings were set in: they are
+// kept until another session or game loads. Per tab, like the active session;
+// a new tab takes the last one's.
+const BOARD_GAME_KEY = "boardGameId";
+const boardGameId = () =>
+    readStorage("sessionStorage", BOARD_GAME_KEY) ??
+    readStorage("localStorage", BOARD_GAME_KEY);
+function setBoardGameId(gameId: string): void {
+    writeStorage("sessionStorage", BOARD_GAME_KEY, gameId);
+    writeStorage("localStorage", BOARD_GAME_KEY, gameId);
+}
 
 /**
  * A server's game catalog, for starting a session. Only members of the
@@ -101,7 +112,7 @@ export function leaveGame(): void {
     pendingGameSwitch = undefined;
     resetGameState();
     permanentOverlay.set(null);
-    boardGameId.set("");
+    setBoardGameId("");
 }
 
 /**
@@ -166,8 +177,8 @@ export function switchToGame(
     currentGameId.set(game.id);
     // Reloading the session or upgrading its game's revision keeps the
     // overlay and how zones are shown; another game starts afresh.
-    if (boardGameId.get() !== game.id) {
-        boardGameId.set(game.id);
+    if (boardGameId() !== game.id) {
+        setBoardGameId(game.id);
         permanentOverlay.set(null);
         displayHidingZones.set(true);
         displayHidingZonesStyle.set("zones");

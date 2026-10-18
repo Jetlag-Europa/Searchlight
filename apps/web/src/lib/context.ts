@@ -1,11 +1,10 @@
 import { persistentAtom } from "@nanostores/persistent";
 import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 import type { Map as LeafletMap } from "leaflet";
-import { atom, computed, onSet } from "nanostores";
+import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
-import { activeSessionId } from "@/lib/activeSession";
 import type { StationCircle } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
 import {
@@ -25,11 +24,6 @@ export const permanentOverlay = persistentAtom<FeatureCollection | null>(
         listen: false,
     },
 );
-// The game the overlay and the zone display settings were set in: they are
-// kept until another game loads.
-export const boardGameId = persistentAtom<string>("boardGameId", "", {
-    listen: false,
-});
 
 // The game's play area, set when its definition is applied. Not persisted:
 // until a game loads, there is none.
@@ -156,30 +150,7 @@ export const animateMapMovements = persistentAtom<boolean>(
         decode: JSON.parse,
     },
 );
-// Zones disabled by hand, per session: zone IDs are only unique within a game.
-const disabledZonesBySession = persistentAtom<Record<string, string[]>>(
-    "disabledZones",
-    {},
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
-const NO_ZONES: string[] = [];
-// The active session's disabled zones.
-export const disabledStations = computed(
-    [activeSessionId, disabledZonesBySession],
-    (sessionId, bySession) => bySession[sessionId] ?? NO_ZONES,
-);
-export const setDisabledStations = (ids: string[]) => {
-    const sessionId = activeSessionId.get();
-    if (!sessionId) return;
-    const bySession = { ...disabledZonesBySession.get() };
-    if (ids.length > 0) bySession[sessionId] = ids;
-    else delete bySession[sessionId];
-    disabledZonesBySession.set(bySession);
-};
+export { disabledStations, setDisabledStations } from "@/lib/disabledZones";
 export const autoSave = persistentAtom<boolean>("autoSave", true, {
     encode: JSON.stringify,
     decode: JSON.parse,
