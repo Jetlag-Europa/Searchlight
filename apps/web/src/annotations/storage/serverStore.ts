@@ -3,10 +3,9 @@ import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
     enqueueEvent,
     getPendingEvents,
-    markEventFailed,
     markEventSynced,
 } from "@/lib/eventQueue";
-import { scheduleRetry } from "@/lib/syncManager";
+import { recordSendFailure, SyncRequestError } from "@/lib/syncManager";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -78,14 +77,14 @@ export async function saveStrokeToServer(
                     }),
                 },
             );
-            if (!res.ok) throw new Error(`Failed to save stroke: ${res.status}`);
+            if (!res.ok)
+                throw new SyncRequestError("stroke.create", res.status);
             markEventSynced(sessionId, event.localId);
             refreshSyncCounts(sessionId);
         } catch (e) {
-            markEventFailed(sessionId, event.localId);
+            recordSendFailure(event, e);
             refreshSyncCounts(sessionId);
             if (!navigator.onLine) syncStatus.set("offline");
-            scheduleRetry(sessionId);
             throw e;
         } finally {
             inFlightCreates.delete(clientUuid);
@@ -130,15 +129,14 @@ export async function deleteStrokeFromServer(
             },
         );
         if (!res.ok && res.status !== 404) {
-            throw new Error(`Failed to delete stroke: ${res.status}`);
+            throw new SyncRequestError("stroke.delete", res.status);
         }
         markEventSynced(sessionId, event.localId);
         refreshSyncCounts(sessionId);
     } catch (e) {
-        markEventFailed(sessionId, event.localId);
+        recordSendFailure(event, e);
         refreshSyncCounts(sessionId);
         if (!navigator.onLine) syncStatus.set("offline");
-        scheduleRetry(sessionId);
         throw e;
     }
 }

@@ -202,6 +202,16 @@ export function markEventSynced(sessionId: string, localId: string): void {
     );
 }
 
+/** Drop an event the server rejected: resending it can never succeed. */
+export function discardEvent(sessionId: string, localId: string): void {
+    savePendingEvents(
+        sessionId,
+        getPendingEvents(sessionId).filter(
+            (event) => event.localId !== localId,
+        ),
+    );
+}
+
 export function markEventFailed(sessionId: string, localId: string): void {
     const events = getPendingEvents(sessionId).map((e) =>
         e.localId === localId ? { ...e, status: "failed" as const } : e,

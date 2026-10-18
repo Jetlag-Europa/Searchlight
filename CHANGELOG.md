@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Network blips no longer log you out (2026-10-18)
+
+- A slow connection or a server error, such as during a deploy, no longer sends you to the login page. The page shows "Can't reach the server, retrying…" and carries on once the server answers. Only being logged out takes you to the login page.
+- The games and admin pages and your saved preferences also load once the server is back, instead of failing until you reload, and changing a setting before your preferences have loaded no longer overwrites them.
+- A change the server refuses, such as a question list that's too large, no longer jams syncing. Before, it was retried forever, held up every later change, made the board ignore other players' changes to the same thing and came back after a reload. Now a notice says what couldn't be saved, and the board reloads to show what the server has.
+
 ## Uploaded fixes to preloaded games survive restarts (2026-10-18)
 
 - When a game manager uploads a new version of a preloaded game (one that ships with Searchlight, such as paris-2026), or rolls it back to an older one, a server restart no longer quietly puts the shipped version back. The shipped file replaces the game again only once the file itself changes.

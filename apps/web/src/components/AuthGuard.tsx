@@ -2,6 +2,7 @@ import type { MeResponse } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { clearActiveSession, verifiedUserId } from "@/lib/activeSession";
+import { watchAuth } from "@/lib/authCheck";
 import { forgetGameViews } from "@/lib/gameView";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
 
@@ -12,59 +13,64 @@ const STORED_USER_KEY = "taibled-authed-user";
 
 export function AuthGuard() {
     const [user, setUser] = useState<MeResponse["user"] | null>(null);
+    const [unreachable, setUnreachable] = useState(false);
 
-    useEffect(() => {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => {
-            controller.abort();
-            console.warn("[searchlight] /me timed out — redirecting to login");
-            window.location.href = "/";
-        }, 8000);
-
-        fetch(`${API_BASE}/me`, {
-            credentials: "include",
-            signal: controller.signal,
-        })
-            .then(async (res) => {
-                clearTimeout(timeout);
-                if (res.status === 401) {
+    useEffect(
+        () =>
+            watchAuth(`${API_BASE}/me`, {
+                signedOut: () => {
                     window.location.href = "/";
-                    return;
-                }
-                if (!res.ok) {
-                    window.location.href = "/";
-                    return;
-                }
-                const data: MeResponse = await res.json();
-
-                // If a different user is now logged in (e.g. shared device, tab crash before logout),
-                // clear the previous user's game session so they don't inherit it.
-                const prevUser = readStorage("localStorage", STORED_USER_KEY);
-                if (prevUser && prevUser !== data.user.discordId) {
-                    console.info(
-                        "[searchlight] user changed",
-                        prevUser,
-                        "→",
-                        data.user.discordId,
-                        "— clearing active session",
+                },
+                // A slow connection or a deploy: keep the player here, and
+                // don't leave them behind the loading spinner either.
+                unreachable: () => {
+                    setUnreachable(true);
+                    document.getElementById("auth-loading-overlay")?.remove();
+                },
+                signedIn: (data) => {
+                    // If a different user is now logged in (e.g. shared device, tab crash before logout),
+                    // clear the previous user's game session so they don't inherit it.
+                    const prevUser = readStorage(
+                        "localStorage",
+                        STORED_USER_KEY,
                     );
-                    clearActiveSession();
-                    forgetGameViews();
-                }
-                writeStorage("localStorage", STORED_USER_KEY, data.user.discordId);
-                verifiedUserId.set(data.user.discordId);
+                    if (prevUser && prevUser !== data.user.discordId) {
+                        console.info(
+                            "[searchlight] user changed",
+                            prevUser,
+                            "→",
+                            data.user.discordId,
+                            "— clearing active session",
+                        );
+                        clearActiveSession();
+                        forgetGameViews();
+                    }
+                    writeStorage(
+                        "localStorage",
+                        STORED_USER_KEY,
+                        data.user.discordId,
+                    );
+                    verifiedUserId.set(data.user.discordId);
 
-                setUser(data.user);
-                document.getElementById("auth-loading-overlay")?.remove();
-            })
-            .catch((err) => {
-                clearTimeout(timeout);
-                if ((err as Error).name !== "AbortError") {
-                    window.location.href = "/";
-                }
-            });
-    }, []);
+                    setUnreachable(false);
+                    setUser(data.user);
+                    document.getElementById("auth-loading-overlay")?.remove();
+                },
+            }),
+        [],
+    );
 
-    if (!user) return null;
-    return <UserChip user={user} apiBase={API_BASE} />;
+    if (user) return <UserChip user={user} apiBase={API_BASE} />;
+    if (!unreachable) return null;
+    return (
+        <div
+            role="status"
+            className="fixed top-2 right-14 z-[1041] flex items-center gap-1.5 rounded-full border border-destructive/50 bg-background/90 px-2.5 py-1 text-xs shadow-sm backdrop-blur-sm"
+        >
+            <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
+            <span className="text-muted-foreground">
+                Can&apos;t reach the server, retrying…
+            </span>
+        </div>
+    );
 }

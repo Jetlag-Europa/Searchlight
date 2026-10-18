@@ -24,7 +24,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     <!--
         Auth loading overlay — visible immediately (no JS required).
         AuthGuard removes it once /me responds 200, so map content
-        is never visible to an unauthenticated visitor.
+        is never visible to an unauthenticated visitor. It also removes it
+        while the server can't be reached: no session loads before /me
+        answers 200, so only the empty map shows.
     -->
     <div
         id="auth-loading-overlay"
@@ -37,7 +39,7 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     </div>
 
 
-    <!-- AuthGuard fetches /me; on 401 redirects to /; on 200 removes the overlay and renders the user chip -->
+    <!-- AuthGuard fetches /me; on 401 redirects to /; on 200 removes the overlay and renders the user chip; otherwise it retries -->
     <AuthGuard client:only="react" />
 
     <!-- SessionManager shows blocking overlay until a session is selected, then persists session state -->

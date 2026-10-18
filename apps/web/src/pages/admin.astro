@@ -7,7 +7,7 @@ import { AdminPanel } from "@/components/AdminPanel";
 <Layout>
     <!--
         Auth loading overlay — same pattern as /map.
-        AuthGuard removes it once /me responds 200.
+        AuthGuard removes it once /me responds 200, or while it retries an unreachable server.
     -->
     <div
         id="auth-loading-overlay"

@@ -45,6 +45,7 @@ import {
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
+import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
 import {
     cancelPendingHiderSave,
@@ -1318,6 +1319,37 @@ export function SessionManager() {
             toast.error("The game still couldn't be loaded. Try again later.");
         }
     };
+
+    // The server refused edits for good (too large, invalid, a conflict) and
+    // they left the queue: load the session again, which also checks it's
+    // still there, so the board shows what the server has.
+    useEffect(
+        () =>
+            handleRejectedEdits({
+                isLoading: isLoadingSession,
+                reload: () => void retryGameLoad(),
+                confirmUnavailable: (id) => {
+                    fetch(`${API_BASE}/sessions/${id}`, {
+                        credentials: "include",
+                    })
+                        .then((res) => {
+                            if (
+                                (res.status === 403 || res.status === 404) &&
+                                activeSessionId.get() === id
+                            ) {
+                                forgetSession(id, res.status);
+                            }
+                        })
+                        .catch((err) => {
+                            console.warn(
+                                "[searchlight:session] session check failed:",
+                                err,
+                            );
+                        });
+                },
+            }),
+        [forgetSession, handleSessionSelected],
+    );
 
     // map.astro places the slot beside the revision banner.
     const bannerSlot = document.getElementById("game-not-loaded-banner");
