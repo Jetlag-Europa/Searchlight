@@ -527,7 +527,7 @@ function SessionPickerOverlay({
                                 )}
                                 <p className="text-xs text-muted-foreground">
                                     Only you can see a new session. Use
-                                    Invites to play it with others, or Share
+                                    Invite to play it with others, or Share
                                     a copy to give someone their own.
                                 </p>
                                 <div className="flex gap-2">
