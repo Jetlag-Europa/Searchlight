@@ -145,16 +145,11 @@ export async function eventRoutes(app: FastifyInstance) {
 
       req.log.info({ sessionId, userId: user.discordId, displayName: presenceUser.displayName }, "[sse] client connected");
 
-      reply.raw.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "X-Accel-Buffering": "no",
+      // The reply is hijacked, so the CORS plugin doesn't add these.
+      const corsHeaders = {
         "Access-Control-Allow-Origin": env.FRONTEND_ORIGIN,
         "Access-Control-Allow-Credentials": "true",
-      });
-      reply.raw.write("retry: 3000\n\n");
-      req.log.info({ sessionId, userId: user.discordId }, "[sse] headers sent, stream open");
+      };
 
       let isClosed = false;
       let isPresent = false;
@@ -163,7 +158,10 @@ export async function eventRoutes(app: FastifyInstance) {
       let unsubscribe: (() => void) | null = null;
       let unregisterStream: (() => void) | null = null;
 
-      const doClose = () => {
+      // Closing before the stream opened answers `status` instead: EventSource
+      // treats any non-200 as final, and the client then checks the session
+      // before it reconnects.
+      const doClose = (status = 503) => {
         if (isClosed) return;
         isClosed = true;
         if (unsubscribe) {
@@ -184,6 +182,7 @@ export async function eventRoutes(app: FastifyInstance) {
           stallTimer = null;
         }
         try {
+          if (!reply.raw.headersSent) reply.raw.writeHead(status, corsHeaders);
           reply.raw.end();
         } catch {
           // ignore
@@ -207,29 +206,46 @@ export async function eventRoutes(app: FastifyInstance) {
         });
       };
 
+      reply.hijack();
       req.raw.on("close", () => {
         req.log.info({ sessionId, userId: user.discordId }, "[sse] client disconnected");
         doClose();
       });
+      // A client that left during the lookups above closed before the listener.
+      if (req.raw.destroyed || reply.raw.destroyed) {
+        doClose();
+        return;
+      }
       unregisterStream = registerUserStream(sessionId, user.discordId, doClose);
-      reply.hijack();
       if (isClosed) return;
 
       // A kick, leave or delete that landed between the check above and
       // registerUserStream closed this user's streams before this one was
-      // registered. Check again, before sending anything, now that any later
-      // one will find it.
+      // registered. Check again now that any later one will find it, before
+      // opening the stream: once it's open the client starts catching up, so
+      // from then on it must get every new event.
       try {
         await assertParticipant(sessionId, user.discordId);
       } catch (err) {
+        const statusCode = (err as { statusCode?: number }).statusCode;
         req.log.info(
-          { sessionId, userId: user.discordId, err, statusCode: (err as { statusCode?: number }).statusCode },
+          { sessionId, userId: user.discordId, err, statusCode },
           "[sse] access check failed while connecting, closing stream",
         );
-        doClose();
+        doClose(statusCode ?? 500);
         return;
       }
       if (isClosed) return;
+
+      reply.raw.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+        ...corsHeaders,
+      });
+      reply.raw.write("retry: 3000\n\n");
+      req.log.info({ sessionId, userId: user.discordId }, "[sse] headers sent, stream open");
 
       unsubscribe = subscribe(sessionId, (event) => {
         if (isClosed) return;

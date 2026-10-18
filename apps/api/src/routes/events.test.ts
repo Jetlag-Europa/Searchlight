@@ -501,7 +501,8 @@ describe("GET /sessions/:sessionId/events", () => {
       ]);
       expect(spy).toHaveBeenCalled();
       expect(res, "stream still open").not.toBeNull();
-      // Closed before it was subscribed or announced: no roster, no events.
+      // Refused before the stream opened: a 403, no roster, no events.
+      expect(res!.statusCode).toBe(403);
       expect(res!.body).not.toContain("data:");
       expect(connectedUserIds().get(SESSION1_ID) ?? []).not.toContain(MEMBER_ID);
     } finally {
@@ -561,6 +562,29 @@ describe("GET /sessions/:sessionId/events", () => {
       stallTimeout.ms = saved;
       res.destroy();
     }
+  });
+
+  test("stream: a client that leaves while the stream connects isn't left present", async () => {
+    if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+    const { port } = app.server.address() as AddressInfo;
+    const findUser = prisma.user.findUnique.bind(prisma.user);
+    let left = false;
+    // The client hangs up during the stream's user lookup, before the route
+    // listens for that.
+    const clientReq = get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } });
+    clientReq.on("error", () => {});
+    const spy = vi.spyOn(prisma.user, "findUnique").mockImplementationOnce((async (
+      args: Parameters<typeof findUser>[0],
+    ) => {
+      clientReq.destroy();
+      await sleep(100);
+      left = true;
+      return findUser(args);
+    }) as never);
+    await vi.waitFor(() => expect(left).toBe(true));
+    await sleep(200);
+    expect(spy).toHaveBeenCalled();
+    expect(isConnected()).toBe(false);
   });
 
   test("stream: a reading client stays connected through large events", async () => {
