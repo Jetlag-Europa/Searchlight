@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar-l";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
+import { askedHints } from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     defaultUnit,
@@ -182,6 +183,7 @@ export const MeasuringQuestionComponent = ({
                     options={Object.fromEntries(
                         compiledMeasuring.map((q) => [q.id, q.label]),
                     )}
+                    hints={askedHints($questions, "measuring", questionKey)}
                     groups={{
                         Custom: {
                             disabled: false,

@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import type { DistanceRadius } from "@searchlight/shared";
+import { CheckIcon } from "lucide-react";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
+import { askedVariants, radarVariant } from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     hiderMode,
@@ -60,9 +62,14 @@ export const RadiusQuestionComponent = ({
     const $compiledGame = useStore(compiledGameAtom);
     // Radii the game declares, offered as quick picks when there are several.
     const declaredRadii = $compiledGame ? radarRadii($compiledGame) : [];
+    // Compared in meters, so a typed 2 km also picks a declared 2000 m.
     const declaredIndex = declaredRadii.findIndex(
-        (r) => r.value === data.radius && r.unit === data.unit,
+        (r) =>
+            radarVariant(r.value, r.unit) ===
+            radarVariant(data.radius, data.unit),
     );
+    // Sizes other radars asked, marked (but still offered) in the quick picks.
+    const askedRadii = askedVariants($questions, "radius", questionKey);
     const label = defaultQuestionLabel($questions, questionKey);
 
     return (
@@ -121,15 +128,33 @@ export const RadiusQuestionComponent = ({
                     }}
                     disabled={!data.drag || $isLoading}
                 >
-                    {declaredRadii.map((radius, index) => (
-                        <ToggleGroupItem
-                            key={index}
-                            value={String(index)}
-                            className="whitespace-nowrap"
-                        >
-                            {formatRadius(radius)}
-                        </ToggleGroupItem>
-                    ))}
+                    {declaredRadii.map((radius, index) => {
+                        const asked = askedRadii.has(
+                            radarVariant(radius.value, radius.unit),
+                        );
+                        return (
+                            <ToggleGroupItem
+                                key={index}
+                                value={String(index)}
+                                className={cn(
+                                    "whitespace-nowrap",
+                                    asked &&
+                                        "gap-1 data-[state=off]:text-muted-foreground [&_svg]:size-3",
+                                )}
+                                title={asked ? "Asked already" : undefined}
+                            >
+                                {formatRadius(radius)}
+                                {asked && (
+                                    <>
+                                        <CheckIcon aria-hidden />
+                                        <span className="sr-only">
+                                            , asked already
+                                        </span>
+                                    </>
+                                )}
+                            </ToggleGroupItem>
+                        );
+                    })}
                 </ToggleGroup>
             )}
             <LatitudeLongitude

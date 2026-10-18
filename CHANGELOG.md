@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Asked questions are marked (2026-10-18)
+
+- The type pickers of matching, measuring and tentacle questions mark the types already asked in the session with "✓ asked", and a radar's quick-pick sizes show the sizes already asked muted. Hidden questions count as asked; custom ones don't.
+- A new matching, measuring or tentacle question starts at a type not asked yet, and a new radar at a size not asked yet.
+- Nothing is blocked: any type or size can still be picked, since house rules vary.
+
 ## New questions start where you are (2026-10-18)
 
 - With Follow Me on, questions added from **Add Question** start at your last GPS position instead of the middle of the map. Without a position they start at the map centre as before, and right-clicking the map still places them where you clicked.

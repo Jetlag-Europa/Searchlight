@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar-l";
 import { UnitSelect } from "@/components/UnitSelect";
 import { compiledGameAtom } from "@/game-definition/store";
+import { askedHints } from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     drawingQuestionKey,
@@ -131,6 +132,7 @@ export const TentacleQuestionComponent = ({
                     options={Object.fromEntries(
                         compiledTentacles.map((q) => [q.id, q.label]),
                     )}
+                    hints={askedHints($questions, "tentacles", questionKey)}
                     groups={{
                         Custom: {
                             disabled: false,
