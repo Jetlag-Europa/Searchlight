@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## New questions start where you are (2026-10-18)
+
+- With Follow Me on, questions added from **Add Question** start at your last GPS position instead of the middle of the map. Without a position they start at the map centre as before, and right-clicking the map still places them where you clicked.
+- Thermometers added from **Add Question** no longer have their start and end swapped.
+- Follow Me no longer turns itself off when the phone is slow to find your position, for example indoors or on a train. Only refusing location access turns it off. If the phone loses your position, your dot fades until it's found again.
+
 ## Hiding zones left (2026-10-18)
 
 - The map and the zone sidebar show how many hiding zones are left, such as "23 of 155 zones left", while "Display hiding zones?" is on. Zones you disabled by hand don't count, and the sidebar says how many it left out.

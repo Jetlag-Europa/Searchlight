@@ -24,6 +24,7 @@ import {
     gameDefinitionReady,
     hiderMode,
     hidingZoneScale,
+    lastGpsFix,
     leafletMapContext,
     mapGeoJSON,
     permanentOverlay,
@@ -45,13 +46,11 @@ import {
     savedGameView,
 } from "@/lib/gameView";
 import { createLatestTask } from "@/lib/latestTask";
+import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
-import {
-    computePerQuestionRegions,
-    determinePlanningPolygon,
-} from "@/maps";
+import { computePerQuestionRegions, determinePlanningPolygon } from "@/maps";
 import { hiderifyQuestion } from "@/maps";
 import { BLANK_GEOJSON } from "@/maps/api";
 import {
@@ -82,10 +81,7 @@ const WORLD_BOUNDS: L.LatLngBoundsExpression = [
     [90, 180],
 ];
 
-const fitGameBounds = (
-    map: L.Map,
-    [west, south, east, north]: GameBounds,
-) =>
+const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
     map.fitBounds(
         [
             [south, west],
@@ -200,23 +196,9 @@ const ADD_QUESTION_MENU_ITEMS = [
     {
         text: "Add Thermometer",
         callback: (e: any) => {
-            const destination = turf.destination(
-                [e.latlng.lng, e.latlng.lat],
-                5,
-                90,
-                {
-                    units: "kilometers",
-                },
-            );
-
             addQuestionFromMenu({
                 id: "thermometer",
-                data: {
-                    latA: e.latlng.lat,
-                    lngA: e.latlng.lng,
-                    latB: destination.geometry.coordinates[1],
-                    lngB: destination.geometry.coordinates[0],
-                },
+                data: newThermometerData(e.latlng),
             });
         },
     },
@@ -700,12 +682,21 @@ export const Map = ({ className }: { className?: string }) => {
             return;
         }
 
+        // Each warning shows once per Follow Me session.
+        const warned = new Set<string>();
+        const warnOnce = (message: string) => {
+            if (warned.has(message)) return;
+            warned.add(message);
+            toast.warn(message);
+        };
         geoWatchIdRef.current = navigator.geolocation.watchPosition(
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
+                lastGpsFix.set({ lat, lng });
                 if (followMeMarkerRef.current) {
                     followMeMarkerRef.current.setLatLng([lat, lng]);
+                    followMeMarkerRef.current.setOpacity(1);
                 } else {
                     const marker = L.marker([lat, lng], {
                         icon: L.divIcon({
@@ -718,9 +709,24 @@ export const Map = ({ className }: { className?: string }) => {
                     followMeMarkerRef.current = marker;
                 }
             },
-            () => {
-                toast.error("Unable to access your location.");
-                followMe.set(false);
+            (error) => {
+                const action = geoErrorAction(
+                    error.code,
+                    lastGpsFix.get() !== null,
+                );
+                if (action === "stop") {
+                    toast.error("Unable to access your location.");
+                    followMe.set(false);
+                } else if (action === "searching" && warned.size === 0) {
+                    // Not again after "Lost your location".
+                    warnOnce("Still looking for your location...");
+                } else if (action === "lost") {
+                    // New questions go back to the map centre, and the dot
+                    // fades, until the next fix.
+                    lastGpsFix.set(null);
+                    followMeMarkerRef.current?.setOpacity(0.4);
+                    warnOnce("Lost your location, still trying...");
+                }
             },
             { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
         );
@@ -733,6 +739,7 @@ export const Map = ({ className }: { className?: string }) => {
                 navigator.geolocation.clearWatch(geoWatchIdRef.current);
                 geoWatchIdRef.current = null;
             }
+            lastGpsFix.set(null);
         };
     }, [$followMe, map]);
 

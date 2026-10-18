@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import * as turf from "@turf/turf";
 import React from "react";
 import { toast } from "react-toastify";
 
@@ -15,9 +14,29 @@ import { compiledGameAtom } from "@/game-definition/store";
 import {
     addQuestion,
     defaultCustomQuestions,
+    followMe,
     isLoading,
+    lastGpsFix,
     leafletMapContext,
 } from "@/lib/context";
+import {
+    newQuestionPosition,
+    newThermometerData,
+} from "@/lib/questionPosition";
+
+// New questions start at the seeker while Follow Me knows where they are, so
+// they don't have to tap "Set to current location" on every card. Uses the
+// watch's last fix: adding never waits on (or prompts for) a new one.
+const startPosition = () => {
+    const map = leafletMapContext.get();
+    if (!map) return null;
+    return newQuestionPosition(
+        map.getCenter(),
+        followMe.get(),
+        lastGpsFix.get(),
+    );
+};
+
 export const AddQuestionDialog = ({
     children,
 }: {
@@ -44,9 +63,8 @@ export const AddQuestionDialog = ({
     // addQuestion starts the radar at the game's first declared radius; the
     // card offers the others as quick picks.
     const runAddRadius = () => {
-        const map = leafletMapContext.get();
-        if (!map) return false;
-        const center = map.getCenter();
+        const center = startPosition();
+        if (!center) return false;
         addQuestion({
             id: "radius",
             data: {
@@ -58,31 +76,18 @@ export const AddQuestionDialog = ({
     };
 
     const runAddThermometer = () => {
-        const map = leafletMapContext.get();
-        if (!map) return false;
-        const center = map.getCenter();
-        const destination = turf.destination([center.lng, center.lat], 5, 90, {
-            units: "kilometers",
-        });
-
-        addQuestion({
-            id: "thermometer",
-            data: {
-                latA: center.lat,
-                lngB: center.lng,
-                latB: destination.geometry.coordinates[1],
-                lngA: destination.geometry.coordinates[0],
-            },
-        });
-
+        const center = startPosition();
+        if (!center) return false;
+        addQuestion({ id: "thermometer", data: newThermometerData(center) });
         return true;
     };
 
     const runAddTentacles = () => {
-        const map = leafletMapContext.get();
-        if (!map) return false;
-        const center = map.getCenter();
-        const firstTentacle = compiled?.questions.find((q) => q.family === "tentacle");
+        const center = startPosition();
+        if (!center) return false;
+        const firstTentacle = compiled?.questions.find(
+            (q) => q.family === "tentacle",
+        );
         addQuestion({
             id: "tentacles",
             data: defaultCustomQuestions.get()
@@ -95,17 +100,20 @@ export const AddQuestionDialog = ({
                 : {
                       lat: center.lat,
                       lng: center.lng,
-                      locationType: firstTentacle ? firstTentacle.id : undefined,
+                      locationType: firstTentacle
+                          ? firstTentacle.id
+                          : undefined,
                   },
         });
         return true;
     };
 
     const runAddMatching = () => {
-        const map = leafletMapContext.get();
-        if (!map) return false;
-        const center = map.getCenter();
-        const firstMatching = compiled?.questions.find((q) => q.family === "matching");
+        const center = startPosition();
+        if (!center) return false;
+        const firstMatching = compiled?.questions.find(
+            (q) => q.family === "matching",
+        );
         addQuestion({
             id: "matching",
             data: defaultCustomQuestions.get()
@@ -120,10 +128,11 @@ export const AddQuestionDialog = ({
     };
 
     const runAddMeasuring = () => {
-        const map = leafletMapContext.get();
-        if (!map) return false;
-        const center = map.getCenter();
-        const firstMeasuring = compiled?.questions.find((q) => q.family === "measuring");
+        const center = startPosition();
+        if (!center) return false;
+        const firstMeasuring = compiled?.questions.find(
+            (q) => q.family === "measuring",
+        );
         addQuestion({
             id: "measuring",
             data: defaultCustomQuestions.get()
@@ -193,7 +202,9 @@ export const AddQuestionDialog = ({
                             if (runAddRadius()) setOpen(false);
                         }}
                         disabled={disabled || !hasRadius}
-                        className={!hasRadius ? "opacity-40 cursor-not-allowed" : ""}
+                        className={
+                            !hasRadius ? "opacity-40 cursor-not-allowed" : ""
+                        }
                     >
                         Add Radius {compiled && !hasRadius && "(Disabled)"}
                     </SidebarMenuButton>
@@ -202,7 +213,11 @@ export const AddQuestionDialog = ({
                             if (runAddThermometer()) setOpen(false);
                         }}
                         disabled={disabled || !hasThermometer}
-                        className={!hasThermometer ? "opacity-40 cursor-not-allowed" : ""}
+                        className={
+                            !hasThermometer
+                                ? "opacity-40 cursor-not-allowed"
+                                : ""
+                        }
                     >
                         Add Thermometer{" "}
                         {compiled && !hasThermometer && "(Disabled)"}
