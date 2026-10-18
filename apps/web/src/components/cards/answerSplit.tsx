@@ -3,8 +3,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { compiledGameAtom } from "@/game-definition/store";
 import {
+    disabledStations,
     gameDefinitionReady,
     hiderMode,
+    isLoading,
     mapGeoJSON,
     perQuestionMapData,
     planningModeEnabled,
@@ -13,13 +15,17 @@ import {
 } from "@/lib/context";
 import { createLatestTask } from "@/lib/latestTask";
 import { zoneScaleAfter } from "@/lib/zoneSize";
-import { type AnswerSplit, answerSplit } from "@/maps/answerSplit";
-import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
+import { type AnswerSplit, answerSplit, splitInputs } from "@/maps/answerSplit";
+import {
+    filterZoneIndexes,
+    SupersededError,
+} from "@/maps/geo-utils/geometryClient";
 
 /**
  * How many hiding zones each answer would leave, on an unlocked question in
  * planning mode: picking a question that splits the zones evenly is the
- * seeker's best move. Recomputed once the question stops changing.
+ * seeker's best move. Recounted once the question stops changing and the map
+ * has applied the other questions.
  */
 export const AnswerSplitPreview = ({
     questionKey,
@@ -33,13 +39,19 @@ export const AnswerSplitPreview = ({
     const $questions = useStore(questions);
     const compiled = useStore(compiledGameAtom);
     const ready = useStore(gameDefinitionReady);
+    const $isLoading = useStore(isLoading);
     const $perQuestionMapData = useStore(perQuestionMapData);
+    const $disabledStations = useStore(disabledStations);
     const $polyGeoJSON = useStore(polyGeoJSON);
     const $mapGeoJSON = useStore(mapGeoJSON);
     const boundary = $polyGeoJSON ?? $mapGeoJSON;
     const task = useMemo(() => createLatestTask(), []);
-    // Undefined while computing, null when it failed.
-    const [split, setSplit] = useState<AnswerSplit[] | null>();
+    // The last count, with what it was counted from. Null answers when it
+    // failed.
+    const [split, setSplit] = useState<{
+        basis: unknown[];
+        answers: AnswerSplit[] | null;
+    }>();
 
     const position = $questions.findIndex(({ key }) => key === questionKey);
     const question = $questions[position];
@@ -75,32 +87,61 @@ export const AnswerSplitPreview = ({
     const inputs = shown
         ? JSON.stringify([
               question.id,
-              { ...question.data, name: undefined, collapsed: undefined },
+              splitInputs(question),
               zoneScaleAfter($questions, position),
           ])
         : "";
+    const basis = [
+        inputs,
+        answered.current,
+        $disabledStations,
+        compiled,
+        boundary,
+    ];
+    const current =
+        split?.basis.length === basis.length &&
+        split.basis.every((value, index) => value === basis[index]);
 
     useEffect(() => {
-        if (!shown) return;
-        setSplit(undefined);
+        // While the map applies the questions, the zones still possible may
+        // be about to change: count once it is done.
+        if (!shown || $isLoading || current) return;
         // Wait for a dragged marker or a typed radius to settle.
         const timer = setTimeout(() => {
             void task.request(async (isCurrent) => {
-                try {
-                    const result = await answerSplit(
+                const count = () =>
+                    answerSplit(
                         question,
                         $questions,
                         compiled,
                         answered.current,
+                        $disabledStations,
                         boundary,
                         filterZoneIndexes,
                         isCurrent,
                     );
-                    if (isCurrent() && result) setSplit(result);
+                try {
+                    let answers: AnswerSplit[] | undefined;
+                    for (let attempt = 1; ; attempt++) {
+                        try {
+                            answers = await count();
+                            break;
+                        } catch (error) {
+                            // It shared geometry the map had requested, and a
+                            // newer request replaced that. Count again.
+                            if (
+                                !(error instanceof SupersededError) ||
+                                attempt === 3
+                            )
+                                throw error;
+                            if (!isCurrent()) return;
+                        }
+                    }
+                    if (isCurrent() && answers) setSplit({ basis, answers });
                 } catch (error) {
                     if (!isCurrent()) return;
                     console.error("Error previewing the answers:", error);
-                    setSplit(null);
+                    setSplit({ basis, answers: null });
                 }
             });
         }, 300);
@@ -108,27 +149,32 @@ export const AnswerSplitPreview = ({
             clearTimeout(timer);
             task.cancel();
         };
-    }, [inputs, answered.current, compiled, boundary]);
+    }, [
+        inputs,
+        answered.current,
+        $disabledStations,
+        compiled,
+        boundary,
+        shown,
+        $isLoading,
+        current,
+    ]);
 
-    if (!shown || split === null) return null;
+    if (!shown || (current && !split.answers)) return null;
     return (
         <div className="px-2 text-sm text-muted-foreground">
-            <p>
-                {split
-                    ? split.map(({ label, zones }, index) => (
-                          <span key={label}>
-                              {index > 0 && " · "}
-                              {/* Wraps between answers, not within one. */}
-                              <span className="whitespace-nowrap">
-                                  {label} →{" "}
-                                  <span className="font-medium text-foreground">
-                                      {zones} {zones === 1 ? "zone" : "zones"}
-                                  </span>
-                              </span>
-                          </span>
-                      ))
-                    : "Counting zones per answer…"}
-            </p>
+            {current && !$isLoading ? (
+                split.answers!.map(({ label, zones }) => (
+                    <p key={label}>
+                        {label} →{" "}
+                        <span className="font-medium text-foreground">
+                            {zones} {zones === 1 ? "zone" : "zones"}
+                        </span>
+                    </p>
+                ))
+            ) : (
+                <p>Counting zones per answer…</p>
+            )}
             <p className="text-xs">
                 Zones left by each answer. A zone on the line counts for both.
             </p>
