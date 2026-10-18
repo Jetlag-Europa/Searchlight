@@ -41,7 +41,7 @@ import { zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
-import { survivingZones, zonesLeft } from "@/lib/zonesLeft";
+import { hidingZonesCalculated, zonesLeft } from "@/lib/zonesLeft";
 import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
@@ -254,12 +254,7 @@ export const ZoneSidebar = () => {
                     const circles = await initializeHidingZones(isCurrent);
                     if (isCurrent() && circles) {
                         setStations(circles);
-                        survivingZones.set({
-                            ids: circles.map((c) => c.properties.properties.id),
-                            total:
-                                $compiledGame?.hidingZones.stations?.length ??
-                                0,
-                        });
+                        hidingZonesCalculated.set(true);
                     }
                 } catch (error) {
                     if (!isCurrent()) return;
@@ -277,8 +272,8 @@ export const ZoneSidebar = () => {
                 }
             });
         } else if (!$displayHidingZones) {
-            // Hidden zones aren't recalculated, so their count would go stale.
-            survivingZones.set(null);
+            // Hidden zones aren't recalculated, so they go stale.
+            hidingZonesCalculated.set(false);
         }
         return () => zoneRefreshQueue.cancel();
     }, [
@@ -398,7 +393,7 @@ export const ZoneSidebar = () => {
                                     disabled={$isLoading}
                                 />
                             </SidebarMenuItem>
-                            {$displayHidingZones && $zonesLeft && (
+                            {$zonesLeft && (
                                 <SidebarMenuItem
                                     className={cn(
                                         MENU_ITEM_CLASSNAME,
@@ -411,8 +406,8 @@ export const ZoneSidebar = () => {
                                     </span>
                                     {$zonesLeft.disabled > 0 && (
                                         <span className="text-sm text-muted-foreground">
-                                            {$zonesLeft.disabled} more disabled
-                                            by hand
+                                            Not counting {$zonesLeft.disabled}{" "}
+                                            disabled by hand
                                         </span>
                                     )}
                                 </SidebarMenuItem>

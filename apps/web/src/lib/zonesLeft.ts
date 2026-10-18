@@ -1,15 +1,17 @@
 import { atom, computed } from "nanostores";
 
-import { disabledStations } from "@/lib/context";
+import { compiledGameAtom } from "@/game-definition/store";
+import {
+    disabledStations,
+    displayHidingZones,
+    trainStations,
+} from "@/lib/context";
 
 /**
- * The hiding zones the latest calculation left (their ids), out of how many
- * the game has. Null while the zones are hidden or not worked out yet for the
- * game on the board.
+ * Whether trainStations holds the zones worked out for the game on the
+ * board. An empty list alone can't tell none left from not worked out yet.
  */
-export const survivingZones = atom<{ ids: string[]; total: number } | null>(
-    null,
-);
+export const hidingZonesCalculated = atom<boolean>(false);
 
 export interface ZonesLeft {
     left: number;
@@ -32,8 +34,21 @@ export function countZonesLeft(
     return { left: survivingIds.length - disabled, total, disabled };
 }
 
+/** The zones left, or null while they are hidden or not worked out yet. */
 export const zonesLeft = computed(
-    [survivingZones, disabledStations],
-    (zones, disabled): ZonesLeft | null =>
-        zones && countZonesLeft(zones.ids, disabled, zones.total),
+    [
+        hidingZonesCalculated,
+        displayHidingZones,
+        compiledGameAtom,
+        trainStations,
+        disabledStations,
+    ],
+    (calculated, display, game, stations, disabled): ZonesLeft | null =>
+        calculated && display && game
+            ? countZonesLeft(
+                  stations.map((zone) => zone.properties.properties.id),
+                  disabled,
+                  game.hidingZones.stations?.length ?? 0,
+              )
+            : null,
 );

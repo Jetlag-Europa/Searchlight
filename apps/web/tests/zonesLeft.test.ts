@@ -1,11 +1,26 @@
 import type { GameDefinition } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { setActiveGameDefinition } from "@/game-definition/store";
-import { disabledStations } from "@/lib/context";
+import {
+    compiledGameAtom,
+    setActiveGameDefinition,
+} from "@/game-definition/store";
+import {
+    disabledStations,
+    displayHidingZones,
+    perQuestionMapData,
+    questionFinishedMapData,
+    trainStations,
+} from "@/lib/context";
 import { applyGameDefinition, resetGameState } from "@/lib/games";
-import { countZonesLeft, survivingZones, zonesLeft } from "@/lib/zonesLeft";
+import {
+    countZonesLeft,
+    hidingZonesCalculated,
+    zonesLeft,
+} from "@/lib/zonesLeft";
+import { hidingZoneCircles } from "@/maps/geo-utils";
 
+// A game of five station zones.
 const definition: GameDefinition = {
     id: "zones-left-game",
     name: "Zones left",
@@ -16,7 +31,15 @@ const definition: GameDefinition = {
     },
     hidingZones: {
         radius: 500,
-        features: { type: "FeatureCollection", features: [] },
+        features: {
+            type: "FeatureCollection",
+            features: ["a", "b", "c", "d", "e"].map((id, index) => ({
+                type: "Feature",
+                id,
+                geometry: { type: "Point", coordinates: [index, 0] },
+                properties: { name: `Station ${id}` },
+            })),
+        },
     },
 };
 
@@ -55,41 +78,73 @@ describe("countZonesLeft", () => {
 });
 
 describe("zonesLeft", () => {
+    // The zone sidebar's calculation: the zones the questions left.
+    const calculate = (ids: string[]) => {
+        trainStations.set(
+            hidingZoneCircles(compiledGameAtom.get()!).filter((zone) =>
+                ids.includes(zone.properties.properties.id),
+            ),
+        );
+        hidingZonesCalculated.set(true);
+    };
+
     beforeEach(() => {
         vi.stubGlobal("sessionStorage", {
             getItem: () => null,
             setItem: () => {},
             removeItem: () => {},
         });
-        survivingZones.set(null);
+        displayHidingZones.set(true);
         disabledStations.set([]);
+        applyGameDefinition(definition);
     });
 
     afterEach(() => {
         vi.unstubAllGlobals();
-        setActiveGameDefinition(null);
-        survivingZones.set(null);
-        disabledStations.set([]);
+        resetGameState();
     });
 
     it("shows nothing until the zones are worked out", () => {
         expect(zonesLeft.get()).toBeNull();
+        calculate([]);
+        expect(zonesLeft.get()).toEqual({ left: 0, total: 5, disabled: 0 });
     });
 
     it("follows the zones disabled by hand", () => {
-        survivingZones.set({ ids: ["a", "b", "c"], total: 5 });
+        calculate(["a", "b", "c"]);
         expect(zonesLeft.get()).toEqual({ left: 3, total: 5, disabled: 0 });
-        disabledStations.set(["a", "c"]);
+        disabledStations.set(["a", "c", "e"]);
         expect(zonesLeft.get()).toEqual({ left: 1, total: 5, disabled: 2 });
     });
 
-    it("forgets the count when another game loads or the board is cleared", () => {
-        survivingZones.set({ ids: ["a"], total: 5 });
+    it("shows nothing while the zones are hidden", () => {
+        calculate(["a"]);
+        displayHidingZones.set(false);
+        expect(zonesLeft.get()).toBeNull();
+    });
+
+    it("forgets the last game's count and question results on a session switch", () => {
+        calculate(["a"]);
+        questionFinishedMapData.set({
+            type: "FeatureCollection",
+            features: [],
+        });
+        perQuestionMapData.set([{ question: {}, region: null }]);
+
+        resetGameState();
+        expect(zonesLeft.get()).toBeNull();
+        // The zone sidebar waits for the next session's results.
+        expect(questionFinishedMapData.get()).toBeNull();
+        expect(perQuestionMapData.get()).toEqual([]);
+
+        // The next game loads; its zones aren't worked out yet.
         applyGameDefinition(definition);
         expect(zonesLeft.get()).toBeNull();
+    });
 
-        survivingZones.set({ ids: ["a"], total: 5 });
-        resetGameState();
+    it("forgets the count when a new game definition is applied", () => {
+        calculate(["a"]);
+        applyGameDefinition({ ...definition });
         expect(zonesLeft.get()).toBeNull();
     });
 });
