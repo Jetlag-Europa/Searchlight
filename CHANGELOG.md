@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Planning mode previews each answer (2026-10-18)
+
+- In planning mode, unlocked radar, thermometer, matching and measuring cards show how many hiding zones each answer would leave, such as "Outside → 31 zones" and "Inside → 12 zones", so you can pick the question that splits the zones most evenly. The counts start from what the locked questions leave and skip zones you disabled by hand.
+- A zone the line runs through stays possible either way, so it counts for both answers, and the two numbers can add up to more than the zones left.
+- The counts update shortly after you stop changing the question. On a big game, a question about the distance to a boundary can take a while to count.
+
 ## Undo after deleting questions (2026-10-18)
 
 - Deleting a question, or all of them, now shows a notice with an **Undo** button for 8 seconds. Undo puts the questions back where they were and syncs to everyone, without undoing what your teammates changed in the meantime.
