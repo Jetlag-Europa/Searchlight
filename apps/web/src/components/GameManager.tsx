@@ -1,7 +1,9 @@
+import { useStore } from "@nanostores/react";
 import type { Game, GamesResponse, GameStats, GameStatsResponse, ServersResponse, ServerWithPermissions } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { verifiedUserId } from "@/lib/activeSession";
 
 import { GameLinksDialog } from "./GameLinksDialog";
 import { ImportGameDialog } from "./ImportGameDialog";
@@ -270,8 +272,12 @@ export function GameManager() {
     const [servers, setServers] = useState<ServerWithPermissions[] | null>(null);
     const [reloadCounter, setReloadCounter] = useState(0);
     const [error, setError] = useState<string | null>(null);
+    const userId = useStore(verifiedUserId);
 
+    // Load once AuthGuard has verified the login, which waits out a server
+    // that was down when the page opened.
     useEffect(() => {
+        if (!userId) return;
         fetch(`${API_BASE}/servers`, { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) throw new Error(`${res.status}`);
@@ -279,7 +285,7 @@ export function GameManager() {
                 setServers(data.servers);
             })
             .catch((e: Error) => setError(e.message));
-    }, []);
+    }, [userId]);
 
     if (error) return <p className="text-destructive">Error: {error}</p>;
     if (!servers) return <p className="text-muted-foreground">Loading…</p>;

@@ -11,7 +11,6 @@ import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
-import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import { Button } from "@/components/ui/button";
 import {
     compiledGameAtom,
@@ -35,7 +34,6 @@ import { hiderMode, planningModeEnabled } from "@/lib/context";
 import {
     applyUnsyncedEvents,
     discardSessionData,
-    type EventType,
     getCachedSession,
     setCachedSession,
 } from "@/lib/eventQueue";
@@ -46,10 +44,8 @@ import {
 } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
-import {
-    isQuestionSaveSuppressed,
-    suppressQuestionSave,
-} from "@/lib/questionSaveSuppress";
+import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
+import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
 import {
     cancelPendingHiderSave,
@@ -57,32 +53,15 @@ import {
     cancelPendingQuestionSave,
     flushSavesOnPageExit,
     flushSessionSaves,
-    hasPendingHiderSave,
-    hasPendingPlanningModeSave,
-    hasPendingQuestionSave,
-    loadQuestionsFromServer,
     loadSessionContent,
     saveHiderModeToServer,
     savePlanningModeToServer,
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
 import { startSSE, stopSSE } from "@/lib/sseManager";
-import {
-    flushPendingEvents,
-    onEventRejected,
-    startSyncManager,
-} from "@/lib/syncManager";
+import { flushPendingEvents, startSyncManager } from "@/lib/syncManager";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-// What a toast calls an edit the server refused.
-const REJECTED_EDITS: Record<EventType, string> = {
-    "stroke.create": "A drawing",
-    "stroke.delete": "Erasing a drawing",
-    "questions.replace": "Your question changes",
-    "hider.update": "The hider's position",
-    "planning.toggle": "Planning mode",
-};
 
 // ── Session picker overlay ────────────────────────────────────────────────────
 
@@ -830,86 +809,6 @@ export function SessionManager() {
         [authUserId],
     );
 
-    // Show the server's state for the field of a rejected edit again, unless
-    // a newer edit to it is on its way. A session load in progress loads it
-    // from the server anyway.
-    const resyncRejectedField = async (id: string, type: EventType) => {
-        const generation = sessionLoadGenerationRef.current;
-        const isCurrent = () =>
-            generation === sessionLoadGenerationRef.current &&
-            !isLoadingSession() &&
-            activeSessionId.get() === id;
-        if (!isCurrent()) return;
-        if (type === "questions.replace") {
-            const serverQs = await loadQuestionsFromServer(id);
-            if (!isCurrent() || hasPendingQuestionSave(id)) return;
-            questions.set(
-                suppressQuestionSave(
-                    filterSupportedQuestions(serverQs, compiledGameAtom.get()),
-                ),
-            );
-        } else if (type === "stroke.create" || type === "stroke.delete") {
-            const serverStrokes = await loadStrokesFromServer(id);
-            if (!isCurrent()) return;
-            strokes.set(
-                applyUnsyncedEvents(id, {
-                    strokes: serverStrokes,
-                    questions: [],
-                }).strokes,
-            );
-        } else {
-            const res = await fetch(`${API_BASE}/sessions/${id}`, {
-                credentials: "include",
-            });
-            if (!res.ok) throw new Error(`session fetch failed: ${res.status}`);
-            const data: GameSessionSummary = await res.json();
-            if (!isCurrent()) return;
-            if (type === "hider.update" && !hasPendingHiderSave(id)) {
-                const newHiderMode =
-                    data.hiderLat != null && data.hiderLng != null
-                        ? { latitude: data.hiderLat, longitude: data.hiderLng }
-                        : false;
-                if (newHiderMode !== false || hiderMode.get() !== false) {
-                    suppressNextHiderSaveRef.current = true;
-                }
-                hiderMode.set(newHiderMode);
-            } else if (
-                type === "planning.toggle" &&
-                !hasPendingPlanningModeSave(id)
-            ) {
-                const newPlanningMode = data.planningModeEnabled ?? false;
-                if (planningModeEnabled.get() !== newPlanningMode) {
-                    suppressNextPlanningModeRef.current = true;
-                    planningModeEnabled.set(newPlanningMode);
-                }
-            }
-        }
-    };
-
-    // The server refused an edit for good (too large, invalid, a conflict),
-    // so it left the queue. Say so, and stop showing what nobody else sees.
-    // A session that is gone (403/404) is forgotten as when it fails to load.
-    useEffect(
-        () =>
-            onEventRejected((event, status) => {
-                const { sessionId: id, type } = event;
-                if (status === 403 || status === 404) {
-                    if (activeSessionId.get() === id) forgetSession(id, status);
-                    return;
-                }
-                toast.error(
-                    `${REJECTED_EDITS[type]} couldn't be saved (error ${status}), so the board shows what's saved instead.`,
-                );
-                resyncRejectedField(id, type).catch((err) => {
-                    console.warn(
-                        "[searchlight:session] resync after a rejected edit failed:",
-                        err,
-                    );
-                });
-            }),
-        [forgetSession],
-    );
-
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
         if (!authUserId) return;
@@ -1420,6 +1319,37 @@ export function SessionManager() {
             toast.error("The game still couldn't be loaded. Try again later.");
         }
     };
+
+    // The server refused edits for good (too large, invalid, a conflict) and
+    // they left the queue: load the session again, which also checks it's
+    // still there, so the board shows what the server has.
+    useEffect(
+        () =>
+            handleRejectedEdits({
+                isLoading: isLoadingSession,
+                reload: () => void retryGameLoad(),
+                confirmUnavailable: (id) => {
+                    fetch(`${API_BASE}/sessions/${id}`, {
+                        credentials: "include",
+                    })
+                        .then((res) => {
+                            if (
+                                (res.status === 403 || res.status === 404) &&
+                                activeSessionId.get() === id
+                            ) {
+                                forgetSession(id, res.status);
+                            }
+                        })
+                        .catch((err) => {
+                            console.warn(
+                                "[searchlight:session] session check failed:",
+                                err,
+                            );
+                        });
+                },
+            }),
+        [forgetSession, handleSessionSelected],
+    );
 
     // map.astro places the slot beside the revision banner.
     const bannerSlot = document.getElementById("game-not-loaded-banner");
