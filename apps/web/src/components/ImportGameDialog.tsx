@@ -1,6 +1,6 @@
 import type { GameDefinition, GameImportResponse, ValidationIssue } from "@searchlight/shared";
 import { resolveGameDefinitionId, validateGameDefinition } from "@searchlight/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { importGameDefinitionAPI } from "@/game-definition/api";
+import { checkGameQuality, type QualityIssue } from "@/game-definition/inspect";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -48,7 +49,9 @@ export function ImportGameDialog({
   const [allowUpdate, setAllowUpdate] = useState<boolean>(true);
   const [unlisted, setUnlisted] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<ValidationIssue[]>([]);
-  const [validationWarnings, setValidationWarnings] = useState<ValidationIssue[]>([]);
+  // The validator's warnings and the game checker's warnings and notes.
+  const [validationWarnings, setValidationWarnings] = useState<QualityIssue[]>([]);
+  const latestCheck = useRef(0);
   const [dryRunResult, setDryRunResult] = useState<GameImportResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
@@ -76,6 +79,7 @@ export function ImportGameDialog({
     setParsedData(null);
     setValidationErrors([]);
     setValidationWarnings([]);
+    latestCheck.current++;
     setDryRunResult(null);
     setApiError(null);
     setUnlisted(false);
@@ -90,6 +94,7 @@ export function ImportGameDialog({
     setParsedData(null);
     setValidationErrors([]);
     setValidationWarnings([]);
+    const check = ++latestCheck.current;
 
     setFileName(file.name);
     const reader = new FileReader();
@@ -107,8 +112,18 @@ export function ImportGameDialog({
 
         const validation = validateGameDefinition(parsed);
         setValidationErrors(validation.errors);
-        setValidationWarnings(validation.warnings);
+        const warnings = validation.warnings.map((w): QualityIssue => ({ ...w, level: "warning", strict: false }));
+        setValidationWarnings(warnings);
         setParsedData(validation.valid ? parsed as GameDefinition : null);
+
+        // Play-quality checks; they never block the import.
+        if (validation.valid) {
+          checkGameQuality(parsed, file.size)
+            .then((issues) => {
+              if (check === latestCheck.current) setValidationWarnings([...warnings, ...issues]);
+            })
+            .catch((err) => console.error("Game checks couldn't run:", err));
+        }
 
         // Auto dry-run test
         if (validation.valid) {
@@ -212,7 +227,11 @@ export function ImportGameDialog({
             >
               game creation guide
             </a>
-            , or give it to an AI agent along with your rules doc and map links.
+            , or give it to an AI agent along with your rules doc and map links.{" "}
+            <a href="/designer" target="_blank" rel="noreferrer" className="underline">
+              Preview a file on the map
+            </a>{" "}
+            before importing it.
           </DialogDescription>
         </DialogHeader>
 
@@ -376,13 +395,30 @@ export function ImportGameDialog({
           )}
 
           {validationWarnings.length > 0 && (
-            <div className="border border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg p-3 text-sm space-y-1 max-h-28 overflow-y-auto">
-              <div className="font-semibold">Warnings ({validationWarnings.length}):</div>
+            <div className="border border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg p-3 text-sm space-y-1 max-h-40 overflow-y-auto">
+              <div className="font-semibold">
+                Warnings and notes ({validationWarnings.length}); the file still imports:
+              </div>
               {validationWarnings.map((w, idx) => (
-                <div key={idx} className="text-xs">
+                <div
+                  key={idx}
+                  className={`text-xs ${
+                    w.strict
+                      ? "text-red-600 dark:text-red-400"
+                      : w.level === "note"
+                      ? "text-muted-foreground"
+                      : ""
+                  }`}
+                >
+                  <span className="font-semibold uppercase">{w.strict ? "Defect" : w.level}</span>{" "}
                   <span className="font-mono">{w.path}:</span> {w.message}
                 </div>
               ))}
+              {validationWarnings.some((w) => w.strict) && (
+                <div className="text-xs text-muted-foreground pt-1">
+                  Defects are always data mistakes (preloaded games must have none).
+                </div>
+              )}
             </div>
           )}
 

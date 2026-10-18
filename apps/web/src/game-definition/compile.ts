@@ -41,7 +41,8 @@ export interface CompiledGame {
   questionMap: Map<string, QuestionDefinition>;
 }
 
-function detectFeatureGeometry(feat: any): "polygons" | "lines" | "points" {
+/** A layer's geometry family, from its first feature with a known type. */
+export function detectFeatureGeometry(feat: any): "polygons" | "lines" | "points" {
   if (feat.data && typeof feat.data === "object") {
     const fc = feat.data as any;
     if (fc.type === "FeatureCollection" && Array.isArray(fc.features)) {

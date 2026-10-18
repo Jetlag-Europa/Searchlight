@@ -346,7 +346,7 @@ node check-game.mjs --strict testville-2026.game.json
 
 `--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, and region layers no hiding zone lies in. Preloaded games must pass it.
 
-The checker ends with the question list and labels, which is what players will see. Read it back to the user. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
+The checker ends with the question list and labels, which is what players will see. Read it back to the user. To see the file on a map, the user can drop it on `https://searchlight.jetlageuropa.org/designer` (no login, and the file never leaves the browser): it draws the play area, the hiding zones and each layer, and runs the same checks. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
 
 ## 8. Import, update, export
 
