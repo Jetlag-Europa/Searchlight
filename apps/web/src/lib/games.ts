@@ -15,13 +15,16 @@ import {
     hidingZoneFocusedStationID,
     mapGeoJSON,
     permanentOverlay,
+    perQuestionMapData,
     polyGeoJSON,
+    questionFinishedMapData,
     questions,
     trainStations,
 } from "@/lib/context";
 import { GAME_SS_KEY } from "@/lib/gameView";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
+import { hidingZonesCalculated } from "@/lib/zonesLeft";
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
     (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
     "") as string;
@@ -81,6 +84,7 @@ export function applyGameDefinition(def: GameDefinition): void {
     mapGeoJSON.set(compiled.playArea ?? null);
     // The zone sidebar redraws the zones from the new definition.
     trainStations.set([]);
+    hidingZonesCalculated.set(false);
 
     const currentQuestions = questions.get();
     const visibleQuestions = filterSupportedQuestions(
@@ -117,13 +121,17 @@ export function leaveGame(): void {
 
 /**
  * Clear what the active game put on the board: its definition, play area,
- * zones and selection. switchToGame calls this after registering its own load;
- * leaveGame also cancels any switch in flight.
+ * question results, zones and selection. switchToGame calls this after
+ * registering its own load; leaveGame also cancels any switch in flight.
  */
 export function resetGameState(): void {
     gameDefinitionReady.set(false);
     setActiveGameDefinition(null);
     trainStations.set([]);
+    hidingZonesCalculated.set(false);
+    // The zones wait for the next game's question results, not the last's.
+    questionFinishedMapData.set(null);
+    perQuestionMapData.set([]);
     polyGeoJSON.set(null);
     mapGeoJSON.set(null);
     hidingZoneFocusedStationID.set("");

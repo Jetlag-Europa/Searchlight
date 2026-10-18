@@ -41,6 +41,7 @@ import { zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
+import { hidingZonesCalculated, zonesLeft } from "@/lib/zonesLeft";
 import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
@@ -80,6 +81,7 @@ export const ZoneSidebar = () => {
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
     const $showZoneNames = useStore(showZoneNames);
+    const $zonesLeft = useStore(zonesLeft);
     const setHidingZoneModeStationID = hidingZoneFocusedStationID.set;
     const [stationSearch, setStationSearch] = useState<string>("");
     const isStationSearchActive = stationSearch.trim().length > 0;
@@ -250,7 +252,10 @@ export const ZoneSidebar = () => {
                 const finishCalculation = startCalculation("zones");
                 try {
                     const circles = await initializeHidingZones(isCurrent);
-                    if (isCurrent() && circles) setStations(circles);
+                    if (isCurrent() && circles) {
+                        setStations(circles);
+                        hidingZonesCalculated.set(true);
+                    }
                 } catch (error) {
                     if (!isCurrent()) return;
                     console.error(
@@ -266,6 +271,9 @@ export const ZoneSidebar = () => {
                     finishCalculation();
                 }
             });
+        } else if (!$displayHidingZones) {
+            // Hidden zones aren't recalculated, so they go stale.
+            hidingZonesCalculated.set(false);
         }
         return () => zoneRefreshQueue.cancel();
     }, [
@@ -385,6 +393,25 @@ export const ZoneSidebar = () => {
                                     disabled={$isLoading}
                                 />
                             </SidebarMenuItem>
+                            {$zonesLeft && (
+                                <SidebarMenuItem
+                                    className={cn(
+                                        MENU_ITEM_CLASSNAME,
+                                        "flex-col items-start gap-0",
+                                    )}
+                                >
+                                    <span className="font-semibold font-poppins">
+                                        {$zonesLeft.left} of {$zonesLeft.total}{" "}
+                                        hiding zones left
+                                    </span>
+                                    {$zonesLeft.disabled > 0 && (
+                                        <span className="text-sm text-muted-foreground">
+                                            Not counting {$zonesLeft.disabled}{" "}
+                                            disabled by hand
+                                        </span>
+                                    )}
+                                </SidebarMenuItem>
+                            )}
                             <SidebarMenuItem
                                 className={cn(
                                     MENU_ITEM_CLASSNAME,
