@@ -1,3 +1,4 @@
+import { OpenLocationCode } from "open-location-code";
 import { describe, expect, it } from "vitest";
 
 import { splitPlusCode } from "@/lib/plusCode";
@@ -27,6 +28,22 @@ describe("splitPlusCode", () => {
             code: "Q9CM+3P",
             locality: "Bad Homburg",
         });
+    });
+
+    it("drops a comma right after the code", () => {
+        // Typed as static methods, called on an instance (as in LatLngPicker).
+        const olc = new OpenLocationCode() as typeof OpenLocationCode;
+        const short = splitPlusCode("9G8F+6X, Zürich");
+        expect(short).toEqual({ code: "9G8F+6X", locality: "Zürich" });
+        expect(olc.isValid(short.code) && olc.isShort(short.code)).toBe(true);
+
+        // A full code decodes on its own; its locality isn't geocoded.
+        const full = splitPlusCode("8FVC9G8F+6X, Zürich");
+        expect(full).toEqual({ code: "8FVC9G8F+6X", locality: "Zürich" });
+        expect(olc.isFull(full.code)).toBe(true);
+        const { latitudeCenter, longitudeCenter } = olc.decode(full.code);
+        expect(latitudeCenter).toBeCloseTo(47.3656, 3);
+        expect(longitudeCenter).toBeCloseTo(8.5249, 3);
     });
 
     it("gives an empty locality for a code alone", () => {

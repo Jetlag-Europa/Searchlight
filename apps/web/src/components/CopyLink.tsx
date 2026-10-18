@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+/** The link to an invite or share link of a session. */
+export function sessionLinkUrl(token: string): string {
+    return `${window.location.origin}/join?token=${token}`;
+}
+
 /**
  * Copies links to the clipboard. `copiedId` is the link to show "Copied!" on
  * for 2 seconds; `uncopiedUrl` is a link the clipboard refused (e.g. Safari

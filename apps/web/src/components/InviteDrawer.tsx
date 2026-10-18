@@ -6,7 +6,7 @@ import type {
 } from "@searchlight/shared";
 import { useCallback, useState } from "react";
 
-import { UncopiedLinkField, useCopyLink } from "@/components/CopyLink";
+import { sessionLinkUrl, UncopiedLinkField, useCopyLink } from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Drawer,
@@ -19,10 +19,6 @@ import { activeSessionData } from "@/lib/activeSession";
 import { cn } from "@/lib/utils";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-function linkUrl(token: string): string {
-    return `${window.location.origin}/join?token=${token}`;
-}
 
 async function errorMessage(res: Response): Promise<string> {
     const body = await res.json().catch(() => null) as { message?: string } | null;
@@ -84,8 +80,17 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             }
             markActiveSessionShared(session.id);
             const data: CreateLinkResponse = await res.json();
-            await copyLink(data.id, linkUrl(data.token));
-            await fetchLinks();
+            // Listed right away, so its "Copied!" shows for the full 2 s.
+            setLinks((prev) => [
+                {
+                    id: data.id,
+                    token: data.token,
+                    linkType: "join",
+                    createdAt: new Date().toISOString(),
+                },
+                ...prev,
+            ]);
+            await copyLink(data.id, sessionLinkUrl(data.token));
         } catch {
             setSendError("Could not create the link. Check your connection.");
         } finally {
@@ -108,7 +113,8 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                 return;
             }
             setLinks((prev) => prev.filter((l) => l.id !== linkId));
-            if (uncopiedUrl === linkUrl(token)) setUncopiedUrl(null);
+            const url = sessionLinkUrl(token);
+            setUncopiedUrl((u) => (u === url ? null : u));
         } catch {
             setSendError("Could not revoke the link. Check your connection.");
         } finally {
@@ -183,7 +189,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                                 size="sm"
                                                 variant="outline"
                                                 className="text-xs"
-                                                onClick={() => copyLink(l.id, linkUrl(l.token))}
+                                                onClick={() => copyLink(l.id, sessionLinkUrl(l.token))}
                                             >
                                                 {copiedLinkId === l.id ? "Copied!" : "Copy"}
                                             </Button>

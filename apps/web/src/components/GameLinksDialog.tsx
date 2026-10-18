@@ -75,7 +75,8 @@ export function GameLinksDialog({ game }: { game: Game }) {
             });
             if (!res.ok && res.status !== 404) throw new Error(await errorMessage(res));
             setLinks((prev) => (prev ?? []).filter((l) => l.id !== link.id));
-            if (uncopiedUrl === gameLinkUrl(link.token)) setUncopiedUrl(null);
+            const url = gameLinkUrl(link.token);
+            setUncopiedUrl((u) => (u === url ? null : u));
         } catch (e: unknown) {
             setError(`Failed to revoke link: ${(e as Error).message}`);
         } finally {
