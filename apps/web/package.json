@@ -8,6 +8,8 @@
         "preview": "astro preview",
         "astro": "astro",
         "lint": "eslint --fix src && prettier . --write",
+        "lint:check": "eslint src",
+        "typecheck": "astro sync && tsc --noEmit",
         "test": "vitest",
         "test:e2e": "playwright test",
         "test:e2e:headed": "playwright test --headed"

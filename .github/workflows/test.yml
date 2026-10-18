@@ -1,8 +1,9 @@
 name: Tests
 
-# Builds the workspace and runs every test suite from docs/TESTING.md except
-# the Playwright e2e tests, which need the full Docker stack. Runs on every pull
-# request and on pushes to main. The API tests use the Postgres service below.
+# Builds the workspace, type-checks and lints the web app, and runs every test
+# suite from docs/TESTING.md except the Playwright e2e tests, which need the full
+# Docker stack. Runs on every pull request and on pushes to main. The API tests
+# use the Postgres service below.
 
 on:
     pull_request:
@@ -57,6 +58,18 @@ jobs:
             # packages import from its dist.
             - name: Build
               run: pnpm build
+
+            # astro build doesn't type-check, so run tsc over the web app
+            # (after astro sync generates its .astro types).
+            - name: Typecheck web
+              run: pnpm --filter @searchlight/web typecheck
+
+            - name: Lint web
+              run: pnpm --filter @searchlight/web lint:check
+
+            # The production seed has its own tsconfig, which the build skips.
+            - name: Typecheck API seed
+              run: pnpm --filter @searchlight/api exec tsc -p tsconfig.seed.json --noEmit
 
             - name: Migrate the test database
               working-directory: apps/api
