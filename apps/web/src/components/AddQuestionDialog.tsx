@@ -179,7 +179,9 @@ export const AddQuestionDialog = ({
                             if (runAddRadius()) setOpen(false);
                         }}
                         disabled={disabled || !hasRadius}
-                        className={!hasRadius ? "opacity-40 cursor-not-allowed" : ""}
+                        className={
+                            !hasRadius ? "opacity-40 cursor-not-allowed" : ""
+                        }
                     >
                         Add Radius {compiled && !hasRadius && "(Disabled)"}
                     </SidebarMenuButton>
@@ -188,7 +190,11 @@ export const AddQuestionDialog = ({
                             if (runAddThermometer()) setOpen(false);
                         }}
                         disabled={disabled || !hasThermometer}
-                        className={!hasThermometer ? "opacity-40 cursor-not-allowed" : ""}
+                        className={
+                            !hasThermometer
+                                ? "opacity-40 cursor-not-allowed"
+                                : ""
+                        }
                     >
                         Add Thermometer{" "}
                         {compiled && !hasThermometer && "(Disabled)"}
