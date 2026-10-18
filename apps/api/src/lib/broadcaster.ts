@@ -6,6 +6,8 @@ type Listener = (event: AnySSEEvent) => void;
 const listeners = new Map<string, Set<Listener>>();
 const presenceMap = new Map<string, Map<string, { user: PresenceUser; count: number }>>();
 const userStreams = new Map<string, Map<string, Set<() => void>>>();
+// Set by closeAllStreams once the server is shutting down.
+let closing = false;
 export function subscribe(sessionId: string, cb: Listener): () => void {
   if (!listeners.has(sessionId)) listeners.set(sessionId, new Set());
   listeners.get(sessionId)!.add(cb);
@@ -59,6 +61,10 @@ export function registerUserStream(
   userId: string,
   closeStream: () => void,
 ): () => void {
+  if (closing) {
+    closeStream();
+    return () => {};
+  }
   if (!userStreams.has(sessionId)) userStreams.set(sessionId, new Map());
   const sessionStreams = userStreams.get(sessionId)!;
   if (!sessionStreams.has(userId)) sessionStreams.set(userId, new Set());
@@ -110,5 +116,15 @@ export function closeSessionStreams(sessionId: string): void {
     } catch {
       // ignore
     }
+  }
+}
+
+// Ends every open stream, for shutdown: the server can't close while streams
+// are open. Streams that register afterwards are closed right away. Clients
+// reconnect and resume from their last sequence.
+export function closeAllStreams(): void {
+  closing = true;
+  for (const sessionId of Array.from(userStreams.keys())) {
+    closeSessionStreams(sessionId);
   }
 }

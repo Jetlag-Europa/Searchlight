@@ -45,4 +45,4 @@ COPY games ./games
 # has none, so the boot-time game preload would load nothing), then start.
 # --missing-only leaves existing servers' names and role mappings alone; run
 # `pnpm seed:prod` for a full seed that resets them.
-CMD sh -c "pnpm --filter api exec prisma migrate deploy && (cd apps/api && node dist-seed/seed.js --missing-only) && node apps/api/dist/index.js"
+CMD sh -c "pnpm --filter api exec prisma migrate deploy && (cd apps/api && node dist-seed/seed.js --missing-only) && exec node apps/api/dist/index.js"

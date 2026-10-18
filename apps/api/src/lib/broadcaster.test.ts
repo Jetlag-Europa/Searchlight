@@ -1,5 +1,5 @@
 import { describe, expect, test, vi } from "vitest";
-import { broadcast, subscribe, registerUserStream, closeUserStreams, closeSessionStreams } from "./broadcaster.js";
+import { broadcast, subscribe, registerUserStream, closeUserStreams, closeSessionStreams, closeAllStreams } from "./broadcaster.js";
 import type { EventRecord } from "@searchlight/shared";
 
 function makeEvent(overrides: Partial<EventRecord> = {}): EventRecord {
@@ -125,5 +125,32 @@ describe("registerUserStream / closeUserStreams / closeSessionStreams", () => {
         closeSessionStreams("sess-all");
         expect(closeFn1).toHaveBeenCalledOnce();
         expect(closeFn2).toHaveBeenCalledOnce();
+    });
+});
+
+// Last in the file: closeAllStreams marks the process as shutting down for good.
+describe("closeAllStreams", () => {
+    test("closes every stream of every session, once", () => {
+        const closeFn1 = vi.fn();
+        const closeFn2 = vi.fn();
+        const closeFn3 = vi.fn();
+        registerUserStream("sess-shutdown-a", "user-1", closeFn1);
+        registerUserStream("sess-shutdown-a", "user-2", closeFn2);
+        registerUserStream("sess-shutdown-b", "user-1", closeFn3);
+
+        closeAllStreams();
+        closeAllStreams();
+        expect(closeFn1).toHaveBeenCalledOnce();
+        expect(closeFn2).toHaveBeenCalledOnce();
+        expect(closeFn3).toHaveBeenCalledOnce();
+    });
+
+    test("closes a stream registered after it ran right away", () => {
+        const closeFn = vi.fn();
+        const unregister = registerUserStream("sess-shutdown-late", "user-1", closeFn);
+        expect(closeFn).toHaveBeenCalledOnce();
+        expect(() => unregister()).not.toThrow();
+        closeUserStreams("sess-shutdown-late", "user-1");
+        expect(closeFn).toHaveBeenCalledOnce();
     });
 });

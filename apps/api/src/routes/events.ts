@@ -6,6 +6,10 @@ import { subscribe, addPresence, removePresence, getPresence, registerUserStream
 import type { PresenceUser } from "@searchlight/shared";
 import { env } from "../lib/env.js";
 
+// How long a stream waits for its client to read a backed-up write before
+// dropping it. An object so tests can shorten it.
+export const stallTimeout = { ms: 30_000 };
+
 async function assertParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
   if (!session) throw Object.assign(new Error("Session not found"), { statusCode: 404 });
@@ -141,23 +145,23 @@ export async function eventRoutes(app: FastifyInstance) {
 
       req.log.info({ sessionId, userId: user.discordId, displayName: presenceUser.displayName }, "[sse] client connected");
 
-      reply.raw.writeHead(200, {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
-        "X-Accel-Buffering": "no",
+      // The reply is hijacked, so the CORS plugin doesn't add these.
+      const corsHeaders = {
         "Access-Control-Allow-Origin": env.FRONTEND_ORIGIN,
         "Access-Control-Allow-Credentials": "true",
-      });
-      reply.raw.write("retry: 3000\n\n");
-      req.log.info({ sessionId, userId: user.discordId }, "[sse] headers sent, stream open");
+      };
 
       let isClosed = false;
+      let isPresent = false;
       let keepAlive: NodeJS.Timeout | null = null;
+      let stallTimer: NodeJS.Timeout | null = null;
       let unsubscribe: (() => void) | null = null;
       let unregisterStream: (() => void) | null = null;
 
-      const doClose = () => {
+      // Closing before the stream opened answers `status` instead: EventSource
+      // treats any non-200 as final, and the client then checks the session
+      // before it reconnects.
+      const doClose = (status = 503) => {
         if (isClosed) return;
         isClosed = true;
         if (unsubscribe) {
@@ -168,45 +172,101 @@ export async function eventRoutes(app: FastifyInstance) {
           unregisterStream();
           unregisterStream = null;
         }
-        removePresence(sessionId, user.discordId);
+        if (isPresent) removePresence(sessionId, user.discordId);
         if (keepAlive) {
           clearInterval(keepAlive);
           keepAlive = null;
         }
+        if (stallTimer) {
+          clearTimeout(stallTimer);
+          stallTimer = null;
+        }
         try {
+          if (!reply.raw.headersSent) reply.raw.writeHead(status, corsHeaders);
           reply.raw.end();
         } catch {
           // ignore
         }
       };
 
+      // A client that stops reading would otherwise make the stream buffer
+      // every event in memory. Once a write has to wait, the client has
+      // stallTimeout.ms to drain it; if it doesn't, drop the stream. It
+      // reconnects and resumes from its last sequence.
+      const send = (chunk: string) => {
+        if (reply.raw.write(chunk) || stallTimer) return;
+        stallTimer = setTimeout(() => {
+          req.log.warn({ sessionId, userId: user.discordId }, "[sse] client stopped reading, closing stream");
+          doClose();
+          reply.raw.destroy();
+        }, stallTimeout.ms);
+        reply.raw.once("drain", () => {
+          if (stallTimer) clearTimeout(stallTimer);
+          stallTimer = null;
+        });
+      };
+
+      reply.hijack();
+      req.raw.on("close", () => {
+        req.log.info({ sessionId, userId: user.discordId }, "[sse] client disconnected");
+        doClose();
+      });
+      // A client that left during the lookups above closed before the listener.
+      if (req.raw.destroyed || reply.raw.destroyed) {
+        doClose();
+        return;
+      }
       unregisterStream = registerUserStream(sessionId, user.discordId, doClose);
+      if (isClosed) return;
+
+      // A kick, leave or delete that landed between the check above and
+      // registerUserStream closed this user's streams before this one was
+      // registered. Check again now that any later one will find it, before
+      // opening the stream: once it's open the client starts catching up, so
+      // from then on it must get every new event.
+      try {
+        await assertParticipant(sessionId, user.discordId);
+      } catch (err) {
+        const statusCode = (err as { statusCode?: number }).statusCode;
+        req.log.info(
+          { sessionId, userId: user.discordId, err, statusCode },
+          "[sse] access check failed while connecting, closing stream",
+        );
+        doClose(statusCode ?? 500);
+        return;
+      }
+      if (isClosed) return;
+
+      reply.raw.writeHead(200, {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+        ...corsHeaders,
+      });
+      reply.raw.write("retry: 3000\n\n");
+      req.log.info({ sessionId, userId: user.discordId }, "[sse] headers sent, stream open");
 
       unsubscribe = subscribe(sessionId, (event) => {
         if (isClosed) return;
         req.log.info({ sessionId, eventType: event.type }, "[sse] pushing event to client");
-        reply.raw.write(`data: ${JSON.stringify(event)}\n\n`);
+        send(`data: ${JSON.stringify(event)}\n\n`);
       });
 
       // Send current presence roster to this client before registering them
       const snapshot = getPresence(sessionId);
       req.log.info({ sessionId, presenceCount: snapshot.length }, "[sse] sending presence snapshot");
-      reply.raw.write(`data: ${JSON.stringify({ type: "presence.snapshot", payloadJson: { users: snapshot } })}\n\n`);
+      send(`data: ${JSON.stringify({ type: "presence.snapshot", payloadJson: { users: snapshot } })}\n\n`);
 
       // Register presence — broadcasts presence.join to all subscribers including this client
       addPresence(sessionId, presenceUser);
+      isPresent = true;
 
       keepAlive = setInterval(() => {
         if (isClosed) return;
         req.log.debug({ sessionId }, "[sse] ping");
-        reply.raw.write(": ping\n\n");
+        send(": ping\n\n");
       }, 25_000);
-
-      req.raw.on("close", () => {
-        req.log.info({ sessionId, userId: user.discordId }, "[sse] client disconnected");
-        doClose();
-      });
-      await reply.hijack();
     },
   );
 }

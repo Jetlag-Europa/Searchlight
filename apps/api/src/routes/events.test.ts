@@ -1,9 +1,12 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { get, type IncomingMessage } from "node:http";
+import type { AddressInfo } from "node:net";
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
-import { eventRoutes } from "./events.js";
+import { broadcast, closeUserStreams, connectedUserIds } from "../lib/broadcaster.js";
+import { eventRoutes, stallTimeout } from "./events.js";
 
 // ── IDs scoped to this test suite ───────────────────────────────────────────
 const USER1_ID = "test-evroutes-user1";
@@ -447,6 +450,163 @@ describe("GET /sessions/:sessionId/events", () => {
       await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: REVOKED_USER_ID } });
       await prisma.authSession.deleteMany({ where: { id: REVOKED_AUTH_ID } });
       await prisma.user.deleteMany({ where: { discordId: REVOKED_USER_ID } });
+    }
+  });
+
+  test("stream: a participant kicked while the stream connects is disconnected", async () => {
+    const MEMBER_ID = "test-evroutes-member";
+    const MEMBER_AUTH_ID = "test-evroutes-member-auth";
+    await prisma.user.create({
+      data: {
+        discordId: MEMBER_ID,
+        username: "memberuser",
+        displayName: "Member User",
+        avatarUrl: "",
+        discordAccessToken: "tok-mem",
+        discordRefreshToken: "ref-mem",
+        discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    await prisma.authSession.create({
+      data: { id: MEMBER_AUTH_ID, userId: MEMBER_ID, expiresAt: new Date(Date.now() + 86_400_000) },
+    });
+    await prisma.sessionParticipant.create({
+      data: { sessionId: SESSION1_ID, userId: MEMBER_ID, role: "member", acceptedAt: new Date() },
+    });
+
+    // Kick the member during the stream's user lookup, after its access check
+    // passed, the way DELETE /participants/:userId does. Its closeUserStreams
+    // runs before the stream is registered, so it can't close it.
+    const findUser = prisma.user.findUnique.bind(prisma.user);
+    const spy = vi.spyOn(prisma.user, "findUnique").mockImplementationOnce((async (
+      args: Parameters<typeof findUser>[0],
+    ) => {
+      await prisma.sessionParticipant.updateMany({
+        where: { sessionId: SESSION1_ID, userId: MEMBER_ID },
+        data: { revokedAt: new Date() },
+      });
+      closeUserStreams(SESSION1_ID, MEMBER_ID);
+      return findUser(args);
+    }) as never);
+
+    try {
+      // inject() resolves only once the stream ends.
+      const res = await Promise.race([
+        app.inject({
+          method: "GET",
+          url: `/sessions/${SESSION1_ID}/stream`,
+          headers: { cookie: `session=${app.signCookie(MEMBER_AUTH_ID)}` },
+        }),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 2000)),
+      ]);
+      expect(spy).toHaveBeenCalled();
+      expect(res, "stream still open").not.toBeNull();
+      // Refused before the stream opened: a 403, no roster, no events.
+      expect(res!.statusCode).toBe(403);
+      expect(res!.body).not.toContain("data:");
+      expect(connectedUserIds().get(SESSION1_ID) ?? []).not.toContain(MEMBER_ID);
+    } finally {
+      // No mockRestore: it breaks Prisma's delegate, and later calls already
+      // go to the real findUnique.
+      closeUserStreams(SESSION1_ID, MEMBER_ID);
+      await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: MEMBER_ID } });
+      await prisma.authSession.deleteMany({ where: { id: MEMBER_AUTH_ID } });
+      await prisma.user.deleteMany({ where: { discordId: MEMBER_ID } });
+    }
+  });
+
+  // ── Stalled clients: a real socket, since inject() has no backpressure ──────
+  async function openRealStream(): Promise<IncomingMessage> {
+    if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+    const { port } = app.server.address() as AddressInfo;
+    const res = await new Promise<IncomingMessage>((resolve, reject) => {
+      get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } }, resolve).on(
+        "error",
+        reject,
+      );
+    });
+    expect(res.statusCode).toBe(200);
+    await vi.waitFor(() => expect(isConnected()).toBe(true));
+    return res;
+  }
+  const isConnected = () => (connectedUserIds().get(SESSION1_ID) ?? []).includes(USER1_ID);
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  function broadcastBlob(i: number, bytes: number) {
+    broadcast(SESSION1_ID, {
+      id: `ev-big-${i}`,
+      sessionId: SESSION1_ID,
+      userId: USER1_ID,
+      sequence: 100 + i,
+      type: "stroke.create",
+      payloadJson: { blob: "x".repeat(bytes) },
+      clientUuid: `big-${i}`,
+      clientCreatedAt: new Date().toISOString(),
+      serverReceivedAt: new Date().toISOString(),
+    });
+  }
+
+  test("stream: a client that stops reading is disconnected", async () => {
+    const saved = stallTimeout.ms;
+    stallTimeout.ms = 200;
+    const res = await openRealStream();
+    try {
+      res.pause();
+      // One event per tick, so each gets the chance to flush, until the
+      // socket buffers fill up and the stall timeout runs out.
+      for (let i = 0; i < 200 && isConnected(); i++) {
+        broadcastBlob(i, 256 * 1024);
+        await sleep(20);
+      }
+      expect(isConnected()).toBe(false);
+    } finally {
+      stallTimeout.ms = saved;
+      res.destroy();
+    }
+  });
+
+  test("stream: a client that leaves while the stream connects isn't left present", async () => {
+    if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+    const { port } = app.server.address() as AddressInfo;
+    const findUser = prisma.user.findUnique.bind(prisma.user);
+    let left = false;
+    // The client hangs up during the stream's user lookup, before the route
+    // listens for that.
+    const clientReq = get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } });
+    clientReq.on("error", () => {});
+    const spy = vi.spyOn(prisma.user, "findUnique").mockImplementationOnce((async (
+      args: Parameters<typeof findUser>[0],
+    ) => {
+      clientReq.destroy();
+      await sleep(100);
+      left = true;
+      return findUser(args);
+    }) as never);
+    await vi.waitFor(() => expect(left).toBe(true));
+    await sleep(200);
+    expect(spy).toHaveBeenCalled();
+    expect(isConnected()).toBe(false);
+  });
+
+  test("stream: a reading client stays connected through large events", async () => {
+    const saved = stallTimeout.ms;
+    stallTimeout.ms = 200;
+    const res = await openRealStream();
+    let received = "";
+    res.setEncoding("utf8");
+    res.on("data", (chunk: string) => {
+      received += chunk;
+    });
+    try {
+      // A 1.5 MB event, then a burst of four 512 KB events in the same tick.
+      broadcastBlob(0, 1536 * 1024);
+      for (let i = 1; i <= 4; i++) broadcastBlob(i, 512 * 1024);
+      await vi.waitFor(() => expect(received).toContain('"id":"ev-big-4"'), { timeout: 5000 });
+      await sleep(stallTimeout.ms * 3);
+      expect(isConnected()).toBe(true);
+    } finally {
+      stallTimeout.ms = saved;
+      res.destroy();
+      await vi.waitFor(() => expect(isConnected()).toBe(false));
     }
   });
 });
