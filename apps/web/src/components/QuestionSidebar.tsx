@@ -2,7 +2,6 @@ import { useStore } from "@nanostores/react";
 import { SidebarCloseIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { deleteQuestionsWithUndo } from "@/components/DeleteUndoToast";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -32,6 +31,7 @@ import {
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
+import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
 import {

@@ -44,17 +44,43 @@ describe("undoing a question delete", () => {
         const current = [q(1, "renamed"), q(5)];
         expect(keys(remaining)).toEqual([1, 3]);
         const restored = undoDeletion(current, deletion, "s1")!;
-        expect(keys(restored)).toEqual([1, 2, 5, 4]);
+        // 4 goes below 2, the nearest question above it that is still there.
+        expect(keys(restored)).toEqual([1, 2, 4, 5]);
         expect(restored[0].label).toBe("renamed");
     });
 
-    it("appends questions whose old position is past the end", () => {
+    it("keeps the order when questions above were deleted meanwhile", () => {
+        const { remaining, deletion } = deleteQuestions(
+            [q(1), q(2), q(3), q(4), q(5)],
+            new Set([4]),
+            "s1",
+        );
+        // A teammate deleted 1 and 2: index 3 is now past 5.
+        const current = remaining.filter((x) => x.key > 2);
+        expect(keys(undoDeletion(current, deletion, "s1")!)).toEqual([3, 4, 5]);
+    });
+
+    it("keeps the order when deletes are undone oldest first", () => {
+        const first = deleteQuestions([q(1), q(2), q(3)], new Set([2]), "s1");
+        const second = deleteQuestions(first.remaining, new Set([1]), "s1");
+        const afterFirstUndo = undoDeletion(
+            second.remaining,
+            first.deletion,
+            "s1",
+        )!;
+        expect(keys(afterFirstUndo)).toEqual([2, 3]);
+        expect(
+            keys(undoDeletion(afterFirstUndo, second.deletion, "s1")!),
+        ).toEqual([1, 2, 3]);
+    });
+
+    it("puts a question at the top when nothing above it is left", () => {
         const { deletion } = deleteQuestions(
             [q(1), q(2), q(3)],
             new Set([3]),
             "s1",
         );
-        expect(keys(undoDeletion([], deletion, "s1")!)).toEqual([3]);
+        expect(keys(undoDeletion([q(4)], deletion, "s1")!)).toEqual([3, 4]);
     });
 
     it("skips questions that are back already", () => {

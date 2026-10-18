@@ -3,7 +3,6 @@ import { EyeIcon, EyeOffIcon, LockIcon, UnlockIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { VscChevronDown, VscShare, VscTrash } from "react-icons/vsc";
 
-import { deleteQuestionsWithUndo } from "@/components/DeleteUndoToast";
 import {
     AlertDialog,
     AlertDialogAction,
@@ -35,6 +34,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
 import { isLoading, questions } from "@/lib/context";
+import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 import {
     normalizeQuestionName,
     QUESTION_NAME_MAX_LENGTH,

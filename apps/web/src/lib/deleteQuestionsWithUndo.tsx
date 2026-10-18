@@ -1,8 +1,12 @@
-import { toast } from "react-toastify";
+import { type Id, toast } from "react-toastify";
 
 import { activeSessionId } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { deleteQuestions, undoDeletion } from "@/lib/questionUndo";
+
+// Only the latest delete can be undone: undoing an older one around a newer
+// one is more confusing than useful.
+let undoToastId: Id | null = null;
 
 // Deletes the questions, then offers to put them back for a few seconds. Both
 // go through questions.set, so they save and sync like any edit.
@@ -16,6 +20,7 @@ export const deleteQuestionsWithUndo = (keys: Iterable<number>) => {
     if (count === 0) return;
     questions.set(remaining);
 
+    if (undoToastId !== null) toast.dismiss(undoToastId);
     let stopListening = () => {};
     const id = toast(
         ({ closeToast }) => (
@@ -44,9 +49,16 @@ export const deleteQuestionsWithUndo = (keys: Iterable<number>) => {
         {
             autoClose: 8000,
             closeOnClick: false,
-            onClose: () => stopListening(),
+            // Hovering still pauses it, but leaving the app doesn't: coming
+            // back much later shouldn't find the Undo still there.
+            pauseOnFocusLoss: false,
+            onClose: () => {
+                stopListening();
+                if (undoToastId === id) undoToastId = null;
+            },
         },
     );
+    undoToastId = id;
     // Undo only applies to the session the questions were deleted from.
     stopListening = activeSessionId.listen(() => toast.dismiss(id));
 };
