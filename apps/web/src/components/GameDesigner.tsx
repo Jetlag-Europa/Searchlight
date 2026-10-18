@@ -81,7 +81,12 @@ function FeatureLayer({
     return (
         <GeoJSON
             data={data}
-            style={{ color, weight: 2, fillOpacity: 0.15 }}
+            // Leaflet applies `style` to points' markers too; keep theirs.
+            style={(f) =>
+                f?.geometry.type === "Point"
+                    ? {}
+                    : { color, weight: 2, fillOpacity: 0.15 }
+            }
             pointToLayer={(_, latlng) =>
                 L.circleMarker(latlng, {
                     radius: 5,

@@ -404,7 +404,7 @@ export function ImportGameDialog({
                   key={idx}
                   className={`text-xs ${
                     w.strict
-                      ? "text-orange-700 dark:text-orange-300"
+                      ? "text-red-600 dark:text-red-400"
                       : w.level === "note"
                       ? "text-muted-foreground"
                       : ""
