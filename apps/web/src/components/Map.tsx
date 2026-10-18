@@ -690,6 +690,7 @@ export const Map = ({ className }: { className?: string }) => {
                 lastGpsFix.set({ lat, lng });
                 if (followMeMarkerRef.current) {
                     followMeMarkerRef.current.setLatLng([lat, lng]);
+                    followMeMarkerRef.current.setOpacity(1);
                 } else {
                     const marker = L.marker([lat, lng], {
                         icon: L.divIcon({
@@ -709,9 +710,11 @@ export const Map = ({ className }: { className?: string }) => {
                     return;
                 }
                 // The watch keeps trying, but the last fix may be far behind
-                // now: new questions go back to the map centre until the next.
+                // now: new questions go back to the map centre, and the dot
+                // fades, until the next fix.
                 const hadFix = lastGpsFix.get() !== null;
                 lastGpsFix.set(null);
+                followMeMarkerRef.current?.setOpacity(0.4);
                 if (!warned) {
                     warned = true;
                     toast.warn(
