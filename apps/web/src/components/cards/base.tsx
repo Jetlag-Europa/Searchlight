@@ -34,6 +34,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
 import { isLoading, questions } from "@/lib/context";
+import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 import {
     normalizeQuestionName,
     QUESTION_NAME_MAX_LENGTH,
@@ -237,9 +238,9 @@ export const QuestionCard = ({
                                             Are you absolutely sure?
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This action cannot be undone. This
-                                            will permanently delete{" "}
-                                            {deleteTarget}.
+                                            This will delete {deleteTarget} for
+                                            everyone in the session. You can
+                                            undo it for a few seconds.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -247,15 +248,11 @@ export const QuestionCard = ({
                                             Cancel
                                         </AlertDialogCancel>
                                         <AlertDialogAction
-                                            onClick={() => {
-                                                questions.set(
-                                                    $questions.filter(
-                                                        (q) =>
-                                                            q.key !==
-                                                            questionKey,
-                                                    ),
-                                                );
-                                            }}
+                                            onClick={() =>
+                                                deleteQuestionsWithUndo([
+                                                    questionKey,
+                                                ])
+                                            }
                                         >
                                             Delete Question
                                         </AlertDialogAction>

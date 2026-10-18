@@ -459,7 +459,9 @@ export const Map = ({ className }: { className?: string }) => {
                 return;
             }
             console.error(error);
-            if (document.querySelectorAll(".Toastify__toast").length === 0) {
+            // Only another error makes this one redundant (not, say, the
+            // Undo after a delete).
+            if (!document.querySelector(".Toastify__toast--error")) {
                 toast.error("No solutions found / error occurred");
             }
         } finally {

@@ -18,6 +18,12 @@ body {
     height: 100%;
 }
 
+/* A modal (the sidebar on phones) turns off pointer events outside it; toasts
+   such as the Undo after a delete stay clickable. */
+.Toastify__toast {
+    pointer-events: auto;
+}
+
 .leaflet-container {
     height: 100vh; /* Fallback for old browsers */
     height: 100svh;

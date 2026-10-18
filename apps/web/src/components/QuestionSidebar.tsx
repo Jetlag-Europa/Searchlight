@@ -31,6 +31,7 @@ import {
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
+import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
 import {
@@ -166,9 +167,9 @@ export const QuestionSidebar = () => {
                                             Are you absolutely sure?
                                         </AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            This action cannot be undone. This
-                                            will permanently delete all
-                                            questions.
+                                            This will delete all questions for
+                                            everyone in the session. You can
+                                            undo it for a few seconds.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
                                     <AlertDialogFooter>
@@ -176,7 +177,13 @@ export const QuestionSidebar = () => {
                                             Cancel
                                         </AlertDialogCancel>
                                         <AlertDialogAction
-                                            onClick={() => questions.set([])}
+                                            onClick={() =>
+                                                deleteQuestionsWithUndo(
+                                                    questions
+                                                        .get()
+                                                        .map((q) => q.key),
+                                                )
+                                            }
                                         >
                                             Delete All Questions
                                         </AlertDialogAction>

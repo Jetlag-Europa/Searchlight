@@ -3,6 +3,13 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Undo after deleting questions (2026-10-18)
+
+- Deleting a question, or all of them, now shows a notice with an **Undo** button for 8 seconds. Undo puts the questions back where they were and syncs to everyone, without undoing what your teammates changed in the meantime.
+- Only the latest delete can be undone, and switching sessions ends it.
+- On phones, notices can now be tapped while the Questions sidebar is open.
+- The "No solutions found" error no longer goes missing while another notice is showing.
+
 ## Asked questions are marked (2026-10-18)
 
 - The type pickers of matching, measuring and tentacle questions mark the types already asked in the session with "✓ asked", and a radar's quick-pick sizes show the sizes already asked muted. Hidden questions count as asked; custom ones don't.

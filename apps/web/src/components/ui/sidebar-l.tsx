@@ -209,6 +209,16 @@ const Sidebar = React.forwardRef<
                             } as React.CSSProperties
                         }
                         side={side}
+                        // Tapping a toast (Undo after a delete) keeps the
+                        // sidebar open.
+                        onInteractOutside={(e) => {
+                            if (
+                                (e.target as Element | null)?.closest?.(
+                                    ".Toastify",
+                                )
+                            )
+                                e.preventDefault();
+                        }}
                     >
                         <div className="flex h-full w-full flex-col">
                             {children}
