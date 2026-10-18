@@ -3,6 +3,11 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## No more upstream analytics (2026-10-18)
+
+- Searchlight no longer sends page views and session recordings to Google Analytics and Microsoft Clarity. Both trackers came from the upstream project and reported, boards included, to its author's accounts. Searchlight has no analytics now.
+- The app's icons now load from Searchlight itself, and the installed app is called "Searchlight" instead of "Jet Lag Hide and Seek Map Generator".
+
 ## Game stats for server admins (2026-10-17)
 
 - The games page now shows server admins how much each game is played: how many sessions are live and how many players are connected to them, how many were active in the last day and week, totals for sessions, players and questions asked, and when the game was last played.
