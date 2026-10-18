@@ -5,11 +5,12 @@ import {
     compiledGameAtom,
     setActiveGameDefinition,
 } from "@/game-definition/store";
+import { activeSessionId } from "@/lib/activeSession";
 import {
-    disabledStations,
     displayHidingZones,
     perQuestionMapData,
     questionFinishedMapData,
+    setDisabledStations,
     trainStations,
 } from "@/lib/context";
 import { applyGameDefinition, resetGameState } from "@/lib/games";
@@ -95,11 +96,15 @@ describe("zonesLeft", () => {
             removeItem: () => {},
         });
         displayHidingZones.set(true);
-        disabledStations.set([]);
+        // Disabled zones are kept per session.
+        activeSessionId.set("zones-left-session");
+        setDisabledStations([]);
         applyGameDefinition(definition);
     });
 
     afterEach(() => {
+        setDisabledStations([]);
+        activeSessionId.set("");
         vi.unstubAllGlobals();
         resetGameState();
     });
@@ -113,7 +118,7 @@ describe("zonesLeft", () => {
     it("follows the zones disabled by hand", () => {
         calculate(["a", "b", "c"]);
         expect(zonesLeft.get()).toEqual({ left: 3, total: 5, disabled: 0 });
-        disabledStations.set(["a", "c", "e"]);
+        setDisabledStations(["a", "c", "e"]);
         expect(zonesLeft.get()).toEqual({ left: 1, total: 5, disabled: 2 });
     });
 
