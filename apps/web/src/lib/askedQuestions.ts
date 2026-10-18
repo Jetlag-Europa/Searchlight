@@ -1,19 +1,15 @@
+import * as turf from "@turf/turf";
+
+import { PLAYER_CUSTOM_TYPES } from "@/game-definition/store";
 import type { Question, Questions, Units } from "@/maps/schema";
 
 // Each question can usually be asked once per game. Home rules vary, so the
 // pickers only point out what was asked; they never block it.
 
-// A radar is identified by its size: 500 m and 2 km are different questions.
+// A radar is identified by its size, in whole meters: 500 m and 2 km are
+// different questions, 2 km and 2000 m the same one.
 export const radarVariant = (radius: number, unit: Units) =>
-    `${radius} ${unit}`;
-
-// Player-drawn variants: drawing one doesn't use anything up.
-const CUSTOM_VARIANTS = new Set([
-    "custom-points",
-    "custom-zone",
-    "custom-measure",
-    "custom",
-]);
+    String(Math.round(turf.convertLength(radius, unit, "meters")));
 
 // What a question asks within its family: its layer (for matching, measuring
 // and tentacles) or its radar size. Thermometers and zone size changes have
@@ -23,11 +19,14 @@ const askedVariant = (question: Question): string | undefined => {
         case "matching":
         case "measuring":
         case "tentacles": {
-            const variant =
+            const [family, variant] =
                 question.id === "tentacles"
-                    ? question.data.locationType
-                    : question.data.type;
-            return CUSTOM_VARIANTS.has(variant) ? undefined : variant;
+                    ? ["tentacle", question.data.locationType]
+                    : [question.id, question.data.type];
+            // Drawing a player-drawn question doesn't use anything up.
+            return PLAYER_CUSTOM_TYPES[family].includes(variant)
+                ? undefined
+                : variant;
         }
         case "radius":
             return radarVariant(question.data.radius, question.data.unit);

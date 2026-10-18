@@ -62,8 +62,11 @@ export const RadiusQuestionComponent = ({
     const $compiledGame = useStore(compiledGameAtom);
     // Radii the game declares, offered as quick picks when there are several.
     const declaredRadii = $compiledGame ? radarRadii($compiledGame) : [];
+    // Compared in meters, so a typed 2 km also picks a declared 2000 m.
     const declaredIndex = declaredRadii.findIndex(
-        (r) => r.value === data.radius && r.unit === data.unit,
+        (r) =>
+            radarVariant(r.value, r.unit) ===
+            radarVariant(data.radius, data.unit),
     );
     // Sizes other radars asked, marked (but still offered) in the quick picks.
     const askedRadii = askedVariants($questions, "radius", questionKey);
@@ -141,7 +144,14 @@ export const RadiusQuestionComponent = ({
                                 title={asked ? "Asked already" : undefined}
                             >
                                 {formatRadius(radius)}
-                                {asked && <CheckIcon />}
+                                {asked && (
+                                    <>
+                                        <CheckIcon aria-hidden />
+                                        <span className="sr-only">
+                                            , asked already
+                                        </span>
+                                    </>
+                                )}
                             </ToggleGroupItem>
                         );
                     })}

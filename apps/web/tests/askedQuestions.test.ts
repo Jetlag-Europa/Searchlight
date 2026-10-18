@@ -88,9 +88,10 @@ describe("askedVariants", () => {
         });
     });
 
-    it("tells radar sizes apart by unit", () => {
+    it("compares radar sizes by length, whatever the unit", () => {
         const asked = askedVariants(list, "radius");
         expect(asked.has(radarVariant(2, "kilometers"))).toBe(true);
+        expect(asked.has(radarVariant(2000, "meters"))).toBe(true);
         expect(asked.has(radarVariant(2, "miles"))).toBe(false);
     });
 });
@@ -156,9 +157,10 @@ describe("new questions default to one not asked yet", () => {
 
     it("starts a radar at the first size not asked yet", () => {
         setActiveGameDefinition(game);
+        // 0.5 km asks the declared 500 m.
         addQuestion({
             id: "radius",
-            data: { lat: 50, lng: 10, radius: 500, unit: "meters" },
+            data: { lat: 50, lng: 10, radius: 0.5, unit: "kilometers" },
         });
         addQuestion({ id: "radius", data: { lat: 50, lng: 10 } });
         expect(questions.get()[1].data).toMatchObject({
