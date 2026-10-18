@@ -3,6 +3,11 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Changes from other websites are refused (2026-10-18)
+
+- Another website can no longer make changes in Searchlight with a logged-in player's account. Before, a page elsewhere could, for example, join a visiting player to a session through one of its links, which showed the page's owner the player's Discord name and avatar.
+- **Upgrading:** `FRONTEND_ORIGIN` must be exactly the origin the web app is opened on: the API now refuses changes sent from any other origin with a 403. Scripts that send no `Origin` header, such as game import scripts, work as before.
+
 ## No more upstream analytics (2026-10-18)
 
 - Searchlight no longer sends page views and session recordings to Google Analytics and Microsoft Clarity. Both trackers came from the upstream project and reported, boards included, to its author's accounts. Searchlight has no analytics now.
