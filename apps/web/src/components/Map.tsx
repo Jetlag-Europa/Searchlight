@@ -46,7 +46,7 @@ import {
     savedGameView,
 } from "@/lib/gameView";
 import { createLatestTask } from "@/lib/latestTask";
-import { newThermometerData } from "@/lib/questionPosition";
+import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
@@ -679,16 +679,15 @@ export const Map = ({ className }: { className?: string }) => {
                 navigator.geolocation.clearWatch(geoWatchIdRef.current);
                 geoWatchIdRef.current = null;
             }
-            lastGpsFix.set(null);
             return;
         }
 
-        let warnedNoFix = false;
+        let warned = false;
         geoWatchIdRef.current = navigator.geolocation.watchPosition(
             (pos) => {
                 const lat = pos.coords.latitude;
                 const lng = pos.coords.longitude;
-                lastGpsFix.set({ lat, lng, timestamp: pos.timestamp });
+                lastGpsFix.set({ lat, lng });
                 if (followMeMarkerRef.current) {
                     followMeMarkerRef.current.setLatLng([lat, lng]);
                 } else {
@@ -704,14 +703,22 @@ export const Map = ({ className }: { className?: string }) => {
                 }
             },
             (error) => {
-                // Only a refusal ends Follow Me. A slow or missing fix (indoors,
-                // on a train) times out now and then; the watch keeps trying.
-                if (error.code === error.PERMISSION_DENIED) {
+                if (geoErrorAction(error.code) === "stop") {
                     toast.error("Unable to access your location.");
                     followMe.set(false);
-                } else if (!warnedNoFix) {
-                    warnedNoFix = true;
-                    toast.warn("Still looking for your location...");
+                    return;
+                }
+                // The watch keeps trying, but the last fix may be far behind
+                // now: new questions go back to the map centre until the next.
+                const hadFix = lastGpsFix.get() !== null;
+                lastGpsFix.set(null);
+                if (!warned) {
+                    warned = true;
+                    toast.warn(
+                        hadFix
+                            ? "Lost your location, still trying..."
+                            : "Still looking for your location...",
+                    );
                 }
             },
             { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 },
@@ -725,6 +732,7 @@ export const Map = ({ className }: { className?: string }) => {
                 navigator.geolocation.clearWatch(geoWatchIdRef.current);
                 geoWatchIdRef.current = null;
             }
+            lastGpsFix.set(null);
         };
     }, [$followMe, map]);
 

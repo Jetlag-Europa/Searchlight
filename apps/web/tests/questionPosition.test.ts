@@ -2,41 +2,33 @@ import * as turf from "@turf/turf";
 import { describe, expect, it } from "vitest";
 
 import {
-    GPS_FIX_MAX_AGE_MS,
+    geoErrorAction,
     newQuestionPosition,
     newThermometerData,
 } from "@/lib/questionPosition";
 
 const center = { lat: 47.37, lng: 8.54 };
-const now = 1_800_000_000_000;
-const fix = { lat: 46.95, lng: 7.44, timestamp: now - 30_000 };
+const fix = { lat: 46.95, lng: 7.44 };
 
 describe("newQuestionPosition", () => {
-    it("uses a recent Follow Me fix", () => {
-        expect(newQuestionPosition(center, true, fix, now)).toEqual({
-            lat: 46.95,
-            lng: 7.44,
-        });
+    it("uses the Follow Me fix, however old", () => {
+        expect(newQuestionPosition(center, true, fix)).toEqual(fix);
     });
 
     it("uses the map centre while Follow Me is off", () => {
-        expect(newQuestionPosition(center, false, fix, now)).toEqual(center);
+        expect(newQuestionPosition(center, false, fix)).toEqual(center);
     });
 
     it("uses the map centre without a fix", () => {
-        expect(newQuestionPosition(center, true, null, now)).toEqual(center);
+        expect(newQuestionPosition(center, true, null)).toEqual(center);
     });
+});
 
-    it("uses the map centre once the fix is stale", () => {
-        const at = (age: number) =>
-            newQuestionPosition(
-                center,
-                true,
-                { ...fix, timestamp: now - age },
-                now,
-            );
-        expect(at(GPS_FIX_MAX_AGE_MS)).toEqual({ lat: 46.95, lng: 7.44 });
-        expect(at(GPS_FIX_MAX_AGE_MS + 1)).toEqual(center);
+describe("geoErrorAction", () => {
+    it("stops Follow Me only when the permission is refused", () => {
+        expect(geoErrorAction(1)).toBe("stop"); // PERMISSION_DENIED
+        expect(geoErrorAction(2)).toBe("keep"); // POSITION_UNAVAILABLE
+        expect(geoErrorAction(3)).toBe("keep"); // TIMEOUT
     });
 });
 

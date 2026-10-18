@@ -5,27 +5,26 @@ export interface LatLng {
     lng: number;
 }
 
-export interface GpsFix extends LatLng {
-    // When the fix was taken, in ms since the epoch (GeolocationPosition.timestamp).
-    timestamp: number;
-}
-
-// Older fixes than this are too far behind a moving seeker to place a question.
-export const GPS_FIX_MAX_AGE_MS = 2 * 60 * 1000;
-
 // Where a question added from the Add Question dialog starts: at the seeker
-// while Follow Me has a recent fix, otherwise at the map centre.
+// while Follow Me has a fix, otherwise at the map centre. The fix has no age
+// limit: the watch only reports again once the seeker moves, so a seeker
+// standing still keeps their last fix (it is dropped when the watch fails).
 export const newQuestionPosition = (
     center: LatLng,
     followMe: boolean,
-    fix: GpsFix | null,
-    now: number = Date.now(),
-): LatLng => {
-    if (followMe && fix && now - fix.timestamp <= GPS_FIX_MAX_AGE_MS) {
-        return { lat: fix.lat, lng: fix.lng };
-    }
-    return { lat: center.lat, lng: center.lng };
-};
+    fix: LatLng | null,
+): LatLng =>
+    followMe && fix
+        ? { lat: fix.lat, lng: fix.lng }
+        : { lat: center.lat, lng: center.lng };
+
+// What Follow Me does on a geolocation error: only a refusal ends it. A slow
+// or missing fix (indoors, on a train) times out now and then, and the watch
+// keeps trying.
+export const geoErrorAction = (code: number): "stop" | "keep" =>
+    code === 1 /* GeolocationPositionError.PERMISSION_DENIED */
+        ? "stop"
+        : "keep";
 
 // A new thermometer starts (A) at the given point and ends (B) 5 km east of it.
 export const newThermometerData = (start: LatLng) => {
