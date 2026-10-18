@@ -39,6 +39,7 @@ import {
 } from "@/maps/questions/matching";
 import type { MatchingQuestion } from "@/maps/schema";
 
+import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
 
 export const MatchingQuestionComponent = ({
@@ -267,6 +268,7 @@ export const MatchingQuestionComponent = ({
                     <ToggleGroupItem value="same">Same</ToggleGroupItem>
                 </ToggleGroup>
             </div>
+            <AnswerSplitPreview questionKey={questionKey} data={data} />
         </QuestionCard>
     );
 };

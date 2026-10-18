@@ -33,6 +33,7 @@ import { measuringDistance } from "@/maps";
 import type { MeasuredDistance } from "@/maps/questions/operators/measuring";
 import type { MeasuringQuestion } from "@/maps/schema";
 
+import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
 
 /**
@@ -276,6 +277,7 @@ export const MeasuringQuestionComponent = ({
                     </ToggleGroupItem>
                 </ToggleGroup>
             </div>
+            <AnswerSplitPreview questionKey={questionKey} data={data} />
         </QuestionCard>
     );
 };

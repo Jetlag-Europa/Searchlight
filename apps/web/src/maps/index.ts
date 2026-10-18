@@ -411,6 +411,26 @@ export async function adjustMapGeoDataForQuestion(
 }
 
 /**
+ * What a question leaves possible on its own, as a feature collection: it is
+ * evaluated against a fresh copy of the base boundary, independent of the
+ * other questions.
+ */
+export async function standaloneRegion(
+    question: any,
+    baseMapGeoData: any,
+): Promise<any> {
+    const base = structuredClone(baseMapGeoData);
+    const region = await adjustMapGeoDataForQuestion(question, base);
+    if (!region || region.type !== "FeatureCollection") {
+        return {
+            type: "FeatureCollection",
+            features: region ? [region] : [],
+        };
+    }
+    return region;
+}
+
+/**
  * Compute each enabled question's standalone "still-possible" region by applying
  * that question — and only that question — to the full base game boundary.
  *
@@ -469,20 +489,9 @@ export async function computePerQuestionRegions(
             question.id,
             { ...question.data, name: undefined, collapsed: undefined },
         ]);
-        let region = cache.get(key);
-        if (!region) {
-            // Each question is evaluated against a fresh copy of the base
-            // boundary, independent of the others.
-            const base = structuredClone(baseMapGeoData);
-            region = await adjustMapGeoDataForQuestion(question, base);
-
-            if (!region || region.type !== "FeatureCollection") {
-                region = {
-                    type: "FeatureCollection",
-                    features: region ? [region] : [],
-                };
-            }
-        }
+        const region =
+            cache.get(key) ??
+            (await standaloneRegion(question, baseMapGeoData));
         used.set(key, region);
 
         regions.push({
