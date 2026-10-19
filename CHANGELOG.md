@@ -20,7 +20,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
   - Stockholm 2026 and Luxembourg 2026: Distance to Coastline.
   - Bucharest: Tentacles: Theme Park.
 - Sessions already running keep their game version. New sessions get the new questions.
-- "Same train line" and a few other old questions still have no equivalent. `scripts/legacy-import/question-map.json` lists every old question type and what it became, for importing old sessions.
+- "Same train line" and a few other old questions still have no equivalent.
 
 ## Server list loads without waiting on Discord (2026-10-19)
 
