@@ -22,7 +22,6 @@ import {
     CircleMarker,
     MapContainer,
     Popup,
-    Rectangle,
     TileLayer,
     Tooltip,
     useMap,
@@ -84,7 +83,7 @@ const formatDate = (iso: string) =>
         year: "numeric",
     });
 
-// From this zoom, the map names its games and outlines their areas.
+// From this zoom, the map names its games.
 const LABEL_ZOOM = 7;
 
 /** Frames the games found, and flies to the selected game. */
@@ -334,32 +333,6 @@ function BrowserMap({
                 <TrackSize />
                 <TrackZoom onZoom={setZoom} />
                 <WheelZoom enabled={expanded || wide} />
-                {matches.map(({ game }) =>
-                    game.bounds && (showLabels || game.id === selected?.id) ? (
-                        <Rectangle
-                            key={`area-${game.id}`}
-                            bounds={latLngBounds(game.bounds)}
-                            interactive={false}
-                            pathOptions={
-                                game.id === selected?.id
-                                    ? {
-                                          color: "#facc15",
-                                          weight: 2,
-                                          fillOpacity: 0.05,
-                                      }
-                                    : {
-                                          color: game.locked
-                                              ? "#6b7280"
-                                              : "#e11d48",
-                                          weight: 1,
-                                          dashArray: "4 4",
-                                          // Areas overlap: a country-wide game would tint everything.
-                                          fill: false,
-                                      }
-                            }
-                        />
-                    ) : null,
-                )}
                 {place && (
                     <CircleMarker
                         center={[place.lat, place.lng]}
