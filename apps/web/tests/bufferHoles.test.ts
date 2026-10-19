@@ -117,18 +117,22 @@ describe("buffers of a region with an enclave", () => {
 });
 
 describe("distance to a province boundary from inside Brussels", () => {
-    it("keeps the middle of Brussels when the hider is farther", async () => {
-        const validation = validateGameDefinition(belgium);
+    // Measured region by region, as layers not marked noOverlaps are.
+    const unmarked = structuredClone(belgium);
+    for (const layer of unmarked.features!) delete layer.noOverlaps;
+
+    const answer = async (hiderCloser: boolean) => {
+        const validation = validateGameDefinition(unmarked);
         if (!validation.valid) {
             throw new Error(JSON.stringify(validation.errors));
         }
-        setActiveGameDefinition(belgium);
+        setActiveGameDefinition(unmarked);
         const compiled = compiledGameAtom.get()!;
         // Brussels and its surroundings, to keep the buffers few.
         const map = turf.featureCollection([
             turf.intersect(
                 turf.featureCollection([
-                    belgium.map.playArea!.features[0] as Feature<
+                    unmarked.map.playArea!.features[0] as Feature<
                         Polygon | MultiPolygon
                     >,
                     turf.bboxPolygon([4.1, 50.75, 4.6, 50.95]),
@@ -137,20 +141,26 @@ describe("distance to a province boundary from inside Brussels", () => {
         ]);
         // Ninove, about a kilometre from its province's boundary: the
         // Grand-Place is farther from every province boundary than that.
-        const farther = await evaluateMeasuringOperator({
+        const result = await evaluateMeasuringOperator({
             evaluator:
                 compiled.questionMap.get("measuring-province")!.evaluator,
             datasets: compiled.datasets,
-            data: { lat: 50.839463, lng: 4.026178, hiderCloser: false },
+            data: { lat: 50.839463, lng: 4.026178, hiderCloser },
             mapGeoData: map,
         });
         const pieces = (
-            farther && "features" in farther ? farther.features : [farther]
-        ) as Feature<Polygon | MultiPolygon>[];
-        expect(
-            pieces.some((piece) =>
-                turf.booleanPointInPolygon(GRAND_PLACE, piece),
-            ),
-        ).toBe(true);
+            result && "features" in result ? result.features : [result]
+        ).filter(Boolean) as Feature<Polygon | MultiPolygon>[];
+        return pieces.some((piece) =>
+            turf.booleanPointInPolygon(GRAND_PLACE, piece),
+        );
+    };
+
+    it("keeps the middle of Brussels when the hider is farther", async () => {
+        expect(await answer(false)).toBe(true);
+    }, 120_000);
+
+    it("rules out the middle of Brussels when the hider is closer", async () => {
+        expect(await answer(true)).toBe(false);
     }, 120_000);
 });

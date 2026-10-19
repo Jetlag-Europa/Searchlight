@@ -315,12 +315,13 @@ async function getContainingRegionTargetGeometry(
                         candidates.map((index) => source.regions[index]),
                     ),
             );
+            // Projected around its own middle: a single buffer has no
+            // neighbour to match, and stays planar further out that way.
             return arcBuffer(
                 turf.featureCollection([network]),
                 threshold,
                 "miles",
                 bufferDeviation(threshold, "miles"),
-                await layerCenter(source),
             );
         }
         const buffers = await Promise.all(
