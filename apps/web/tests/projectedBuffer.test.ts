@@ -1,14 +1,14 @@
-import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
+import "./arcgisNode";
 
-import esriConfig from "@arcgis/core/config.js";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import * as geodesicBufferOperator from "@arcgis/core/geometry/operators/geodesicBufferOperator.js";
 import * as geodeticDistanceOperator from "@arcgis/core/geometry/operators/geodeticDistanceOperator.js";
 import Point from "@arcgis/core/geometry/Point.js";
 import * as geometryJsonUtils from "@arcgis/core/geometry/support/jsonUtils.js";
 import type * as unionTypes from "@arcgis/core/unionTypes.js";
-import { arcgisToGeoJSON, geojsonToArcGIS } from "@terraformer/arcgis";
+import { geojsonToArcGIS } from "@terraformer/arcgis";
 import * as turf from "@turf/turf";
 import type {
     Feature,
@@ -20,14 +20,8 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import { calculateBuffer } from "@/maps/geo-utils/bufferGeometry";
 import { bufferDeviation } from "@/maps/geo-utils/bufferReach";
+import { ringsToMultiPolygon } from "@/maps/geo-utils/polygonRings";
 import { regionLines } from "@/maps/questions/operators/geometry";
-
-// ArcGIS's projection engine is WASM built for browsers. Node runs it given
-// CommonJS's globals and the package's own copy of the WASM.
-const require = createRequire(import.meta.url);
-const arcgisDir = dirname(require.resolve("@arcgis/core/package.json"));
-Object.assign(globalThis, { require, __dirname: arcgisDir });
-esriConfig.assetsPath = resolve(arcgisDir, "assets");
 
 const belgium = JSON.parse(
     readFileSync(
@@ -90,8 +84,8 @@ function geodesicBuffer(fc: FeatureCollection, miles: number) {
             maxDeviation: bufferDeviation(miles, "miles"),
         },
     );
-    return turf.feature(
-        arcgisToGeoJSON(buffered.toJSON()) as Polygon | MultiPolygon,
+    return turf.multiPolygon(
+        ringsToMultiPolygon((buffered as __esri.Polygon).rings),
     );
 }
 

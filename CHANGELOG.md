@@ -3,6 +3,10 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Enclaves no longer ruled out by distance questions (2026-10-19)
+
+- A distance-to-boundary question could wrongly rule out the middle of an enclave: a place inside a hole in a region, such as Brussels inside Flemish Brabant. In Belgium, a hider in central Brussels who answered "farther" from a province border than a seeker near one was eliminated, and a "closer" answer kept all of Brussels possible. Measuring and radius questions now keep holes inside holes as they should.
+
 ## Faster measuring questions (2026-10-19)
 
 - Measuring questions now build their distance buffers in a map projection centred on the area, which is several times faster than working on the globe directly and just as accurate: the buffer stays within the same tolerance as before (0.05% of the distance, at least 3 ft). In Belgium, "closer to a province border" now takes about 2 seconds instead of 7 to 8 at most distances.
