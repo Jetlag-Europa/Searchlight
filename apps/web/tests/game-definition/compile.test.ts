@@ -32,7 +32,7 @@ describe("Runtime Compiler and Operator Dispatch", () => {
 
     expect(compiled.gameId).toBe("paris-2026");
     expect(compiled.hidingZones.stations?.length).toBe(412);
-    expect(compiled.questions.length).toBe(38);
+    expect(compiled.questions.length).toBe(40);
     const innerRadius = compiled.hidingZones.getRadius("zone-1", "Inner");
     expect(innerRadius.value).toBe(400);
     expect(innerRadius.unit).toBe("meters");

@@ -3,6 +3,25 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Old questions are back (2026-10-19)
+
+- The old Searchlight looked many questions up in OpenStreetMap while playing. The questions players asked there are now part of their games, with the data looked up once and stored in the game:
+  - Bern: Same Canton (also Distance to Canton Boundary), Same Bezirk and Same Administrative Region.
+  - Zurich: Same Bezirk, Distance to International Border, Distance to Airport and Distance to Canton Boundary.
+  - Budapest: Same District and Distance to Coastline.
+  - Brno: Nearest Mountain and Distance to Mountain.
+  - Belgium: Nearest Aquarium, Distance to Aquarium, Nearest Mountain and Distance to Mountain.
+  - South Limburg: Same Postcode.
+  - Rotterdam 12-09: Nearest Park and Distance to Park.
+  - London and Accessible London: Distance to High-Speed Rail and Distance to Coastline.
+  - Greater Manchester: Distance to Coastline, plus Nearest Library, Distance to Library and Tentacles: Library.
+  - North London: Nearest Airport.
+  - Paris: Distance to High-Speed Rail and Distance to Coastline.
+  - Stockholm 2026 and Luxembourg 2026: Distance to Coastline.
+  - Bucharest: Tentacles: Theme Park.
+- Sessions already running keep their game version. New sessions get the new questions.
+- "Same train line" and a few other old questions still have no equivalent. `scripts/legacy-import/question-map.json` lists every old question type and what it became, for importing old sessions.
+
 ## Server list loads without waiting on Discord (2026-10-19)
 
 - The server list in the session picker now shows what Searchlight already knows about your servers and checks with Discord in the background, so it only waits on Discord the first time you open it.
