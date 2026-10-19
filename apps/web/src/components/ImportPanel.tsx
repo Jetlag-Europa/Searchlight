@@ -39,7 +39,10 @@ export function ImportPanel({
     definition: GameDefinition;
     /** The file names no server, so one must be picked here. */
     noServer: boolean;
-    /** The page is still checking a changed file. */
+    /**
+     * The page is still checking a changed file, or the layers marked
+     * noOverlaps.
+     */
     busy: boolean;
     /** Why the file can't be imported as it is, if it can't. */
     blocked: string | null;
