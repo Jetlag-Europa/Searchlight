@@ -353,7 +353,8 @@ function BrowserMap({
                                               : "#e11d48",
                                           weight: 1,
                                           dashArray: "4 4",
-                                          fillOpacity: 0.04,
+                                          // Areas overlap: a country-wide game would tint everything.
+                                          fill: false,
                                       }
                             }
                         />
