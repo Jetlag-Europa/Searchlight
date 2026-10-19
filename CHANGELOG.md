@@ -15,7 +15,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 ## Faster distance-to-border questions on fixed layers (2026-10-19)
 
-- On a region layer marked `"noOverlaps": true` (see below), a distance-to-border question now buffers the whole border network once, each shared border once, instead of buffering every region and cutting them together. In Belgium, a province-border question takes about 1 second at most distances (from 1 to 2.5), and 3 to 4 seconds about a kilometre from a border (from 8 to 12). The zones it leaves are the same.
+- On a region layer marked `"noOverlaps": true` (see below), a distance-to-border question now buffers the whole border network once, each shared border once, instead of buffering every region and cutting them together. In Belgium, a province-border question takes about 1 second at most distances (down from 1 to 2.5 seconds), and 3 to 4 seconds about a kilometre from a border (down from 8 to 12 seconds). The zones it leaves are the same.
 
 ## Import page, with a fix for overlapping regions (2026-10-19)
 
@@ -25,7 +25,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - A layer already marked `noOverlaps` whose regions do overlap can't be imported until it's fixed or the mark is removed, and `check-game.mjs --strict` fails on one.
 - Fixed layers, and layers found without overlaps, are marked `"noOverlaps": true` in the file, and distance-to-border questions on them are answered faster (see above).
 - The preloaded games are fixed and marked. Their overlaps were up to 42 m wide (Bucharest, Exeter-Rotterdam and Rotterdam), 29 m in Belgium's provinces.
-- **Upgrading:** 18 of the 22 preloaded games changed, so the API imports a new revision of each of them on its next start.
+- **Upgrading:** 21 of the 22 preloaded games changed (all but Brussels), so the API imports a new revision of each of them on its next start.
 
 ## Enclaves no longer ruled out by distance questions (2026-10-19)
 
@@ -36,7 +36,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Measuring questions now build their distance buffers in a map projection centred on the area, which is several times faster than working on the globe directly and just as accurate: the buffer stays within the same tolerance as before (0.05% of the distance, at least 3 ft). In Belgium, "closer to a province border" now takes about 2 seconds instead of 7 to 8 at most distances.
 - Borders are never simplified, so answers and the zones they leave are unchanged.
 - Working out a distance-to-boundary question no longer blocks the page while it cuts up the regions.
-- On a big game, a question asked about a kilometre from a border is still slow (about 10 seconds in Belgium, down from 15 to 19).
+- On a big game, a question asked about a kilometre from a border is still slow (about 10 seconds in Belgium, down from 15 to 19). On a layer marked `noOverlaps` it's faster still (see "Faster distance-to-border questions on fixed layers" above).
 
 ## Link copying, place search and full screen fixes (2026-10-19)
 
@@ -64,6 +64,12 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Sessions already running keep their game version. New sessions get the new questions.
 - "Same train line" and a few other old questions still have no equivalent.
 
+## Back where you were after logging in (2026-10-19)
+
+- Logging in now takes you back to the page you opened, such as `/games`, `/admin` or a game link, instead of always the map.
+- After logging in from an invite link you're back on the invite page; click **Join** to join the session. Before, you were joined automatically.
+- The **Invites** button is now called **Invite**.
+
 ## Server list loads without waiting on Discord (2026-10-19)
 
 - The server list in the session picker now shows what Searchlight already knows about your servers and checks with Discord in the background, so it only waits on Discord the first time you open it.
@@ -73,7 +79,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Game designer page (2026-10-18)
 
 - A new page, `/designer`, shows a game file on a map before you import it: its play area, bounds, hiding zones and each feature layer, with a panel listing its details, the questions players will be offered and any problems found. No login is needed, and the file never leaves your browser.
-- Importing a game on the games page now shows the game checker's warnings and notes, and marks the ones that are always data mistakes as defects. They don't block the import.
+- Importing a game now shows the game checker's warnings and notes, and marks the ones that are always data mistakes as defects. They don't block the import, except a layer marked `noOverlaps` whose regions overlap (see "Import page" above).
 - `check-game.mjs` no longer starts with `#!/usr/bin/env node`, so run it as `node check-game.mjs`, as the game guide does.
 
 ## Planning mode previews each answer (2026-10-18)

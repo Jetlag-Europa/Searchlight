@@ -29,9 +29,12 @@ are reprojected through Mercator and drift from the true geodesic boundaries
 tight for the same reason. A failing case writes an SVG to
 `apps/web/test-results/`.
 
-`@arcgis/core` can't run under Node, so `arcBuffer` and `arcBufferToPoint` are
-replaced with Turf equivalents (`vi.mock("@/maps/geo-utils")`); the Voronoi,
-union and intersection code stays under test.
+Most question tests replace `arcBuffer` and `arcBufferToPoint` with Turf
+equivalents (`vi.mock("@/maps/geo-utils")`); the Voronoi, union and
+intersection code stays under test. The buffer tests (`projectedBuffer`,
+`bufferHoles`, `borderNetwork`) run the real `@arcgis/core` projection engine
+instead: they import `tests/arcgisNode.ts` first, which lets its browser WASM
+load under Node.
 
 ## End-to-end (Playwright)
 
