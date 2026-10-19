@@ -19,6 +19,53 @@ export interface UnionRequest {
     regions: Region[];
 }
 
+export interface BoundaryTargetRequest {
+    kind: "boundaryTarget";
+    /** A layer's regions; where they overlap, the first one owns the overlap. */
+    regions: Region[];
+    /** The regions that can shape the target, by index into `regions`. */
+    candidates: number[];
+    /** Each candidate's boundary buffered by the seeker's distance. */
+    buffers: Region[];
+}
+
+/**
+ * Where a point is closer to its own region's boundary than the buffers'
+ * distance. A point in a region is closer within that region's buffer, and a
+ * point in none within any region's buffer, as it is measured to the nearest
+ * region. So the target is every buffer but the part of each region beyond
+ * its own buffer. Those parts never reach a region's edge, which leaves no
+ * seams for slivers between neighbouring regions.
+ */
+export function calculateBoundaryTarget({
+    regions,
+    candidates,
+    buffers,
+}: BoundaryTargetRequest): Region | null {
+    const farParts: Region[] = [];
+    candidates.forEach((index, candidate) => {
+        let far = turf.difference(
+            turf.featureCollection([regions[index], buffers[candidate]]),
+        );
+        if (!far) return;
+        // When regions overlap, the first containing source wins for both
+        // hider answers and map geometry.
+        for (let previous = 0; previous < index; previous++) {
+            const earlier = regions[previous];
+            if (!turf.booleanIntersects(far, earlier)) continue;
+            far = turf.difference(turf.featureCollection([far, earlier]));
+            if (!far) return;
+        }
+        farParts.push(far);
+    });
+    return calculateClip({
+        kind: "clip",
+        mapData: turf.featureCollection(buffers),
+        modifications: turf.featureCollection(farParts),
+        within: false,
+    });
+}
+
 export function calculateUnion({ regions }: UnionRequest): Region | null {
     if (regions.length <= 1) return regions[0] ?? null;
     return turf.union(turf.featureCollection(regions));

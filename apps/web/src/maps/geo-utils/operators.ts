@@ -63,8 +63,17 @@ export const arcBuffer = (
     unit: units.LengthUnit & turf.Units = "miles",
     /** How far the result may stray from the true curve; 3 ft by default. */
     maxDeviation?: number,
+    /** Shared by buffers that will be overlaid; see BufferRequest. */
+    origin?: [number, number],
 ): Promise<Feature<Polygon | MultiPolygon>> =>
-    requestGeometry({ kind: "radius", geometry, distance, unit, maxDeviation });
+    requestGeometry({
+        kind: "radius",
+        geometry,
+        distance,
+        unit,
+        maxDeviation,
+        origin,
+    });
 
 /**
  * Buffers `geometry` by its distance to the point. With `within`, the result
