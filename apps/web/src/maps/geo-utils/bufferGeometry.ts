@@ -8,11 +8,12 @@ import Point from "@arcgis/core/geometry/Point.js";
 import SpatialReference from "@arcgis/core/geometry/SpatialReference.js";
 import * as geometryJsonUtils from "@arcgis/core/geometry/support/jsonUtils.js";
 import type * as unionTypes from "@arcgis/core/unionTypes.js";
-import { arcgisToGeoJSON, geojsonToArcGIS } from "@terraformer/arcgis";
+import { geojsonToArcGIS } from "@terraformer/arcgis";
 import * as turf from "@turf/turf";
 import type { BBox, Feature, FeatureCollection, MultiPolygon } from "geojson";
 
 import { bufferDeviation, featuresReaching } from "./bufferReach";
+import { ringsToMultiPolygon } from "./polygonRings";
 
 export type BufferRequest = {
     geometry: FeatureCollection;
@@ -251,11 +252,8 @@ export async function calculateBuffer(
             turf.convertLength(maxDeviation, unit, "meters"),
             request.kind === "radius" ? request.origin : undefined,
         )) ?? (await geodesicBuffer(geometries, distance, unit, maxDeviation));
-    const result = arcgisToGeoJSON(buffered.toJSON());
-    if (result.type !== "Polygon" && result.type !== "MultiPolygon") {
+    if (buffered.type !== "polygon") {
         throw new Error("Buffer calculation did not return a polygon");
     }
-    return turf.multiPolygon(
-        result.type === "Polygon" ? [result.coordinates] : result.coordinates,
-    );
+    return turf.multiPolygon(ringsToMultiPolygon(buffered.rings));
 }
