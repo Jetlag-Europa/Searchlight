@@ -4,9 +4,11 @@ import type {
     Feature,
     FeatureCollection,
     LineString,
+    MultiLineString,
     MultiPolygon,
     Point,
     Polygon,
+    Position,
 } from "geojson";
 
 export type Region = Feature<Polygon | MultiPolygon>;
@@ -14,6 +16,12 @@ export type Region = Feature<Polygon | MultiPolygon>;
 export interface GeometrySource {
     points: Feature<Point>[];
     regions: Region[];
+    /**
+     * The game marks the regions as not overlapping (the import page checks
+     * that), so the boundary of the region a point is in is also the nearest
+     * boundary of any region.
+     */
+    noOverlaps: boolean;
     lines: {
         source: Feature;
         /** Which of the layer's line features this part belongs to: 0, 1, 2... */
@@ -48,7 +56,7 @@ export function geometrySource(
             : undefined;
     // Compiled datasets have already passed game-definition validation.
     const dataset = (datasetId ? datasets[datasetId] : undefined) as
-        | { kind?: string; features?: FeatureCollection }
+        | { kind?: string; features?: FeatureCollection; noOverlaps?: boolean }
         | undefined;
     const input = datasetId
         ? dataset?.kind === "inline"
@@ -106,6 +114,7 @@ export function geometrySource(
     const source: GeometrySource = {
         points: [],
         regions: [],
+        noOverlaps: dataset?.noOverlaps === true,
         lines: [],
         fixed: new Map(),
         positions: new Map(),
@@ -204,6 +213,39 @@ export function regionLines(region: Region): FeatureCollection<LineString> {
     return turf.flatten(
         turf.polygonToLine(region),
     ) as FeatureCollection<LineString>;
+}
+
+/**
+ * Every edge of the regions' boundaries once, as one MultiLineString: the
+ * border two neighbours share is buffered once instead of twice.
+ */
+export function borderNetwork(regions: Region[]): Feature<MultiLineString> {
+    const key = (a: Position, b: Position) => {
+        const p = `${a[0]},${a[1]}`;
+        const q = `${b[0]},${b[1]}`;
+        return p < q ? `${p} ${q}` : `${q} ${p}`;
+    };
+    const seen = new Set<string>();
+    const paths: Position[][] = [];
+    for (const region of regions) {
+        for (const line of regionLines(region).features) {
+            const ring = line.geometry.coordinates;
+            let path: Position[] = [];
+            for (let i = 0; i + 1 < ring.length; i++) {
+                const edge = key(ring[i], ring[i + 1]);
+                if (seen.has(edge)) {
+                    if (path.length > 1) paths.push(path);
+                    path = [];
+                    continue;
+                }
+                seen.add(edge);
+                if (!path.length) path.push(ring[i]);
+                path.push(ring[i + 1]);
+            }
+            if (path.length > 1) paths.push(path);
+        }
+    }
+    return turf.multiLineString(paths);
 }
 
 export function containingRegion(

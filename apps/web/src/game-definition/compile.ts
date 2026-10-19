@@ -139,7 +139,11 @@ export function compileGameDefinition(
   const datasetId = (index: number) => `layer-${index}`;
   definition.features?.forEach((feat, index) => {
     if (feat.data) {
-      datasets[datasetId(index)] = { kind: "inline", features: feat.data };
+      datasets[datasetId(index)] = {
+        kind: "inline",
+        features: feat.data,
+        noOverlaps: feat.noOverlaps === true,
+      };
     }
   });
 
