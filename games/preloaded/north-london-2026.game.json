@@ -155289,6 +155289,73 @@
           }
         ]
       }
+    },
+    {
+      "name": "Airport",
+      "enabledFor": [
+        "matching"
+      ],
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                0.053999,
+                51.504266
+              ]
+            },
+            "properties": {
+              "name": "London City Airport"
+            },
+            "id": "london-city-airport"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -0.418021,
+                51.554439
+              ]
+            },
+            "properties": {
+              "name": "RAF Northolt"
+            },
+            "id": "raf-northolt"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                0.03279,
+                51.330204
+              ]
+            },
+            "properties": {
+              "name": "London Biggin Hill Airport"
+            },
+            "id": "london-biggin-hill-airport"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -0.454774,
+                51.467752
+              ]
+            },
+            "properties": {
+              "name": "London Heathrow Airport"
+            },
+            "id": "london-heathrow-airport"
+          }
+        ]
+      }
     }
   ]
 }

@@ -264085,6 +264085,2092 @@
           }
         ]
       }
+    },
+    {
+      "name": "Library",
+      "enabledFor": [
+        "matching",
+        "measuring",
+        "tentacle"
+      ],
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.630253,
+                53.54559
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.235482,
+                53.464432
+              ]
+            },
+            "properties": {
+              "name": "Main Library, University of Manchester"
+            },
+            "id": "main-library-university-of-manchester"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.006425,
+                53.548103
+              ]
+            },
+            "properties": {
+              "name": "Uppermill Library"
+            },
+            "id": "uppermill-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.201493,
+                53.458172
+              ]
+            },
+            "properties": {
+              "name": "Longsight Library"
+            },
+            "id": "longsight-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.191373,
+                53.416765
+              ]
+            },
+            "properties": {
+              "name": "The Heatons Library"
+            },
+            "id": "the-heatons-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.487458,
+                53.525936
+              ]
+            },
+            "properties": {
+              "name": "Atherton Library"
+            },
+            "id": "atherton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.182932,
+                53.501494
+              ]
+            },
+            "properties": {
+              "name": "Newton Heath Library"
+            },
+            "id": "newton-heath-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.103225,
+                53.521061
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-2"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.212819,
+                53.514032
+              ]
+            },
+            "properties": {
+              "name": "North City Library"
+            },
+            "id": "north-city-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.235311,
+                53.511757
+              ]
+            },
+            "properties": {
+              "name": "Abraham Moss Library & Leisure Centre"
+            },
+            "id": "abraham-moss-library-leisure-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.168063,
+                53.516743
+              ]
+            },
+            "properties": {
+              "name": "New Moston Library"
+            },
+            "id": "new-moston-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.292903,
+                53.458243
+              ]
+            },
+            "properties": {
+              "name": "Greatstone Library"
+            },
+            "id": "greatstone-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.158175,
+                53.441706
+              ]
+            },
+            "properties": {
+              "name": "Reddish Library"
+            },
+            "id": "reddish-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.384141,
+                53.582012
+              ]
+            },
+            "properties": {
+              "name": "Breightmet Library"
+            },
+            "id": "breightmet-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.079952,
+                53.450959
+              ]
+            },
+            "properties": {
+              "name": "Hyde Library"
+            },
+            "id": "hyde-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.104515,
+                53.606057
+              ]
+            },
+            "properties": {
+              "name": "Milnrow Library"
+            },
+            "id": "milnrow-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.131391,
+                53.477227
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-3"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.207618,
+                53.532503
+              ]
+            },
+            "properties": {
+              "name": "The Avenue Library & Learning Centre"
+            },
+            "id": "the-avenue-library-learning-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.353521,
+                53.449546
+              ]
+            },
+            "properties": {
+              "name": "Urmston Library"
+            },
+            "id": "urmston-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.13328,
+                53.426616
+              ]
+            },
+            "properties": {
+              "name": "Brinnington Library"
+            },
+            "id": "brinnington-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.056167,
+                53.483281
+              ]
+            },
+            "properties": {
+              "name": "Stalybridge Library"
+            },
+            "id": "stalybridge-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.319709,
+                53.648953
+              ]
+            },
+            "properties": {
+              "name": "Ramsbottom Library"
+            },
+            "id": "ramsbottom-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.273352,
+                53.48431
+              ]
+            },
+            "properties": {
+              "name": "Working Class Movement Library"
+            },
+            "id": "working-class-movement-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.21905,
+                53.502473
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-4"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.240992,
+                53.41611
+              ]
+            },
+            "properties": {
+              "name": "Hugh Rae Library"
+            },
+            "id": "hugh-rae-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.244272,
+                53.486611
+              ]
+            },
+            "properties": {
+              "name": "Chetham's Library"
+            },
+            "id": "chetham-s-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.236392,
+                53.511519
+              ]
+            },
+            "properties": {
+              "name": "Abraham Moss Library"
+            },
+            "id": "abraham-moss-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.19174,
+                53.44614
+              ]
+            },
+            "properties": {
+              "name": "Arcadia Library"
+            },
+            "id": "arcadia-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.101744,
+                53.416462
+              ]
+            },
+            "properties": {
+              "name": "Bredbury Library"
+            },
+            "id": "bredbury-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.262879,
+                53.423336
+              ]
+            },
+            "properties": {
+              "name": "Barlow Moor Community Library"
+            },
+            "id": "barlow-moor-community-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.133553,
+                53.388404
+              ]
+            },
+            "properties": {
+              "name": "Great Moor Library"
+            },
+            "id": "great-moor-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.132342,
+                53.646337
+              ]
+            },
+            "properties": {
+              "name": "Wardle Library"
+            },
+            "id": "wardle-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.398622,
+                53.524926
+              ]
+            },
+            "properties": {
+              "name": "Walkden Library"
+            },
+            "id": "walkden-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.261825,
+                53.461536
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-5"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.24789,
+                53.460755
+              ]
+            },
+            "properties": {
+              "name": "Hulme High Street Library"
+            },
+            "id": "hulme-high-street-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.24061,
+                53.479716
+              ]
+            },
+            "properties": {
+              "name": "The Portico Library"
+            },
+            "id": "the-portico-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.352518,
+                53.387066
+              ]
+            },
+            "properties": {
+              "name": "Altrincham Library"
+            },
+            "id": "altrincham-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.334347,
+                53.524443
+              ]
+            },
+            "properties": {
+              "name": "Clifton Library"
+            },
+            "id": "clifton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.417228,
+                53.503103
+              ]
+            },
+            "properties": {
+              "name": "Boothstown Library"
+            },
+            "id": "boothstown-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.342086,
+                53.512205
+              ]
+            },
+            "properties": {
+              "name": "Swinton Library"
+            },
+            "id": "swinton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.25872,
+                53.505488
+              ]
+            },
+            "properties": {
+              "name": "Broughton Library"
+            },
+            "id": "broughton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.284751,
+                53.488422
+              ]
+            },
+            "properties": {
+              "name": "Pendleton Library"
+            },
+            "id": "pendleton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.339294,
+                53.4829
+              ]
+            },
+            "properties": {
+              "name": "Eccles Library"
+            },
+            "id": "eccles-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.286334,
+                53.508267
+              ]
+            },
+            "properties": {
+              "name": "Lower Kersal Library"
+            },
+            "id": "lower-kersal-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.519847,
+                53.497816
+              ]
+            },
+            "properties": {
+              "name": "Leigh Library"
+            },
+            "id": "leigh-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.109958,
+                53.54061
+              ]
+            },
+            "properties": {
+              "name": "Oldham Local Studies & Archive"
+            },
+            "id": "oldham-local-studies-archive"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.147366,
+                53.479242
+              ]
+            },
+            "properties": {
+              "name": "Droylsden Library"
+            },
+            "id": "droylsden-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.071704,
+                53.537418
+              ]
+            },
+            "properties": {
+              "name": "Lees Library"
+            },
+            "id": "lees-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.122438,
+                53.56644
+              ]
+            },
+            "properties": {
+              "name": "Royton Library"
+            },
+            "id": "royton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.095602,
+                53.576343
+              ]
+            },
+            "properties": {
+              "name": "Crompton Library"
+            },
+            "id": "crompton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.142514,
+                53.546087
+              ]
+            },
+            "properties": {
+              "name": "Chadderton Library"
+            },
+            "id": "chadderton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.196585,
+                53.47805
+              ]
+            },
+            "properties": {
+              "name": "Beswick Library"
+            },
+            "id": "beswick-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.241625,
+                53.457625
+              ]
+            },
+            "properties": {
+              "name": "Moss Side Powerhouse Library"
+            },
+            "id": "moss-side-powerhouse-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.153569,
+                53.617091
+              ]
+            },
+            "properties": {
+              "name": "Rochdale Central Library"
+            },
+            "id": "rochdale-central-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.175471,
+                53.461808
+              ]
+            },
+            "properties": {
+              "name": "Gorton Library"
+            },
+            "id": "gorton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.123546,
+                53.546845
+              ]
+            },
+            "properties": {
+              "name": "Northmoor Library"
+            },
+            "id": "northmoor-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.108916,
+                53.540101
+              ]
+            },
+            "properties": {
+              "name": "Oldham Library"
+            },
+            "id": "oldham-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.158417,
+                53.510385
+              ]
+            },
+            "properties": {
+              "name": "Failsworth Library"
+            },
+            "id": "failsworth-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.295834,
+                53.402529
+              ]
+            },
+            "properties": {
+              "name": "Brooklands Library"
+            },
+            "id": "brooklands-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.126633,
+                53.515162
+              ]
+            },
+            "properties": {
+              "name": "Limehurst Library & Information Centre"
+            },
+            "id": "limehurst-library-information-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.3685,
+                53.489647
+              ]
+            },
+            "properties": {
+              "name": "Winton Library"
+            },
+            "id": "winton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.249151,
+                53.480409
+              ]
+            },
+            "properties": {
+              "name": "John Rylands Library"
+            },
+            "id": "john-rylands-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.520336,
+                53.548935
+              ]
+            },
+            "properties": {
+              "name": "Westhoughton Library"
+            },
+            "id": "westhoughton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.278948,
+                53.444652
+              ]
+            },
+            "properties": {
+              "name": "Chorlton Library"
+            },
+            "id": "chorlton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.272988,
+                53.487379
+              ]
+            },
+            "properties": {
+              "name": "Clifford Whitworth Library"
+            },
+            "id": "clifford-whitworth-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.228626,
+                53.37006
+              ]
+            },
+            "properties": {
+              "name": "Heald Green Library"
+            },
+            "id": "heald-green-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.644983,
+                53.556532
+              ]
+            },
+            "properties": {
+              "name": "Book-Cycle Beech Hill"
+            },
+            "id": "book-cycle-beech-hill"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.661909,
+                53.585923
+              ]
+            },
+            "properties": {
+              "name": "Standish Library"
+            },
+            "id": "standish-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.298858,
+                53.591743
+              ]
+            },
+            "properties": {
+              "name": "Bury Library"
+            },
+            "id": "bury-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.069971,
+                53.364482
+              ]
+            },
+            "properties": {
+              "name": "High Lane Library"
+            },
+            "id": "high-lane-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.270997,
+                53.473948
+              ]
+            },
+            "properties": {
+              "name": "Ordsall Library"
+            },
+            "id": "ordsall-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.216233,
+                53.48901
+              ]
+            },
+            "properties": {
+              "name": "Miles Platting Community Library"
+            },
+            "id": "miles-platting-community-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.2323,
+                53.418177
+              ]
+            },
+            "properties": {
+              "name": "Didsbury Library"
+            },
+            "id": "didsbury-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.196365,
+                53.552899
+              ]
+            },
+            "properties": {
+              "name": "Middleton Library"
+            },
+            "id": "middleton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.320756,
+                53.488961
+              ]
+            },
+            "properties": {
+              "name": "Hope Library"
+            },
+            "id": "hope-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.182437,
+                53.484597
+              ]
+            },
+            "properties": {
+              "name": "Clayton Library"
+            },
+            "id": "clayton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.346195,
+                53.5675
+              ]
+            },
+            "properties": {
+              "name": "Coronation Road Community Centre and Library"
+            },
+            "id": "coronation-road-community-centre-and-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.163254,
+                53.360431
+              ]
+            },
+            "properties": {
+              "name": "Bramhall Library"
+            },
+            "id": "bramhall-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.312519,
+                53.446095
+              ]
+            },
+            "properties": {
+              "name": "Stretford Library"
+            },
+            "id": "stretford-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.264488,
+                53.379601
+              ]
+            },
+            "properties": {
+              "name": "Forum Library"
+            },
+            "id": "forum-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.226774,
+                53.435684
+              ]
+            },
+            "properties": {
+              "name": "Withington Library"
+            },
+            "id": "withington-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.702504,
+                53.523817
+              ]
+            },
+            "properties": {
+              "name": "Winstanley College - The Library"
+            },
+            "id": "winstanley-college-the-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.160614,
+                53.408151
+              ]
+            },
+            "properties": {
+              "name": "Stockport Central Library"
+            },
+            "id": "stockport-central-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.135985,
+                53.632592
+              ]
+            },
+            "properties": {
+              "name": "Smallbridge Library"
+            },
+            "id": "smallbridge-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.181237,
+                53.622964
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-6"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.146514,
+                53.599115
+              ]
+            },
+            "properties": {
+              "name": "Balderstone Library"
+            },
+            "id": "balderstone-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.104673,
+                53.499299
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-7"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.396609,
+                53.604761
+              ]
+            },
+            "properties": {
+              "name": "Harwood Library"
+            },
+            "id": "harwood-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.30853,
+                53.499511
+              ]
+            },
+            "properties": {
+              "name": "The Height Library"
+            },
+            "id": "the-height-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.319653,
+                53.425319
+              ]
+            },
+            "properties": {
+              "name": "Sale Library"
+            },
+            "id": "sale-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.351159,
+                53.414114
+              ]
+            },
+            "properties": {
+              "name": "Coppice Library and Wellbeing Centre"
+            },
+            "id": "coppice-library-and-wellbeing-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.171339,
+                53.400353
+              ]
+            },
+            "properties": {
+              "name": "Edgeley Library"
+            },
+            "id": "edgeley-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.396848,
+                53.551353
+              ]
+            },
+            "properties": {
+              "name": "Central Library Farnworth"
+            },
+            "id": "central-library-farnworth"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.36921,
+                53.561519
+              ]
+            },
+            "properties": {
+              "name": "Little Lever Library"
+            },
+            "id": "little-lever-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.358257,
+                53.45676
+              ]
+            },
+            "properties": {
+              "name": "Davyhulme Library"
+            },
+            "id": "davyhulme-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.02336,
+                53.451658
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-8"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.061953,
+                53.396643
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-9"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.14488,
+                53.453433
+              ]
+            },
+            "properties": {
+              "name": "Denton West End Community Library"
+            },
+            "id": "denton-west-end-community-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.358214,
+                53.587859
+              ]
+            },
+            "properties": {
+              "name": "Ainsworth Library"
+            },
+            "id": "ainsworth-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.330459,
+                53.454904
+              ]
+            },
+            "properties": {
+              "name": "Lostock Community & College Library"
+            },
+            "id": "lostock-community-college-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.439388,
+                53.567225
+              ]
+            },
+            "properties": {
+              "name": "High Street Library"
+            },
+            "id": "high-street-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.106847,
+                53.632061
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-10"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.244651,
+                53.478126
+              ]
+            },
+            "properties": {
+              "name": "Manchester Central Library"
+            },
+            "id": "manchester-central-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.117209,
+                53.456778
+              ]
+            },
+            "properties": {
+              "name": "Denton Library"
+            },
+            "id": "denton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.586474,
+                53.594466
+              ]
+            },
+            "properties": {
+              "name": "Blackrod Library and Children's Centre"
+            },
+            "id": "blackrod-library-and-children-s-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.323001,
+                53.558074
+              ]
+            },
+            "properties": {
+              "name": "Radcliffe Library"
+            },
+            "id": "radcliffe-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.549252,
+                53.60187
+              ]
+            },
+            "properties": {
+              "name": "Horwich Library and Children's Centre"
+            },
+            "id": "horwich-library-and-children-s-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.418636,
+                53.617125
+              ]
+            },
+            "properties": {
+              "name": "Bromley Cross Library and Children's Centre"
+            },
+            "id": "bromley-cross-library-and-children-s-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.585401,
+                53.569701
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-11"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.238436,
+                53.446405
+              ]
+            },
+            "properties": {
+              "name": "The Place at Platt Lane"
+            },
+            "id": "the-place-at-platt-lane"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.436344,
+                53.428156
+              ]
+            },
+            "properties": {
+              "name": "Cadishead Library"
+            },
+            "id": "cadishead-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.381522,
+                53.500341
+              ]
+            },
+            "properties": {
+              "name": "Worsley Village Library"
+            },
+            "id": "worsley-village-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.421223,
+                53.529608
+              ]
+            },
+            "properties": {
+              "name": "Little Hulton Library"
+            },
+            "id": "little-hulton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.412393,
+                53.452283
+              ]
+            },
+            "properties": {
+              "name": "Irlam Library"
+            },
+            "id": "irlam-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.345624,
+                53.376013
+              ]
+            },
+            "properties": {
+              "name": "Hale Library"
+            },
+            "id": "hale-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.7019,
+                53.53936
+              ]
+            },
+            "properties": {
+              "name": "Orrell Bookcycle"
+            },
+            "id": "orrell-bookcycle"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.200727,
+                53.429934
+              ]
+            },
+            "properties": {
+              "name": "Burnage Library"
+            },
+            "id": "burnage-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.393177,
+                53.453346
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-12"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.464721,
+                53.58505
+              ]
+            },
+            "properties": {
+              "name": "Heaton Library and Children's Centre"
+            },
+            "id": "heaton-library-and-children-s-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.218222,
+                53.592518
+              ]
+            },
+            "properties": {
+              "name": "Heywood Library"
+            },
+            "id": "heywood-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.006183,
+                53.535572
+              ]
+            },
+            "properties": {
+              "name": "Greenfield Library"
+            },
+            "id": "greenfield-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.340339,
+                53.612842
+              ]
+            },
+            "properties": {
+              "name": "Tottington Centre"
+            },
+            "id": "tottington-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.60571,
+                53.543022
+              ]
+            },
+            "properties": {
+              "name": "Unnamed library"
+            },
+            "id": "unnamed-library-13"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.59627,
+                53.475873
+              ]
+            },
+            "properties": {
+              "name": "Golborne Library"
+            },
+            "id": "golborne-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.639025,
+                53.488877
+              ]
+            },
+            "properties": {
+              "name": "Ashton Library"
+            },
+            "id": "ashton-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.467945,
+                53.514476
+              ]
+            },
+            "properties": {
+              "name": "Tyldesley Library"
+            },
+            "id": "tyldesley-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.118007,
+                53.379838
+              ]
+            },
+            "properties": {
+              "name": "Hazel Grove Library"
+            },
+            "id": "hazel-grove-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.189023,
+                53.373989
+              ]
+            },
+            "properties": {
+              "name": "Cheadle Hulme Library"
+            },
+            "id": "cheadle-hulme-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.694398,
+                53.570665
+              ]
+            },
+            "properties": {
+              "name": "Shevington Library"
+            },
+            "id": "shevington-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.668352,
+                53.549691
+              ]
+            },
+            "properties": {
+              "name": "Marsh Green Branch Library"
+            },
+            "id": "marsh-green-branch-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.578939,
+                53.534348
+              ]
+            },
+            "properties": {
+              "name": "Hindley Library and Community Centre"
+            },
+            "id": "hindley-library-and-community-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.192677,
+                53.537817
+              ]
+            },
+            "properties": {
+              "name": "Alkrington Library"
+            },
+            "id": "alkrington-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.316427,
+                53.398408
+              ]
+            },
+            "properties": {
+              "name": "Timperley Library"
+            },
+            "id": "timperley-library"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.159624,
+                53.411243
+              ]
+            },
+            "properties": {
+              "name": "STOCKROOM"
+            },
+            "id": "stockroom"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.425446,
+                53.417694
+              ]
+            },
+            "properties": {
+              "name": "Library and Wellbeing Centre"
+            },
+            "id": "library-and-wellbeing-centre"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.094446,
+                53.489745
+              ]
+            },
+            "properties": {
+              "name": "Ashton Library"
+            },
+            "id": "ashton-library-2"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                -2.212589,
+                53.39349
+              ]
+            },
+            "properties": {
+              "name": "Cheadle Library"
+            },
+            "id": "cheadle-library"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Coastline",
+      "enabledFor": [
+        "measuring"
+      ],
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [
+                  -3.739047,
+                  53.305551
+                ],
+                [
+                  -3.645898,
+                  53.2979
+                ],
+                [
+                  -3.52959,
+                  53.310547
+                ],
+                [
+                  -3.427734,
+                  53.340674
+                ],
+                [
+                  -3.326172,
+                  53.347168
+                ],
+                [
+                  -3.097559,
+                  53.260303
+                ],
+                [
+                  -3.165576,
+                  53.394678
+                ],
+                [
+                  -3.064746,
+                  53.426855
+                ],
+                [
+                  -2.918555,
+                  53.305371
+                ],
+                [
+                  -2.86416,
+                  53.292578
+                ],
+                [
+                  -2.749512,
+                  53.310205
+                ],
+                [
+                  -2.79375,
+                  53.330713
+                ],
+                [
+                  -2.84541,
+                  53.331934
+                ],
+                [
+                  -2.913086,
+                  53.350244
+                ],
+                [
+                  -2.969971,
+                  53.389209
+                ],
+                [
+                  -3.0646,
+                  53.512842
+                ],
+                [
+                  -3.059473,
+                  53.58623
+                ],
+                [
+                  -2.995703,
+                  53.662549
+                ],
+                [
+                  -2.925098,
+                  53.732764
+                ],
+                [
+                  -2.984326,
+                  53.746729
+                ],
+                [
+                  -3.031787,
+                  53.773584
+                ],
+                [
+                  -3.045361,
+                  53.843848
+                ],
+                [
+                  -3.026758,
+                  53.905908
+                ],
+                [
+                  -2.899854,
+                  53.960693
+                ],
+                [
+                  -2.862402,
+                  54.043848
+                ],
+                [
+                  -2.846484,
+                  54.135303
+                ],
+                [
+                  -2.867578,
+                  54.177246
+                ],
+                [
+                  -2.993506,
+                  54.170508
+                ],
+                [
+                  -3.054736,
+                  54.153418
+                ],
+                [
+                  -3.109668,
+                  54.126318
+                ],
+                [
+                  -3.165967,
+                  54.12793
+                ],
+                [
+                  -3.321533,
+                  54.229102
+                ],
+                [
+                  -3.387043,
+                  54.285598
+                ]
+              ]
+            },
+            "properties": {
+              "name": "Irish Sea coast (Mersey Estuary)"
+            },
+            "id": "irish-sea-coast-mersey-estuary"
+          }
+        ]
+      }
     }
   ]
 }

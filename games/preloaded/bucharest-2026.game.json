@@ -14423,7 +14423,8 @@
     {
       "name": "Theme Park",
       "enabledFor": [
-        "measuring"
+        "measuring",
+        "tentacle"
       ],
       "data": {
         "type": "FeatureCollection",
