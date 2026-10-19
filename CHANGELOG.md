@@ -7,7 +7,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 - The game checker (on the import page, `/designer` and `check-game.mjs`) no longer warns about a region layer only used for matching because of its total vertex count: matching only ever works with the one region a seeker is in. It counts every vertex of layers used for measuring and of line layers used for matching, and the largest region of a region layer used for matching.
 - It only suggests simplifying where the vertices lie closer than about 50 m, and now says to use a topology-preserving simplifier, since simplifying each region on its own opens gaps and overlaps between neighbours. A heavy layer whose vertices are already far apart gets a note instead.
-- Belgium's "Arrondissement" layer (24,748 vertices, already about 330 m apart) is no longer flagged.
+- Belgium's "Arrondissement" layer (24,748 vertices, already about 330 m apart) and Greater Manchester's "Ward" layer (36,201 vertices), both only used for matching, are no longer flagged.
 
 ## Faster distance-to-border questions on fixed layers (2026-10-19)
 

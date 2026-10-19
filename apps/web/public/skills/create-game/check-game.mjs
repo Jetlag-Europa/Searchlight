@@ -472,20 +472,29 @@ export function checkGame(def, { fileSize } = {}) {
       // border or line, and matching on lines splits the map between them
       // all, but matching on regions only clips the map to the seeker's one.
       if (family !== "points") {
+        // What is heavy, and the coordinates whose spacing says whether
+        // simplifying would help.
         const heavy = [];
+        const spaced = [];
         const total = countPositions(feats.map((f) => f.geometry.coordinates));
         if (total > VERTEX_BUDGET && (kinds.includes("measuring") || (family === "lines" && kinds.includes("matching")))) {
           heavy.push(`${total} vertices, all used for ${kinds.includes("measuring") ? "measuring" : "matching"}`);
+          spaced.push(...feats.map((f) => f.geometry.coordinates));
         }
         if (family === "polygons" && kinds.includes("matching")) {
-          const largest = feats.reduce((m, f) => (countPositions(f.geometry.coordinates) > m.n
-            ? { n: countPositions(f.geometry.coordinates), name: f.properties?.name } : m), { n: 0 });
+          let largest = { n: 0, feature: null };
+          for (const f of feats) {
+            const n = countPositions(f.geometry.coordinates);
+            if (n > largest.n) largest = { n, feature: f };
+          }
           if (largest.n > VERTEX_BUDGET) {
-            heavy.push(`region ${typeof largest.name === "string" ? `"${largest.name}"` : "(unnamed)"} alone has ${largest.n} vertices, used for matching`);
+            const regionName = largest.feature.properties?.name;
+            heavy.push(`region ${typeof regionName === "string" ? `"${regionName}"` : "(unnamed)"} alone has ${largest.n} vertices, used for matching`);
+            if (!spaced.length) spaced.push(largest.feature.geometry.coordinates);
           }
         }
         if (heavy.length) {
-          const edge = meanEdge(feats.map((f) => f.geometry.coordinates));
+          const edge = meanEdge(spaced);
           if (edge < DENSE_EDGE) {
             warn(label, `${heavy.join("; ")}, about ${Math.round(edge)} m apart; simplify it with a topology-preserving simplifier at about 10 m tolerance (simplifying each feature on its own opens gaps and overlaps between neighbours)`, "heavy-geometry");
           } else {

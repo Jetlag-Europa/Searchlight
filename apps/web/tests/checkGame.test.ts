@@ -339,5 +339,28 @@ describe("check-game.mjs", () => {
                 /region "big" alone has 21001 vertices/,
             );
         });
+
+        it("judges a heavy region by its own vertices' spacing", () => {
+            // One dense region (vertices under a meter apart) among coarse
+            // ones (about 370 m apart) with more vertices in all.
+            const coarse = Array.from({ length: 30 }, (_, i) =>
+                round(
+                    `c${i}`,
+                    -20 + (i % 6) * 2.5,
+                    40 + Math.floor(i / 6) * 2.5,
+                    1,
+                    1500,
+                ),
+            );
+            const { warnings, notes } = heavyIssues(
+                heavy(
+                    ["matching"],
+                    [round("dense", 10.5, 50.5, 0.01, 21000), ...coarse],
+                ),
+            );
+            expect(notes).toEqual([]);
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].message).toMatch(/region "dense"/);
+        });
     });
 });
