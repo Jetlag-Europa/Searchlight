@@ -159,6 +159,28 @@ function TrackZoom({ onZoom }: { onZoom: (zoom: number) => void }) {
     return null;
 }
 
+/** Games played at the same spot, such as two events in one city: one pin. */
+interface Spot {
+    key: string;
+    center: [number, number];
+    games: CatalogGame[];
+}
+
+// About 100 m: closer centers share a pin, which would hide one another.
+const spotKey = ([lng, lat]: [number, number]) =>
+    `${lng.toFixed(3)},${lat.toFixed(3)}`;
+
+function groupSpots(matches: CatalogMatch[]): Spot[] {
+    const spots = new Map<string, Spot>();
+    for (const { game } of matches) {
+        const key = spotKey(game.center);
+        const spot = spots.get(key);
+        if (spot) spot.games.push(game);
+        else spots.set(key, { key, center: game.center, games: [game] });
+    }
+    return [...spots.values()];
+}
+
 /** The map's card for a game: what it is, and how to play it. */
 function GamePopup({
     game,
@@ -171,7 +193,7 @@ function GamePopup({
 }) {
     const rules = rulesLink(game.rulesUrl);
     return (
-        <div className="flex w-56 flex-col gap-2 text-foreground">
+        <div className="flex flex-col gap-2">
             <div>
                 <p className="font-semibold leading-snug">
                     {game.locked && (
@@ -248,7 +270,7 @@ function BrowserMap({
     place: Place | null;
     startingId: string | null;
     onSelect: (game: CatalogGame) => void;
-    onDeselect: (game: CatalogGame) => void;
+    onDeselect: (gameIds: string[]) => void;
     onPlay: (game: CatalogGame) => void;
 }) {
     const [expanded, setExpanded] = useState(false);
@@ -256,10 +278,12 @@ function BrowserMap({
     const wide = useMediaQuery("(min-width: 1024px)");
     const markers = useRef(new Map<string, L.CircleMarker>());
     const showLabels = zoom >= LABEL_ZOOM;
+    const spots = useMemo(() => groupSpots(matches), [matches]);
 
     // The selected game's card opens on the map, wherever it was selected.
     useEffect(() => {
-        if (selected) markers.current.get(selected.id)?.openPopup();
+        if (selected)
+            markers.current.get(spotKey(selected.center))?.openPopup();
     }, [selected?.id]);
 
     // Full screen: Escape closes it, and the page behind doesn't scroll.
@@ -349,33 +373,41 @@ function BrowserMap({
                         <Tooltip direction="top">{place.label}</Tooltip>
                     </CircleMarker>
                 )}
-                {matches.map(({ game }) => {
-                    const isSelected = game.id === selected?.id;
-                    const isHovered = game.id === hoveredId;
+                {spots.map((spot) => {
+                    const ids = spot.games.map((game) => game.id);
+                    const isSelected = ids.includes(selected?.id ?? "");
+                    const isHovered = ids.includes(hoveredId ?? "");
+                    const locked = spot.games.every((game) => game.locked);
+                    const [first] = spot.games;
+                    const more = spot.games.length - 1;
                     return (
                         <CircleMarker
-                            key={game.id}
+                            key={spot.key}
                             ref={(marker) => {
                                 if (marker)
-                                    markers.current.set(game.id, marker);
-                                else markers.current.delete(game.id);
+                                    markers.current.set(spot.key, marker);
+                                else markers.current.delete(spot.key);
                             }}
-                            center={latLng(game.center)}
-                            radius={isSelected ? 10 : isHovered ? 9 : 7}
+                            center={latLng(spot.center)}
+                            radius={
+                                (isSelected ? 10 : isHovered ? 9 : 7) +
+                                (more > 0 ? 1 : 0)
+                            }
                             pathOptions={{
                                 color: isSelected ? "#facc15" : "#ffffff",
                                 fillColor: isSelected
                                     ? "#facc15"
-                                    : game.locked
+                                    : locked
                                       ? "#6b7280"
                                       : "#e11d48",
-                                fillOpacity: game.locked ? 0.7 : 0.9,
-                                opacity: game.locked && !isHovered ? 0.6 : 1,
+                                fillOpacity: locked ? 0.7 : 0.9,
+                                opacity: locked && !isHovered ? 0.6 : 1,
                                 weight: isHovered ? 3 : 2,
                             }}
                             eventHandlers={{
-                                click: () => onSelect(game),
-                                popupclose: () => onDeselect(game),
+                                // The pin's card opens on the game shown first.
+                                click: () => isSelected || onSelect(first),
+                                popupclose: () => onDeselect(ids),
                             }}
                         >
                             {/* Remounted to switch: Leaflet reads `permanent` once. */}
@@ -386,16 +418,23 @@ function BrowserMap({
                                 permanent={showLabels}
                                 className={showLabels ? "game-label" : ""}
                             >
-                                {game.locked && !showLabels
-                                    ? `${game.name} (join ${game.serverName} to play)`
-                                    : game.name}
+                                {more > 0
+                                    ? `${first.name} +${more}`
+                                    : first.locked && !showLabels
+                                      ? `${first.name} (join ${first.serverName} to play)`
+                                      : first.name}
                             </Tooltip>
                             <Popup autoPan={false} closeButton={false}>
-                                <GamePopup
-                                    game={game}
-                                    starting={startingId === game.id}
-                                    onPlay={() => onPlay(game)}
-                                />
+                                <div className="flex max-h-80 w-56 flex-col gap-3 overflow-y-auto text-foreground">
+                                    {spot.games.map((game) => (
+                                        <GamePopup
+                                            key={game.id}
+                                            game={game}
+                                            starting={startingId === game.id}
+                                            onPlay={() => onPlay(game)}
+                                        />
+                                    ))}
+                                </div>
                             </Popup>
                         </CircleMarker>
                     );
@@ -681,8 +720,8 @@ export function GameBrowser() {
             .getElementById(`game-${game.id}`)
             ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     };
-    const deselectGame = (game: CatalogGame) =>
-        setSelectedId((prev) => (prev === game.id ? null : prev));
+    const deselectGames = (gameIds: string[]) =>
+        setSelectedId((prev) => (prev && gameIds.includes(prev) ? null : prev));
 
     // After joining a server on Discord: ask again, past the membership cache.
     const recheck = async (game: CatalogGame) => {
@@ -828,7 +867,7 @@ export function GameBrowser() {
                         place={nearPlace > 0 ? place : null}
                         startingId={startingId}
                         onSelect={(game) => selectGame(game, false)}
-                        onDeselect={deselectGame}
+                        onDeselect={deselectGames}
                         onPlay={play}
                     />
                 </div>

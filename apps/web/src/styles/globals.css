@@ -187,6 +187,10 @@ div.leaflet-control-attribution.leaflet-control {
     margin: 12px 14px;
 }
 
+.browse-map .leaflet-popup-content p {
+    margin: 0;
+}
+
 .browse-map .leaflet-popup-content a {
     color: inherit;
 }
