@@ -79,8 +79,8 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 $("redeem-error").classList.add("hidden");
 
                 if (!me) {
-                    localStorage.setItem("taibled-pending-link", token);
-                    window.location.href = `${apiBase}/auth/discord/login`;
+                    const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
+                    window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
                     return;
                 }
 

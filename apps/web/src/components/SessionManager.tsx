@@ -821,43 +821,11 @@ export function SessionManager() {
         startSyncManager();
         cancelPendingQuestionSave();
 
-        // Handle pending link from /join page
-        const pendingToken = readStorage("localStorage", "taibled-pending-link");
+        // A session the user just started or joined from /play or /join
         const pendingLinkSession = readStorage(
             "localStorage",
             "taibled-pending-link-session",
         );
-        if (pendingToken) {
-            removeStorage("localStorage", "taibled-pending-link");
-            setLoading(true);
-            fetch(`${API_BASE}/links/${encodeURIComponent(pendingToken)}/redeem`, {
-                method: "POST",
-                credentials: "include",
-            })
-                .then(async (res) => {
-                    if (!isCurrent()) return;
-                    if (!res.ok) throw new Error(`${res.status}`);
-                    const { sessionId: redeemedId } = (await res.json()) as {
-                        sessionId: string;
-                    };
-                    const sessRes = await fetch(
-                        `${API_BASE}/sessions/${redeemedId}`,
-                        { credentials: "include" },
-                    );
-                    if (!sessRes.ok) throw new Error("session fetch failed");
-                    const selected: GameSessionSummary = await sessRes.json();
-                    if (!isCurrent()) return;
-                    setLoading(false);
-                    await handleSessionSelected(selected);
-                })
-                .catch(() => {
-                    if (isCurrent()) {
-                        setLoading(false);
-                        setShowPicker(true);
-                    }
-                });
-            return cleanup;
-        }
         if (pendingLinkSession) {
             removeStorage("localStorage", "taibled-pending-link-session");
             setLoading(true);
@@ -877,13 +845,6 @@ export function SessionManager() {
                         setShowPicker(true);
                     }
                 });
-            return cleanup;
-        }
-
-        const returnTo = readStorage("localStorage", "taibled-return-to");
-        if (returnTo) {
-            removeStorage("localStorage", "taibled-return-to");
-            window.location.href = returnTo;
             return cleanup;
         }
 
