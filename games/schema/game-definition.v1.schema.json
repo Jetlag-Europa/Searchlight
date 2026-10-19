@@ -556,6 +556,9 @@
               ]
             }
           },
+          "noOverlaps": {
+            "type": "boolean"
+          },
           "data": {
             "type": "object",
             "required": [

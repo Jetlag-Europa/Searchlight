@@ -19,6 +19,12 @@ import {
     useMap,
 } from "react-leaflet";
 
+import { ImportPanel } from "@/components/ImportPanel";
+import {
+    type OverlapHighlight,
+    RegionOverlapsPanel,
+} from "@/components/RegionOverlapsPanel";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
     type CompiledGame,
@@ -51,15 +57,20 @@ const LAYER_COLORS = [
 const layerColor = (index: number) => LAYER_COLORS[index % LAYER_COLORS.length];
 const ZONE_COLOR = "#2563eb";
 const PLAY_AREA_COLOR = "#111827";
+const OVERLAP_COLOR = "#dc2626";
 
 interface Loaded {
     fileName: string;
     fileSize: number;
     errors: ValidationIssue[];
     issues: QualityIssue[];
+    /** The file as validated, with any fixes made on the page. */
+    definition: GameDefinition | null;
     compiled: CompiledGame | null;
-    /** The file names no server; the import dialog asks for one. */
+    /** The file names no server; the import step asks for one. */
     noServer: boolean;
+    /** Changed on the page since it was loaded. */
+    changed: boolean;
 }
 
 // Names come from the file: hand Leaflet a text node, never an HTML string.
@@ -109,7 +120,13 @@ function FeatureLayer({
     );
 }
 
-function FitBounds({ bounds }: { bounds: [number, number, number, number] }) {
+function FitBounds({
+    bounds,
+    maxZoom,
+}: {
+    bounds: [number, number, number, number];
+    maxZoom?: number;
+}) {
     const map = useMap();
     useEffect(() => {
         const [west, south, east, north] = bounds;
@@ -118,43 +135,73 @@ function FitBounds({ bounds }: { bounds: [number, number, number, number] }) {
                 [south, west],
                 [north, east],
             ],
-            { animate: false },
+            { animate: false, maxZoom },
         );
-    }, [map, bounds]);
+    }, [map, bounds, maxZoom]);
     return null;
 }
 
+/** The file as it is saved, so a downloaded copy reads like the original. */
+const serialize = (definition: GameDefinition) =>
+    `${JSON.stringify(definition, null, 2)}\n`;
+
 async function inspectFile(file: File): Promise<Loaded> {
-    const result: Loaded = {
-        fileName: file.name,
-        fileSize: file.size,
-        errors: [],
-        issues: [],
-        compiled: null,
-        noServer: false,
-    };
     let parsed: any;
     try {
         parsed = JSON.parse(await file.text());
     } catch (err: any) {
-        result.errors = [
-            { path: "/", code: "json", message: `Not JSON: ${err.message}` },
-        ];
-        return result;
+        return {
+            fileName: file.name,
+            fileSize: file.size,
+            errors: [
+                {
+                    path: "/",
+                    code: "json",
+                    message: `Not JSON: ${err.message}`,
+                },
+            ],
+            issues: [],
+            definition: null,
+            compiled: null,
+            noServer: false,
+            changed: false,
+        };
     }
-    // The import dialog fills in the server picked there.
+    // The import step fills in the server picked there.
+    let noServer = false;
     if (parsed && typeof parsed === "object" && !parsed.serverId) {
         parsed.serverId = "home-games";
-        result.noServer = true;
+        noServer = true;
     }
+    return inspectDefinition(parsed, file.name, file.size, noServer, false);
+}
+
+async function inspectDefinition(
+    parsed: any,
+    fileName: string,
+    fileSize: number,
+    noServer: boolean,
+    changed: boolean,
+): Promise<Loaded> {
+    const result: Loaded = {
+        fileName,
+        fileSize,
+        errors: [],
+        issues: [],
+        definition: null,
+        compiled: null,
+        noServer,
+        changed,
+    };
     const validation = validateGameDefinition(parsed);
     if (!validation.valid) {
         result.errors = validation.errors;
         return result;
     }
+    result.definition = parsed as GameDefinition;
     // The checker loads lazily: after a deploy its chunk may be gone.
     try {
-        result.issues = await checkGameQuality(parsed, file.size);
+        result.issues = await checkGameQuality(parsed, fileSize);
     } catch (err: any) {
         result.issues = [
             {
@@ -245,8 +292,18 @@ function IssueList({ issues }: { issues: QualityIssue[] }) {
     );
 }
 
-export function GameDesigner() {
+export function GameDesigner({
+    mode = "designer",
+}: {
+    /** "import" adds the import step, for the import page. */
+    mode?: "designer" | "import";
+}) {
     const [loaded, setLoaded] = useState<Loaded | null>(null);
+    const [highlight, setHighlight] = useState<OverlapHighlight | null>(null);
+    const [wrongMarks, setWrongMarks] = useState<string[]>([]);
+    // Counts files picked, not fixes, so the import step starts over (and
+    // takes the new file's server) only for a new file.
+    const [fileCount, setFileCount] = useState(0);
     const [busy, setBusy] = useState(false);
     const [dragging, setDragging] = useState(false);
     const [loadCount, setLoadCount] = useState(0);
@@ -266,11 +323,52 @@ export function GameDesigner() {
             setLoaded(result);
             setLoadCount((c) => c + 1);
             setShownLayers(new Set());
+            setHighlight(null);
+            setWrongMarks([]);
+            setFileCount((c) => c + 1);
             // Show the new file's summary and checks first.
             panel.current?.scrollTo({ top: 0 });
         } finally {
             if (load === latestLoad.current) setBusy(false);
         }
+    };
+
+    /** Takes the file as fixed on the page, and checks it again. */
+    const applyFix = async (fixed: GameDefinition) => {
+        if (!loaded) return;
+        const load = ++latestLoad.current;
+        setBusy(true);
+        try {
+            const result = await inspectDefinition(
+                fixed,
+                loaded.fileName,
+                new Blob([serialize(fixed)]).size,
+                loaded.noServer,
+                true,
+            );
+            if (load !== latestLoad.current) return;
+            setLoaded(result);
+            setLoadCount((c) => c + 1);
+        } finally {
+            if (load === latestLoad.current) setBusy(false);
+        }
+    };
+
+    const download = () => {
+        if (!loaded?.definition) return;
+        const definition: Partial<GameDefinition> = { ...loaded.definition };
+        // Leave out the stand-in server the page filled in.
+        if (loaded.noServer) delete definition.serverId;
+        const url = URL.createObjectURL(
+            new Blob([serialize(definition as GameDefinition)], {
+                type: "application/json",
+            }),
+        );
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = loaded.fileName;
+        link.click();
+        URL.revokeObjectURL(url);
     };
 
     const compiled = loaded?.compiled ?? null;
@@ -406,6 +504,32 @@ export function GameDesigner() {
                                         color={layerColor(layer.index)}
                                     />
                                 ))}
+                            {highlight && (
+                                <>
+                                    <GeoJSON
+                                        key={`overlaps-${loadCount}-${highlight.focus.join()}`}
+                                        data={turf.featureCollection(
+                                            highlight.pieces,
+                                        )}
+                                        style={{
+                                            color: OVERLAP_COLOR,
+                                            weight: 4,
+                                            fillOpacity: 0.5,
+                                        }}
+                                    />
+                                    <FitBounds
+                                        bounds={
+                                            highlight.focus as [
+                                                number,
+                                                number,
+                                                number,
+                                                number,
+                                            ]
+                                        }
+                                        maxZoom={16}
+                                    />
+                                </>
+                            )}
                         </>
                     )}
                 </MapContainer>
@@ -418,14 +542,48 @@ export function GameDesigner() {
 
             <aside
                 ref={panel}
-                className="space-y-5 border-border p-4 md:w-96 md:overflow-y-auto md:border-l"
+                className={cn(
+                    "space-y-5 border-border p-4 md:w-96 md:overflow-y-auto md:border-l",
+                    // Room for the account chip in the corner.
+                    mode === "import" && "pt-14",
+                )}
             >
                 <div>
-                    <h1 className="text-xl font-bold">Game designer</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        See a <code>*.game.json</code> on the map and check it
-                        before importing it. The file stays in your browser.
-                    </p>
+                    {mode === "import" ? (
+                        <>
+                            <a
+                                href="/games"
+                                className="text-xs text-muted-foreground underline"
+                            >
+                                ← Games
+                            </a>
+                            <h1 className="text-xl font-bold">Import a game</h1>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Check a <code>*.game.json</code> on the map, fix
+                                what the page can, then import it. No file yet?
+                                Follow the{" "}
+                                <a
+                                    href="/skills/create-game.md"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="underline"
+                                >
+                                    game creation guide
+                                </a>
+                                , or give it to an AI agent along with your
+                                rules doc and map links.
+                            </p>
+                        </>
+                    ) : (
+                        <>
+                            <h1 className="text-xl font-bold">Game designer</h1>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                See a <code>*.game.json</code> on the map and
+                                check it before importing it. The file stays in
+                                your browser.
+                            </p>
+                        </>
+                    )}
                 </div>
 
                 <label
@@ -512,6 +670,43 @@ export function GameDesigner() {
                     </section>
                 )}
 
+                {loaded?.definition && compiled && (
+                    <RegionOverlapsPanel
+                        definition={loaded.definition}
+                        zones={zones}
+                        onFix={applyFix}
+                        onHighlight={setHighlight}
+                        onWrongMarks={setWrongMarks}
+                    />
+                )}
+
+                {loaded?.changed && loaded.definition && (
+                    <section className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs">
+                        <p>
+                            The file was changed on this page. Download it to
+                            keep your copy in step, or the next import of your
+                            old copy will undo the fixes.
+                        </p>
+                        <Button size="sm" variant="outline" onClick={download}>
+                            Download {loaded.fileName}
+                        </Button>
+                    </section>
+                )}
+
+                {mode === "import" && loaded?.definition && compiled && (
+                    <ImportPanel
+                        key={fileCount}
+                        busy={busy}
+                        blocked={
+                            wrongMarks.length
+                                ? `${wrongMarks.join(", ")} ${wrongMarks.length === 1 ? "is" : "are"} marked noOverlaps but overlap: fix ${wrongMarks.length === 1 ? "it" : "them"} or remove the mark above first.`
+                                : null
+                        }
+                        definition={loaded.definition}
+                        noServer={loaded.noServer}
+                    />
+                )}
+
                 {compiled && (
                     <section>
                         <h2 className="mb-1 text-sm font-semibold">Show</h2>
@@ -583,13 +778,15 @@ export function GameDesigner() {
                                 </li>
                             ))}
                         </ul>
-                        <p className="mt-3 text-xs text-muted-foreground">
-                            Looks right?{" "}
-                            <a href="/games" className="underline">
-                                Import it on the games page
-                            </a>
-                            .
-                        </p>
+                        {mode === "designer" && (
+                            <p className="mt-3 text-xs text-muted-foreground">
+                                Looks right?{" "}
+                                <a href="/games/import" className="underline">
+                                    Import it
+                                </a>
+                                .
+                            </p>
+                        )}
                     </section>
                 )}
             </aside>

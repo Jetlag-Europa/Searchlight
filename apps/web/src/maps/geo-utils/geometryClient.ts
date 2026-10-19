@@ -19,6 +19,13 @@ import {
 } from "./clipGeometry";
 import { calculateLineVoronoi, type LineVoronoiRequest } from "./lineVoronoi";
 import {
+    findRegionOverlaps,
+    type RegionOverlaps,
+    type RegionOverlapsRequest,
+    removeRegionOverlaps,
+    type RemoveRegionOverlapsRequest,
+} from "./regionOverlaps";
+import {
     calculateFilterZoneIndexes,
     type FilterZoneRequest,
 } from "./zoneFilter";
@@ -110,6 +117,12 @@ export function requestGeometry(request: UnionRequest): Promise<GeometryResult>;
 export function requestGeometry(
     request: LineVoronoiRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[][]>;
+export function requestGeometry(
+    request: RegionOverlapsRequest,
+): Promise<RegionOverlaps>;
+export function requestGeometry(
+    request: RemoveRegionOverlapsRequest,
+): Promise<Feature<Polygon | MultiPolygon>[]>;
 export async function requestGeometry(
     request:
         | BoundaryTargetRequest
@@ -117,6 +130,8 @@ export async function requestGeometry(
         | ClipRequest
         | DistanceRequest
         | LineVoronoiRequest
+        | RegionOverlapsRequest
+        | RemoveRegionOverlapsRequest
         | UnionRequest,
     options?: RequestOptions,
 ): Promise<unknown> {
@@ -127,6 +142,10 @@ export async function requestGeometry(
             return calculateBoundaryTarget(request);
         if (request.kind === "lineVoronoi")
             return calculateLineVoronoi(request);
+        if (request.kind === "regionOverlaps")
+            return findRegionOverlaps(request);
+        if (request.kind === "removeRegionOverlaps")
+            return removeRegionOverlaps(request);
         const buffer = await loadInlineBuffer();
         if (request.kind === "distance")
             return buffer.calculateDistance(request);

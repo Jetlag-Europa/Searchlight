@@ -3,6 +3,16 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Import page, with a fix for overlapping regions (2026-10-19)
+
+- Importing a game now has its own page, `/games/import`, opened from **+ Import Game JSON** on the games page. It draws the file on the map like `/designer`, lists the checker's findings, and imports it, with the same server, update and unlisted options the import dialog had.
+- The import page and `/designer` check every region layer for overlapping regions, such as provinces whose borders were traced separately. For each layer they show how many overlaps there are, their area, the widest, and how many hiding zones reach into one, and draw them on the map.
+- **Fix** gives each overlap to the first region in the file, as the game already does when it decides which region a player is in: players stay in the regions they were in (new corners are rounded to about 0.1 m), and a distance to a border moves by at most the overlap's width. Regions that only touch their neighbours are left as they were. The page then offers the fixed file for download, so your copy stays in step.
+- A layer already marked `noOverlaps` whose regions do overlap can't be imported until it's fixed or the mark is removed, and `check-game.mjs --strict` fails on one.
+- Fixed layers, and layers found without overlaps, are marked `"noOverlaps": true` in the file; distance-to-border questions on them will be answered faster.
+- The preloaded games are fixed and marked. Their overlaps were up to 42 m wide (Bucharest, Exeter-Rotterdam and Rotterdam), 29 m in Belgium's provinces.
+- **Upgrading:** 18 of the 22 preloaded games changed, so the API imports a new revision of each of them on its next start.
+
 ## Enclaves no longer ruled out by distance questions (2026-10-19)
 
 - A distance-to-boundary question could wrongly rule out the middle of an enclave: a place inside a hole in a region, such as Brussels inside Flemish Brabant. In Belgium, a hider in central Brussels who answered "farther" from a province border than a seeker near one was eliminated, and a "closer" answer kept all of Brussels possible. Measuring and radius questions now keep holes inside holes as they should.

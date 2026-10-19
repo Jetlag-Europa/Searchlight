@@ -18981,6 +18981,7 @@
       "enabledFor": [
         "matching"
       ],
+      "noOverlaps": true,
       "data": {
         "type": "FeatureCollection",
         "features": [

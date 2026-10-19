@@ -18,7 +18,7 @@ Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/
 2. **Convert** each source into normalized GeoJSON features (section 6).
 3. **Assemble** the definition (section 2) and declare every question explicitly.
 4. **Check** with `node check-game.mjs <file>`. Fix every ERROR. Fix each WARN, or tell the user why it stays.
-5. **Import** (section 8). The web dialog previews the file first, and the API has `?dryRun=true`.
+5. **Import** (section 8). The import page previews the file first, and the API has `?dryRun=true`.
 6. **Report back:** zone count, features per layer, the question list `check-game.mjs` printed, and anything you dropped, merged or assumed.
 
 | Input | Goes to | Source |
@@ -224,7 +224,7 @@ Write both fields explicitly in every game, even when the value is `false`.
 
 ### 5.2 Question layers (`features`)
 
-Each layer has exactly three properties: `{ "name", "enabledFor", "data" }`. `data` is an embedded FeatureCollection. All features in one layer must share one geometry family.
+Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a region layer may have a fourth, `"noOverlaps": true`. `data` is an embedded FeatureCollection. All features in one layer must share one geometry family. Don't set `noOverlaps` yourself: Searchlight's import page sets it when it checks a region layer, or fixes its overlaps, before importing.
 
 | Layer geometry | `matching` | `measuring` | `tentacle` |
 |---|---|---|---|
@@ -257,7 +257,7 @@ Each layer has exactly three properties: `{ "name", "enabledFor", "data" }`. `da
 
 - **Matching on a single feature** always gets the same answer. Use `measuring` only for one-off sites (the only airport, the only zoo) and single lines (one coastline, one border).
 - **One feature per real-world line.** Matching treats each feature as its own line, so merge the segments of one line into one MultiLineString. A layer of 500 rail segments asks "nearest segment?".
-- **Matching regions should tile the play area without overlaps.** Where regions overlap, the first in file order wins, and zones outside every region form an extra "outside" answer.
+- **Matching regions should tile the play area without overlaps.** Where regions overlap, the first in file order wins, and zones outside every region form an extra "outside" answer. Searchlight's import page finds overlaps, shows what fixing them changes, and fixes them (giving each overlap to the first region) before importing; tell the user to download the fixed file it offers.
 - **Own boundary is the nearest boundary.** When regions don't overlap, the boundary of the region a player is in is also the nearest boundary of *any* region: a straight line to another region's boundary has to cross the player's own boundary first, or end on it. So for everyone inside a region, "Distance to {name} Boundary" already compares distances to the nearest region boundary. The two differ only for a player outside every region, who has no own boundary in the region layer (and counts as infinitely far) but still has a nearest line in a line layer. A separate line layer of the same boundaries with `measuring` only (e.g. `"Borough Boundary"` as MultiLineStrings next to the `"Borough"` region layer) is therefore mainly a performance choice for layers with many regions: the app answers it with one buffer around the whole boundary network instead of one buffer per region. Both are labelled "Distance to Borough Boundary", so enable measuring on only one of them.
 - **Include sites just outside the play area.** The nearest museum to a hider near the edge may be across the border, so take POIs from the play area's bbox plus a few km.
 - **Keep geometry light:**
@@ -344,14 +344,14 @@ node check-game.mjs --strict testville-2026.game.json
 - **WARN:** it imports but will play badly, e.g. swapped `[lat, lng]`, zones outside the play area, duplicate zone or feature IDs, names with CDATA wrappers or XML entities (`<![CDATA[…]]>`, `&amp;`), case-mismatched or numeric tiers, single-feature matching or tentacles, regions that overlap or that no zone lies in, or heavy geometry.
 - **NOTE:** worth a look but often intentional, e.g. plural-looking layer names.
 
-`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, and region layers no hiding zone lies in. Preloaded games must pass it.
+`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other. Preloaded games must pass it.
 
 The checker ends with the question list and labels, which is what players will see. Read it back to the user. To see the file on a map, the user can drop it on `https://searchlight.jetlageuropa.org/designer` (no login, and the file never leaves the browser): it draws the play area, the hiding zones and each layer, and runs the same checks. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
 
 ## 8. Import, update, export
 
-- **Web:** on `/games`, click **+ Import Game JSON** and pick the file. The dialog previews it with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
-- **Unlisted:** a new game can be imported unlisted (the dialog's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
+- **Web:** on `/games`, click **+ Import Game JSON**, which opens the import page, and pick the file. It draws the file on a map, lists the checker's findings, offers to fix overlapping regions, and previews the import with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
+- **Unlisted:** a new game can be imported unlisted (the import page's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
   - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id`, and `&unlisted=true` to create the game unlisted.
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.

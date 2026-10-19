@@ -25224,6 +25224,7 @@
       "enabledFor": [
         "matching"
       ],
+      "noOverlaps": true,
       "data": {
         "type": "FeatureCollection",
         "features": [
@@ -62019,6 +62020,7 @@
       "enabledFor": [
         "measuring"
       ],
+      "noOverlaps": true,
       "data": {
         "type": "FeatureCollection",
         "features": [

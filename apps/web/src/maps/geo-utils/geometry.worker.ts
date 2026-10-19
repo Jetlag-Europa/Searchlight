@@ -15,6 +15,12 @@ import {
     calculateUnion,
 } from "./clipGeometry";
 import { calculateLineVoronoi, type LineVoronoiRequest } from "./lineVoronoi";
+import {
+    findRegionOverlaps,
+    type RegionOverlapsRequest,
+    removeRegionOverlaps,
+    type RemoveRegionOverlapsRequest,
+} from "./regionOverlaps";
 import { createJobQueue, type WorkerJob } from "./workerQueue";
 import {
     calculateFilterZoneIndexes,
@@ -28,6 +34,8 @@ type GeometryRequest =
     | FilterZoneRequest
     | DistanceRequest
     | LineVoronoiRequest
+    | RegionOverlapsRequest
+    | RemoveRegionOverlapsRequest
     | UnionRequest;
 
 async function calculate(request: GeometryRequest): Promise<unknown> {
@@ -40,6 +48,10 @@ async function calculate(request: GeometryRequest): Promise<unknown> {
         return calculateBoundaryTarget(request);
     }
     if (request.kind === "lineVoronoi") return calculateLineVoronoi(request);
+    if (request.kind === "regionOverlaps") return findRegionOverlaps(request);
+    if (request.kind === "removeRegionOverlaps") {
+        return removeRegionOverlaps(request);
+    }
     if (request.kind === "distance") return calculateDistance(request);
     return calculateBuffer(request);
 }
