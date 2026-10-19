@@ -20,6 +20,7 @@ import {
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 import {
+    borderNetwork,
     cachedBuffer,
     cachedGeometry,
     containingRegion,
@@ -302,6 +303,27 @@ async function getContainingRegionTargetGeometry(
     const key = `measuring:containing-target:${data.lat}:${data.lng}:${candidates.join(",")}`;
     return cachedBuffer(source, key, async () => {
         if (!candidates.length) return null;
+        if (source.noOverlaps) {
+            // A point is as far from its own region's boundary as from the
+            // nearest boundary of any, so one buffer of them all is the
+            // target, with nothing to cut from it.
+            const network = await cachedGeometry(
+                source,
+                `measuring:network:${candidates.join(",")}`,
+                () =>
+                    borderNetwork(
+                        candidates.map((index) => source.regions[index]),
+                    ),
+            );
+            // Projected around its own middle: a single buffer has no
+            // neighbour to match, and stays planar further out that way.
+            return arcBuffer(
+                turf.featureCollection([network]),
+                threshold,
+                "miles",
+                bufferDeviation(threshold, "miles"),
+            );
+        }
         const buffers = await Promise.all(
             candidates.map((index) =>
                 getRegionBuffer(source, index, threshold),
