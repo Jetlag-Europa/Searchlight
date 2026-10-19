@@ -102,3 +102,34 @@ describe("POST /auth/test-login (ENABLE_TEST_AUTH=1)", () => {
     expect(post.statusCode).toBe(404);
   });
 });
+
+describe("GET /auth/discord/login", () => {
+  let app: Awaited<ReturnType<typeof buildTestApp>>;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    await app.close();
+  });
+
+  const returnToCookie = async (returnTo: string) => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/auth/discord/login?returnTo=${encodeURIComponent(returnTo)}`,
+    });
+    expect(res.statusCode).toBe(302);
+    return res.cookies.find((c) => c.name === "oauth_return_to")?.value || undefined;
+  };
+
+  test("remembers a path on the web app to return to after login", async () => {
+    expect(await returnToCookie("/games?tab=mine#top")).toBe("/games?tab=mine#top");
+  });
+
+  test("ignores anything that would leave the web app", async () => {
+    for (const evil of ["https://evil.example", "//evil.example", "/\\evil.example", "games"]) {
+      expect(await returnToCookie(evil)).toBeUndefined();
+    }
+  });
+});

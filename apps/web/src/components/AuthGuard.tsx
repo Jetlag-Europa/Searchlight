@@ -19,7 +19,8 @@ export function AuthGuard() {
         () =>
             watchAuth(`${API_BASE}/me`, {
                 signedOut: () => {
-                    window.location.href = "/";
+                    const here = `${location.pathname}${location.search}${location.hash}`;
+                    window.location.href = `/?returnTo=${encodeURIComponent(here)}`;
                 },
                 // A slow connection or a deploy: keep the player here, and
                 // don't leave them behind the loading spinner either.

@@ -70,6 +70,14 @@ function tokenMatches(given: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+// Where to send the user after login: a path on the web app, never another site.
+const frontendOrigin = new URL(env.FRONTEND_ORIGIN).origin;
+function safeReturnTo(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value.startsWith("/")) return undefined;
+  const url = URL.parse(value, frontendOrigin);
+  return url?.origin === frontendOrigin ? url.pathname + url.search + url.hash : undefined;
+}
+
 const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -108,16 +116,20 @@ ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
 
 export async function authRoutes(app: FastifyInstance) {
   // GET /auth/discord/login
-  app.get("/discord/login", async (req, reply) => {
+  app.get<{ Querystring: { returnTo?: string } }>("/discord/login", async (req, reply) => {
     const state = generateState();
     const url = discordOAuth.createAuthorizationURL(state, null, SCOPES);
-
-    reply.setCookie("oauth_state", state, {
+    const oauthCookie = {
       httpOnly: true,
-      sameSite: "lax",
+      sameSite: "lax" as const,
       maxAge: 600, // 10 minutes
       path: "/",
-    });
+    };
+
+    reply.setCookie("oauth_state", state, oauthCookie);
+    const returnTo = safeReturnTo(req.query.returnTo);
+    if (returnTo) reply.setCookie("oauth_return_to", returnTo, oauthCookie);
+    else reply.clearCookie("oauth_return_to", { path: "/" });
 
     return reply.redirect(url.toString());
   });
@@ -133,7 +145,9 @@ export async function authRoutes(app: FastifyInstance) {
         return reply.status(400).send("Invalid OAuth state");
       }
 
+      const returnTo = safeReturnTo(req.cookies["oauth_return_to"]) ?? "/map";
       reply.clearCookie("oauth_state", { path: "/" });
+      reply.clearCookie("oauth_return_to", { path: "/" });
 
       let tokens;
       try {
@@ -174,7 +188,7 @@ export async function authRoutes(app: FastifyInstance) {
 
       await startSession(reply, discordUser.id);
 
-      return reply.redirect(`${env.FRONTEND_ORIGIN}/map`);
+      return reply.redirect(`${frontendOrigin}${returnTo}`);
     },
   );
 

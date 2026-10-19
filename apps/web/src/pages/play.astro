@@ -88,9 +88,8 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             }
 
             function logIn() {
-                // After login the map page sends the user back here.
-                localStorage.setItem("taibled-return-to", `${location.pathname}${location.search}`);
-                window.location.href = `${apiBase}/auth/discord/login`;
+                const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
+                window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
             }
 
             $("valid").addEventListener("submit", async (event) => {

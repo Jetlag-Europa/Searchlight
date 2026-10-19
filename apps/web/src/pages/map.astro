@@ -40,7 +40,7 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     </div>
 
 
-    <!-- AuthGuard fetches /me; on 401 redirects to /; on 200 removes the overlay and renders the user chip; otherwise it retries -->
+    <!-- AuthGuard fetches /me; on 401 redirects to the login page (with ?returnTo=); on 200 removes the overlay and renders the user chip; otherwise it retries -->
     <AuthGuard client:only="react" />
 
     <!-- SessionManager shows blocking overlay until a session is selected, then persists session state -->
