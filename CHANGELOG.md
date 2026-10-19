@@ -3,6 +3,13 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Faster measuring questions (2026-10-19)
+
+- Measuring questions now build their distance buffers in a map projection centred on the area, which is several times faster than working on the globe directly and just as accurate: the buffer stays within the same tolerance as before (0.05% of the distance, at least 3 ft). In Belgium, "closer to a province border" now takes about 2 seconds instead of 7 to 8 at most distances.
+- Borders are never simplified, so answers and the zones they leave are unchanged.
+- Working out a distance-to-boundary question no longer blocks the page while it cuts up the regions.
+- On a big game, a question asked about a kilometre from a border is still slow (about 10 seconds in Belgium, down from 15 to 19).
+
 ## Link copying, place search and full screen fixes (2026-10-19)
 
 - The **Invite** and **Share a copy** drawers only say "Copied!" when the link was really copied. When the browser refuses, as iPhone Safari does after creating a link, they show the link in a field to copy by hand. A failed revoke now shows an error.

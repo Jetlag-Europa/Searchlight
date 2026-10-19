@@ -7,8 +7,16 @@ import type {
 
 import type * as BufferGeometry from "./bufferGeometry";
 import type { BufferRequest, DistanceRequest } from "./bufferGeometry";
-import type { ClipRequest, UnionRequest } from "./clipGeometry";
-import { calculateClip, calculateUnion } from "./clipGeometry";
+import type {
+    BoundaryTargetRequest,
+    ClipRequest,
+    UnionRequest,
+} from "./clipGeometry";
+import {
+    calculateBoundaryTarget,
+    calculateClip,
+    calculateUnion,
+} from "./clipGeometry";
 import { calculateLineVoronoi, type LineVoronoiRequest } from "./lineVoronoi";
 import {
     calculateFilterZoneIndexes,
@@ -94,6 +102,9 @@ export function requestGeometry(
     options?: RequestOptions,
 ): Promise<Feature<MultiPolygon>>;
 export function requestGeometry(request: DistanceRequest): Promise<number>;
+export function requestGeometry(
+    request: BoundaryTargetRequest,
+): Promise<GeometryResult>;
 export function requestGeometry(request: ClipRequest): Promise<GeometryResult>;
 export function requestGeometry(request: UnionRequest): Promise<GeometryResult>;
 export function requestGeometry(
@@ -101,6 +112,7 @@ export function requestGeometry(
 ): Promise<Feature<Polygon | MultiPolygon>[][]>;
 export async function requestGeometry(
     request:
+        | BoundaryTargetRequest
         | BufferRequest
         | ClipRequest
         | DistanceRequest
@@ -111,6 +123,8 @@ export async function requestGeometry(
     if (typeof Worker === "undefined") {
         if (request.kind === "clip") return calculateClip(request);
         if (request.kind === "union") return calculateUnion(request);
+        if (request.kind === "boundaryTarget")
+            return calculateBoundaryTarget(request);
         if (request.kind === "lineVoronoi")
             return calculateLineVoronoi(request);
         const buffer = await loadInlineBuffer();

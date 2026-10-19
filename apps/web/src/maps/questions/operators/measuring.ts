@@ -206,6 +206,25 @@ export async function measureToTargets(
     };
 }
 
+/**
+ * Where every region's buffer is projected: neighbours buffered in one
+ * projection share their common border's arcs exactly, which spares clipping
+ * a sliver along each one when the buffers are combined.
+ */
+function layerCenter(source: GeometrySource): Promise<[number, number]> {
+    return cachedGeometry(
+        source,
+        "measuring:layer-center",
+        () => {
+            const [west, south, east, north] = turf.bbox(
+                turf.featureCollection(source.regions),
+            );
+            return [(west + east) / 2, (south + north) / 2];
+        },
+        true,
+    );
+}
+
 const MAX_CACHED_DISTANCES = 2;
 const regionBufferCaches = new WeakMap<
     GeometrySource,
@@ -242,6 +261,7 @@ function getRegionBuffer(
                 distance,
                 "miles",
                 bufferDeviation(distance, "miles"),
+                await layerCenter(source),
             ))();
         buffers.set(index, pending);
         void pending.catch(() => {
@@ -281,36 +301,18 @@ async function getContainingRegionTargetGeometry(
     const key = `measuring:containing-target:${data.lat}:${data.lng}:${candidates.join(",")}`;
     return cachedBuffer(source, key, async () => {
         if (!candidates.length) return null;
-        // A point in a region is closer within that region's buffer, and a
-        // point in none within any region's buffer, as it is measured to the
-        // nearest region. So the target is every buffer but the part of each
-        // region beyond its own buffer. Those parts never reach a region's
-        // edge, which leaves no seams for slivers between neighbouring regions.
-        const buffers: Region[] = [];
-        const farParts: Region[] = [];
-        for (const index of candidates) {
-            const region = source.regions[index];
-            const buffer = await getRegionBuffer(source, index, threshold);
-            buffers.push(buffer);
-            let far = turf.difference(turf.featureCollection([region, buffer]));
-            if (!far) continue;
-            // When regions overlap, the first containing source wins for both
-            // hider answers and map geometry.
-            for (let previous = 0; previous < index; previous++) {
-                const earlier = source.regions[previous];
-                if (!turf.booleanIntersects(far, earlier)) continue;
-                far = turf.difference(turf.featureCollection([far, earlier]));
-                if (!far) break;
-            }
-            if (far) farParts.push(far);
-        }
-        // Combining whole buffers can take seconds on a large layer, so the
-        // worker does it.
+        const buffers = await Promise.all(
+            candidates.map((index) =>
+                getRegionBuffer(source, index, threshold),
+            ),
+        );
+        // Cutting each region's far part from the buffers can take seconds on
+        // a large layer, so the worker does it.
         return requestGeometry({
-            kind: "clip",
-            mapData: turf.featureCollection(buffers),
-            modifications: turf.featureCollection(farParts),
-            within: false,
+            kind: "boundaryTarget",
+            regions: source.regions,
+            candidates,
+            buffers,
         });
     });
 }

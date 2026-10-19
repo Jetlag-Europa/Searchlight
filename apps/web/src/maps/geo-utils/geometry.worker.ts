@@ -4,8 +4,16 @@ import {
     calculateDistance,
     type DistanceRequest,
 } from "./bufferGeometry";
-import type { ClipRequest, UnionRequest } from "./clipGeometry";
-import { calculateClip, calculateUnion } from "./clipGeometry";
+import type {
+    BoundaryTargetRequest,
+    ClipRequest,
+    UnionRequest,
+} from "./clipGeometry";
+import {
+    calculateBoundaryTarget,
+    calculateClip,
+    calculateUnion,
+} from "./clipGeometry";
 import { calculateLineVoronoi, type LineVoronoiRequest } from "./lineVoronoi";
 import { createJobQueue, type WorkerJob } from "./workerQueue";
 import {
@@ -14,6 +22,7 @@ import {
 } from "./zoneFilter";
 
 type GeometryRequest =
+    | BoundaryTargetRequest
     | BufferRequest
     | ClipRequest
     | FilterZoneRequest
@@ -27,6 +36,9 @@ async function calculate(request: GeometryRequest): Promise<unknown> {
     }
     if (request.kind === "clip") return calculateClip(request);
     if (request.kind === "union") return calculateUnion(request);
+    if (request.kind === "boundaryTarget") {
+        return calculateBoundaryTarget(request);
+    }
     if (request.kind === "lineVoronoi") return calculateLineVoronoi(request);
     if (request.kind === "distance") return calculateDistance(request);
     return calculateBuffer(request);
