@@ -12,17 +12,21 @@ import {
     Lock,
     LogIn,
     MapPin,
+    Maximize2,
+    Minimize2,
     Play,
     Search,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     CircleMarker,
     MapContainer,
+    Popup,
     Rectangle,
     TileLayer,
     Tooltip,
     useMap,
+    useMapEvents,
 } from "react-leaflet";
 import { toast } from "react-toastify";
 
@@ -80,7 +84,10 @@ const formatDate = (iso: string) =>
         year: "numeric",
     });
 
-/** Frames the games found, or the selected game. */
+// From this zoom, the map names its games and outlines their areas.
+const LABEL_ZOOM = 7;
+
+/** Frames the games found, and flies to the selected game. */
 function FitMap({
     matches,
     selected,
@@ -97,43 +104,187 @@ function FitMap({
         .sort()
         .join();
 
+    // Refit when the games found change, not when their order does.
     useEffect(() => {
-        if (selected) {
-            if (selected.bounds) {
-                map.flyToBounds(latLngBounds(selected.bounds), {
-                    padding: [24, 24],
-                    duration: 0.6,
-                });
-            } else {
-                map.flyTo(latLng(selected.center), 10, { duration: 0.6 });
-            }
-            return;
-        }
         if (matches.length === 0) return;
         const bounds = L.latLngBounds(
             matches.map((m) => latLng(m.game.center)),
         );
         if (place) bounds.extend([place.lat, place.lng]);
         map.fitBounds(bounds, { padding: [32, 32], maxZoom: 9 });
-        // Refit when the games found change, not when their order does.
-    }, [map, framedIds, selected?.id, place]);
+    }, [map, framedIds, place]);
+
+    // Closing a game's card leaves the map where it is, to look around.
+    useEffect(() => {
+        if (!selected) {
+            map.closePopup();
+            return;
+        }
+        if (selected.bounds) {
+            map.flyToBounds(latLngBounds(selected.bounds), {
+                padding: [24, 24],
+                duration: 0.6,
+            });
+        } else {
+            map.flyTo(latLng(selected.center), 10, { duration: 0.6 });
+        }
+    }, [map, selected?.id]);
 
     return null;
+}
+
+/** Keeps Leaflet's size in step with its box: the page layout and full screen change it. */
+function TrackSize() {
+    const map = useMap();
+    useEffect(() => {
+        const observer = new ResizeObserver(() => map.invalidateSize());
+        observer.observe(map.getContainer());
+        return () => observer.disconnect();
+    }, [map]);
+    return null;
+}
+
+/** Scrolling zooms only where it can't trap the page's own scrolling. */
+function WheelZoom({ enabled }: { enabled: boolean }) {
+    const map = useMap();
+    useEffect(() => {
+        if (enabled) map.scrollWheelZoom.enable();
+        else map.scrollWheelZoom.disable();
+    }, [map, enabled]);
+    return null;
+}
+
+function TrackZoom({ onZoom }: { onZoom: (zoom: number) => void }) {
+    const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+    return null;
+}
+
+/** The map's card for a game: what it is, and how to play it. */
+function GamePopup({
+    game,
+    starting,
+    onPlay,
+}: {
+    game: CatalogGame;
+    starting: boolean;
+    onPlay: () => void;
+}) {
+    const rules = rulesLink(game.rulesUrl);
+    return (
+        <div className="flex w-56 flex-col gap-2 text-foreground">
+            <div>
+                <p className="font-semibold leading-snug">
+                    {game.locked && (
+                        <Lock
+                            className="mr-1 inline h-3.5 w-3.5 align-[-2px]"
+                            role="img"
+                            aria-label="Locked"
+                        />
+                    )}
+                    {game.name}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                    {game.serverName} ·{" "}
+                    <span className="capitalize">{game.size}</span> ·{" "}
+                    {game.zoneCount.toLocaleString()} hiding zones
+                </p>
+                <p className="mt-1 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                    {game.date && (
+                        <span className="flex items-center gap-1">
+                            <CalendarDays className="h-3 w-3" />
+                            {formatEventDate(game.date, game.endDate)}
+                        </span>
+                    )}
+                    {game.archived && <span>Archived</span>}
+                    {rules && (
+                        <a
+                            href={rules}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 underline hover:text-foreground"
+                        >
+                            <BookOpen className="h-3 w-3" />
+                            Rules
+                        </a>
+                    )}
+                </p>
+            </div>
+            {game.locked ? (
+                game.joinUrl && (
+                    <Button size="sm" variant="outline" asChild>
+                        <a
+                            href={game.joinUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                        >
+                            <LogIn />
+                            Join {game.serverName}
+                        </a>
+                    </Button>
+                )
+            ) : (
+                <Button size="sm" onClick={onPlay} disabled={starting}>
+                    <Play />
+                    {starting ? "Starting…" : "Play"}
+                </Button>
+            )}
+        </div>
+    );
 }
 
 function BrowserMap({
     matches,
     selected,
+    hoveredId,
     place,
+    startingId,
     onSelect,
+    onDeselect,
+    onPlay,
 }: {
     matches: CatalogMatch[];
     selected: CatalogGame | null;
+    hoveredId: string | null;
     place: Place | null;
+    startingId: string | null;
     onSelect: (game: CatalogGame) => void;
+    onDeselect: (game: CatalogGame) => void;
+    onPlay: (game: CatalogGame) => void;
 }) {
+    const [expanded, setExpanded] = useState(false);
+    const [zoom, setZoom] = useState(4);
+    const wide = useMediaQuery("(min-width: 1024px)");
+    const markers = useRef(new Map<string, L.CircleMarker>());
+    const showLabels = zoom >= LABEL_ZOOM;
+
+    // The selected game's card opens on the map, wherever it was selected.
+    useEffect(() => {
+        if (selected) markers.current.get(selected.id)?.openPopup();
+    }, [selected?.id]);
+
+    // Full screen: Escape closes it, and the page behind doesn't scroll.
+    useEffect(() => {
+        if (!expanded) return;
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setExpanded(false);
+        };
+        const overflow = document.body.style.overflow;
+        document.body.style.overflow = "hidden";
+        window.addEventListener("keydown", onKey);
+        return () => {
+            document.body.style.overflow = overflow;
+            window.removeEventListener("keydown", onKey);
+        };
+    }, [expanded]);
+
     return (
-        <div className="h-64 sm:h-80">
+        <div
+            className={`browse-map ${
+                expanded
+                    ? "fixed inset-0 z-[1100] bg-background"
+                    : "relative h-[45svh] min-h-72 lg:h-full"
+            }`}
+        >
             <MapContainer
                 center={[48, 8]}
                 zoom={4}
@@ -145,7 +296,7 @@ function BrowserMap({
                 ]}
                 // globals.css makes every map full height; this one sits in the page.
                 style={{ height: "100%" }}
-                className="w-full rounded-lg border border-border z-0"
+                className={`z-0 w-full ${expanded ? "" : "rounded-lg border border-border"}`}
             >
                 <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -156,15 +307,33 @@ function BrowserMap({
                     noWrap
                 />
                 <FitMap matches={matches} selected={selected} place={place} />
-                {selected?.bounds && (
-                    <Rectangle
-                        bounds={latLngBounds(selected.bounds)}
-                        pathOptions={{
-                            color: "#facc15",
-                            weight: 2,
-                            fillOpacity: 0.05,
-                        }}
-                    />
+                <TrackSize />
+                <TrackZoom onZoom={setZoom} />
+                <WheelZoom enabled={expanded || wide} />
+                {matches.map(({ game }) =>
+                    game.bounds && (showLabels || game.id === selected?.id) ? (
+                        <Rectangle
+                            key={`area-${game.id}`}
+                            bounds={latLngBounds(game.bounds)}
+                            interactive={false}
+                            pathOptions={
+                                game.id === selected?.id
+                                    ? {
+                                          color: "#facc15",
+                                          weight: 2,
+                                          fillOpacity: 0.05,
+                                      }
+                                    : {
+                                          color: game.locked
+                                              ? "#6b7280"
+                                              : "#e11d48",
+                                          weight: 1,
+                                          dashArray: "4 4",
+                                          fillOpacity: 0.04,
+                                      }
+                            }
+                        />
+                    ) : null,
                 )}
                 {place && (
                     <CircleMarker
@@ -182,11 +351,17 @@ function BrowserMap({
                 )}
                 {matches.map(({ game }) => {
                     const isSelected = game.id === selected?.id;
+                    const isHovered = game.id === hoveredId;
                     return (
                         <CircleMarker
                             key={game.id}
+                            ref={(marker) => {
+                                if (marker)
+                                    markers.current.set(game.id, marker);
+                                else markers.current.delete(game.id);
+                            }}
                             center={latLng(game.center)}
-                            radius={isSelected ? 10 : 7}
+                            radius={isSelected ? 10 : isHovered ? 9 : 7}
                             pathOptions={{
                                 color: isSelected ? "#facc15" : "#ffffff",
                                 fillColor: isSelected
@@ -195,22 +370,64 @@ function BrowserMap({
                                       ? "#6b7280"
                                       : "#e11d48",
                                 fillOpacity: game.locked ? 0.7 : 0.9,
-                                opacity: game.locked ? 0.6 : 1,
-                                weight: 2,
+                                opacity: game.locked && !isHovered ? 0.6 : 1,
+                                weight: isHovered ? 3 : 2,
                             }}
-                            eventHandlers={{ click: () => onSelect(game) }}
+                            eventHandlers={{
+                                click: () => onSelect(game),
+                                popupclose: () => onDeselect(game),
+                            }}
                         >
-                            <Tooltip direction="top">
-                                {game.locked
+                            {/* Remounted to switch: Leaflet reads `permanent` once. */}
+                            <Tooltip
+                                key={showLabels ? "label" : "hover"}
+                                direction="top"
+                                offset={[0, -6]}
+                                permanent={showLabels}
+                                className={showLabels ? "game-label" : ""}
+                            >
+                                {game.locked && !showLabels
                                     ? `${game.name} (join ${game.serverName} to play)`
                                     : game.name}
                             </Tooltip>
+                            <Popup autoPan={false} closeButton={false}>
+                                <GamePopup
+                                    game={game}
+                                    starting={startingId === game.id}
+                                    onPlay={() => onPlay(game)}
+                                />
+                            </Popup>
                         </CircleMarker>
                     );
                 })}
             </MapContainer>
+            <Button
+                size="icon"
+                variant="secondary"
+                onClick={() => setExpanded((v) => !v)}
+                className="absolute right-2.5 top-2.5 z-[1000] shadow-md"
+                aria-label={
+                    expanded ? "Close full screen map" : "Full screen map"
+                }
+                title={expanded ? "Close full screen (Esc)" : "Full screen"}
+            >
+                {expanded ? <Minimize2 /> : <Maximize2 />}
+            </Button>
         </div>
     );
+}
+
+function useMediaQuery(query: string): boolean {
+    const [matches, setMatches] = useState(
+        () => window.matchMedia(query).matches,
+    );
+    useEffect(() => {
+        const mql = window.matchMedia(query);
+        const onChange = () => setMatches(mql.matches);
+        mql.addEventListener("change", onChange);
+        return () => mql.removeEventListener("change", onChange);
+    }, [query]);
+    return matches;
 }
 
 function GameCard({
@@ -220,6 +437,7 @@ function GameCard({
     starting,
     rechecking,
     onSelect,
+    onHover,
     onPlay,
     onRecheck,
 }: {
@@ -229,6 +447,7 @@ function GameCard({
     starting: boolean;
     rechecking: boolean;
     onSelect: () => void;
+    onHover: (hovered: boolean) => void;
     onPlay: () => void;
     onRecheck: () => void;
 }) {
@@ -239,6 +458,8 @@ function GameCard({
     return (
         <li
             id={`game-${game.id}`}
+            onMouseEnter={() => onHover(true)}
+            onMouseLeave={() => onHover(false)}
             className={`flex flex-col gap-3 rounded-lg border p-4 transition-colors ${
                 selected
                     ? "border-yellow-400 bg-yellow-400/5"
@@ -362,6 +583,7 @@ export function GameBrowser() {
         place: Place | null;
     } | null>(null);
     const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [hoveredId, setHoveredId] = useState<string | null>(null);
     const [startingId, setStartingId] = useState<string | null>(null);
     // Servers whose membership is being rechecked.
     const [rechecking, setRechecking] = useState<ReadonlySet<string>>(
@@ -452,12 +674,15 @@ export function GameBrowser() {
     const selected =
         matches.find((m) => m.game.id === selectedId)?.game ?? null;
 
-    const selectGame = (game: CatalogGame) => {
-        setSelectedId((prev) => (prev === game.id ? null : game.id));
+    // A card's name toggles its game on the map; a pin on the map opens it.
+    const selectGame = (game: CatalogGame, toggle: boolean) => {
+        setSelectedId((prev) => (toggle && prev === game.id ? null : game.id));
         document
             .getElementById(`game-${game.id}`)
             ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
     };
+    const deselectGame = (game: CatalogGame) =>
+        setSelectedId((prev) => (prev === game.id ? null : prev));
 
     // After joining a server on Discord: ask again, past the membership cache.
     const recheck = async (game: CatalogGame) => {
@@ -593,69 +818,92 @@ export function GameBrowser() {
                 </div>
             </div>
 
-            <BrowserMap
-                matches={matches}
-                selected={selected}
-                place={nearPlace > 0 ? place : null}
-                onSelect={selectGame}
-            />
-
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-                {matches.length === 0
-                    ? games.length === 0
-                        ? "There are no games to show yet."
-                        : `No games match “${query.trim()}”.`
-                    : nearPlace > 0
-                      ? `${nearPlace} ${nearPlace === 1 ? "game" : "games"} played near ${place!.label}${
-                            matches.length > nearPlace
-                                ? `, ${matches.length - nearPlace} more by name`
-                                : ""
-                        }`
-                      : `${matches.length} ${matches.length === 1 ? "game" : "games"}`}
-                {lockedCount === 0
-                    ? ""
-                    : lockedCount < matches.length
-                      ? `, ${lockedCount} of them on servers you haven't joined`
-                      : lockedCount === 1
-                        ? ", on a server you haven't joined"
-                        : ", all on servers you haven't joined"}
-            </p>
-            {archivedCount > 0 && (
-                <label className="-mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
-                    <input
-                        type="checkbox"
-                        checked={showArchived}
-                        onChange={(e) => setShowArchived(e.target.checked)}
-                        className="h-4 w-4 accent-current"
+            {/* On wide screens the map stays in view beside the list. */}
+            <div className="flex flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-6">
+                <div className="lg:sticky lg:top-16 lg:col-start-2 lg:row-start-1 lg:h-[calc(100svh-5rem)]">
+                    <BrowserMap
+                        matches={matches}
+                        selected={selected}
+                        hoveredId={hoveredId}
+                        place={nearPlace > 0 ? place : null}
+                        startingId={startingId}
+                        onSelect={(game) => selectGame(game, false)}
+                        onDeselect={deselectGame}
+                        onPlay={play}
                     />
-                    Show past events ({archivedCount} archived)
-                </label>
-            )}
-            {unavailableServers.length > 0 && (
-                <p className="text-sm text-amber-400">
-                    Couldn&apos;t check your membership of{" "}
-                    {unavailableServers.join(", ")} with Discord just now, so
-                    their games are missing. Reload to try again.
-                </p>
-            )}
+                </div>
+                <div className="flex flex-col gap-5 lg:col-start-1 lg:row-start-1">
+                    <p
+                        className="text-sm text-muted-foreground"
+                        aria-live="polite"
+                    >
+                        {matches.length === 0
+                            ? games.length === 0
+                                ? "There are no games to show yet."
+                                : `No games match “${query.trim()}”.`
+                            : nearPlace > 0
+                              ? `${nearPlace} ${nearPlace === 1 ? "game" : "games"} played near ${place!.label}${
+                                    matches.length > nearPlace
+                                        ? `, ${matches.length - nearPlace} more by name`
+                                        : ""
+                                }`
+                              : `${matches.length} ${matches.length === 1 ? "game" : "games"}`}
+                        {lockedCount === 0
+                            ? ""
+                            : lockedCount < matches.length
+                              ? `, ${lockedCount} of them on servers you haven't joined`
+                              : lockedCount === 1
+                                ? ", on a server you haven't joined"
+                                : ", all on servers you haven't joined"}
+                    </p>
+                    {archivedCount > 0 && (
+                        <label className="-mt-3 flex w-fit cursor-pointer items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
+                            <input
+                                type="checkbox"
+                                checked={showArchived}
+                                onChange={(e) =>
+                                    setShowArchived(e.target.checked)
+                                }
+                                className="h-4 w-4 accent-current"
+                            />
+                            Show past events ({archivedCount} archived)
+                        </label>
+                    )}
+                    {unavailableServers.length > 0 && (
+                        <p className="text-sm text-amber-400">
+                            Couldn&apos;t check your membership of{" "}
+                            {unavailableServers.join(", ")} with Discord just
+                            now, so their games are missing. Reload to try
+                            again.
+                        </p>
+                    )}
 
-            {matches.length > 0 && (
-                <ul className="grid gap-3 sm:grid-cols-2">
-                    {matches.map((match) => (
-                        <GameCard
-                            key={match.game.id}
-                            match={match}
-                            place={place}
-                            selected={match.game.id === selectedId}
-                            starting={startingId === match.game.id}
-                            rechecking={rechecking.has(match.game.serverId)}
-                            onSelect={() => selectGame(match.game)}
-                            onPlay={() => play(match.game)}
-                            onRecheck={() => recheck(match.game)}
-                        />
-                    ))}
-                </ul>
-            )}
+                    {matches.length > 0 && (
+                        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                            {matches.map((match) => (
+                                <GameCard
+                                    key={match.game.id}
+                                    match={match}
+                                    place={place}
+                                    selected={match.game.id === selectedId}
+                                    starting={startingId === match.game.id}
+                                    rechecking={rechecking.has(
+                                        match.game.serverId,
+                                    )}
+                                    onSelect={() =>
+                                        selectGame(match.game, true)
+                                    }
+                                    onHover={(on) =>
+                                        setHoveredId(on ? match.game.id : null)
+                                    }
+                                    onPlay={() => play(match.game)}
+                                    onRecheck={() => recheck(match.game)}
+                                />
+                            ))}
+                        </ul>
+                    )}
+                </div>
+            </div>
         </div>
     );
 }
