@@ -3,6 +3,8 @@
   "id": "graz-2026",
   "name": "Graz 08-08",
   "serverId": "1190673594649415730",
+  "date": "2026-08-08",
+  "rulesUrl": "https://discord.com/channels/1190673594649415730/1525788442934640710/1535352256130580480",
   "size": "medium",
   "visibility": {
     "kind": "server-members"

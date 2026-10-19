@@ -71,7 +71,7 @@ export function checkGame(def, { fileSize } = {}) {
   // ── Structure (what the server validator rejects) ──────────────────────────
 
   const ROOT_KEYS = ["$schema", "id", "revision", "name", "serverId", "size", "visibility",
-    "unit", "map", "hidingZones", "radars", "thermometer", "features"];
+    "date", "endDate", "rulesUrl", "unit", "map", "hidingZones", "radars", "thermometer", "features"];
   for (const key of Object.keys(def)) {
     if (!ROOT_KEYS.includes(key)) err(`/${key}`, "unknown root property");
   }
@@ -93,6 +93,25 @@ export function checkGame(def, { fileSize } = {}) {
          typeof v.roleId === "string" && v.roleId))) {
       err("/visibility", '{"kind":"server-members"} or {"kind":"discord-role","guildId":"...","roleId":"..."}');
     }
+  }
+  // The game's details: its event day(s) and rules doc (copied onto the game,
+  // not part of the map).
+  const isDay = (d) => {
+    const m = typeof d === "string" && /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+    if (!m) return false;
+    const t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return t.getUTCFullYear() === +m[1] && t.getUTCMonth() === +m[2] - 1 && t.getUTCDate() === +m[3];
+  };
+  if (def.date !== undefined && !isDay(def.date)) err("/date", "the event day as YYYY-MM-DD, e.g. \"2026-09-19\"");
+  if (def.endDate !== undefined) {
+    if (!isDay(def.endDate)) err("/endDate", "the last day as YYYY-MM-DD");
+    else if (def.date === undefined) err("/endDate", "an end date needs a date");
+    else if (isDay(def.date) && def.endDate < def.date) err("/endDate", "before the date");
+  }
+  if (def.rulesUrl !== undefined) {
+    let ok = typeof def.rulesUrl === "string" && def.rulesUrl.length <= 2048 && !/\s/.test(def.rulesUrl);
+    try { ok = ok && new URL(def.rulesUrl).protocol === "https:" && new URL(def.rulesUrl).hostname !== ""; } catch { ok = false; }
+    if (!ok) err("/rulesUrl", "an https link to the rules doc");
   }
   if (def.thermometer !== undefined && typeof def.thermometer !== "boolean") err("/thermometer", "must be boolean");
   if (def.radars !== undefined && typeof def.radars !== "boolean" &&

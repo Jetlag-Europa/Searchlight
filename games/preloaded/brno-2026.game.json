@@ -3,6 +3,8 @@
   "id": "brno-2026",
   "name": "Brno 2026",
   "serverId": "1190673594649415730",
+  "date": "2026-05-30",
+  "rulesUrl": "https://docs.google.com/document/d/1vhGzk9lBomlrWliuNK32wL5DkHgbP4LfpVJkKw0XPnU/edit",
   "size": "medium",
   "visibility": {
     "kind": "server-members"

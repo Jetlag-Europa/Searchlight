@@ -16,6 +16,8 @@ export interface PreloadSummary {
   // Files unchanged since the last start while another revision was made
   // current since; the game keeps that revision.
   kept: { fileName: string; revision: number }[];
+  // Files whose date or rules link changed the game's (whatever its map did).
+  detailsUpdated: number;
   results: GameImportResponse[];
   // Files that could not be imported; the others are imported regardless.
   failures: { fileName: string; error: unknown }[];
@@ -39,6 +41,7 @@ export async function preloadGameDefinitions(
       updated: 0,
       unchanged: 0,
       kept: [],
+      detailsUpdated: 0,
       results: [],
       failures: [],
     };
@@ -54,6 +57,7 @@ export async function preloadGameDefinitions(
   let created = 0;
   let updated = 0;
   let unchanged = 0;
+  let detailsUpdated = 0;
 
   for (const fileName of gameFiles) {
     let result: GameImportResponse;
@@ -81,6 +85,7 @@ export async function preloadGameDefinitions(
     }
 
     results.push(result);
+    if (result.detailsChanged && result.status !== "created") detailsUpdated++;
     if (result.status === "created") created++;
     else if (result.status === "updated") updated++;
     // An unchanged result names the current revision, so another checksum
@@ -96,6 +101,7 @@ export async function preloadGameDefinitions(
     updated,
     unchanged,
     kept,
+    detailsUpdated,
     results,
     failures,
   };

@@ -3,6 +3,8 @@
   "id": "budapest-2025",
   "name": "Budapest 11.07.25",
   "serverId": "1190673594649415730",
+  "date": "2026-07-11",
+  "rulesUrl": "https://docs.google.com/document/d/1LyYFCeyZO1HkmQLSVSjvbw1eJowOXdlyum78x1snao0/edit",
   "size": "large",
   "visibility": {
     "kind": "server-members"

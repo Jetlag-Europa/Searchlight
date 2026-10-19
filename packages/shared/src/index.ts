@@ -34,10 +34,18 @@ export interface MeResponse {
 
 // ── Servers / Roles ───────────────────────────────────────────────────────────
 
+/**
+ * Servers with no Discord guild behind them (Home Games): no membership to
+ * check, no roles, no invite.
+ */
+export const VIRTUAL_SERVER_IDS: ReadonlySet<string> = new Set(["home-games"]);
+
 export interface Server {
   id: string;
   name: string;
   iconUrl: string | null;
+  /** A Discord invite to the server, set by its admins. Setting one shows the server's listed games, locked, to non-members in the game browser. */
+  inviteUrl: string | null;
 }
 
 export interface DiscordRole {
@@ -82,7 +90,22 @@ export interface Game {
   /** Sessions start only from game links; only the games page lists it, for game managers. */
   unlisted: boolean;
   currentRevisionId?: string | null;
+  /** Set when its managers archived it: a past event, left out of new-session lists. */
   archivedAt?: string | null;
+  /** The game's event day, `YYYY-MM-DD`, and its last day for a multi-day event. */
+  date: string | null;
+  endDate: string | null;
+  /** The game's rules doc. */
+  rulesUrl: string | null;
+}
+
+/** PATCH /games/:gameId: what game managers change. Set the date and end date together. */
+export interface UpdateGameBody {
+  unlisted?: boolean;
+  archived?: boolean;
+  date?: string | null;
+  endDate?: string | null;
+  rulesUrl?: string | null;
 }
 
 export interface GameImportResponse {
@@ -91,6 +114,8 @@ export interface GameImportResponse {
   gameKey: string;
   revision: number;
   checksum: string;
+  /** The game's date or rules link changed (they never make a revision). */
+  detailsChanged: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
 }
@@ -125,6 +150,42 @@ export interface GameStatsResponse {
   stats: GameStats[];
 }
 
+// ── Game catalog ──────────────────────────────────────────────────────────────
+
+/** A game the user can start a session of, as the game browser lists it. */
+export interface CatalogGame {
+  id: string;
+  gameKey: string;
+  name: string;
+  size: "small" | "medium" | "large";
+  serverId: string;
+  serverName: string;
+  /** The map's center, [lng, lat]. */
+  center: [number, number];
+  /** The map's bounds, [west, south, east, north], when the game declares them. */
+  bounds: [number, number, number, number] | null;
+  zoneCount: number;
+  /** When the current revision was published. */
+  updatedAt: string;
+  /** The game's event day, `YYYY-MM-DD`, and its last day for a multi-day event. */
+  date: string | null;
+  endDate: string | null;
+  /** The game's rules doc, if its managers linked one. */
+  rulesUrl: string | null;
+  /** A past event, archived by its managers: shown on request, still playable. */
+  archived: boolean;
+  /** On a server the user hasn't joined: shown, but not playable until they join. */
+  locked: boolean;
+  /** For a locked game, the server's Discord invite: only servers whose admins set one show their games to non-members. */
+  joinUrl: string | null;
+}
+
+export interface GameCatalogResponse {
+  games: CatalogGame[];
+  /** Servers whose membership couldn't be checked just now; their games are missing. */
+  unavailableServers: string[];
+}
+
 // ── Game links ────────────────────────────────────────────────────────────────
 
 export interface GameLinkSummary {
@@ -146,6 +207,8 @@ export interface GameSessionSummary {
   id: string;
   gameId: string;
   gameName: string;
+  /** The game's rules doc, if its managers linked one. */
+  rulesUrl?: string | null;
   serverId: string;
   name: string;
   visibility: SessionVisibility;

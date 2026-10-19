@@ -2,13 +2,21 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { getUserPermissions, isServerMember, LISTING_NON_MEMBER_TTL_MS } from "../lib/permissions.js";
+import {
+  getUserPermissions,
+  isServerMember,
+  LISTING_NON_MEMBER_TTL_MS,
+  recheckServerMembership,
+} from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { requirePermission } from "../lib/require-permission.js";
 import { discord } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
 
 const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+
+// Only Discord invites: the link is shown to everyone browsing the server's games.
+const DISCORD_INVITE = /^https:\/\/(discord\.gg|(www\.)?discord\.com\/invite)\/[A-Za-z0-9-]+\/?$/;
 
 export async function serverRoutes(app: FastifyInstance) {
   // GET /servers — the servers the authed user is in (and virtual ones), plus
@@ -25,6 +33,7 @@ export async function serverRoutes(app: FastifyInstance) {
                 id: Type.String(),
                 name: Type.String(),
                 iconUrl: Type.Union([Type.String(), Type.Null()]),
+                inviteUrl: Type.Union([Type.String(), Type.Null()]),
                 permissions: Type.Array(Type.String()),
                 isMember: Type.Boolean(),
               }),
@@ -77,6 +86,7 @@ export async function serverRoutes(app: FastifyInstance) {
             id: server.id,
             name: server.name,
             iconUrl: server.iconUrl,
+            inviteUrl: server.inviteUrl,
             permissions: [...perms],
             isMember,
           };
@@ -92,6 +102,62 @@ export async function serverRoutes(app: FastifyInstance) {
       });
 
       return { servers: result };
+    },
+  );
+
+  // PATCH /servers/:serverId — set or clear the server's Discord invite (server.admin)
+  app.patch(
+    "/:serverId",
+    {
+      preHandler: requirePermission(
+        "server.admin",
+        (req) => (req.params as { serverId: string }).serverId,
+        true,
+      ),
+      schema: {
+        params: Type.Object({ serverId: Type.String() }),
+        body: Type.Object(
+          { inviteUrl: Type.Union([Type.String(), Type.Null()]) },
+          { additionalProperties: false },
+        ),
+        response: {
+          200: Type.Object({ id: Type.String(), inviteUrl: Type.Union([Type.String(), Type.Null()]) }),
+        },
+      },
+    },
+    async (req) => {
+      const { serverId } = req.params as { serverId: string };
+      const inviteUrl = (req.body as { inviteUrl: string | null }).inviteUrl?.trim() || null;
+      if (VIRTUAL_SERVER_IDS.has(serverId)) {
+        throw Object.assign(new Error("This server has no Discord server to invite to"), { statusCode: 400 });
+      }
+      if (inviteUrl && !DISCORD_INVITE.test(inviteUrl)) {
+        throw Object.assign(
+          new Error("Use a Discord invite link, like https://discord.gg/abc123"),
+          { statusCode: 400 },
+        );
+      }
+      const server = await prisma.server.update({ where: { id: serverId }, data: { inviteUrl } });
+      return { id: server.id, inviteUrl: server.inviteUrl };
+    },
+  );
+
+  // POST /servers/:serverId/membership — ask Discord again whether the user is
+  // in the server, so someone who just joined can play its games right away.
+  app.post(
+    "/:serverId/membership",
+    {
+      schema: {
+        params: Type.Object({ serverId: Type.String() }),
+        response: { 200: Type.Object({ isMember: Type.Boolean() }) },
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { serverId } = req.params as { serverId: string };
+      const server = await prisma.server.findUnique({ where: { id: serverId } });
+      if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
+      return { isMember: await recheckServerMembership(user.discordId, serverId, req.log) };
     },
   );
 

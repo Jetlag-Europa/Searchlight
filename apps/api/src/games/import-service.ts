@@ -2,11 +2,14 @@ import { Prisma } from "@prisma/client";
 import {
   computeGameDefinitionChecksum,
   type GameDefinition,
+  type GameDetailsInput,
   type GameImportResponse,
   resolveGameDefinitionId,
+  splitGameDetails,
   validateGameDefinition,
   type ValidationIssue,
 } from "@searchlight/shared";
+import { detailsData, fileDetailsPatch, rowDetails, sameDetailsInput, toDbDate } from "../lib/game-details.js";
 import prisma from "../lib/prisma.js";
 
 // GameRevision.revision is a PostgreSQL integer.
@@ -81,6 +84,10 @@ export class ImportForbiddenError extends Error {
 
 interface ImportContext {
   def: GameDefinition;
+  // The definition without the game's details: what a revision stores.
+  map: GameDefinition;
+  // The details the file sets, copied onto the game rather than stored.
+  details: GameDetailsInput;
   gameKey: string;
   checksum: string;
   warnings: ValidationIssue[];
@@ -196,8 +203,11 @@ async function importDefinition(
     throw serverNotFound(def.serverId, validation.warnings);
   }
 
+  const { map, details } = splitGameDetails(def);
   const ctx: ImportContext = {
     def,
+    map: map as GameDefinition,
+    details,
     gameKey,
     checksum: computeGameDefinitionChecksum(def),
     warnings: validation.warnings,
@@ -223,6 +233,7 @@ async function importDefinition(
     );
   }
 
+  const detailsSet = Object.keys(details).length > 0;
   if (dryRun) {
     return {
       status: "created",
@@ -230,6 +241,7 @@ async function importDefinition(
       gameKey,
       revision,
       checksum: ctx.checksum,
+      detailsChanged: detailsSet,
       errors: [],
       warnings: validation.warnings,
     };
@@ -245,6 +257,10 @@ async function importDefinition(
           size: def.size ?? "medium",
           unlisted,
           preloadChecksum: source === "preload" ? ctx.checksum : null,
+          preloadDetails: source === "preload" ? (details as Prisma.InputJsonObject) : Prisma.DbNull,
+          date: toDbDate(details.date ?? null),
+          endDate: toDbDate(details.endDate ?? null),
+          rulesUrl: details.rulesUrl ?? null,
         },
       });
 
@@ -253,7 +269,7 @@ async function importDefinition(
           gameId: game.id,
           revision,
           formatVersion: 1,
-          definition: def as unknown as Prisma.InputJsonValue,
+          definition: ctx.map as unknown as Prisma.InputJsonValue,
           checksum: ctx.checksum,
           source,
           createdBy: actor?.userId ?? null,
@@ -271,6 +287,7 @@ async function importDefinition(
         gameKey,
         revision,
         checksum: ctx.checksum,
+        detailsChanged: detailsSet,
         errors: [],
         warnings: validation.warnings,
       };
@@ -311,9 +328,17 @@ async function importRevision(
     // Serialize imports of this game, so the checks and the revision number
     // below see every revision committed before this one.
     const [locked] = await tx.$queryRaw<
-      { currentRevisionId: string | null; preloadChecksum: string | null }[]
+      {
+        currentRevisionId: string | null;
+        preloadChecksum: string | null;
+        preloadDetails: GameDetailsInput | null;
+        date: Date | null;
+        endDate: Date | null;
+        rulesUrl: string | null;
+      }[]
     >`
-      SELECT "currentRevisionId", "preloadChecksum" FROM "Game" WHERE id = ${game.id} FOR UPDATE
+      SELECT "currentRevisionId", "preloadChecksum", "preloadDetails", "date", "endDate", "rulesUrl"
+      FROM "Game" WHERE id = ${game.id} FOR UPDATE
     `;
     if (!locked) {
       throw new ImportConflictError("The game was deleted during the import", "GAME_DELETED");
@@ -325,37 +350,49 @@ async function importRevision(
         })
       : null;
 
-    // The preloaded file only changes the game when its content changed since
-    // the last API start: whatever is current now was chosen after that, e.g.
-    // an upload, and must not be undone on every start.
-    if (source === "preload" && cur && checksum === locked.preloadChecksum) {
+    // The game's details follow the file whatever happens to the map, and a
+    // preload records the details the file had (see fileDetailsPatch).
+    const detailsPatch = fileDetailsPatch(
+      ctx.details,
+      rowDetails(locked),
+      source === "preload" ? locked.preloadDetails : undefined,
+    );
+    const detailsChanged = Object.keys(detailsPatch).length > 0;
+    const gameData: Prisma.GameUncheckedUpdateInput = {
+      ...detailsData(detailsPatch),
+      ...(source === "preload" && !sameDetailsInput(locked.preloadDetails, ctx.details)
+        ? { preloadDetails: ctx.details as Prisma.InputJsonObject }
+        : {}),
+    };
+    const unchanged = async (revision: number, unchangedChecksum: string) => {
+      if (!ctx.dryRun && Object.keys(gameData).length > 0) {
+        await tx.game.update({ where: { id: game.id }, data: gameData });
+      }
       return {
         status: "unchanged" as const,
         gameId: game.id,
         gameKey,
-        revision: cur.revision,
-        checksum: cur.checksum,
+        revision,
+        checksum: unchangedChecksum,
+        detailsChanged,
         errors: [],
         warnings,
       };
+    };
+
+    // The preloaded file only changes the game when its content changed since
+    // the last API start: whatever is current now was chosen after that, e.g.
+    // an upload, and must not be undone on every start.
+    if (source === "preload" && cur && checksum === locked.preloadChecksum) {
+      return unchanged(cur.revision, cur.checksum);
     }
     // Recorded for a preload as the file's content is applied below.
     const preloadChecksum = source === "preload" ? checksum : undefined;
 
     // A. Check if the map is already identical (same checksum)
     if (cur && checksum === cur.checksum) {
-      if (preloadChecksum && !ctx.dryRun) {
-        await tx.game.update({ where: { id: game.id }, data: { preloadChecksum } });
-      }
-      return {
-        status: "unchanged" as const,
-        gameId: game.id,
-        gameKey,
-        revision: cur.revision,
-        checksum,
-        errors: [],
-        warnings,
-      };
+      if (preloadChecksum) gameData.preloadChecksum = preloadChecksum;
+      return unchanged(cur.revision, checksum);
     }
 
     // B. Check collision / update permission
@@ -398,6 +435,7 @@ async function importRevision(
       gameKey,
       revision: targetRevision,
       checksum,
+      detailsChanged,
       errors: [],
       warnings,
     };
@@ -413,7 +451,7 @@ async function importRevision(
             gameId: game.id,
             revision: targetRevision,
             formatVersion: 1,
-            definition: def as unknown as Prisma.InputJsonValue,
+            definition: ctx.map as unknown as Prisma.InputJsonValue,
             checksum,
             source,
             createdBy: actor?.userId ?? null,
@@ -423,11 +461,12 @@ async function importRevision(
 
     await tx.game.update({
       where: { id: game.id },
+      // Archiving stays: a new revision of a past event is still past.
       data: {
+        ...gameData,
         name: def.name,
         size: def.size ?? "medium",
         currentRevisionId: revId,
-        archivedAt: null,
         preloadChecksum,
       },
     });

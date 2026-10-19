@@ -3,6 +3,20 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Game dates, rules links and archiving (2026-10-18)
+
+- Each game can have a date (and a last day for multi-day events) and a link to its rules doc. Game lists show the newest event first, and a **Rules** button next to the session name during play opens the rules doc; Find a game shows both on its cards. Game managers set them on the games page with **Details**, or in the game file (`date`, `endDate`, `rulesUrl`). Changing only these never makes a new revision, so running sessions aren't asked to upgrade.
+- The preloaded games now carry their dates, and rules links where the organisers posted one.
+- Game managers can **Archive** a past event on the games page. It is no longer offered when creating a session, and Find a game shows it only under "Show past events". Its sessions, links and upgrades keep working, and you can still start new sessions of it from Find a game or a link. Importing an update no longer un-archives a game. A game with sessions can't be deleted; the message now suggests archiving it.
+- **Upgrading:** the `20261018110000_game_details` migration adds `Game.date`, `endDate`, `rulesUrl` and `preloadDetails`. The first start fills the preloaded games' dates and rules links without new revisions.
+
+## Find a game (2026-10-18)
+
+- A new **Find a game** page (`/browse`, the compass next to the cogwheel in the session picker) lists the games of all your servers on a map and as cards. Search for a game, a server or a place: "Manchester" finds Greater Manchester, "Switzerland" both Swiss games. Sort by distance from the place, newest event or name, and press **Play** to start a session. Searches stay in the address, so they can be shared.
+- The map stays in view beside the list on wide screens, and opens full screen with the button in its corner. Click a pin for the game's card with **Play**; games played at the same spot share a pin. Zoomed in, the map names the games.
+- Server admins can set the server's Discord invite on the admin page. A server with an invite also shows its listed games to players who aren't in it, greyed out, with **Join** and **Joined? Check again**, which unlocks them as soon as Discord lists you. Servers without an invite show their games to members only, as before. Role-gated and unlisted games never show to people who can't play them.
+- **Upgrading:** the `20261018100000_add_server_invite_url` migration adds `Server.inviteUrl`.
+
 ## Game designer page (2026-10-18)
 
 - A new page, `/designer`, shows a game file on a map before you import it: its play area, bounds, hiding zones and each feature layer, with a panel listing its details, the questions players will be offered and any problems found. No login is needed, and the file never leaves your browser.

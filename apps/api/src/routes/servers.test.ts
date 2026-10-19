@@ -9,6 +9,18 @@ vi.mock("../lib/discord-client.js", () => ({
     },
 }));
 
+// GET /servers checks every server, including other suites' (created and
+// deleted while this runs): caching this user's memberships there would block
+// their cleanup. Outside this suite's servers, the user is in none.
+vi.mock("../lib/permissions.js", async (importOriginal) => {
+    const original = await importOriginal<typeof import("../lib/permissions.js")>();
+    return {
+        ...original,
+        isServerMember: async (...args: Parameters<typeof original.isServerMember>) =>
+            args[1].startsWith("test-servers-") ? original.isServerMember(...args) : false,
+    };
+});
+
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";

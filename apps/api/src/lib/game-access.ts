@@ -38,7 +38,7 @@ export async function assertCanManageGame(
   }
 }
 
-function getDiscordRoleGate(visibility: unknown): { guildId: string; roleId: string } | null {
+export function getDiscordRoleGate(visibility: unknown): { guildId: string; roleId: string } | null {
   if (typeof visibility !== "object" || visibility === null) return null;
   const visObj = visibility as Record<string, unknown>;
   if (

@@ -23,7 +23,8 @@ Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/
 
 | Input | Goes to | Source |
 |---|---|---|
-| Game name and date | `name`, `id` | user |
+| Game name and date | `name`, `id`, `date` (`endDate` for a multi-day event) | user, or the announcement |
+| Rules doc | `rulesUrl` | the announcement |
 | Discord server | `serverId` | user (known IDs in section 3) |
 | Play area outline | `map.playArea` | user file. If there is none, ask which boundary to use |
 | Hiding zones (usually stations) | `hidingZones.features` | user file |
@@ -51,6 +52,8 @@ The KML holds the whole map, one folder per My Maps layer. If a download returns
 | Field | Where it comes from |
 |---|---|
 | `name`, `id` | The game's city and date, e.g. "Hide + Seek: Sheffield (17th October)" gives `"Sheffield 17-10"` and `sheffield-2026`. |
+| `date`, `endDate` | The game day from the announcement, as `YYYY-MM-DD`: "17th October" gives `"2026-10-17"`. For a weekend game, `date` is the first day and `endDate` the last. |
+| `rulesUrl` | The link to the rules doc, as posted: `https://docs.google.com/document/d/<id>/edit`. If the rules are only a file posted in Discord, use the message link (`https://discord.com/channels/…`). |
 | `serverId` | The Discord server the announcement was posted in (section 3). Ask if you don't know it. A mention like `<@&1546157665368145941>` is a *role* ID, not a server. Use it for `visibility` only if the user wants the game restricted to that role. |
 | `size` | "a small/medium/large game". |
 | `hidingZones.radius` | The rules. If they don't state it, measure the map's drawn zone circles with `gt.circleRadius()` and take the most common value (circles cut at the play-area edge come out smaller). Otherwise ask. |
@@ -95,6 +98,8 @@ Transit line, station name length, street/path, photo questions and curses have 
   "id": "paris-2026",
   "name": "Paris 15-08",
   "serverId": "1190673594649415730",
+  "date": "2026-08-15",
+  "rulesUrl": "https://docs.google.com/document/d/1Ui2FWWa558uxRi1x1NX_G63eDUhjZqcoUb2C_lJHkCY/edit",
   "size": "large",
   "visibility": { "kind": "server-members" },
   "map": {
@@ -167,6 +172,9 @@ The import rejects unknown properties, both at the root and in each layer. Posit
 | `serverId` | yes | | The Discord server the game belongs to (table below). The server must already be registered in Searchlight, and an existing game can't move to another server. |
 | `size` | no | `"medium"` | Sets the zoom level from which station names are drawn: `large` from 11 (region or country), `medium` from 13 (city), `small` from 17 (district). |
 | `visibility` | no | `{"kind":"server-members"}` | Or `{"kind":"discord-role","guildId":"…","roleId":"…"}` to restrict the game to one role. |
+| `date` | no | | The event day, `YYYY-MM-DD`. Game lists show the newest event first, then games without a date. |
+| `endDate` | no | | The last day of a multi-day event, `YYYY-MM-DD`, on or after `date`. Needs `date`. |
+| `rulesUrl` | no | | An `https` link to the rules doc. Players open it with the **Rules** button during play and in Find a game. |
 | `unit` | no | | Avoid it. Set `hidingZones.unit` instead (section 4). |
 | `map.center` | yes | | `[lng, lat]`. Use the play area's centre. |
 | `map.bounds` | no | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`. Set it to the play area's bbox plus a small margin. Matching cells are computed over this box, so a box much larger than the play area only slows matching down. |
@@ -359,6 +367,8 @@ The checker ends with the question list and labels, which is what players will s
   - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission or a server change; `409` if the game exists and `allowUpdate` isn't set.
   - The body limit is 50 MB.
 - **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json`. The file name must equal the `id`. The API imports and updates these files on every start, so the file wins over an earlier web import of the same game. A file that fails to import is logged as an error and skipped; the other files still load.
+- **Date and rules link:** `date`, `endDate` and `rulesUrl` describe the game, not its map: an import copies them onto the game and they never create a revision, so changing only them is reported as `unchanged` (`detailsChanged: true`), and sessions show the new link once reloaded, without an upgrade. A file without them leaves the game's alone (a file can't clear one; do that on `/games`), and a file with `date` but no `endDate` clears the end date. **Export JSON** includes them, so an exported file round-trips. Game managers can also change them on `/games` (**Details**). For a preloaded file, a value only replaces the game's when the file's value changes, so an edit on `/games` stays until then.
+- **Archive:** a past event can be archived on `/games` (**Archive**): it is no longer offered when creating a session, and Find a game shows it only under "Show past events". Its sessions and game links keep working, and imports keep it archived. A game with sessions can't be deleted; archive it instead.
 - **Revisions:** every import with new content creates a new revision. Running sessions stay on the revision they started with. Content identical to the current revision is reported as `unchanged`; content identical to an older revision re-activates that revision (reported as `updated` with its number) instead of creating a new one.
 - **Export:**
   - Web: **Export JSON** on `/games` (the current revision), or **Export Game JSON** under Options in the map's left drawer (the revision being played, which in a session started before an update is its pinned revision).
