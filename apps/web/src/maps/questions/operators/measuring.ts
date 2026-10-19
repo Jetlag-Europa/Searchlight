@@ -207,9 +207,10 @@ export async function measureToTargets(
 }
 
 /**
- * Where every region's buffer is projected: neighbours buffered in one
- * projection share their common border's arcs exactly, which spares clipping
- * a sliver along each one when the buffers are combined.
+ * Where every region's buffer is projected. Neighbours buffered in one
+ * projection get (nearly) the same arcs along their common border; in
+ * projections of their own the arcs differ slightly all along it, and
+ * combining the buffers takes more than twice as long.
  */
 function layerCenter(source: GeometrySource): Promise<[number, number]> {
     return cachedGeometry(
