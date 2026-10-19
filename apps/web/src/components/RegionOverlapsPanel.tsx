@@ -87,8 +87,9 @@ export function RegionOverlapsPanel({
     /**
      * The layers marked noOverlaps that do overlap: imported like that,
      * their distance questions would measure to borders that cross them.
+     * Null while a marked layer is still being checked.
      */
-    onWrongMarks: (layers: string[]) => void;
+    onWrongMarks: (layers: string[] | null) => void;
 }) {
     const initial = useMemo(
         () =>
@@ -162,10 +163,19 @@ export function RegionOverlapsPanel({
         .filter((check) => check.flagged && overlaps(check))
         .map((check) => check.name);
     const wrongMarksKey = wrongMarks.join("\n");
+    const checkingMarks = checks.some(
+        (check) => check.flagged && !check.result && !check.error,
+    );
     useEffect(() => {
-        onWrongMarks(wrongMarksKey ? wrongMarksKey.split("\n") : []);
+        onWrongMarks(
+            checkingMarks
+                ? null
+                : wrongMarksKey
+                  ? wrongMarksKey.split("\n")
+                  : [],
+        );
         // The names are the dependency, not the array's identity.
-    }, [wrongMarksKey]);
+    }, [wrongMarksKey, checkingMarks]);
 
     if (!initial.length) return null;
 
