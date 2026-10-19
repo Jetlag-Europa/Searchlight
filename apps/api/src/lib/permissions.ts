@@ -10,20 +10,28 @@ import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
 const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 const PRIVILEGED_TTL_MS = 60 * 1000; // 1 minute
 
+const ALL_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+
+function isAdmin(userId: string): boolean {
+  return env.ADMIN_DISCORD_IDS.split(",").some((id) => id.trim() === userId);
+}
+
 export async function getUserPermissions(
   userId: string,
   serverId: string,
   privileged = false,
   logger?: FastifyBaseLogger,
 ): Promise<Set<string>> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
-    return new Set(["games.create", "games.edit", "games.delete", "server.admin"]);
+  if (isAdmin(userId)) {
+    return new Set(ALL_PERMISSIONS);
   }
   // Virtual servers have no Discord guild to look roles up in.
   if (VIRTUAL_SERVER_IDS.has(serverId)) return new Set();
 
-  const roleIds = await getUserRoleIds(userId, serverId, privileged, logger);
+  return permissionsForRoles(serverId, await getUserRoleIds(userId, serverId, privileged, logger));
+}
+
+async function permissionsForRoles(serverId: string, roleIds: string[]): Promise<Set<string>> {
   if (roleIds.length === 0) return new Set();
 
   const rows = await prisma.rolePermission.findMany({
@@ -40,8 +48,7 @@ export async function hasPermissionOnSomeServer(
   permissions: string[],
   logger?: FastifyBaseLogger,
 ): Promise<boolean> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isAdmin(userId)) {
     return true;
   }
 
@@ -76,8 +83,7 @@ export async function userPassesDiscordRoleGate(
   roleId: string,
   logger?: FastifyBaseLogger,
 ): Promise<boolean> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isAdmin(userId)) {
     return true;
   }
 
@@ -115,13 +121,36 @@ export async function getUserRoleIds(
   return (await fetchAndCacheMembership(userId, serverId, logger)).roles;
 }
 
+interface Membership {
+  isMember: boolean;
+  roles: string[];
+}
+
+// Lookups of the same membership that overlap share one Discord call: a page
+// load asks several routes about the same user and server at once.
+const pendingLookups = new Map<string, Promise<Membership>>();
+
 // Non-members are cached too (no roles, isMember false), so permission lookups
 // for every listed server don't hit Discord on each request.
-async function fetchAndCacheMembership(
+function fetchAndCacheMembership(
   userId: string,
   serverId: string,
   logger?: FastifyBaseLogger,
-): Promise<{ isMember: boolean; roles: string[] }> {
+): Promise<Membership> {
+  const key = `${userId}:${serverId}`;
+  let pending = pendingLookups.get(key);
+  if (!pending) {
+    pending = lookUpAndCacheMembership(userId, serverId, logger).finally(() => pendingLookups.delete(key));
+    pendingLookups.set(key, pending);
+  }
+  return pending;
+}
+
+async function lookUpAndCacheMembership(
+  userId: string,
+  serverId: string,
+  logger?: FastifyBaseLogger,
+): Promise<Membership> {
   const member = await discord.getGuildMember(serverId, userId, logger);
   const membership = { isMember: member !== null, roles: member?.roles ?? [] };
 
@@ -134,31 +163,74 @@ async function fetchAndCacheMembership(
   return membership;
 }
 
-// Listing servers checks every server, so it re-checks a cached "not a
-// member" less often than access checks do.
-export const LISTING_NON_MEMBER_TTL_MS = 10 * 60 * 1000; // 10 minutes
-
 export async function isServerMember(
   userId: string,
   serverId: string,
   logger?: FastifyBaseLogger,
-  nonMemberTtlMs = PRIVILEGED_TTL_MS,
 ): Promise<boolean> {
-  const adminIds = env.ADMIN_DISCORD_IDS.split(",").map((s) => s.trim()).filter(Boolean);
-  if (adminIds.includes(userId)) {
+  if (isAdmin(userId)) {
     return true;
   }
 
   // Membership is cached like roles for normal reads, but a cached "not a
-  // member" expires sooner (after a minute by default) so someone who just
-  // joined the server isn't locked out for an hour.
+  // member" expires after a minute so someone who just joined the server
+  // isn't locked out for an hour.
   const cached = await prisma.serverMembershipCache.findUnique({
     where: { userId_serverId: { userId, serverId } },
   });
-  const ttl = cached?.isMember ? DEFAULT_TTL_MS : nonMemberTtlMs;
+  const ttl = cached?.isMember ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
   return cached && Date.now() - cached.cachedAt.getTime() < ttl
     ? cached.isMember
     : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+}
+
+// Listing servers asks about every server, and most users are in only a few,
+// so it re-checks a cached "not a member" rarely. GET /servers?recheck=true
+// re-checks them sooner for someone who just joined a server.
+const LISTING_NON_MEMBER_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
+
+/**
+ * Membership and permissions for GET /servers. The listing only decides what
+ * to show (the routes behind it check access again), so it answers from the
+ * cache whenever there is an entry and refreshes an expired one in the
+ * background: it waits on Discord only for a server it has never checked.
+ * With `recheck`, it waits for a fresh answer for each "not a member" cached
+ * over a minute ago.
+ */
+export async function getListingAccess(
+  userId: string,
+  serverId: string,
+  recheck: boolean,
+  logger?: FastifyBaseLogger,
+): Promise<{ isMember: boolean; permissions: Set<string> }> {
+  if (isAdmin(userId)) return { isMember: true, permissions: new Set(ALL_PERMISSIONS) };
+  if (VIRTUAL_SERVER_IDS.has(serverId)) return { isMember: true, permissions: new Set() };
+
+  const { isMember, roles } = await getListingMembership(userId, serverId, recheck, logger);
+  return { isMember, permissions: isMember ? await permissionsForRoles(serverId, roles) : new Set() };
+}
+
+async function getListingMembership(
+  userId: string,
+  serverId: string,
+  recheck: boolean,
+  logger?: FastifyBaseLogger,
+): Promise<Membership> {
+  const cached = await prisma.serverMembershipCache.findUnique({
+    where: { userId_serverId: { userId, serverId } },
+  });
+  if (!cached) return fetchAndCacheMembership(userId, serverId, logger);
+
+  const age = Date.now() - cached.cachedAt.getTime();
+  if (recheck && !cached.isMember && age >= PRIVILEGED_TTL_MS) {
+    return fetchAndCacheMembership(userId, serverId, logger);
+  }
+  if (age >= (cached.isMember ? DEFAULT_TTL_MS : LISTING_NON_MEMBER_TTL_MS)) {
+    fetchAndCacheMembership(userId, serverId, logger).catch((err: unknown) => {
+      logger?.warn({ userId, serverId, err }, "Could not refresh a cached server membership");
+    });
+  }
+  return { isMember: cached.isMember, roles: cached.roles };
 }
 
 export async function assertServerMembership(

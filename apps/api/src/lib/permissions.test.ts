@@ -9,6 +9,7 @@ import prisma from "./prisma.js";
 import { discord } from "./discord-client.js";
 import {
     assertServerMembership,
+    getListingAccess,
     getUserPermissions,
     getUserRoleIds,
     hasPermissionOnSomeServer,
@@ -237,6 +238,120 @@ describe("hasPermissionOnSomeServer", () => {
         await setNonMemberCache(30 * 60 * 1000);
         mockGetMember.mockResolvedValue({ roles: [ROLE_ID], nick: null });
         expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(true);
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+});
+
+describe("getListingAccess — answers from the cache, refreshes in the background", () => {
+    const ROLE_ID = "test-perm-ttl-listing-role";
+    const HOUR = 60 * 60 * 1000;
+
+    async function cachedRoles() {
+        const row = await prisma.serverMembershipCache.findUnique({
+            where: { userId_serverId: { userId: USER_ID, serverId: SERVER_ID } },
+        });
+        return row?.roles;
+    }
+
+    beforeAll(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
+        await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+        await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+
+        await prisma.user.create({
+            data: {
+                discordId: USER_ID,
+                username: "perm-ttl",
+                displayName: "Perm TTL",
+                avatarUrl: "https://example.com/a.png",
+                discordAccessToken: "tok",
+                discordRefreshToken: "ref",
+                discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+            },
+        });
+        await prisma.server.create({ data: { id: SERVER_ID, name: "Perm TTL Server" } });
+        await prisma.rolePermission.create({
+            data: { serverId: SERVER_ID, discordRoleId: ROLE_ID, permission: "games.create" },
+        });
+    });
+
+    afterAll(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
+        await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+        await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+    });
+
+    beforeEach(async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        mockGetMember.mockReset();
+        mockGetMember.mockResolvedValue({ roles: [], nick: null });
+    });
+
+    test("asks Discord about a server it has never checked", async () => {
+        mockGetMember.mockResolvedValue({ roles: [ROLE_ID], nick: null });
+        const access = await getListingAccess(USER_ID, SERVER_ID, false);
+        expect(access.isMember).toBe(true);
+        expect([...access.permissions]).toEqual(["games.create"]);
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+
+    test("serves a membership cached over an hour ago, then refreshes it", async () => {
+        await setCache([ROLE_ID], 2 * HOUR);
+        const access = await getListingAccess(USER_ID, SERVER_ID, false);
+        expect(access.isMember).toBe(true);
+        expect([...access.permissions]).toEqual(["games.create"]);
+        await vi.waitFor(async () => expect(await cachedRoles()).toEqual([]));
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+
+    test("serves a non-member cached hours ago without calling Discord", async () => {
+        await setNonMemberCache(6 * HOUR);
+        const access = await getListingAccess(USER_ID, SERVER_ID, false);
+        expect(access).toMatchObject({ isMember: false });
+        expect(mockGetMember).not.toHaveBeenCalled();
+    });
+
+    test("refreshes a non-member cached over 12 hours ago in the background", async () => {
+        await setNonMemberCache(13 * HOUR);
+        expect(await getListingAccess(USER_ID, SERVER_ID, false)).toMatchObject({ isMember: false });
+        await vi.waitFor(async () => {
+            const row = await prisma.serverMembershipCache.findUnique({
+                where: { userId_serverId: { userId: USER_ID, serverId: SERVER_ID } },
+            });
+            expect(row?.isMember).toBe(true);
+        });
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+
+    test("recheck waits for a fresh answer about a non-member cached over a minute ago", async () => {
+        await setNonMemberCache(2 * 60 * 1000);
+        expect(await getListingAccess(USER_ID, SERVER_ID, true)).toMatchObject({ isMember: true });
+        expect(mockGetMember).toHaveBeenCalledOnce();
+    });
+
+    test("recheck doesn't ask again about a non-member checked within the minute", async () => {
+        await setNonMemberCache(10 * 1000);
+        expect(await getListingAccess(USER_ID, SERVER_ID, true)).toMatchObject({ isMember: false });
+        expect(mockGetMember).not.toHaveBeenCalled();
+    });
+
+    test("overlapping lookups of the same membership share one Discord call", async () => {
+        let answer!: (member: { roles: string[]; nick: null }) => void;
+        mockGetMember.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+        const lookups = Promise.all([
+            assertServerMembership(USER_ID, SERVER_ID),
+            getListingAccess(USER_ID, SERVER_ID, false),
+            getUserRoleIds(USER_ID, SERVER_ID, true),
+        ]);
+        // Give the other two time to read the cache and join the lookup.
+        await vi.waitFor(() => expect(mockGetMember).toHaveBeenCalled());
+        await new Promise((resolve) => setTimeout(resolve, 200));
+        answer({ roles: [ROLE_ID], nick: null });
+        const [, access, roles] = await lookups;
+        expect(access.isMember).toBe(true);
+        expect(roles).toEqual([ROLE_ID]);
         expect(mockGetMember).toHaveBeenCalledOnce();
     });
 });
