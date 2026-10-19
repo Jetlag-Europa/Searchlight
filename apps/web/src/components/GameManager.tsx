@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { verifiedUserId } from "@/lib/activeSession";
 
 import { GameLinksDialog } from "./GameLinksDialog";
-import { ImportGameDialog } from "./ImportGameDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 // Unlike the session picker's catalog, this page lists unlisted games too.
@@ -252,16 +251,11 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
 
             {canImport && (
                 <div className="flex gap-2">
-                    <ImportGameDialog
-                        serverId={server.id}
-                        onImported={() => {
-                            fetch(gamesUrl(server.id), { credentials: "include" })
-                                .then((r) => (r.ok ? r.json() : null))
-                                .then((data: GamesResponse | null) => {
-                                    if (data) setGames(data.games);
-                                });
-                        }}
-                    />
+                    <Button asChild variant="outline" size="sm">
+                        <a href={`/games/import?server=${encodeURIComponent(server.id)}`}>
+                            Import JSON Game
+                        </a>
+                    </Button>
                 </div>
             )}
         </div>
@@ -270,7 +264,6 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
 
 export function GameManager() {
     const [servers, setServers] = useState<ServerWithPermissions[] | null>(null);
-    const [reloadCounter, setReloadCounter] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const userId = useStore(verifiedUserId);
 
@@ -310,19 +303,13 @@ export function GameManager() {
                     </p>
                 </div>
                 {importableServers.length > 0 && (
-                    <ImportGameDialog
-                        servers={importableServers}
-                        onImported={() => setReloadCounter((c) => c + 1)}
-                        trigger={
-                            <Button className="font-semibold shadow-sm">
-                                + Import Game JSON
-                            </Button>
-                        }
-                    />
+                    <Button asChild className="font-semibold shadow-sm">
+                        <a href="/games/import">+ Import Game JSON</a>
+                    </Button>
                 )}
             </div>
             {adminServers.map((s) => (
-                <ServerSection key={`${s.id}-${reloadCounter}`} server={s} />
+                <ServerSection key={s.id} server={s} />
             ))}
         </div>
     );

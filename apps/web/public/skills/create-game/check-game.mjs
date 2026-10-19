@@ -15,7 +15,7 @@
 //
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.
-// Browsers import it too (Searchlight's import dialog and /designer page), so
+// Browsers import it too (Searchlight's import and /designer pages), so
 // it loads node: modules only in Node (at the end). No shebang line either:
 // Vite's dev server prepends imports to the file, which would break one.
 
@@ -29,6 +29,7 @@ export const STRICT_CODES = new Set([
   "escaped-name",
   "single-feature-matching",
   "zones-outside-all-regions",
+  "no-overlaps-overlapping",
 ]);
 
 const slug = (s) => String(s).toLowerCase().normalize("NFD")
@@ -182,7 +183,7 @@ export function checkGame(def, { fileSize } = {}) {
   }
   const zones = checkCollection(hz.features, ["Point", "Polygon", "MultiPolygon"], "/hidingZones/features");
 
-  const LAYER_KEYS = ["name", "enabledFor", "data"];
+  const LAYER_KEYS = ["name", "enabledFor", "noOverlaps", "data"];
   const KINDS = ["matching", "measuring", "tentacle"];
   const layers = Array.isArray(def.features) ? def.features : [];
   if (def.features !== undefined && !Array.isArray(def.features)) err("/features", "must be an array");
@@ -192,8 +193,9 @@ export function checkGame(def, { fileSize } = {}) {
   const layerInfo = layers.map((layer, i) => {
     const p = `/features/${i}`;
     for (const key of Object.keys(layer ?? {})) {
-      if (!LAYER_KEYS.includes(key)) err(`${p}/${key}`, "unknown layer property (layers take only name, enabledFor, data)");
+      if (!LAYER_KEYS.includes(key)) err(`${p}/${key}`, "unknown layer property (layers take only name, enabledFor, noOverlaps, data)");
     }
+    if (layer?.noOverlaps !== undefined && typeof layer.noOverlaps !== "boolean") err(`${p}/noOverlaps`, "must be true or false");
     const name = typeof layer?.name === "string" ? layer.name : "";
     if (!name) err(`${p}/name`, "required non-empty string");
     else if (layerNames.has(name)) err(`${p}/name`, `duplicate layer name "${name}"; every layer needs its own name`);
@@ -212,6 +214,9 @@ export function checkGame(def, { fileSize } = {}) {
     if (kinds.includes("tentacle") && feats.length && !families.has("points")) {
       err(`${p}/enabledFor`, "tentacle needs a Point layer");
     }
+    if (layer?.noOverlaps === true && feats.length && family !== "polygons") {
+      warn(`${p}/noOverlaps`, "only region (Polygon) layers can be marked noOverlaps; it does nothing here", "no-overlaps-not-regions");
+    }
     const s = slug(name);
     if (name && !s) err(`${p}/name`, `"${name}" has no letters or digits to build a question ID from`);
     for (const kind of kinds) {
@@ -223,7 +228,7 @@ export function checkGame(def, { fileSize } = {}) {
       warn(`${p}/name`, `"${name}" and "${layerSlugs.get(s)}" share the slug "${s}", so a question kind enabled on both gets the same ID; give each layer a distinct name`, "shared-slug");
     }
     if (s && !layerSlugs.has(s)) layerSlugs.set(s, name);
-    return { name, kinds, feats, family, path: p };
+    return { name, kinds, feats, family, path: p, noOverlaps: layer?.noOverlaps === true };
   });
 
   // ── Quality (imports fine, plays badly) ────────────────────────────────────
@@ -336,7 +341,7 @@ export function checkGame(def, { fileSize } = {}) {
     }
 
     // Layers
-    for (const { name, kinds, feats, family, path } of layerInfo) {
+    for (const { name, kinds, feats, family, path, noOverlaps } of layerInfo) {
       const label = `${path} "${name}"`;
       if (ESCAPED_NAME.test(name)) warn(label, "layer name contains a CDATA wrapper or XML/HTML entity; decode it", "escaped-name");
       if (looksPlural(name)) {
@@ -404,6 +409,9 @@ export function checkGame(def, { fileSize } = {}) {
           const n = feats.filter((f) => contains(f.geometry, pointOf(z))).length;
           if (n === 0) none++;
           if (n > 1) many++;
+        }
+        if (many && noOverlaps) {
+          warn(label, `marked noOverlaps, but ${many} hiding zone centre(s) fall in more than one region; fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
         }
         if (none === pointZones.length) {
           warn(label, "no hiding zone lies in any of its regions, so every player gets the same answer (swapped coordinates?); for features nobody stands in, such as water, use a line or point layer", "zones-outside-all-regions");

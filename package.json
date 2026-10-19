@@ -10,7 +10,8 @@
         "build": "pnpm -r build",
         "generate:game-schema": "tsx scripts/generate-game-json-schema.ts",
         "check:game-schema": "tsx scripts/generate-game-json-schema.ts --check",
-        "verify:preloaded-games": "tsx scripts/verify-preloaded-games.ts"
+        "verify:preloaded-games": "tsx scripts/verify-preloaded-games.ts",
+        "fix:region-overlaps": "tsx scripts/fix-region-overlaps.ts"
     },
     "devDependencies": {
         "tsx": "^4.19.2"
