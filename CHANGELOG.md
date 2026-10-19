@@ -3,6 +3,13 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Link copying, place search and full screen fixes (2026-10-19)
+
+- The **Invite** and **Share a copy** drawers only say "Copied!" when the link was really copied. When the browser refuses, as iPhone Safari does after creating a link, they show the link in a field to copy by hand. A failed revoke now shows an error.
+- Place search shows the results for what you typed last, not a slower answer to an earlier search. Names with `&`, `#` or `+`, such as "Bahnhof & Post", are searched in full.
+- Short Google Plus codes use the whole town after the code ("Q9CM+3P Bad Homburg", not just "Bad"), also with a comma after the code as Google Maps copies it. A short code without a town asks for one.
+- The map's full-screen button shows the right icon after leaving full screen with Esc, and is hidden where the browser can't go full screen, such as on iPhone.
+
 ## Old questions are back (2026-10-19)
 
 - The old Searchlight looked many questions up in OpenStreetMap while playing. The questions players asked there are now part of their games, with the data looked up once and stored in the game:

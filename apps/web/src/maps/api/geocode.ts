@@ -4,15 +4,17 @@ import { GEOCODER_API } from "./constants";
 import { convertToLatLong } from "./geo";
 import type { OpenStreetMap } from "./types";
 
+export const geocodeUrl = (address: string, language: string) =>
+    `${GEOCODER_API}?${new URLSearchParams({ lang: language, q: address })}`;
+
 export const geocode = async (
     address: string,
     language: string,
     filter: boolean = true,
+    signal?: AbortSignal,
 ) => {
     const features = (
-        await (
-            await fetch(`${GEOCODER_API}?lang=${language}&q=${address}`)
-        ).json()
+        await (await fetch(geocodeUrl(address, language), { signal })).json()
     ).features as OpenStreetMap[];
 
     features.forEach((feature) => {

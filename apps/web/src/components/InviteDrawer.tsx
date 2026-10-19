@@ -4,8 +4,14 @@ import type {
     SessionLinksResponse,
     SessionLinkSummary,
 } from "@searchlight/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import {
+    sessionLinkUrl,
+    UncopiedLinkField,
+    useCopyLink,
+    withCreatedLinks,
+} from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Drawer,
@@ -43,18 +49,22 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     const [loadingLinks, setLoadingLinks] = useState(false);
     const [creatingLink, setCreatingLink] = useState(false);
     const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
-    const [copiedLinkId, setCopiedLinkId] = useState<string | null>(null);
+    const { copiedId: copiedLinkId, uncopiedUrl, setUncopiedUrl, copyLink } = useCopyLink();
+    // Links created since the list started loading.
+    const createdLinkIds = useRef(new Set<string>());
 
     const fetchLinks = useCallback(async () => {
         if (!session || !isCreator) return;
         setLoadingLinks(true);
+        createdLinkIds.current.clear();
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
                 credentials: "include",
             });
             if (!res.ok) return;
             const data: SessionLinksResponse = await res.json();
-            setLinks(data.links.filter((l) => l.linkType === "join"));
+            const loaded = data.links.filter((l) => l.linkType === "join");
+            setLinks((prev) => withCreatedLinks(loaded, prev, createdLinkIds.current));
         } catch {
             // non-critical
         } finally {
@@ -79,11 +89,18 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             }
             markActiveSessionShared(session.id);
             const data: CreateLinkResponse = await res.json();
-            const url = `${window.location.origin}/join?token=${data.token}`;
-            await navigator.clipboard.writeText(url).catch(() => {});
-            await fetchLinks();
-            setCopiedLinkId(data.id);
-            setTimeout(() => setCopiedLinkId(null), 2000);
+            // Listed right away, so its "Copied!" shows for the full 2 s.
+            createdLinkIds.current.add(data.id);
+            setLinks((prev) => [
+                {
+                    id: data.id,
+                    token: data.token,
+                    linkType: "join",
+                    createdAt: new Date().toISOString(),
+                },
+                ...prev,
+            ]);
+            await copyLink(data.id, sessionLinkUrl(data.token));
         } catch {
             setSendError("Could not create the link. Check your connection.");
         } finally {
@@ -91,30 +108,34 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         }
     };
 
-    const handleRevokeLink = async (linkId: string) => {
+    const handleRevokeLink = async (linkId: string, token: string) => {
         if (!session) return;
         setRevokingLinkId(linkId);
+        setSendError(null);
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}/links/${linkId}`, {
                 method: "DELETE",
                 credentials: "include",
             });
-            if (res.ok) setLinks((prev) => prev.filter((l) => l.id !== linkId));
+            // A 404 means it is already gone.
+            if (!res.ok && res.status !== 404) {
+                setSendError(await errorMessage(res));
+                return;
+            }
+            setLinks((prev) => prev.filter((l) => l.id !== linkId));
+            const url = sessionLinkUrl(token);
+            setUncopiedUrl((u) => (u === url ? null : u));
+        } catch {
+            setSendError("Could not revoke the link. Check your connection.");
         } finally {
             setRevokingLinkId(null);
         }
     };
 
-    const copyLink = async (token: string, linkId: string) => {
-        const url = `${window.location.origin}/join?token=${token}`;
-        await navigator.clipboard.writeText(url).catch(() => {});
-        setCopiedLinkId(linkId);
-        setTimeout(() => setCopiedLinkId(null), 2000);
-    };
-
     // ── Drawer open/close ─────────────────────────────────────────────────────
     const handleOpenChange = (v: boolean) => {
         setOpen(v);
+        setUncopiedUrl(null);
         if (v) {
             onOpen?.();
             fetchLinks();
@@ -157,6 +178,8 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                             {creatingLink ? "Creating…" : "Create invite link"}
                         </Button>
 
+                        <UncopiedLinkField url={uncopiedUrl} />
+
                         {loadingLinks && links.length === 0 && (
                             <p className="text-xs text-muted-foreground">Loading…</p>
                         )}
@@ -176,7 +199,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                                 size="sm"
                                                 variant="outline"
                                                 className="text-xs"
-                                                onClick={() => copyLink(l.token, l.id)}
+                                                onClick={() => copyLink(l.id, sessionLinkUrl(l.token))}
                                             >
                                                 {copiedLinkId === l.id ? "Copied!" : "Copy"}
                                             </Button>
@@ -184,7 +207,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                                 size="sm"
                                                 variant="ghost"
                                                 disabled={revokingLinkId === l.id}
-                                                onClick={() => handleRevokeLink(l.id)}
+                                                onClick={() => handleRevokeLink(l.id, l.token)}
                                                 className="text-muted-foreground hover:text-destructive"
                                             >
                                                 {revokingLinkId === l.id ? "…" : "Revoke"}
