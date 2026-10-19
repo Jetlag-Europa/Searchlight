@@ -1,11 +1,14 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 // Discord answers membership lookups: the user is in MEMBER_SERVER_ID only.
+// GET /servers lists every server, so other test files' servers fail the
+// lookup: a cached membership on one would stop that file deleting it.
 vi.mock("../lib/discord-client.js", () => ({
     discord: {
-        getGuildMember: vi.fn(async (serverId: string) =>
-            serverId === "test-servers-member" ? { roles: [], nick: null } : null,
-        ),
+        getGuildMember: vi.fn(async (serverId: string) => {
+            if (!serverId.startsWith("test-servers-")) throw new Error("Not this file's server");
+            return serverId === "test-servers-member" ? { roles: [], nick: null } : null;
+        }),
     },
 }));
 
@@ -111,10 +114,10 @@ describe("GET /servers", () => {
         }
     });
 
-    async function listServers() {
+    async function listServers(query = "") {
         const res = await app.inject({
             method: "GET",
-            url: "/servers",
+            url: `/servers${query}`,
             headers: { cookie: signedCookie(app, AUTH_SESSION_ID) },
         });
         expect(res.statusCode).toBe(200);
@@ -151,6 +154,32 @@ describe("GET /servers", () => {
             expect(ids).toContain(SESSION_SERVER_ID);
             expect(ids).not.toContain(MEMBER_SERVER_ID);
             expect(ids).not.toContain(OTHER_SERVER_ID);
+        } finally {
+            mockGetMember.mockImplementation(answerMembership!);
+        }
+    });
+
+    test("recheck=true lists a server the user joined since it was last checked", async () => {
+        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+        await listServers();
+        await prisma.serverMembershipCache.updateMany({
+            where: { userId: USER_ID },
+            data: { cachedAt: new Date(Date.now() - 2 * 60 * 1000) },
+        });
+        const answerMembership = mockGetMember.getMockImplementation();
+        mockGetMember.mockReset();
+        mockGetMember.mockImplementation(async (serverId: string) => {
+            if (!TEST_SERVER_IDS.includes(serverId)) throw new Error("Not this file's server");
+            return { roles: [], nick: null };
+        });
+        try {
+            expect((await listServers()).map((s) => s.id)).not.toContain(OTHER_SERVER_ID);
+            expect(mockGetMember).not.toHaveBeenCalledWith(OTHER_SERVER_ID, expect.anything(), expect.anything());
+
+            expect((await listServers("?recheck=true")).map((s) => s.id)).toContain(OTHER_SERVER_ID);
+            // Only the servers the user wasn't in: the member server is still cached.
+            expect(mockGetMember).not.toHaveBeenCalledWith(MEMBER_SERVER_ID, expect.anything(), expect.anything());
+            expect(mockGetMember).toHaveBeenCalledWith(OTHER_SERVER_ID, USER_ID, expect.anything());
         } finally {
             mockGetMember.mockImplementation(answerMembership!);
         }

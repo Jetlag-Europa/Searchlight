@@ -2,8 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { getUserPermissions, isServerMember, LISTING_NON_MEMBER_TTL_MS } from "../lib/permissions.js";
-import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
+import { getListingAccess } from "../lib/permissions.js";
 import { requirePermission } from "../lib/require-permission.js";
 import { discord } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
@@ -14,10 +13,15 @@ export async function serverRoutes(app: FastifyInstance) {
   // GET /servers — the servers the authed user is in (and virtual ones), plus
   // servers where they have sessions without being in the guild, e.g. sessions
   // started from a game link. Each comes with the user's permissions there.
+  // `recheck=true` asks Discord again about the servers the user wasn't in a
+  // minute or more ago, for someone who just joined one.
   app.get(
     "/",
     {
       schema: {
+        querystring: Type.Object({
+          recheck: Type.Optional(Type.Boolean()),
+        }),
         response: {
           200: Type.Object({
             servers: Type.Array(
@@ -35,6 +39,7 @@ export async function serverRoutes(app: FastifyInstance) {
     },
     async (req) => {
       const { user } = await resolveSession(req);
+      const { recheck = false } = req.query as { recheck?: boolean };
       const [servers, sessionServers] = await Promise.all([
         prisma.server.findMany({ orderBy: { name: "asc" } }),
         // The sessions GET /sessions lists: created, or shared and accepted.
@@ -58,21 +63,17 @@ export async function serverRoutes(app: FastifyInstance) {
 
       const settled = await Promise.allSettled(
         servers.map(async (server) => {
-          let isMember: boolean;
+          let access: { isMember: boolean; permissions: Set<string> };
           try {
-            isMember =
-              VIRTUAL_SERVER_IDS.has(server.id) ||
-              (await isServerMember(user.discordId, server.id, req.log, LISTING_NON_MEMBER_TTL_MS));
+            access = await getListingAccess(user.discordId, server.id, recheck, req.log);
           } catch (err) {
             // Sessions don't need Discord, so keep them reachable.
             if (!hasSessions.has(server.id)) throw err;
             req.log.warn({ serverId: server.id, err }, "Could not check server membership — listing for sessions only");
-            isMember = false;
+            access = { isMember: false, permissions: new Set() };
           }
+          const { isMember, permissions: perms } = access;
           if (!isMember && !hasSessions.has(server.id)) return null;
-          const perms = isMember
-            ? await getUserPermissions(user.discordId, server.id, false, req.log)
-            : new Set<string>();
           return {
             id: server.id,
             name: server.name,

@@ -80,6 +80,7 @@ function SessionPickerOverlay({
     const [sessions, setSessions] = useState<GameSessionSummary[] | null>(null);
     const [availableGames, setAvailableGames] = useState<Game[]>([]);
     const [loadingServers, setLoadingServers] = useState(true);
+    const [recheckingServers, setRecheckingServers] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
     const [creatingSession, setCreatingSession] = useState(false);
     const [newSessionName, setNewSessionName] = useState("");
@@ -138,6 +139,25 @@ function SessionPickerOverlay({
             active = false;
         };
     }, []);
+
+    // The server list remembers for hours that you aren't in a server, so ask
+    // Discord again on request, for someone who just joined one.
+    const recheckServers = () => {
+        setRecheckingServers(true);
+        fetch(`${API_BASE}/servers?recheck=true`, { credentials: "include" })
+            .then(async (res) => {
+                if (!res.ok) throw new Error(`${res.status}`);
+                const data: ServersResponse = await res.json();
+                setServers(data.servers);
+                setSelectedServerId((id) =>
+                    data.servers.some((s) => s.id === id) ? id : "",
+                );
+            })
+            .catch((e: Error) =>
+                setError(`Failed to load servers: ${e.message}`),
+            )
+            .finally(() => setRecheckingServers(false));
+    };
 
     const loadSessionsForServer = useCallback(
         async (serverId: string, isMember: boolean) => {
@@ -346,6 +366,20 @@ function SessionPickerOverlay({
                             ))}
                         </select>
                     </div>
+                )}
+
+                {servers && (
+                    <p className="text-xs text-muted-foreground -mt-2 mb-4">
+                        Joined a Discord server that isn’t listed?{" "}
+                        <Button
+                            variant="link"
+                            className="h-auto p-0 text-xs"
+                            onClick={recheckServers}
+                            disabled={recheckingServers}
+                        >
+                            {recheckingServers ? "Checking…" : "Check again"}
+                        </Button>
+                    </p>
                 )}
 
                 {loadingSessions && (

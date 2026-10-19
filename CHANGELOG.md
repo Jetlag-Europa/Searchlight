@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Server list loads without waiting on Discord (2026-10-19)
+
+- The server list in the session picker now shows what Searchlight already knows about your servers and checks with Discord in the background, so it only waits on Discord the first time you open it.
+- It checks the servers you aren't in less often. After joining a Discord server, click **Check again** under the server list to see it straight away; otherwise it can take up to half a day to appear.
+- Opening a game or session still checks your membership and roles as before.
+
 ## Game designer page (2026-10-18)
 
 - A new page, `/designer`, shows a game file on a map before you import it: its play area, bounds, hiding zones and each feature layer, with a panel listing its details, the questions players will be offered and any problems found. No login is needed, and the file never leaves your browser.
