@@ -3,6 +3,12 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Fewer false heavy-geometry warnings (2026-10-19)
+
+- The game checker (on the import page, `/designer` and `check-game.mjs`) no longer warns about a region layer only used for matching because of its total vertex count: matching only ever works with the one region a seeker is in. It counts every vertex of layers used for measuring and of line layers used for matching, and the largest region of a region layer used for matching.
+- It only suggests simplifying where the vertices lie closer than about 50 m, and now says to use a topology-preserving simplifier, since simplifying each region on its own opens gaps and overlaps between neighbours. A heavy layer whose vertices are already far apart gets a note instead.
+- Belgium's "Arrondissement" layer (24,748 vertices, already about 330 m apart) is no longer flagged.
+
 ## Faster distance-to-border questions on fixed layers (2026-10-19)
 
 - On a region layer marked `"noOverlaps": true` (see below), a distance-to-border question now buffers the whole border network once, each shared border once, instead of buffering every region and cutting them together. In Belgium, a province-border question takes about 1 second at most distances (from 1 to 2.5), and 3 to 4 seconds about a kilometre from a border (from 8 to 12). The zones it leaves are the same.

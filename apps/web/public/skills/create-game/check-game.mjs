@@ -106,6 +106,32 @@ function cornersInsideOthers(feats) {
   return { count, example };
 }
 
+// The vertices one question can work through before it slows down: every
+// border or line of a layer measured to or matched on as lines, or the one
+// region a seeker is in (matching a 7,000-vertex region takes about 0.3 s).
+// Simplifying is only worth suggesting where vertices lie closer than
+// DENSE_EDGE meters, as on borders traced point by point from OSM.
+const VERTEX_BUDGET = 20000;
+const DENSE_EDGE = 50;
+
+/** The mean length in meters of the edges of lines' or rings' coordinates. */
+function meanEdge(coordinates) {
+  let length = 0, edges = 0;
+  const walk = (c) => {
+    if (typeof c?.[0]?.[0] === "number") {
+      for (let i = 1; i < c.length; i++) {
+        const [x1, y1] = c[i - 1], [x2, y2] = c[i];
+        // Equirectangular: exact enough for edges of a few kilometers.
+        const k = Math.cos(((y1 + y2) / 2) * Math.PI / 180);
+        length += 6371008.8 * Math.PI / 180 * Math.hypot((x2 - x1) * k, y2 - y1);
+        edges++;
+      }
+    } else if (Array.isArray(c)) c.forEach(walk);
+  };
+  walk(coordinates);
+  return edges ? length / edges : 0;
+}
+
 const slug = (s) => String(s).toLowerCase().normalize("NFD")
   .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -442,9 +468,30 @@ export function checkGame(def, { fileSize } = {}) {
         const shown = [...repeatedIds].slice(0, 5).map((id) => `"${id}"`).join(", ");
         warn(label, `${repeatedIds.size} feature id(s) repeat within the layer (${shown}${repeatedIds.size > 5 ? ", ..." : ""}); feature ids must be unique per layer`, "duplicate-feature-id");
       }
-      const positions = countPositions(feats.map((f) => f.geometry.coordinates));
-      if (family !== "points" && positions > 20000) {
-        warn(label, `${positions} vertices; simplify (~10 m tolerance) to keep measuring and matching responsive`, "heavy-geometry");
+      // What vertices cost depends on the questions: measuring buffers every
+      // border or line, and matching on lines splits the map between them
+      // all, but matching on regions only clips the map to the seeker's one.
+      if (family !== "points") {
+        const heavy = [];
+        const total = countPositions(feats.map((f) => f.geometry.coordinates));
+        if (total > VERTEX_BUDGET && (kinds.includes("measuring") || (family === "lines" && kinds.includes("matching")))) {
+          heavy.push(`${total} vertices, all used for ${kinds.includes("measuring") ? "measuring" : "matching"}`);
+        }
+        if (family === "polygons" && kinds.includes("matching")) {
+          const largest = feats.reduce((m, f) => (countPositions(f.geometry.coordinates) > m.n
+            ? { n: countPositions(f.geometry.coordinates), name: f.properties?.name } : m), { n: 0 });
+          if (largest.n > VERTEX_BUDGET) {
+            heavy.push(`region ${typeof largest.name === "string" ? `"${largest.name}"` : "(unnamed)"} alone has ${largest.n} vertices, used for matching`);
+          }
+        }
+        if (heavy.length) {
+          const edge = meanEdge(feats.map((f) => f.geometry.coordinates));
+          if (edge < DENSE_EDGE) {
+            warn(label, `${heavy.join("; ")}, about ${Math.round(edge)} m apart; simplify it with a topology-preserving simplifier at about 10 m tolerance (simplifying each feature on its own opens gaps and overlaps between neighbours)`, "heavy-geometry");
+          } else {
+            note(label, `${heavy.join("; ")}, but they are already about ${Math.round(edge)} m apart, so simplifying would remove little; expect these questions to take a while`, "heavy-geometry");
+          }
+        }
       }
       if (kinds.includes("matching") && feats.length < 2) {
         warn(label, "matching on a single feature always answers the same way; enable measuring only", "single-feature-matching");

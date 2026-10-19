@@ -68,6 +68,38 @@ function game(overrides: Record<string, unknown> = {}) {
 const codes = (result: ReturnType<typeof checkGame>) =>
     [...result.warnings, ...result.notes].map((issue) => issue.code);
 
+/** A region whose boundary is a circle of `vertices` vertices. */
+const round = (
+    id: string,
+    lng: number,
+    lat: number,
+    radius: number,
+    vertices: number,
+) => {
+    const ring = Array.from({ length: vertices }, (_, i) => {
+        const angle = (2 * Math.PI * i) / vertices;
+        return [lng + radius * Math.cos(angle), lat + radius * Math.sin(angle)];
+    });
+    return {
+        type: "Feature",
+        id,
+        geometry: { type: "Polygon", coordinates: [[...ring, ring[0]]] },
+        properties: { name: id },
+    };
+};
+const heavy = (enabledFor: string[], regions: ReturnType<typeof round>[]) =>
+    checkGame(
+        game({
+            features: [
+                { name: "District", enabledFor, data: collection(regions) },
+            ],
+        }),
+    );
+const heavyIssues = (result: ReturnType<typeof checkGame>) => ({
+    warnings: result.warnings.filter((w) => w.code === "heavy-geometry"),
+    notes: result.notes.filter((n) => n.code === "heavy-geometry"),
+});
+
 describe("check-game.mjs", () => {
     it("passes a clean game and lists its questions", () => {
         const result = checkGame(game());
@@ -238,6 +270,74 @@ describe("check-game.mjs", () => {
             const def = game();
             def.features[0] = { ...def.features[0], noOverlaps: true } as never;
             expect(codes(checkGame(def))).toContain("no-overlaps-not-regions");
+        });
+    });
+
+    describe("heavy geometry", () => {
+        it("doesn't count every region of a layer only matched on", () => {
+            // 30,000 vertices, but matching clips to one region at a time.
+            const regions = Array.from({ length: 30 }, (_, i) =>
+                round(
+                    `r${i}`,
+                    10 + (i % 6) * 0.15,
+                    50.1 + Math.floor(i / 6) * 0.15,
+                    0.05,
+                    1000,
+                ),
+            );
+            expect(heavyIssues(heavy(["matching"], regions))).toEqual({
+                warnings: [],
+                notes: [],
+            });
+        });
+
+        it("suggests simplifying a densely traced layer measured to", () => {
+            // Vertices about 2 m apart.
+            const { warnings, notes } = heavyIssues(
+                heavy(
+                    ["matching", "measuring"],
+                    [
+                        round("a", 10.3, 50.5, 0.05, 12000),
+                        round("b", 10.7, 50.5, 0.05, 12000),
+                    ],
+                ),
+            );
+            expect(notes).toEqual([]);
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].message).toMatch(/24002 vertices/);
+            expect(warnings[0].message).toMatch(/topology-preserving/);
+        });
+
+        it("only notes a heavy layer whose vertices are already far apart", () => {
+            // Vertices about 230 m apart.
+            const { warnings, notes } = heavyIssues(
+                heavy(
+                    ["measuring"],
+                    [
+                        round("a", 10.3, 50.5, 4, 12000),
+                        round("b", 10.7, 50.5, 4, 12000),
+                    ],
+                ),
+            );
+            expect(warnings).toEqual([]);
+            expect(notes).toHaveLength(1);
+            expect(notes[0].message).toMatch(/simplifying would remove little/);
+        });
+
+        it("names a densely traced region too heavy to match on", () => {
+            const { warnings } = heavyIssues(
+                heavy(
+                    ["matching"],
+                    [
+                        round("big", 10.3, 50.5, 0.1, 21000),
+                        round("small", 10.7, 50.5, 0.1, 100),
+                    ],
+                ),
+            );
+            expect(warnings).toHaveLength(1);
+            expect(warnings[0].message).toMatch(
+                /region "big" alone has 21001 vertices/,
+            );
         });
     });
 });
