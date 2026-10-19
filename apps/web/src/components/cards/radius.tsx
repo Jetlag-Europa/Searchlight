@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import type { DistanceRadius } from "@searchlight/shared";
 import { CheckIcon } from "lucide-react";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
@@ -11,7 +10,7 @@ import {
 } from "@/components/ui/sidebar-l";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
-import { radarRadii } from "@/game-definition/compile";
+import { formatRadius, radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
 import { askedVariants, radarVariant } from "@/lib/askedQuestions";
 import {
@@ -32,18 +31,6 @@ import type { RadiusQuestion } from "@/maps/schema";
 
 import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
-
-const UNIT_ABBREVIATIONS: Record<DistanceRadius["unit"], string> = {
-    meters: "m",
-    kilometers: "km",
-    miles: "mi",
-};
-
-// Short label for a quick-pick radius: 500 meters -> "500 m", 2000 -> "2 km".
-const formatRadius = ({ value, unit }: DistanceRadius) =>
-    unit === "meters" && value >= 1000 && value % 100 === 0
-        ? `${value / 1000} km`
-        : `${value} ${UNIT_ABBREVIATIONS[unit]}`;
 
 export const RadiusQuestionComponent = ({
     data,

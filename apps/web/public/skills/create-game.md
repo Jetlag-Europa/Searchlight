@@ -152,7 +152,7 @@ Transit line, station name length, street/path, photo questions and curses have 
 }
 ```
 
-These questions are offered: radar (400 and 600), thermometer, Nearest Museum, Distance to Museum, Tentacles: Museum, Same Arrondissement, Distance to Arrondissement Boundary, Nearest High-Speed Line, and Distance to High-Speed Line.
+These questions are offered: radar at any radius (presets 400 m and 600 m), thermometer, Nearest Museum, Distance to Museum, Tentacles: Museum, Same Arrondissement, Distance to Arrondissement Boundary, Nearest High-Speed Line, and Distance to High-Speed Line.
 
 ## 3. Root fields
 

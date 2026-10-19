@@ -1,4 +1,7 @@
+import type { GameDefinition } from "@searchlight/shared";
 import { describe, expect, it } from "vitest";
+
+import { compileGameDefinition } from "@/game-definition/compile";
 
 import {
     checkGame,
@@ -106,12 +109,42 @@ describe("check-game.mjs", () => {
         expect(result.errors).toEqual([]);
         expect(result.warnings).toEqual([]);
         expect(result.questions.map((q) => q.label)).toEqual([
-            "radii 400",
+            "any radius (starts at 400 m)",
             "",
             "Nearest Museum",
             "Distance to Museum",
             "Tentacles: Museum",
         ]);
+    });
+
+    it("lists one radar, at any radius, with its presets", () => {
+        const radar = (overrides: Record<string, unknown>) =>
+            checkGame(game(overrides)).questions.find((q) => q.kind === "radar")
+                ?.label;
+        expect(radar({ radars: [500, 2000, 500] })).toBe(
+            "any radius (presets 500 m, 2 km)",
+        );
+        expect(radar({ radars: true, unit: "kilometers" })).toBe(
+            "any radius (starts at 400 km)",
+        );
+        expect(radar({ radars: false })).toBeUndefined();
+    });
+
+    it("words the radar like the app's Questions offered list", () => {
+        for (const overrides of [
+            { radars: [400, 600] },
+            { radars: [1000] },
+            { radars: true, unit: "miles" },
+        ]) {
+            const def = game(overrides);
+            const app = compileGameDefinition(
+                def as unknown as GameDefinition,
+            ).questionMap.get("radius")?.label;
+            const label = checkGame(def).questions.find(
+                (q) => q.kind === "radar",
+            )?.label;
+            expect(app).toBe(`Radar: ${label}`);
+        }
     });
 
     it("rejects out-of-range bounds like the server", () => {
