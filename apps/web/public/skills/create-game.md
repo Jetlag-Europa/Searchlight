@@ -18,7 +18,7 @@ Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/
 2. **Convert** each source into normalized GeoJSON features (section 6).
 3. **Assemble** the definition (section 2) and declare every question explicitly.
 4. **Check** with `node check-game.mjs <file>`. Fix every ERROR. Fix each WARN, or tell the user why it stays.
-5. **Import** (section 8). The web dialog previews the file first, and the API has `?dryRun=true`.
+5. **Import** (section 8). The import page previews the file first, and the API has `?dryRun=true`.
 6. **Report back:** zone count, features per layer, the question list `check-game.mjs` printed, and anything you dropped, merged or assumed.
 
 | Input | Goes to | Source |
@@ -344,14 +344,14 @@ node check-game.mjs --strict testville-2026.game.json
 - **WARN:** it imports but will play badly, e.g. swapped `[lat, lng]`, zones outside the play area, duplicate zone or feature IDs, names with CDATA wrappers or XML entities (`<![CDATA[…]]>`, `&amp;`), case-mismatched or numeric tiers, single-feature matching or tentacles, regions that overlap or that no zone lies in, or heavy geometry.
 - **NOTE:** worth a look but often intentional, e.g. plural-looking layer names.
 
-`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, and region layers no hiding zone lies in. Preloaded games must pass it.
+`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other. Preloaded games must pass it.
 
 The checker ends with the question list and labels, which is what players will see. Read it back to the user. To see the file on a map, the user can drop it on `https://searchlight.jetlageuropa.org/designer` (no login, and the file never leaves the browser): it draws the play area, the hiding zones and each layer, and runs the same checks. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
 
 ## 8. Import, update, export
 
-- **Web:** on `/games`, click **+ Import Game JSON** and pick the file. The dialog previews it with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
-- **Unlisted:** a new game can be imported unlisted (the dialog's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
+- **Web:** on `/games`, click **+ Import Game JSON**, which opens the import page, and pick the file. It draws the file on a map, lists the checker's findings, offers to fix overlapping regions, and previews the import with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
+- **Unlisted:** a new game can be imported unlisted (the import page's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
   - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id`, and `&unlisted=true` to create the game unlisted.
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.

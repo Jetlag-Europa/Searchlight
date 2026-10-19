@@ -300,6 +300,10 @@ export function GameDesigner({
 }) {
     const [loaded, setLoaded] = useState<Loaded | null>(null);
     const [highlight, setHighlight] = useState<OverlapHighlight | null>(null);
+    const [wrongMarks, setWrongMarks] = useState<string[]>([]);
+    // Counts files picked, not fixes, so the import step starts over (and
+    // takes the new file's server) only for a new file.
+    const [fileCount, setFileCount] = useState(0);
     const [busy, setBusy] = useState(false);
     const [dragging, setDragging] = useState(false);
     const [loadCount, setLoadCount] = useState(0);
@@ -320,6 +324,8 @@ export function GameDesigner({
             setLoadCount((c) => c + 1);
             setShownLayers(new Set());
             setHighlight(null);
+            setWrongMarks([]);
+            setFileCount((c) => c + 1);
             // Show the new file's summary and checks first.
             panel.current?.scrollTo({ top: 0 });
         } finally {
@@ -670,6 +676,7 @@ export function GameDesigner({
                         zones={zones}
                         onFix={applyFix}
                         onHighlight={setHighlight}
+                        onWrongMarks={setWrongMarks}
                     />
                 )}
 
@@ -688,6 +695,13 @@ export function GameDesigner({
 
                 {mode === "import" && loaded?.definition && compiled && (
                     <ImportPanel
+                        key={fileCount}
+                        busy={busy}
+                        blocked={
+                            wrongMarks.length
+                                ? `${wrongMarks.join(", ")} ${wrongMarks.length === 1 ? "is" : "are"} marked noOverlaps but overlap: fix ${wrongMarks.length === 1 ? "it" : "them"} or remove the mark above first.`
+                                : null
+                        }
                         definition={loaded.definition}
                         noServer={loaded.noServer}
                     />

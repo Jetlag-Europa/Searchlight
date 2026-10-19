@@ -77,11 +77,18 @@ export function RegionOverlapsPanel({
     zones,
     onFix,
     onHighlight,
+    onWrongMarks,
 }: {
     definition: GameDefinition;
     zones: Feature<Polygon | MultiPolygon>[];
-    onFix: (fixed: GameDefinition) => void;
+    /** Takes the fixed file; resolves once it has been checked again. */
+    onFix: (fixed: GameDefinition) => Promise<void>;
     onHighlight: (highlight: OverlapHighlight | null) => void;
+    /**
+     * The layers marked noOverlaps that do overlap: imported like that,
+     * their distance questions would measure to borders that cross them.
+     */
+    onWrongMarks: (layers: string[]) => void;
 }) {
     const initial = useMemo(
         () =>
@@ -111,6 +118,7 @@ export function RegionOverlapsPanel({
         setChecks(initial);
         setPicked(new Set());
         setShown(null);
+        setFixError(null);
         onHighlight(null);
         (async () => {
             for (const layer of initial) {
@@ -146,6 +154,18 @@ export function RegionOverlapsPanel({
         };
         // zones follow the definition.
     }, [initial]);
+
+    const overlaps = (check: LayerCheck) =>
+        !!check.result &&
+        (check.result.pieces.length > 0 || check.result.hidden.length > 0);
+    const wrongMarks = checks
+        .filter((check) => check.flagged && overlaps(check))
+        .map((check) => check.name);
+    const wrongMarksKey = wrongMarks.join("\n");
+    useEffect(() => {
+        onWrongMarks(wrongMarksKey ? wrongMarksKey.split("\n") : []);
+        // The names are the dependency, not the array's identity.
+    }, [wrongMarksKey]);
 
     if (!initial.length) return null;
 
@@ -183,7 +203,24 @@ export function RegionOverlapsPanel({
                     : check.regions;
                 features[check.index] = markNoOverlaps(layer, regions);
             }
-            onFix({ ...definition, features });
+            await onFix({ ...definition, features });
+        } catch (err: any) {
+            setFixError(err.message ?? String(err));
+        } finally {
+            setFixing(false);
+        }
+    };
+
+    /** Takes the mark off a layer that can't be fixed. */
+    const unmark = async (check: LayerCheck) => {
+        setFixing(true);
+        setFixError(null);
+        try {
+            const features = [...(definition.features ?? [])];
+            const layer = { ...features[check.index] };
+            delete layer.noOverlaps;
+            features[check.index] = layer;
+            await onFix({ ...definition, features });
         } catch (err: any) {
             setFixError(err.message ?? String(err));
         } finally {
@@ -206,10 +243,11 @@ export function RegionOverlapsPanel({
                 Neighbouring regions should share their borders exactly. Where
                 two overlap, the app already puts a player in the first one in
                 the file. Fixing a layer gives each overlap to that region, so{" "}
-                <strong>matching answers don&apos;t change</strong>, and
-                distances to a border move by at most the overlap&apos;s width.
-                A fixed layer is marked <code>noOverlaps</code>, which lets the
-                app answer distance-to-border questions faster.
+                <strong>players stay in the regions they were in</strong> (new
+                corners are rounded to about 0.1 m), and distances to a border
+                move by at most the overlap&apos;s width. A fixed layer is
+                marked <code>noOverlaps</code>, which lets the app answer
+                distance-to-border questions faster.
             </p>
             <div className="space-y-1">
                 {checks.map((check) => {
@@ -251,6 +289,13 @@ export function RegionOverlapsPanel({
                                     <span className="text-muted-foreground">
                                         ({check.regions.length} regions)
                                     </span>
+                                    {check.flagged && overlaps(check) && (
+                                        <span className="block font-medium text-destructive">
+                                            Marked noOverlaps, but its regions
+                                            overlap: fix it or remove the mark
+                                            before importing.
+                                        </span>
+                                    )}
                                     <span className="block text-muted-foreground">
                                         {check.error
                                             ? `Couldn't check: ${check.error}`
@@ -272,10 +317,21 @@ export function RegionOverlapsPanel({
                                                     : "No overlaps; not marked yet."}
                                     </span>
                                 </label>
+                                {check.flagged && !fixable && !!result && (
+                                    <button
+                                        type="button"
+                                        className="shrink-0 underline"
+                                        disabled={fixing}
+                                        onClick={() => unmark(check)}
+                                    >
+                                        Remove mark
+                                    </button>
+                                )}
                                 {!!result?.pieces.length && (
                                     <button
                                         type="button"
                                         className="shrink-0 underline"
+                                        aria-pressed={shown === check.index}
                                         onClick={() => show(check)}
                                     >
                                         {shown === check.index

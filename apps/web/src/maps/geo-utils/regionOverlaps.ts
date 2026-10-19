@@ -50,6 +50,27 @@ export interface RemoveRegionOverlapsRequest {
 const boxesMeet = (a: BBox, b: BBox) =>
     a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
 
+/** A piece of overlap's area, and width as OverlapPiece describes it. */
+function measure(piece: Feature<Polygon>) {
+    const area = turf.area(piece);
+    const perimeter = turf.length(turf.polygonToLine(piece), {
+        units: "meters",
+    });
+    return { area, width: perimeter ? (2 * area) / perimeter : 0 };
+}
+
+const isHairline = ({ area, width }: { area: number; width: number }) =>
+    area < HAIRLINE_AREA || width < HAIRLINE_WIDTH;
+
+/** The pieces where two regions overlap by more than a hairline. */
+function realOverlaps(a: Region, b: Region): Feature<Polygon>[] {
+    const overlap = turf.intersect(turf.featureCollection([a, b]));
+    if (!overlap) return [];
+    return turf
+        .flatten(overlap)
+        .features.filter((piece) => !isHairline(measure(piece)));
+}
+
 /** Where the layer's regions overlap, and which are covered entirely. */
 export function findRegionOverlaps({
     regions,
@@ -67,18 +88,14 @@ export function findRegionOverlaps({
                 turf.featureCollection([regions[first], regions[second]]),
             );
             if (!overlap) continue;
-            covered += turf.area(overlap);
-            by.push(first);
             for (const piece of turf.flatten(overlap).features) {
-                const area = turf.area(piece);
-                const perimeter = turf.length(turf.polygonToLine(piece), {
-                    units: "meters",
-                });
-                const width = perimeter ? (2 * area) / perimeter : 0;
-                if (area < HAIRLINE_AREA || width < HAIRLINE_WIDTH) {
+                const { area, width } = measure(piece);
+                if (isHairline({ area, width })) {
                     hairlines++;
                     continue;
                 }
+                covered += area;
+                if (!by.includes(first)) by.push(first);
                 pieces.push({
                     first,
                     second,
@@ -88,9 +105,10 @@ export function findRegionOverlaps({
                 });
             }
         }
-        // Earlier regions may overlap each other too, counting some ground
-        // twice, so only a near-total cover is worth checking exactly.
-        if (covered < turf.area(regions[second]) * 0.999) continue;
+        // The overlaps add up to at least the ground they cover together
+        // (earlier regions may overlap each other too), so a region with
+        // more than a hairline's area left over can't be covered.
+        if (turf.area(regions[second]) - covered >= HAIRLINE_AREA) continue;
         const left = removeOverlapsOf(regions, second);
         if (!left || turf.area(left) < HAIRLINE_AREA) {
             hidden.push({ region: second, by });
@@ -99,13 +117,17 @@ export function findRegionOverlaps({
     return { pieces, hairlines, hidden };
 }
 
-/** A region less every earlier region, or null when nothing is left. */
+/**
+ * A region less every earlier region it overlaps by more than a hairline,
+ * or null when nothing is left. A region that only touches its earlier
+ * neighbours, or overlaps them by hairlines, comes back as it was.
+ */
 function removeOverlapsOf(regions: Region[], index: number): Region | null {
     let left: Region | null = regions[index];
     const box = turf.bbox(left);
     for (let earlier = 0; earlier < index && left; earlier++) {
         if (!boxesMeet(turf.bbox(regions[earlier]), box)) continue;
-        if (!turf.booleanIntersects(left, regions[earlier])) continue;
+        if (!realOverlaps(left, regions[earlier]).length) continue;
         left = turf.difference(
             turf.featureCollection([left, regions[earlier]]),
         );
@@ -118,9 +140,13 @@ function precision(regions: Region[]): number {
     let decimals = 0;
     for (const position of turf.coordAll(turf.featureCollection(regions))) {
         for (const value of position) {
-            const text = String(value);
-            const dot = text.indexOf(".");
-            if (dot >= 0) decimals = Math.max(decimals, text.length - dot - 1);
+            // As written in the file: 0.0000001 prints as 1e-7.
+            const [digits, exponent] = String(value).split("e");
+            const dot = digits.indexOf(".");
+            const places =
+                (dot >= 0 ? digits.length - dot - 1 : 0) -
+                Number(exponent ?? 0);
+            decimals = Math.max(decimals, places);
         }
     }
     return decimals;
@@ -154,10 +180,11 @@ function roundPolygon(
     return [outer, ...holes.filter((hole): hole is Position[] => !!hole)];
 }
 
+/** The geometry rounded, or null if rounding would leave nothing. */
 function roundGeometry(
     geometry: Polygon | MultiPolygon,
     decimals: number,
-): Polygon | MultiPolygon {
+): Polygon | MultiPolygon | null {
     const polygons = (
         geometry.type === "Polygon"
             ? [geometry.coordinates]
@@ -165,6 +192,7 @@ function roundGeometry(
     )
         .map((polygon) => roundPolygon(polygon, decimals))
         .filter((polygon): polygon is Position[][] => !!polygon);
+    if (!polygons.length) return null;
     return polygons.length === 1
         ? { type: "Polygon", coordinates: polygons[0] }
         : { type: "MultiPolygon", coordinates: polygons };
@@ -173,13 +201,15 @@ function roundGeometry(
 /**
  * The regions with every overlap given to the first region in the layer, as
  * the app already decides which region a point is in: each region less the
- * regions before it. Ids and properties are kept, and new vertices rounded
- * to the precision the layer already has. Throws if a region would vanish.
+ * regions before it that it overlaps by more than a hairline. Ids and
+ * properties are kept. New vertices are rounded to the layer's precision,
+ * but to no fewer than 6 decimals (about 0.1 m), so a border moves by at
+ * most a few centimetres. Throws if a region would vanish.
  */
 export function removeRegionOverlaps({
     regions,
 }: Omit<RemoveRegionOverlapsRequest, "kind">): Region[] {
-    const decimals = Math.min(precision(regions), 15);
+    const decimals = Math.min(Math.max(precision(regions), 6), 15);
     return regions.map((region, index) => {
         const left = removeOverlapsOf(regions, index);
         if (!left || turf.area(left) < HAIRLINE_AREA) {
@@ -190,7 +220,7 @@ export function removeRegionOverlaps({
         if (left === region) return region;
         const cleaned: Region = {
             ...region,
-            geometry: roundGeometry(left.geometry, decimals),
+            geometry: roundGeometry(left.geometry, decimals) ?? left.geometry,
         };
         // A bbox member would describe the old geometry.
         delete cleaned.bbox;

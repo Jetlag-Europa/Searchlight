@@ -83,6 +83,56 @@ describe("removeRegionOverlaps", () => {
         expect(findRegionOverlaps({ regions: [a, b] }).pieces).toEqual([]);
     });
 
+    it("leaves regions that only touch, or overlap by hairlines, as they were", () => {
+        const regions = [
+            box(0, 1.001, "a"),
+            box(1, 2, "b"),
+            // A hairline (about 7 cm) into b.
+            box(1.999999, 3, "c"),
+        ];
+        const [a, b, c] = removeRegionOverlaps({ regions });
+        expect(a).toBe(regions[0]);
+        expect(b).not.toBe(regions[1]);
+        expect(c).toBe(regions[2]);
+    });
+
+    it("rounds new corners to 6 decimals in a coarser layer", () => {
+        // Four decimals is an 11 m grid; the new corners land between.
+        const a = turf.polygon(
+            [
+                [
+                    [0, 0],
+                    [1.00005, 0.5],
+                    [0, 1],
+                    [0, 0],
+                ],
+            ],
+            { name: "a" },
+        ) as Region;
+        const b = box(1, 2, "b", 0, 1);
+        const [, cleaned] = removeRegionOverlaps({ regions: [a, b] });
+        const xs = turf.coordAll(cleaned).map(([x]) => x);
+        expect(xs.some((x) => x > 1 && x < 1.0001)).toBe(true);
+        for (const x of xs) {
+            expect(Math.round(x * 1e6) / 1e6).toBe(x);
+        }
+        expect(findRegionOverlaps({ regions: [a, cleaned] }).pieces).toEqual(
+            [],
+        );
+    });
+
+    it("agrees with the check on what lies entirely inside", () => {
+        // A 10 x 25 m region less than a square meter of which sticks out.
+        const inner = box(0.5, 0.50014, "inner", 50.5, 50.50009);
+        const almost = box(0.4, 0.5001395, "outer", 50.4, 50.6);
+        const regions = [almost, inner];
+        const { hidden } = findRegionOverlaps({ regions });
+        expect(hidden).toEqual([{ region: 1, by: [0] }]);
+        expect(() => removeRegionOverlaps({ regions })).toThrow(
+            /lies entirely inside/,
+        );
+    });
+
     it("refuses to empty a region", () => {
         expect(() =>
             removeRegionOverlaps({

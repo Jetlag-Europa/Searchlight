@@ -10,8 +10,9 @@
 // It finishes by listing the questions the game will offer, with their labels.
 // Exit code 1 when there are errors. --strict also fails (FAIL instead of WARN)
 // on the warnings in STRICT_CODES, which are always data defects: misplaced or
-// swapped coordinates, duplicate IDs, undecoded names, single-feature matching
-// and region layers no zone lies in. Searchlight's preloaded games must pass it.
+// swapped coordinates, duplicate IDs, undecoded names, single-feature matching,
+// region layers no zone lies in, and layers marked noOverlaps whose regions
+// overlap. Searchlight's preloaded games must pass it.
 //
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.
@@ -31,6 +32,79 @@ export const STRICT_CODES = new Set([
   "zones-outside-all-regions",
   "no-overlaps-overlapping",
 ]);
+
+// Overlaps narrower than this (meters) are rounding between borders traced
+// from the same data, as the import page's overlap check treats them.
+const HAIRLINE = 0.5;
+const METERS_PER_DEGREE = 6371008.8 * Math.PI / 180;
+
+/** Whether a point is inside a polygon's rings (holes taken out). */
+function inRings(pt, polygon) {
+  let inside = false;
+  for (const ring of polygon) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Whether a point lies within `limit` meters of an edge of the rings. */
+function nearEdge(pt, rings, limit) {
+  const k = Math.cos(pt[1] * Math.PI / 180);
+  const toXY = ([x, y]) => [(x - pt[0]) * k * METERS_PER_DEGREE, (y - pt[1]) * METERS_PER_DEGREE];
+  for (const ring of rings) {
+    for (let i = 1; i < ring.length; i++) {
+      const [ax, ay] = toXY(ring[i - 1]), [bx, by] = toXY(ring[i]);
+      const dx = bx - ax, dy = by - ay;
+      const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+      if (Math.hypot(ax + t * dx, ay + t * dy) <= limit) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * How many corners of the regions, or middles of their edges, lie inside
+ * another region further than a hairline from its edge, with one pair of
+ * names as an example. Middles catch regions whose corners all sit on the
+ * other's border, as when two rectangles overlap.
+ */
+function cornersInsideOthers(feats) {
+  const regions = feats.map((f) => {
+    const polygons = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    const rings = polygons.flat();
+    const box = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [x, y] of rings.flat()) {
+      box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
+      box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+    }
+    const corners = new Set(rings.flat().map(([x, y]) => `${x},${y}`));
+    return { name: f.properties?.name ?? "(unnamed)", polygons, rings, box, corners };
+  });
+  let count = 0, example = null;
+  regions.forEach((region, r) => {
+    // Each point with the corners it lies on or between.
+    const points = region.rings.flatMap((ring) => ring.flatMap((pt, i) => (i
+      ? [{ pt: [(ring[i - 1][0] + pt[0]) / 2, (ring[i - 1][1] + pt[1]) / 2], ends: [ring[i - 1], pt] }, { pt, ends: [pt] }]
+      : [{ pt, ends: [pt] }])));
+    for (const { pt, ends } of points) {
+      for (let o = 0; o < regions.length; o++) {
+        const other = regions[o];
+        if (o === r || pt[0] < other.box[0] || pt[0] > other.box[2] || pt[1] < other.box[1] || pt[1] > other.box[3]) continue;
+        // A corner, or an edge, the two regions share is on its border.
+        if (ends.every(([x, y]) => other.corners.has(`${x},${y}`))) continue;
+        if (!other.polygons.some((polygon) => inRings(pt, polygon))) continue;
+        if (nearEdge(pt, other.rings, HAIRLINE)) continue;
+        count++;
+        example ??= [region.name, other.name];
+        break;
+      }
+    }
+  });
+  return { count, example };
+}
 
 const slug = (s) => String(s).toLowerCase().normalize("NFD")
   .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -410,15 +484,24 @@ export function checkGame(def, { fileSize } = {}) {
           if (n === 0) none++;
           if (n > 1) many++;
         }
-        if (many && noOverlaps) {
-          warn(label, `marked noOverlaps, but ${many} hiding zone centre(s) fall in more than one region; fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
-        }
         if (none === pointZones.length) {
           warn(label, "no hiding zone lies in any of its regions, so every player gets the same answer (swapped coordinates?); for features nobody stands in, such as water, use a line or point layer", "zones-outside-all-regions");
         } else if (kinds.includes("matching")) {
-          if (many) warn(label, `${many} hiding zone centre(s) fall in more than one region; regions overlap (the first in file order wins)`, "overlapping-regions");
+          // A layer marked noOverlaps gets the stricter check below instead.
+          if (many && !noOverlaps) warn(label, `${many} hiding zone centre(s) fall in more than one region; regions overlap (the first in file order wins)`, "overlapping-regions");
           if (none) note(label, `${none} hiding zone centre(s) fall in no region; "outside every region" becomes its own answer`, "zones-outside-regions");
         }
+      }
+    }
+
+    // A layer marked noOverlaps is measured to as one border network, which
+    // is only right where no region reaches into another. A region reaching
+    // into another leaves corners or edges inside it, so look for those.
+    for (const { name, feats, family, path, noOverlaps } of layerInfo) {
+      if (!noOverlaps || family !== "polygons") continue;
+      const inside = cornersInsideOthers(feats);
+      if (inside.count) {
+        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) on its regions' borders lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
       }
     }
 

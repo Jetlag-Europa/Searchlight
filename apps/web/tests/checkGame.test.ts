@@ -26,7 +26,7 @@ const region = (id: string, w: number, s: number, e: number, n: number) => ({
     geometry: { type: "Polygon", coordinates: square(w, s, e, n) },
     properties: { name: id },
 });
-const collection = <T,>(features: T[]) => ({
+const collection = <T>(features: T[]) => ({
     type: "FeatureCollection",
     features,
 });
@@ -182,5 +182,62 @@ describe("check-game.mjs", () => {
             "center-outside-play-area",
             "single-feature-matching",
         ]);
+    });
+
+    describe("noOverlaps", () => {
+        // Two regions side by side; `reach` pushes the first into the second.
+        const regions = (reach = 0) =>
+            collection([
+                region("west", 10, 50, 10.5 + reach, 51),
+                region("east", 10.5, 50, 11, 51),
+            ]);
+        const layer = (noOverlaps: unknown, data = regions()) =>
+            game({
+                features: [
+                    {
+                        name: "District",
+                        enabledFor: ["matching", "measuring"],
+                        noOverlaps,
+                        data,
+                    },
+                ],
+            });
+
+        it("must be a boolean", () => {
+            expect(checkGame(layer("yes")).errors.map((e) => e.path)).toEqual([
+                "/features/0/noOverlaps",
+            ]);
+        });
+
+        it("passes regions that only share a border", () => {
+            const result = checkGame(layer(true));
+            expect(result.errors).toEqual([]);
+            expect(codes(result)).not.toContain("no-overlaps-overlapping");
+        });
+
+        it("fails a marked layer whose regions reach into each other", () => {
+            // About 70 m: the west region's eastern corners lie in the east.
+            const result = checkGame(layer(true, regions(0.001)));
+            const failing = result.warnings.filter((w) =>
+                STRICT_CODES.has(w.code),
+            );
+            expect(failing.map((w) => w.code)).toEqual([
+                "no-overlaps-overlapping",
+            ]);
+            expect(failing[0].message).toMatch(/"west" reaches into "east"/);
+        });
+
+        it("ignores hairline overlaps", () => {
+            // About 7 cm.
+            expect(
+                codes(checkGame(layer(true, regions(0.000001)))),
+            ).not.toContain("no-overlaps-overlapping");
+        });
+
+        it("warns when set on a layer of points", () => {
+            const def = game();
+            def.features[0] = { ...def.features[0], noOverlaps: true } as never;
+            expect(codes(checkGame(def))).toContain("no-overlaps-not-regions");
+        });
     });
 });

@@ -33,15 +33,24 @@ const requestedServer = () =>
 export function ImportPanel({
     definition,
     noServer,
+    busy,
+    blocked,
 }: {
     definition: GameDefinition;
     /** The file names no server, so one must be picked here. */
     noServer: boolean;
+    /** The page is still checking a changed file. */
+    busy: boolean;
+    /** Why the file can't be imported as it is, if it can't. */
+    blocked: string | null;
 }) {
     const userId = useStore(verifiedUserId);
     const [servers, setServers] = useState<ServerOption[] | null>(null);
+    // The file's own server comes first, as it did in the import dialog,
+    // then the one the games page sent the user here for.
     const [serverId, setServerId] = useState<string>(
-        () => requestedServer() ?? (noServer ? "" : definition.serverId) ?? "",
+        () =>
+            (noServer ? null : definition.serverId) ?? requestedServer() ?? "",
     );
     const [allowUpdate, setAllowUpdate] = useState(true);
     const [unlisted, setUnlisted] = useState(false);
@@ -160,7 +169,12 @@ export function ImportPanel({
                     >
                         {unknownServer && (
                             <option value={unknownServer}>
-                                {unknownServer} (from file)
+                                {unknownServer} (from{" "}
+                                {!noServer &&
+                                unknownServer === definition.serverId
+                                    ? "file"
+                                    : "link"}
+                                )
                             </option>
                         )}
                         {servers.map((s) => (
@@ -219,6 +233,12 @@ export function ImportPanel({
                 </p>
             )}
 
+            {blocked && (
+                <p className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+                    {blocked}
+                </p>
+            )}
+
             {imported ? (
                 <p className="rounded-md border border-emerald-500/50 bg-emerald-500/10 p-2 text-xs text-emerald-700 dark:text-emerald-300">
                     {imported.status === "unchanged"
@@ -232,7 +252,9 @@ export function ImportPanel({
                 <Button
                     className="w-full"
                     onClick={handleImport}
-                    disabled={!serverId || !dryRun || importing}
+                    // A failed preview doesn't stop the import: as with the
+                    // old dialog, the import reports its own errors.
+                    disabled={!serverId || importing || busy || !!blocked}
                 >
                     {importing
                         ? "Importing…"
