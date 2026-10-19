@@ -524,14 +524,16 @@ function GameCard({
                         </span>
                     )}
                     {game.date ? (
-                        <span className="flex items-center gap-1">
+                        <span className="flex items-center gap-1 whitespace-nowrap">
                             <CalendarDays className="h-3 w-3" />
                             <time dateTime={game.date}>
                                 {formatEventDate(game.date, game.endDate)}
                             </time>
                         </span>
                     ) : (
-                        <span>Updated {formatDate(game.updatedAt)}</span>
+                        <span className="whitespace-nowrap">
+                            Updated {formatDate(game.updatedAt)}
+                        </span>
                     )}
                     {rules && (
                         <a
