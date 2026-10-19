@@ -513,7 +513,7 @@ function GameCard({
                     {game.zoneCount.toLocaleString()} hiding zones
                 </p>
             </div>
-            <div className="flex items-end justify-between gap-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
                 <div
                     className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground ${dimmed}`}
                 >
@@ -549,7 +549,7 @@ function GameCard({
                     )}
                 </div>
                 {game.locked ? (
-                    <div className="flex shrink-0 flex-col items-end gap-1">
+                    <div className="ml-auto flex shrink-0 flex-col items-end gap-1">
                         {game.joinUrl && (
                             <Button size="sm" variant="outline" asChild>
                                 <a
@@ -572,7 +572,12 @@ function GameCard({
                         </button>
                     </div>
                 ) : (
-                    <Button size="sm" onClick={onPlay} disabled={starting}>
+                    <Button
+                        size="sm"
+                        onClick={onPlay}
+                        disabled={starting}
+                        className="ml-auto"
+                    >
                         <Play />
                         {starting ? "Starting…" : "Play"}
                     </Button>
