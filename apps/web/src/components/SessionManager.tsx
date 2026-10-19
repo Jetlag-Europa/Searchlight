@@ -288,6 +288,14 @@ function SessionPickerOverlay({
                         Select a Session
                     </h1>
                     <div className="flex shrink-0 items-center gap-1">
+                        <a
+                            href="/browse"
+                            title="Find a game"
+                            aria-label="Find a game"
+                            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                            <Compass className="h-5 w-5" />
+                        </a>
                         {canManageGames && (
                             <a
                                 href="/games"
