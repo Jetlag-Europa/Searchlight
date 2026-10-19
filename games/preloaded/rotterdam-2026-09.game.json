@@ -21796,6 +21796,3770 @@
           }
         ]
       }
+    },
+    {
+      "name": "Park",
+      "enabledFor": [
+        "matching",
+        "measuring"
+      ],
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.363758,
+                51.832271
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.47541,
+                51.920984
+              ]
+            },
+            "properties": {
+              "name": "Joost Banckertsplaats"
+            },
+            "id": "joost-banckertsplaats"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.475963,
+                51.919976
+              ]
+            },
+            "properties": {
+              "name": "Jan Evertsenplaats"
+            },
+            "id": "jan-evertsenplaats"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.493016,
+                51.933694
+              ]
+            },
+            "properties": {
+              "name": "Schuttersveld"
+            },
+            "id": "schuttersveld"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.295388,
+                51.812265
+              ]
+            },
+            "properties": {
+              "name": "Polder Nieuw Schuddebeurs"
+            },
+            "id": "polder-nieuw-schuddebeurs"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.538359,
+                51.833446
+              ]
+            },
+            "properties": {
+              "name": "Het Ziedewijdse Land en Spuiveld"
+            },
+            "id": "het-ziedewijdse-land-en-spuiveld"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.522391,
+                51.834719
+              ]
+            },
+            "properties": {
+              "name": "Vredepolder"
+            },
+            "id": "vredepolder"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.382,
+                51.845886
+              ]
+            },
+            "properties": {
+              "name": "Oostpunt"
+            },
+            "id": "oostpunt"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.543085,
+                51.851485
+              ]
+            },
+            "properties": {
+              "name": "Park Buitenoord"
+            },
+            "id": "park-buitenoord"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.424843,
+                51.854736
+              ]
+            },
+            "properties": {
+              "name": "Park Jan Cornelispolder"
+            },
+            "id": "park-jan-cornelispolder"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.611904,
+                51.85871
+              ]
+            },
+            "properties": {
+              "name": "Oosterpark"
+            },
+            "id": "oosterpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.58539,
+                51.877231
+              ]
+            },
+            "properties": {
+              "name": "Reyerpark"
+            },
+            "id": "reyerpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.483434,
+                51.88117
+              ]
+            },
+            "properties": {
+              "name": "Zuiderpark"
+            },
+            "id": "zuiderpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.594057,
+                51.886268
+              ]
+            },
+            "properties": {
+              "name": "Donckse Bos"
+            },
+            "id": "donckse-bos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.539649,
+                51.889953
+              ]
+            },
+            "properties": {
+              "name": "De Twee Heuvels"
+            },
+            "id": "de-twee-heuvels"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.403654,
+                51.902136
+              ]
+            },
+            "properties": {
+              "name": "Park Maasboulevard"
+            },
+            "id": "park-maasboulevard"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.387762,
+                51.90846
+              ]
+            },
+            "properties": {
+              "name": "Volkspark"
+            },
+            "id": "volkspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.284243,
+                51.904531
+              ]
+            },
+            "properties": {
+              "name": "De Lickebaert"
+            },
+            "id": "de-lickebaert"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349144,
+                51.912621
+              ]
+            },
+            "properties": {
+              "name": "'t Hof/Oranjepark"
+            },
+            "id": "t-hof-oranjepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.442321,
+                51.925118
+              ]
+            },
+            "properties": {
+              "name": "Roel Langerakpark"
+            },
+            "id": "roel-langerakpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.45333,
+                51.9311
+              ]
+            },
+            "properties": {
+              "name": "Vroesenpark"
+            },
+            "id": "vroesenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.385495,
+                51.929683
+              ]
+            },
+            "properties": {
+              "name": "Prinses Beatrixpark"
+            },
+            "id": "prinses-beatrixpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349713,
+                51.93775
+              ]
+            },
+            "properties": {
+              "name": "Wijkpark Holy"
+            },
+            "id": "wijkpark-holy"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.526508,
+                51.85246
+              ]
+            },
+            "properties": {
+              "name": "Park Nieuweland"
+            },
+            "id": "park-nieuweland"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.434977,
+                51.841095
+              ]
+            },
+            "properties": {
+              "name": "Rhoonse Grienden"
+            },
+            "id": "rhoonse-grienden"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.338779,
+                51.866578
+              ]
+            },
+            "properties": {
+              "name": "Ruigeplaatbosch"
+            },
+            "id": "ruigeplaatbosch"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.532582,
+                51.938534
+              ]
+            },
+            "properties": {
+              "name": "Sportpark Boszoom-Noord"
+            },
+            "id": "sportpark-boszoom-noord"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.534165,
+                51.934949
+              ]
+            },
+            "properties": {
+              "name": "Sportpark Boszoom-Zuid"
+            },
+            "id": "sportpark-boszoom-zuid"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.425048,
+                51.918839
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-2"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.470375,
+                51.919369
+              ]
+            },
+            "properties": {
+              "name": "Wijkpark Oude Westen"
+            },
+            "id": "wijkpark-oude-westen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.472943,
+                51.911605
+              ]
+            },
+            "properties": {
+              "name": "Museumpark"
+            },
+            "id": "museumpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.58682,
+                51.945151
+              ]
+            },
+            "properties": {
+              "name": "Het Schollebos"
+            },
+            "id": "het-schollebos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.520982,
+                51.875777
+              ]
+            },
+            "properties": {
+              "name": "Spinozapark"
+            },
+            "id": "spinozapark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.483506,
+                51.904064
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-3"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.547502,
+                51.935393
+              ]
+            },
+            "properties": {
+              "name": "Prinsenpark"
+            },
+            "id": "prinsenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.480194,
+                51.899021
+              ]
+            },
+            "properties": {
+              "name": "Kaappark"
+            },
+            "id": "kaappark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.32238,
+                51.931028
+              ]
+            },
+            "properties": {
+              "name": "Broekpolder"
+            },
+            "id": "broekpolder"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.591891,
+                51.957065
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-4"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.464667,
+                51.896722
+              ]
+            },
+            "properties": {
+              "name": "Dokhavenpark"
+            },
+            "id": "dokhavenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.427978,
+                51.938299
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-5"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.42271,
+                51.915838
+              ]
+            },
+            "properties": {
+              "name": "Serumpark"
+            },
+            "id": "serumpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.503935,
+                51.872869
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-6"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.501283,
+                51.885767
+              ]
+            },
+            "properties": {
+              "name": "Valkeniersweide"
+            },
+            "id": "valkeniersweide"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.518823,
+                51.88316
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-7"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.551682,
+                51.878727
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-8"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.512027,
+                51.88065
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-9"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.504522,
+                51.838396
+              ]
+            },
+            "properties": {
+              "name": "Jan Gerritse Polder"
+            },
+            "id": "jan-gerritse-polder"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.477454,
+                51.857077
+              ]
+            },
+            "properties": {
+              "name": "Bakkerspark"
+            },
+            "id": "bakkerspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.467863,
+                51.897105
+              ]
+            },
+            "properties": {
+              "name": "Maastunnelpark"
+            },
+            "id": "maastunnelpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.341081,
+                51.852024
+              ]
+            },
+            "properties": {
+              "name": "Park De Vier Werelden"
+            },
+            "id": "park-de-vier-werelden"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.518224,
+                51.893012
+              ]
+            },
+            "properties": {
+              "name": "West-Varkenoordsepark"
+            },
+            "id": "west-varkenoordsepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.492369,
+                51.853053
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-10"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.531461,
+                51.850251
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-11"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.574141,
+                51.962661
+              ]
+            },
+            "properties": {
+              "name": "Zuidelijk Wijkpark"
+            },
+            "id": "zuidelijk-wijkpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.569425,
+                51.967742
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-12"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.585256,
+                51.976363
+              ]
+            },
+            "properties": {
+              "name": "Rietveldpark"
+            },
+            "id": "rietveldpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.588545,
+                51.980381
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-13"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.59143,
+                51.981497
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-14"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.501822,
+                51.906317
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-15"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.2188,
+                51.938501
+              ]
+            },
+            "properties": {
+              "name": "Doctor Albert Schweitzerpark"
+            },
+            "id": "doctor-albert-schweitzerpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.223546,
+                51.941565
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-16"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.615674,
+                51.912988
+              ]
+            },
+            "properties": {
+              "name": "Hoge Vijver"
+            },
+            "id": "hoge-vijver"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.249645,
+                51.822752
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-17"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.219706,
+                51.935532
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-18"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.524459,
+                51.867272
+              ]
+            },
+            "properties": {
+              "name": "Kooiwalbos"
+            },
+            "id": "kooiwalbos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.500657,
+                51.866685
+              ]
+            },
+            "properties": {
+              "name": "Vrijenburgbos"
+            },
+            "id": "vrijenburgbos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.589217,
+                51.873455
+              ]
+            },
+            "properties": {
+              "name": "Lohmanpark"
+            },
+            "id": "lohmanpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.343668,
+                51.929593
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-19"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.543802,
+                51.963914
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-20"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.363317,
+                51.832825
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-21"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.369501,
+                51.827781
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-22"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.368183,
+                51.828821
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-23"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.344475,
+                51.830213
+              ]
+            },
+            "properties": {
+              "name": "Park Waterland"
+            },
+            "id": "park-waterland"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.341804,
+                51.835438
+              ]
+            },
+            "properties": {
+              "name": "De Eendenkooi"
+            },
+            "id": "de-eendenkooi"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.54801,
+                51.883147
+              ]
+            },
+            "properties": {
+              "name": "Park van Morgen"
+            },
+            "id": "park-van-morgen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.554049,
+                51.911055
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-24"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.461863,
+                51.909172
+              ]
+            },
+            "properties": {
+              "name": "Tuschinskipark"
+            },
+            "id": "tuschinskipark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.492472,
+                51.89147
+              ]
+            },
+            "properties": {
+              "name": "Millinxpark"
+            },
+            "id": "millinxpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.456699,
+                51.927592
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-25"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.47461,
+                51.956221
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-26"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.467686,
+                51.962496
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-27"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.498144,
+                51.924305
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-28"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.478003,
+                51.938803
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-29"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.428631,
+                51.932023
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-30"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.440358,
+                51.936416
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-31"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.403647,
+                51.911282
+              ]
+            },
+            "properties": {
+              "name": "De Plantage"
+            },
+            "id": "de-plantage"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.389478,
+                51.91735
+              ]
+            },
+            "properties": {
+              "name": "Strickledepark"
+            },
+            "id": "strickledepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.383629,
+                51.911425
+              ]
+            },
+            "properties": {
+              "name": "Rubensplein"
+            },
+            "id": "rubensplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.33051,
+                51.911716
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-32"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349679,
+                51.845989
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-33"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.354231,
+                51.845626
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-34"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.35435,
+                51.845458
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-35"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.32461,
+                51.839978
+              ]
+            },
+            "properties": {
+              "name": "Park Sterrenkwartier"
+            },
+            "id": "park-sterrenkwartier"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.470429,
+                51.906195
+              ]
+            },
+            "properties": {
+              "name": "Het Park"
+            },
+            "id": "het-park"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.475892,
+                51.899273
+              ]
+            },
+            "properties": {
+              "name": "Kaappark"
+            },
+            "id": "kaappark-2"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.538458,
+                51.962619
+              ]
+            },
+            "properties": {
+              "name": "Wijktuin Ommoord"
+            },
+            "id": "wijktuin-ommoord"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.400775,
+                51.917401
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-36"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.389496,
+                51.910159
+              ]
+            },
+            "properties": {
+              "name": "Julianapark"
+            },
+            "id": "julianapark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.427747,
+                51.931732
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-37"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.596274,
+                51.918675
+              ]
+            },
+            "properties": {
+              "name": "Middenweteringpark"
+            },
+            "id": "middenweteringpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.474724,
+                51.918207
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-38"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.228968,
+                51.913708
+              ]
+            },
+            "properties": {
+              "name": "Dorpstuin"
+            },
+            "id": "dorpstuin"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.43854,
+                51.942623
+              ]
+            },
+            "properties": {
+              "name": "Park de Buitenplaats"
+            },
+            "id": "park-de-buitenplaats"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.505961,
+                51.904139
+              ]
+            },
+            "properties": {
+              "name": "Spoorweghavenplein"
+            },
+            "id": "spoorweghavenplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.448096,
+                51.921995
+              ]
+            },
+            "properties": {
+              "name": "Essenburgpark"
+            },
+            "id": "essenburgpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.431556,
+                51.942865
+              ]
+            },
+            "properties": {
+              "name": "Rosarium"
+            },
+            "id": "rosarium"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.500938,
+                51.883482
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-39"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.545452,
+                51.890825
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-40"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.471372,
+                51.893164
+              ]
+            },
+            "properties": {
+              "name": "Karel de Stouteplein"
+            },
+            "id": "karel-de-stouteplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.460027,
+                51.885781
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-41"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.469706,
+                51.929924
+              ]
+            },
+            "properties": {
+              "name": "Heulpark"
+            },
+            "id": "heulpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.46458,
+                51.903125
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-42"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.472978,
+                51.866359
+              ]
+            },
+            "properties": {
+              "name": "Drechterweide"
+            },
+            "id": "drechterweide"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.51333,
+                51.902972
+              ]
+            },
+            "properties": {
+              "name": "Mallegatpark"
+            },
+            "id": "mallegatpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.480776,
+                51.925955
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-43"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.477225,
+                51.913237
+              ]
+            },
+            "properties": {
+              "name": "Eendrachtstuin"
+            },
+            "id": "eendrachtstuin"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.461845,
+                51.908165
+              ]
+            },
+            "properties": {
+              "name": "Zonne Tuin"
+            },
+            "id": "zonne-tuin"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.586212,
+                51.847523
+              ]
+            },
+            "properties": {
+              "name": "Waalbos"
+            },
+            "id": "waalbos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.486988,
+                51.896168
+              ]
+            },
+            "properties": {
+              "name": "Balkon aan de Maashaven"
+            },
+            "id": "balkon-aan-de-maashaven"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.471549,
+                51.915008
+              ]
+            },
+            "properties": {
+              "name": "De Nieuwe Tuin"
+            },
+            "id": "de-nieuwe-tuin"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.395112,
+                51.855686
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-44"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.39219,
+                51.855496
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-45"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.479839,
+                51.939302
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-46"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.235339,
+                51.930043
+              ]
+            },
+            "properties": {
+              "name": "Koningshofpark"
+            },
+            "id": "koningshofpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.560302,
+                51.901925
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-47"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.461014,
+                51.908106
+              ]
+            },
+            "properties": {
+              "name": "Kleine Avonturen"
+            },
+            "id": "kleine-avonturen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.616205,
+                51.92243
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-48"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.500676,
+                51.912131
+              ]
+            },
+            "properties": {
+              "name": "Hefpark"
+            },
+            "id": "hefpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.513494,
+                51.928594
+              ]
+            },
+            "properties": {
+              "name": "Rozenburg Park"
+            },
+            "id": "rozenburg-park"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.473451,
+                51.908902
+              ]
+            },
+            "properties": {
+              "name": "Historische Tuin Schoonoord"
+            },
+            "id": "historische-tuin-schoonoord"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.505165,
+                51.908968
+              ]
+            },
+            "properties": {
+              "name": "Rosepark"
+            },
+            "id": "rosepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.482843,
+                51.924609
+              ]
+            },
+            "properties": {
+              "name": "Sint Jacobspark"
+            },
+            "id": "sint-jacobspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.501245,
+                51.900028
+              ]
+            },
+            "properties": {
+              "name": "Afrikaanderpark"
+            },
+            "id": "afrikaanderpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.480113,
+                51.901804
+              ]
+            },
+            "properties": {
+              "name": "Buizenpark"
+            },
+            "id": "buizenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.51145,
+                51.910606
+              ]
+            },
+            "properties": {
+              "name": "Helderheidplein"
+            },
+            "id": "helderheidplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.431962,
+                51.935725
+              ]
+            },
+            "properties": {
+              "name": "Sidelingepark"
+            },
+            "id": "sidelingepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.574853,
+                51.972878
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-49"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.553575,
+                51.917748
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-50"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.483539,
+                51.864976
+              ]
+            },
+            "properties": {
+              "name": "Clarabos"
+            },
+            "id": "clarabos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.569748,
+                51.895821
+              ]
+            },
+            "properties": {
+              "name": "Slangenburgplein"
+            },
+            "id": "slangenburgplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.570143,
+                51.898274
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-51"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.567731,
+                51.893145
+              ]
+            },
+            "properties": {
+              "name": "Schinnenbaan"
+            },
+            "id": "schinnenbaan"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.228731,
+                51.934997
+              ]
+            },
+            "properties": {
+              "name": "Vrijheidspark"
+            },
+            "id": "vrijheidspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.26705,
+                51.923414
+              ]
+            },
+            "properties": {
+              "name": "Wipperspark"
+            },
+            "id": "wipperspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.263005,
+                51.921067
+              ]
+            },
+            "properties": {
+              "name": "Vondelpark"
+            },
+            "id": "vondelpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.243201,
+                51.926314
+              ]
+            },
+            "properties": {
+              "name": "Van Beethovenpark"
+            },
+            "id": "van-beethovenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.366914,
+                51.931014
+              ]
+            },
+            "properties": {
+              "name": "Groenoord Park"
+            },
+            "id": "groenoord-park"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.320728,
+                51.91058
+              ]
+            },
+            "properties": {
+              "name": "Marnixplantsoen"
+            },
+            "id": "marnixplantsoen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.510498,
+                51.870312
+              ]
+            },
+            "properties": {
+              "name": "Yarden Gedenkpark"
+            },
+            "id": "yarden-gedenkpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.486852,
+                51.936909
+              ]
+            },
+            "properties": {
+              "name": "Zwaanshalspark"
+            },
+            "id": "zwaanshalspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.396833,
+                51.891455
+              ]
+            },
+            "properties": {
+              "name": "Deijffelbroeksepark"
+            },
+            "id": "deijffelbroeksepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.469261,
+                51.891806
+              ]
+            },
+            "properties": {
+              "name": "Gouwplein"
+            },
+            "id": "gouwplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.596933,
+                51.890916
+              ]
+            },
+            "properties": {
+              "name": "Donckse Griend"
+            },
+            "id": "donckse-griend"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.222625,
+                51.920284
+              ]
+            },
+            "properties": {
+              "name": "Calandpark"
+            },
+            "id": "calandpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.497574,
+                51.863152
+              ]
+            },
+            "properties": {
+              "name": "Carnisserpark"
+            },
+            "id": "carnisserpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.521647,
+                51.911139
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-52"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.521422,
+                51.910863
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-53"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.523423,
+                51.908667
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-54"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.513647,
+                51.920458
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-55"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.524475,
+                51.917699
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-56"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.526662,
+                51.916145
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-57"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.517396,
+                51.936537
+              ]
+            },
+            "properties": {
+              "name": "Kralingse Bos"
+            },
+            "id": "kralingse-bos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.425633,
+                51.940265
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-58"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.455803,
+                51.948051
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-59"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.535519,
+                51.930467
+              ]
+            },
+            "properties": {
+              "name": "Sportpark Victoria"
+            },
+            "id": "sportpark-victoria"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.461081,
+                51.916397
+              ]
+            },
+            "properties": {
+              "name": "Branco van Dantzigpark"
+            },
+            "id": "branco-van-dantzigpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.312229,
+                51.832785
+              ]
+            },
+            "properties": {
+              "name": "Park aan de Walvisstaarten"
+            },
+            "id": "park-aan-de-walvisstaarten"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.324356,
+                51.836639
+              ]
+            },
+            "properties": {
+              "name": "Park Voorde"
+            },
+            "id": "park-voorde"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.330814,
+                51.846447
+              ]
+            },
+            "properties": {
+              "name": "Park Spijkenisse Centrum"
+            },
+            "id": "park-spijkenisse-centrum"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.33465,
+                51.838661
+              ]
+            },
+            "properties": {
+              "name": "Park Groenewoud"
+            },
+            "id": "park-groenewoud"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.458664,
+                51.923044
+              ]
+            },
+            "properties": {
+              "name": "De Spoortuin"
+            },
+            "id": "de-spoortuin"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.401585,
+                51.916757
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-60"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.504159,
+                51.846128
+              ]
+            },
+            "properties": {
+              "name": "Kreeftwater"
+            },
+            "id": "kreeftwater"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.518197,
+                51.914505
+              ]
+            },
+            "properties": {
+              "name": "De Plantage"
+            },
+            "id": "de-plantage-2"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.513974,
+                51.917207
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-61"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.483931,
+                51.938706
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-62"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.466692,
+                51.963606
+              ]
+            },
+            "properties": {
+              "name": "Wilgenplaspark"
+            },
+            "id": "wilgenplaspark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.471767,
+                51.9292
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-63"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.469148,
+                51.947132
+              ]
+            },
+            "properties": {
+              "name": "Melanchtonpark"
+            },
+            "id": "melanchtonpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.477754,
+                51.958106
+              ]
+            },
+            "properties": {
+              "name": "Park de Meidoornweide"
+            },
+            "id": "park-de-meidoornweide"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.488751,
+                51.959311
+              ]
+            },
+            "properties": {
+              "name": "Argonautenpark"
+            },
+            "id": "argonautenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.537666,
+                51.83971
+              ]
+            },
+            "properties": {
+              "name": "Landschapspark Zuidpolder"
+            },
+            "id": "landschapspark-zuidpolder"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.332124,
+                51.829437
+              ]
+            },
+            "properties": {
+              "name": "Park Braband"
+            },
+            "id": "park-braband"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.224627,
+                51.930913
+              ]
+            },
+            "properties": {
+              "name": "Sterrenbos"
+            },
+            "id": "sterrenbos"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.617106,
+                51.862162
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-64"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.439157,
+                51.91294
+              ]
+            },
+            "properties": {
+              "name": "Park 1943"
+            },
+            "id": "park-1943"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.37743,
+                51.938874
+              ]
+            },
+            "properties": {
+              "name": "Park Kethel"
+            },
+            "id": "park-kethel"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.591849,
+                51.979863
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-65"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.428874,
+                51.93394
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-66"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.464154,
+                51.877186
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-67"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349825,
+                51.85902
+              ]
+            },
+            "properties": {
+              "name": "Oedenvlietsepark"
+            },
+            "id": "oedenvlietsepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.385847,
+                51.882122
+              ]
+            },
+            "properties": {
+              "name": "Pernisserpark"
+            },
+            "id": "pernisserpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.508315,
+                51.912387
+              ]
+            },
+            "properties": {
+              "name": "Nassaupark"
+            },
+            "id": "nassaupark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.485776,
+                51.873011
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-68"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.483076,
+                51.888073
+              ]
+            },
+            "properties": {
+              "name": "Amelandseplein"
+            },
+            "id": "amelandseplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.49988,
+                51.894524
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-69"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.579184,
+                51.970691
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-70"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.566021,
+                51.944341
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-71"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.479647,
+                51.95441
+              ]
+            },
+            "properties": {
+              "name": "Berg- en Broekpark"
+            },
+            "id": "berg-en-broekpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.379472,
+                51.941056
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-72"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.51499,
+                51.954888
+              ]
+            },
+            "properties": {
+              "name": "Molenpark"
+            },
+            "id": "molenpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.61422,
+                51.915589
+              ]
+            },
+            "properties": {
+              "name": "Zwaneneiland"
+            },
+            "id": "zwaneneiland"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.54757,
+                51.961736
+              ]
+            },
+            "properties": {
+              "name": "Albert Schweizerplantsoen"
+            },
+            "id": "albert-schweizerplantsoen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.491784,
+                51.964471
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-73"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.344534,
+                51.872993
+              ]
+            },
+            "properties": {
+              "name": "Chill-Hill"
+            },
+            "id": "chill-hill"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.479133,
+                51.926819
+              ]
+            },
+            "properties": {
+              "name": "Luchtpark Hofbogen"
+            },
+            "id": "luchtpark-hofbogen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.339873,
+                51.907618
+              ]
+            },
+            "properties": {
+              "name": "Doctor Sacharovplaats"
+            },
+            "id": "doctor-sacharovplaats"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.577422,
+                51.97693
+              ]
+            },
+            "properties": {
+              "name": "Oeverpark"
+            },
+            "id": "oeverpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.352146,
+                51.909366
+              ]
+            },
+            "properties": {
+              "name": "Verploegh Chasséplein"
+            },
+            "id": "verploegh-chasseplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.454241,
+                51.94784
+              ]
+            },
+            "properties": {
+              "name": "Westerdijkpark"
+            },
+            "id": "westerdijkpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.574427,
+                51.89919
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-74"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.492726,
+                51.92703
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-75"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.505367,
+                51.927899
+              ]
+            },
+            "properties": {
+              "name": "Nieuwe Plantage"
+            },
+            "id": "nieuwe-plantage"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.343314,
+                51.930037
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-76"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.475408,
+                51.918372
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-77"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.566129,
+                51.944903
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-78"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.348286,
+                51.92855
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-79"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349587,
+                51.927473
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-80"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.350054,
+                51.928604
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-81"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.591381,
+                51.974728
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-82"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.460711,
+                51.933606
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-83"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.357763,
+                51.932698
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-84"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.352549,
+                51.931737
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-85"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.35273,
+                51.931505
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-86"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.352562,
+                51.934862
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-87"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.371859,
+                51.92191
+              ]
+            },
+            "properties": {
+              "name": "Park Harga"
+            },
+            "id": "park-harga"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.437385,
+                51.940657
+              ]
+            },
+            "properties": {
+              "name": "De IJskelder"
+            },
+            "id": "de-ijskelder"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.4867,
+                51.904564
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-88"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.433911,
+                51.916272
+              ]
+            },
+            "properties": {
+              "name": "Bellamyplein"
+            },
+            "id": "bellamyplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.408514,
+                51.953583
+              ]
+            },
+            "properties": {
+              "name": "Buitenplaats De Tempel"
+            },
+            "id": "buitenplaats-de-tempel"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.498999,
+                51.915577
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-89"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.497133,
+                51.914806
+              ]
+            },
+            "properties": {
+              "name": "Ons Park"
+            },
+            "id": "ons-park"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.56188,
+                51.93342
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-90"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.243786,
+                51.934949
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-91"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.456425,
+                51.932616
+              ]
+            },
+            "properties": {
+              "name": "Park Statenweg"
+            },
+            "id": "park-statenweg"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.421092,
+                51.916323
+              ]
+            },
+            "properties": {
+              "name": "Landenplein"
+            },
+            "id": "landenplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.617836,
+                51.862535
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-92"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.36967,
+                51.94991
+              ]
+            },
+            "properties": {
+              "name": "Woudhoek"
+            },
+            "id": "woudhoek"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.34041,
+                51.9448
+              ]
+            },
+            "properties": {
+              "name": "Holierhoek"
+            },
+            "id": "holierhoek"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.253799,
+                51.924831
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-93"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.452851,
+                51.906135
+              ]
+            },
+            "properties": {
+              "name": "De Schat van Schoonderloo"
+            },
+            "id": "de-schat-van-schoonderloo"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.522887,
+                51.959405
+              ]
+            },
+            "properties": {
+              "name": "Terbregsepark"
+            },
+            "id": "terbregsepark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.257252,
+                51.920718
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-94"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.225212,
+                51.934951
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-95"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.33762,
+                51.90499
+              ]
+            },
+            "properties": {
+              "name": "Mendelssohnplein"
+            },
+            "id": "mendelssohnplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.3671,
+                51.941171
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-96"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.312182,
+                51.9069
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-97"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349751,
+                51.905145
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-98"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.3509,
+                51.905532
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-99"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.346028,
+                51.907159
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-100"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.349896,
+                51.917004
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-101"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.371162,
+                51.849899
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-102"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.439614,
+                51.937529
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-103"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.450382,
+                51.946476
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-104"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.23298,
+                51.904646
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-105"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.473193,
+                51.947156
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-106"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.464268,
+                51.94105
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-107"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.518682,
+                51.950352
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-108"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.519501,
+                51.950539
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-109"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.466799,
+                51.936554
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-110"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.467156,
+                51.932657
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-111"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.438586,
+                51.908628
+              ]
+            },
+            "properties": {
+              "name": "Dakpark"
+            },
+            "id": "dakpark"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.475174,
+                51.933089
+              ]
+            },
+            "properties": {
+              "name": "Bleiswijkplein"
+            },
+            "id": "bleiswijkplein"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.557741,
+                51.91792
+              ]
+            },
+            "properties": {
+              "name": "Unnamed park"
+            },
+            "id": "unnamed-park-112"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.625522,
+                51.869344
+              ]
+            },
+            "properties": {
+              "name": "De Gorzen"
+            },
+            "id": "de-gorzen"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.519804,
+                51.92028
+              ]
+            },
+            "properties": {
+              "name": "Arboretum Trompenburg"
+            },
+            "id": "arboretum-trompenburg"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.475003,
+                51.968205
+              ]
+            },
+            "properties": {
+              "name": "Schiebroekse Park"
+            },
+            "id": "schiebroekse-park"
+          },
+          {
+            "type": "Feature",
+            "geometry": {
+              "type": "Point",
+              "coordinates": [
+                4.364333,
+                51.916982
+              ]
+            },
+            "properties": {
+              "name": "Park 't Nieuwelant"
+            },
+            "id": "park-t-nieuwelant"
+          }
+        ]
+      }
     }
   ]
 }
