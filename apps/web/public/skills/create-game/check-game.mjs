@@ -155,6 +155,12 @@ export function questionLabel(name, kind, family) {
   return /^tentacles?\b/i.test(name) ? name : `Tentacles: ${name}`;
 }
 
+/** A radius as the app shows it (see formatRadius in compile.ts): "500 m", "2 km". */
+const formatRadius = (value, unit) =>
+  unit === "meters" && value >= 1000 && value % 100 === 0
+    ? `${value / 1000} km`
+    : `${value} ${{ meters: "m", kilometers: "km", miles: "mi" }[unit]}`;
+
 /**
  * Checks a parsed game definition. `fileSize` (bytes) enables the file size
  * warning. Returns { errors, warnings, notes, questions }: issues are
@@ -572,8 +578,13 @@ export function checkGame(def, { fileSize } = {}) {
 
   const questions = [];
   if (errors.length === 0) {
-    if (Array.isArray(def.radars)) questions.push({ kind: "radar", label: `radii ${def.radars.join(", ")}` });
-    else if (def.radars === true) questions.push({ kind: "radar", label: `${hz.radius ?? 400}` });
+    // Worded like the app's: any radius, with the declared radii as presets.
+    const radii = Array.isArray(def.radars) ? [...new Set(def.radars)] : def.radars === true ? [hz.radius ?? 400] : [];
+    if (radii.length) {
+      const unit = def.unit ?? hz.unit ?? "meters";
+      const presets = radii.map((r) => formatRadius(r, unit)).join(", ");
+      questions.push({ kind: "radar", label: radii.length > 1 ? `any radius (presets ${presets})` : `any radius (starts at ${presets})` });
+    }
     if (def.thermometer === true) questions.push({ kind: "thermometer", label: "" });
     for (const { name, kinds, family } of layerInfo) {
       for (const kind of kinds) {

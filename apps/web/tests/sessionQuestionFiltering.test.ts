@@ -27,7 +27,7 @@ describe("session question support filtering", () => {
     it("keeps the game's declared questions and player-drawn custom questions", () => {
         const result = filterSupportedQuestions(
             [radius, custom, legacy],
-            compiled(["radius-400", "radius"]),
+            compiled(["radius", "radius"]),
         );
         expect(result).toEqual([radius, custom]);
     });

@@ -72,18 +72,14 @@ interface CompiledFeatureQuestionData {
 export function resolveCompiledQuestion(question: any, compiled: any): any {
     if (!compiled || !question) return undefined;
     const family = question.id === "tentacles" ? "tentacle" : question.id;
-    // Radar and thermometer questions carry no definition ID, and a game may
-    // compile several radars (`radius-400`, `radius-600`), so match by family.
-    if (family === "radius" || family === "thermometer") {
-        for (const definition of compiled.questionMap.values()) {
-            if (definition.family === family) return definition;
-        }
-        return undefined;
-    }
+    // Radar and thermometer questions carry no definition ID: a game compiles
+    // at most one of each, under the family's name.
     const id =
-        family === "tentacle"
-            ? question.data?.locationType
-            : question.data?.type;
+        family === "radius" || family === "thermometer"
+            ? family
+            : family === "tentacle"
+              ? question.data?.locationType
+              : question.data?.type;
     const definition = compiled.questionMap.get(id ?? question.id);
     return definition?.family === family ? definition : undefined;
 }

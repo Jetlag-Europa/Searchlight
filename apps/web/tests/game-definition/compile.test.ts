@@ -32,7 +32,7 @@ describe("Runtime Compiler and Operator Dispatch", () => {
 
     expect(compiled.gameId).toBe("paris-2026");
     expect(compiled.hidingZones.stations?.length).toBe(412);
-    expect(compiled.questions.length).toBe(40);
+    expect(compiled.questions.length).toBe(39); // one radar for its two radii
     const innerRadius = compiled.hidingZones.getRadius("zone-1", "Inner");
     expect(innerRadius.value).toBe(400);
     expect(innerRadius.unit).toBe("meters");
@@ -105,8 +105,7 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(compiled.hidingZones.stations?.length).toBe(1);
     expect(compiled.hidingZones.getRadius("shinjuku", "Yamanote").value).toBe(500);
     expect(compiled.questions.map((q) => q.id)).toEqual([
-      "radius-300",
-      "radius-500",
+      "radius",
       "thermometer",
       "matching-shrines",
       "measuring-shrines",
@@ -297,14 +296,21 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     } as unknown as GameDefinition);
     const trueRadar = compiledTrue.questions.find((q) => q.family === "radius");
     expect(trueRadar?.id).toBe("radius");
-    expect(trueRadar?.defaults?.radius).toEqual({ value: 350, unit: "meters" });
+    expect(trueRadar?.label).toBe("Radar: any radius (starts at 350 m)");
+    expect(trueRadar?.defaults?.radii).toEqual([{ value: 350, unit: "meters" }]);
     expect(compiledTrue.questionMap.get("thermometer")?.family).toBe("thermometer");
 
-    // A list of radii -> one radar per radius
-    expect(
-      compileGameDefinition({ ...baseGame, radars: [350, 700] } as unknown as GameDefinition)
-        .questions.map((q) => q.id),
-    ).toEqual(["radius-350", "radius-700"]);
+    // A list of radii -> one radar, with the radii as its presets
+    const listed = compileGameDefinition({
+      ...baseGame,
+      radars: [350, 1000, 350],
+    } as unknown as GameDefinition).questions;
+    expect(listed.map((q) => q.id)).toEqual(["radius"]);
+    expect(listed[0].label).toBe("Radar: any radius (presets 350 m, 1 km)");
+    expect(listed[0].defaults?.radii).toEqual([
+      { value: 350, unit: "meters" },
+      { value: 1000, unit: "meters" },
+    ]);
   });
 
   it("keeps a name's own Nearest/Same/Tentacles prefix only when it is a whole word", () => {

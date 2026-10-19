@@ -151,23 +151,24 @@ export function compileGameDefinition(
   // offers only the questions it declares; nothing is enabled by default.
   const questions: QuestionDefinition[] = [];
 
-  // Radars
-  if (Array.isArray(definition.radars)) {
-    for (const r of definition.radars) {
-      questions.push({
-        id: `radius-${r}`,
-        family: "radius",
-        label: `Radar (${r} ${unit})`,
-        defaults: { radius: { value: r, unit }, within: true },
-        evaluator: { operator: "radius" },
-      });
-    }
-  } else if (definition.radars === true) {
+  // Radar: one question, asked at any radius. The declared radii (or the base
+  // hiding radius for `radars: true`) are where a new radar starts and the
+  // card's quick picks.
+  const radarValues = Array.isArray(definition.radars)
+    ? [...new Set(definition.radars)]
+    : definition.radars === true
+      ? [baseRadiusValue]
+      : [];
+  if (radarValues.length) {
+    const radii = radarValues.map((value): DistanceRadius => ({ value, unit }));
+    const presets = radii.map(formatRadius).join(", ");
     questions.push({
       id: "radius",
       family: "radius",
-      label: `Radar (${baseRadiusValue} ${unit})`,
-      defaults: { radius: baseRadius, within: true },
+      label: radii.length > 1
+        ? `Radar: any radius (presets ${presets})`
+        : `Radar: any radius (starts at ${presets})`,
+      defaults: { radii, within: true },
       evaluator: { operator: "radius" },
     });
   }
@@ -301,19 +302,25 @@ export function compileGameDefinition(
 }
 
 /**
- * The radii a game's radar questions start at, in declaration order: one per
- * `radars` entry, or the base hiding radius for `radars: true`. Empty when the
- * game declares no radar.
+ * The radii a game's radar questions start at, in declaration order: its
+ * `radars` entries, or the base hiding radius for `radars: true`. Empty when
+ * the game declares no radar.
  */
 export function radarRadii(
-  compiled: Pick<CompiledGame, "questions">,
+  compiled: Pick<CompiledGame, "questionMap">,
 ): DistanceRadius[] {
-  const radii: DistanceRadius[] = [];
-  for (const q of compiled.questions) {
-    const radius = q.family === "radius" ? (q.defaults?.radius as DistanceRadius | undefined) : undefined;
-    if (radius && !radii.some((r) => r.value === radius.value && r.unit === radius.unit)) {
-      radii.push(radius);
-    }
-  }
-  return radii;
+  const radar = compiled.questionMap.get("radius");
+  return (radar?.defaults?.radii as DistanceRadius[] | undefined) ?? [];
 }
+
+const UNIT_ABBREVIATIONS: Record<DistanceRadius["unit"], string> = {
+  meters: "m",
+  kilometers: "km",
+  miles: "mi",
+};
+
+/** A radius for people: 500 meters -> "500 m", 2000 meters -> "2 km". */
+export const formatRadius = ({ value, unit }: DistanceRadius) =>
+  unit === "meters" && value >= 1000 && value % 100 === 0
+    ? `${value / 1000} km`
+    : `${value} ${UNIT_ABBREVIATIONS[unit]}`;

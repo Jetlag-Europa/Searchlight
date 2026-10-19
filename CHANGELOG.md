@@ -3,6 +3,10 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Radar listed once, at any radius (2026-10-19)
+
+- The import page's and `/designer`'s "Questions offered" list shows a game's radar as one question, such as "Radar: any radius (presets 400 m, 600 m)" or "Radar: any radius (starts at 1 km)", instead of one "Radar (1000 meters)" line per declared size. The declared sizes were always only where a new radar starts and the radar card's quick picks; players can ask any radius. `check-game.mjs` lists it the same way.
+
 ## Fewer false heavy-geometry warnings (2026-10-19)
 
 - The game checker (on the import page, `/designer` and `check-game.mjs`) no longer warns about a region layer only used for matching because of its total vertex count: matching only ever works with the one region a seeker is in. It counts every vertex of layers used for measuring and of line layers used for matching, and the largest region of a region layer used for matching.
