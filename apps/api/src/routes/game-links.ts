@@ -102,22 +102,23 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
   );
 }
 
-// Under /game-links: using a link.
-export async function gameLinkRoutes(app: FastifyInstance) {
-  async function findActiveLink(token: string) {
-    const link = await prisma.gameLink.findUnique({
-      where: { token },
-      include: {
-        game: {
-          include: {
-            server: { select: { name: true } },
-            currentRevision: { select: { id: true, revision: true } },
-          },
+export async function findActiveLink(token: string) {
+  const link = await prisma.gameLink.findUnique({
+    where: { token },
+    include: {
+      game: {
+        include: {
+          server: { select: { name: true } },
+          currentRevision: { select: { id: true, revision: true } },
         },
       },
-    });
-    return link && !link.revokedAt ? link : null;
-  }
+    },
+  });
+  return link && !link.revokedAt ? link : null;
+}
+
+// Under /game-links: using a link.
+export async function gameLinkRoutes(app: FastifyInstance) {
 
   // GET /game-links/:token — public, no auth required
   app.get(
