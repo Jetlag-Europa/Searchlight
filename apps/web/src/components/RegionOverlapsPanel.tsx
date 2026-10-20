@@ -255,7 +255,7 @@ export function RegionOverlapsPanel({
                 the file. Fixing a layer gives each overlap to that region, so{" "}
                 <strong>players stay in the regions they were in</strong> (new
                 corners are rounded to about 0.1 m), and distances to a border
-                move by at most the overlap&apos;s width. A fixed layer is
+                move by at most as far as the overlap reaches. A fixed layer is
                 marked <code>noOverlaps</code>, which lets the app answer
                 distance-to-border questions faster.
             </p>
@@ -321,7 +321,7 @@ export function RegionOverlapsPanel({
                                                           "; ",
                                                       )}. Remove it or move it before them.`
                                                 : result.pieces.length
-                                                  ? `${result.pieces.length} overlap${result.pieces.length === 1 ? "" : "s"}, ${formatArea(area)} in all, the widest about ${widest < 10 ? widest.toFixed(1) : Math.round(widest)} m; ${check.zonesTouched} hiding zone${check.zonesTouched === 1 ? "" : "s"} reach into one.`
+                                                  ? `${result.pieces.length} overlap${result.pieces.length === 1 ? "" : "s"}, ${formatArea(area)} in all, reaching up to ${widest < 10 ? widest.toFixed(1) : Math.round(widest)} m into a region; ${check.zonesTouched} hiding zone${check.zonesTouched === 1 ? "" : "s"} reach into one.`
                                                   : check.flagged
                                                     ? "No overlaps; marked noOverlaps."
                                                     : "No overlaps; not marked yet."}
