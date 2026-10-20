@@ -13,7 +13,8 @@ Searchlight ships as two Docker images plus Postgres:
 On every push to `main`, the "Docker images" workflow builds both for
 `linux/amd64` and `linux/arm64` and pushes them to
 `ghcr.io/jetlag-europa/searchlight-{api,web}`, tagged `sha-<7-char commit>` and
-`latest`. Its web image is built for `https://api-searchlight.jetlageuropa.org`;
+`latest`. Publishing a release also tags its images with the version, such as
+`2.0.0` and `2.0` (see `docs/releases/README.md`). Its web image is built for `https://api-searchlight.jetlageuropa.org`;
 for any other API URL, build the images on the server.
 
 ## Compose files
@@ -77,7 +78,11 @@ docker image prune -f                         # drop the images the update repla
 Wait for the commit's "Docker images" run to finish before pulling; until it
 has, `latest` is still the previous commit.
 
-- **Roll back** or pin a version: set `SEARCHLIGHT_IMAGE_TAG=sha-<7-char commit>`
+- **Stay on a release:** set `SEARCHLIGHT_IMAGE_TAG` in `.env` to a release's
+  version, such as `2.0` (its latest fixes) or `2.0.0` (exactly that release),
+  then pull and `up -d`. Published releases are listed on
+  [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases).
+- **Roll back** or pin a commit: set `SEARCHLIGHT_IMAGE_TAG=sha-<7-char commit>`
   in `.env`, then pull and `up -d`. Remove it to follow `latest` again.
 - **Another API hostname:** change `PUBLIC_API_BASE` in `.env` and deploy with
   `--build` (or change the build arg in `.github/workflows/docker-images.yml`).
