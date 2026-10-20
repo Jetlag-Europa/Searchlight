@@ -3,6 +3,11 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Every matching cell while planning (2026-10-20)
+
+- A new option, **Show all matching cells when planning?**, draws the borders of every cell a matching question could answer with, not just the seeker's own, while planning mode is on. They are drawn thin and faint behind the seeker's cell, clipped to the play area and simplified. It works for "nearest" questions on point layers, for "same region" questions, and for custom points; line layers such as rivers and rail lines still show only the seeker's cell. Dragging the pin reuses the drawn borders, so only the seeker's cell is redrawn.
+- The option is off by default, as a layer with hundreds of cells can slow down the map in some browsers.
+
 ## Overlap check agrees with the checker (2026-10-20)
 
 - The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.

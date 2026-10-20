@@ -4,6 +4,7 @@ import {
     calculateDistance,
     type DistanceRequest,
 } from "./bufferGeometry";
+import { calculateCellBorders, type CellBordersRequest } from "./cellBorders";
 import type {
     BoundaryTargetRequest,
     ClipRequest,
@@ -30,6 +31,7 @@ import {
 type GeometryRequest =
     | BoundaryTargetRequest
     | BufferRequest
+    | CellBordersRequest
     | ClipRequest
     | FilterZoneRequest
     | DistanceRequest
@@ -44,6 +46,7 @@ async function calculate(request: GeometryRequest): Promise<unknown> {
     }
     if (request.kind === "clip") return calculateClip(request);
     if (request.kind === "union") return calculateUnion(request);
+    if (request.kind === "cellBorders") return calculateCellBorders(request);
     if (request.kind === "boundaryTarget") {
         return calculateBoundaryTarget(request);
     }

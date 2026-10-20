@@ -99,7 +99,7 @@ import {
     compiledGameAtom,
     setActiveGameDefinition,
 } from "@/game-definition/store";
-import { hiderMode, mapGeoJSON } from "@/lib/context";
+import { hiderMode, mapGeoJSON, showAllMatchingCells } from "@/lib/context";
 import {
     adjustMapGeoDataForQuestion,
     applyQuestionsToMapGeoData,
@@ -116,6 +116,7 @@ import {
     measuringQuestionSchema,
     tentacleQuestionSchema,
 } from "@/maps/schema";
+import { PLANNING_CONTEXT } from "@/maps/questions/operators/geometry";
 import { evaluateTentacleOperator } from "@/maps/questions/operators/tentacle";
 
 const playArea = turf.featureCollection([
@@ -558,5 +559,128 @@ describe("compiled planning and evaluation geometry", () => {
             false,
         );
         expect(result).toEqual(turf.featureCollection([]));
+    });
+});
+
+describe("planning with every matching cell shown", () => {
+    beforeEach(() => {
+        mapGeoJSON.set(playArea);
+        showAllMatchingCells.set(true);
+    });
+    afterEach(() => {
+        showAllMatchingCells.set(false);
+        mapGeoJSON.set(null);
+    });
+
+    const planned = async (type: string, key: number, extra = {}) =>
+        (await determinePlanningPolygon(
+            {
+                id: "matching" as const,
+                key,
+                data: matchingQuestionSchema.parse({
+                    type,
+                    lat: 0,
+                    lng: -0.04,
+                    drag: true,
+                    same: true,
+                    ...extra,
+                }),
+            },
+            true,
+        )) as FeatureCollection;
+    const contextOf = (preview: FeatureCollection) =>
+        preview.features.filter(
+            (feature) => feature.properties?.[PLANNING_CONTEXT],
+        );
+    const ownOf = (preview: FeatureCollection) =>
+        turf.featureCollection(
+            preview.features.filter(
+                (feature) => !feature.properties?.[PLANNING_CONTEXT],
+            ),
+        );
+    const distanceTo = (lines: Feature[], position: [number, number]) =>
+        Math.min(
+            ...turf
+                .flatten(turf.featureCollection(lines))
+                .features.map((line) =>
+                    turf.pointToLineDistance(
+                        turf.point(position),
+                        line as Feature<LineString>,
+                    ),
+                ),
+        );
+
+    it("draws the other points' cells within the play area, from the seeker's own tessellation", async () => {
+        const preview = await planned("matching-sites", 40);
+        const context = contextOf(preview);
+        expect(context).toHaveLength(1);
+        // East and North meet on y = x, away from the seeker's cell.
+        expect(distanceTo(context, [0.03, 0.03])).toBeLessThan(0.02);
+        expect(
+            distanceTo(ownOf(preview).features, [0.03, 0.03]),
+        ).toBeGreaterThan(1);
+        // Only borders between cells: the play area's edge isn't redrawn.
+        expect(distanceTo(context, [0.08, -0.05])).toBeGreaterThan(1);
+        turf.coordEach(context[0], ([x, y]) => {
+            expect(Math.abs(x)).toBeLessThanOrEqual(0.08 + 1e-9);
+            expect(Math.abs(y)).toBeLessThanOrEqual(0.08 + 1e-9);
+        });
+        expectLineAt(ownOf(preview), [0, -0.02]);
+        expect(geoSpatialVoronoiSafe).toHaveBeenCalledTimes(1);
+    });
+
+    it("draws every region's border", async () => {
+        const preview = await planned("matching-districts", 41);
+        const context = contextOf(preview);
+        expect(context).toHaveLength(1);
+        expect(distanceTo(context, [0.01, 0])).toBeLessThan(0.02);
+        expect(distanceTo(context, [0.06, 0])).toBeLessThan(0.02);
+    });
+
+    it("draws custom points' cells", async () => {
+        const preview = await planned("custom-points", 42, {
+            geo: [
+                turf.point([-0.04, 0]),
+                turf.point([0.04, 0]),
+                turf.point([0, 0.04]),
+            ],
+        });
+        const context = contextOf(preview);
+        expect(context).toHaveLength(1);
+        expect(distanceTo(context, [0.03, 0.03])).toBeLessThan(0.02);
+    });
+
+    it("still shows the seeker's cell when the other cells' borders fail", async () => {
+        const voronoi = vi.mocked(geoSpatialVoronoiSafe);
+        const build = voronoi.getMockImplementation()!;
+        // The seeker's cell builds first, then the borders' cells.
+        voronoi.mockImplementationOnce(build).mockImplementationOnce(() => {
+            throw new Error("No cells");
+        });
+        const preview = await planned("custom-points", 45, {
+            geo: [
+                turf.point([-0.04, 0.01]),
+                turf.point([0.04, 0.01]),
+                turf.point([0, 0.05]),
+            ],
+        });
+        expect(voronoi).toHaveBeenCalledTimes(2);
+        expect(
+            contextOf(turf.featureCollection(turf.flatten(preview).features)),
+        ).toHaveLength(0);
+        expectLineAt(preview, [0, -0.02]);
+    });
+
+    it("leaves line layers, and planning with the setting off, as they were", async () => {
+        expect(contextOf(await planned("matching-rails", 43))).toHaveLength(0);
+        showAllMatchingCells.set(false);
+        const preview = await planned("matching-sites", 44);
+        expect(
+            turf
+                .flatten(preview)
+                .features.some(
+                    (feature) => feature.properties?.[PLANNING_CONTEXT],
+                ),
+        ).toBe(false);
     });
 });

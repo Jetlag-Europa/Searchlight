@@ -249,6 +249,17 @@ export const drawingQuestionKey = atom<number>(-1);
 // bottom-bar "All Zones" button can clear it from outside the sidebar.
 export const hidingZoneFocusedStationID = atom<string>("");
 export const planningModeEnabled = atom<boolean>(false);
+// Draws every cell a matching question could answer with while planning, not
+// just the seeker's. Off by default: a layer with many cells can slow down
+// the map in some browsers.
+export const showAllMatchingCells = persistentAtom<boolean>(
+    "showAllMatchingCells",
+    false,
+    {
+        encode: JSON.stringify,
+        decode: JSON.parse,
+    },
+);
 export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
     encode: JSON.stringify,
     decode: JSON.parse,
