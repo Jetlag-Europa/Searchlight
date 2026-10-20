@@ -1,9 +1,4 @@
 import * as turf from "@turf/turf";
-import { geoMercator } from "d3-geo";
-// @ts-expect-error No type declaration
-import { geoProject, geoStitch } from "d3-geo-projection";
-// @ts-expect-error No type declaration
-import { geoVoronoi } from "d3-geo-voronoi";
 import type {
     BBox,
     Feature,
@@ -13,26 +8,9 @@ import type {
     Polygon,
 } from "geojson";
 
-const scaleReference = turf.toMercator(turf.point([180, 90])); // I thought this would yield the same as turf.earthRadius * Math.pi, but it's slightly larger
+import { distinctSites, geoSpatialVoronoi } from "./sphericalVoronoi";
 
-export const geoSpatialVoronoi = (
-    points: FeatureCollection<Point>,
-): FeatureCollection<Polygon | MultiPolygon> => {
-    const voronoi = geoVoronoi()(points).polygons();
-    const projected = geoProject(
-        geoStitch(voronoi),
-        geoMercator().translate([0, 0]).precision(0.005),
-    );
-
-    const ratio = scaleReference.geometry.coordinates[0] / 480.5; // 961 is the default scale for some reason
-
-    turf.coordEach(projected, (coord) => {
-        coord[0] = coord[0] * ratio;
-        coord[1] = coord[1] * -ratio; // y-coordinates are flipped
-    });
-
-    return turf.toWgs84(projected);
-};
+export { geoSpatialVoronoi };
 
 function to3D(lng: number, lat: number): [number, number, number] {
     const radLng = (lng * Math.PI) / 180;
@@ -202,26 +180,21 @@ function buildGnomonicCells(
     return turf.featureCollection(cells);
 }
 /**
- * Keep spherical cells when every distinct site has a valid cell containing it.
- * Degenerate spherical tessellations (including collinearity or tight clusters)
- * fall back to a planar partition of the caller's stable domain (either
- * Gnomonic great-circle approximation for regional domains or Mercator for
- * world-scale extents). These are honest planar approximations under geographic
- * projection rather than exact spherical partitions. Both paths retain the
- * original source site so consumers select a cell by identity.
+ * One cell per distinct site, the first of any repeated ones (see
+ * distinctSites), with the source site as `properties.site` so consumers
+ * select a cell by identity. The cells are geoSpatialVoronoi's, drawn finely
+ * inside `fallbackBbox`, as long as every site lies inside its own cell.
+ * Only sites within about 10 cm of each other fail that, when rounding puts
+ * their shared boundary on the wrong side of one of them. Then the cells
+ * fall back to a planar approximation over `fallbackBbox`: gnomonic for a
+ * regional domain, Mercator for a world-scale one.
  */
 export const geoSpatialVoronoiSafe = (
     points: FeatureCollection<Point>,
     fallbackBbox: BBox,
 ): FeatureCollection<Polygon | MultiPolygon> => {
-    const sites: Feature<Point>[] = [];
-    const coordinates = new Set<string>();
-    for (const point of points.features) {
-        const key = `${point.geometry.coordinates[0]}:${point.geometry.coordinates[1]}`;
-        if (coordinates.has(key)) continue;
-        coordinates.add(key);
-        sites.push(point);
-    }
+    const distinct = distinctSites(points.features);
+    const sites = points.features.filter((_, i) => distinct[i]);
     if (!sites.length) return turf.featureCollection([]);
     if (sites.length === 1) {
         const cell = turf.bboxPolygon(fallbackBbox);
@@ -233,24 +206,29 @@ export const geoSpatialVoronoiSafe = (
             ? points
             : turf.featureCollection(sites);
     try {
-        const spherical = geoSpatialVoronoi(distinctPoints);
+        const spherical = geoSpatialVoronoi(distinctPoints, fallbackBbox);
         const sound =
             spherical.features.length === sites.length &&
             spherical.features.every((feature) => {
                 const site = (
                     feature.properties as { site?: Feature<Point> } | undefined
                 )?.site;
+                if (!site) return false;
+                // Cells are drawn within longitudes -180 to 180.
+                const [lon, lat] = site.geometry.coordinates;
                 return (
-                    site &&
                     feature.geometry &&
                     (feature.geometry.type === "Polygon" ||
                         feature.geometry.type === "MultiPolygon") &&
-                    turf.booleanPointInPolygon(site, feature)
+                    turf.booleanPointInPolygon(
+                        [lon - 360 * Math.round(lon / 360), lat],
+                        feature,
+                    )
                 );
             });
         if (sound) return spherical;
     } catch {
-        // Spherical tessellation can fail for collinear or tightly clustered sites.
+        // Fall back to an approximation below.
     }
     const isWorld = fallbackBbox[0] <= -170 && fallbackBbox[2] >= 170;
     if (!isWorld && sites.length <= 64) {

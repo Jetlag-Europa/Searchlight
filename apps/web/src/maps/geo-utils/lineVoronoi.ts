@@ -25,7 +25,7 @@ export interface LineVoronoiRequest {
 // follow the closest approach of lines that do not meet, within these bounds.
 const MIN_STEP_KM = 0.025;
 const MAX_STEP_KM = 0.25;
-// Building the partition costs about 0.1 ms per sample.
+// Building the partition costs about 20–30 µs per sample.
 const MAX_SAMPLES = 20_000;
 
 /** Approximate gap between two bounding boxes, never more than the true gap. */
