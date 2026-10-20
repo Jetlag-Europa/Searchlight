@@ -62,6 +62,7 @@ describe("PREF_ENTRIES", () => {
         expect(keys).toContain("baseTileLayer");
         expect(keys).toContain("penToolbarVisible");
         expect(keys).toContain("showZoneNames");
+        expect(keys).toContain("lastSeenRelease");
     });
 });
 

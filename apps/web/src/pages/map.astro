@@ -20,6 +20,7 @@ import { CalculatingIndicator } from "@/components/CalculatingIndicator";
 import { ZonesLeftIndicator } from "@/components/ZonesLeftIndicator";
 import { PreferencesSync } from "@/components/PreferencesSync";
 import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
+import { WhatsNew } from "@/components/WhatsNew";
 ---
 <Layout className="bg-jetlag">
     <!--
@@ -54,6 +55,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
 
     <!-- CalculatingIndicator shows question results that take a while to work out -->
     <CalculatingIndicator client:only="react" />
+
+    <!-- WhatsNew shows a new release's notes once, after the session loads -->
+    <WhatsNew client:only="react" />
 
     <!-- The board; SessionManager makes it inert while the session picker is open -->
     <div id="map-board" class="contents">

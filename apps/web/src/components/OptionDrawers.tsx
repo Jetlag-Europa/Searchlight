@@ -42,6 +42,11 @@ import {
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
+import {
+    currentNotesVersion,
+    releaseName,
+    releaseNotesOpen,
+} from "@/lib/releaseNotes";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -129,6 +134,18 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                             Report a bug / suggest a feature
                         </Button>
                     </a>
+                    {currentNotesVersion && (
+                        <Button
+                            className="w-full h-auto whitespace-normal py-2 leading-tight shadow-md"
+                            onClick={() => {
+                                setNavOpen(false);
+                                releaseNotesOpen.set(true);
+                            }}
+                        >
+                            What&apos;s new in{" "}
+                            {releaseName(currentNotesVersion)}
+                        </Button>
+                    )}
                     <ShareDrawer
                         className="w-full shadow-md"
                         onOpen={() => setNavOpen(false)}

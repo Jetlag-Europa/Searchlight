@@ -1,5 +1,5 @@
 import type { UserPreferences } from "@searchlight/shared";
-import type { WritableAtom } from "nanostores";
+import { atom, type WritableAtom } from "nanostores";
 
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
 import {
@@ -16,6 +16,7 @@ import {
     thunderforestApiKey,
     warningAlarm,
 } from "@/lib/context";
+import { lastSeenRelease } from "@/lib/releaseNotes";
 
 export const PREF_ENTRIES: { key: keyof UserPreferences; atom: WritableAtom<any> }[] = [
     { key: "defaultUnit", atom: defaultUnit },
@@ -31,7 +32,11 @@ export const PREF_ENTRIES: { key: keyof UserPreferences; atom: WritableAtom<any>
     { key: "penToolbarVisible", atom: penToolbarVisible },
     { key: "showZoneNames", atom: showZoneNames },
     { key: "autoLockQuestions", atom: autoLockQuestions },
+    { key: "lastSeenRelease", atom: lastSeenRelease },
 ];
+
+// True once the account's preferences have loaded and replaced the local ones.
+export const preferencesLoaded = atom(false);
 
 export function collectPreferences(): UserPreferences {
     return Object.fromEntries(
