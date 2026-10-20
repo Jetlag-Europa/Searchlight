@@ -55,6 +55,29 @@ export interface RemoveRegionOverlapsRequest {
 const boxesMeet = (a: BBox, b: BBox) =>
     a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
 
+/**
+ * A region's box from its coordinates. Turf otherwise trusts a bbox member
+ * the file carries, which may be stale, rounded or 3D.
+ */
+const boxOf = (region: Region): BBox => turf.bbox(region, { recompute: true });
+
+/**
+ * The part of a region inside a box, or null if none is. Where the region
+ * reaches past a side and back, the clip joins the two along that side.
+ */
+function clipToBox(region: Region, box: BBox): Region | null {
+    // A polygon clips to a polygon.
+    const { geometry } = turf.bboxClip(region, box) as Region;
+    const polygons = (
+        geometry.type === "Polygon"
+            ? [geometry.coordinates]
+            : geometry.coordinates
+    )
+        .map((polygon) => polygon.filter((ring) => ring.length >= 4))
+        .filter((polygon) => polygon.length);
+    return polygons.length ? turf.multiPolygon(polygons) : null;
+}
+
 type Edge = [Position, Position];
 
 /** Meters from a point to the nearest of the edges, measured flat around it. */
@@ -192,10 +215,28 @@ function reach(piece: Polygon, regions: [Region, Region]): number {
 
 /** The pieces where two regions overlap, measured as OverlapPiece is. */
 function overlapPieces(a: Region, b: Region) {
-    const overlap = turf.intersect(turf.featureCollection([a, b]));
+    // Two regions can only overlap where their boxes do, and clipping both
+    // to that first leaves the intersection far fewer vertices to work
+    // through. A side a clip joins along is the other region's outermost
+    // line, so the join can't run through it and make an overlap.
+    const [ax0, ay0, ax1, ay1] = boxOf(a);
+    const [bx0, by0, bx1, by1] = boxOf(b);
+    const box: BBox = [
+        Math.max(ax0, bx0),
+        Math.max(ay0, by0),
+        Math.min(ax1, bx1),
+        Math.min(ay1, by1),
+    ];
+    const clippedA = clipToBox(a, box);
+    const clippedB = clipToBox(b, box);
+    if (!clippedA || !clippedB) return [];
+    const overlap = turf.intersect(
+        turf.featureCollection([clippedA, clippedB]),
+    );
     if (!overlap) return [];
     return turf.flatten(overlap).features.map((piece) => ({
         area: turf.area(piece),
+        // To the whole regions' borders: the box's sides aren't borders.
         width: reach(piece.geometry, [a, b]),
         geometry: piece.geometry,
     }));
@@ -207,7 +248,7 @@ const isHairline = ({ width }: { width: number }) => width < HAIRLINE_WIDTH;
 export function findRegionOverlaps({
     regions,
 }: Omit<RegionOverlapsRequest, "kind">): RegionOverlaps {
-    const boxes = regions.map((region) => turf.bbox(region));
+    const boxes = regions.map(boxOf);
     const pieces: OverlapPiece[] = [];
     const hidden: RegionOverlaps["hidden"] = [];
     let hairlines = 0;
@@ -248,9 +289,9 @@ export function findRegionOverlaps({
  */
 function removeOverlapsOf(regions: Region[], index: number): Region | null {
     let left: Region | null = regions[index];
-    const box = turf.bbox(left);
+    const box = boxOf(left);
     for (let earlier = 0; earlier < index && left; earlier++) {
-        if (!boxesMeet(turf.bbox(regions[earlier]), box)) continue;
+        if (!boxesMeet(boxOf(regions[earlier]), box)) continue;
         if (overlapPieces(left, regions[earlier]).every(isHairline)) continue;
         left = turf.difference(
             turf.featureCollection([left, regions[earlier]]),
