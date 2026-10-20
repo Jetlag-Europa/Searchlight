@@ -4,12 +4,16 @@ import type { BBox, Feature, MultiPolygon, Polygon, Position } from "geojson";
 type Region = Feature<Polygon | MultiPolygon>;
 
 /**
- * Overlaps narrower than this, or smaller in area, are rounding between
+ * Overlaps reaching less than this far into a region are rounding between
  * borders traced from the same data: they move a distance to a border by
- * less than the buffers' own tolerance (3 ft at least).
+ * less than the buffers' own tolerance (3 ft at least). check-game.mjs
+ * flags a layer marked noOverlaps by the same measure.
  */
 export const HAIRLINE_WIDTH = 0.5;
+/** What may be left of a region before it counts as lying inside others. */
 export const HAIRLINE_AREA = 1;
+
+const METERS_PER_DEGREE = (6371008.8 * Math.PI) / 180;
 
 export interface OverlapPiece {
     /** The regions overlapping, by index in the layer; `first` comes first. */
@@ -18,8 +22,9 @@ export interface OverlapPiece {
     /** Square meters. */
     area: number;
     /**
-     * About how wide the piece is in meters: twice its area over its
-     * perimeter, which is a sliver's width and a round piece's radius.
+     * How far the piece reaches into the regions in meters: the furthest
+     * any of its corners, or middles of its edges, lies from the border of
+     * the region it reaches into. A sliver's width, a spike's length.
      */
     width: number;
     geometry: Polygon;
@@ -50,26 +55,153 @@ export interface RemoveRegionOverlapsRequest {
 const boxesMeet = (a: BBox, b: BBox) =>
     a[0] <= b[2] && b[0] <= a[2] && a[1] <= b[3] && b[1] <= a[3];
 
-/** A piece of overlap's area, and width as OverlapPiece describes it. */
-function measure(piece: Feature<Polygon>) {
-    const area = turf.area(piece);
-    const perimeter = turf.length(turf.polygonToLine(piece), {
-        units: "meters",
-    });
-    return { area, width: perimeter ? (2 * area) / perimeter : 0 };
+type Edge = [Position, Position];
+
+/** Meters from a point to the nearest of the edges, measured flat around it. */
+function distanceToEdges(pt: Position, edges: Iterable<Edge>) {
+    const k = Math.cos((pt[1] * Math.PI) / 180);
+    const toXY = ([x, y]: Position) => [
+        (x - pt[0]) * k * METERS_PER_DEGREE,
+        (y - pt[1]) * METERS_PER_DEGREE,
+    ];
+    let nearest = Infinity;
+    for (const [from, to] of edges) {
+        const [ax, ay] = toXY(from);
+        const [bx, by] = toXY(to);
+        const dx = bx - ax;
+        const dy = by - ay;
+        const t =
+            dx || dy
+                ? Math.max(
+                      0,
+                      Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy)),
+                  )
+                : 0;
+        nearest = Math.min(nearest, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+    return nearest;
 }
 
-const isHairline = ({ area, width }: { area: number; width: number }) =>
-    area < HAIRLINE_AREA || width < HAIRLINE_WIDTH;
+/**
+ * A region's border edges filed under the grid cells they pass through,
+ * the cells about as wide as an edge is long, so the edges nearest a point
+ * are found by looking in the cells around it.
+ */
+interface EdgeGrid {
+    edges: Edge[];
+    /** Degrees, across and up. */
+    cell: number;
+    cells: Map<string, Edge[]>;
+}
 
-/** The pieces where two regions overlap by more than a hairline. */
-function realOverlaps(a: Region, b: Region): Feature<Polygon>[] {
+const edgeGrids = new WeakMap<Region, EdgeGrid>();
+
+function edgeGrid(region: Region): EdgeGrid {
+    const known = edgeGrids.get(region);
+    if (known) return known;
+    const rings =
+        region.geometry.type === "Polygon"
+            ? region.geometry.coordinates
+            : region.geometry.coordinates.flat();
+    const edges = rings.flatMap((ring) =>
+        ring.slice(1).map((pt, i): Edge => [ring[i], pt]),
+    );
+    const lengths = edges.map(([a, b]) => Math.hypot(b[0] - a[0], b[1] - a[1]));
+    const cell = Math.max(
+        lengths.reduce((sum, length) => sum + length, 0) / edges.length,
+        1e-7,
+    );
+    const cells = new Map<string, Edge[]>();
+    edges.forEach((edge, e) => {
+        const [a, b] = edge;
+        // Points half a cell apart along the edge land in every cell it
+        // crosses, but for corners it only clips.
+        const steps = Math.max(Math.ceil(lengths[e] / (cell / 2)), 1);
+        const keys = new Set<string>();
+        for (let i = 0; i <= steps; i++) {
+            const x = a[0] + ((b[0] - a[0]) * i) / steps;
+            const y = a[1] + ((b[1] - a[1]) * i) / steps;
+            keys.add(`${Math.floor(x / cell)},${Math.floor(y / cell)}`);
+        }
+        for (const key of keys) {
+            const filed = cells.get(key);
+            if (filed) filed.push(edge);
+            else cells.set(key, [edge]);
+        }
+    });
+    const grid = { edges, cell, cells };
+    edgeGrids.set(region, grid);
+    return grid;
+}
+
+/** Meters from a point to the nearest edge of a region's border. */
+function distanceToBorder(pt: Position, region: Region): number {
+    const { edges, cell, cells } = edgeGrid(region);
+    const k = Math.cos((pt[1] * Math.PI) / 180);
+    const cx = Math.floor(pt[0] / cell);
+    const cy = Math.floor(pt[1] / cell);
+    let nearest = Infinity;
+    for (let r = 0; ; r++) {
+        // Once the cells around would hold more than every edge, look at
+        // every edge.
+        if ((2 * r + 1) ** 2 > edges.length) {
+            return distanceToEdges(pt, edges);
+        }
+        for (let x = cx - r; x <= cx + r; x++) {
+            for (let y = cy - r; y <= cy + r; y++) {
+                if (Math.max(Math.abs(x - cx), Math.abs(y - cy)) < r) continue;
+                const filed = cells.get(`${x},${y}`);
+                if (filed) {
+                    nearest = Math.min(nearest, distanceToEdges(pt, filed));
+                }
+            }
+        }
+        // The cells looked in hold every edge passing within r cells of the
+        // point, less some clipping a corner of the outermost ring.
+        if (nearest <= (r - 1) * cell * k * METERS_PER_DEGREE) {
+            return nearest;
+        }
+    }
+}
+
+/**
+ * How far a piece of two regions' overlap reaches into them, as
+ * OverlapPiece's width. Each point of the piece's outline is on one
+ * region's border, so the further of its distances to the two borders is
+ * how deep it lies inside the other.
+ */
+function reach(piece: Polygon, regions: [Region, Region]): number {
+    let deepest = 0;
+    for (const ring of piece.coordinates) {
+        ring.forEach((pt, i) => {
+            const points = i
+                ? [pt, ring[i - 1].map((v, j) => (v + pt[j]) / 2)]
+                : [pt];
+            for (const point of points) {
+                for (const region of regions) {
+                    deepest = Math.max(
+                        deepest,
+                        distanceToBorder(point, region),
+                    );
+                }
+            }
+        });
+    }
+    return deepest;
+}
+
+/** The pieces where two regions overlap, measured as OverlapPiece is. */
+function overlapPieces(a: Region, b: Region) {
     const overlap = turf.intersect(turf.featureCollection([a, b]));
     if (!overlap) return [];
-    return turf
-        .flatten(overlap)
-        .features.filter((piece) => !isHairline(measure(piece)));
+    return turf.flatten(overlap).features.map((piece) => ({
+        area: turf.area(piece),
+        width: reach(piece.geometry, [a, b]),
+        geometry: piece.geometry,
+    }));
 }
+
+const isHairline = ({ width }: { width: number }) => width < HAIRLINE_WIDTH;
 
 /** Where the layer's regions overlap, and which are covered entirely. */
 export function findRegionOverlaps({
@@ -84,25 +216,17 @@ export function findRegionOverlaps({
         const by: number[] = [];
         for (let first = 0; first < second; first++) {
             if (!boxesMeet(boxes[first], boxes[second])) continue;
-            const overlap = turf.intersect(
-                turf.featureCollection([regions[first], regions[second]]),
-            );
-            if (!overlap) continue;
-            for (const piece of turf.flatten(overlap).features) {
-                const { area, width } = measure(piece);
-                if (isHairline({ area, width })) {
+            for (const piece of overlapPieces(
+                regions[first],
+                regions[second],
+            )) {
+                if (isHairline(piece)) {
                     hairlines++;
                     continue;
                 }
-                covered += area;
+                covered += piece.area;
                 if (!by.includes(first)) by.push(first);
-                pieces.push({
-                    first,
-                    second,
-                    area,
-                    width,
-                    geometry: piece.geometry,
-                });
+                pieces.push({ first, second, ...piece });
             }
         }
         // The overlaps add up to at least the ground they cover together
@@ -127,7 +251,7 @@ function removeOverlapsOf(regions: Region[], index: number): Region | null {
     const box = turf.bbox(left);
     for (let earlier = 0; earlier < index && left; earlier++) {
         if (!boxesMeet(turf.bbox(regions[earlier]), box)) continue;
-        if (!realOverlaps(left, regions[earlier]).length) continue;
+        if (overlapPieces(left, regions[earlier]).every(isHairline)) continue;
         left = turf.difference(
             turf.featureCollection([left, regions[earlier]]),
         );

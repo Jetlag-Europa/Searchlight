@@ -53,7 +53,7 @@ async function main() {
       const widest = Math.max(0, ...overlaps.pieces.map((p) => p.width));
       console.log(
         overlaps.pieces.length
-          ? `${label} "${layer.name}": fixed ${overlaps.pieces.length} overlaps, the widest ${widest.toFixed(1)} m`
+          ? `${label} "${layer.name}": fixed ${overlaps.pieces.length} overlaps, reaching up to ${widest.toFixed(1)} m`
           : `${label} "${layer.name}": no overlaps; marked`,
       );
       changed = true;

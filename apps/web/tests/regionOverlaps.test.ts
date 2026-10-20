@@ -63,6 +63,31 @@ describe("findRegionOverlaps", () => {
         expect(overlaps.hairlines).toBe(1);
     });
 
+    it("measures a spike by how far it reaches, however small", () => {
+        // A corner of b 1 m into a, on a 1.6 m base: 0.8 m², and on
+        // average under 0.4 m wide.
+        const meter = 1 / (111_195 * Math.cos((50.5 * Math.PI) / 180));
+        const b = turf.polygon(
+            [
+                [
+                    [1, 50],
+                    [2, 50],
+                    [2, 51],
+                    [1, 51],
+                    [1, 50.5 + 0.8 / 111_195],
+                    [1 - meter, 50.5],
+                    [1, 50.5 - 0.8 / 111_195],
+                    [1, 50],
+                ],
+            ],
+            { name: "b" },
+        ) as Region;
+        const overlaps = findRegionOverlaps({ regions: [box(0, 1, "a"), b] });
+        expect(overlaps.pieces).toHaveLength(1);
+        expect(overlaps.pieces[0].area).toBeLessThan(1);
+        expect(overlaps.pieces[0].width).toBeCloseTo(1, 1);
+    });
+
     it("finds a region entirely inside an earlier one", () => {
         const overlaps = findRegionOverlaps({
             regions: [box(0, 2, "outer"), box(0.5, 1, "inner", 50.2, 50.4)],

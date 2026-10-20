@@ -71,6 +71,8 @@ interface Loaded {
     noServer: boolean;
     /** Changed on the page since it was loaded. */
     changed: boolean;
+    /** How the file indents its JSON; empty when it is on one line. */
+    indent: string;
 }
 
 // Names come from the file: hand Leaflet a text node, never an HTML string.
@@ -141,14 +143,25 @@ function FitBounds({
     return null;
 }
 
-/** The file as it is saved, so a downloaded copy reads like the original. */
-const serialize = (definition: GameDefinition) =>
-    `${JSON.stringify(definition, null, 2)}\n`;
+/** The indent of a JSON file's first nested line; empty on one line. */
+const indentOf = (text: string) =>
+    /^\s*[{[][ \t]*\r?\n([ \t]+)/.exec(text)?.[1] ?? "";
+
+/**
+ * The file as it is saved, indented as the original was, so a downloaded
+ * copy reads like it and is no larger than it needs to be.
+ */
+const serialize = (definition: GameDefinition, indent: string) =>
+    indent
+        ? `${JSON.stringify(definition, null, indent)}\n`
+        : JSON.stringify(definition);
 
 async function inspectFile(file: File): Promise<Loaded> {
+    const text = await file.text();
+    const indent = indentOf(text);
     let parsed: any;
     try {
-        parsed = JSON.parse(await file.text());
+        parsed = JSON.parse(text);
     } catch (err: any) {
         return {
             fileName: file.name,
@@ -165,6 +178,7 @@ async function inspectFile(file: File): Promise<Loaded> {
             compiled: null,
             noServer: false,
             changed: false,
+            indent,
         };
     }
     // The import step fills in the server picked there.
@@ -173,7 +187,14 @@ async function inspectFile(file: File): Promise<Loaded> {
         parsed.serverId = "home-games";
         noServer = true;
     }
-    return inspectDefinition(parsed, file.name, file.size, noServer, false);
+    return inspectDefinition(
+        parsed,
+        file.name,
+        file.size,
+        noServer,
+        false,
+        indent,
+    );
 }
 
 async function inspectDefinition(
@@ -182,6 +203,7 @@ async function inspectDefinition(
     fileSize: number,
     noServer: boolean,
     changed: boolean,
+    indent: string,
 ): Promise<Loaded> {
     const result: Loaded = {
         fileName,
@@ -192,6 +214,7 @@ async function inspectDefinition(
         compiled: null,
         noServer,
         changed,
+        indent,
     };
     const validation = validateGameDefinition(parsed);
     if (!validation.valid) {
@@ -343,9 +366,10 @@ export function GameDesigner({
             const result = await inspectDefinition(
                 fixed,
                 loaded.fileName,
-                new Blob([serialize(fixed)]).size,
+                new Blob([serialize(fixed, loaded.indent)]).size,
                 loaded.noServer,
                 true,
+                loaded.indent,
             );
             if (load !== latestLoad.current) return;
             setLoaded(result);
@@ -361,7 +385,7 @@ export function GameDesigner({
         // Leave out the stand-in server the page filled in.
         if (loaded.noServer) delete definition.serverId;
         const url = URL.createObjectURL(
-            new Blob([serialize(definition as GameDefinition)], {
+            new Blob([serialize(definition as GameDefinition, loaded.indent)], {
                 type: "application/json",
             }),
         );

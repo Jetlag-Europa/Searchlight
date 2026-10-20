@@ -3,6 +3,11 @@
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
+## Overlap check agrees with the checker (2026-10-20)
+
+- The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.
+- The file the page offers for download after a fix keeps the original's formatting. A file on one line used to come back indented, several times larger: a 4.9 MB game came back as 23 MB, and the size warning then counted the larger copy.
+
 ## Radar listed once, at any radius (2026-10-19)
 
 - The import page's and `/designer`'s "Questions offered" list shows a game's radar as one question, such as "Radar: any radius (presets 400 m, 600 m)" or "Radar: any radius (starts at 1 km)", instead of one "Radar (1000 meters)" line per declared size. The declared sizes were always only where a new radar starts and the radar card's quick picks; players can ask any radius. `check-game.mjs` lists it the same way.
