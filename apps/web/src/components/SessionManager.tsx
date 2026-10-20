@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
+import { StatusChip } from "@/components/StatusChip";
 import { Button } from "@/components/ui/button";
 import {
     compiledGameAtom,
@@ -28,7 +29,6 @@ import {
     gameDefinitionReady,
     questions,
     sessionPickerOpen,
-    sidebarContextR,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
 import {
@@ -37,11 +37,7 @@ import {
     getCachedSession,
     setCachedSession,
 } from "@/lib/eventQueue";
-import {
-    fetchGameCatalog,
-    leaveGame,
-    switchToGame,
-} from "@/lib/games";
+import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
@@ -287,7 +283,12 @@ function SessionPickerOverlay({
     // The same permissions that put a server on the /games page.
     const canManageGames = servers?.some((server) =>
         server.permissions.some((p) =>
-            ["games.create", "games.edit", "games.delete", "server.admin"].includes(p),
+            [
+                "games.create",
+                "games.edit",
+                "games.delete",
+                "server.admin",
+            ].includes(p),
         ),
     );
 
@@ -560,9 +561,9 @@ function SessionPickerOverlay({
                                     </p>
                                 )}
                                 <p className="text-xs text-muted-foreground">
-                                    Only you can see a new session. Use
-                                    Invite to play it with others, or Share
-                                    a copy to give someone their own.
+                                    Only you can see a new session. Use Invite
+                                    to play it with others, or Share a copy to
+                                    give someone their own.
                                 </p>
                                 <div className="flex gap-2">
                                     <Button
@@ -606,28 +607,26 @@ function SessionChip({
     onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
     inert: boolean;
 }) {
-    const sidebar = useStore(sidebarContextR);
-    const right = sidebar.open ? "calc(16rem + 3.5rem)" : "3.5rem";
-
     return (
-        <div
-            className="fixed top-10 z-[1041] flex items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm transition-[right] duration-200 ease-linear"
-            style={{ right }}
-            inert={inert}
-        >
-            <span
-                className="font-medium truncate max-w-[140px]"
-                title={session.name}
+        <StatusChip slot="session">
+            <div
+                className="flex w-max items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm"
+                inert={inert}
             >
-                {session.name}
-            </span>
-            <button
-                onClick={onChangeSession}
-                className="text-muted-foreground hover:text-foreground underline whitespace-nowrap"
-            >
-                change
-            </button>
-        </div>
+                <span
+                    className="font-medium truncate max-w-[140px]"
+                    title={session.name}
+                >
+                    {session.name}
+                </span>
+                <button
+                    onClick={onChangeSession}
+                    className="text-muted-foreground hover:text-foreground underline whitespace-nowrap"
+                >
+                    change
+                </button>
+            </div>
+        </StatusChip>
     );
 }
 
@@ -927,7 +926,8 @@ export function SessionManager() {
                     return;
                 }
                 // Anything else (502, 503, 429…) is handled like being offline.
-                if (!res.ok) throw new Error(`session fetch failed: ${res.status}`);
+                if (!res.ok)
+                    throw new Error(`session fetch failed: ${res.status}`);
                 const data: GameSessionSummary = await res.json();
                 if (!isCurrent()) return;
                 // The cached snapshot may be stale: nothing shown before the

@@ -55,9 +55,6 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     <!-- CalculatingIndicator shows question results that take a while to work out -->
     <CalculatingIndicator client:only="react" />
 
-    <!-- ZonesLeftIndicator shows how many hiding zones are left, in the same spot -->
-    <ZonesLeftIndicator client:only="react" />
-
     <!-- The board; SessionManager makes it inert while the session picker is open -->
     <div id="map-board" class="contents">
         <SidebarProviderL client:load>
@@ -78,6 +75,23 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
                                 class="absolute top-[72px] md:top-2 right-2 z-[1030] group-[.fullscreen]:hidden"
                             >
                                 <SidebarTriggerR client:load />
+                            </div>
+                            <!--
+                                The status chips, stacked in the map's corner so
+                                they move aside with the zone sidebar. AuthGuard
+                                and SessionManager render theirs into the slots.
+                                The column has no width and its chips (w-max)
+                                stick out to the left, so the column itself
+                                covers none of the map.
+                            -->
+                            <div
+                                class="absolute top-2 right-14 z-[1041] flex w-0 flex-col items-end gap-1 group-[.fullscreen]:hidden"
+                            >
+                                <div id="user-chip-slot" class="contents"></div>
+                                <div id="session-chip-slot" class="contents">
+                                </div>
+                                <!-- How many hiding zones are left -->
+                                <ZonesLeftIndicator client:only="react" />
                             </div>
                             <div
                                 class="bottom-5 left-2 right-2 mb-2 absolute z-[1030] group-[.fullscreen]:hidden"

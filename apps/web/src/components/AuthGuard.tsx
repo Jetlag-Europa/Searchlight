@@ -6,6 +6,7 @@ import { watchAuth } from "@/lib/authCheck";
 import { forgetGameViews } from "@/lib/gameView";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
 
+import { StatusChip } from "./StatusChip";
 import { UserChip } from "./UserChip";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -64,14 +65,16 @@ export function AuthGuard() {
     if (user) return <UserChip user={user} apiBase={API_BASE} />;
     if (!unreachable) return null;
     return (
-        <div
-            role="status"
-            className="fixed top-2 right-14 z-[1041] flex items-center gap-1.5 rounded-full border border-destructive/50 bg-background/90 px-2.5 py-1 text-xs shadow-sm backdrop-blur-sm"
-        >
-            <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
-            <span className="text-muted-foreground">
-                Can&apos;t reach the server, retrying…
-            </span>
-        </div>
+        <StatusChip slot="user">
+            <div
+                role="status"
+                className="flex w-max items-center gap-1.5 rounded-full border border-destructive/50 bg-background/90 px-2.5 py-1 text-xs shadow-sm backdrop-blur-sm"
+            >
+                <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
+                <span className="text-muted-foreground">
+                    Can&apos;t reach the server, retrying…
+                </span>
+            </div>
+        </StatusChip>
     );
 }
