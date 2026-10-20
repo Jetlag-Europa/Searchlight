@@ -2,6 +2,12 @@
 
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
+[Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
+
+## Numbered releases (2026-10-20)
+
+- Searchlight now has numbered releases on [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases), each summing up the changes since the one before. 1.0 is Searchlight as Jules built it on top of JetLagHideAndSeek, up to 26 September 2026; 2.0 is everything since, starting with importable games.
+- **Upgrading:** when a release is published, its Docker images are also tagged with its version, such as `2.0.0` and `2.0`. Set `SEARCHLIGHT_IMAGE_TAG=2.0` in `.env` to stay on a release and still get its fixes, instead of following `latest`.
 
 ## Overlap check agrees with the checker (2026-10-20)
 

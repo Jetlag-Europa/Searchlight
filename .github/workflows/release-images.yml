@@ -1,0 +1,53 @@
+name: Release images
+
+# When a release such as v2.1.0 is published, tags the images the "Docker
+# images" workflow built from the release's commit as 2.1.0 and 2.1, so a server
+# can stay on a release (see DEPLOY.md). Nothing is rebuilt: the version tags
+# point at the same images as sha-<7-char commit>. If that commit's images are
+# still being built, waits up to 40 minutes for them.
+
+on:
+    release:
+        types: [published]
+
+permissions:
+    contents: read
+    packages: write
+
+jobs:
+    tag:
+        name: Tag ${{ matrix.image }}
+        runs-on: ubuntu-24.04
+        strategy:
+            matrix:
+                image: [api, web]
+        steps:
+            - uses: docker/setup-buildx-action@v4
+
+            - name: Log in to GHCR
+              uses: docker/login-action@v4
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Tag the commit's image with the version
+              env:
+                  IMAGE_NAME: ${{ matrix.image }}
+                  TAG: ${{ github.event.release.tag_name }}
+              run: |
+                  if [[ ! $TAG =~ ^v([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+                      echo "Release tag $TAG isn't vMAJOR.MINOR.PATCH" >&2
+                      exit 1
+                  fi
+                  version="${TAG#v}"
+                  minor="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+                  image="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/searchlight-${IMAGE_NAME}"
+                  source="${image}:sha-${GITHUB_SHA::7}"
+                  for _ in $(seq 80); do
+                      docker buildx imagetools inspect "$source" > /dev/null 2>&1 && break
+                      echo "Waiting for $source"
+                      sleep 30
+                  done
+                  docker buildx imagetools create \
+                      --tag "${image}:${version}" --tag "${image}:${minor}" "$source"
