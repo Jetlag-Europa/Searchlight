@@ -1,9 +1,4 @@
 import * as turf from "@turf/turf";
-import { geoMercator } from "d3-geo";
-// @ts-expect-error No type declaration
-import { geoProject, geoStitch } from "d3-geo-projection";
-// @ts-expect-error No type declaration
-import { geoVoronoi } from "d3-geo-voronoi";
 import type {
     BBox,
     Feature,
@@ -11,28 +6,16 @@ import type {
     MultiPolygon,
     Point,
     Polygon,
+    Position,
 } from "geojson";
 
-const scaleReference = turf.toMercator(turf.point([180, 90])); // I thought this would yield the same as turf.earthRadius * Math.pi, but it's slightly larger
+import {
+    distinctSites,
+    geoSpatialVoronoi,
+    MERGE_METRES,
+} from "./sphericalVoronoi";
 
-export const geoSpatialVoronoi = (
-    points: FeatureCollection<Point>,
-): FeatureCollection<Polygon | MultiPolygon> => {
-    const voronoi = geoVoronoi()(points).polygons();
-    const projected = geoProject(
-        geoStitch(voronoi),
-        geoMercator().translate([0, 0]).precision(0.005),
-    );
-
-    const ratio = scaleReference.geometry.coordinates[0] / 480.5; // 961 is the default scale for some reason
-
-    turf.coordEach(projected, (coord) => {
-        coord[0] = coord[0] * ratio;
-        coord[1] = coord[1] * -ratio; // y-coordinates are flipped
-    });
-
-    return turf.toWgs84(projected);
-};
+export { geoSpatialVoronoi };
 
 function to3D(lng: number, lat: number): [number, number, number] {
     const radLng = (lng * Math.PI) / 180;
@@ -201,31 +184,47 @@ function buildGnomonicCells(
     }
     return turf.featureCollection(cells);
 }
+/** The domain as boxes within longitudes -180 to 180. */
+export function domainBoxes([west, south, east, north]: BBox): BBox[] {
+    if (east - west >= 360) return [[-180, south, 180, north]];
+    const start = west - 360 * Math.floor((west + 180) / 360);
+    const end = start + (east - west);
+    return end <= 180
+        ? [[start, south, end, north]]
+        : [
+              [start, south, 180, north],
+              [-180, south, end - 360, north],
+          ];
+}
+
 /**
- * Keep spherical cells when every distinct site has a valid cell containing it.
- * Degenerate spherical tessellations (including collinearity or tight clusters)
- * fall back to a planar partition of the caller's stable domain (either
- * Gnomonic great-circle approximation for regional domains or Mercator for
- * world-scale extents). These are honest planar approximations under geographic
- * projection rather than exact spherical partitions. Both paths retain the
- * original source site so consumers select a cell by identity.
+ * One cell per distinct site, with the source site as `properties.site`.
+ * Sites within MERGE_METRES of an earlier one are the same place and get no
+ * cell of their own (see distinctSites), so consumers should find a site's
+ * cell with cellOfSite. The cells are geoSpatialVoronoi's, drawn finely
+ * inside `fallbackBbox`, and are kept when every site has a cell and lies
+ * inside it, which they are drawn to ensure. A builder bug can still break
+ * that, as merging genuine half-turn edges once did; the cells then fall
+ * back to a planar approximation over `fallbackBbox`, gnomonic for a
+ * regional domain and Mercator, with errors of up to kilometres, for a
+ * world-scale one.
  */
 export const geoSpatialVoronoiSafe = (
     points: FeatureCollection<Point>,
     fallbackBbox: BBox,
 ): FeatureCollection<Polygon | MultiPolygon> => {
-    const sites: Feature<Point>[] = [];
-    const coordinates = new Set<string>();
-    for (const point of points.features) {
-        const key = `${point.geometry.coordinates[0]}:${point.geometry.coordinates[1]}`;
-        if (coordinates.has(key)) continue;
-        coordinates.add(key);
-        sites.push(point);
-    }
+    const distinct = distinctSites(points.features);
+    const sites = points.features.filter((_, i) => distinct[i]);
     if (!sites.length) return turf.featureCollection([]);
     if (sites.length === 1) {
-        const cell = turf.bboxPolygon(fallbackBbox);
-        cell.properties = { site: sites[0] };
+        const boxes = domainBoxes(fallbackBbox).map(
+            (box) => turf.bboxPolygon(box).geometry.coordinates,
+        );
+        // The whole domain, drawn within longitudes -180 to 180.
+        const cell: Feature<Polygon | MultiPolygon> =
+            boxes.length === 1
+                ? turf.polygon(boxes[0], { site: sites[0] })
+                : turf.multiPolygon(boxes, { site: sites[0] });
         return turf.featureCollection([cell]);
     }
     const distinctPoints =
@@ -233,24 +232,27 @@ export const geoSpatialVoronoiSafe = (
             ? points
             : turf.featureCollection(sites);
     try {
-        const spherical = geoSpatialVoronoi(distinctPoints);
-        const sound =
-            spherical.features.length === sites.length &&
-            spherical.features.every((feature) => {
+        const spherical = geoSpatialVoronoi(distinctPoints, fallbackBbox);
+        // Every distinct site has a cell, with the site inside it.
+        const cells = spherical.features.filter(
+            (feature): feature is Feature<Polygon | MultiPolygon> => {
                 const site = (
                     feature.properties as { site?: Feature<Point> } | undefined
                 )?.site;
-                return (
-                    site &&
-                    feature.geometry &&
-                    (feature.geometry.type === "Polygon" ||
-                        feature.geometry.type === "MultiPolygon") &&
-                    turf.booleanPointInPolygon(site, feature)
+                if (!site || !feature.geometry) return false;
+                // Cells are drawn within longitudes -180 to 180.
+                const [lon, lat] = site.geometry.coordinates;
+                return turf.booleanPointInPolygon(
+                    [lon - 360 * Math.round(lon / 360), lat],
+                    feature as Feature<Polygon | MultiPolygon>,
                 );
-            });
-        if (sound) return spherical;
+            },
+        );
+        if (cells.length === sites.length) {
+            return turf.featureCollection(cells);
+        }
     } catch {
-        // Spherical tessellation can fail for collinear or tightly clustered sites.
+        // Fall back to an approximation below.
     }
     const isWorld = fallbackBbox[0] <= -170 && fallbackBbox[2] >= 170;
     if (!isWorld && sites.length <= 64) {
@@ -301,3 +303,27 @@ export const geoSpatialVoronoiSafe = (
     });
     return turf.featureCollection(features);
 };
+
+/**
+ * The cell of the site at `position`, among geoSpatialVoronoiSafe's: the one
+ * whose own site is nearest it. For a site with a cell that is its own; for
+ * one merged away it is the cell of the nearest kept site, which need not be
+ * the site it was merged into. Undefined when no cell's site is within
+ * MERGE_METRES.
+ */
+export function cellOfSite<C extends Feature>(
+    cells: C[],
+    position: Position,
+): C | undefined {
+    let found: C | undefined;
+    let nearest = Infinity;
+    for (const cell of cells) {
+        const site = (cell.properties as { site?: Feature<Point> } | null)
+            ?.site;
+        if (!site) continue;
+        const metres = turf.distance(site, position, { units: "meters" });
+        if (metres < nearest) [found, nearest] = [cell, metres];
+    }
+    // With a micrometre to spare for rounding.
+    return nearest <= MERGE_METRES + 1e-6 ? found : undefined;
+}

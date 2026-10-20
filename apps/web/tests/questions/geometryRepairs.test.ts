@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import type { GameDefinition } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import type {
+    BBox,
     Feature,
     FeatureCollection,
     LineString,
@@ -14,6 +15,15 @@ import { describe, expect, it, vi } from "vitest";
 import type { Mock } from "vitest";
 import type * as GeoUtils from "@/maps/geo-utils";
 import { arcBuffer } from "@/maps/geo-utils";
+import type * as Voronoi from "@/maps/geo-utils/voronoi";
+
+vi.mock("@/maps/geo-utils/voronoi", async (importActual) => {
+    const actual = await importActual<typeof Voronoi>();
+    return {
+        ...actual,
+        geoSpatialVoronoiSafe: vi.fn(actual.geoSpatialVoronoiSafe),
+    };
+});
 
 vi.mock("@/maps/geo-utils", async (importActual) => {
     const actual = await importActual<typeof GeoUtils>();
@@ -293,10 +303,18 @@ describe("Geometry Repairs & Regressions", () => {
                 source: { kind: "dataset", datasetId: "consulates" },
             } as const;
             const seekerPt = points.features[0].geometry.coordinates;
+            const build = vi.mocked(geoSpatialVoronoiSafe);
+            build.mockClear();
+            const covers = (domain: BBox, area: BBox) =>
+                domain[0] <= area[0] &&
+                domain[1] <= area[1] &&
+                domain[2] >= area[2] &&
+                domain[3] >= area[3];
 
             // Boundary 1: narrow around Maastricht
+            const narrow: BBox = [5.6, 50.8, 5.8, 50.9];
             const mapGeoData1 = turf.featureCollection([
-                turf.bboxPolygon([5.6, 50.8, 5.8, 50.9]),
+                turf.bboxPolygon(narrow),
             ]);
             const res1 = await determineMatchingGeometry({
                 evaluator,
@@ -305,10 +323,16 @@ describe("Geometry Repairs & Regressions", () => {
                 mapGeoData: mapGeoData1,
             });
             expect(res1).toBeDefined();
+            expect(build).toHaveBeenCalledTimes(1);
+            expect(covers(build.mock.calls[0][1], narrow)).toBe(true);
+            expect(build.mock.results[0].value.features).toContain(
+                res1!.region,
+            );
 
             // Boundary 2: wide regional map
+            const wide: BBox = [5.0, 50.0, 6.5, 51.5];
             const mapGeoData2 = turf.featureCollection([
-                turf.bboxPolygon([5.0, 50.0, 6.5, 51.5]),
+                turf.bboxPolygon(wide),
             ]);
             const res2 = await determineMatchingGeometry({
                 evaluator,
@@ -317,9 +341,20 @@ describe("Geometry Repairs & Regressions", () => {
                 mapGeoData: mapGeoData2,
             });
             expect(res2).toBeDefined();
-            expect(res2!.region).not.toEqual(res1!.region);
-            // Far probe covered by wide regional map
+            // The cells are built again for the wider domain, and the region
+            // comes from that build rather than the cached narrow one.
+            expect(build).toHaveBeenCalledTimes(2);
+            expect(build.mock.calls[1][1]).not.toEqual(build.mock.calls[0][1]);
+            expect(covers(build.mock.calls[1][1], wide)).toBe(true);
+            expect(build.mock.results[1].value.features).toContain(
+                res2!.region,
+            );
+            // Far probe, nearest the seeker's consulate, covered by wide
+            // regional map
             const farProbe = turf.point([5.3, 50.5]);
+            expect(turf.nearestPoint(farProbe, points).id).toBe(
+                points.features[0].id,
+            );
             expect(turf.booleanPointInPolygon(farProbe, res2!.region)).toBe(
                 true,
             );
@@ -1029,7 +1064,7 @@ describe("Geometry Repairs & Regressions", () => {
             }
         });
 
-        it("world fallback covers caller domain rather than silently clipping to POI bbox", () => {
+        it("world-scale cells cover caller domain rather than silently clipping to POI bbox", () => {
             const pts = turf.featureCollection([
                 turf.point([5.6, 50.8], {}, { id: "p1" }),
                 turf.point([5.7, 50.8], {}, { id: "p2" }),
@@ -1039,13 +1074,15 @@ describe("Geometry Repairs & Regressions", () => {
                 -180, -85, 180, 85,
             ];
             const res = geoSpatialVoronoiSafe(pts, worldBbox);
+            expect(res.features).toHaveLength(3);
             const bbox = turf.bbox(res);
-            expect(bbox[0]).toBe(-180);
-            expect(bbox[1]).toBe(-85);
-            expect(bbox[2]).toBe(180);
-            expect(bbox[3]).toBe(85);
+            expect(bbox[0]).toBeLessThanOrEqual(worldBbox[0]);
+            expect(bbox[1]).toBeLessThanOrEqual(worldBbox[1]);
+            expect(bbox[2]).toBeGreaterThanOrEqual(worldBbox[2]);
+            expect(bbox[3]).toBeGreaterThanOrEqual(worldBbox[3]);
 
-            // Worldwide probes outside the local consulate cluster
+            // Worldwide probes outside the local consulate cluster each lie in
+            // exactly one cell, their nearest site's.
             for (const [lng, lat] of [
                 [-170, 80],
                 [-74, 40], // New York
@@ -1058,7 +1095,10 @@ describe("Geometry Repairs & Regressions", () => {
                 const containing = res.features.filter((f) =>
                     turf.booleanPointInPolygon(pt, f),
                 );
-                expect(containing.length).toBeGreaterThanOrEqual(1);
+                expect(containing).toHaveLength(1);
+                expect(containing[0].properties?.site?.id).toBe(
+                    turf.nearestPoint(pt, pts).id,
+                );
             }
         });
 

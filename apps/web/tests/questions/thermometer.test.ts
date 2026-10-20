@@ -8,6 +8,7 @@ import { hiderMode } from "@/lib/context";
 import {
     adjustPerThermometer,
     hiderifyThermometer,
+    thermometerPlanningPolygon,
 } from "@/maps/questions/thermometer";
 
 import { boundary, gridAgreement, sampleGrid } from "./oracleCommon";
@@ -46,24 +47,22 @@ function maskFor(
     ) as Feature<Polygon> | null;
 }
 
-// IMPORTANT: which physical half-plane the app keeps for `warmer` is NOT
-// something to assume — `geoSpatialVoronoi` reprojects a spherical Voronoi
-// through Mercator and, even for two points, the two cells overlap near one
-// site and gap near the other (the same distortion that bites tentacles). So we
-// *calibrate* the kept side empirically (probe a point hard by A and one hard by
-// B), then check the rest of the grid agrees with the independent
-// nearest-of-{A,B} rule. The scenario is kept small/tight (POIs a few hundred
-// metres apart) so the reprojection is accurate where we test, with an
-// edge-margin band around the bisector treated as ambiguous.
+// Which physical half-plane the app keeps for `warmer` is *calibrated*
+// empirically here (probe a point hard by A and one hard by B), then the rest of
+// the grid is checked against the independent nearest-of-{A,B} rule, with an
+// edge-margin band around the bisector treated as ambiguous. The calibration,
+// the small scenario and the wide band date from when `geoSpatialVoronoi`
+// reprojected a spherical Voronoi through Mercator, so that even for two points
+// the cells overlapped near one site and gapped near the other. The cells are
+// now exact on the sphere: the east–west tests below assert the kept side and
+// hold the cells to a far narrower band.
 describe("adjustPerThermometer — keeps one nearest-site half-plane", () => {
-    // A (south) and B (north) ~9 km apart. A NORTH–SOUTH pair is used on
-    // purpose: for an EAST–WEST pair the two-point geoSpatialVoronoi is
-    // degenerate (the reprojected hemispheres collapse onto the same side, so
-    // warmer and cooler return the identical mask — a real artifact of the
-    // Mercator reprojection for a horizontal great-circle bisector). A vertical
-    // pair splits cleanly. The sampled base sits in the central band between the
-    // two points, where the reprojection is well-conditioned; the bisector
-    // (lat ≈ 47.38) crosses the base, giving both outcomes.
+    // A (south) and B (north) ~9 km apart. A NORTH–SOUTH pair, as under the
+    // old Mercator reprojection an EAST–WEST pair was degenerate (warmer and
+    // cooler returned the identical mask); the east–west tests below check that
+    // it now splits cleanly. The sampled base sits in the central band between
+    // the two points; the bisector (lat ≈ 47.38) crosses the base, giving both
+    // outcomes.
     const a: [number, number] = [8.55, 47.34];
     const b: [number, number] = [8.55, 47.42];
     const base = boundary(8.52, 47.36, 8.58, 47.4);
@@ -140,14 +139,11 @@ describe("adjustPerThermometer — keeps one nearest-site half-plane", () => {
 // Directional consistency of the hider inference. A hider clearly on A's side
 // and one clearly on B's side must resolve to opposite `warmer` values.
 //
-// NOTE: we deliberately do NOT assert the stronger "hider survives its own
-// answer" invariant. Because geoSpatialVoronoi's reprojected cells overlap near
-// one site and *gap* near the other (verified above: for two points, one site
-// lands in neither cell), a hider on the gapped side is assigned `warmer` from
-// the only cell it's outside of, then eliminated by the resulting mask — i.e. it
-// does NOT survive its own answer. That's a real consequence of the known
-// Mercator distortion (Entry 35), not a property the app reliably has, so it
-// isn't a valid gate. The directional check below is robust to it.
+// The stronger "hider survives its own answer" invariant used to fail: the old
+// Mercator-reprojected cells overlapped near one site and *gapped* near the
+// other (Entry 35), so a hider in the gap was assigned `warmer` from the only
+// cell it was outside of, then eliminated by the resulting mask. With exact
+// cells it holds, and the east–west tests below check it.
 describe("hiderifyThermometer — opposite sides resolve to opposite warmer", () => {
     const a: [number, number] = [8.55, 47.34];
     const b: [number, number] = [8.55, 47.42];
@@ -164,5 +160,86 @@ describe("hiderifyThermometer — opposite sides resolve to opposite warmer", ()
     it("a hider on A's side and one on B's side give opposite values", () => {
         // One clearly south (A), one clearly north (B).
         expect(warmerForHider(47.35)).not.toBe(warmerForHider(47.41));
+    });
+});
+
+// An EAST–WEST pair, A (west) and B (east) ~7.5 km apart on one parallel, so
+// the bisector is the meridian between them. Warmer means the hider is now
+// nearer B.
+describe("thermometer — east–west pair with exact cells", () => {
+    const a: [number, number] = [8.5, 47.38];
+    const b: [number, number] = [8.6, 47.38];
+    const base = boundary(8.45, 47.33, 8.65, 47.43);
+    // Points whose distances to A and B differ by at most 1 m are ambiguous.
+    const bisectorMargin = 0.001;
+
+    const verdictFor =
+        (warmer: boolean) =>
+        (pt: Feature<Point>): "survives" | "eliminated" | "ambiguous" => {
+            const dA = turf.distance(pt, turf.point(a));
+            const dB = turf.distance(pt, turf.point(b));
+            if (Math.abs(dA - dB) <= bisectorMargin) return "ambiguous";
+            return dB < dA === warmer ? "survives" : "eliminated";
+        };
+
+    for (const warmer of [true, false]) {
+        it(`${warmer ? "warmer keeps B's" : "cooler keeps A's"} side, up to 1 m from the bisector`, () => {
+            const mask = maskFor(base, a, b, warmer);
+            const r = gridAgreement(
+                mask,
+                sampleGrid(base, 40),
+                verdictFor(warmer),
+            );
+            expect(r.failures).toEqual([]);
+            expect(r.survives).toBeGreaterThan(100);
+            expect(r.eliminated).toBeGreaterThan(100);
+        });
+    }
+
+    it("a hider survives its own answer", () => {
+        let checked = 0;
+        for (const hider of sampleGrid(base, 20)) {
+            const [longitude, latitude] = hider.geometry.coordinates;
+            const dA = turf.distance(hider, turf.point(a));
+            const dB = turf.distance(hider, turf.point(b));
+            if (Math.abs(dA - dB) <= bisectorMargin) continue;
+            hiderMode.set({ latitude, longitude } as never);
+            const question = hiderifyThermometer(
+                thermoQuestion(a, b, dB >= dA) as never,
+            ) as ReturnType<typeof thermoQuestion>;
+            expect(question.warmer).toBe(dB < dA);
+            const mask = maskFor(base, a, b, question.warmer);
+            expect(turf.booleanPointInPolygon(hider, mask!)).toBe(true);
+            checked++;
+        }
+        expect(checked).toBeGreaterThan(400);
+    });
+});
+
+// B dragged onto A: the hider's distance cannot have changed, so they are
+// neither warmer nor colder.
+describe("thermometer — A and B in the same place", () => {
+    const a: [number, number] = [8.55, 47.38];
+    const base = boundary(8.52, 47.36, 8.58, 47.4);
+
+    it("eliminates nothing, keeps the hider's answer and draws no boundary", () => {
+        const mapData = turf.featureCollection([base]);
+        hiderMode.set({ latitude: 47.39, longitude: 8.56 } as never);
+        for (const warmer of [true, false]) {
+            const question = thermoQuestion(a, a, warmer);
+            expect(adjustPerThermometer(question as never, mapData)).toBe(
+                mapData,
+            );
+            expect(
+                (
+                    hiderifyThermometer({ ...question } as never) as {
+                        warmer: boolean;
+                    }
+                ).warmer,
+            ).toBe(warmer);
+            expect(
+                thermometerPlanningPolygon(question as never).features,
+            ).toEqual([]);
+        }
     });
 });
