@@ -121,10 +121,62 @@ function samplePositions(coords: Position[], stepKm: number): Position[] {
     return positions;
 }
 
+/** The domain as boxes within longitudes -180 to 180. */
+function domainBoxes([west, south, east, north]: BBox): BBox[] {
+    if (east - west >= 360) return [[-180, south, 180, north]];
+    const start = west - 360 * Math.floor((west + 180) / 360);
+    const end = start + (east - west);
+    return end <= 180
+        ? [[start, south, end, north]]
+        : [
+              [start, south, 180, north],
+              [-180, south, end - 360, north],
+          ];
+}
+
+/** The parts of a cell inside the boxes. */
+function clipCell(cell: Region, boxes: BBox[]): Region[] {
+    const [west, south, east, north] = turf.bbox(cell);
+    const parts: Region[] = [];
+    for (const box of boxes) {
+        if (
+            west > box[2] ||
+            east < box[0] ||
+            south > box[3] ||
+            north < box[1]
+        ) {
+            continue;
+        }
+        if (
+            west >= box[0] &&
+            east <= box[2] &&
+            south >= box[1] &&
+            north <= box[3]
+        ) {
+            parts.push(turf.feature(cell.geometry));
+            continue;
+        }
+        // A cell is convex on the sphere, and near enough so in lon/lat
+        // within the domain, which suits this quick clip.
+        const clipped = turf.bboxClip(cell, box).geometry as
+            | Polygon
+            | MultiPolygon;
+        const polygons = (
+            clipped.type === "Polygon"
+                ? [clipped.coordinates]
+                : clipped.coordinates
+        ).filter((rings) => rings.length);
+        if (polygons.length) parts.push(turf.multiPolygon(polygons));
+    }
+    return parts;
+}
+
 /**
  * Partition the domain by nearest line. The result holds the Voronoi cells of
- * each line feature's samples, indexed by feature ordinal; each feature's
- * region is the union of its cells.
+ * each line feature's samples clipped to the domain, indexed by feature
+ * ordinal; each feature's region is the union of its cells. Samples along a
+ * line have long, thin cells that reach far outside the domain, which would
+ * make that union slow.
  */
 export function calculateLineVoronoi({
     lines,
@@ -140,6 +192,7 @@ export function calculateLineVoronoi({
             samples.push(turf.point(position, { featureOrdinal }));
         }
     }
+    const boxes = domainBoxes(domain);
     const cells: Region[][] = [];
     for (const cell of geoSpatialVoronoiSafe(
         turf.featureCollection(samples),
@@ -147,7 +200,7 @@ export function calculateLineVoronoi({
     ).features) {
         const site = cell.properties?.site as Feature<Point> | undefined;
         const ordinal = site?.properties?.featureOrdinal as number;
-        (cells[ordinal] ??= []).push(turf.feature(cell.geometry));
+        (cells[ordinal] ??= []).push(...clipCell(cell, boxes));
     }
     return cells;
 }

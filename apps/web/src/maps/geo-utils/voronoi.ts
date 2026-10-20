@@ -6,9 +6,14 @@ import type {
     MultiPolygon,
     Point,
     Polygon,
+    Position,
 } from "geojson";
 
-import { distinctSites, geoSpatialVoronoi } from "./sphericalVoronoi";
+import {
+    distinctSites,
+    geoSpatialVoronoi,
+    MERGE_METRES,
+} from "./sphericalVoronoi";
 
 export { geoSpatialVoronoi };
 
@@ -180,14 +185,14 @@ function buildGnomonicCells(
     return turf.featureCollection(cells);
 }
 /**
- * One cell per distinct site, the first of any repeated ones (see
- * distinctSites), with the source site as `properties.site` so consumers
- * select a cell by identity. The cells are geoSpatialVoronoi's, drawn finely
- * inside `fallbackBbox`, as long as every site lies inside its own cell.
- * Only sites within about 10 cm of each other fail that, when rounding puts
- * their shared boundary on the wrong side of one of them. Then the cells
- * fall back to a planar approximation over `fallbackBbox`: gnomonic for a
- * regional domain, Mercator for a world-scale one.
+ * One cell per distinct site, with the source site as `properties.site`.
+ * Sites within MERGE_METRES of an earlier one are the same place and get no
+ * cell of their own (see distinctSites), so consumers should find a site's
+ * cell with cellOfSite. The cells are geoSpatialVoronoi's, drawn finely
+ * inside `fallbackBbox`, which keeps every site inside its own cell. Should
+ * that ever fail, the cells fall back to a planar approximation over
+ * `fallbackBbox`: gnomonic for a regional domain, Mercator for a world-scale
+ * one.
  */
 export const geoSpatialVoronoiSafe = (
     points: FeatureCollection<Point>,
@@ -279,3 +284,26 @@ export const geoSpatialVoronoiSafe = (
     });
     return turf.featureCollection(features);
 };
+
+/**
+ * The cell of the site at `position`, among geoSpatialVoronoiSafe's: the one
+ * whose own site is nearest it. That is the site's own cell or, for a site
+ * merged into another, the cell it was merged into. Undefined when no cell's
+ * site is within MERGE_METRES.
+ */
+export function cellOfSite<C extends Feature>(
+    cells: C[],
+    position: Position,
+): C | undefined {
+    let found: C | undefined;
+    let nearest = Infinity;
+    for (const cell of cells) {
+        const site = (cell.properties as { site?: Feature<Point> } | null)
+            ?.site;
+        if (!site) continue;
+        const metres = turf.distance(site, position, { units: "meters" });
+        if (metres < nearest) [found, nearest] = [cell, metres];
+    }
+    // With a micrometre to spare for rounding.
+    return nearest <= MERGE_METRES + 1e-6 ? found : undefined;
+}

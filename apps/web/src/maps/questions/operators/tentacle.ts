@@ -8,7 +8,7 @@ import type {
     Polygon,
 } from "geojson";
 
-import { arcBuffer, geoSpatialVoronoiSafe } from "@/maps/geo-utils";
+import { arcBuffer, cellOfSite, geoSpatialVoronoiSafe } from "@/maps/geo-utils";
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 import { cachedGeometry, geometrySource, type Region } from "./geometry";
@@ -156,9 +156,11 @@ export async function evaluateTentacleOperator(
             within: false,
         });
     }
-    const cell = cells.features.find((feature) =>
-        featuresMatch(feature.properties?.site, data.location),
-    );
+    const location = getFeatureCoordinates(data.location);
+    const cell =
+        cells.features.find((feature) =>
+            featuresMatch(feature.properties?.site, data.location),
+        ) ?? (location ? cellOfSite(cells.features, location) : undefined);
     return cell
         ? requestGeometry({
               kind: "clip",

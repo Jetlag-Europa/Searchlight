@@ -4,14 +4,17 @@ import type { BBox, Feature, FeatureCollection, Point } from "geojson";
 import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode } from "@/lib/context";
 import { arcBuffer, safeUnion } from "@/maps/geo-utils";
-import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
+import { cellOfSite, geoSpatialVoronoiSafe } from "@/maps/geo-utils";
 import type { TentacleQuestion } from "@/maps/schema";
 
-import { determineTentacleGeometry, featuresMatch } from "./operators/tentacle";
+import {
+    determineTentacleGeometry,
+    featuresMatch,
+    getFeatureCoordinates,
+} from "./operators/tentacle";
 
 // A bbox covering the tentacle's POIs and its radius circle: geoSpatialVoronoiSafe
-// draws the cells finely within it, and clips its planar fallback (which kicks in
-// only for POIs within about 10 cm of each other) to it.
+// draws the cells finely within it, and clips its planar fallback to it.
 function tentacleVoronoiBbox(
     points: FeatureCollection<Point>,
     question: TentacleQuestion,
@@ -126,11 +129,13 @@ export const adjustPerTentacle = async (
 
     const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
 
-    const correctPolygon = voronoi.features.find((feature) => {
-        if (!question.location) return false;
-        const site = (feature.properties as { site?: Feature<Point> } | undefined)?.site ?? feature;
-        return featuresMatch(site, question.location);
-    });
+    const location = getFeatureCoordinates(question.location);
+    const correctPolygon =
+        voronoi.features.find((feature) => {
+            if (!question.location) return false;
+            const site = (feature.properties as { site?: Feature<Point> } | undefined)?.site ?? feature;
+            return featuresMatch(site, question.location);
+        }) ?? (location ? cellOfSite(voronoi.features, location) : undefined);
     if (!correctPolygon) {
         return mapData;
     }

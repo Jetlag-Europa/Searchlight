@@ -7,15 +7,15 @@ import type {
     Polygon,
     Position,
 } from "geojson";
-import { orient3d } from "robust-predicates";
+import { orient2d, orient3d } from "robust-predicates";
 
 type Vector = [number, number, number];
 
 type LonLat = [number, number];
 
 /**
- * How far, in radians, a drawn segment may stray from its arc, given its
- * middle and half its length.
+ * How far, in radians, a drawn segment may stray from its arc for the
+ * domain, given its middle and half its length.
  */
 type Tolerance = (middle: LonLat, halfLength: number) => number;
 
@@ -40,22 +40,19 @@ const FINE_TOLERANCE = 1;
 // that is more.
 const TOLERANCE_GROWTH = 0.001;
 const FINE = FINE_TOLERANCE / EARTH_RADIUS;
+// A drawn segment is measured at a few points, between which it can stray
+// a little further, so it is held to this share of its tolerance.
+const STRAY_MARGIN = 0.9;
 // The longest arc drawn as one segment, in radians (about 640 km).
 const MAX_STEP = 0.1;
 // Within this many radians of a pole a great circle's lon/lat trace bends
 // sharply, so an edge passing that close is split where it is closest.
 const POLE_ZONE = 0.1;
-// Corners and edges within this many radians (about 6 cm) of a pole are moved
-// onto it, so the cells there meet at the pole.
-const POLE_SNAP = 1e-8;
-// Sites within this many radians (about 0.06 mm) of each other count as one:
-// the circumcentre of a triangle with two such sites is mostly rounding error.
-const MERGE_DISTANCE = 1e-11;
-// Corners within this many radians (about 6 mm) of each other are made one.
-// Nearly cocircular sites, such as samples along a line, give corners that
-// should coincide but that rounding scatters, out of order round a cell, and
-// polygon clipping fails on the tiny loops that leaves.
-const CORNER_SNAP = 1e-9;
+// Sites within this many metres of an earlier one are the same place. Much
+// closer sites are numerically fragile: rounding of their unit vectors can
+// leave one out of the hull, or move their shared boundary past one of them.
+export const MERGE_METRES = 1;
+const MERGE_DISTANCE = MERGE_METRES / EARTH_RADIUS;
 
 const dot = (a: Vector, b: Vector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const sub = (a: Vector, b: Vector): Vector => [
@@ -72,14 +69,12 @@ const cross = (a: Vector, b: Vector): Vector => [
 const same = (a: Vector, b: Vector) =>
     a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 const isPole = (v: Vector) => v[0] === 0 && v[1] === 0;
+const chord = (a: Vector, b: Vector) =>
+    Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
 
 function normalize(v: Vector): Vector {
     const length = Math.hypot(v[0], v[1], v[2]);
     return [v[0] / length, v[1] / length, v[2] / length];
-}
-
-function snapToPole(v: Vector): Vector {
-    return Math.hypot(v[0], v[1]) < POLE_SNAP ? [0, 0, Math.sign(v[2])] : v;
 }
 
 function toVector(lon: number, lat: number): Vector {
@@ -102,10 +97,20 @@ function toLonLat(v: Vector): LonLat {
 /** Unit normal of the great circle bisecting sites a and b, on a's side. */
 const bisector = (a: Vector, b: Vector) => normalize(sub(a, b));
 
-/** Turns to add to longitude `to` to reach it the short way from `from`. */
-function turnsBetween(from: number, to: number): number {
-    const step = to - from;
-    return step > 180 ? -1 : step < -180 ? 1 : 0;
+/**
+ * The change in longitude along the great-circle arc from p to q, which is
+ * less than half a turn either way. Near half a turn, as close to a pole,
+ * the short way round is a guess, so the sign is taken from which way the
+ * arc turns about the polar axis, exactly.
+ */
+function lonChange(p: Vector, lonP: number, q: Vector, lonQ: number) {
+    const step = lonQ - lonP;
+    if (Math.abs(step) < 90) return step;
+    // Negative when the arc runs east.
+    const turn = orient2d(0, 0, p[0], p[1], q[0], q[1]);
+    if (turn < 0) return step < 0 ? step + 360 : step;
+    if (turn > 0) return step > 0 ? step - 360 : step;
+    return step > 180 ? step - 360 : step < -180 ? step + 360 : step;
 }
 
 /** Union-find over 0..n - 1, each group known by its lowest member. */
@@ -123,37 +128,39 @@ function groups(n: number) {
 }
 
 /**
- * Each site's unit vector, or null for a site that is not finite or that
- * repeats an earlier one: the same point, possibly written another way (at
- * longitude 180 and -180, or at a pole with any longitude), or one within
- * MERGE_DISTANCE of it.
+ * Each site's unit vector, or null for a site that is not a valid position
+ * or that is within MERGE_METRES of an earlier site kept: the same place,
+ * possibly written another way (at longitude 180 and -180, or at a pole with
+ * any longitude). A site is only ever merged into a kept one, so merging
+ * never chains further than MERGE_METRES.
  */
 export function distinctSites(points: Feature<Point>[]): (Vector | null)[] {
     const sites = points.map(({ geometry }) => {
         const [lon, lat] = geometry.coordinates;
-        if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+        if (!Number.isFinite(lon) || !(Math.abs(lat) <= 90)) return null;
         return toVector(lon - 360 * Math.round(lon / 360), lat);
     });
-    // Sweep the sites in order along a skew axis, grouping each with the
-    // later ones close to it; a group keeps its first site.
+    // Pairs of sites close together, from a sweep along a skew axis.
     const position = sites.map((v) =>
         v ? 0.6 * v[0] + 0.48 * v[1] + 0.64 * v[2] : 0,
     );
     const order = sites
         .flatMap((v, i) => (v ? [i] : []))
         .sort((i, j) => position[i] - position[j]);
-    const { root, join } = groups(sites.length);
+    const later: number[][] = sites.map(() => []);
     for (let a = 0; a < order.length; a++) {
-        const i = order[a];
         for (let b = a + 1; b < order.length; b++) {
-            const j = order[b];
+            const [i, j] = [order[a], order[b]];
             if (position[j] - position[i] > MERGE_DISTANCE) break;
-            const gap = sub(sites[i]!, sites[j]!);
-            if (Math.hypot(gap[0], gap[1], gap[2]) <= MERGE_DISTANCE)
-                join(i, j);
+            if (chord(sites[i]!, sites[j]!) > MERGE_DISTANCE) continue;
+            later[Math.min(i, j)].push(Math.max(i, j));
         }
     }
-    return sites.map((v, i) => (root(i) === i ? v : null));
+    const kept = sites.map((v) => v !== null);
+    kept.forEach((isKept, i) => {
+        if (isKept) for (const j of later[i]) kept[j] = false;
+    });
+    return sites.map((v, i) => (kept[i] ? v : null));
 }
 
 /** Deterministic PRNG, so callers that replace Math.random are unaffected. */
@@ -177,11 +184,10 @@ interface Hull {
  * The convex hull of the sites' unit vectors, or null when they are all
  * coplanar. Its faces are the spherical Delaunay triangles. Sites are added
  * in shuffled order, each pending site waiting on one face it sees, and every
- * visibility test is Shewchuk's exact orient3d. A site that rounding leaves
- * inside the hull, which takes another site within a few centimetres, gets
- * no face.
+ * visibility test is Shewchuk's exact orient3d.
  */
-function convexHull(ids: number[], sites: Vector[]): Hull | null {
+function convexHull(sites: Vector[]): Hull | null {
+    const ids = sites.map((_, i) => i);
     // Negative when d is above face (a, b, c), counterclockwise from above.
     const orient = (a: number, b: number, c: number, d: number) => {
         const [p, q, r, s] = [sites[a], sites[b], sites[c], sites[d]];
@@ -325,22 +331,34 @@ function hullCells({ faces, adjacent, alive }: Hull, sites: Vector[]) {
     alive.forEach((isAlive, f) => {
         if (!isAlive) return;
         const [a, b, c] = faces.slice(3 * f, 3 * f + 3);
-        centres[f] = snapToPole(
-            normalize(cross(sub(sites[b], sites[a]), sub(sites[c], sites[a]))),
+        centres[f] = normalize(
+            cross(sub(sites[b], sites[a]), sub(sites[c], sites[a])),
         );
         faceAt[a] = faceAt[b] = faceAt[c] = f;
     });
-    // Collapse shorter edges onto one face's centre, so every cell at the
-    // corner gets the same point.
+    // Nearly cocircular sites, such as samples along a line, give corners
+    // that should coincide but that rounding scatters, so that an edge can
+    // run backwards along its bisector, and polygon clipping fails on the
+    // tiny loop that leaves. Such an edge is rounding-sized; collapse it onto
+    // one corner, until none is left.
     const { root, join } = groups(alive.length);
-    alive.forEach((isAlive, f) => {
-        for (let k = 0; isAlive && k < 3; k++) {
-            const gap = sub(centres[f], centres[adjacent[3 * f + k]]);
-            if (Math.hypot(gap[0], gap[1], gap[2]) < CORNER_SNAP) {
-                join(f, adjacent[3 * f + k]);
+    for (let collapsed = true; collapsed; ) {
+        collapsed = false;
+        alive.forEach((isAlive, f) => {
+            for (let k = 0; isAlive && k < 3; k++) {
+                const g = adjacent[3 * f + k];
+                if (root(f) === root(g)) continue;
+                // The edge from f's centre to g's has site i on its left and
+                // site j on its right.
+                const [j, i] = [faces[3 * f + k], faces[3 * f + ((k + 1) % 3)]];
+                const turn = cross(centres[root(f)], centres[root(g)]);
+                if (dot(sub(sites[i], sites[j]), turn) < 0) {
+                    join(f, g);
+                    collapsed = true;
+                }
             }
-        }
-    });
+        });
+    }
     alive.forEach((isAlive, f) => {
         if (isAlive) centres[f] = centres[root(f)];
     });
@@ -353,12 +371,15 @@ function hullCells({ faces, adjacent, alive }: Hull, sites: Vector[]) {
         const neighbours: number[] = [];
         let f = start;
         do {
+            if (corners.length === alive.length) {
+                throw new Error("Spherical Voronoi: broken hull");
+            }
             const k = faces.indexOf(i, 3 * f) - 3 * f;
             const previous = 3 * f + ((k + 2) % 3);
             corners.push(centres[f]);
             neighbours.push(faces[previous]);
             f = adjacent[previous];
-        } while (f !== start && corners.length <= alive.length);
+        } while (f !== start);
         cells[i] = { corners, neighbours };
     });
     return cells;
@@ -379,19 +400,19 @@ function orientCell(site: Vector, cell: Cell): Cell {
 }
 
 /** Two sites split the sphere into hemispheres along their bisector. */
-function hemispheres(i: number, j: number, sites: Vector[]) {
-    const g = bisector(sites[i], sites[j]);
+function hemispheres(sites: Vector[]): Cell[] {
+    const g = bisector(sites[0], sites[1]);
     // Corners every 90 degrees along the bisector, from its point nearest
     // the north pole.
     let top: Vector = [-g[2] * g[0], -g[2] * g[1], 1 - g[2] * g[2]];
     top =
         dot(top, top) > 1e-12 ? normalize(top) : normalize(cross(g, [1, 0, 0]));
     const side = cross(g, top);
-    const corners = [top, side, neg(top), neg(side)].map(snapToPole);
-    const cells: Cell[] = [];
-    cells[i] = { corners, neighbours: [j, j, j, j] };
-    cells[j] = { corners: corners.slice().reverse(), neighbours: [i, i, i, i] };
-    return cells;
+    const corners = [top, side, neg(top), neg(side)];
+    return [
+        { corners, neighbours: [1, 1, 1, 1] },
+        { corners: corners.slice().reverse(), neighbours: [0, 0, 0, 0] },
+    ];
 }
 
 /**
@@ -399,9 +420,10 @@ function hemispheres(i: number, j: number, sites: Vector[]) {
  * passes through +n and -n, so each cell is the lune between the bisectors
  * with its neighbours along the circle.
  */
-function coplanarCells(ids: number[], sites: Vector[]) {
+function coplanarCells(sites: Vector[]) {
+    const ids = sites.map((_, i) => i);
     // The circle's normal, from three well-spread sites.
-    const p0 = sites[ids[0]];
+    const p0 = sites[0];
     const spread = (v: Vector) => dot(v, v);
     const far = ids.reduce((best, i) =>
         spread(sub(sites[i], p0)) > spread(sub(sites[best], p0)) ? i : best,
@@ -433,9 +455,9 @@ function coplanarCells(ids: number[], sites: Vector[]) {
         ];
         // Exactly on the bisector; the midpoint only picks the sign.
         const corner = normalize(cross(n, bisector(sites[j], sites[i])));
-        return snapToPole(dot(corner, middle) < 0 ? neg(corner) : corner);
+        return dot(corner, middle) < 0 ? neg(corner) : corner;
     });
-    const [top, bottom] = [snapToPole(n), snapToPole(neg(n))];
+    const [top, bottom] = [n, neg(n)];
     const cells: Cell[] = [];
     ring.forEach((i, k) => {
         const next = ring[(k + 1) % count];
@@ -453,7 +475,11 @@ function coplanarCells(ids: number[], sites: Vector[]) {
     return cells;
 }
 
-/** Angle to the box, nearly exactly at the distances that matter. */
+/**
+ * Angle to the box's point of nearest longitude and latitude. That is the
+ * nearest point of the box, but for points beyond a corner or over a pole,
+ * which it puts a little too far; it is meant for picking a tolerance.
+ */
 function angleToBox([lon, lat]: LonLat, [west, south, east, north]: BBox) {
     const near = lon + 360 * Math.round(((west + east) / 2 - lon) / 360);
     const dLon = (near - Math.min(Math.max(near, west), east)) * RADIANS;
@@ -467,12 +493,19 @@ function angleToBox([lon, lat]: LonLat, [west, south, east, north]: BBox) {
     return 2 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
+/** A point of an edge, with its angle along the edge and its lon/lat. */
+type Stop = [angle: number, point: Vector, lonLat: LonLat];
+
 /**
  * How far, in radians, the lon/lat segment from p to q strays from the great
  * circle with normal g.
  */
-function stray([lon0, lat0]: LonLat, [lon1, lat1]: LonLat, g: Vector) {
-    const span = lon1 + 360 * turnsBetween(lon0, lon1) - lon0;
+function stray(
+    [, p, [lon0, lat0]]: Stop,
+    [, q, [lon1, lat1]]: Stop,
+    g: Vector,
+) {
+    const span = lonChange(p, lon0, q, lon1);
     // Great circles are S-shaped across the equator in lon/lat, so the
     // segment is measured at several points, not only its middle.
     let most = 0;
@@ -487,23 +520,44 @@ function stray([lon0, lat0]: LonLat, [lon1, lat1]: LonLat, g: Vector) {
 }
 
 /**
- * Points strictly between corners a and b on the bisector great circle with
- * unit normal g, travelling with +g on the left, so the lon/lat segments
- * through them stay within tolerance of the arc.
+ * Points strictly between corners a and b of the edge between sites `low`
+ * and `high`, along their bisector with low's side on the left, so that the
+ * lon/lat segments through them stay within tolerance of the bisector.
  */
-function edgePoints(a: Vector, b: Vector, g: Vector, toleranceAt: Tolerance) {
-    // An edge to a pole runs along a meridian, which is straight in lon/lat.
-    if (same(a, b) || isPole(a) || isPole(b)) return [];
+function edgePoints(
+    a: Vector,
+    b: Vector,
+    low: Vector,
+    high: Vector,
+    toleranceAt: Tolerance,
+) {
+    if (same(a, b)) return [];
+    const g = bisector(low, high);
+    if (isPole(a) || isPole(b)) {
+        // An edge to a pole runs along a meridian, which is straight in
+        // lon/lat. From pole to pole it is half a meridian, and only its
+        // bisector says which: mark it where it crosses the equator.
+        return isPole(a) && isPole(b) ? [normalize(cross(g, a))] : [];
+    }
+    // Neither site may end up outside its own drawn cell, so a segment
+    // strays at most a quarter of its distance from them, which is at least
+    // half their distance apart. Chords stand in for angles, slightly less.
+    const apart = chord(low, high) / 2;
+    const siteCap = (nearest: number) => Math.max(apart, nearest) / 4;
     // A lon/lat segment of length L at latitude φ strays from the great
     // circle by at most about 1.09 tan(φ) L² / 8, so a short edge away from
     // the poles needs no points.
-    const gap = sub(a, b);
-    const length = Math.hypot(gap[0], gap[1], gap[2]);
+    const length = chord(a, b);
     const slope = Math.max(
         Math.abs(a[2]) / Math.hypot(a[0], a[1]),
         Math.abs(b[2]) / Math.hypot(b[0], b[1]),
     );
-    if (length < 0.01 && slope < 10 && 1.1 * slope * length ** 2 < 4 * FINE) {
+    const cap = siteCap(Math.min(chord(a, low), chord(b, low)) - length / 2);
+    if (
+        length < 0.01 &&
+        slope < 10 &&
+        1.1 * slope * length ** 2 < 4 * Math.min(FINE, cap)
+    ) {
         return [];
     }
     const x = normalize(sub(a, g.map((c) => c * dot(a, g)) as Vector));
@@ -524,7 +578,6 @@ function edgePoints(a: Vector, b: Vector, g: Vector, toleranceAt: Tolerance) {
         ];
     };
     // Points along the arc, with their angle from a.
-    type Stop = [angle: number, point: Vector, lonLat: LonLat];
     const stop = (angle: number, point: Vector): Stop => [
         angle,
         point,
@@ -532,21 +585,12 @@ function edgePoints(a: Vector, b: Vector, g: Vector, toleranceAt: Tolerance) {
     ];
     const stops = [stop(0, a)];
     if (Math.abs(g[2]) < Math.sin(POLE_ZONE)) {
-        // The points nearest the poles, or the poles themselves when the
-        // edge passes within POLE_SNAP of them.
+        // The points nearest the poles: the poles themselves when the edge
+        // runs exactly through them.
         const top = normalize([-g[2] * g[0], -g[2] * g[1], 1 - g[2] * g[2]]);
         for (const nearest of [top, neg(top)]) {
             const angle = angleOf(nearest);
-            if (angle > 0 && angle < end) {
-                stops.push(
-                    stop(
-                        angle,
-                        Math.abs(g[2]) < POLE_SNAP
-                            ? [0, 0, Math.sign(nearest[2])]
-                            : nearest,
-                    ),
-                );
-            }
+            if (angle > 0 && angle < end) stops.push(stop(angle, nearest));
         }
     }
     stops.sort((s, t) => s[0] - t[0]);
@@ -557,10 +601,14 @@ function edgePoints(a: Vector, b: Vector, g: Vector, toleranceAt: Tolerance) {
         const length = q[0] - p[0];
         // A segment to a pole runs along a meridian.
         if (isPole(p[1]) || isPole(q[1]) || length < 1e-9) return;
-        // Judged for the point of the segment nearest the domain, which is
-        // within half its length of the middle.
-        const middle = toLonLat(along(p[0] + length / 2));
-        const excess = stray(p[2], q[2], g) / toleranceAt(middle, length / 2);
+        // Judged for the point of the segment nearest the domain or the
+        // sites, which is within half its length of the middle.
+        const middle = along(p[0] + length / 2);
+        const tolerance = Math.min(
+            toleranceAt(toLonLat(middle), length / 2),
+            siteCap(chord(middle, low) - length / 2),
+        );
+        const excess = stray(p, q, g) / (STRAY_MARGIN * tolerance);
         // A chord strays from its arc with the square of its length, so a
         // segment is split into as many parts as should each fit.
         const parts = Math.max(
@@ -597,11 +645,11 @@ function cellBoundary(
         const j = neighbours[k];
         // Worked out from the lower site's side, so both cells get the same
         // points and the drawn cells neither overlap nor leave gaps.
-        const g = bisector(sites[Math.min(i, j)], sites[Math.max(i, j)]);
+        const [low, high] = i < j ? [sites[i], sites[j]] : [sites[j], sites[i]];
         const points =
             i < j
-                ? edgePoints(a, b, g, tolerance)
-                : edgePoints(b, a, g, tolerance).reverse();
+                ? edgePoints(a, b, low, high, tolerance)
+                : edgePoints(b, a, low, high, tolerance).reverse();
         for (const v of [a, ...points]) {
             if (!boundary.length || !same(boundary[boundary.length - 1], v)) {
                 boundary.push(v);
@@ -672,36 +720,41 @@ function cellGeometry(boundary: Vector[]): Polygon | MultiPolygon | null {
     const start = boundary.findIndex((v) => !isPole(v));
     if (start < 0) return null;
     const ring: RingPoint[] = [];
+    // The last point off the poles, and its turns from the first.
+    let [from, fromLon, turns] = [boundary[start], 0, 0];
+    const turnsTo = (v: Vector, lon: number) =>
+        turns +
+        Math.round((fromLon + lonChange(from, fromLon, v, lon) - lon) / 360);
     for (let k = 0; k < boundary.length; k++) {
         const v = boundary[(start + k) % boundary.length];
-        const last = ring[ring.length - 1];
         if (!isPole(v)) {
             const [lon, lat] = toLonLat(v);
-            const turns = last ? last.turns + turnsBetween(last.lon, lon) : 0;
+            if (k > 0) turns = turnsTo(v, lon);
+            [from, fromLon] = [v, lon];
             ring.push({ lon, lat, turns });
             continue;
         }
         // At a pole corner the boundary arrives along one meridian and leaves
         // along another. In lon/lat it runs along the pole between them,
         // through the cell's angle at the pole: westwards at the north pole,
-        // eastwards at the south pole.
-        const [next] = toLonLat(boundary[(start + k + 1) % boundary.length]);
+        // eastwards at the south pole. Poles are never adjacent: an edge
+        // between them has a point on the equator.
+        const after = boundary[(start + k + 1) % boundary.length];
+        if (isPole(after)) throw new Error("Spherical Voronoi: pole to pole");
+        const [next] = toLonLat(after);
         const north = v[2] > 0;
         const angle =
-            (((north ? last.lon - next : next - last.lon) % 360) + 360) % 360;
-        const end = lonIn(last, 0) + (north ? -angle : angle);
-        ring.push({ lon: last.lon, lat: north ? 90 : -90, turns: last.turns });
-        ring.push({
-            lon: next,
-            lat: north ? 90 : -90,
-            turns: Math.round((end - next) / 360),
-        });
+            (((north ? fromLon - next : next - fromLon) % 360) + 360) % 360;
+        const end = fromLon + 360 * turns + (north ? -angle : angle);
+        ring.push({ lon: fromLon, lat: north ? 90 : -90, turns });
+        // The point after the pole carries on from there, at no change.
+        [from, fromLon, turns] = [after, next, Math.round((end - next) / 360)];
+        ring.push({ lon: next, lat: north ? 90 : -90, turns });
     }
     const count = ring.length;
     const first = ring[0];
-    const last = ring[count - 1];
     // Turns round a pole inside the cell: 1 for the north pole, -1 for south.
-    const winding = last.turns + turnsBetween(last.lon, first.lon);
+    const winding = turnsTo(boundary[start], first.lon);
     const at = (p: RingPoint, shift: number): Position => [
         Math.min(180, Math.max(-180, lonIn(p, shift))),
         p.lat,
@@ -776,29 +829,36 @@ const WORLD: Polygon = {
 /**
  * The spherical Voronoi diagram of the points: one feature per point, in
  * order, whose geometry is the part of the Earth nearer that point than any
- * other, with the point as `properties.site`. A point that repeats an earlier
- * one (see distinctSites) gets a null geometry, and a lone point the world.
+ * other, with the point as `properties.site`. A point that is not a valid
+ * position, or that is within MERGE_METRES of an earlier point (see
+ * distinctSites), gets a null geometry; a lone point gets the world.
  *
  * The cells are exact on the sphere. Drawn as lon/lat polygons, their edges
  * stray at most FINE_TOLERANCE from the true boundary inside `domain`, or
- * everywhere without one, and more the farther outside it they are.
- * Neighbouring cells share their edges point for point, so they neither
- * overlap nor leave gaps.
+ * everywhere without one, and more the farther outside it they are, but
+ * never by a quarter of their distance from their sites, so every site lies
+ * inside its own drawn cell. Neighbouring cells share their edges point for
+ * point, so they neither overlap nor leave gaps.
  */
 export const geoSpatialVoronoi = (
     points: FeatureCollection<Point>,
     domain?: BBox,
 ): FeatureCollection<Polygon | MultiPolygon> => {
-    const input = points.features;
-    const sites = distinctSites(input);
-    const ids = sites.flatMap((site, i) => (site ? [i] : []));
-    const vectors = sites as Vector[];
+    // The distinct sites, in input order, and where each came from.
+    const ids: number[] = [];
+    const sites: Vector[] = [];
+    distinctSites(points.features).forEach((site, i) => {
+        if (!site) return;
+        ids.push(i);
+        sites.push(site);
+    });
     let cells: Cell[] = [];
-    if (ids.length === 2) {
-        cells = hemispheres(ids[0], ids[1], vectors);
-    } else if (ids.length > 2) {
-        const hull = ids.length > 3 ? convexHull(ids, vectors) : null;
-        cells = hull ? hullCells(hull, vectors) : coplanarCells(ids, vectors);
+    if (sites.length === 2) {
+        cells = hemispheres(sites);
+    } else if (sites.length > 2) {
+        // Three sites always lie in one plane, so their hull is flat.
+        const hull = sites.length > 3 ? convexHull(sites) : null;
+        cells = hull ? hullCells(hull, sites) : coplanarCells(sites);
     }
     const tolerance: Tolerance = (middle, halfLength) =>
         domain
@@ -807,19 +867,24 @@ export const geoSpatialVoronoi = (
                   (angleToBox(middle, domain) - halfLength) * TOLERANCE_GROWTH,
               )
             : FINE;
-    const features = input.map((site, i) => {
-        const cell = cells[i];
-        const geometry =
-            ids.length === 1 && sites[i]
+    const geometries = new Map<number, Polygon | MultiPolygon | null>();
+    ids.forEach((id, k) => {
+        geometries.set(
+            id,
+            sites.length === 1
                 ? WORLD
-                : cell
-                  ? cellGeometry(cellBoundary(i, cell, vectors, tolerance))
-                  : null;
-        return { type: "Feature" as const, geometry, properties: { site } };
+                : cells[k]
+                  ? cellGeometry(cellBoundary(k, cells[k], sites, tolerance))
+                  : null,
+        );
     });
-    // Repeated sites' features keep a null geometry.
+    // Features without a cell keep a null geometry.
     return {
         type: "FeatureCollection",
-        features,
+        features: points.features.map((site, i) => ({
+            type: "Feature",
+            geometry: geometries.get(i) ?? null,
+            properties: { site },
+        })),
     } as FeatureCollection<Polygon | MultiPolygon>;
 };

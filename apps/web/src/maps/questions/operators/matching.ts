@@ -10,7 +10,7 @@ import type {
 } from "geojson";
 
 import { compiledGameAtom } from "@/game-definition/store";
-import { geoSpatialVoronoiSafe, safeUnion } from "@/maps/geo-utils";
+import { cellOfSite, geoSpatialVoronoiSafe, safeUnion } from "@/maps/geo-utils";
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 import {
@@ -229,17 +229,10 @@ export async function determineMatchingGeometry(
                         domainBbox,
                     ),
             );
-            const region = voronoi.features.find((cell) => {
-                const site = cell.properties?.site as
-                    | Feature<Point>
-                    | undefined;
-                return (
-                    site?.geometry.coordinates[0] ===
-                        nearest.geometry.coordinates[0] &&
-                    site?.geometry.coordinates[1] ===
-                        nearest.geometry.coordinates[1]
-                );
-            });
+            const region = cellOfSite(
+                voronoi.features,
+                nearest.geometry.coordinates,
+            );
             return region ? { region, sameInside: true } : undefined;
         }
 
