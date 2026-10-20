@@ -127,7 +127,7 @@ browsers on any other origin with a 403.
 Game links hosted this way preview with the site-wide description only. In the
 Docker image, nginx sends link-preview bots' requests for `/play`, and requests
 for `/og/`, to the API (`apps/api/src/routes/og.ts`) for the game's name and
-map; static assets have no such step.
+map; Workers static-asset hosting has no such step.
 
 ## Operations
 

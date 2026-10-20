@@ -2,8 +2,8 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { env } from "../lib/env.js";
+import { findActiveLink } from "../lib/game-access.js";
 import { gameMapPng, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "../lib/og-map.js";
-import { findActiveLink } from "./game-links.js";
 
 // Link previews. Discord, Slack and the like read a page's Open Graph tags
 // without running its scripts, so the web app's static /play page shows them
@@ -12,6 +12,10 @@ import { findActiveLink } from "./game-links.js";
 // these URLs are on the web app's origin.
 
 const SITE_NAME = "Searchlight";
+
+function notFound(msg = "Not found") {
+  return Object.assign(new Error(msg), { statusCode: 404 });
+}
 const THEME_COLOR = "#1F2F3F";
 
 function escapeHtml(text: string) {
@@ -27,10 +31,13 @@ interface Preview {
   title: string;
   description: string;
   url: string;
+  // The link a person sees if a browser of theirs is taken for a bot. /play
+  // would serve them this page again; /play/index.html is the app's page.
+  pageUrl: string;
   image?: { url: string; alt: string };
 }
 
-function previewPage({ title, description, url, image }: Preview) {
+function previewPage({ title, description, url, pageUrl, image }: Preview) {
   const meta = (attr: "name" | "property", key: string, content: string) =>
     `<meta ${attr}="${key}" content="${escapeHtml(content)}" />`;
   return [
@@ -63,7 +70,7 @@ function previewPage({ title, description, url, image }: Preview) {
     meta("name", "twitter:description", description),
     "</head>",
     "<body>",
-    `<p><a href="${escapeHtml(url)}">${escapeHtml(title)}</a></p>`,
+    `<p><a href="${escapeHtml(pageUrl)}">${escapeHtml(title)}</a></p>`,
     "</body>",
     "</html>",
     "",
@@ -78,7 +85,11 @@ export async function ogRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { token } = req.query as { token?: string };
       const url = new URL("/play", env.FRONTEND_ORIGIN);
-      if (token) url.searchParams.set("token", token);
+      const pageUrl = new URL("/play/index.html", env.FRONTEND_ORIGIN);
+      if (token) {
+        url.searchParams.set("token", token);
+        pageUrl.searchParams.set("token", token);
+      }
 
       const link = token ? await findActiveLink(token) : null;
       const revision = link?.game.currentRevision;
@@ -88,6 +99,7 @@ export async function ogRoutes(app: FastifyInstance) {
           title: "Link no longer active",
           description: "This game link has been revoked or doesn't exist.",
           url: url.href,
+          pageUrl: pageUrl.href,
         };
       } else {
         const { name, server } = link.game;
@@ -102,6 +114,7 @@ export async function ogRoutes(app: FastifyInstance) {
           title: name,
           description: `Start a session of ${name} from ${server.name} in ${SITE_NAME}, a map planner for Jet Lag: The Game's Hide and Seek.`,
           url: url.href,
+          pageUrl: pageUrl.href,
           image: { url: image.href, alt: `Map of ${name}` },
         };
       }
@@ -122,21 +135,23 @@ export async function ogRoutes(app: FastifyInstance) {
       const { token } = req.params as { token: string };
       const link = await findActiveLink(token);
       const revisionId = link?.game.currentRevision?.id;
-      if (!revisionId) {
-        throw Object.assign(new Error("Link is invalid or has been revoked"), { statusCode: 404 });
-      }
+      if (!revisionId) throw notFound("Link is invalid or has been revoked");
 
+      // Only the parts the image draws: a game's question datasets can run
+      // to megabytes.
       const png = await gameMapPng(revisionId, async () => {
-        const revision = await prisma.gameRevision.findUnique({
-          where: { id: revisionId },
-          select: { definition: true },
-        });
-        return revision?.definition;
+        const [row] = await prisma.$queryRaw<{ playArea: unknown; zones: unknown }[]>`
+          SELECT definition->'map'->'playArea' AS "playArea",
+                 definition->'hidingZones'->'features' AS "zones"
+          FROM "GameRevision" WHERE id = ${revisionId}`;
+        return row && { map: { playArea: row.playArea }, hidingZones: { features: row.zones } };
       });
-      if (!png) throw Object.assign(new Error("This game has no play area"), { statusCode: 404 });
+      if (!png) throw notFound("This game has no play area");
 
       return reply
-        .header("Cache-Control", "public, max-age=86400")
+        // Short enough that a revoked link's image soon stops being served
+        // from caches, such as Cloudflare's.
+        .header("Cache-Control", "public, max-age=3600")
         .header("X-Robots-Tag", "noindex")
         .type("image/png")
         .send(png);

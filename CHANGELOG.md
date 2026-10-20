@@ -7,7 +7,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Game link previews (2026-10-21)
 
 - A game link (`/play?token=…`) posted in Discord, Slack, Telegram, WhatsApp and similar apps now previews as the game's name, its server and an image of its map (the play area and hiding zones), instead of the site's general description. A revoked link previews as "Link no longer active".
-- **Upgrading:** the web container's nginx now forwards link-preview requests to the API at `http://api:3000`, the name the compose files give it. A web app hosted on Cloudflare (see `DEPLOY.md`) keeps the general preview.
+- **Upgrading:** the web container's nginx now forwards link-preview requests to the API at `http://api:3000`, the name the compose files give it, found through Docker's DNS on the compose network. Without it, previews fall back to the general one. A web app hosted on Cloudflare (see `DEPLOY.md`) keeps the general preview.
 
 ## Numbered releases (2026-10-20)
 

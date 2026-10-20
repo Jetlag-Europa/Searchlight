@@ -131,24 +131,32 @@ export function gameMapSvg(definition: unknown): string | null {
 }
 
 // Rendering a large game takes a moment, and revisions never change, so each
-// revision's image is kept once made. Bounded, oldest first.
+// revision's image is kept once made: the 32 most recently used.
 const MAX_CACHED = 32;
 const cache = new Map<string, Promise<Buffer | null>>();
 
 export function gameMapPng(revisionId: string, definition: () => Promise<unknown>) {
   let png = cache.get(revisionId);
-  if (!png) {
+  if (png) {
+    // Map keeps insertion order, so moving the entry to the end keeps the
+    // least recently used one first.
+    cache.delete(revisionId);
+  } else {
     png = definition().then(async (def) => {
       const svg = gameMapSvg(def);
       if (!svg) return null;
-      // Off the main thread. The image has no text, so no fonts are needed.
+      // Rasterised off the main thread. The image has no text, so no fonts
+      // are needed.
       const image = await renderAsync(svg, { font: { loadSystemFonts: false } });
       return image.asPng();
     });
     // A failed render is tried again on the next request.
-    png.catch(() => cache.delete(revisionId));
-    cache.set(revisionId, png);
-    if (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
+    const failed = png;
+    failed.catch(() => {
+      if (cache.get(revisionId) === failed) cache.delete(revisionId);
+    });
   }
+  cache.set(revisionId, png);
+  if (cache.size > MAX_CACHED) cache.delete(cache.keys().next().value!);
   return png;
 }

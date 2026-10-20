@@ -1,9 +1,9 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
-import { gameMapSvg } from "../lib/og-map.js";
+import { gameMapPng, gameMapSvg } from "../lib/og-map.js";
 import { ogRoutes } from "./og.js";
 
 // ── IDs scoped to this test suite ───────────────────────────────────────────
@@ -158,7 +158,7 @@ describe("link previews", () => {
     const res = await app.inject({ method: "GET", url: `/og/game-links/${TOKEN}/map.png?v=${revisionId}` });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("image/png");
-    expect(res.headers["cache-control"]).toBe("public, max-age=86400");
+    expect(res.headers["cache-control"]).toBe("public, max-age=3600");
     const png = res.rawPayload;
     expect(png.subarray(1, 4).toString()).toBe("PNG");
     expect(png.readUInt32BE(16)).toBe(1200);
@@ -198,5 +198,19 @@ describe("gameMapSvg", () => {
     expect(gameMapSvg({ name: "x" })).toBeNull();
     expect(gameMapSvg({ map: { playArea: { features: [] } } })).toBeNull();
     expect(gameMapSvg(null)).toBeNull();
+  });
+});
+
+describe("gameMapPng", () => {
+  test("renders a revision once, and again after a failure", async () => {
+    const load = vi.fn(async () => definition);
+    const first = await gameMapPng("test-og-cache", load);
+    expect(await gameMapPng("test-og-cache", load)).toBe(first);
+    expect(load).toHaveBeenCalledTimes(1);
+
+    const failing = vi.fn().mockRejectedValueOnce(new Error("db down")).mockResolvedValue(definition);
+    await expect(gameMapPng("test-og-retry", failing)).rejects.toThrow("db down");
+    expect(await gameMapPng("test-og-retry", failing)).toBeInstanceOf(Buffer);
+    expect(failing).toHaveBeenCalledTimes(2);
   });
 });
