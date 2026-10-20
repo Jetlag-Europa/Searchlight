@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## What's new in a release (2026-10-21)
+
+- After a new release (2.1, 3.0, but not a fix-only 2.1.1), the map shows its highlights once, the first time your session loads. **What's new in 2.0** in the map's menu shows them again. You see them once per account, not once per device, and a new player starts on the current release without them.
+- Players who used Searchlight before this change see the 2.0 notes once.
+
 ## Numbered releases (2026-10-20)
 
 - Searchlight now has numbered releases on [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases), each summing up the changes since the one before. 1.0 is Searchlight as Jules built it on top of JetLagHideAndSeek, up to 26 September 2026; 2.0 is everything since, starting with importable games.

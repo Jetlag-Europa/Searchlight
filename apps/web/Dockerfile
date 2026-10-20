@@ -17,6 +17,8 @@ RUN pnpm --filter shared build
 
 COPY apps/web/src ./apps/web/src
 COPY apps/web/public ./apps/web/public
+# Release notes, shown in the app after an update
+COPY docs/releases ./docs/releases
 
 # PUBLIC_API_BASE must be set at build time (baked into the static output)
 ARG PUBLIC_API_BASE
