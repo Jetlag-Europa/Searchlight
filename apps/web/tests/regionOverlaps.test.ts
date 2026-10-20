@@ -88,6 +88,84 @@ describe("findRegionOverlaps", () => {
         expect(overlaps.pieces[0].width).toBeCloseTo(1, 1);
     });
 
+    // Shapes near Brussels in units of 0.001° (about 71 m across, 111 m up).
+    const local = (...rings: number[][][]) =>
+        turf.polygon(
+            rings.map((ring) =>
+                [...ring, ring[0]].map(([x, y]) => [4 + x / 1e3, 50 + y / 1e3]),
+            ),
+        ) as Region;
+    // What the check finds against Turf's intersection of the whole regions.
+    const expectAsUnclipped = (a: Region, b: Region) => {
+        const overlaps = findRegionOverlaps({ regions: [a, b] });
+        const whole = turf.intersect(turf.featureCollection([a, b]));
+        const pieces = whole ? turf.flatten(whole).features : [];
+        expect(overlaps.pieces.length + overlaps.hairlines).toBe(pieces.length);
+        const area = overlaps.pieces.reduce((sum, p) => sum + p.area, 0);
+        expect(area).toBeCloseTo(
+            pieces.reduce((sum, piece) => sum + turf.area(piece), 0),
+            0,
+        );
+        return overlaps;
+    };
+
+    it("finds no more overlap where clipping joins a region along the other's edge", () => {
+        // An arch whose legs reach below the triangle's tip: clipped to where
+        // their boxes meet, the arch is joined across through the tip.
+        const arch = local([
+            [-2, -1],
+            [-1, -1],
+            [-1, 1],
+            [1, 1],
+            [1, -1],
+            [2, -1],
+            [2, 2],
+            [-2, 2],
+        ]);
+        const triangle = local([
+            [0, 0],
+            [3, 3],
+            [-3, 3],
+        ]);
+        expect(expectAsUnclipped(arch, triangle).pieces.length).toBeGreaterThan(
+            0,
+        );
+    });
+
+    it("keeps a hole crossing the edge of where the boxes meet", () => {
+        const holed = local(
+            [
+                [0, 0],
+                [4, 0],
+                [4, 4],
+                [0, 4],
+            ],
+            [
+                [2.5, 1],
+                [2.5, 3],
+                [3.5, 3],
+                [3.5, 1],
+            ],
+        );
+        const right = local([
+            [3, 0],
+            [6, 0],
+            [6, 4],
+            [3, 4],
+        ]);
+        expectAsUnclipped(holed, right);
+    });
+
+    it("works from a region's coordinates, not a bbox it carries", () => {
+        const a: Region = {
+            ...box(4, 4.01, "a", 50, 50.01),
+            bbox: [4.005, 50.002, 4.009, 50.008],
+        };
+        const b = box(4.005, 4.02, "b", 50.002, 50.008);
+        const [piece] = expectAsUnclipped(a, b).pieces;
+        expect(piece.area).toBeCloseTo(238_405, -2);
+    });
+
     it("finds a region entirely inside an earlier one", () => {
         const overlaps = findRegionOverlaps({
             regions: [box(0, 2, "outer"), box(0.5, 1, "inner", 50.2, 50.4)],

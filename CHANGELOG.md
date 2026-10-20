@@ -7,6 +7,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 - The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.
 - The file the page offers for download after a fix keeps the original's formatting. A file on one line used to come back indented, several times larger: a 4.9 MB game came back as 23 MB, and the size warning then counted the larger copy.
+- The overlap check, which the import button waits for, runs 3–6 times faster: a game with about 50,000 border vertices, such as Belgium or Greater Manchester, now takes under a second instead of 3–4 s. It also works from the regions' coordinates, so a region carrying a stale or 3D `bbox` no longer makes it miss an overlap.
 
 ## Radar listed once, at any radius (2026-10-19)
 
