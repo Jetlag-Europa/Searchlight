@@ -49,7 +49,14 @@ export default defineConfig({
     vite: {
         // Read PUBLIC_* settings from the repo-root .env shared with the API.
         envDir: fileURLToPath(new URL("../..", import.meta.url)),
-        worker: { format: "es" },
+        worker: {
+            format: "es",
+            // One file: Safari evaluates a module worker's entry a second
+            // time when a split chunk imports it, so ArcGIS's lazily loaded
+            // operators would run against a copy whose projection engine
+            // was never loaded.
+            rollupOptions: { output: { inlineDynamicImports: true } },
+        },
     },
     devToolbar: {
         enabled: false,
