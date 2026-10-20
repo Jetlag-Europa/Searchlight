@@ -115,3 +115,7 @@ export function loadReleaseNotes(notes: string): Promise<string> {
 export function releaseName(notes: string): string {
     return notes.split(".").slice(0, 2).join(".");
 }
+
+export function releaseUrl(notes: string): string {
+    return `https://github.com/Jetlag-Europa/Searchlight/releases/tag/v${notes}`;
+}

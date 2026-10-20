@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
@@ -9,7 +9,7 @@ import {
     DialogTitle,
 } from "@/components/ui/dialog";
 import { type Inline, parseNotes } from "@/lib/markdownNotes";
-import { loadReleaseNotes, releaseName } from "@/lib/releaseNotes";
+import { loadReleaseNotes, releaseName, releaseUrl } from "@/lib/releaseNotes";
 
 function InlineText({ content }: { content: Inline[] }) {
     return content.map((part, i) => {
@@ -102,9 +102,15 @@ export default function ReleaseNotesDialog({
                         );
                     })}
                 </div>
-                {/* The whole notes are above: the repository's release pages
-                    are private, so most players couldn't open them. */}
-                <DialogFooter>
+                <DialogFooter className="gap-2">
+                    <a
+                        href={releaseUrl(notes)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={buttonVariants({ variant: "outline" })}
+                    >
+                        View on GitHub
+                    </a>
                     <Button onClick={onClose}>Got it</Button>
                 </DialogFooter>
             </DialogContent>

@@ -9,6 +9,7 @@ import {
     isNewerRelease,
     notesVersion,
     releaseNotesToShow,
+    releaseUrl,
 } from "@/lib/releaseNotes";
 
 const RELEASES_DIR = resolve(__dirname, "../../../docs/releases");
@@ -18,6 +19,12 @@ describe("release versions", () => {
         expect(notesVersion("2.1.0")).toBe("2.1.0");
         expect(notesVersion("2.1.3")).toBe("2.1.0");
         expect(notesVersion("2.1")).toBeNull();
+    });
+
+    it("links to the release on GitHub", () => {
+        expect(releaseUrl("2.1.0")).toBe(
+            "https://github.com/Jetlag-Europa/Searchlight/releases/tag/v2.1.0",
+        );
     });
 
     it("counts only major and minor releases as new", () => {
