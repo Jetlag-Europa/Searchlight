@@ -36,6 +36,10 @@ const EARTH_RADIUS = 6371008.8;
 // Cell edges are great-circle arcs, drawn as straight lon/lat segments that
 // stray at most this many metres from the arc inside the domain...
 const FINE_TOLERANCE = 1;
+// ...or this share of the domain's extent, where that is more: a domain
+// over 200 km across, beyond any game map, does not need its long, thin
+// cells drawn to the metre...
+const DOMAIN_SHARE = 5e-6;
 // ...and outside it, at most this fraction of their distance from it, where
 // that is more.
 const TOLERANCE_GROWTH = 0.001;
@@ -53,6 +57,12 @@ const POLE_ZONE = 0.1;
 // leave one out of the hull, or move their shared boundary past one of them.
 export const MERGE_METRES = 1;
 const MERGE_DISTANCE = MERGE_METRES / EARTH_RADIUS;
+// Rounding moves a corner by about 1e-16 radians over its sites' angular
+// separation: at most about 1e-9 radians for sites MERGE_METRES apart. So an
+// edge that rounding has reversed is shorter than this (about 6 cm), and a
+// longer one, such as a half great circle between nearly opposite corners,
+// is genuine.
+const ROUNDING_EDGE = 1e-8;
 
 const dot = (a: Vector, b: Vector) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const sub = (a: Vector, b: Vector): Vector => [
@@ -339,20 +349,22 @@ function hullCells({ faces, adjacent, alive }: Hull, sites: Vector[]) {
     // Nearly cocircular sites, such as samples along a line, give corners
     // that should coincide but that rounding scatters, so that an edge can
     // run backwards along its bisector, and polygon clipping fails on the
-    // tiny loop that leaves. Such an edge is rounding-sized; collapse it onto
-    // one corner, until none is left.
+    // tiny loop that leaves. Collapse such an edge onto one corner, until
+    // none is left.
     const { root, join } = groups(alive.length);
     for (let collapsed = true; collapsed; ) {
         collapsed = false;
         alive.forEach((isAlive, f) => {
             for (let k = 0; isAlive && k < 3; k++) {
                 const g = adjacent[3 * f + k];
-                if (root(f) === root(g)) continue;
+                const [from, to] = [centres[root(f)], centres[root(g)]];
+                if (root(f) === root(g) || chord(from, to) > ROUNDING_EDGE) {
+                    continue;
+                }
                 // The edge from f's centre to g's has site i on its left and
                 // site j on its right.
                 const [j, i] = [faces[3 * f + k], faces[3 * f + ((k + 1) % 3)]];
-                const turn = cross(centres[root(f)], centres[root(g)]);
-                if (dot(sub(sites[i], sites[j]), turn) < 0) {
+                if (dot(sub(sites[i], sites[j]), cross(from, to)) < 0) {
                     join(f, g);
                     collapsed = true;
                 }
@@ -491,6 +503,16 @@ function angleToBox([lon, lat]: LonLat, [west, south, east, north]: BBox) {
             Math.cos(nearLat * RADIANS) *
             Math.sin(dLon / 2) ** 2;
     return 2 * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/**
+ * The box's extent in radians: its width along its widest parallel, the one
+ * nearest the equator, or its height, whichever is more.
+ */
+function extent([west, south, east, north]: BBox) {
+    const widest = south > 0 ? south : north < 0 ? north : 0;
+    const width = Math.min(east - west, 360) * Math.cos(widest * RADIANS);
+    return Math.max(width, north - south) * RADIANS;
 }
 
 /** A point of an edge, with its angle along the edge and its lon/lat. */
@@ -835,15 +857,16 @@ const WORLD: Polygon = {
  *
  * The cells are exact on the sphere. Drawn as lon/lat polygons, their edges
  * stray at most FINE_TOLERANCE from the true boundary inside `domain`, or
- * everywhere without one, and more the farther outside it they are, but
- * never by a quarter of their distance from their sites, so every site lies
- * inside its own drawn cell. Neighbouring cells share their edges point for
+ * everywhere without one; inside a domain over 200 km across, at most
+ * DOMAIN_SHARE of its extent; and more the farther outside it they are. They
+ * never stray by a quarter of their distance from their sites, so every site
+ * lies inside its own drawn cell. Neighbouring cells share their edges point for
  * point, so they neither overlap nor leave gaps.
  */
 export const geoSpatialVoronoi = (
     points: FeatureCollection<Point>,
     domain?: BBox,
-): FeatureCollection<Polygon | MultiPolygon> => {
+): FeatureCollection<Polygon | MultiPolygon | null> => {
     // The distinct sites, in input order, and where each came from.
     const ids: number[] = [];
     const sites: Vector[] = [];
@@ -860,10 +883,11 @@ export const geoSpatialVoronoi = (
         const hull = sites.length > 3 ? convexHull(sites) : null;
         cells = hull ? hullCells(hull, sites) : coplanarCells(sites);
     }
+    const fine = domain ? Math.max(FINE, DOMAIN_SHARE * extent(domain)) : FINE;
     const tolerance: Tolerance = (middle, halfLength) =>
         domain
             ? Math.max(
-                  FINE,
+                  fine,
                   (angleToBox(middle, domain) - halfLength) * TOLERANCE_GROWTH,
               )
             : FINE;
@@ -878,7 +902,6 @@ export const geoSpatialVoronoi = (
                   : null,
         );
     });
-    // Features without a cell keep a null geometry.
     return {
         type: "FeatureCollection",
         features: points.features.map((site, i) => ({
@@ -886,5 +909,5 @@ export const geoSpatialVoronoi = (
             geometry: geometries.get(i) ?? null,
             properties: { site },
         })),
-    } as FeatureCollection<Polygon | MultiPolygon>;
+    };
 };

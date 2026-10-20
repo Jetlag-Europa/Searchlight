@@ -3,8 +3,12 @@ import type { BBox, Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode } from "@/lib/context";
-import { arcBuffer, safeUnion } from "@/maps/geo-utils";
-import { cellOfSite, geoSpatialVoronoiSafe } from "@/maps/geo-utils";
+import {
+    arcBuffer,
+    cellOfSite,
+    geoSpatialVoronoiSafe,
+    safeUnion,
+} from "@/maps/geo-utils";
 import type { TentacleQuestion } from "@/maps/schema";
 
 import {

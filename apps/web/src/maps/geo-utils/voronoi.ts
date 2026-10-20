@@ -184,15 +184,30 @@ function buildGnomonicCells(
     }
     return turf.featureCollection(cells);
 }
+/** The domain as boxes within longitudes -180 to 180. */
+export function domainBoxes([west, south, east, north]: BBox): BBox[] {
+    if (east - west >= 360) return [[-180, south, 180, north]];
+    const start = west - 360 * Math.floor((west + 180) / 360);
+    const end = start + (east - west);
+    return end <= 180
+        ? [[start, south, end, north]]
+        : [
+              [start, south, 180, north],
+              [-180, south, end - 360, north],
+          ];
+}
+
 /**
  * One cell per distinct site, with the source site as `properties.site`.
  * Sites within MERGE_METRES of an earlier one are the same place and get no
  * cell of their own (see distinctSites), so consumers should find a site's
  * cell with cellOfSite. The cells are geoSpatialVoronoi's, drawn finely
- * inside `fallbackBbox`, which keeps every site inside its own cell. Should
- * that ever fail, the cells fall back to a planar approximation over
- * `fallbackBbox`: gnomonic for a regional domain, Mercator for a world-scale
- * one.
+ * inside `fallbackBbox`, and are kept when every site has a cell and lies
+ * inside it, which they are drawn to ensure. A builder bug can still break
+ * that, as merging genuine half-turn edges once did; the cells then fall
+ * back to a planar approximation over `fallbackBbox`, gnomonic for a
+ * regional domain and Mercator, with errors of up to kilometres, for a
+ * world-scale one.
  */
 export const geoSpatialVoronoiSafe = (
     points: FeatureCollection<Point>,
@@ -202,8 +217,14 @@ export const geoSpatialVoronoiSafe = (
     const sites = points.features.filter((_, i) => distinct[i]);
     if (!sites.length) return turf.featureCollection([]);
     if (sites.length === 1) {
-        const cell = turf.bboxPolygon(fallbackBbox);
-        cell.properties = { site: sites[0] };
+        const boxes = domainBoxes(fallbackBbox).map(
+            (box) => turf.bboxPolygon(box).geometry.coordinates,
+        );
+        // The whole domain, drawn within longitudes -180 to 180.
+        const cell: Feature<Polygon | MultiPolygon> =
+            boxes.length === 1
+                ? turf.polygon(boxes[0], { site: sites[0] })
+                : turf.multiPolygon(boxes, { site: sites[0] });
         return turf.featureCollection([cell]);
     }
     const distinctPoints =
@@ -212,26 +233,24 @@ export const geoSpatialVoronoiSafe = (
             : turf.featureCollection(sites);
     try {
         const spherical = geoSpatialVoronoi(distinctPoints, fallbackBbox);
-        const sound =
-            spherical.features.length === sites.length &&
-            spherical.features.every((feature) => {
+        // Every distinct site has a cell, with the site inside it.
+        const cells = spherical.features.filter(
+            (feature): feature is Feature<Polygon | MultiPolygon> => {
                 const site = (
                     feature.properties as { site?: Feature<Point> } | undefined
                 )?.site;
-                if (!site) return false;
+                if (!site || !feature.geometry) return false;
                 // Cells are drawn within longitudes -180 to 180.
                 const [lon, lat] = site.geometry.coordinates;
-                return (
-                    feature.geometry &&
-                    (feature.geometry.type === "Polygon" ||
-                        feature.geometry.type === "MultiPolygon") &&
-                    turf.booleanPointInPolygon(
-                        [lon - 360 * Math.round(lon / 360), lat],
-                        feature,
-                    )
+                return turf.booleanPointInPolygon(
+                    [lon - 360 * Math.round(lon / 360), lat],
+                    feature as Feature<Polygon | MultiPolygon>,
                 );
-            });
-        if (sound) return spherical;
+            },
+        );
+        if (cells.length === sites.length) {
+            return turf.featureCollection(cells);
+        }
     } catch {
         // Fall back to an approximation below.
     }
@@ -287,9 +306,10 @@ export const geoSpatialVoronoiSafe = (
 
 /**
  * The cell of the site at `position`, among geoSpatialVoronoiSafe's: the one
- * whose own site is nearest it. That is the site's own cell or, for a site
- * merged into another, the cell it was merged into. Undefined when no cell's
- * site is within MERGE_METRES.
+ * whose own site is nearest it. For a site with a cell that is its own; for
+ * one merged away it is the cell of the nearest kept site, which need not be
+ * the site it was merged into. Undefined when no cell's site is within
+ * MERGE_METRES.
  */
 export function cellOfSite<C extends Feature>(
     cells: C[],

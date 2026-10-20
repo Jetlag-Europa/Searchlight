@@ -41,14 +41,26 @@ test("voronoi diagram", () => {
     expect(voronoi).toBeDefined();
     expect(voronoi.features.length).toBe(BASE_POINT_COUNT);
 
+    // A site within a metre of an earlier one is the same place and gets no
+    // cell; points nearest it belong to the nearest site that has one.
+    const sites = basePoints.features.filter(
+        (_, i) => voronoi.features[i].geometry,
+    );
+
     const testPoints = turf.randomPoint(TEST_POINT_COUNT);
 
     testPoints.features.forEach((point) => {
-        const voronoiIndex = voronoi.features.findIndex((feature) =>
-            turf.booleanPointInPolygon(point, feature),
+        const voronoiIndex = voronoi.features.findIndex(
+            (feature) =>
+                feature.geometry &&
+                turf.booleanPointInPolygon(point, feature.geometry),
         );
-        const basePointIndex = turf.nearestPoint(point, basePoints).properties
-            .featureIndex;
+        const nearest =
+            sites[
+                turf.nearestPoint(point, turf.featureCollection(sites))
+                    .properties.featureIndex
+            ];
+        const basePointIndex = basePoints.features.indexOf(nearest);
         if (voronoiIndex === basePointIndex) return;
 
         // Only a point within BOUNDARY_MARGIN of its nearest site's cell
@@ -56,14 +68,12 @@ test("voronoi diagram", () => {
         // towards the bisector with that other site reaches a point no
         // nearer its own site, so it is that close to the boundary.
         const p = unitVector(point);
-        const a = unitVector(basePoints.features[basePointIndex]);
+        const a = unitVector(nearest);
         const nearBisector = (site: Feature<Point>) =>
             distanceToBisector(p, a, unitVector(site)) <= BOUNDARY_MARGIN;
         const nearBoundary =
             voronoiIndex === -1
-                ? basePoints.features.some(
-                      (site, i) => i !== basePointIndex && nearBisector(site),
-                  )
+                ? sites.some((site) => site !== nearest && nearBisector(site))
                 : nearBisector(basePoints.features[voronoiIndex]);
         if (nearBoundary) return;
 

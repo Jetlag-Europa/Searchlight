@@ -9,7 +9,7 @@ import type {
     Position,
 } from "geojson";
 
-import { geoSpatialVoronoiSafe } from "./voronoi";
+import { domainBoxes, geoSpatialVoronoiSafe } from "./voronoi";
 
 type Region = Feature<Polygon | MultiPolygon>;
 
@@ -25,7 +25,8 @@ export interface LineVoronoiRequest {
 // follow the closest approach of lines that do not meet, within these bounds.
 const MIN_STEP_KM = 0.025;
 const MAX_STEP_KM = 0.25;
-// Building the partition costs about 20–30 µs per sample.
+// Building the partition costs about 0.05–0.15 ms per sample, the more the
+// larger the domain is than the lines.
 const MAX_SAMPLES = 20_000;
 
 /** Approximate gap between two bounding boxes, never more than the true gap. */
@@ -119,19 +120,6 @@ function samplePositions(coords: Position[], stepKm: number): Position[] {
         positions.push([x0 + (x1 - x0) * t, y0 + (y1 - y0) * t]);
     }
     return positions;
-}
-
-/** The domain as boxes within longitudes -180 to 180. */
-function domainBoxes([west, south, east, north]: BBox): BBox[] {
-    if (east - west >= 360) return [[-180, south, 180, north]];
-    const start = west - 360 * Math.floor((west + 180) / 360);
-    const end = start + (east - west);
-    return end <= 180
-        ? [[start, south, end, north]]
-        : [
-              [start, south, 180, north],
-              [-180, south, end - 360, north],
-          ];
 }
 
 /** The parts of a cell inside the boxes. */
