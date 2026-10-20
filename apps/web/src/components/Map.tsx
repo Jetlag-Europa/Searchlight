@@ -381,7 +381,7 @@ export const Map = ({ className }: { className?: string }) => {
                     // seeker's own cell.
                     style: (feature) =>
                         feature?.properties?.[PLANNING_CONTEXT]
-                            ? { weight: 1.5, opacity: 0.35 }
+                            ? { weight: 2, opacity: 0.6 }
                             : {},
                 });
                 Object.assign(layer, { questionKey: question.key });
