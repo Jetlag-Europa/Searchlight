@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import { findActiveLink } from "../lib/game-access.js";
+import { notFound } from "../lib/http-errors.js";
 import { gameMapPng, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "../lib/og-map.js";
 
 // Link previews. Discord, Slack and the like read a page's Open Graph tags
@@ -12,10 +13,6 @@ import { gameMapPng, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH } from "../lib/og-map.js";
 // these URLs are on the web app's origin.
 
 const SITE_NAME = "Searchlight";
-
-function notFound(msg = "Not found") {
-  return Object.assign(new Error(msg), { statusCode: 404 });
-}
 const THEME_COLOR = "#1F2F3F";
 
 function escapeHtml(text: string) {
@@ -30,14 +27,19 @@ function escapeHtml(text: string) {
 interface Preview {
   title: string;
   description: string;
-  url: string;
-  // The link a person sees if a browser of theirs is taken for a bot. /play
-  // would serve them this page again; /play/index.html is the app's page.
-  pageUrl: string;
   image?: { url: string; alt: string };
 }
 
-function previewPage({ title, description, url, pageUrl, image }: Preview) {
+// The preview page for the game link with this token.
+function previewPage(token: string | undefined, { title, description, image }: Preview) {
+  const url = new URL("/play", env.FRONTEND_ORIGIN);
+  // The link a person sees if a browser of theirs is taken for a bot. /play
+  // would serve them this page again; /play/index.html is the app's page.
+  const pageUrl = new URL("/play/index.html", env.FRONTEND_ORIGIN);
+  if (token) {
+    url.searchParams.set("token", token);
+    pageUrl.searchParams.set("token", token);
+  }
   const meta = (attr: "name" | "property", key: string, content: string) =>
     `<meta ${attr}="${key}" content="${escapeHtml(content)}" />`;
   return [
@@ -51,7 +53,7 @@ function previewPage({ title, description, url, pageUrl, image }: Preview) {
     meta("name", "theme-color", THEME_COLOR),
     meta("property", "og:site_name", SITE_NAME),
     meta("property", "og:type", "website"),
-    meta("property", "og:url", url),
+    meta("property", "og:url", url.href),
     meta("property", "og:title", title),
     meta("property", "og:description", description),
     ...(image
@@ -70,7 +72,7 @@ function previewPage({ title, description, url, pageUrl, image }: Preview) {
     meta("name", "twitter:description", description),
     "</head>",
     "<body>",
-    `<p><a href="${escapeHtml(pageUrl)}">${escapeHtml(title)}</a></p>`,
+    `<p><a href="${escapeHtml(pageUrl.href)}">${escapeHtml(title)}</a></p>`,
     "</body>",
     "</html>",
     "",
@@ -84,13 +86,6 @@ export async function ogRoutes(app: FastifyInstance) {
     { schema: { querystring: Type.Object({ token: Type.Optional(Type.String()) }) } },
     async (req, reply) => {
       const { token } = req.query as { token?: string };
-      const url = new URL("/play", env.FRONTEND_ORIGIN);
-      const pageUrl = new URL("/play/index.html", env.FRONTEND_ORIGIN);
-      if (token) {
-        url.searchParams.set("token", token);
-        pageUrl.searchParams.set("token", token);
-      }
-
       const link = token ? await findActiveLink(token) : null;
       const revision = link?.game.currentRevision;
       let preview: Preview;
@@ -98,8 +93,6 @@ export async function ogRoutes(app: FastifyInstance) {
         preview = {
           title: "Link no longer active",
           description: "This game link has been revoked or doesn't exist.",
-          url: url.href,
-          pageUrl: pageUrl.href,
         };
       } else {
         const { name, server } = link.game;
@@ -113,8 +106,6 @@ export async function ogRoutes(app: FastifyInstance) {
         preview = {
           title: name,
           description: `Start a session of ${name} from ${server.name} in ${SITE_NAME}, a map planner for Jet Lag: The Game's Hide and Seek.`,
-          url: url.href,
-          pageUrl: pageUrl.href,
           image: { url: image.href, alt: `Map of ${name}` },
         };
       }
@@ -123,7 +114,7 @@ export async function ogRoutes(app: FastifyInstance) {
         .header("Cache-Control", "no-cache")
         .header("X-Robots-Tag", "noindex")
         .type("text/html; charset=utf-8")
-        .send(previewPage(preview));
+        .send(previewPage(token, preview));
     },
   );
 

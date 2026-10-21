@@ -4,17 +4,12 @@ import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
+import { forbidden, notFound } from "../lib/http-errors.js";
 import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
 import type { Event } from "@prisma/client";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-function notFound(msg = "Not found") {
-  return Object.assign(new Error(msg), { statusCode: 404 });
-}
-function forbidden(msg = "Forbidden") {
-  return Object.assign(new Error(msg), { statusCode: 403 });
-}
 function conflict(msg: string) {
   return Object.assign(new Error(msg), { statusCode: 409 });
 }

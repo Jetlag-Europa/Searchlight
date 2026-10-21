@@ -55,6 +55,11 @@ function mercator([lng, lat]: Position): Position {
   ];
 }
 
+// A ring's points in Mercator.
+function* inMercator(ring: Ring): Iterable<Position> {
+  for (const position of ring) yield mercator(position);
+}
+
 function round(n: number) {
   return Math.round(n * 10) / 10;
 }
@@ -67,13 +72,15 @@ export function gameMapSvg(definition: unknown): string | null {
   const zoneAreas = zoneFeatures.flatMap((f) => polygonsOf(f?.geometry));
   const stations = zoneFeatures.map((f) => pointOf(f?.geometry)).filter((p) => p !== null);
 
-  // Fit the play area, which every zone is meant to lie within.
+  // Fit the play area, which every zone is meant to lie within. Its outer
+  // rings are projected once, for the fit and for their paths.
+  const outerRings = playArea.map((polygon) => polygon[0]?.map(mercator));
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
   let maxY = -Infinity;
-  for (const polygon of playArea) {
-    for (const [x, y] of polygon[0]?.map(mercator) ?? []) {
+  for (const ring of outerRings) {
+    for (const [x, y] of ring ?? []) {
       minX = Math.min(minX, x);
       maxX = Math.max(maxX, x);
       minY = Math.min(minY, y);
@@ -90,15 +97,17 @@ export function gameMapSvg(definition: unknown): string | null {
   );
   const offsetX = (OG_IMAGE_WIDTH - spanX * scale) / 2;
   const offsetY = (OG_IMAGE_HEIGHT - spanY * scale) / 2;
-  const project = (position: Position): Position => {
-    const [x, y] = mercator(position);
-    return [offsetX + (x - minX) * scale, offsetY + (maxY - y) * scale];
-  };
+  // From Mercator to the image's pixels.
+  const toImage = ([x, y]: Position): Position => [
+    offsetX + (x - minX) * scale,
+    offsetY + (maxY - y) * scale,
+  ];
 
-  const ringPath = (ring: Ring) => {
+  // A ring's path, from its points in Mercator.
+  const ringPath = (ring: Iterable<Position>) => {
     const points: Position[] = [];
     for (const position of ring) {
-      const point = project(position);
+      const point = toImage(position);
       const last = points[points.length - 1];
       if (!last || Math.hypot(point[0] - last[0], point[1] - last[1]) >= MIN_STEP) {
         points.push(point);
@@ -108,13 +117,18 @@ export function gameMapSvg(definition: unknown): string | null {
     return `M${points.map(([x, y]) => `${round(x)} ${round(y)}`).join("L")}Z`;
   };
   // One path per polygon, so its holes cut out of it with the even-odd rule.
-  const polygonPaths = (polygons: Polygon[]) =>
-    polygons.map((polygon) => polygon.map(ringPath).join("")).filter(Boolean);
+  // outer: the polygons' outer rings, if already in Mercator.
+  const polygonPaths = (polygons: Polygon[], outer: (Position[] | undefined)[] = []) =>
+    polygons
+      .map((polygon, i) =>
+        polygon.map((ring, j) => ringPath((j === 0 && outer[i]) || inMercator(ring))).join(""),
+      )
+      .filter(Boolean);
 
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${OG_IMAGE_WIDTH}" height="${OG_IMAGE_HEIGHT}" viewBox="0 0 ${OG_IMAGE_WIDTH} ${OG_IMAGE_HEIGHT}">`,
     `<rect width="100%" height="100%" fill="${BACKGROUND}"/>`,
-    ...polygonPaths(playArea).map(
+    ...polygonPaths(playArea, outerRings).map(
       (d) =>
         `<path d="${d}" fill="${PLAY_AREA_FILL}" fill-rule="evenodd" stroke="${PLAY_AREA_STROKE}" stroke-width="4" stroke-linejoin="round"/>`,
     ),
@@ -122,7 +136,7 @@ export function gameMapSvg(definition: unknown): string | null {
       (d) => `<path d="${d}" fill="${ZONE_FILL}" fill-opacity="0.35" fill-rule="evenodd"/>`,
     ),
     ...stations.map((position) => {
-      const [x, y] = project(position);
+      const [x, y] = toImage(mercator(position));
       return `<circle cx="${round(x)}" cy="${round(y)}" r="${STATION_RADIUS}" fill="${ZONE_FILL}"/>`;
     }),
     `</svg>`,
