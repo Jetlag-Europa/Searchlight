@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { formatGameDefinitionJson } from "@searchlight/shared";
 import { afterAll, describe, expect, it, vi } from "vitest";
 
 import * as gt from "../public/skills/create-game/game-tools.mjs";
@@ -150,5 +151,27 @@ describe("game-tools.mjs", () => {
         expect(gt.circleRadius(pin({}, { type: "Polygon", coordinates: [ring] }))).toBeCloseTo(250, -1);
         expect(gt.circleRadius(pin({}, { type: "LineString", coordinates: ring }))).toBeCloseTo(250, -1);
         expect(() => gt.circleRadius(pin({}))).toThrow(/expected a Polygon/);
+    });
+
+    it("formats a game file as the app's downloads do", () => {
+        const geometry = {
+            type: "MultiPolygon",
+            coordinates: [
+                [[[0, 50], [1, 50], [1, 51], [0, 50]]],
+                [[[4.5, 50.25], [5, 50], [5, 51], [4.5, 50.25]]],
+            ],
+        };
+        for (const game of [
+            { name: "Areas", features: [pin({ name: "S60" }, geometry), pin({ name: "Stop" })] },
+            { properties: { coordinates: "52.1 N, 4.3 E" }, geometry: { coordinates: [["a", 1]] } },
+            { note: "\u0000[1,2]\u0000", geometry: { coordinates: [1, 2] } },
+            { "\u0000[1]\u0000": 1, geometry: { coordinates: [1, 2] } },
+        ]) {
+            expect(gt.formatGame(game)).toBe(formatGameDefinitionJson(game));
+            expect(gt.formatGame(game, "\t")).toBe(formatGameDefinitionJson(game, "\t"));
+        }
+        expect(gt.formatGame({ geometry })).toContain(
+            `"coordinates": ${JSON.stringify(geometry.coordinates)}`,
+        );
     });
 });

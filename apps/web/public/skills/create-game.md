@@ -265,7 +265,7 @@ Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a regio
   - If a layer is over, and its vertices lie closer than about 50 m (borders traced point by point, as from OSM), simplify it with a topology-preserving simplifier at about 10 m tolerance. Simplifying each feature on its own opens gaps and overlaps between neighbours. Where vertices are already far apart, simplifying removes little; the checker then only notes the layer.
   - Round coordinates to 6 decimal places (about 0.1 m). Use fixed decimals, not 6 *significant* digits, which leaves about 11 m steps.
   - Keep only `name` in properties (plus `tier`/`radius` on zones).
-  - Preloaded games range from tens of KB to about 8 MB, and the import limit is 50 MB.
+  - Preloaded games range from tens of KB to about 8 MB, and the import limit is 50 MB of compact JSON. The checker warns over 10 MB and fails over 50 MB.
 - Every feature should have `properties.name`, because players see it in answers and tentacle lists.
 
 ### 5.3 Standard rulebook layers
@@ -295,6 +295,7 @@ npm i @tmcw/togeojson@7.1.2 @xmldom/xmldom@0.9.12
 | `myMapsKmlUrl(link)`, `googleDocTextUrl(link)` | Download URLs for a Google My Maps link (KML) and a Google Docs link (plain text). |
 | `withIds(features, fallback)` | Assigns unique slug IDs from names. |
 | `layer(name, enabledFor, features)`, `collection(features)`, `bbox(features)`, `center(bbox)` | Assemble the file. `layer()` throws if the features mix geometry families. |
+| `formatGame(game)` | The file's text: indented, with each `coordinates` array on one line. `JSON.stringify(game, null, 2)` puts every number on its own line, making the file about 4.5x larger. |
 
 ```js
 // build-game.mjs (run: node build-game.mjs)
@@ -324,7 +325,7 @@ const game = {
     gt.layer("Rail Line", ["matching", "measuring"], gt.withIds(gt.normalize(kml.get("Rail lines")))),
   ],
 };
-writeFileSync(`${game.id}.game.json`, JSON.stringify(game, null, 2) + "\n");
+writeFileSync(`${game.id}.game.json`, gt.formatGame(game));
 ```
 
 Other notes:
@@ -346,7 +347,7 @@ node check-game.mjs --strict testville-2026.game.json
 
 `--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other. Preloaded games must pass it.
 
-The checker ends with the question list and labels, which is what players will see. Read it back to the user. To see the file on a map, the user can drop it on `https://searchlight.jetlageuropa.org/designer` (no login, and the file never leaves the browser): it draws the play area, the hiding zones and each layer, and runs the same checks. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
+The checker ends with the question list and labels, which is what players will see. Read it back to the user. To see the file on a map, the user can drop it on the import page, `https://searchlight.jetlageuropa.org/games/import` (after signing in): it draws the play area, the hiding zones and each layer, runs the same checks, and only saves the game when they click import. The page sends files as compact JSON, so it skips the checker's warning about a formatted file over the 50 MB limit, which only matters when posting the file to the API yourself. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
 
 ## 8. Import, update, export
 
@@ -357,7 +358,7 @@ The checker ends with the question list and labels, which is what players will s
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.
 - **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them, `/games` shows no import button for that server.
   - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission or a server change; `409` if the game exists and `allowUpdate` isn't set.
-  - The body limit is 50 MB.
+  - The body limit is 50 MB. The checker sizes the file both as compact JSON and as it is on disk; post it compact (`JSON.stringify(game)`) if only its indentation takes it over.
 - **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json`. The file name must equal the `id`. The API imports and updates these files on every start, so the file wins over an earlier web import of the same game. A file that fails to import is logged as an error and skipped; the other files still load.
 - **Revisions:** every import with new content creates a new revision. Running sessions stay on the revision they started with. Content identical to the current revision is reported as `unchanged`; content identical to an older revision re-activates that revision (reported as `updated` with its number) instead of creating a new one.
 - **Export:**

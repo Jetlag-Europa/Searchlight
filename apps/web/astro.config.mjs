@@ -61,6 +61,10 @@ export default defineConfig({
     devToolbar: {
         enabled: false,
     },
+    // The import page took over from /designer; older guides link to it.
+    redirects: {
+        "/designer": "/games/import",
+    },
     site: "https://searchlight.jetlageuropa.org",
     base: "/",
 });

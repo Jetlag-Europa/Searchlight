@@ -235,6 +235,66 @@ describe("check-game.mjs", () => {
         expect(result.notes.map((n) => n.code)).toEqual(["plural-layer-name"]);
     });
 
+    it("sizes a game as compact JSON, so indentation doesn't count", () => {
+        const MB = 1024 * 1024;
+        const sizeIssues = (result: ReturnType<typeof checkGame>) => [
+            ...result.errors
+                .filter((e) => e.path === "/")
+                .map((e) => `error: ${e.message}`),
+            ...result.warnings
+                .filter((w) =>
+                    ["large-file", "formatted-over-limit"].includes(w.code),
+                )
+                .map((w) => `${w.code}: ${w.message}`),
+        ];
+        const holding = (bytes: number) => {
+            const def = game();
+            def.hidingZones.features.features[0] = point("north", 10.5, 50.8, {
+                note: "x".repeat(bytes),
+            });
+            return def;
+        };
+        // A file indented to 22 MB, holding much less.
+        expect(sizeIssues(checkGame(game(), { fileSize: 22 * MB }))).toEqual(
+            [],
+        );
+        expect(sizeIssues(checkGame(holding(11 * MB)))).toEqual([
+            "large-file: 11.0 MB as compact JSON; simplify boundaries and drop unused properties (import limit 50 MB)",
+        ]);
+        // Over the limit even compact: the import refuses it.
+        const tooLarge = checkGame(holding(51 * MB), { fileSize: 60 * MB });
+        expect(sizeIssues(tooLarge)).toEqual([
+            "error: 51.0 MB as compact JSON, over the 50 MB import limit; simplify boundaries and drop unused properties",
+        ]);
+        // Posted to the API as is, the indentation counts toward its limit.
+        expect(sizeIssues(checkGame(game(), { fileSize: 60 * MB }))).toEqual([
+            "formatted-over-limit: 60.0 MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)",
+        ]);
+        expect(
+            sizeIssues(checkGame(holding(11 * MB), { fileSize: 60 * MB })).map(
+                (i) => i.split(":")[0],
+            ),
+        ).toEqual(["large-file", "formatted-over-limit"]);
+    });
+
+    it("counts a game's size in UTF-8 bytes", () => {
+        const MB = 1024 * 1024;
+        // 5.25M characters, but 11 MB: "é" is 2 bytes, "😀" (a surrogate
+        // pair) 4.
+        const def = game();
+        def.hidingZones.features.features[0] = point("north", 10.5, 50.8, {
+            note: "é".repeat(5 * MB) + "😀".repeat(MB / 4),
+        });
+        const [warning] = checkGame(def).warnings.filter(
+            (w) => w.code === "large-file",
+        );
+        const bytes = new TextEncoder().encode(JSON.stringify(def)).length;
+        expect(warning.message).toMatch(
+            new RegExp(`^${(bytes / MB).toFixed(1)} MB as compact JSON`),
+        );
+        expect(bytes / MB).toBeGreaterThan(11);
+    });
+
     it("marks only always-defective warnings as strict", () => {
         const def = game();
         def.map.center = [50.5, 10.5];

@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import type { Game, GamesResponse, GameStats, GameStatsResponse, ServersResponse, ServerWithPermissions } from "@searchlight/shared";
+import { formatGameDefinitionJson, type Game, type GamesResponse, type GameStats, type GameStatsResponse, type ServersResponse, type ServerWithPermissions } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -165,7 +165,7 @@ function GameCard({
                             });
                             if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
                             const data = await res.json();
-                            const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+                            const blob = new Blob([formatGameDefinitionJson(data)], { type: "application/json" });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement("a");
                             a.href = url;

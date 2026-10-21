@@ -1,6 +1,7 @@
 import "leaflet/dist/leaflet.css";
 
 import {
+    formatGameDefinitionJson,
     type GameDefinition,
     resolveGameDefinitionId,
     validateGameDefinition,
@@ -61,6 +62,7 @@ const OVERLAP_COLOR = "#dc2626";
 
 interface Loaded {
     fileName: string;
+    /** The size of the file as picked, before any fixes. */
     fileSize: number;
     errors: ValidationIssue[];
     issues: QualityIssue[];
@@ -148,12 +150,13 @@ const indentOf = (text: string) =>
     /^\s*[{[][ \t]*\r?\n([ \t]+)/.exec(text)?.[1] ?? "";
 
 /**
- * The file as it is saved, indented as the original was, so a downloaded
- * copy reads like it and is no larger than it needs to be.
+ * The file as it is saved, indented as the original was (but with each
+ * coordinates array on one line), so a downloaded copy reads like it and is
+ * no larger than it needs to be.
  */
 const serialize = (definition: GameDefinition, indent: string) =>
     indent
-        ? `${JSON.stringify(definition, null, indent)}\n`
+        ? formatGameDefinitionJson(definition, indent)
         : JSON.stringify(definition);
 
 async function inspectFile(file: File): Promise<Loaded> {
@@ -224,7 +227,7 @@ async function inspectDefinition(
     result.definition = parsed as GameDefinition;
     // The checker loads lazily: after a deploy its chunk may be gone.
     try {
-        result.issues = await checkGameQuality(parsed, fileSize);
+        result.issues = await checkGameQuality(parsed);
     } catch (err: any) {
         result.issues = [
             {
@@ -315,12 +318,7 @@ function IssueList({ issues }: { issues: QualityIssue[] }) {
     );
 }
 
-export function GameDesigner({
-    mode = "designer",
-}: {
-    /** "import" adds the import step, for the import page. */
-    mode?: "designer" | "import";
-}) {
+export function GameImporter() {
     const [loaded, setLoaded] = useState<Loaded | null>(null);
     const [highlight, setHighlight] = useState<OverlapHighlight | null>(null);
     // Null until the layers marked noOverlaps have been checked.
@@ -366,7 +364,7 @@ export function GameDesigner({
             const result = await inspectDefinition(
                 fixed,
                 loaded.fileName,
-                new Blob([serialize(fixed, loaded.indent)]).size,
+                loaded.fileSize,
                 loaded.noServer,
                 true,
                 loaded.indent,
@@ -567,48 +565,31 @@ export function GameDesigner({
 
             <aside
                 ref={panel}
-                className={cn(
-                    "space-y-5 border-border p-4 md:w-96 md:overflow-y-auto md:border-l",
-                    // Room for the account chip in the corner.
-                    mode === "import" && "pt-14",
-                )}
+                // Room at the top for the account chip in the corner.
+                className="space-y-5 border-border p-4 pt-14 md:w-96 md:overflow-y-auto md:border-l"
             >
                 <div>
-                    {mode === "import" ? (
-                        <>
-                            <a
-                                href="/games"
-                                className="text-xs text-muted-foreground underline"
-                            >
-                                ← Games
-                            </a>
-                            <h1 className="text-xl font-bold">Import a game</h1>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Check a <code>*.game.json</code> on the map, fix
-                                what the page can, then import it. No file yet?
-                                Follow the{" "}
-                                <a
-                                    href="/skills/create-game.md"
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="underline"
-                                >
-                                    game creation guide
-                                </a>
-                                , or give it to an AI agent along with your
-                                rules doc and map links.
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <h1 className="text-xl font-bold">Game designer</h1>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                See a <code>*.game.json</code> on the map and
-                                check it before importing it. The file stays in
-                                your browser.
-                            </p>
-                        </>
-                    )}
+                    <a
+                        href="/games"
+                        className="text-xs text-muted-foreground underline"
+                    >
+                        ← Games
+                    </a>
+                    <h1 className="text-xl font-bold">Import a game</h1>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                        Check a <code>*.game.json</code> on the map, fix what
+                        the page can, then import it. No file yet? Follow the{" "}
+                        <a
+                            href="/skills/create-game.md"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="underline"
+                        >
+                            game creation guide
+                        </a>
+                        , or give it to an AI agent along with your rules doc
+                        and map links.
+                    </p>
                 </div>
 
                 <label
@@ -718,7 +699,7 @@ export function GameDesigner({
                     </section>
                 )}
 
-                {mode === "import" && loaded?.definition && compiled && (
+                {loaded?.definition && compiled && (
                     <ImportPanel
                         key={fileCount}
                         busy={busy || !wrongMarks}
@@ -803,15 +784,6 @@ export function GameDesigner({
                                 </li>
                             ))}
                         </ul>
-                        {mode === "designer" && (
-                            <p className="mt-3 text-xs text-muted-foreground">
-                                Looks right?{" "}
-                                <a href="/games/import" className="underline">
-                                    Import it
-                                </a>
-                                .
-                            </p>
-                        )}
                     </section>
                 )}
             </aside>
