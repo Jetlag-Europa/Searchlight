@@ -16,7 +16,7 @@
 //
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.
-// Browsers import it too (Searchlight's import and /designer pages), so
+// Browsers import it too (Searchlight's import page), so
 // it loads node: modules only in Node (at the end). No shebang line either:
 // Vite's dev server prepends imports to the file, which would break one.
 
@@ -160,6 +160,27 @@ const formatRadius = (value, unit) =>
   unit === "meters" && value >= 1000 && value % 100 === 0
     ? `${value / 1000} km`
     : `${value} ${{ meters: "m", kilometers: "km", miles: "mi" }[unit]}`;
+
+const MB = 1024 * 1024;
+// The API's body limit for POST /games/import, in MB.
+const IMPORT_LIMIT_MB = 50;
+
+/** A string's length in UTF-8 bytes, without encoding it. */
+function utf8Length(text) {
+  let bytes = 0;
+  for (let i = 0; i < text.length; i++) {
+    const c = text.charCodeAt(i);
+    const next = text.charCodeAt(i + 1);
+    if (c < 0x80) bytes += 1;
+    else if (c < 0x800) bytes += 2;
+    else if (c >= 0xd800 && c < 0xdc00 && next >= 0xdc00 && next < 0xe000) {
+      // A surrogate pair is one 4-byte character.
+      bytes += 4;
+      i++;
+    } else bytes += 3;
+  }
+  return bytes;
+}
 
 /**
  * Checks a parsed game definition. `fileSize` (bytes), for a file that will
@@ -571,12 +592,6 @@ export function checkGame(def, { fileSize } = {}) {
     const precise = [def.map?.playArea, hz.features, ...layers.map((l) => l.data)]
       .some((fc) => fc?.features?.some((f) => tooPrecise(f.geometry?.coordinates)));
     if (precise) note("/", "coordinates carry more than 6 decimals (~0.1 m); rounding to 6 shrinks the file", "too-precise");
-    // Sized as compact JSON, so a file's indentation doesn't count: the import
-    // page sends files compact. A file posted to the API as is counts in full.
-    const mb = new TextEncoder().encode(JSON.stringify(def)).length / 1024 / 1024;
-    const fileMb = (fileSize ?? 0) / 1024 / 1024;
-    if (mb > 10) warn("/", `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit 50 MB)`, "large-file");
-    if (fileMb > 50) warn("/", `${fileMb.toFixed(1)} MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)`, "large-file");
   }
 
   // ── Questions offered ──────────────────────────────────────────────────────
@@ -597,6 +612,21 @@ export function checkGame(def, { fileSize } = {}) {
         questions.push({ kind, label: questionLabel(name, kind, family), id: `${kind}-${slug(name)}` });
       }
     }
+  }
+
+  // ── Size ───────────────────────────────────────────────────────────────────
+
+  // Sized as compact JSON, so a file's indentation doesn't count: the import
+  // page sends files compact. A file posted to the API as is counts in full.
+  const mb = utf8Length(JSON.stringify(def)) / MB;
+  const fileMb = (fileSize ?? 0) / MB;
+  if (mb > IMPORT_LIMIT_MB) {
+    err("/", `${mb.toFixed(1)} MB as compact JSON, over the ${IMPORT_LIMIT_MB} MB import limit; simplify boundaries and drop unused properties`);
+  } else if (mb > 10) {
+    warn("/", `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit ${IMPORT_LIMIT_MB} MB)`, "large-file");
+  }
+  if (fileMb > IMPORT_LIMIT_MB && mb <= IMPORT_LIMIT_MB) {
+    warn("/", `${fileMb.toFixed(1)} MB as formatted, over the API's ${IMPORT_LIMIT_MB} MB import limit; post it without indentation (the import page does)`, "formatted-over-limit");
   }
   return { errors, warnings, notes, questions, zoneCount: zones.length, layerCount: layers.length };
 }

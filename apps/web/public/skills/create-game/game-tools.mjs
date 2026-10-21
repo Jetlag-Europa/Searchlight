@@ -465,3 +465,30 @@ export function bbox(features) {
 
 /** Centre [lng, lat] of a bbox. */
 export const center = ([w, s, e, n]) => [round((w + e) / 2), round((s + n) / 2)];
+
+// ── Saving ───────────────────────────────────────────────────────────────────
+
+/** Compact JSON of nested arrays of numbers, as GeoJSON positions are. */
+const POSITIONS = /^[-+\d.eE,[\]nul]*$/;
+
+/**
+ * The game as file text: indented, but with each `coordinates` array on one
+ * line. Plain `JSON.stringify(game, null, 2)` puts every number on a line of
+ * its own, making the file about 4.5x larger. The same as the app's
+ * downloads (formatGameDefinitionJson in @searchlight/shared).
+ * @param {object} game
+ * @param {string | number} [indent]
+ */
+export function formatGame(game, indent = 2) {
+  // Coordinates go in as NUL-wrapped strings, which are unwrapped after. A
+  // file whose own text holds a NUL is rare enough to just indent in full.
+  let hasNul = false;
+  const text = JSON.stringify(game, (key, value) => {
+    if (key.includes("\0") || ((typeof value === "string" || value instanceof String) && value.includes("\0"))) hasNul = true;
+    if (hasNul || key !== "coordinates" || !Array.isArray(value)) return value;
+    const json = JSON.stringify(value);
+    return POSITIONS.test(json) ? `\0${json}\0` : value;
+  }, indent);
+  if (hasNul) return `${JSON.stringify(game, null, indent)}\n`;
+  return `${text.replace(/"\\u0000(.*?)\\u0000"/g, (_, json) => json)}\n`;
+}

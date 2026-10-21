@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## One page for checking and importing games (2026-10-21)
+
+- `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
+- The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
+
 ## Numbered releases (2026-10-20)
 
 - Searchlight now has numbered releases on [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases), each summing up the changes since the one before. 1.0 is Searchlight as Jules built it on top of JetLagHideAndSeek, up to 26 September 2026; 2.0 is everything since, starting with importable games.

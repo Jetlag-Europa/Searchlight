@@ -15,17 +15,25 @@ export function formatGameDefinitionJson(
 ): string {
   // Coordinates go in as NUL-wrapped strings, which are unwrapped after. A
   // file whose own text holds a NUL is rare enough to just indent in full.
-  if (JSON.stringify(definition).includes("\\u0000")) {
-    return `${JSON.stringify(definition, null, indent)}\n`;
-  }
+  let hasNul = false;
   const text = JSON.stringify(
     definition,
     (key, value) => {
-      if (key !== "coordinates" || !Array.isArray(value)) return value;
+      if (
+        key.includes("\0") ||
+        ((typeof value === "string" || value instanceof String) &&
+          value.includes("\0"))
+      ) {
+        hasNul = true;
+      }
+      if (hasNul || key !== "coordinates" || !Array.isArray(value)) {
+        return value;
+      }
       const json = JSON.stringify(value);
       return POSITIONS.test(json) ? `\0${json}\0` : value;
     },
     indent,
   );
+  if (hasNul) return `${JSON.stringify(definition, null, indent)}\n`;
   return `${text.replace(/"\\u0000(.*?)\\u0000"/g, (_, json: string) => json)}\n`;
 }
