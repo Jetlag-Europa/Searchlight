@@ -1,5 +1,8 @@
 import { useStore } from "@nanostores/react";
-import { resolveGameDefinitionId } from "@searchlight/shared";
+import {
+    formatGameDefinitionJson,
+    resolveGameDefinitionId,
+} from "@searchlight/shared";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { toast } from "react-toastify";
@@ -179,10 +182,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                 try {
                                                     const blob = new Blob(
                                                         [
-                                                            JSON.stringify(
+                                                            formatGameDefinitionJson(
                                                                 def,
-                                                                null,
-                                                                2,
                                                             ),
                                                         ],
                                                         {

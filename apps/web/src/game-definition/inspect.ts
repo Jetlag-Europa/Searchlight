@@ -19,16 +19,17 @@ export interface QualityIssue {
  * Runs the game creation skill's checker (check-game.mjs) on a parsed file:
  * the play-quality checks the validator doesn't do. The checker loads on
  * first use, so pages only download it once they check a file. Its errors
- * mirror the validator's, so a valid file shouldn't have any.
+ * mirror the validator's, so a valid file shouldn't have any. The file's own
+ * size doesn't matter here: the import page sends it as compact JSON, which
+ * is what the checker sizes.
  */
 export async function checkGameQuality(
     definition: unknown,
-    fileSize?: number,
 ): Promise<QualityIssue[]> {
     const { checkGame, STRICT_CODES } = await import(
         "../../public/skills/create-game/check-game.mjs"
     );
-    const { errors, warnings, notes } = checkGame(definition, { fileSize });
+    const { errors, warnings, notes } = checkGame(definition);
     const issue =
         (level: QualityIssue["level"]) =>
         (i: { path: string; message: string; code?: string }) => ({

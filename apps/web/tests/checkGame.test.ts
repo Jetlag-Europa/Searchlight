@@ -235,6 +235,29 @@ describe("check-game.mjs", () => {
         expect(result.notes.map((n) => n.code)).toEqual(["plural-layer-name"]);
     });
 
+    it("sizes a game as compact JSON, so indentation doesn't count", () => {
+        const MB = 1024 * 1024;
+        const sizeWarnings = (result: ReturnType<typeof checkGame>) =>
+            result.warnings
+                .filter((w) => w.code === "large-file")
+                .map((w) => w.message);
+        // A file indented to 22 MB, holding much less.
+        expect(sizeWarnings(checkGame(game(), { fileSize: 22 * MB }))).toEqual(
+            [],
+        );
+        const large = game();
+        large.hidingZones.features.features[0] = point("north", 10.5, 50.8, {
+            note: "x".repeat(11 * MB),
+        });
+        expect(sizeWarnings(checkGame(large))).toEqual([
+            "11.0 MB as compact JSON; simplify boundaries and drop unused properties (import limit 50 MB)",
+        ]);
+        // Posted to the API as is, the indentation counts toward its limit.
+        expect(sizeWarnings(checkGame(game(), { fileSize: 60 * MB }))).toEqual([
+            "60.0 MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)",
+        ]);
+    });
+
     it("marks only always-defective warnings as strict", () => {
         const def = game();
         def.map.center = [50.5, 10.5];

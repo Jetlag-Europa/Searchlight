@@ -167,10 +167,14 @@ describe("checkGameQuality", () => {
         );
     });
 
-    it("passes notes and the file size through", async () => {
+    it("passes notes and the size warning through", async () => {
         const def: Record<string, unknown> = game();
         delete def.thermometer;
-        const issues = await checkGameQuality(def, 11 * 1024 * 1024);
+        // Sized as compact JSON, as the import page sends it.
+        (def.map as any).playArea.features[0].properties.note = "x".repeat(
+            11 * 1024 * 1024,
+        );
+        const issues = await checkGameQuality(def);
         expect(issues.map((i) => [i.level, i.code])).toEqual([
             ["warning", "large-file"],
             ["note", "no-thermometer"],

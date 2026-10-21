@@ -162,10 +162,11 @@ const formatRadius = (value, unit) =>
     : `${value} ${{ meters: "m", kilometers: "km", miles: "mi" }[unit]}`;
 
 /**
- * Checks a parsed game definition. `fileSize` (bytes) enables the file size
- * warning. Returns { errors, warnings, notes, questions }: issues are
- * { path, message, code }, and questions lists what the game offers as
- * { kind, label, id }.
+ * Checks a parsed game definition. `fileSize` (bytes), for a file that will
+ * be posted to the API as is, adds a warning when indentation alone takes it
+ * over the import limit. Returns { errors, warnings, notes, questions }:
+ * issues are { path, message, code }, and questions lists what the game
+ * offers as { kind, label, id }.
  */
 export function checkGame(def, { fileSize } = {}) {
   const errors = [];
@@ -570,8 +571,12 @@ export function checkGame(def, { fileSize } = {}) {
     const precise = [def.map?.playArea, hz.features, ...layers.map((l) => l.data)]
       .some((fc) => fc?.features?.some((f) => tooPrecise(f.geometry?.coordinates)));
     if (precise) note("/", "coordinates carry more than 6 decimals (~0.1 m); rounding to 6 shrinks the file", "too-precise");
-    const mb = (fileSize ?? 0) / 1024 / 1024;
-    if (mb > 10) warn("/", `${mb.toFixed(1)} MB; simplify boundaries and drop unused properties (import limit 50 MB)`, "large-file");
+    // Sized as compact JSON, so a file's indentation doesn't count: the import
+    // page sends files compact. A file posted to the API as is counts in full.
+    const mb = JSON.stringify(def).length / 1024 / 1024;
+    const fileMb = (fileSize ?? 0) / 1024 / 1024;
+    if (mb > 10) warn("/", `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit 50 MB)`, "large-file");
+    else if (fileMb > 50) warn("/", `${fileMb.toFixed(1)} MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)`, "large-file");
   }
 
   // ── Questions offered ──────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 import "leaflet/dist/leaflet.css";
 
 import {
+    formatGameDefinitionJson,
     type GameDefinition,
     resolveGameDefinitionId,
     validateGameDefinition,
@@ -148,12 +149,13 @@ const indentOf = (text: string) =>
     /^\s*[{[][ \t]*\r?\n([ \t]+)/.exec(text)?.[1] ?? "";
 
 /**
- * The file as it is saved, indented as the original was, so a downloaded
- * copy reads like it and is no larger than it needs to be.
+ * The file as it is saved, indented as the original was (but with each
+ * coordinates array on one line), so a downloaded copy reads like it and is
+ * no larger than it needs to be.
  */
 const serialize = (definition: GameDefinition, indent: string) =>
     indent
-        ? `${JSON.stringify(definition, null, indent)}\n`
+        ? formatGameDefinitionJson(definition, indent)
         : JSON.stringify(definition);
 
 async function inspectFile(file: File): Promise<Loaded> {
@@ -224,7 +226,7 @@ async function inspectDefinition(
     result.definition = parsed as GameDefinition;
     // The checker loads lazily: after a deploy its chunk may be gone.
     try {
-        result.issues = await checkGameQuality(parsed, fileSize);
+        result.issues = await checkGameQuality(parsed);
     } catch (err: any) {
         result.issues = [
             {
