@@ -98,15 +98,28 @@ describe("formatGameDefinitionJson", () => {
     );
   });
 
-  it("leaves coordinates that aren't positions, and text holding NULs, as they are", () => {
+  it("leaves coordinates that aren't positions as they are", () => {
     const odd = {
-      properties: { coordinates: "52.1 N, 4.3 E", note: "\u0000[1,2]\u0000" },
+      properties: { coordinates: "52.1 N, 4.3 E" },
       geometry: { coordinates: [["a", 1]] },
-      empty: { coordinates: [] },
-      "\u0000k": { coordinates: [1, 2] },
+      // An array that turns into something else when serialized.
+      line: { coordinates: [Object.assign([1, 2], { toJSON: () => ({ a: 1 }) })] },
     };
-    expect(JSON.parse(formatGameDefinitionJson(odd))).toEqual(odd);
-    const noNul = { properties: { coordinates: "52.1 N" }, geometry: { coordinates: [["a", 1]] } };
-    expect(formatGameDefinitionJson(noNul)).toBe(`${JSON.stringify(noNul, null, 2)}\n`);
+    const text = formatGameDefinitionJson(odd);
+    expect(text).toBe(`${JSON.stringify(odd, null, 2)}\n`);
+    expect(JSON.parse(text)).toEqual(JSON.parse(JSON.stringify(odd)));
+    expect(formatGameDefinitionJson({ empty: { coordinates: [] } })).toBe('{\n  "empty": {\n    "coordinates": []\n  }\n}\n');
+  });
+
+  it("indents in full a game whose text holds a NUL, in a key or a value", () => {
+    for (const odd of [
+      { "\u0000[1]\u0000": 1, geometry: { coordinates: [1, 2] } },
+      { note: "\u0000[1,2]\u0000", geometry: { coordinates: [1, 2] } },
+      { note: new String("\u0000[1]\u0000"), geometry: { coordinates: [1, 2] } },
+    ]) {
+      const text = formatGameDefinitionJson(odd);
+      expect(text).toBe(`${JSON.stringify(odd, null, 2)}\n`);
+      expect(JSON.parse(text)).toEqual(JSON.parse(JSON.stringify(odd)));
+    }
   });
 });

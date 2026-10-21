@@ -253,9 +253,14 @@ describe("check-game.mjs", () => {
             "11.0 MB as compact JSON; simplify boundaries and drop unused properties (import limit 50 MB)",
         ]);
         // Posted to the API as is, the indentation counts toward its limit.
+        const overApiLimit =
+            "60.0 MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)";
         expect(sizeWarnings(checkGame(game(), { fileSize: 60 * MB }))).toEqual([
-            "60.0 MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)",
+            overApiLimit,
         ]);
+        expect(sizeWarnings(checkGame(large, { fileSize: 60 * MB }))[1]).toBe(
+            overApiLimit,
+        );
     });
 
     it("marks only always-defective warnings as strict", () => {

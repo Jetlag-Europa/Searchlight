@@ -6,7 +6,7 @@
 // ERROR  the import will reject the file (mirrors the server's validator).
 // WARN   the file imports, but players will hit a problem the validator
 //        doesn't catch (degenerate questions, zones outside the play area, ...).
-// NOTE   worth a look, often intentional (file size, regions not covering zones).
+// NOTE   worth a look, often intentional (extra decimals, regions not covering zones).
 // It finishes by listing the questions the game will offer, with their labels.
 // Exit code 1 when there are errors. --strict also fails (FAIL instead of WARN)
 // on the warnings in STRICT_CODES, which are always data defects: misplaced or
@@ -573,10 +573,10 @@ export function checkGame(def, { fileSize } = {}) {
     if (precise) note("/", "coordinates carry more than 6 decimals (~0.1 m); rounding to 6 shrinks the file", "too-precise");
     // Sized as compact JSON, so a file's indentation doesn't count: the import
     // page sends files compact. A file posted to the API as is counts in full.
-    const mb = JSON.stringify(def).length / 1024 / 1024;
+    const mb = new TextEncoder().encode(JSON.stringify(def)).length / 1024 / 1024;
     const fileMb = (fileSize ?? 0) / 1024 / 1024;
     if (mb > 10) warn("/", `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit 50 MB)`, "large-file");
-    else if (fileMb > 50) warn("/", `${fileMb.toFixed(1)} MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)`, "large-file");
+    if (fileMb > 50) warn("/", `${fileMb.toFixed(1)} MB as formatted, over the API's 50 MB import limit; post it without indentation (the import page does)`, "large-file");
   }
 
   // ── Questions offered ──────────────────────────────────────────────────────
