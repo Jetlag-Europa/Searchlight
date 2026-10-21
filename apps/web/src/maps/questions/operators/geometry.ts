@@ -8,7 +8,6 @@ import type {
     MultiPolygon,
     Point,
     Polygon,
-    Position,
 } from "geojson";
 
 export type Region = Feature<Polygon | MultiPolygon>;
@@ -215,37 +214,23 @@ export function regionLines(region: Region): FeatureCollection<LineString> {
     ) as FeatureCollection<LineString>;
 }
 
+export { borderNetwork } from "@/maps/geo-utils/cellBorders";
+
 /**
- * Every edge of the regions' boundaries once, as one MultiLineString: the
- * border two neighbours share is buffered once instead of twice.
+ * Set on planning features drawn for context, such as the borders of the
+ * cells a matching answer didn't choose: the map draws them fainter.
  */
-export function borderNetwork(regions: Region[]): Feature<MultiLineString> {
-    const key = (a: Position, b: Position) => {
-        const p = `${a[0]},${a[1]}`;
-        const q = `${b[0]},${b[1]}`;
-        return p < q ? `${p} ${q}` : `${q} ${p}`;
-    };
-    const seen = new Set<string>();
-    const paths: Position[][] = [];
-    for (const region of regions) {
-        for (const line of regionLines(region).features) {
-            const ring = line.geometry.coordinates;
-            let path: Position[] = [];
-            for (let i = 0; i + 1 < ring.length; i++) {
-                const edge = key(ring[i], ring[i + 1]);
-                if (seen.has(edge)) {
-                    if (path.length > 1) paths.push(path);
-                    path = [];
-                    continue;
-                }
-                seen.add(edge);
-                if (!path.length) path.push(ring[i]);
-                path.push(ring[i + 1]);
-            }
-            if (path.length > 1) paths.push(path);
-        }
-    }
-    return turf.multiLineString(paths);
+export const PLANNING_CONTEXT = "planningContext";
+
+/** The seeker's cell's outline, drawn over the other cells' borders. */
+export function withCellBorders(
+    borders: Feature<MultiLineString>,
+    lines: Feature<LineString | MultiLineString>[],
+): FeatureCollection<LineString | MultiLineString> {
+    return turf.featureCollection([
+        { ...borders, properties: { [PLANNING_CONTEXT]: true } },
+        ...lines,
+    ]);
 }
 
 export function containingRegion(
