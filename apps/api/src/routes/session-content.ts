@@ -3,13 +3,8 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { broadcast } from "../lib/broadcaster.js";
+import { forbidden, notFound } from "../lib/http-errors.js";
 import type { Event, Stroke } from "@prisma/client";
-function notFound(msg = "Not found") {
-  return Object.assign(new Error(msg), { statusCode: 404 });
-}
-function forbidden(msg = "Forbidden") {
-  return Object.assign(new Error(msg), { statusCode: 403 });
-}
 function conflict(msg = "Conflict") {
   return Object.assign(new Error(msg), { statusCode: 409 });
 }

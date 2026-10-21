@@ -3,16 +3,13 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { assertCanManageGame, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertCanManageGame, findActiveLink, findGameByIdOrKey } from "../lib/game-access.js";
+import { notFound } from "../lib/http-errors.js";
 import { createSession } from "./sessions.js";
 
 // A game link lets whoever holds it start sessions of the game: it stands in
 // for server membership, the game's role gate and its listing. Links are
 // independent of whether the game is listed and only end when revoked.
-
-function notFound(msg = "Not found") {
-  return Object.assign(new Error(msg), { statusCode: 404 });
-}
 
 function serializeLink(link: {
   id: string;
@@ -104,21 +101,6 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
 
 // Under /game-links: using a link.
 export async function gameLinkRoutes(app: FastifyInstance) {
-  async function findActiveLink(token: string) {
-    const link = await prisma.gameLink.findUnique({
-      where: { token },
-      include: {
-        game: {
-          include: {
-            server: { select: { name: true } },
-            currentRevision: { select: { id: true, revision: true } },
-          },
-        },
-      },
-    });
-    return link && !link.revokedAt ? link : null;
-  }
-
   // GET /game-links/:token — public, no auth required
   app.get(
     "/:token",

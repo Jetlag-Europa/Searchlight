@@ -17,6 +17,22 @@ export async function findGameByIdOrKey<I extends Prisma.GameInclude = {}>(
   return game as Prisma.GameGetPayload<{ include: I }> | null;
 }
 
+// A game link by its token, with its game, unless it was revoked.
+export async function findActiveLink(token: string) {
+  const link = await prisma.gameLink.findUnique({
+    where: { token },
+    include: {
+      game: {
+        include: {
+          server: { select: { name: true } },
+          currentRevision: { select: { id: true, revision: true } },
+        },
+      },
+    },
+  });
+  return link && !link.revokedAt ? link : null;
+}
+
 // Any of these on a game's server lets a user see its unlisted games on the
 // games page, read their definitions, change listing and manage links.
 // Starting sessions of an unlisted game takes a game link, for them too.

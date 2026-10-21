@@ -124,6 +124,11 @@ set to the API's URL, then `npx wrangler deploy`. Set the API's
 `FRONTEND_ORIGIN` to the site's exact origin: the API rejects writes from
 browsers on any other origin with a 403.
 
+Game links hosted this way preview with the site-wide description only. In the
+Docker image, nginx sends link-preview bots' requests for `/play`, and requests
+for `/og/`, to the API (`apps/api/src/routes/og.ts`) for the game's name and
+map; Workers static-asset hosting has no such step.
+
 ## Operations
 
 ```bash

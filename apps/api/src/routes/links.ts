@@ -2,13 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-
-function notFound(msg = "Not found") {
-  return Object.assign(new Error(msg), { statusCode: 404 });
-}
-function forbidden(msg = "Forbidden") {
-  return Object.assign(new Error(msg), { statusCode: 403 });
-}
+import { forbidden, notFound } from "../lib/http-errors.js";
 
 export async function linkRoutes(app: FastifyInstance) {
   // GET /links/:token — public, no auth required
