@@ -38,7 +38,6 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
@@ -1480,9 +1479,15 @@ export function SessionManager() {
                     gameDefinitionReady.get() ? compiledGameAtom.get() : null,
                 );
                 // The board is made from the saved list now: the next list
-                // queued has it as its base.
-                if (sequence !== undefined) {
-                    setBoardBase(savedId, { sequence, questions: saved });
+                // queued has it as its base. The snapshot keeps the two
+                // together, for an offline restore.
+                const cached = getCachedSession(savedId);
+                if (cached && sequence !== undefined) {
+                    setCachedSession({
+                        ...cached,
+                        questions: visible,
+                        serverQuestions: { sequence, questions: saved },
+                    });
                 }
                 if (sameQuestionList(visible, current)) return;
                 // Edited since: save the rebased list. Else the server has it.
