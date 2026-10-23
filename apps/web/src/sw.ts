@@ -120,11 +120,13 @@ const tileKey: WorkboxPlugin = {
 
 // CARTO's terms allow keeping tiles on the device for 30 days at most, and
 // Thunderforest's until fresh ones are downloaded: they come from the cache
-// first, for 30 days after they were downloaded.
+// first, for 30 days after they were downloaded. They skip the browser's HTTP
+// cache, which could hand back a copy already weeks old to be stamped as new.
 registerRoute(
     ({ url }) => isTileUrl(url) && !isOsmTileUrl(url),
     new CacheFirst({
         cacheName: TILE_CACHE,
+        fetchOptions: { cache: "no-store" },
         plugins: [
             tileKey,
             new CacheableResponsePlugin({ statuses: [200] }),

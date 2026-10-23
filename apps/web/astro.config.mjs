@@ -37,7 +37,9 @@ function arcgisAssets() {
                     `${ARCGIS_ASSETS_PATH}/${PE_WASM}`,
                     (_req, res) => {
                         res.setHeader("Content-Type", "application/wasm");
-                        createReadStream(source).pipe(res);
+                        createReadStream(source)
+                            .on("error", () => res.writeHead(404).end())
+                            .pipe(res);
                     },
                 );
             },
@@ -78,10 +80,19 @@ export default defineConfig({
                     // The in-game alarm
                     "Mountain Audio - Alarm.mp3",
                 ],
-                // Files for AI agents and tools, not for the app
-                globIgnores: ["skills/**", "schemas/**"],
+                globIgnores: [
+                    // Files for AI agents and tools, not for the app
+                    "skills/**",
+                    "schemas/**",
+                    // Geometry on the page's own thread, only where there is
+                    // no Worker (src/maps/geo-utils/geometryClient.ts): about
+                    // 1.6 MB browsers never load.
+                    "_astro/bufferGeometry.*.js",
+                    "_astro/Operator*.js",
+                    "_astro/pe-wasm.*.js",
+                ],
                 // Above Workbox's 2 MB default: ArcGIS's projection engine
-                // WASM is 2.8 MB (its geometry chunks are about 1.5 MB).
+                // WASM is 2.8 MB.
                 maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
                 // Pages by the URL the server shows them at (src/sw.ts finds
                 // them by it).
