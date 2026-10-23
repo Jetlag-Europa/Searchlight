@@ -97,7 +97,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
     function show(linkInfo, me) {
         $("loading").classList.add("hidden");
 
-        if (!linkInfo.valid) {
+        if (!linkInfo?.valid) {
             showEl("invalid");
             return;
         }
