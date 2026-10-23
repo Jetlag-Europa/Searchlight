@@ -56,6 +56,15 @@ export async function fetchGameRevisionAPI(
   revision: number | string,
   sessionId?: string,
 ): Promise<GameDefinition> {
+  return (await fetchGameRevisionJSON(gameId, revision, sessionId)).definition;
+}
+
+/** A game revision, and the JSON it came as (for keeping it as is). */
+export async function fetchGameRevisionJSON(
+  gameId: string,
+  revision: number | string,
+  sessionId?: string,
+): Promise<{ definition: GameDefinition; json: string }> {
   const url = buildApiUrl(
     `/games/${encodeURIComponent(gameId)}/revisions/${encodeURIComponent(revision)}`,
   );
@@ -72,11 +81,13 @@ export async function fetchGameRevisionAPI(
       if (sessionId) directUrl.searchParams.set("sessionId", sessionId);
       const directRes = await fetch(directUrl.toString(), { credentials: "include" });
       if (directRes.ok) {
-        return directRes.json();
+        const json = await directRes.text();
+        return { definition: JSON.parse(json) as GameDefinition, json };
       }
     }
     throw new Error(`Failed to fetch revision ${revision}: ${res.status}`);
   }
 
-  return res.json();
+  const json = await res.text();
+  return { definition: JSON.parse(json) as GameDefinition, json };
 }

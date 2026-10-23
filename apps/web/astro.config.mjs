@@ -1,10 +1,59 @@
 // @ts-check
+import { createReadStream, readFileSync } from "node:fs";
+import { copyFile, mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import react from "@astrojs/react";
 import tailwind from "@astrojs/tailwind";
 import AstroPWA from "@vite-pwa/astro";
 import { defineConfig } from "astro/config";
+
+import { precacheUrl } from "./src/lib/pageCache.ts";
+
+// ArcGIS's projection engine, a WASM file the geometry worker loads for
+// geodesic questions, is served with the app instead of from js.arcgis.com:
+// the service worker precaches it, so questions work without a connection,
+// and it is the very build of the installed @arcgis/core. Its path names
+// that version, so it can be cached as immutable like the rest of /_astro/.
+const arcgisDir = dirname(
+    createRequire(import.meta.url).resolve("@arcgis/core/package.json"),
+);
+const arcgisVersion = JSON.parse(
+    readFileSync(join(arcgisDir, "package.json"), "utf8"),
+).version;
+const ARCGIS_ASSETS_PATH = `/_astro/arcgis-${arcgisVersion}`;
+const PE_WASM = "esri/geometry/support/pe-wasm.wasm";
+
+/** @returns {import("astro").AstroIntegration} */
+function arcgisAssets() {
+    const source = join(arcgisDir, "assets", PE_WASM);
+    return {
+        name: "searchlight:arcgis-assets",
+        hooks: {
+            "astro:server:setup": ({ server }) => {
+                server.middlewares.use(
+                    `${ARCGIS_ASSETS_PATH}/${PE_WASM}`,
+                    (_req, res) => {
+                        res.setHeader("Content-Type", "application/wasm");
+                        createReadStream(source)
+                            .on("error", () => res.writeHead(404).end())
+                            .pipe(res);
+                    },
+                );
+            },
+            // Before the service worker's precache list is made
+            "astro:build:done": async ({ dir }) => {
+                const target = fileURLToPath(
+                    new URL(`.${ARCGIS_ASSETS_PATH}/${PE_WASM}`, dir),
+                );
+                await mkdir(dirname(target), { recursive: true });
+                await copyFile(source, target);
+            },
+        },
+    };
+}
 
 // https://astro.build/config
 export default defineConfig({
@@ -13,40 +62,115 @@ export default defineConfig({
         tailwind({
             applyBaseStyles: false,
         }),
+        // Before AstroPWA, whose build:done precaches what it copies
+        arcgisAssets(),
         AstroPWA({
-            workbox: {
-                // Activate new builds on first reload instead of waiting two reloads.
-                skipWaiting: true,
-                clientsClaim: true,
+            // src/sw.ts, built with the precache list injected.
+            strategies: "injectManifest",
+            srcDir: "src",
+            filename: "sw.ts",
+            // src/lib/serviceWorker.tsx registers it and offers new builds.
+            registerType: "prompt",
+            injectRegister: false,
+            injectManifest: {
+                rollupFormat: "iife",
+                // The plugin adds the manifest itself.
+                globPatterns: [
+                    "**/*.{js,css,html,png,svg,ico,wasm}",
+                    // The in-game alarm
+                    "Mountain Audio - Alarm.mp3",
+                ],
+                globIgnores: [
+                    // Files for AI agents and tools, not for the app
+                    "skills/**",
+                    "schemas/**",
+                    // Geometry on the page's own thread, only where there is
+                    // no Worker (src/maps/geo-utils/geometryClient.ts): about
+                    // 1.6 MB browsers never load.
+                    "_astro/bufferGeometry.*.js",
+                    "_astro/Operator*.js",
+                    "_astro/pe-wasm.*.js",
+                ],
+                // Above Workbox's 2 MB default: ArcGIS's projection engine
+                // WASM is 2.8 MB.
                 maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
+                // Pages by the URL the server shows them at (src/sw.ts finds
+                // them by it).
+                manifestTransforms: [
+                    async (entries) => ({
+                        manifest: entries.map((entry) => ({
+                            ...entry,
+                            url: precacheUrl(entry.url),
+                        })),
+                        warnings: [],
+                    }),
+                ],
             },
             manifest: {
+                id: "/",
                 name: "Searchlight",
                 short_name: "Searchlight",
                 description:
                     "A map planner for Jet Lag: The Game's Hide and Seek",
+                // The map, not the login page, which sends players on to
+                // the map only once the server answers. The map sends
+                // visitors who aren't logged in to log in; without a
+                // connection it opens empty and loads once /me answers.
+                start_url: "/map",
+                scope: "/",
+                display: "standalone",
+                // The pages' dark background (globals.css, .dark)
+                background_color: "#020817",
+                theme_color: "#020817",
+                categories: ["games", "navigation", "travel"],
                 icons: [
-                    {
-                        src: "/JLIcon.png",
-                        sizes: "1080x1080",
-                        type: "image/png",
-                    },
                     {
                         src: "/android-chrome-192x192.png",
                         sizes: "192x192",
                         type: "image/png",
+                        purpose: "any",
                     },
                     {
                         src: "/android-chrome-512x512.png",
                         sizes: "512x512",
                         type: "image/png",
+                        purpose: "any",
+                    },
+                    {
+                        src: "/maskable-192x192.png",
+                        sizes: "192x192",
+                        type: "image/png",
+                        purpose: "maskable",
+                    },
+                    {
+                        src: "/maskable-512x512.png",
+                        sizes: "512x512",
+                        type: "image/png",
+                        purpose: "maskable",
                     },
                 ],
-                theme_color: "#1F2F3F",
+                shortcuts: [
+                    {
+                        name: "Games",
+                        description: "Manage your servers' games",
+                        url: "/games",
+                        icons: [
+                            {
+                                src: "/android-chrome-192x192.png",
+                                sizes: "192x192",
+                                type: "image/png",
+                            },
+                        ],
+                    },
+                ],
             },
         }),
     ],
     vite: {
+        define: {
+            // src/maps/geo-utils/geometry.worker.ts
+            __ARCGIS_ASSETS_PATH__: JSON.stringify(ARCGIS_ASSETS_PATH),
+        },
         // Read PUBLIC_* settings from the repo-root .env shared with the API.
         envDir: fileURLToPath(new URL("../..", import.meta.url)),
         worker: {

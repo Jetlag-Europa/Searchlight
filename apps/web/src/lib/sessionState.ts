@@ -2,7 +2,11 @@ import type { GameSessionSummary } from "@searchlight/shared";
 
 import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
-import { activeSessionId, verifiedUserId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    offlineUserId,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import {
     hiderMode,
     pendingEventCount,
@@ -13,6 +17,8 @@ import {
     enqueueEvent,
     getPendingEvents,
     type PendingEvent,
+    questionsBase,
+    queuedQuestionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { sendPendingEvent } from "@/lib/syncManager";
@@ -137,6 +143,8 @@ function hasPendingSave(
 
 function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
     const replacementId = randomUUID();
+    // What the board's questions were made from.
+    const base = questionsBase(sessionId);
     const event = enqueueEvent({
         sessionId,
         type: "questions.replace",
@@ -147,6 +155,7 @@ function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
                 ordinal,
                 payloadJson: question,
             })),
+            ...(base ? { base } : {}),
         },
         clientUuid: `questions-replace-${replacementId}`,
         clientCreatedAt: Date.now(),
@@ -318,7 +327,8 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
 export function flushSavesOnPageExit(): () => void {
     const flush = () => {
         const id = activeSessionId.get();
-        if (!id || !verifiedUserId.get()) return;
+        // Edits made offline too: the page is often closed before it's back.
+        if (!id || !(verifiedUserId.get() ?? offlineUserId.get())) return;
         console.info("[sessionState] page may be closing — flushing saves for", id);
         flushSessionSaves(id, true);
     };
@@ -380,8 +390,16 @@ export async function loadSessionContent(
     setCachedSession({
         sessionId,
         userId,
+        session,
         strokes: loadedStrokes,
         questions: loadedQuestions,
+        // The board shows the loaded list, or the list still queued on top of
+        // it, made from that list's base. The cursor was read first: it
+        // never claims more than the list has.
+        serverQuestions: queuedQuestionsBase(sessionId) ?? {
+            sequence: serverCursor,
+            questions: loadedQuestions,
+        },
         lastSyncedAt: Date.now(),
         lastSequence: serverCursor,
     });

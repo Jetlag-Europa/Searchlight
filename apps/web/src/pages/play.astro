@@ -18,6 +18,20 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             <a href="/" class="text-sm text-white/50 hover:text-white/80 underline">Go to home</a>
         </div>
 
+        <div id="unreachable" class="hidden flex-col items-center gap-6 text-center max-w-md">
+            <div class="flex flex-col gap-2">
+                <h1 class="text-3xl font-bold tracking-tight">Can't reach Searchlight</h1>
+                <p class="text-white/60">Check your connection. This page tries again as soon as you're back online.</p>
+            </div>
+            <button
+                id="retry-btn"
+                type="button"
+                class="flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg transition-opacity hover:opacity-90 active:opacity-75"
+            >
+                Try again
+            </button>
+        </div>
+
         <form id="valid" novalidate class="hidden flex-col items-center gap-8 text-center max-w-md w-full">
             <div class="flex flex-col gap-2">
                 <p class="text-sm text-white/50 uppercase tracking-widest">Start a session of</p>
@@ -58,81 +72,108 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
 
     const token = new URLSearchParams(window.location.search).get("token");
 
+    // The page opens without a connection (the service worker keeps it), so
+    // a failed request means the server can't be reached, not that the link
+    // is invalid: say so, and try again once the device is back online.
+    let loadingLink = false;
+    function hideEl(id) { $(id).classList.add("hidden"); $(id).classList.remove("flex"); }
+    function showUnreachable() { loadingLink = false; $("loading").classList.add("hidden"); showEl("unreachable"); }
+    function load() {
+        if (loadingLink) return;
+        loadingLink = true;
+        hideEl("unreachable");
+        $("loading").classList.remove("hidden");
+        Promise.all([
+            fetch(`${apiBase}/game-links/${encodeURIComponent(token)}`).then((r) => {
+                if (r.status === 404) return { valid: false };
+                if (!r.ok) throw new Error(`${r.status}`);
+                return r.json();
+            }),
+            fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+        ]).then(([linkInfo, me]) => {
+            loadingLink = false;
+            show(linkInfo, me);
+        }, showUnreachable);
+    }
+    $("retry-btn").addEventListener("click", load);
+    window.addEventListener("online", () => {
+        if (!$("unreachable").classList.contains("hidden")) load();
+    });
+
     if (!token) {
         showInvalid();
     } else {
-        Promise.all([
-            fetch(`${apiBase}/game-links/${encodeURIComponent(token)}`).then((r) => r.json()),
-            fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
-        ]).then(([linkInfo, me]) => {
-            if (!linkInfo.valid) {
-                showInvalid();
+        load();
+    }
+
+    function show(linkInfo, me) {
+        if (!linkInfo?.valid) {
+            showInvalid();
+            return;
+        }
+        $("loading").classList.add("hidden");
+        $("game-name").textContent = linkInfo.gameName;
+        $("server-name").textContent = linkInfo.serverName;
+
+        const startLabel = me ? "Start session" : "Log in to start a session";
+        $("start-label").textContent = startLabel;
+        if (me) {
+            $("session-name").value = linkInfo.gameName;
+            showEl("name-field");
+            showEl("not-you");
+        }
+        showEl("valid");
+
+        function showError(message) {
+            $("error").textContent = message;
+            $("error").classList.remove("hidden");
+        }
+
+        function logIn() {
+            const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
+            window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
+        }
+
+        $("valid").addEventListener("submit", async (event) => {
+            event.preventDefault();
+            $("error").classList.add("hidden");
+
+            if (!me) {
+                $("start-btn").disabled = true;
+                logIn();
                 return;
             }
-            $("loading").classList.add("hidden");
-            $("game-name").textContent = linkInfo.gameName;
-            $("server-name").textContent = linkInfo.serverName;
 
-            const startLabel = me ? "Start session" : "Log in to start a session";
-            $("start-label").textContent = startLabel;
-            if (me) {
-                $("session-name").value = linkInfo.gameName;
-                showEl("name-field");
-                showEl("not-you");
-            }
-            showEl("valid");
-
-            function showError(message) {
-                $("error").textContent = message;
-                $("error").classList.remove("hidden");
+            const name = $("session-name").value.trim();
+            if (!name) {
+                showError("Give the session a name.");
+                $("session-name").focus();
+                return;
             }
 
-            function logIn() {
-                const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
-                window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
+            $("start-btn").disabled = true;
+            $("start-label").textContent = "…";
+            try {
+                const res = await fetch(`${apiBase}/game-links/${encodeURIComponent(token)}/sessions`, {
+                    method: "POST",
+                    credentials: "include",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ name, visibility: "private" }),
+                });
+                if (res.status === 404) { showInvalid(); return; }
+                if (res.status === 401) { logIn(); return; }
+                if (!res.ok) {
+                    const data = await res.json().catch(() => ({}));
+                    throw new Error(data.message || `${res.status}`);
+                }
+                const { id } = await res.json();
+                localStorage.setItem("taibled-pending-link-session", id);
+                window.location.href = "/map";
+            } catch (err) {
+                showError(`Couldn't start the session: ${err.message}`);
+                $("start-btn").disabled = false;
+                $("start-label").textContent = startLabel;
             }
-
-            $("valid").addEventListener("submit", async (event) => {
-                event.preventDefault();
-                $("error").classList.add("hidden");
-
-                if (!me) {
-                    $("start-btn").disabled = true;
-                    logIn();
-                    return;
-                }
-
-                const name = $("session-name").value.trim();
-                if (!name) {
-                    showError("Give the session a name.");
-                    $("session-name").focus();
-                    return;
-                }
-
-                $("start-btn").disabled = true;
-                $("start-label").textContent = "…";
-                try {
-                    const res = await fetch(`${apiBase}/game-links/${encodeURIComponent(token)}/sessions`, {
-                        method: "POST",
-                        credentials: "include",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ name, visibility: "private" }),
-                    });
-                    if (res.status === 404) { showInvalid(); return; }
-                    if (res.status === 401) { logIn(); return; }
-                    if (!res.ok) {
-                        const data = await res.json().catch(() => ({}));
-                        throw new Error(data.message || `${res.status}`);
-                    }
-                    const { id } = await res.json();
-                    localStorage.setItem("taibled-pending-link-session", id);
-                    window.location.href = "/map";
-                } catch (err) {
-                    showError(`Couldn't start the session: ${err.message}`);
-                    $("start-btn").disabled = false;
-                    $("start-label").textContent = startLabel;
-                }
-            });
-        }).catch(showInvalid);
+        });
     }
 </script>

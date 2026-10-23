@@ -714,6 +714,136 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
     });
   });
 
+  describe("PUT /sessions/:sessionId/questions with baseSequence", () => {
+    const put = (replacementId: string, questions: unknown[], baseSequence?: number) =>
+      app.inject({
+        method: "PUT",
+        url: `/sessions/${SESSION_ID}/questions`,
+        headers: { cookie },
+        payload: { questions, replacementId, ...(baseSequence === undefined ? {} : { baseSequence }) },
+      });
+    const read = async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/sessions/${SESSION_ID}/questions`,
+        headers: { cookie },
+      });
+      expect(res.statusCode).toBe(200);
+      return res.json() as { questions: Array<{ clientUuid: string }>; sequence: number };
+    };
+    const question = (clientUuid: string, ordinal = 0) => ({ clientUuid, ordinal, payloadJson: { key: ordinal } });
+
+    test("reads the list with the sequence it's at, and saves over it with that base", async () => {
+      await put("base-seq-setup", [question("base-a")]);
+      const { questions, sequence } = await read();
+      expect(questions.map((q) => q.clientUuid)).toEqual(["base-a"]);
+      const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      expect(sequence).toBe(session.eventSequence);
+
+      const res = await put("base-seq-current", [question("base-b")], sequence);
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toEqual({ sequence: sequence + 1 });
+      expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["base-b"]);
+    });
+
+    test("refuses a list made before another replace, and changes nothing", async () => {
+      const { sequence: stale } = await read();
+      await put("base-seq-other-device", [question("other-device")]);
+      const eventsBefore = await prisma.event.count({ where: { sessionId: SESSION_ID } });
+
+      const res = await put("base-seq-stale", [question("stale")], stale);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe("QUESTIONS_CHANGED");
+      expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["other-device"]);
+      expect(await prisma.event.count({ where: { sessionId: SESSION_ID } })).toBe(eventsBefore);
+      expect(
+        await prisma.event.findUnique({ where: { clientUuid: "questions-replace-base-seq-stale" } }),
+      ).toBeNull();
+
+      // The client merges and saves again on the new base.
+      const { sequence } = await read();
+      const merged = await put("base-seq-stale", [question("other-device"), question("stale", 1)], sequence);
+      expect(merged.statusCode).toBe(200);
+      expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["other-device", "stale"]);
+    });
+
+    test("isn't refused for other kinds of events since the base", async () => {
+      const { sequence } = await read();
+      const stroke = await app.inject({
+        method: "POST",
+        url: `/sessions/${SESSION_ID}/strokes`,
+        headers: { cookie },
+        payload: { clientUuid: "base-seq-stroke", payloadJson: { a: 1 } },
+      });
+      expect(stroke.statusCode).toBe(201);
+      expect((await put("base-seq-after-stroke", [question("after-stroke")], sequence)).statusCode).toBe(200);
+    });
+
+    test("answers a retry of a saved list with its sequence, even once it is stale", async () => {
+      const { sequence } = await read();
+      const first = await put("base-seq-retry", [question("retry")], sequence);
+      expect(first.statusCode).toBe(200);
+      await put("base-seq-after-retry", [question("later")]);
+
+      const retry = await put("base-seq-retry", [question("retry")], sequence);
+      expect(retry.statusCode).toBe(200);
+      expect(retry.json()).toEqual({ ...first.json(), duplicate: true });
+      expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["later"]);
+    });
+
+    test("says a retry was saved before", async () => {
+      const { sequence } = await read();
+      const first = await put("base-seq-dup", [question("dup")], sequence);
+      expect(first.json()).toEqual({ sequence: sequence + 1 });
+      const retry = await put("base-seq-dup", [question("dup")], sequence);
+      expect(retry.json()).toEqual({ sequence: sequence + 1, duplicate: true });
+    });
+
+    test("refuses a base from beyond the session's sequence", async () => {
+      const { sequence } = await read();
+      const res = await put("base-seq-future", [question("future")], sequence + 5);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe("QUESTIONS_CHANGED");
+    });
+
+    test("keeps keys that need all 17 digits exactly, in the list and its event", async () => {
+      const keys = [0.47550004144641034, 0.30000000000000004, 0.12345678901234568];
+      const broadcasted: EventRecord[] = [];
+      const unsubscribe = subscribe(SESSION_ID, (ev) => {
+        if ("type" in ev && ev.type === "questions.replace") broadcasted.push(ev as EventRecord);
+      });
+      try {
+        const { sequence } = await read();
+        const res = await put(
+          "base-seq-exact",
+          keys.map((key, ordinal) => ({
+            clientUuid: `exact-${ordinal}`,
+            ordinal,
+            payloadJson: { id: "radius", key, data: { lat: 47.42790359754809 } },
+          })),
+          sequence,
+        );
+        expect(res.statusCode).toBe(200);
+        const read2 = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/questions`, headers: { cookie } });
+        expect(read2.json().questions.map((q: { payloadJson: { key: number } }) => q.payloadJson.key)).toEqual(keys);
+        const event = await prisma.event.findUniqueOrThrow({ where: { clientUuid: "questions-replace-base-seq-exact" } });
+        const stored = (event.payloadJson as { questions: Array<{ payloadJson: { key: number } }> }).questions;
+        expect(stored.map((q) => q.payloadJson.key)).toEqual(keys);
+        const sent = (broadcasted[0].payloadJson as { questions: Array<{ payloadJson: { key: number } }> }).questions;
+        expect(sent.map((q) => q.payloadJson.key)).toEqual(keys);
+      } finally {
+        unsubscribe();
+      }
+    });
+
+    test("still replaces the list, with 204, for a client that sends no base", async () => {
+      await put("base-seq-legacy-1", [question("legacy-1")]);
+      const res = await put("base-seq-legacy-2", [question("legacy-2")]);
+      expect(res.statusCode).toBe(204);
+      expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["legacy-2"]);
+    });
+  });
+
   describe("PATCH /sessions/:sessionId and POST /upgrade-revision durable events", () => {
     test("persists hider.update and planning.toggle events with sequence and updates session state", async () => {
       const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });

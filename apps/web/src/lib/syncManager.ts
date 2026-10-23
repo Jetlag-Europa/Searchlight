@@ -1,7 +1,12 @@
 import type { StrokeFeature } from "@/annotations/types";
-import { activeSessionId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    offlineUserId,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
+    advanceBoardBase,
     discardEvent,
     type EventType,
     getCachedSession,
@@ -10,8 +15,14 @@ import {
     markEventFailed,
     markEventSynced,
     type PendingEvent,
+    type QuestionsBase,
+    type QuestionsReplacePayload,
+    rebaseQueuedQuestions,
     setCachedSession,
+    updateQueuedPayload,
 } from "@/lib/eventQueue";
+import { mergeQuestionLists } from "@/lib/questionMerge";
+import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -47,6 +58,16 @@ export function classifySendFailure(status: number | undefined): SendFailure {
     return "rejected";
 }
 
+/**
+ * Played offline, edits wait for /me: until it verifies the account, the
+ * browser's cookie may be another's. Throws a failure to retry.
+ */
+export function assertMaySend(): void {
+    if (offlineUserId.get() && !verifiedUserId.get()) {
+        throw new Error("waiting for /me before sending edits");
+    }
+}
+
 function failureOf(err: unknown): { kind: SendFailure; status?: number } {
     const status = err instanceof SyncRequestError ? err.status : undefined;
     return { kind: classifySendFailure(status), status };
@@ -67,7 +88,175 @@ export function onEventRejected(listener: RejectionListener): () => void {
     };
 }
 
-async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void> {
+// The server refused a list made on an older base (see QuestionsBase).
+const QUESTIONS_CHANGED = "QUESTIONS_CHANGED";
+// Merges in a row before giving up for now: each one means yet another
+// device saved in between.
+const MAX_QUESTION_MERGES = 3;
+
+/** A question list the server took, and what it was merged with. */
+export interface QuestionsSaved {
+    sessionId: string;
+    // The list as queued here, and the one saved (the same unless merged).
+    local: Questions;
+    saved: Questions;
+    // The base `local` was made from (undefined from builds before).
+    madeFrom?: QuestionsBase;
+    // The server's sequence after the save; undefined from an older API.
+    sequence?: number;
+    // When merged: the server's list it was last merged with.
+    mergedWith?: QuestionsBase;
+}
+
+type QuestionsSavedListener = (saved: QuestionsSaved) => void;
+const questionsSavedListeners = new Set<QuestionsSavedListener>();
+
+/** Hear about each question list saved, to show a merged one. */
+export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
+    questionsSavedListeners.add(listener);
+    return () => {
+        questionsSavedListeners.delete(listener);
+    };
+}
+
+// The server's own clientUuid for each question read from it, so a merged
+// list saves the questions it keeps from there under their ids.
+const serverClientUuids = new WeakMap<object, string>();
+
+async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+        credentials: "include",
+    });
+    if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+    const data = (await res.json()) as {
+        questions: Array<{ clientUuid?: string; payloadJson: Questions[number] }>;
+        sequence?: number;
+    };
+    if (typeof data.sequence !== "number") {
+        // An API without bases can't have refused one: don't merge.
+        throw new Error("questions response has no sequence");
+    }
+    return {
+        sequence: data.sequence,
+        questions: data.questions.map((q) => {
+            if (q.payloadJson && typeof q.payloadJson === "object" && q.clientUuid) {
+                serverClientUuids.set(q.payloadJson, q.clientUuid);
+            }
+            return q.payloadJson;
+        }),
+    };
+}
+
+function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
+    const used = new Set<string>();
+    return questions.map((payloadJson, ordinal) => {
+        const own =
+            payloadJson && typeof payloadJson === "object"
+                ? serverClientUuids.get(payloadJson)
+                : undefined;
+        const clientUuid = own && !used.has(own) ? own : randomUUID();
+        used.add(clientUuid);
+        return { clientUuid, ordinal, payloadJson };
+    });
+}
+
+/**
+ * Save a queued question list. Made on a base the server has moved on from,
+ * it is merged with the server's list first: see mergeQuestionLists. Each
+ * merge replaces the queued list before it is sent, keeping its
+ * replacementId: if the merged save commits but its answer is lost, the
+ * retry sends that same merged list, which the server recognizes as done.
+ */
+async function sendQuestions(
+    event: PendingEvent,
+    keepalive: boolean,
+): Promise<QuestionsSaved> {
+    const { sessionId } = event;
+    let payload = event.payloadJson as QuestionsReplacePayload;
+    const madeFrom = payload.merged?.base ?? payload.base;
+    for (let merges = 0; ; merges++) {
+        const baseSequence = payload.base?.sequence;
+        const body = JSON.stringify({
+            replacementId: payload.replacementId,
+            questions: payload.questions,
+            ...(baseSequence === undefined ? {} : { baseSequence }),
+        });
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+        });
+        if (res.status === 409 && payload.base) {
+            const code = await res
+                .json()
+                .then((data: { code?: unknown }) => data?.code)
+                .catch(() => undefined);
+            if (code === QUESTIONS_CHANGED) {
+                // Not a refusal of the edit: retry it later if this keeps on.
+                if (merges >= MAX_QUESTION_MERGES) {
+                    throw new Error("questions kept changing, merging later");
+                }
+                const server = await fetchServerQuestions(sessionId);
+                const list = payload.questions.map((q) => q.payloadJson);
+                const merged = mergeQuestionLists(
+                    payload.base.questions,
+                    list,
+                    server.questions,
+                );
+                console.info(
+                    "[searchlight:sync] questions changed elsewhere, merged",
+                    list.length,
+                    "+",
+                    server.questions.length,
+                    "→",
+                    merged.length,
+                );
+                payload = {
+                    ...payload,
+                    questions: toWire(merged),
+                    base: server,
+                    merged: payload.merged ?? { local: list, base: payload.base },
+                };
+                try {
+                    updateQueuedPayload(sessionId, event.localId, payload);
+                } catch (err) {
+                    // Storage is full: send the merged list anyway. Only a
+                    // lost answer to it can't be told apart from a new save.
+                    console.warn("[searchlight:sync] couldn't queue the merged list:", err);
+                }
+                continue;
+            }
+        }
+        if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+        const sequence =
+            res.status === 200
+                ? await res
+                      .json()
+                      .then((data: { sequence?: unknown }) =>
+                          typeof data?.sequence === "number"
+                              ? data.sequence
+                              : undefined,
+                      )
+                      .catch(() => undefined)
+                : undefined;
+        const saved = payload.questions.map((q) => q.payloadJson);
+        return {
+            sessionId,
+            local: payload.merged?.local ?? saved,
+            saved,
+            madeFrom,
+            sequence,
+            mergedWith: payload.merged ? payload.base : undefined,
+        };
+    }
+}
+
+async function sendEvent(
+    event: PendingEvent,
+    keepalive: boolean,
+): Promise<QuestionsSaved | undefined> {
     const { sessionId } = event;
 
     if (event.type === "stroke.create") {
@@ -91,20 +280,7 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
         if (!res.ok && res.status !== 404)
             throw new SyncRequestError("stroke.delete", res.status);
     } else if (event.type === "questions.replace") {
-        const { replacementId, questions } = event.payloadJson as {
-            replacementId: string;
-            questions: unknown[];
-        };
-        const body = JSON.stringify({ replacementId, questions });
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body,
-            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
-        });
-        if (!res.ok)
-            throw new SyncRequestError("questions.replace", res.status);
+        return sendQuestions(event, keepalive);
     } else if (event.type === "hider.update") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -218,27 +394,44 @@ async function dispatchQueuedEvent(
 
     syncStatus.set("syncing");
     try {
-        await sendEvent(event, keepalive);
+        assertMaySend();
+        const savedQuestions = await sendEvent(event, keepalive);
         // Its SSE echo can arrive first, and later replaces may already be
         // cached on top of it: only a still-queued replace updates the cache.
         const stillQueued = getPendingEvents(sessionId).some(
             (candidate) => candidate.localId === event.localId,
         );
-        if (event.type === "questions.replace" && stillQueued) {
-            const { questions } = event.payloadJson as {
-                questions: Array<{ payloadJson: Questions[number] }>;
-            };
+        if (savedQuestions && stillQueued) {
             const cached = getCachedSession(sessionId);
             setCachedSession({
                 ...cached,
                 sessionId,
                 strokes: cached?.strokes ?? [],
-                questions: questions.map((question) => question.payloadJson),
+                questions: savedQuestions.saved,
                 lastSyncedAt: Date.now(),
                 lastSequence: cached?.lastSequence ?? 0,
             });
         }
+        if (savedQuestions?.sequence !== undefined) {
+            const { local, saved, madeFrom, sequence, mergedWith } =
+                savedQuestions;
+            // The board, and the lists queued after this one made from the
+            // same base, followed on from it. Saved as it was, it's the
+            // server's list now. Merged, it isn't: they still lack the other
+            // side's changes, so they merge too (the board, until a merged
+            // list is shown: see onQuestionsSaved).
+            const next = mergedWith
+                ? { sequence: mergedWith.sequence, questions: local }
+                : { sequence, questions: saved };
+            rebaseQueuedQuestions(sessionId, madeFrom, next, event.localId);
+            advanceBoardBase(sessionId, madeFrom, next);
+        }
         markEventSynced(sessionId, event.localId);
+        if (savedQuestions) {
+            for (const listener of questionsSavedListeners) {
+                listener(savedQuestions);
+            }
+        }
     } catch (err) {
         if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;

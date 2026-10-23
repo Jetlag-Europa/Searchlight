@@ -460,6 +460,7 @@ export function GameDesigner({
                         maxZoom={20}
                         minZoom={2}
                         noWrap
+                        crossOrigin
                         bounds={WORLD_BOUNDS}
                     />
                     <ScaleControl position="bottomleft" />

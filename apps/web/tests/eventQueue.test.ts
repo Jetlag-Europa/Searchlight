@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import {
     applyPendingEventsToState,
+    applyPendingModes,
     applyUnsyncedEvents,
     clearCachedSession,
     discardSessionData,
@@ -12,6 +13,7 @@ import {
     getPendingEvents,
     resetFailedEvents,
     setCachedSession,
+    type PendingEvent,
 } from "@/lib/eventQueue";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
@@ -735,4 +737,103 @@ describe("active session restoration", () => {
             expect(session.activeSessionData.get()).toBeNull();
         },
     );
+});
+
+// ── Kept session details ─────────────────────────────────────────────────────
+describe("a snapshot's session details", () => {
+    beforeEach(() => {
+        vi.stubGlobal("localStorage", mockStorage(store));
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    const session: GameSessionSummary = {
+        id: SID,
+        gameId: "game",
+        gameName: "Game",
+        serverId: "server",
+        name: "Session",
+        visibility: "private",
+        role: "creator",
+        createdAt: "2026-01-01T00:00:00.000Z",
+        hiderLat: 47.37,
+        hiderLng: 8.54,
+        planningModeEnabled: false,
+        gameRevisionId: "rev",
+    };
+    const snapshot = {
+        sessionId: SID,
+        userId: "u1",
+        strokes: [],
+        questions: [],
+        lastSyncedAt: 1,
+        lastSequence: 0,
+    };
+
+    test("are kept with it", () => {
+        setCachedSession({ ...snapshot, session });
+        expect(getCachedSession(SID)?.session).toEqual(session);
+    });
+
+    test("are dropped when they belong to another session or lack its game", () => {
+        setCachedSession({ ...snapshot, session: { ...session, id: "other" } });
+        expect(getCachedSession(SID)?.session).toBeUndefined();
+        const { gameRevisionId: _, ...withoutRevision } = session;
+        store.set(
+            `taibled-cache-${SID}`,
+            JSON.stringify({ ...snapshot, session: withoutRevision }),
+        );
+        expect(getCachedSession(SID)?.session).toBeUndefined();
+        expect(getCachedSession(SID)?.userId).toBe("u1");
+    });
+
+    function modeEvent(
+        type: "hider.update" | "planning.toggle",
+        payloadJson: unknown,
+    ): PendingEvent {
+        return {
+            localId: crypto.randomUUID(),
+            sessionId: SID,
+            type,
+            payloadJson,
+            clientUuid: crypto.randomUUID(),
+            clientCreatedAt: 0,
+            status: "pending",
+            createdAt: 0,
+        };
+    }
+
+    test("give the hider and planning mode", () => {
+        expect(applyPendingModes(session, [])).toEqual({
+            hiderMode: { latitude: 47.37, longitude: 8.54 },
+            planningModeEnabled: false,
+        });
+        expect(
+            applyPendingModes(
+                { hiderLat: null, hiderLng: null, planningModeEnabled: true },
+                [],
+            ),
+        ).toEqual({ hiderMode: false, planningModeEnabled: true });
+    });
+
+    test("give way to the latest edits not yet synced", () => {
+        expect(
+            applyPendingModes(session, [
+                modeEvent("hider.update", { hiderLat: 1, hiderLng: 2 }),
+                modeEvent("planning.toggle", { planningModeEnabled: true }),
+                modeEvent("hider.update", { hiderLat: 3, hiderLng: 4 }),
+            ]),
+        ).toEqual({
+            hiderMode: { latitude: 3, longitude: 4 },
+            planningModeEnabled: true,
+        });
+        expect(
+            applyPendingModes(session, [
+                modeEvent("hider.update", { hiderLat: null, hiderLng: null }),
+                modeEvent("planning.toggle", null),
+            ]).hiderMode,
+        ).toBe(false);
+    });
 });
