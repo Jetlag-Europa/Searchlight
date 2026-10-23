@@ -101,9 +101,10 @@ export default defineConfig({
                 short_name: "Searchlight",
                 description:
                     "A map planner for Jet Lag: The Game's Hide and Seek",
-                // The map, not the login page: it opens without a
-                // connection, and sends visitors who aren't logged in to log
-                // in.
+                // The map, not the login page, which sends players on to
+                // the map only once the server answers. The map sends
+                // visitors who aren't logged in to log in; without a
+                // connection it opens empty and loads once /me answers.
                 start_url: "/map",
                 scope: "/",
                 display: "standalone",
