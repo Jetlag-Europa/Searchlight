@@ -38,6 +38,7 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
+    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
@@ -233,7 +234,7 @@ function SessionPickerOverlay({
             setSessions(
                 (prev) => prev?.filter((s) => s.id !== sessionId) ?? null,
             );
-            discardSessionData(sessionId);
+            discardSessionData(sessionId, { allAccounts: true });
             if (activeSessionId.get() === sessionId) clearActiveSession();
         } catch (e: unknown) {
             setError(`Failed to delete session: ${(e as Error).message}`);
@@ -914,7 +915,7 @@ export function SessionManager() {
                 status === 404 ||
                 getCachedSession(sessionId)?.userId === authUserId
             ) {
-                discardSessionData(sessionId);
+                discardSessionData(sessionId, { allAccounts: status === 404 });
             }
             // Edits still waiting to be queued can never be delivered either.
             cancelPendingQuestionSave(sessionId);
@@ -1470,7 +1471,7 @@ export function SessionManager() {
     // the server's list anyway.
     useEffect(
         () =>
-            onQuestionsSaved(({ sessionId: savedId, local, saved, mergedWith }) => {
+            onQuestionsSaved(({ sessionId: savedId, local, saved, sequence, mergedWith }) => {
                 if (!mergedWith || savedId !== activeSessionId.get()) return;
                 if (isLoadingSession()) return;
                 const current = questions.get();
@@ -1478,6 +1479,11 @@ export function SessionManager() {
                     mergeQuestionLists(local, current, saved),
                     gameDefinitionReady.get() ? compiledGameAtom.get() : null,
                 );
+                // The board is made from the saved list now: the next list
+                // queued has it as its base.
+                if (sequence !== undefined) {
+                    setBoardBase(savedId, { sequence, questions: saved });
+                }
                 if (sameQuestionList(visible, current)) return;
                 // Edited since: save the rebased list. Else the server has it.
                 questions.set(

@@ -19,12 +19,13 @@ import {
     syncStatus,
 } from "@/lib/context";
 import {
+    advanceBoardBase,
     getCachedSession,
     getPendingEvents,
     markEventSynced,
     type QuestionsReplacePayload,
+    setBoardBase,
     setCachedSession,
-    setServerQuestions,
 } from "@/lib/eventQueue";
 import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
 import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
@@ -207,13 +208,13 @@ function handleServerEvent(
         ).questions.map((question) => question.payloadJson);
         if (own) {
             markEventSynced(targetSessionId, own.localId);
-            // The next edit's base, unless the save was merged: then the
-            // board doesn't show the other side's changes yet.
-            const local = (
-                own.payloadJson as QuestionsReplacePayload
-            ).questions.map((question) => question.payloadJson);
-            if (sameQuestionList(local, serverList)) {
-                setServerQuestions(targetSessionId, {
+            // The board's base moves on, unless the save was merged: then
+            // the board doesn't show the other side's changes yet (its
+            // answer does that, see syncManager).
+            const payload = own.payloadJson as QuestionsReplacePayload;
+            const local = payload.questions.map((question) => question.payloadJson);
+            if (!payload.merged && sameQuestionList(local, serverList)) {
+                advanceBoardBase(targetSessionId, payload.base, {
                     sequence: eventSeq,
                     questions: serverList,
                 });
@@ -229,7 +230,7 @@ function handleServerEvent(
             );
             return;
         } else {
-            setServerQuestions(targetSessionId, {
+            setBoardBase(targetSessionId, {
                 sequence: eventSeq,
                 questions: serverList,
             });

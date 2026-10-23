@@ -6,6 +6,7 @@ import type {
 import type { StrokeFeature } from "@/annotations/types";
 import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
+import { sameQuestionList } from "@/lib/questionMerge";
 import type { Questions } from "@/maps/schema";
 
 export type EventType =
@@ -53,6 +54,11 @@ export interface QuestionsReplacePayload {
     }>;
     // Missing in events queued by builds from before.
     base?: QuestionsBase;
+    // Once merged with the server's list (and `questions` replaced by the
+    // merge, `base` by that list): the list and base as first queued. A
+    // retry of a merged save whose answer was lost sends the merged list,
+    // and its answer is still read as a merge.
+    merged?: { local: Questions; base: QuestionsBase };
 }
 
 export interface CachedSessionState {
@@ -65,7 +71,10 @@ export interface CachedSessionState {
     strokes: StrokeFeature[];
     // What the board showed, edits not yet synced included.
     questions: Questions;
-    // The server's own list, as last known: the base for the next edit.
+    // The server's list the board's questions were made from (its "board
+    // base"): the base of the next list queued. Moves on only when the board
+    // does: a load, another player's list shown, a save of ours answered, or
+    // a merged list shown.
     serverQuestions?: QuestionsBase;
     lastSyncedAt: number;
     lastSequence: number;
@@ -111,6 +120,10 @@ function legacyPendingKey(sessionId: string) {
     return `${PENDING_PREFIX}${sessionId}`;
 }
 
+// Unowned queues found to be another account's, so they aren't checked on
+// every read: session → the queue as last read.
+const othersLegacyQueues = new Map<string, string>();
+
 function pendingKey(sessionId: string) {
     const owner = queueOwner();
     if (!owner) return legacyPendingKey(sessionId);
@@ -119,7 +132,12 @@ function pendingKey(sessionId: string) {
     // those edits. Anyone else's stay where they are.
     try {
         const legacy = localStorage.getItem(legacyPendingKey(sessionId));
-        if (legacy && getCachedSession(sessionId)?.userId === owner) {
+        if (!legacy || othersLegacyQueues.get(`${sessionId}~${owner}`) === legacy) {
+            return key;
+        }
+        if (getCachedSession(sessionId)?.userId !== owner) {
+            othersLegacyQueues.set(`${sessionId}~${owner}`, legacy);
+        } else {
             const own = localStorage.getItem(key);
             const events = [
                 ...(JSON.parse(legacy) as PendingEvent[]),
@@ -363,77 +381,114 @@ export function setCachedSession(state: CachedSessionState): void {
     }
 }
 
-/**
- * The base for a new question list: the one the edits still queued were
- * made from, else the server's list as last known. Undefined when this
- * browser knows neither; the list is then saved as before, over whatever
- * the server has.
- */
-export function questionsBase(sessionId: string): QuestionsBase | undefined {
-    const queued = getPendingEvents(sessionId).findLast(
-        (event) =>
-            event.type === "questions.replace" && event.status !== "synced",
-    );
-    if (queued) {
-        const base = (queued.payloadJson as Partial<QuestionsReplacePayload>)
-            ?.base;
-        return isQuestionsBase(base) ? base : undefined;
-    }
-    const cached = getCachedSession(sessionId);
-    if (!cached) return undefined;
-    // A snapshot from before: its list as of its last event is the best
-    // there is.
+function sameBase(a: QuestionsBase | undefined, b: QuestionsBase): boolean {
     return (
-        cached.serverQuestions ?? {
-            sequence: cached.lastSequence,
-            questions: cached.questions,
-        }
+        a !== undefined &&
+        a.sequence === b.sequence &&
+        sameQuestionList(a.questions, b.questions)
     );
 }
 
-/** The server's list is now `base` (if it's newer than what was known). */
-export function setServerQuestions(
+function latestQueuedQuestions(sessionId: string): PendingEvent | undefined {
+    return getPendingEvents(sessionId).findLast(
+        (event) =>
+            event.type === "questions.replace" && event.status !== "synced",
+    );
+}
+
+/** The base of the latest list still queued, if it has one. */
+export function queuedQuestionsBase(
     sessionId: string,
-    base: QuestionsBase,
-): void {
+): QuestionsBase | undefined {
+    const base = (
+        latestQueuedQuestions(sessionId)?.payloadJson as
+            | Partial<QuestionsReplacePayload>
+            | undefined
+    )?.base;
+    return isQuestionsBase(base) ? base : undefined;
+}
+
+/**
+ * The base for a new question list: the server list the board's questions
+ * were made from. Undefined when this browser knows none; the list is then
+ * saved as before, over whatever the server has.
+ */
+export function questionsBase(sessionId: string): QuestionsBase | undefined {
+    const cached = getCachedSession(sessionId);
+    if (cached?.serverQuestions) return cached.serverQuestions;
+    const queued = latestQueuedQuestions(sessionId);
+    if (queued) return queuedQuestionsBase(sessionId);
+    if (!cached) return undefined;
+    // A snapshot from before: its list as of its last event is the best
+    // there is.
+    return { sequence: cached.lastSequence, questions: cached.questions };
+}
+
+/** The board's questions are now made from `base`. */
+export function setBoardBase(sessionId: string, base: QuestionsBase): void {
     const cached = getCachedSession(sessionId);
     if (!cached) return;
-    if ((cached.serverQuestions?.sequence ?? -1) > base.sequence) return;
     setCachedSession({ ...cached, serverQuestions: base });
 }
 
 /**
- * Give the queued question lists a new base, e.g. once the list they
- * followed on from is saved.
+ * The board moved from `from` to `to`, e.g. our list made from `from` was
+ * saved as is. A board made from anything else stays as it is.
+ */
+export function advanceBoardBase(
+    sessionId: string,
+    from: QuestionsBase | undefined,
+    to: QuestionsBase,
+): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached) return;
+    const current = cached.serverQuestions ?? queuedQuestionsBase(sessionId);
+    if (!from || !sameBase(current, from)) return;
+    setCachedSession({ ...cached, serverQuestions: to });
+}
+
+/**
+ * Give the queued question lists made from `from` the base `to`, e.g. once
+ * the list they followed on from is saved.
  */
 export function rebaseQueuedQuestions(
     sessionId: string,
-    base: QuestionsBase,
+    from: QuestionsBase | undefined,
+    to: QuestionsBase,
     exceptLocalId?: string,
 ): void {
+    if (!from) return;
     const events = getPendingEvents(sessionId);
     let changed = false;
     const rebased = events.map((event) => {
+        const payload = event.payloadJson as Partial<QuestionsReplacePayload>;
         if (
             event.type !== "questions.replace" ||
             event.status === "synced" ||
             event.localId === exceptLocalId ||
-            !isQuestionsBase(
-                (event.payloadJson as Partial<QuestionsReplacePayload>)?.base,
-            )
+            !isQuestionsBase(payload?.base) ||
+            !sameBase(payload.base, from)
         ) {
             return event;
         }
         changed = true;
-        return {
-            ...event,
-            payloadJson: {
-                ...(event.payloadJson as QuestionsReplacePayload),
-                base,
-            },
-        };
+        return { ...event, payloadJson: { ...payload, base: to } };
     });
     if (changed) writePendingQueue(sessionId, rebased);
+}
+
+/** Replace a queued event's payload, if it's still queued. */
+export function updateQueuedPayload(
+    sessionId: string,
+    localId: string,
+    payloadJson: unknown,
+): boolean {
+    const events = getPendingEvents(sessionId);
+    const index = events.findIndex((event) => event.localId === localId);
+    if (index === -1) return false;
+    events[index] = { ...events[index], payloadJson };
+    writePendingQueue(sessionId, events);
+    return true;
 }
 
 export function clearCachedSession(sessionId: string): void {
@@ -443,11 +498,27 @@ export function clearCachedSession(sessionId: string): void {
 
 // For a session that can never sync again (deleted, or this user removed):
 // unlike cache eviction, also drop its queue, which would otherwise pin the
-// snapshot in storage forever, and its disabled zones.
-export function discardSessionData(sessionId: string): void {
+// snapshot in storage forever, and its disabled zones. A deleted session
+// takes every account's queue with it (`allAccounts`); one this account
+// lost access to only takes this account's and the unowned one, since
+// another account may still have access.
+export function discardSessionData(
+    sessionId: string,
+    { allAccounts = false }: { allAccounts?: boolean } = {},
+): void {
     forgetDisabledZones(sessionId);
     try {
+        if (allAccounts) {
+            const prefix = `${PENDING_PREFIX}${sessionId}~`;
+            const keys: string[] = [];
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key?.startsWith(prefix)) keys.push(key);
+            }
+            for (const key of keys) localStorage.removeItem(key);
+        }
         localStorage.removeItem(pendingKey(sessionId));
+        localStorage.removeItem(legacyPendingKey(sessionId));
         localStorage.removeItem(cacheKey(sessionId));
     } catch (e) {
         console.warn("[eventQueue] failed to discard session data:", e);

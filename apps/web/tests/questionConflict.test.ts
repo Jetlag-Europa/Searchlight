@@ -25,9 +25,11 @@ import {
 } from "@/lib/activeSession";
 import {
     applyUnsyncedEvents,
+    discardSessionData,
     getCachedSession,
     getPendingEvents,
     questionsBase,
+    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { saveQuestionsToServer } from "@/lib/sessionState";
@@ -116,9 +118,11 @@ describe("saving a question list made on an old base", () => {
         // Theirs keeps its id.
         expect(second.questions[1].clientUuid).toBe("server-0");
         expect(getPendingEvents(SID)).toEqual([]);
+        // The board still shows only ours: its base is ours, as of the list
+        // merged with, until the merged list is shown (SessionManager).
         expect(getCachedSession(SID)?.serverQuestions).toEqual({
-            sequence: 8,
-            questions: [q(1), q(2)],
+            sequence: 7,
+            questions: [q(1)],
         });
         expect(saved).toHaveLength(1);
         expect(saved[0].saved).toEqual([q(1), q(2)]);
@@ -192,6 +196,97 @@ describe("an edit made while the last save is on its way", () => {
         expect(puts()).toHaveLength(2);
         expect(secondPut.baseSequence).toBe(5);
         expect(secondPut.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(2)]);
+    });
+});
+
+describe("a merged save whose answer was lost", () => {
+    test("is retried as merged, so the other side's questions stay", async () => {
+        snapshot("u1", [], 4);
+        const saved: QuestionsSaved[] = [];
+        const stop = onQuestionsSaved((s) => saved.push(s));
+        // Another device added q(2) at 7. Our save: 409, read, merged save
+        // commits at 8 but its answer is lost.
+        mockFetch
+            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+            .mockResolvedValueOnce(json(200, { questions: wire([q(2)]), sequence: 7 }))
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [q(1)]).catch(() => {});
+
+        const [queued] = getPendingEvents(SID);
+        const payload = queued.payloadJson as {
+            questions: Array<{ payloadJson: unknown }>;
+            base: { sequence: number };
+            merged: { local: unknown[]; base: { sequence: number } };
+        };
+        expect(payload.questions.map((x) => x.payloadJson)).toEqual([q(1), q(2)]);
+        expect(payload.base.sequence).toBe(7);
+        expect(payload.merged.local).toEqual([q(1)]);
+        expect(payload.merged.base.sequence).toBe(4);
+
+        // The retry: the server knows it, and answers its sequence.
+        mockFetch.mockResolvedValueOnce(json(200, { sequence: 8, duplicate: true }));
+        await flushPendingEvents(SID);
+        const retry = puts().at(-1);
+        expect(retry.replacementId).toBe(puts()[0].replacementId);
+        expect(retry.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1), q(2)]);
+        // Still read as a merge, so the board shows q(2).
+        expect(saved.at(-1)?.mergedWith?.sequence).toBe(7);
+        expect(saved.at(-1)?.saved).toEqual([q(1), q(2)]);
+        stop();
+
+        // The board, now showing both, is saved with an edit: q(2) stays.
+        setBoardBase(SID, { sequence: 8, questions: [q(1), q(2)] });
+        mockFetch.mockResolvedValueOnce(json(200, { sequence: 9 }));
+        await saveQuestionsToServer(SID, [q(1), q(2), q(3)]);
+        const last = puts().at(-1);
+        expect(last.baseSequence).toBe(8);
+        expect(last.questions.map((x: { payloadJson: { key: number } }) => x.payloadJson.key)).toEqual([1, 2, 3]);
+    });
+});
+
+describe("the base of a list", () => {
+    const edited = (key: number) =>
+        ({ id: "radius", key, data: { label: `${key} edited` } }) as unknown as Questions[number];
+
+    test("is what the board showed when it was made, so their later change to their question wins", async () => {
+        snapshot("u1", [], 4);
+        mockFetch
+            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+            .mockResolvedValueOnce(json(200, { questions: wire([q(2)]), sequence: 7 }))
+            .mockResolvedValueOnce(json(200, { sequence: 8 }));
+        await saveQuestionsToServer(SID, [q(1)]);
+        // The merged list is shown (SessionManager does this).
+        setBoardBase(SID, { sequence: 8, questions: [q(1), q(2)] });
+
+        // We edit q(1); meanwhile the other device edited q(2).
+        mockFetch
+            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+            .mockResolvedValueOnce(json(200, { questions: wire([q(1), edited(2)]), sequence: 9 }))
+            .mockResolvedValueOnce(json(200, { sequence: 10 }));
+        await saveQuestionsToServer(SID, [edited(1), q(2)]);
+        const last = puts().at(-1);
+        expect(last.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([
+            edited(1),
+            edited(2),
+        ]);
+    });
+});
+
+describe("discarding a session", () => {
+    test("takes every account's queue when the session is gone, only ours when we lost access", async () => {
+        snapshot("u1", [], 4);
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [q(1)]).catch(() => {});
+        verifiedUserId.set("u2");
+        await saveQuestionsToServer(SID, [q(2)]).catch(() => {});
+
+        discardSessionData(SID);
+        expect(getPendingEvents(SID)).toEqual([]);
+        verifiedUserId.set("u1");
+        expect(getPendingEvents(SID)).toHaveLength(1);
+
+        discardSessionData(SID, { allAccounts: true });
+        expect([...store.keys()].filter((k) => k.startsWith("taibled-pending-"))).toEqual([]);
     });
 });
 

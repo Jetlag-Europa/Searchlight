@@ -787,8 +787,53 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
 
       const retry = await put("base-seq-retry", [question("retry")], sequence);
       expect(retry.statusCode).toBe(200);
-      expect(retry.json()).toEqual(first.json());
+      expect(retry.json()).toEqual({ ...first.json(), duplicate: true });
       expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["later"]);
+    });
+
+    test("says a retry was saved before", async () => {
+      const { sequence } = await read();
+      const first = await put("base-seq-dup", [question("dup")], sequence);
+      expect(first.json()).toEqual({ sequence: sequence + 1 });
+      const retry = await put("base-seq-dup", [question("dup")], sequence);
+      expect(retry.json()).toEqual({ sequence: sequence + 1, duplicate: true });
+    });
+
+    test("refuses a base from beyond the session's sequence", async () => {
+      const { sequence } = await read();
+      const res = await put("base-seq-future", [question("future")], sequence + 5);
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe("QUESTIONS_CHANGED");
+    });
+
+    test("keeps keys that need all 17 digits exactly, in the list and its event", async () => {
+      const keys = [0.47550004144641034, 0.30000000000000004, 0.12345678901234568];
+      const broadcasted: EventRecord[] = [];
+      const unsubscribe = subscribe(SESSION_ID, (ev) => {
+        if ("type" in ev && ev.type === "questions.replace") broadcasted.push(ev as EventRecord);
+      });
+      try {
+        const { sequence } = await read();
+        const res = await put(
+          "base-seq-exact",
+          keys.map((key, ordinal) => ({
+            clientUuid: `exact-${ordinal}`,
+            ordinal,
+            payloadJson: { id: "radius", key, data: { lat: 47.42790359754809 } },
+          })),
+          sequence,
+        );
+        expect(res.statusCode).toBe(200);
+        const read2 = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/questions`, headers: { cookie } });
+        expect(read2.json().questions.map((q: { payloadJson: { key: number } }) => q.payloadJson.key)).toEqual(keys);
+        const event = await prisma.event.findUniqueOrThrow({ where: { clientUuid: "questions-replace-base-seq-exact" } });
+        const stored = (event.payloadJson as { questions: Array<{ payloadJson: { key: number } }> }).questions;
+        expect(stored.map((q) => q.payloadJson.key)).toEqual(keys);
+        const sent = (broadcasted[0].payloadJson as { questions: Array<{ payloadJson: { key: number } }> }).questions;
+        expect(sent.map((q) => q.payloadJson.key)).toEqual(keys);
+      } finally {
+        unsubscribe();
+      }
     });
 
     test("still replaces the list, with 204, for a client that sends no base", async () => {

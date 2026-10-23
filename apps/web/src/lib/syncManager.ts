@@ -6,6 +6,7 @@ import {
 } from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
+    advanceBoardBase,
     discardEvent,
     type EventType,
     getCachedSession,
@@ -18,7 +19,7 @@ import {
     type QuestionsReplacePayload,
     rebaseQueuedQuestions,
     setCachedSession,
-    setServerQuestions,
+    updateQueuedPayload,
 } from "@/lib/eventQueue";
 import { mergeQuestionLists } from "@/lib/questionMerge";
 import { randomUUID } from "@/lib/utils";
@@ -99,9 +100,11 @@ export interface QuestionsSaved {
     // The list as queued here, and the one saved (the same unless merged).
     local: Questions;
     saved: Questions;
+    // The base `local` was made from (undefined from builds before).
+    madeFrom?: QuestionsBase;
     // The server's sequence after the save; undefined from an older API.
     sequence?: number;
-    // When merged: the server's list it was merged with, and its sequence.
+    // When merged: the server's list it was last merged with.
     mergedWith?: QuestionsBase;
 }
 
@@ -159,24 +162,22 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
 
 /**
  * Save a queued question list. Made on a base the server has moved on from,
- * it is merged with the server's list first: see mergeQuestionLists. The
- * replacementId stays the same, so a save whose answer was lost isn't
- * repeated.
+ * it is merged with the server's list first: see mergeQuestionLists. Each
+ * merge replaces the queued list before it is sent, keeping its
+ * replacementId: if the merged save commits but its answer is lost, the
+ * retry sends that same merged list, which the server recognizes as done.
  */
 async function sendQuestions(
-    sessionId: string,
-    payload: QuestionsReplacePayload,
+    event: PendingEvent,
     keepalive: boolean,
 ): Promise<QuestionsSaved> {
-    const local = payload.questions.map((q) => q.payloadJson);
-    let wire = payload.questions;
-    let saved = local;
-    let baseSequence = payload.base?.sequence;
-    let mergedWith: QuestionsBase | undefined;
+    const { sessionId } = event;
+    let payload = event.payloadJson as QuestionsReplacePayload;
     for (let merges = 0; ; merges++) {
+        const baseSequence = payload.base?.sequence;
         const body = JSON.stringify({
             replacementId: payload.replacementId,
-            questions: wire,
+            questions: payload.questions,
             ...(baseSequence === undefined ? {} : { baseSequence }),
         });
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
@@ -196,22 +197,28 @@ async function sendQuestions(
                 if (merges >= MAX_QUESTION_MERGES) {
                     throw new Error("questions kept changing, merging later");
                 }
-                mergedWith = await fetchServerQuestions(sessionId);
-                saved = mergeQuestionLists(
+                const server = await fetchServerQuestions(sessionId);
+                const list = payload.questions.map((q) => q.payloadJson);
+                const merged = mergeQuestionLists(
                     payload.base.questions,
-                    local,
-                    mergedWith.questions,
+                    list,
+                    server.questions,
                 );
                 console.info(
                     "[searchlight:sync] questions changed elsewhere, merged",
-                    local.length,
+                    list.length,
                     "+",
-                    mergedWith.questions.length,
+                    server.questions.length,
                     "→",
-                    saved.length,
+                    merged.length,
                 );
-                wire = toWire(saved);
-                baseSequence = mergedWith.sequence;
+                payload = {
+                    ...payload,
+                    questions: toWire(merged),
+                    base: server,
+                    merged: payload.merged ?? { local: list, base: payload.base },
+                };
+                updateQueuedPayload(sessionId, event.localId, payload);
                 continue;
             }
         }
@@ -227,7 +234,15 @@ async function sendQuestions(
                       )
                       .catch(() => undefined)
                 : undefined;
-        return { sessionId, local, saved, sequence, mergedWith };
+        const saved = payload.questions.map((q) => q.payloadJson);
+        return {
+            sessionId,
+            local: payload.merged?.local ?? saved,
+            saved,
+            madeFrom: payload.merged?.base ?? payload.base,
+            sequence,
+            mergedWith: payload.merged ? payload.base : undefined,
+        };
     }
 }
 
@@ -258,11 +273,7 @@ async function sendEvent(
         if (!res.ok && res.status !== 404)
             throw new SyncRequestError("stroke.delete", res.status);
     } else if (event.type === "questions.replace") {
-        return sendQuestions(
-            sessionId,
-            event.payloadJson as QuestionsReplacePayload,
-            keepalive,
-        );
+        return sendQuestions(event, keepalive);
     } else if (event.type === "hider.update") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -395,18 +406,18 @@ async function dispatchQueuedEvent(
             });
         }
         if (savedQuestions?.sequence !== undefined) {
-            const { local, saved, sequence, mergedWith } = savedQuestions;
-            setServerQuestions(sessionId, { sequence, questions: saved });
-            // The lists queued after this one followed on from it. Saved as
-            // it was, it's the server's list now. Merged, it isn't: they
-            // still lack the other side's changes, so they merge too.
-            rebaseQueuedQuestions(
-                sessionId,
-                mergedWith
-                    ? { sequence: mergedWith.sequence, questions: local }
-                    : { sequence, questions: saved },
-                event.localId,
-            );
+            const { local, saved, madeFrom, sequence, mergedWith } =
+                savedQuestions;
+            // The board, and the lists queued after this one made from the
+            // same base, followed on from it. Saved as it was, it's the
+            // server's list now. Merged, it isn't: they still lack the other
+            // side's changes, so they merge too (the board, until a merged
+            // list is shown: see onQuestionsSaved).
+            const next = mergedWith
+                ? { sequence: mergedWith.sequence, questions: local }
+                : { sequence, questions: saved };
+            rebaseQueuedQuestions(sessionId, madeFrom, next, event.localId);
+            advanceBoardBase(sessionId, madeFrom, next);
         }
         markEventSynced(sessionId, event.localId);
         if (savedQuestions) {
