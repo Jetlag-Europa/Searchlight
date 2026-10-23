@@ -1,6 +1,12 @@
 import { useStore } from "@nanostores/react";
 import { TriangleAlert } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+    type ComponentPropsWithoutRef,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
+import { Drawer as DrawerPrimitive } from "vaul";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,29 +18,28 @@ import {
 } from "@/components/ui/dialog";
 import {
     Drawer,
-    DrawerContent,
     DrawerDescription,
     DrawerHeader,
     DrawerTitle,
 } from "@/components/ui/drawer";
-import {
-    compiledGameAtom,
-    filterSupportedQuestions,
-} from "@/game-definition/store";
+import { compiledGameAtom } from "@/game-definition/store";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { activeSessionId } from "@/lib/activeSession";
 import {
     defaultUnit,
+    gameDefinitionReady,
     questions,
     sessionPickerOpen,
     sidebarContextL,
     sidebarContextR,
 } from "@/lib/context";
 import {
+    isConflictVersionSupported,
     lookUpConflictAuthors,
     type QuestionConflict,
     questionConflictArrivals,
     questionConflicts,
+    questionDecisionsPossible,
     resolveAllQuestionConflicts,
     resolveQuestionConflict,
 } from "@/lib/questionConflicts";
@@ -47,6 +52,8 @@ import {
     questionDifferences,
     questionSummaryParts,
     questionTypeLabel,
+    rawDifferences,
+    summarizeQuestion,
     type SummaryOptions,
 } from "@/lib/questionSummary";
 import { cn } from "@/lib/utils";
@@ -63,22 +70,13 @@ import { StatusChip } from "./StatusChip";
  */
 export function QuestionConflicts() {
     const sessionId = useStore(activeSessionId);
-    const conflicts = useStore(questionConflicts);
+    // The store leaves out conflicts neither version of which the game has.
+    const shown = useStore(questionConflicts);
     const arrivals = useStore(questionConflictArrivals);
     const pickerOpen = useStore(sessionPickerOpen);
-    const compiled = useStore(compiledGameAtom);
     const left = useStore(sidebarContextL);
     const right = useStore(sidebarContextR);
     const [open, setOpen] = useState(false);
-
-    // A conflict between two versions this game no longer has (its revision
-    // changed meanwhile) can't be shown on the board either way, so it isn't
-    // asked about.
-    const shown = conflicts.filter((c) =>
-        [c.mine, c.theirs].some(
-            (q) => q && filterSupportedQuestions([q], compiled).length > 0,
-        ),
-    );
 
     // Arrivals start at 0 and count new conflicts recorded in this page, so
     // any count above the last one seen is news, even one from before this
@@ -151,11 +149,14 @@ export function QuestionConflicts() {
         <>
             {shown.length > 0 && !visible && !sidebarCoversMap && (
                 <StatusChip slot="conflicts">
+                    {/* As small as the chips above it, but a thumb's height to
+                        tap: the hit area reaches into the gap above and
+                        below it, where the zones-left pill lets taps through. */}
                     <button
                         type="button"
                         inert={pickerOpen}
                         onClick={() => setOpen(true)}
-                        className="flex w-max items-center gap-1.5 rounded-full border border-amber-400/70 bg-background/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-accent"
+                        className="relative flex w-max items-center gap-1.5 rounded-full border border-amber-400/70 bg-background/90 px-3 py-1.5 text-xs font-medium shadow-sm backdrop-blur-sm hover:bg-accent after:absolute after:inset-x-0 after:-top-1 after:-bottom-3 after:content-['']"
                     >
                         <TriangleAlert
                             aria-hidden="true"
@@ -177,7 +178,44 @@ export function QuestionConflicts() {
 
 const TITLE = "Choose which version to keep";
 const DESCRIPTION =
-    "These questions were changed by you and someone else at the same time. The map shows their version until you choose.";
+    "You and someone else changed these questions before seeing each other's changes. Until you choose, their version stays.";
+
+// DrawerContent's look, portalled to the body rather than into the map. A
+// phone's question or zone sidebar is a modal sheet in the body, which hides
+// everything else from screen readers, the map included; this window can
+// open over it (when conflicts arrive), and inside the map it would be
+// hidden with the rest. Opened later, in the body, it isn't, and it hides
+// the sheet in turn while it's open. In full screen only the map shows (and
+// no sidebar), so it goes in the map then.
+function BodyDrawerContent({
+    className,
+    children,
+    ...props
+}: ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>) {
+    const [fullscreen, setFullscreen] = useState(
+        () => document.fullscreenElement,
+    );
+    useEffect(() => {
+        const sync = () => setFullscreen(document.fullscreenElement);
+        document.addEventListener("fullscreenchange", sync);
+        return () => document.removeEventListener("fullscreenchange", sync);
+    }, []);
+    return (
+        <DrawerPrimitive.Portal container={fullscreen ?? document.body}>
+            <DrawerPrimitive.Overlay className="fixed inset-0 z-[1040] bg-black/80" />
+            <DrawerPrimitive.Content
+                className={cn(
+                    "fixed inset-x-0 bottom-0 z-[1040] mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
+                    className,
+                )}
+                {...props}
+            >
+                <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
+                {children}
+            </DrawerPrimitive.Content>
+        </DrawerPrimitive.Portal>
+    );
+}
 
 // A bottom drawer on a phone, with room for thumbs; a dialog on a desktop.
 function ConflictWindow({
@@ -195,19 +233,30 @@ function ConflictWindow({
     const onOpenChange = (next: boolean) => {
         if (!next) onClose();
     };
-    // Focus would land on the first "Keep mine", where a stray Enter or tap
-    // decides a question unasked.
-    const noAutoFocus = (event: Event) => event.preventDefault();
+    // Focus would land on the first "Keep mine", where a stray Enter decides
+    // a question unasked. It goes to the title instead, so it leaves what was
+    // focused behind (a card's name field) and screen readers start there.
+    const titleRef = useRef<HTMLHeadingElement>(null);
+    const focusTitle = (event: Event) => {
+        event.preventDefault();
+        titleRef.current?.focus();
+    };
 
     if (isMobile) {
         return (
             <Drawer open={open} onOpenChange={onOpenChange}>
-                <DrawerContent
+                <BodyDrawerContent
                     className="max-h-[92svh]"
-                    onOpenAutoFocus={noAutoFocus}
+                    onOpenAutoFocus={focusTitle}
                 >
                     <DrawerHeader className="pb-2 text-left">
-                        <DrawerTitle className="text-xl">{TITLE}</DrawerTitle>
+                        <DrawerTitle
+                            ref={titleRef}
+                            tabIndex={-1}
+                            className="text-xl focus:outline-none"
+                        >
+                            {TITLE}
+                        </DrawerTitle>
                         <DrawerDescription className="text-base">
                             {DESCRIPTION}
                         </DrawerDescription>
@@ -218,7 +267,7 @@ function ConflictWindow({
                         onLater={onClose}
                         large
                     />
-                </DrawerContent>
+                </BodyDrawerContent>
             </Drawer>
         );
     }
@@ -227,10 +276,16 @@ function ConflictWindow({
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent
                 className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0"
-                onOpenAutoFocus={noAutoFocus}
+                onOpenAutoFocus={focusTitle}
             >
                 <DialogHeader className="p-6 pb-3">
-                    <DialogTitle>{TITLE}</DialogTitle>
+                    <DialogTitle
+                        ref={titleRef}
+                        tabIndex={-1}
+                        className="focus:outline-none"
+                    >
+                        {TITLE}
+                    </DialogTitle>
                     <DialogDescription>{DESCRIPTION}</DialogDescription>
                 </DialogHeader>
                 <ConflictList
@@ -256,12 +311,22 @@ function ConflictList({
 }) {
     const board = useStore(questions);
     const compiled = useStore(compiledGameAtom);
+    // Which versions can be kept follows the game the board shows.
+    useStore(gameDefinitionReady);
     const unit = useStore(defaultUnit);
+    // While the session loads, or its edits can't be saved yet, a choice
+    // would go nowhere: the store ignores it, so the buttons wait.
+    const possible = useStore(questionDecisionsPossible);
     const options: SummaryOptions = {
         kindLabel: (kind) => compiled?.questionMap.get(kind)?.label,
         unit,
     };
     const size = large ? "lg" : "default";
+    // "Keep all" leaves out the versions that can't be kept (the store
+    // skips them); those stay listed.
+    const canKeepAll = (choice: "mine" | "theirs") =>
+        possible &&
+        conflicts.some((c) => isConflictVersionSupported(c, choice));
 
     return (
         <>
@@ -275,7 +340,7 @@ function ConflictList({
                     <ConflictItem
                         key={conflict.key}
                         conflict={conflict}
-                        compiled={compiled}
+                        possible={possible}
                         board={board}
                         options={options}
                         large={large}
@@ -291,15 +356,26 @@ function ConflictList({
             </ul>
             <div
                 className={cn(
-                    "flex shrink-0 flex-col gap-2 border-t p-4 sm:flex-row sm:justify-end",
+                    "flex shrink-0 flex-col gap-2 border-t p-4 sm:flex-row sm:flex-wrap sm:justify-end",
                     !large && "px-6",
                 )}
             >
+                {!possible && (
+                    <p
+                        role="status"
+                        className="text-sm text-amber-400 sm:basis-full sm:text-right"
+                    >
+                        Can&apos;t save a choice right now: the session is still
+                        loading, or this device can&apos;t save while offline.
+                        It can wait.
+                    </p>
+                )}
                 {conflicts.length > 1 && (
                     <>
                         <Button
                             size={size}
                             variant="secondary"
+                            disabled={!canKeepAll("mine")}
                             onClick={() =>
                                 resolveAllQuestionConflicts(sessionId, "mine")
                             }
@@ -309,6 +385,7 @@ function ConflictList({
                         <Button
                             size={size}
                             variant="secondary"
+                            disabled={!canKeepAll("theirs")}
                             onClick={() =>
                                 resolveAllQuestionConflicts(sessionId, "theirs")
                             }
@@ -327,14 +404,14 @@ function ConflictList({
 
 function ConflictItem({
     conflict,
-    compiled,
+    possible,
     board,
     options,
     large,
     onChoose,
 }: {
     conflict: QuestionConflict;
-    compiled: Parameters<typeof filterSupportedQuestions>[1];
+    possible: boolean;
     board: readonly unknown[];
     options: SummaryOptions;
     large: boolean;
@@ -347,6 +424,15 @@ function ConflictItem({
         conflict.mine && conflict.theirs
             ? questionDifferences(conflict.mine, conflict.theirs, options)
             : [];
+    // Two versions that read the same ("2 km" from 2 km and from 2000 m)
+    // show the values that differ under each.
+    const raw =
+        conflict.mine &&
+        conflict.theirs &&
+        summarizeQuestion(conflict.mine, options) ===
+            summarizeQuestion(conflict.theirs, options)
+            ? rawDifferences(conflict.mine, conflict.theirs)
+            : { a: [], b: [] };
 
     return (
         <li className="rounded-lg border bg-card p-3">
@@ -379,7 +465,9 @@ function ConflictItem({
                 <VersionColumn
                     heading="Yours"
                     question={conflict.mine}
-                    compiled={compiled}
+                    details={raw.a}
+                    supported={isConflictVersionSupported(conflict, "mine")}
+                    possible={possible}
                     options={options}
                     action="Keep mine"
                     large={large}
@@ -388,7 +476,9 @@ function ConflictItem({
                 <VersionColumn
                     heading={capitalized(them)}
                     question={conflict.theirs}
-                    compiled={compiled}
+                    details={raw.b}
+                    supported={isConflictVersionSupported(conflict, "theirs")}
+                    possible={possible}
                     options={options}
                     action="Keep theirs"
                     large={large}
@@ -407,7 +497,9 @@ function ConflictItem({
 function VersionColumn({
     heading,
     question,
-    compiled,
+    details,
+    supported,
+    possible,
     options,
     action,
     large,
@@ -415,7 +507,11 @@ function VersionColumn({
 }: {
     heading: string;
     question: unknown;
-    compiled: Parameters<typeof filterSupportedQuestions>[1];
+    details: string[];
+    // A version from another revision of the game can't be kept: the board
+    // leaves out what the game doesn't have, so keeping it would delete it.
+    supported: boolean;
+    possible: boolean;
     options: SummaryOptions;
     action: string;
     large: boolean;
@@ -425,10 +521,6 @@ function VersionColumn({
     const answer =
         summary?.answer ?? summary?.subject ?? questionTypeLabel(question);
     const subject = summary?.answer ? summary.subject : undefined;
-    // A version from another revision of the game: keeping it keeps it off
-    // the board, as the board leaves out what the game doesn't have.
-    const supported =
-        !question || filterSupportedQuestions([question], compiled).length > 0;
 
     return (
         <div className="flex min-w-0 flex-col gap-2 rounded-md bg-muted/40 p-2">
@@ -453,27 +545,35 @@ function VersionColumn({
                         <p className="break-words text-lg font-semibold leading-snug">
                             {answer}
                         </p>
-                        {!supported && (
-                            <p className="text-sm text-amber-400">
-                                Not in this game
-                            </p>
-                        )}
                         {summary && summary.notes.length > 0 && (
                             <p className="text-sm text-muted-foreground">
                                 {summary.notes.join(", ")}
                             </p>
                         )}
+                        {details.length > 0 && (
+                            <p className="break-words text-sm text-muted-foreground">
+                                {details.join(", ")}
+                            </p>
+                        )}
                     </>
                 )}
             </div>
-            <Button
-                size={large ? "lg" : "default"}
-                variant="outline"
-                className={cn("w-full", large && "px-2")}
-                onClick={onChoose}
-            >
-                {action}
-            </Button>
+            {supported ? (
+                <Button
+                    size={large ? "lg" : "default"}
+                    variant="outline"
+                    className={cn("w-full", large && "px-2")}
+                    disabled={!possible}
+                    onClick={onChoose}
+                >
+                    {action}
+                </Button>
+            ) : (
+                <p className="text-sm text-amber-400">
+                    Not in this game&apos;s current version, so it can&apos;t be
+                    kept.
+                </p>
+            )}
         </div>
     );
 }

@@ -7,6 +7,7 @@ import {
     conflictQuestionLabel,
     questionDifferences,
     questionTypeLabel,
+    rawDifferences,
     summarizeQuestion,
 } from "@/lib/questionSummary";
 
@@ -278,40 +279,55 @@ describe("a conflict in words", () => {
         ).toBe("Radius 2");
     });
 
-    test("labels one the board doesn't hold where it would go back", () => {
+    test("doesn't number one the board doesn't hold, which another may be", () => {
+        // The board's "Radius 1" and "Radius 2" are other questions.
         const deleted = radius({ name: "Mine" }, 0.4);
         expect(
             conflictQuestionLabel(board, {
                 key: 0.4,
                 mine: deleted,
                 theirs: null,
-                mineAfterKey: null,
             }),
-        ).toEqual({ label: "Radius 1", name: "Mine" });
+        ).toEqual({ label: "Radius (not on the map)", name: "Mine" });
         expect(
             conflictQuestionLabel(board, {
                 key: 0.4,
-                mine: deleted,
-                theirs: null,
-                mineAfterKey: 0.2,
+                mine: null,
+                theirs: { id: "thermometer", key: 0.4, data: {} },
             }).label,
-        ).toBe("Radius 2");
-        // Its neighbour gone too: at the end.
-        expect(
-            conflictQuestionLabel(board, {
-                key: 0.4,
-                mine: deleted,
-                theirs: null,
-                mineAfterKey: 0.9,
-            }).label,
-        ).toBe("Radius 3");
+        ).toBe("Thermometer (not on the map)");
         expect(
             conflictQuestionLabel(board, {
                 key: 0.4,
                 mine: { id: "teleport", key: 0.4, data: {} },
                 theirs: null,
             }).label,
-        ).toBe("Question");
+        ).toBe("Question (not on the map)");
+    });
+
+    test("shows the raw values of versions that read the same", () => {
+        const km = radius({ radius: 2, unit: "kilometers" });
+        const m = radius({ radius: 2000, unit: "meters" });
+        expect(summarizeQuestion(km)).toBe(summarizeQuestion(m));
+        expect(rawDifferences(km, m)).toEqual({
+            a: ["radius 2 km"],
+            b: ["radius 2000 m"],
+        });
+        expect(rawDifferences(radius({ name: "Park" }), radius())).toEqual({
+            a: ['name "Park"'],
+            b: ["no name"],
+        });
+        expect(
+            rawDifferences(radius({ color: "red" }), radius({ color: "blue" })),
+        ).toEqual({ a: ["color red"], b: ["color blue"] });
+        // Pins and areas say what differs elsewhere; device fields never do.
+        expect(
+            rawDifferences(
+                radius({ lat: 1, drag: false, geo: { a: 1 } }),
+                radius({ geo: { a: 2 } }),
+            ),
+        ).toEqual({ a: [], b: [] });
+        expect(rawDifferences(null, "x")).toEqual({ a: [], b: [] });
     });
 
     test("names the other player", () => {

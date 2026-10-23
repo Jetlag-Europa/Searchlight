@@ -343,8 +343,6 @@ export interface ConflictLike {
     key: number;
     mine: unknown;
     theirs: unknown;
-    mineAfterKey?: number | null;
-    theirsAfterKey?: number | null;
 }
 
 const keyOf = (question: unknown): number | undefined =>
@@ -352,8 +350,10 @@ const keyOf = (question: unknown): number | undefined =>
 
 /**
  * What to call a conflicting question: the player's name for it when it has
- * one, and its label on the board ("Radius 2"). A question the board doesn't
- * hold (deleted on one side) is labelled where it would go back.
+ * one, and its label on the board ("Radius 2"). One the board doesn't hold
+ * (deleted on one side) has no place to count from, and the board's own
+ * "Radius 2" may well be another question, so it's only "Radius (not on the
+ * map)".
  */
 export function conflictQuestionLabel(
     board: readonly unknown[],
@@ -364,43 +364,83 @@ export function conflictQuestionLabel(
             const key = keyOf(q);
             return key !== undefined && sameQuestionKey(key, conflict.key);
         });
-        const version = onBoard ?? conflict.theirs ?? conflict.mine;
         const name =
             questionName(dataOf(onBoard)) ??
             questionName(dataOf(conflict.mine)) ??
             questionName(dataOf(conflict.theirs));
-        const type = typeId(version);
-        if (!type || !TYPE_LABELS[type])
-            return { name, label: questionTypeLabel(version) };
-
-        let list = board.filter(isFields);
         if (!onBoard) {
-            const afterKey =
-                conflict.theirs != null
-                    ? conflict.theirsAfterKey
-                    : conflict.mineAfterKey;
-            const placed = { ...fieldsOf(version), key: conflict.key };
-            const at =
-                afterKey == null
-                    ? 0
-                    : list.findIndex((q) => {
-                          const key = keyOf(q);
-                          return (
-                              key !== undefined &&
-                              sameQuestionKey(key, afterKey)
-                          );
-                      }) + 1 || list.length;
-            list = [...list.slice(0, at), placed, ...list.slice(at)];
+            const type = questionTypeLabel(conflict.theirs ?? conflict.mine);
+            return { name, label: `${type} (not on the map)` };
         }
-        const target = keyOf(onBoard) ?? conflict.key;
-        const label = defaultQuestionLabel(
-            list as unknown as Parameters<typeof defaultQuestionLabel>[0],
-            target,
-        );
-        return { name, label: label || questionTypeLabel(version) };
+        const label =
+            typeId(onBoard) && TYPE_LABELS[typeId(onBoard)!]
+                ? defaultQuestionLabel(
+                      board.filter(isFields) as unknown as Parameters<
+                          typeof defaultQuestionLabel
+                      >[0],
+                      keyOf(onBoard)!,
+                  )
+                : "";
+        return { name, label: label || questionTypeLabel(onBoard) };
     } catch {
         return { label: questionTypeLabel(conflict.theirs ?? conflict.mine) };
     }
+}
+
+// Raw values, for two versions whose summaries read the same: a 2 km radius
+// and a 2000 m one both read "2 km".
+function rawValue(field: string, data: Fields): string | undefined {
+    const value = data[field];
+    if (field === "name")
+        return typeof value === "string" && value.trim()
+            ? `name "${value.trim()}"`
+            : "no name";
+    if (field === "radius" || field === "unit") {
+        const n = finite(data.radius);
+        const unit = unitOf(data.unit);
+        if (n === undefined) return undefined;
+        return `radius ${n}${unit ? ` ${UNIT_ABBREVIATIONS[unit]}` : ""}`;
+    }
+    if (field === "enabled") return value === false ? "hidden" : "shown";
+    if (
+        typeof value === "number" ||
+        typeof value === "boolean" ||
+        (typeof value === "string" && value.length <= 40)
+    )
+        return `${FIELD_NAMES[field] ?? field} ${String(value)}`;
+    if (value === undefined) return `no ${FIELD_NAMES[field] ?? field}`;
+    return undefined;
+}
+
+/**
+ * For each version, the raw values of the simple fields in which the two
+ * differ ("radius 2000 m" against "radius 2 km"), to tell apart versions
+ * whose summaries read the same. Pins say how far they moved in
+ * questionDifferences instead; areas and places have no short form.
+ */
+export function rawDifferences(
+    a: unknown,
+    b: unknown,
+): { a: string[]; b: string[] } {
+    const out = { a: [] as string[], b: [] as string[] };
+    try {
+        const da = dataOf(a);
+        const db = dataOf(b);
+        const skip = new Set<string>(IGNORED);
+        for (const [lat, lng] of PIN_FIELDS) skip.add(lat).add(lng);
+        const fields = new Set([...Object.keys(da), ...Object.keys(db)]);
+        for (const field of fields) {
+            if (skip.has(field) || same(da[field], db[field])) continue;
+            const ra = rawValue(field, da);
+            const rb = rawValue(field, db);
+            if (ra === undefined || rb === undefined || ra === rb) continue;
+            if (!out.a.includes(ra)) out.a.push(ra);
+            if (!out.b.includes(rb)) out.b.push(rb);
+        }
+    } catch {
+        return { a: [], b: [] };
+    }
+    return out;
 }
 
 export interface AuthorLike {
