@@ -140,31 +140,70 @@ function showServerQuestions(
 // A save of ours was answered at a sequence the stream has gone past: lists
 // the stream passed over meanwhile (ours was still to be saved, or a load
 // started the stream from a later cursor) may not show on the board. Read
-// the server's list then, and show it as one from the stream.
+// the server's list then, and show it as one from the stream; until that
+// read succeeds, try again (with a doubling, capped delay) while the
+// stream is the session's. The board's base meanwhile is what the board
+// shows, so an edit made before then merges with the server's list rather
+// than overwriting it.
+let catchUp:
+    | { sessionId: string; generation: number; delay: number; timer?: NodeJS.Timeout }
+    | undefined;
+
+function stopCatchUp(): void {
+    clearTimeout(catchUp?.timer);
+    catchUp = undefined;
+}
+
+async function runCatchUp(): Promise<void> {
+    const job = catchUp;
+    if (!job) return;
+    const current = () =>
+        catchUp === job &&
+        job.generation === currentGeneration &&
+        job.sessionId === currentSessionId;
+    try {
+        const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
+            credentials: "include",
+        });
+        if (!current()) return;
+        // Gone or refused: the stream finds that out itself.
+        if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+            stopCatchUp();
+            return;
+        }
+        if (!res.ok) throw new Error(`questions: ${res.status}`);
+        const data = (await res.json()) as {
+            questions: Array<{ payloadJson: Questions[number] }>;
+            sequence?: unknown;
+        };
+        if (!current()) return;
+        stopCatchUp();
+        if (typeof data.sequence !== "number") return;
+        // Skipped with an edit of ours still to be saved: its merge brings
+        // the server's list in.
+        showServerQuestions(
+            job.sessionId,
+            data.questions.map((q) => q.payloadJson),
+            data.sequence,
+        );
+    } catch (err) {
+        if (!current()) return;
+        console.warn("[searchlight:sse] couldn't read the questions to catch up:", err);
+        const delay = job.delay;
+        job.delay = Math.min(delay * 2, RETRY_MAX_MS);
+        job.timer = setTimeout(() => void runCatchUp(), delay);
+    }
+}
+
 onQuestionsSaved(({ sessionId, sequence }) => {
     if (sequence === undefined || sessionId !== currentSessionId) return;
     if (sequence >= lastAppliedSequence) return;
-    const generation = currentGeneration;
-    void fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-        credentials: "include",
-    })
-        .then(async (res) => {
-            if (!res.ok) return;
-            const data = (await res.json()) as {
-                questions: Array<{ payloadJson: Questions[number] }>;
-                sequence?: unknown;
-            };
-            if (generation !== currentGeneration || sessionId !== currentSessionId) return;
-            if (typeof data.sequence !== "number") return;
-            showServerQuestions(
-                sessionId,
-                data.questions.map((q) => q.payloadJson),
-                data.sequence,
-            );
-        })
-        .catch((err) => {
-            console.warn("[searchlight:sse] couldn't read the questions to catch up:", err);
-        });
+    // One at a time: a read running (or waiting to run again) catches up
+    // with this too.
+    if (catchUp?.sessionId === sessionId && catchUp.generation === currentGeneration) return;
+    stopCatchUp();
+    catchUp = { sessionId, generation: currentGeneration, delay: RETRY_MIN_MS };
+    void runCatchUp();
 });
 
 function handleServerEvent(
@@ -672,6 +711,7 @@ export function stopSSE(): void {
     }
     clearTimeout(replayRetry);
     replayRetry = undefined;
+    stopCatchUp();
     clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
     replayRetryDelay = RETRY_MIN_MS;

@@ -574,7 +574,8 @@ export function trackBoardQuestions(
 
 // The base to show a merged save on the board from, question by question:
 // our list's version where the saved list kept it (it brings nothing new)
-// or where the board had it only from us (one we added), else the version
+// or where the board had it only from us (one we added: neither what the
+// board nor what the list was made from has it), else the version
 // the board was made from (`seen`: what it showed before the player's edits
 // since, decisions included). So the board's own edits since read as
 // ours, the server's versions as theirs, and the board having shown the
@@ -582,6 +583,7 @@ export function trackBoardQuestions(
 // no change of ours.
 function shownBase<Q>(
     seen: readonly Q[],
+    madeFrom: readonly Q[],
     local: readonly Q[],
     saved: readonly Q[],
 ): Q[] {
@@ -591,7 +593,7 @@ function shownBase<Q>(
         if (key === undefined) return;
         const kept = findByKey(saved, key);
         const ours =
-            findByKey(seen, key) === null ||
+            (findByKey(seen, key) === null && findByKey(madeFrom, key) === null) ||
             (kept !== null &&
                 sameQuestionSubstance(kept, question as Question));
         if (ours)
@@ -640,7 +642,12 @@ export function showMergedSave(
               }
             : (boardBase ?? madeFrom);
     const seen = seenFrom ? baseQuestions(seenFrom) : local;
-    const from = shownBase(seen, local, saved);
+    const from = shownBase(
+        seen,
+        madeFrom ? baseQuestions(madeFrom) : [],
+        local,
+        saved,
+    );
     const current = questions.get();
     const result = mergeQuestionListsWithConflicts(from, current, saved);
     const { conflicts } = result;

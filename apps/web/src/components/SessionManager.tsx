@@ -35,11 +35,10 @@ import { hiderMode, planningModeEnabled } from "@/lib/context";
 import {
     applyPendingModes,
     applyUnsyncedEvents,
+    boardPaintedFromSnapshot,
     discardSessionData,
     getCachedSession,
     getPendingEvents,
-    queuedQuestionsBase,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
@@ -823,22 +822,15 @@ export function SessionManager() {
     useEffect(() => () => setQuestionDecisionsPossible(false), []);
 
     // A board painted from the snapshot shows the latest list still queued,
-    // if any: its base is that list's, not the snapshot's (a merged list
-    // whose answer was lost comes with the server list it was merged with).
-    //
-    // Known limit: if that merged save did land (only its answer was lost),
-    // the server also has our side of it. An edit made on the reopened
-    // board before the queued list is sent then replaces it in the queue,
-    // and a question of ours that the edit removes again reads, in the next
-    // merge, as one the other side added, so it comes back. Telling the two
-    // apart takes asking the server about the replaced list first, which was
-    // tried and broke the live flow (a live board shows the list as first
-    // made, not as merged). It takes a lost answer, a reload and that edit
-    // in a row; the question can be removed again.
-    const paintedFromSnapshot = (id: string) => {
-        const base = queuedQuestionsBase(id);
-        if (base) setBoardBase(id, base);
-    };
+    // if any: its base is that list's (see boardPaintedFromSnapshot). An
+    // edit made on the reopened board before that list is sent replaces it
+    // in the queue; if it was sent and landed without its answer coming,
+    // its versions count as possibly ours in the next merge (see
+    // QuestionsReplacePayload.own), so a question of ours the edit removes
+    // again stays removed. Nothing is sent again to find out (that was
+    // tried and broke the live flow: a live board shows the list as first
+    // made, not as merged).
+    const paintedFromSnapshot = (id: string) => boardPaintedFromSnapshot(id);
 
     // A session's hider and planning mode, with this account's edits to them
     // that haven't synced yet.

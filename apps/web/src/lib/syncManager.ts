@@ -239,10 +239,17 @@ async function mergeWithServer(
             }
         }
         if (asked.length > 0) {
+            // From the first base this list was made from: a list of ours
+            // replaced since may have landed any time after it.
+            const after = Math.min(
+                base.sequence,
+                base.since ?? base.sequence,
+                payload.merged?.base.sequence ?? base.sequence,
+            );
             const history = await questionHistory(
                 sessionId,
                 asked,
-                base.sequence,
+                after,
                 server.sequence,
             );
             for (const key of asked) {

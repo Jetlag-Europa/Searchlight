@@ -588,6 +588,26 @@ export function questionsBase(sessionId: string): QuestionsBase | undefined {
     return { sequence: cached.lastSequence, questions: cached.questions };
 }
 
+/**
+ * The board was painted from the snapshot: it shows the latest list still
+ * queued, if any, so its base is that list's. A list merged on its way
+ * (its answer lost) is shown as merged now, not as first made: it no
+ * longer stands for the list and base it was first made from, and its
+ * answer is that of an ordinary list made from the base the board has
+ * (see QuestionsReplacePayload.merged). Nothing is sent again.
+ */
+export function boardPaintedFromSnapshot(sessionId: string): void {
+    const queued = latestQueuedQuestions(sessionId);
+    const payload = queued?.payloadJson as Partial<QuestionsReplacePayload> | undefined;
+    if (!queued || !isQuestionsBase(payload?.base)) return;
+    if (payload.merged) {
+        const rest = { ...payload };
+        delete rest.merged;
+        updateQueuedPayload(sessionId, queued.localId, rest);
+    }
+    setBoardBase(sessionId, payload.base);
+}
+
 /** The board's questions are now made from `base`. */
 export function setBoardBase(sessionId: string, base: QuestionsBase): void {
     const cached = getCachedSession(sessionId);

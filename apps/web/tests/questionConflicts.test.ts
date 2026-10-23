@@ -43,6 +43,7 @@ import {
 import { gameDefinitionReady, questions } from "@/lib/context";
 import {
     applyUnsyncedEvents,
+    boardPaintedFromSnapshot,
     enqueueEvent,
     discardSessionData,
     getCachedSession,
@@ -557,7 +558,7 @@ describe("deciding", () => {
         questions.set(
             suppressQuestionSave(applyUnsyncedEvents(SID, cached).questions),
         );
-        setBoardBase(SID, queuedQuestionsBase(SID)!);
+        boardPaintedFromSnapshot(SID);
         trackBoardQuestions(SID, questions.get(), false);
         expect(labels(questions.get())).toEqual(["1:theirs", "2:2"]);
         expect(held()).toHaveLength(1);
@@ -947,7 +948,7 @@ describe("two players editing online", () => {
         questions.set(
             suppressQuestionSave(applyUnsyncedEvents(SID, cached).questions),
         );
-        setBoardBase(SID, queuedQuestionsBase(SID)!);
+        boardPaintedFromSnapshot(SID);
         trackBoardQuestions(SID, questions.get(), false);
         await edit([q(1, "mine again"), q(2, "theirs")]);
         await flushPendingEvents(SID);
@@ -1715,7 +1716,7 @@ describe("a session loading", () => {
                 applyUnsyncedEvents(SID, getCachedSession(SID)!).questions,
             ),
         );
-        setBoardBase(SID, queuedQuestionsBase(SID)!);
+        boardPaintedFromSnapshot(SID);
         trackBoardQuestions(SID, questions.get(), false);
         // Its answer comes while the session loads (not shown over it).
         await flushPendingEvents(SID);
@@ -1753,7 +1754,216 @@ describe("a merged save answered while the session loads", () => {
     });
 });
 
+describe("the server's history of a question we added", () => {
+    test("not answered in time: the save goes on without it, our addition kept as before", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        await saveQuestionsToServer(SID, [q(1), q(3, "added")]).catch(() => {});
+        server.lose = false;
+        server.other([q(1)]);
+        const inner = mockFetch.getMockImplementation()!;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                if (String(url).includes("/questions/changes")) {
+                    // Never answers; only the timeout ends it.
+                    return new Promise<Response>((_resolve, reject) =>
+                        init?.signal?.addEventListener("abort", () =>
+                            reject(new DOMException("aborted", "AbortError")),
+                        ),
+                    );
+                }
+                return inner(url, init);
+            },
+        );
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            const saving = saveQuestionsToServer(SID, [
+                q(1, "mine"),
+                q(3, "added"),
+            ]).catch(() => {});
+            await vi.advanceTimersByTimeAsync(0);
+            expect(changeLookups()).toHaveLength(1);
+            expect(labels(server.list)).toEqual(["1:1"]);
+            await vi.advanceTimersByTimeAsync(5_000);
+            await saving;
+        } finally {
+            vi.useRealTimers();
+        }
+        // Without its history, whether it had landed can't be told.
+        expect(labels(server.list)).toEqual(["1:mine", "3:added"]);
+        expect(getPendingEvents(SID)).toEqual([]);
+    });
+
+    test("is read from the first base the list was made from, so a later merge round still finds our save", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        await saveQuestionsToServer(SID, [q(1), q(3, "added")]).catch(() => {});
+        server.lose = false;
+        // They remove it.
+        server.other([q(1)]);
+        const inner = mockFetch.getMockImplementation()!;
+        let lookups = 0;
+        let reads = 0;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                const path = new URL(String(url)).pathname;
+                // The first lookup gets no answer; the first read of the list
+                // says it is a save older than it is.
+                if (path.endsWith("/questions/changes") && ++lookups === 1) {
+                    throw new TypeError("Failed to fetch");
+                }
+                if (
+                    path.endsWith("/questions") &&
+                    init?.method !== "PUT" &&
+                    ++reads === 1
+                ) {
+                    const body = await (await inner(url, init)).json();
+                    return json(200, { ...body, sequence: body.sequence - 1 });
+                }
+                return inner(url, init);
+            },
+        );
+        await saveQuestionsToServer(SID, [q(1, "mine"), q(3, "added")]).catch(
+            () => {},
+        );
+        await flushPendingEvents(SID);
+        expect(labels(server.list)).toEqual(["1:mine"]);
+    });
+});
+
+describe("keeping a question they removed", () => {
+    let stopFollowing: () => void;
+    beforeEach(() => {
+        stopFollowing = followBoard();
+    });
+    afterEach(() => stopFollowing());
+    const saveNow = () => flushQuestionSave(SID).catch(() => {});
+
+    test("then editing it while an older list of ours is on its way: nothing asked again", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(2)]);
+        server.hold = true;
+        questions.set([q(1), q(2, "mine")]);
+        const first = saveNow();
+        await vi.waitFor(() => expect(server.held).toHaveLength(1));
+        // Edited without having seen their removal, queued behind it.
+        questions.set([q(1, "edited"), q(2, "mine")]);
+        const second = saveNow();
+        server.held.splice(0).forEach((r) => r());
+        await first;
+        // Asked about; the older list is on its way meanwhile.
+        expect(held().map((c) => c.kind)).toEqual(["they-deleted"]);
+        await vi.waitFor(() => expect(server.held).toHaveLength(1));
+        resolveQuestionConflict(SID, 1, "mine");
+        questions.set([q(1, "edited again"), ...questions.get().slice(1)]);
+        server.hold = false;
+        server.held.splice(0).forEach((r) => r());
+        await second;
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(
+            expect.arrayContaining(["1:edited again", "2:mine"]),
+        );
+    });
+});
+
+describe("a merged list painted on a reopened board", () => {
+    test("merged again in the new page: its answer moves the board on, and removing our edit asks nothing", async () => {
+        snapshot([q(1), q(2), q(3)], 4);
+        const server = fakeServer(4, [q(1), q(2), q(3)]);
+        server.other([q(1), q(2), q(3, "theirs")]);
+        // Merged on its way, and the merged list never got there.
+        const inner = mockFetch.getMockImplementation()!;
+        let puts = 0;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                if (init?.method === "PUT" && ++puts === 2)
+                    throw new TypeError("Failed to fetch");
+                return inner(url, init);
+            },
+        );
+        await saveQuestionsToServer(SID, [q(1), q(2, "mine"), q(3)]).catch(
+            () => {},
+        );
+        mockFetch.mockImplementation(inner);
+        // Reopened: painted from the snapshot; another change comes in
+        // before the queued list goes out again, so it is merged again.
+        questions.set(
+            suppressQuestionSave(
+                applyUnsyncedEvents(SID, getCachedSession(SID)!).questions,
+            ),
+        );
+        boardPaintedFromSnapshot(SID);
+        trackBoardQuestions(SID, questions.get(), false);
+        server.other([q(1, "theirs"), q(2, "mine"), q(3, "theirs")]);
+        // Answered while the session loads (not shown over the board).
+        stopShowing();
+        await flushPendingEvents(SID);
+        stopShowing = showMergedSaves();
+        expect(getCachedSession(SID)?.serverQuestions?.questions).toEqual(
+            expect.arrayContaining([q(2, "mine"), q(3, "theirs")]),
+        );
+        // The load fails: the player removes the question they edited.
+        await edit(
+            questions
+                .get()
+                .filter((x) => (x as unknown as { key: number }).key !== 2),
+        );
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:theirs", "3:theirs"]);
+    });
+});
+
 describe("a save answered at a sequence the stream has gone past", () => {
+    test("tries again when reading the list fails, and the board's base is what it shows meanwhile", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        questions.set([q(1, "mine")]);
+        await saveQuestionsToServer(SID, [q(1, "mine")]).catch(() => {});
+        server.lose = false;
+        server.other([q(1, "mine"), q(2, "theirs")]);
+        setCachedSession({ ...getCachedSession(SID)!, lastSequence: 6 });
+        startSSE(SID);
+        const inner = mockFetch.getMockImplementation()!;
+        let reads = 0;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                const path = new URL(String(url)).pathname;
+                if (
+                    path.endsWith("/questions") &&
+                    init?.method !== "PUT" &&
+                    ++reads === 1
+                ) {
+                    throw new TypeError("Failed to fetch");
+                }
+                return inner(url, init);
+            },
+        );
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        try {
+            await flushPendingEvents(SID);
+            await vi.advanceTimersByTimeAsync(0);
+            expect(reads).toBe(1);
+            expect(labels(questions.get())).toEqual(["1:mine"]);
+            // An edit now would merge with what the server has.
+            expect(getCachedSession(SID)?.serverQuestions).toMatchObject({
+                sequence: 5,
+                questions: [q(1, "mine")],
+            });
+            await vi.advanceTimersByTimeAsync(3_000);
+            expect(reads).toBe(2);
+            expect(labels(questions.get())).toEqual(["1:mine", "2:theirs"]);
+            expect(getCachedSession(SID)?.serverQuestions?.sequence).toBe(6);
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     test("catches the board up with what the stream passed over", async () => {
         snapshot([q(1)], 4);
         const server = fakeServer(4, [q(1)]);
