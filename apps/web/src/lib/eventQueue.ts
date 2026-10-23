@@ -4,6 +4,7 @@ import type {
 } from "@searchlight/shared";
 
 import type { StrokeFeature } from "@/annotations/types";
+import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
 import type { Questions } from "@/maps/schema";
 
@@ -33,6 +34,27 @@ export interface PendingEvent {
     createdAt: number;
 }
 
+/**
+ * The server's question list a queued list was made from, and the event
+ * sequence it was at. A save sends the sequence: if the server's list has
+ * changed since, it refuses, and the two are merged (see questionMerge.ts).
+ */
+export interface QuestionsBase {
+    sequence: number;
+    questions: Questions;
+}
+
+export interface QuestionsReplacePayload {
+    replacementId: string;
+    questions: Array<{
+        clientUuid: string;
+        ordinal: number;
+        payloadJson: Questions[number];
+    }>;
+    // Missing in events queued by builds from before.
+    base?: QuestionsBase;
+}
+
 export interface CachedSessionState {
     sessionId: string;
     userId?: string;
@@ -41,9 +63,23 @@ export interface CachedSessionState {
     // included: an offline restore has nothing else to load its game from.
     session?: GameSessionSummary;
     strokes: StrokeFeature[];
+    // What the board showed, edits not yet synced included.
     questions: Questions;
+    // The server's own list, as last known: the base for the next edit.
+    serverQuestions?: QuestionsBase;
     lastSyncedAt: number;
     lastSequence: number;
+}
+
+export function isQuestionsBase(value: unknown): value is QuestionsBase {
+    if (!value || typeof value !== "object") return false;
+    const base = value as Partial<QuestionsBase>;
+    return (
+        typeof base.sequence === "number" &&
+        Number.isSafeInteger(base.sequence) &&
+        base.sequence >= 0 &&
+        Array.isArray(base.questions)
+    );
 }
 
 function isSessionSummary(
@@ -64,8 +100,38 @@ export const CACHE_PREFIX = "taibled-cache-";
 export const PENDING_PREFIX = "taibled-pending-";
 export const MAX_CACHED_SESSIONS = 10;
 
-function pendingKey(sessionId: string) {
+// Each account has its own queue for a session, so edits queued by one are
+// never shown to, or sent with the cookie of, another on the same browser.
+// Before /me names an account (and in tests) the unowned queue is used.
+function queueOwner(): string | null {
+    return verifiedUserId.get() ?? offlineUserId.get();
+}
+
+function legacyPendingKey(sessionId: string) {
     return `${PENDING_PREFIX}${sessionId}`;
+}
+
+function pendingKey(sessionId: string) {
+    const owner = queueOwner();
+    if (!owner) return legacyPendingKey(sessionId);
+    const key = `${PENDING_PREFIX}${sessionId}~${owner}`;
+    // Builds from before queued without an owner: the snapshot's owner made
+    // those edits. Anyone else's stay where they are.
+    try {
+        const legacy = localStorage.getItem(legacyPendingKey(sessionId));
+        if (legacy && getCachedSession(sessionId)?.userId === owner) {
+            const own = localStorage.getItem(key);
+            const events = [
+                ...(JSON.parse(legacy) as PendingEvent[]),
+                ...(own ? (JSON.parse(own) as PendingEvent[]) : []),
+            ];
+            localStorage.setItem(key, JSON.stringify(events));
+            localStorage.removeItem(legacyPendingKey(sessionId));
+        }
+    } catch {
+        // Storage is best-effort; the legacy queue stays put.
+    }
+    return key;
 }
 
 function cacheKey(sessionId: string) {
@@ -259,6 +325,9 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
         return {
             sessionId: parsed.sessionId ?? sessionId,
             userId: parsed.userId,
+            serverQuestions: isQuestionsBase(parsed.serverQuestions)
+                ? parsed.serverQuestions
+                : undefined,
             visibility: parsed.visibility,
             session: isSessionSummary(parsed.session, sessionId)
                 ? parsed.session
@@ -292,6 +361,79 @@ export function setCachedSession(state: CachedSessionState): void {
             // Ignore if still failing
         }
     }
+}
+
+/**
+ * The base for a new question list: the one the edits still queued were
+ * made from, else the server's list as last known. Undefined when this
+ * browser knows neither; the list is then saved as before, over whatever
+ * the server has.
+ */
+export function questionsBase(sessionId: string): QuestionsBase | undefined {
+    const queued = getPendingEvents(sessionId).findLast(
+        (event) =>
+            event.type === "questions.replace" && event.status !== "synced",
+    );
+    if (queued) {
+        const base = (queued.payloadJson as Partial<QuestionsReplacePayload>)
+            ?.base;
+        return isQuestionsBase(base) ? base : undefined;
+    }
+    const cached = getCachedSession(sessionId);
+    if (!cached) return undefined;
+    // A snapshot from before: its list as of its last event is the best
+    // there is.
+    return (
+        cached.serverQuestions ?? {
+            sequence: cached.lastSequence,
+            questions: cached.questions,
+        }
+    );
+}
+
+/** The server's list is now `base` (if it's newer than what was known). */
+export function setServerQuestions(
+    sessionId: string,
+    base: QuestionsBase,
+): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached) return;
+    if ((cached.serverQuestions?.sequence ?? -1) > base.sequence) return;
+    setCachedSession({ ...cached, serverQuestions: base });
+}
+
+/**
+ * Give the queued question lists a new base, e.g. once the list they
+ * followed on from is saved.
+ */
+export function rebaseQueuedQuestions(
+    sessionId: string,
+    base: QuestionsBase,
+    exceptLocalId?: string,
+): void {
+    const events = getPendingEvents(sessionId);
+    let changed = false;
+    const rebased = events.map((event) => {
+        if (
+            event.type !== "questions.replace" ||
+            event.status === "synced" ||
+            event.localId === exceptLocalId ||
+            !isQuestionsBase(
+                (event.payloadJson as Partial<QuestionsReplacePayload>)?.base,
+            )
+        ) {
+            return event;
+        }
+        changed = true;
+        return {
+            ...event,
+            payloadJson: {
+                ...(event.payloadJson as QuestionsReplacePayload),
+                base,
+            },
+        };
+    });
+    if (changed) writePendingQueue(sessionId, rebased);
 }
 
 export function clearCachedSession(sessionId: string): void {

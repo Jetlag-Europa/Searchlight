@@ -22,10 +22,13 @@ import {
     getCachedSession,
     getPendingEvents,
     markEventSynced,
+    type QuestionsReplacePayload,
     setCachedSession,
+    setServerQuestions,
 } from "@/lib/eventQueue";
 import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
 import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
     hasPendingHiderSave,
@@ -197,8 +200,24 @@ function handleServerEvent(
         // echo itself is not applied: the board already shows that list, or a
         // newer edit that is still on its way.
         const own = unsynced.find((e) => e.clientUuid === event.clientUuid);
+        const serverList = (
+            event.payloadJson as {
+                questions: Array<{ payloadJson: Questions[number] }>;
+            }
+        ).questions.map((question) => question.payloadJson);
         if (own) {
             markEventSynced(targetSessionId, own.localId);
+            // The next edit's base, unless the save was merged: then the
+            // board doesn't show the other side's changes yet.
+            const local = (
+                own.payloadJson as QuestionsReplacePayload
+            ).questions.map((question) => question.payloadJson);
+            if (sameQuestionList(local, serverList)) {
+                setServerQuestions(targetSessionId, {
+                    sequence: eventSeq,
+                    questions: serverList,
+                });
+            }
         } else if (
             unsynced.length > 0 ||
             hasScheduledQuestionSave(targetSessionId)
@@ -210,11 +229,12 @@ function handleServerEvent(
             );
             return;
         } else {
-            const { questions: incoming } = event.payloadJson as {
-                questions: Array<{ payloadJson: Questions[number] }>;
-            };
+            setServerQuestions(targetSessionId, {
+                sequence: eventSeq,
+                questions: serverList,
+            });
             const newQs = filterSupportedQuestions(
-                incoming.map((question) => question.payloadJson),
+                serverList,
                 compiledGameAtom.get(),
             ) as Questions;
             console.info(

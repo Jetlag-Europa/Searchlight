@@ -1,5 +1,9 @@
 import type { StrokeFeature } from "@/annotations/types";
-import { activeSessionId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    offlineUserId,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
     discardEvent,
@@ -10,8 +14,14 @@ import {
     markEventFailed,
     markEventSynced,
     type PendingEvent,
+    type QuestionsBase,
+    type QuestionsReplacePayload,
+    rebaseQueuedQuestions,
     setCachedSession,
+    setServerQuestions,
 } from "@/lib/eventQueue";
+import { mergeQuestionLists } from "@/lib/questionMerge";
+import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -47,6 +57,16 @@ export function classifySendFailure(status: number | undefined): SendFailure {
     return "rejected";
 }
 
+/**
+ * Played offline, edits wait for /me: until it verifies the account, the
+ * browser's cookie may be another's. Throws a failure to retry.
+ */
+export function assertMaySend(): void {
+    if (offlineUserId.get() && !verifiedUserId.get()) {
+        throw new Error("waiting for /me before sending edits");
+    }
+}
+
 function failureOf(err: unknown): { kind: SendFailure; status?: number } {
     const status = err instanceof SyncRequestError ? err.status : undefined;
     return { kind: classifySendFailure(status), status };
@@ -67,7 +87,140 @@ export function onEventRejected(listener: RejectionListener): () => void {
     };
 }
 
-async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void> {
+// The server refused a list made on an older base (see QuestionsBase).
+const QUESTIONS_CHANGED = "QUESTIONS_CHANGED";
+// Merges in a row before giving up for now: each one means yet another
+// device saved in between.
+const MAX_QUESTION_MERGES = 3;
+
+/** A question list the server took, and what it was merged with. */
+export interface QuestionsSaved {
+    sessionId: string;
+    // The list as queued here, and the one saved (the same unless merged).
+    local: Questions;
+    saved: Questions;
+    // The server's sequence after the save; undefined from an older API.
+    sequence?: number;
+    // When merged: the server's list it was merged with, and its sequence.
+    mergedWith?: QuestionsBase;
+}
+
+type QuestionsSavedListener = (saved: QuestionsSaved) => void;
+const questionsSavedListeners = new Set<QuestionsSavedListener>();
+
+/** Hear about each question list saved, to show a merged one. */
+export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
+    questionsSavedListeners.add(listener);
+    return () => {
+        questionsSavedListeners.delete(listener);
+    };
+}
+
+async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+        credentials: "include",
+    });
+    if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+    const data = (await res.json()) as {
+        questions: Array<{ payloadJson: Questions[number] }>;
+        sequence?: number;
+    };
+    if (typeof data.sequence !== "number") {
+        // An API without bases can't have refused one: don't merge.
+        throw new Error("questions response has no sequence");
+    }
+    return {
+        sequence: data.sequence,
+        questions: data.questions.map((q) => q.payloadJson),
+    };
+}
+
+function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
+    return questions.map((payloadJson, ordinal) => ({
+        clientUuid: randomUUID(),
+        ordinal,
+        payloadJson,
+    }));
+}
+
+/**
+ * Save a queued question list. Made on a base the server has moved on from,
+ * it is merged with the server's list first: see mergeQuestionLists. The
+ * replacementId stays the same, so a save whose answer was lost isn't
+ * repeated.
+ */
+async function sendQuestions(
+    sessionId: string,
+    payload: QuestionsReplacePayload,
+    keepalive: boolean,
+): Promise<QuestionsSaved> {
+    const local = payload.questions.map((q) => q.payloadJson);
+    let wire = payload.questions;
+    let saved = local;
+    let baseSequence = payload.base?.sequence;
+    let mergedWith: QuestionsBase | undefined;
+    for (let merges = 0; ; merges++) {
+        const body = JSON.stringify({
+            replacementId: payload.replacementId,
+            questions: wire,
+            ...(baseSequence === undefined ? {} : { baseSequence }),
+        });
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+        });
+        if (res.status === 409 && payload.base) {
+            const code = await res
+                .json()
+                .then((data: { code?: unknown }) => data?.code)
+                .catch(() => undefined);
+            if (code === QUESTIONS_CHANGED) {
+                // Not a refusal of the edit: retry it later if this keeps on.
+                if (merges >= MAX_QUESTION_MERGES) {
+                    throw new Error("questions kept changing, merging later");
+                }
+                mergedWith = await fetchServerQuestions(sessionId);
+                saved = mergeQuestionLists(
+                    payload.base.questions,
+                    local,
+                    mergedWith.questions,
+                );
+                console.info(
+                    "[searchlight:sync] questions changed elsewhere, merged",
+                    local.length,
+                    "+",
+                    mergedWith.questions.length,
+                    "→",
+                    saved.length,
+                );
+                wire = toWire(saved);
+                baseSequence = mergedWith.sequence;
+                continue;
+            }
+        }
+        if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+        const sequence =
+            res.status === 200
+                ? await res
+                      .json()
+                      .then((data: { sequence?: unknown }) =>
+                          typeof data?.sequence === "number"
+                              ? data.sequence
+                              : undefined,
+                      )
+                      .catch(() => undefined)
+                : undefined;
+        return { sessionId, local, saved, sequence, mergedWith };
+    }
+}
+
+async function sendEvent(
+    event: PendingEvent,
+    keepalive: boolean,
+): Promise<QuestionsSaved | undefined> {
     const { sessionId } = event;
 
     if (event.type === "stroke.create") {
@@ -91,20 +244,11 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
         if (!res.ok && res.status !== 404)
             throw new SyncRequestError("stroke.delete", res.status);
     } else if (event.type === "questions.replace") {
-        const { replacementId, questions } = event.payloadJson as {
-            replacementId: string;
-            questions: unknown[];
-        };
-        const body = JSON.stringify({ replacementId, questions });
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body,
-            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
-        });
-        if (!res.ok)
-            throw new SyncRequestError("questions.replace", res.status);
+        return sendQuestions(
+            sessionId,
+            event.payloadJson as QuestionsReplacePayload,
+            keepalive,
+        );
     } else if (event.type === "hider.update") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -218,27 +362,44 @@ async function dispatchQueuedEvent(
 
     syncStatus.set("syncing");
     try {
-        await sendEvent(event, keepalive);
+        assertMaySend();
+        const savedQuestions = await sendEvent(event, keepalive);
         // Its SSE echo can arrive first, and later replaces may already be
         // cached on top of it: only a still-queued replace updates the cache.
         const stillQueued = getPendingEvents(sessionId).some(
             (candidate) => candidate.localId === event.localId,
         );
-        if (event.type === "questions.replace" && stillQueued) {
-            const { questions } = event.payloadJson as {
-                questions: Array<{ payloadJson: Questions[number] }>;
-            };
+        if (savedQuestions && stillQueued) {
             const cached = getCachedSession(sessionId);
             setCachedSession({
                 ...cached,
                 sessionId,
                 strokes: cached?.strokes ?? [],
-                questions: questions.map((question) => question.payloadJson),
+                questions: savedQuestions.saved,
                 lastSyncedAt: Date.now(),
                 lastSequence: cached?.lastSequence ?? 0,
             });
         }
+        if (savedQuestions?.sequence !== undefined) {
+            const { local, saved, sequence, mergedWith } = savedQuestions;
+            setServerQuestions(sessionId, { sequence, questions: saved });
+            // The lists queued after this one followed on from it. Saved as
+            // it was, it's the server's list now. Merged, it isn't: they
+            // still lack the other side's changes, so they merge too.
+            rebaseQueuedQuestions(
+                sessionId,
+                mergedWith
+                    ? { sequence: mergedWith.sequence, questions: local }
+                    : { sequence, questions: saved },
+                event.localId,
+            );
+        }
         markEventSynced(sessionId, event.localId);
+        if (savedQuestions) {
+            for (const listener of questionsSavedListeners) {
+                listener(savedQuestions);
+            }
+        }
     } catch (err) {
         if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;

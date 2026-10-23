@@ -10,7 +10,12 @@ import {
 } from "@/lib/activeSession";
 import { offlinePlayer, watchAuth } from "@/lib/authCheck";
 import { forgetGameViews } from "@/lib/gameView";
-import { readStorage, writeStorage } from "@/lib/safeStorage";
+import {
+    endOfflineAccess,
+    lastUser,
+    rememberUser,
+} from "@/lib/offlineAccess";
+import { readStorage } from "@/lib/safeStorage";
 
 import { StatusChip } from "./StatusChip";
 import { UserChip } from "./UserChip";
@@ -26,7 +31,10 @@ export function AuthGuard() {
             watchAuth(`${API_BASE}/me`, {
                 signedOut: () => {
                     const here = `${location.pathname}${location.search}${location.hash}`;
-                    window.location.href = `/?returnTo=${encodeURIComponent(here)}`;
+                    // The login is gone: so is offline play with it.
+                    void endOfflineAccess().finally(() => {
+                        window.location.href = `/?returnTo=${encodeURIComponent(here)}`;
+                    });
                 },
                 // A slow connection or a deploy: keep the player here, and
                 // don't leave them behind the loading spinner either. The
@@ -45,10 +53,7 @@ export function AuthGuard() {
                 signedIn: (data) => {
                     // If a different user is now logged in (e.g. shared device, tab crash before logout),
                     // clear the previous user's game session so they don't inherit it.
-                    const prevUser = readStorage(
-                        "localStorage",
-                        STORED_USER_KEY,
-                    );
+                    const prevUser = lastUser();
                     if (prevUser && prevUser !== data.user.discordId) {
                         console.info(
                             "[searchlight] user changed",
@@ -61,11 +66,7 @@ export function AuthGuard() {
                         forgetGameViews();
                         void clearStoredRevisions();
                     }
-                    writeStorage(
-                        "localStorage",
-                        STORED_USER_KEY,
-                        data.user.discordId,
-                    );
+                    rememberUser(data.user.discordId);
                     // Verified before the offline player is dropped, so the
                     // same account plays on without a gap.
                     verifiedUserId.set(data.user.discordId);

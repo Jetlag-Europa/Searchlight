@@ -43,6 +43,7 @@ import {
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { mergeQuestionLists, sameQuestionList } from "@/lib/questionMerge";
 import {
     isQuestionSaveSuppressed,
     suppressQuestionSave,
@@ -61,7 +62,11 @@ import {
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
 import { startSSE, stopSSE } from "@/lib/sseManager";
-import { flushPendingEvents, startSyncManager } from "@/lib/syncManager";
+import {
+    flushPendingEvents,
+    onQuestionsSaved,
+    startSyncManager,
+} from "@/lib/syncManager";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -602,6 +607,43 @@ function SessionPickerOverlay({
     );
 }
 
+// Offline the picker has nothing to list: sessions are listed, started and
+// deleted by the server.
+function OfflinePickerNotice({ onClose }: { onClose: () => void }) {
+    const titleId = useId();
+    const closeRef = useRef<HTMLButtonElement>(null);
+    useEffect(() => {
+        closeRef.current?.focus();
+        const closeOnEscape = (event: KeyboardEvent) => {
+            if (event.key === "Escape" && !event.isComposing) onClose();
+        };
+        window.addEventListener("keydown", closeOnEscape);
+        return () => window.removeEventListener("keydown", closeOnEscape);
+    }, [onClose]);
+    return (
+        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
+            <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
+                className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6"
+            >
+                <h1 id={titleId} className="text-xl font-bold mb-1">
+                    Select a Session
+                </h1>
+                <p className="text-sm text-muted-foreground mb-5">
+                    Sessions can be changed once the server can be reached.
+                    This session keeps your edits meanwhile, and saves them
+                    then.
+                </p>
+                <Button ref={closeRef} size="sm" onClick={onClose}>
+                    Back to board
+                </Button>
+            </div>
+        </div>
+    );
+}
+
 // ── Session chip (active state) ───────────────────────────────────────────────
 
 function SessionChip({
@@ -746,11 +788,39 @@ export function SessionManager() {
     const suppressNextPlanningModeRef = useRef(true);
     // The account whose kept session the board shows while offline.
     const offlineBoardUserRef = useRef<string | null>(null);
+    const offlineRef = useRef(offline);
+    offlineRef.current = offline;
+    // Offline, only a board painted from what was kept may be saved: saving
+    // the empty board of a session that wasn't would wipe it on reconnect.
+    const savesBlocked = () =>
+        offlineRef.current && offlineBoardUserRef.current !== authUserId;
+
+    // A session's hider and planning mode, with this account's edits to them
+    // that haven't synced yet.
+    const showSessionModes = (session: GameSessionSummary) => {
+        const modes = applyPendingModes(
+            session,
+            getPendingEvents(session.id).filter(
+                (event) => event.status !== "synced",
+            ),
+        );
+        // Only suppress if the atom will actually change. If both old and new
+        // are false, nanostores won't fire and the ref would stay true forever,
+        // silently swallowing the next legit user-initiated hider save.
+        if (modes.hiderMode !== false || hiderMode.get() !== false) {
+            suppressNextHiderSaveRef.current = true;
+        }
+        hiderMode.set(modes.hiderMode);
+        if (planningModeEnabled.get() !== modes.planningModeEnabled) {
+            suppressNextPlanningModeRef.current = true;
+        }
+        planningModeEnabled.set(modes.planningModeEnabled);
+    };
 
     // Debounce-save questions whenever they change (while a session is active).
     // Skip the first fire after a server load to avoid overwriting fresh server data.
     useEffect(() => {
-        if (!sessionId || !authUserId) return;
+        if (!sessionId || !authUserId || savesBlocked()) return;
         if (suppressNextSaveRef.current) {
             suppressNextSaveRef.current = false;
             return;
@@ -772,7 +842,7 @@ export function SessionManager() {
 
     // Debounce-save hider mode whenever it changes (while a session is active).
     useEffect(() => {
-        if (!sessionId || !authUserId) return;
+        if (!sessionId || !authUserId || savesBlocked()) return;
         if (suppressNextHiderSaveRef.current) {
             suppressNextHiderSaveRef.current = false;
             console.info("[searchlight:session] hider save suppressed by ref", {
@@ -803,7 +873,7 @@ export function SessionManager() {
 
     // Debounce-save planning mode whenever it changes (while a session is active).
     useEffect(() => {
-        if (!sessionId || !authUserId) return;
+        if (!sessionId || !authUserId || savesBlocked()) return;
         if (suppressNextPlanningModeRef.current) {
             suppressNextPlanningModeRef.current = false;
             console.info(
@@ -875,6 +945,8 @@ export function SessionManager() {
             flushSessionSaves(activeSessionId.get());
         } else {
             cancelPendingQuestionSave();
+            cancelPendingHiderSave();
+            cancelPendingPlanningModeSave();
             if (offlineBoardUser) {
                 leaveGame();
                 strokes.set([]);
@@ -954,20 +1026,7 @@ export function SessionManager() {
                 return;
             }
             setActiveSession(kept);
-            const modes = applyPendingModes(
-                kept,
-                getPendingEvents(storedId).filter(
-                    (event) => event.status !== "synced",
-                ),
-            );
-            if (modes.hiderMode !== false || hiderMode.get() !== false) {
-                suppressNextHiderSaveRef.current = true;
-            }
-            hiderMode.set(modes.hiderMode);
-            if (planningModeEnabled.get() !== modes.planningModeEnabled) {
-                suppressNextPlanningModeRef.current = true;
-            }
-            planningModeEnabled.set(modes.planningModeEnabled);
+            showSessionModes(kept);
             void switchToGame(
                 { id: kept.gameId },
                 { revisionId: kept.gameRevisionId, sessionId: kept.id },
@@ -1072,27 +1131,9 @@ export function SessionManager() {
                             questions: visibleQuestions,
                         });
                     }
-                    const newHiderMode =
-                        refreshedSession.hiderLat != null &&
-                        refreshedSession.hiderLng != null
-                            ? {
-                                  latitude: refreshedSession.hiderLat,
-                                  longitude: refreshedSession.hiderLng,
-                              }
-                            : false;
-                    // Only suppress if the atom will actually change. If both old and new
-                    // are false, nanostores won't fire and the ref would stay true forever,
-                    // silently swallowing the next legit user-initiated hider save.
-                    if (newHiderMode !== false || hiderMode.get() !== false) {
-                        suppressNextHiderSaveRef.current = true;
-                    }
-                    hiderMode.set(newHiderMode);
-                    const newPlanningMode =
-                        refreshedSession.planningModeEnabled ?? false;
-                    if (planningModeEnabled.get() !== newPlanningMode) {
-                        suppressNextPlanningModeRef.current = true;
-                    }
-                    planningModeEnabled.set(newPlanningMode);
+                    // Edits the flush couldn't deliver stay on top, as for
+                    // questions.
+                    showSessionModes(refreshedSession);
                     startSSE(storedId, (status) =>
                         forgetSession(storedId, status),
                     );
@@ -1103,8 +1144,9 @@ export function SessionManager() {
                             : "[searchlight:session] content load failed",
                         e,
                     );
-                    // The session is authorized: its game may still come
-                    // from the copy this browser kept.
+                    // The session is authorized: its modes are known, and
+                    // its game may still come from the copy kept here.
+                    if (isCurrent()) showSessionModes(data);
                     if (isCurrent() && canPaintCache) {
                         await switchToGame(
                             { id: data.gameId },
@@ -1279,24 +1321,7 @@ export function SessionManager() {
                         questions: visibleQuestions,
                     });
                 }
-                const newHiderMode =
-                    refreshedSession.hiderLat != null &&
-                    refreshedSession.hiderLng != null
-                        ? {
-                              latitude: refreshedSession.hiderLat,
-                              longitude: refreshedSession.hiderLng,
-                          }
-                        : false;
-                if (newHiderMode !== false || hiderMode.get() !== false) {
-                    suppressNextHiderSaveRef.current = true;
-                }
-                hiderMode.set(newHiderMode);
-                const newPlanningMode =
-                    refreshedSession.planningModeEnabled ?? false;
-                if (planningModeEnabled.get() !== newPlanningMode) {
-                    suppressNextPlanningModeRef.current = true;
-                }
-                planningModeEnabled.set(newPlanningMode);
+                showSessionModes(refreshedSession);
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),
                 );
@@ -1440,6 +1465,30 @@ export function SessionManager() {
         }
     };
 
+    // A question list saved here was merged with changes made elsewhere:
+    // show them, on top of anything edited since. A load in progress shows
+    // the server's list anyway.
+    useEffect(
+        () =>
+            onQuestionsSaved(({ sessionId: savedId, local, saved, mergedWith }) => {
+                if (!mergedWith || savedId !== activeSessionId.get()) return;
+                if (isLoadingSession()) return;
+                const current = questions.get();
+                const visible = filterSupportedQuestions(
+                    mergeQuestionLists(local, current, saved),
+                    gameDefinitionReady.get() ? compiledGameAtom.get() : null,
+                );
+                if (sameQuestionList(visible, current)) return;
+                // Edited since: save the rebased list. Else the server has it.
+                questions.set(
+                    sameQuestionList(current, local)
+                        ? suppressQuestionSave(visible)
+                        : visible,
+                );
+            }),
+        [],
+    );
+
     // The server refused edits for good (too large, invalid, a conflict) and
     // they left the queue: load the session again, which also checks it's
     // still there, so the board shows what the server has.
@@ -1484,7 +1533,10 @@ export function SessionManager() {
 
     return (
         <>
-            {showPicker && (
+            {showPicker && offline && (
+                <OfflinePickerNotice onClose={closePicker} />
+            )}
+            {showPicker && !offline && (
                 <SessionPickerOverlay
                     onSessionSelected={handleSessionSelected}
                     onClose={

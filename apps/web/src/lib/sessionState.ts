@@ -17,6 +17,7 @@ import {
     enqueueEvent,
     getPendingEvents,
     type PendingEvent,
+    questionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { sendPendingEvent } from "@/lib/syncManager";
@@ -141,6 +142,9 @@ function hasPendingSave(
 
 function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
     const replacementId = randomUUID();
+    // Taken before the list replaces any still queued: it follows on from
+    // the base they were made from.
+    const base = questionsBase(sessionId);
     const event = enqueueEvent({
         sessionId,
         type: "questions.replace",
@@ -151,6 +155,7 @@ function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
                 ordinal,
                 payloadJson: question,
             })),
+            ...(base ? { base } : {}),
         },
         clientUuid: `questions-replace-${replacementId}`,
         clientCreatedAt: Date.now(),
@@ -388,6 +393,8 @@ export async function loadSessionContent(
         session,
         strokes: loadedStrokes,
         questions: loadedQuestions,
+        // The cursor was read first: it never claims more than the list has.
+        serverQuestions: { sequence: serverCursor, questions: loadedQuestions },
         lastSyncedAt: Date.now(),
         lastSequence: serverCursor,
     });

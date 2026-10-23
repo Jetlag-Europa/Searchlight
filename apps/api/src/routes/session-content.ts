@@ -5,9 +5,12 @@ import { resolveSession } from "../lib/session.js";
 import { broadcast } from "../lib/broadcaster.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
 import type { Event, Stroke } from "@prisma/client";
-function conflict(msg = "Conflict") {
-  return Object.assign(new Error(msg), { statusCode: 409 });
+function conflict(msg = "Conflict", code?: string) {
+  return Object.assign(new Error(msg), { statusCode: 409, ...(code ? { code } : {}) });
 }
+
+// A question list saved over one the client hasn't seen: it merges the two.
+export const QUESTIONS_CHANGED = "QUESTIONS_CHANGED";
 
 async function assertParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
@@ -301,7 +304,9 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      // Read before the questions: `sequence` never claims a later change
+      // than the list has, which a save's baseSequence relies on.
+      const session = await assertParticipant(sessionId, user.discordId);
 
       const questions = await prisma.sessionQuestion.findMany({
         where: { sessionId },
@@ -314,11 +319,18 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           ordinal: q.ordinal,
           payloadJson: q.payloadJson,
         })),
+        sequence: session.eventSequence,
       };
     },
   );
 
   // PUT /sessions/:sessionId/questions — full replacement
+  //
+  // With `baseSequence`, the event sequence the client's list was based on,
+  // a list replaced since then (by another player or device) is not
+  // overwritten: 409 QUESTIONS_CHANGED, and the client merges and saves
+  // again. Such a save answers 200 with its sequence. Without it (builds
+  // from before), the list is replaced as always, with 204.
   app.put(
     "/:sessionId/questions",
     {
@@ -333,6 +345,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
             }),
           ),
           replacementId: Type.String({ minLength: 1 }),
+          baseSequence: Type.Optional(Type.Integer({ minimum: 0 })),
         }),
       },
     },
@@ -341,12 +354,14 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await assertParticipant(sessionId, user.discordId);
 
-      const { questions: incoming, replacementId } = req.body as {
+      const { questions: incoming, replacementId, baseSequence } = req.body as {
         questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }>;
         replacementId: string;
+        baseSequence?: number;
       };
 
       let eventToBroadcast: Event | null = null;
+      let savedSequence: number | undefined;
       try {
         eventToBroadcast = await prisma.$transaction(async (tx) => {
           const [locked] = await tx.$queryRaw<Array<{ id: string; eventSequence: number }>>`
@@ -364,7 +379,18 @@ export async function sessionContentRoutes(app: FastifyInstance) {
             if (existingEvent.sessionId !== sessionId) {
               throw conflict("Question replacementId belongs to another session");
             }
+            savedSequence = existingEvent.sequence;
             return null;
+          }
+
+          if (baseSequence !== undefined) {
+            const newer = await tx.event.findFirst({
+              where: { sessionId, type: "questions.replace", sequence: { gt: baseSequence } },
+              select: { sequence: true },
+            });
+            if (newer) {
+              throw conflict("The questions changed since this list was made", QUESTIONS_CHANGED);
+            }
           }
 
           await tx.sessionQuestion.deleteMany({ where: { sessionId } });
@@ -396,6 +422,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
               clientCreatedAt: new Date(),
             },
           });
+          savedSequence = event.sequence;
           return event;
         });
       } catch (err: unknown) {
@@ -405,6 +432,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           });
           if (existingEvent && existingEvent.sessionId === sessionId) {
             eventToBroadcast = null;
+            savedSequence = existingEvent.sequence;
           } else if (existingEvent && existingEvent.sessionId !== sessionId) {
             throw conflict("Question replacementId belongs to another session");
           } else {
@@ -433,7 +461,8 @@ export async function sessionContentRoutes(app: FastifyInstance) {
         req.log.info({ sessionId, replacementId }, "[events] questions.replace duplicate skipped broadcast");
       }
 
-      return reply.status(204).send();
+      if (baseSequence === undefined) return reply.status(204).send();
+      return reply.status(200).send({ sequence: savedSequence });
     },
   );
 }
