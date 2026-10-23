@@ -22,6 +22,7 @@ import {
     activeSessionData,
     activeSessionId,
     clearActiveSession,
+    offlineUserId,
     setActiveSession,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -32,15 +33,20 @@ import {
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
 import {
+    applyPendingModes,
     applyUnsyncedEvents,
     discardSessionData,
     getCachedSession,
+    getPendingEvents,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
-import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
+import {
+    isQuestionSaveSuppressed,
+    suppressQuestionSave,
+} from "@/lib/questionSaveSuppress";
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
 import {
@@ -679,7 +685,13 @@ function GameNotLoadedBanner({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function SessionManager() {
-    const authUserId = useStore(verifiedUserId);
+    const verifiedId = useStore(verifiedUserId);
+    const offlineId = useStore(offlineUserId);
+    // The account the board is played as: the one /me verified or, while /me
+    // can't be reached, the last one verified in this browser. Offline,
+    // nothing is asked of the server until /me answers.
+    const authUserId = verifiedId ?? offlineId;
+    const offline = !verifiedId && Boolean(offlineId);
     const sessionId = useStore(activeSessionId);
     const session = useStore(activeSessionData);
     const currentQuestions = useStore(questions);
@@ -732,6 +744,8 @@ export function SessionManager() {
     const suppressNextHiderSaveRef = useRef(true);
     // Start suppressed: always wait for the server load before allowing planning mode saves.
     const suppressNextPlanningModeRef = useRef(true);
+    // The account whose kept session the board shows while offline.
+    const offlineBoardUserRef = useRef<string | null>(null);
 
     // Debounce-save questions whenever they change (while a session is active).
     // Skip the first fire after a server load to avoid overwriting fresh server data.
@@ -852,13 +866,31 @@ export function SessionManager() {
             stopSSE();
         };
         startSyncManager();
-        cancelPendingQuestionSave();
+        // /me answered after the board was played offline. Another account
+        // doesn't get to see it (AuthGuard has dropped the session pointer).
+        // The same one keeps the edits it made, queued for the reconcile.
+        const offlineBoardUser = offlineBoardUserRef.current;
+        offlineBoardUserRef.current = null;
+        if (offlineBoardUser === authUserId && activeSessionId.get()) {
+            flushSessionSaves(activeSessionId.get());
+        } else {
+            cancelPendingQuestionSave();
+            if (offlineBoardUser) {
+                leaveGame();
+                strokes.set([]);
+                questions.set(suppressQuestionSave([]));
+                hiderMode.set(false);
+                planningModeEnabled.set(false);
+            }
+        }
 
-        // A session the user just started or joined from /play or /join
+        // A session the user just started or joined from /play or /join.
+        // Offline, it waits for /me.
         const pendingLinkSession = readStorage(
             "localStorage",
             "taibled-pending-link-session",
         );
+        if (pendingLinkSession && offline) return cleanup;
         if (pendingLinkSession) {
             removeStorage("localStorage", "taibled-pending-link-session");
             setLoading(true);
@@ -883,13 +915,18 @@ export function SessionManager() {
 
         const storedId = activeSessionId.get();
         if (!storedId) {
-            setShowPicker(true);
+            // The picker needs the server.
+            if (!offline) setShowPicker(true);
             return cleanup;
         }
 
-        // The cached owner must match /me, and the session must be authorized
-        // before private content becomes visible. Retain offline access for the
-        // same verified account if the session request itself fails.
+        // The cached owner must match the account played as, and the session
+        // must be authorized before private content becomes visible. Without
+        // that authorization, only the account /me last verified in this
+        // browser sees what was kept for it, and only while the server can't
+        // be reached: when /me fails (not with a 401: that's a logout), or
+        // when /me verifies it but the session request itself fails. Logging
+        // out forgets that account and the kept games.
         const cached = getCachedSession(storedId);
         const canPaintCache = Boolean(cached && cached.userId === authUserId);
         // The loading overlay stays up over the painted cache until the
@@ -907,6 +944,49 @@ export function SessionManager() {
             questions.set(filterSupportedQuestions(derived.questions, null));
             return true;
         };
+        // Then, still without the server: the session's details, its hider
+        // and planning mode and its game as this browser kept them, with the
+        // edits not yet synced.
+        const restoreKept = () => {
+            const kept = cached?.session;
+            if (!kept) {
+                setGameNotLoaded(true);
+                return;
+            }
+            setActiveSession(kept);
+            const modes = applyPendingModes(
+                kept,
+                getPendingEvents(storedId).filter(
+                    (event) => event.status !== "synced",
+                ),
+            );
+            if (modes.hiderMode !== false || hiderMode.get() !== false) {
+                suppressNextHiderSaveRef.current = true;
+            }
+            hiderMode.set(modes.hiderMode);
+            if (planningModeEnabled.get() !== modes.planningModeEnabled) {
+                suppressNextPlanningModeRef.current = true;
+            }
+            planningModeEnabled.set(modes.planningModeEnabled);
+            void switchToGame(
+                { id: kept.gameId },
+                { revisionId: kept.gameRevisionId, sessionId: kept.id },
+            ).then((ready) => {
+                if (isCurrent()) setGameNotLoaded(!ready);
+            });
+        };
+
+        if (offline) {
+            console.info(
+                "[searchlight:session] server unreachable, restoring kept session",
+                storedId,
+            );
+            if (paintCached()) {
+                offlineBoardUserRef.current = authUserId;
+                restoreKept();
+            }
+            return cleanup;
+        }
         setLoading(true);
 
         console.info(
@@ -1023,6 +1103,17 @@ export function SessionManager() {
                             : "[searchlight:session] content load failed",
                         e,
                     );
+                    // The session is authorized: its game may still come
+                    // from the copy this browser kept.
+                    if (isCurrent() && canPaintCache) {
+                        await switchToGame(
+                            { id: data.gameId },
+                            {
+                                revisionId: data.gameRevisionId,
+                                sessionId: data.id,
+                            },
+                        );
+                    }
                 } finally {
                     if (isCurrent()) {
                         loadingGenerationRef.current = null;
@@ -1037,14 +1128,41 @@ export function SessionManager() {
                 // load can restore the session once the server is back.
                 const painted = paintCached();
                 setShowPicker(!painted);
-                setGameNotLoaded(painted);
+                if (painted) restoreKept();
             })
             .finally(() => {
                 if (isCurrent()) setLoading(false);
             });
 
         return cleanup;
-    }, [authUserId]);
+    }, [authUserId, offline]);
+
+    // Keep the session's details, hider and planning mode with its snapshot,
+    // for an offline restore. Only once the session shows with its game:
+    // until then the modes can still be another session's.
+    useEffect(() => {
+        if (offline || !authUserId || !session || !gameReady || loading) return;
+        if (session.id !== sessionId) return;
+        const cached = getCachedSession(session.id);
+        if (!cached || cached.userId !== authUserId) return;
+        const kept: GameSessionSummary = {
+            ...session,
+            hiderLat: currentHiderMode ? currentHiderMode.latitude : null,
+            hiderLng: currentHiderMode ? currentHiderMode.longitude : null,
+            planningModeEnabled: currentPlanningMode,
+        };
+        if (JSON.stringify(cached.session) === JSON.stringify(kept)) return;
+        setCachedSession({ ...cached, session: kept });
+    }, [
+        offline,
+        authUserId,
+        session,
+        sessionId,
+        gameReady,
+        loading,
+        currentHiderMode,
+        currentPlanningMode,
+    ]);
 
     const handleSessionSelected = useCallback(
         async (selected: GameSessionSummary) => {
@@ -1243,6 +1361,13 @@ export function SessionManager() {
     // also covers an offline restore, which never got the session's details.
     const retryGameLoad = async () => {
         const id = activeSessionId.get();
+        if (offline) {
+            // The session loads again once /me answers.
+            toast.error(
+                "Couldn't reach the server. Check your connection and try again.",
+            );
+            return;
+        }
         if (!id) {
             setShowPicker(true);
             return;

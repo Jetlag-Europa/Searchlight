@@ -26,8 +26,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
         Auth loading overlay — visible immediately (no JS required).
         AuthGuard removes it once /me responds 200, so map content
         is never visible to an unauthenticated visitor. It also removes it
-        while the server can't be reached: no session loads before /me
-        answers 200, so only the empty map shows.
+        while the server can't be reached: then only the session this
+        browser kept for the account it last verified shows, or the empty
+        map.
     -->
     <div
         id="auth-loading-overlay"

@@ -1,7 +1,12 @@
 import { useStore } from "@nanostores/react";
 import type { User } from "@searchlight/shared";
 
-import { clearActiveSession, verifiedUserId } from "@/lib/activeSession";
+import { clearStoredRevisions } from "@/game-definition/revisionCache";
+import {
+    clearActiveSession,
+    STORED_USER_KEY,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { sessionPickerOpen } from "@/lib/context";
 import { forgetGameViews } from "@/lib/gameView";
 import { removeStorage } from "@/lib/safeStorage";
@@ -25,9 +30,14 @@ export function UserChip({ user, apiBase }: Props) {
         verifiedUserId.set(null);
         clearActiveSession();
         forgetGameViews();
-        removeStorage("localStorage", "taibled-authed-user");
+        // Without the stored account, nobody plays this browser's kept
+        // sessions while offline. Their snapshots and unsent edits stay,
+        // tagged with their owner: only that account sees them again, after
+        // logging back in, and the edits still sync.
+        removeStorage("localStorage", STORED_USER_KEY);
+        await clearStoredRevisions();
         console.info(
-            "[searchlight] logged out — active session and user cleared",
+            "[searchlight] logged out — active session, user and kept games cleared",
         );
         window.location.href = "/";
     }

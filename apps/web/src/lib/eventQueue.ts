@@ -1,4 +1,7 @@
-import type { SessionVisibility } from "@searchlight/shared";
+import type {
+    GameSessionSummary,
+    SessionVisibility,
+} from "@searchlight/shared";
 
 import type { StrokeFeature } from "@/annotations/types";
 import { forgetDisabledZones } from "@/lib/disabledZones";
@@ -34,10 +37,27 @@ export interface CachedSessionState {
     sessionId: string;
     userId?: string;
     visibility?: SessionVisibility;
+    // The session's details as last shown, its hider and planning mode
+    // included: an offline restore has nothing else to load its game from.
+    session?: GameSessionSummary;
     strokes: StrokeFeature[];
     questions: Questions;
     lastSyncedAt: number;
     lastSequence: number;
+}
+
+function isSessionSummary(
+    value: unknown,
+    sessionId: string,
+): value is GameSessionSummary {
+    if (!value || typeof value !== "object") return false;
+    const session = value as Partial<GameSessionSummary>;
+    return (
+        session.id === sessionId &&
+        typeof session.gameId === "string" &&
+        typeof session.gameRevisionId === "string" &&
+        typeof session.name === "string"
+    );
 }
 
 export const CACHE_PREFIX = "taibled-cache-";
@@ -240,6 +260,9 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
             sessionId: parsed.sessionId ?? sessionId,
             userId: parsed.userId,
             visibility: parsed.visibility,
+            session: isSessionSummary(parsed.session, sessionId)
+                ? parsed.session
+                : undefined,
             strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
             lastSyncedAt:
@@ -336,6 +359,44 @@ export function applyPendingEventsToState(
         }
     }
     return { strokes, questions };
+}
+
+type HiderModeValue = false | { latitude: number; longitude: number };
+
+/**
+ * A session's hider and planning mode: the latest of `events` that set them
+ * (edits not yet synced), else the session's own.
+ */
+export function applyPendingModes(
+    session: Pick<
+        GameSessionSummary,
+        "hiderLat" | "hiderLng" | "planningModeEnabled"
+    >,
+    events: PendingEvent[],
+): { hiderMode: HiderModeValue; planningModeEnabled: boolean } {
+    let hiderLat = session.hiderLat;
+    let hiderLng = session.hiderLng;
+    let planningModeEnabled = session.planningModeEnabled ?? false;
+    for (const event of events) {
+        const payload = event.payloadJson as Record<string, unknown> | null;
+        if (!payload || typeof payload !== "object") continue;
+        if (event.type === "hider.update") {
+            hiderLat = typeof payload.hiderLat === "number" ? payload.hiderLat : null;
+            hiderLng = typeof payload.hiderLng === "number" ? payload.hiderLng : null;
+        } else if (
+            event.type === "planning.toggle" &&
+            typeof payload.planningModeEnabled === "boolean"
+        ) {
+            planningModeEnabled = payload.planningModeEnabled;
+        }
+    }
+    return {
+        hiderMode:
+            hiderLat != null && hiderLng != null
+                ? { latitude: hiderLat, longitude: hiderLng }
+                : false,
+        planningModeEnabled,
+    };
 }
 
 // Replay the edits the server hasn't acknowledged (pending or failed) on top of

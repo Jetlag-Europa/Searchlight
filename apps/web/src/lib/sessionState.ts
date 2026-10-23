@@ -2,7 +2,11 @@ import type { GameSessionSummary } from "@searchlight/shared";
 
 import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
-import { activeSessionId, verifiedUserId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    offlineUserId,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import {
     hiderMode,
     pendingEventCount,
@@ -318,7 +322,8 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
 export function flushSavesOnPageExit(): () => void {
     const flush = () => {
         const id = activeSessionId.get();
-        if (!id || !verifiedUserId.get()) return;
+        // Edits made offline too: the page is often closed before it's back.
+        if (!id || !(verifiedUserId.get() ?? offlineUserId.get())) return;
         console.info("[sessionState] page may be closing — flushing saves for", id);
         flushSessionSaves(id, true);
     };
@@ -380,6 +385,7 @@ export async function loadSessionContent(
     setCachedSession({
         sessionId,
         userId,
+        session,
         strokes: loadedStrokes,
         questions: loadedQuestions,
         lastSyncedAt: Date.now(),

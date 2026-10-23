@@ -1,8 +1,14 @@
 import type { MeResponse } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
-import { clearActiveSession, verifiedUserId } from "@/lib/activeSession";
-import { watchAuth } from "@/lib/authCheck";
+import { clearStoredRevisions } from "@/game-definition/revisionCache";
+import {
+    clearActiveSession,
+    offlineUserId,
+    STORED_USER_KEY,
+    verifiedUserId,
+} from "@/lib/activeSession";
+import { offlinePlayer, watchAuth } from "@/lib/authCheck";
 import { forgetGameViews } from "@/lib/gameView";
 import { readStorage, writeStorage } from "@/lib/safeStorage";
 
@@ -10,7 +16,6 @@ import { StatusChip } from "./StatusChip";
 import { UserChip } from "./UserChip";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-const STORED_USER_KEY = "taibled-authed-user";
 
 export function AuthGuard() {
     const [user, setUser] = useState<MeResponse["user"] | null>(null);
@@ -24,8 +29,16 @@ export function AuthGuard() {
                     window.location.href = `/?returnTo=${encodeURIComponent(here)}`;
                 },
                 // A slow connection or a deploy: keep the player here, and
-                // don't leave them behind the loading spinner either.
+                // don't leave them behind the loading spinner either. The
+                // last account verified here goes on playing what this
+                // browser kept for it until /me answers.
                 unreachable: () => {
+                    offlineUserId.set(
+                        offlinePlayer(
+                            readStorage("localStorage", STORED_USER_KEY),
+                            verifiedUserId.get(),
+                        ),
+                    );
                     setUnreachable(true);
                     document.getElementById("auth-loading-overlay")?.remove();
                 },
@@ -46,13 +59,17 @@ export function AuthGuard() {
                         );
                         clearActiveSession();
                         forgetGameViews();
+                        void clearStoredRevisions();
                     }
                     writeStorage(
                         "localStorage",
                         STORED_USER_KEY,
                         data.user.discordId,
                     );
+                    // Verified before the offline player is dropped, so the
+                    // same account plays on without a gap.
                     verifiedUserId.set(data.user.discordId);
+                    offlineUserId.set(null);
 
                     setUnreachable(false);
                     setUser(data.user);

@@ -5,6 +5,7 @@ import { questionSchema } from "@/maps/schema";
 
 import { fetchGameRevisionAPI } from "./api.js";
 import { type CompiledGame,compileGameDefinition } from "./compile.js";
+import { readStoredRevision, storeRevision } from "./revisionCache.js";
 
 function canonicalQuestionId(question: any): {
     family: string;
@@ -165,6 +166,11 @@ export function cacheRevisionDefinition(
 /**
  * Load a session's pinned revision. Share only requests made with the same
  * revision and session access scope.
+ *
+ * A copy this browser kept comes first: revisions never change. Callers load
+ * a session's game only once the server has authorized the session, or, with
+ * the server out of reach, for the account last verified here (see
+ * SessionManager), which loaded it before.
  */
 export function loadGameDefinition(
     gameId: string,
@@ -178,7 +184,17 @@ export function loadGameDefinition(
     const cached = getCachedRevisionDefinition(gameId, revisionId, sessionId);
     if (cached) return Promise.resolve(cached);
 
-    const request = fetchGameRevisionAPI(gameId, revisionId, sessionId)
+    const request = readStoredRevision(gameId, revisionId)
+        .then(
+            (stored) =>
+                stored ??
+                fetchGameRevisionAPI(gameId, revisionId, sessionId).then(
+                    (definition) => {
+                        void storeRevision(gameId, revisionId, definition);
+                        return definition;
+                    },
+                ),
+        )
         .then((definition) => {
             // A cache clear also invalidates requests that started before it.
             if (pendingDefinitions.get(key) === request) {
