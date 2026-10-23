@@ -4,6 +4,16 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Install Searchlight as an app (2026-10-23)
+
+- Searchlight can be installed on a phone or computer: **Install app** in Chrome and Edge (Android and desktop), or **Share → Add to Home Screen** in Safari on iPhone and iPad. It opens on the map in its own window, with the new Searchlight logo as its icon.
+- It keeps working when the connection drops for a while. The app itself is kept on the device, so its pages open without a connection, and questions are still worked out: ArcGIS's projection engine now comes with the app instead of from js.arcgis.com. Changes made meanwhile are sent once the connection is back, as before.
+- Map tiles you've looked at are kept on the device, so those areas still show while you're offline: CARTO and Thunderforest tiles for up to 30 days (3,000 tiles at most), OpenStreetMap tiles for up to 7 days, and only when the network doesn't answer within 3 seconds, as OSM's tile policy asks.
+- A new version shows "A new version of Searchlight is available" with a **Reload** button instead of replacing the app mid-game. An installed app that stays open checks for one every hour and when it comes back to the foreground.
+- A game or invite link opened without a connection now says Searchlight can't be reached, and tries again once the connection is back, instead of calling the link invalid.
+- The coloured question markers come with the app instead of from GitHub and cdnjs.
+- **Upgrading:** the web image's nginx serves the app's manifest as `application/manifest+json` and compresses the WASM file. A web app hosted on Cloudflare gets the same headers from `public/_headers`. Players' browsers download the whole app (about 8 MB before compression) on their first visit after the update.
+
 ## Game link previews (2026-10-21)
 
 - A game link (`/play?token=…`) posted in Discord, Slack, Telegram, WhatsApp and similar apps now previews as the game's name, its server and an image of its map (the play area and hiding zones), instead of the site's general description. A revoked link previews as "Link no longer active".
