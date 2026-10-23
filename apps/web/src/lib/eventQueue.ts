@@ -6,7 +6,14 @@ import type {
 import type { StrokeFeature } from "@/annotations/types";
 import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
-import { sameQuestionList } from "@/lib/questionMerge";
+import {
+    findQuestionByKey,
+    placeVersion,
+    questionKey,
+    sameQuestionKey,
+    sameQuestionList,
+    sameQuestionSubstance,
+} from "@/lib/questionMerge";
 import type { Questions } from "@/maps/schema";
 
 export type EventType =
@@ -33,6 +40,9 @@ export interface PendingEvent {
     clientCreatedAt: number;
     status: "pending" | "synced" | "failed";
     createdAt: number;
+    // A question list once sent: it may be on the server even without an
+    // answer (see QuestionsReplacePayload.own).
+    sent?: boolean;
 }
 
 /**
@@ -43,6 +53,59 @@ export interface PendingEvent {
 export interface QuestionsBase {
     sequence: number;
     questions: Questions;
+    // Versions the board has seen since, by the player's decision over a
+    // question held for one (see questionConflicts): the server's version
+    // as decided on. The list keeps its sequence; a list made from this base
+    // is made from them on top (see baseQuestions).
+    decided?: BaseDecision[];
+    // A base that is our own list as of a merge (see settleQuestionsSaved
+    // in syncManager): the server's sequence its versions go back to, for
+    // telling who changed a question since.
+    since?: number;
+}
+
+export interface BaseDecision {
+    key: number;
+    question: Questions[number] | null;
+    afterKey?: number | null;
+}
+
+/** A base's questions, with the versions decided on since (see decided). */
+export function baseQuestions(base: QuestionsBase): Questions {
+    let list = base.questions;
+    for (const decision of Array.isArray(base.decided) ? base.decided : []) {
+        list = withDecision(list, decision);
+    }
+    return list;
+}
+
+// The list with a decided version in place, shown as the list shows it
+// (folded, locked).
+function withDecision(list: Questions, decision: BaseDecision): Questions {
+    return placeVersion(list, decision.key, decision.question, [decision.afterKey]);
+}
+
+const sameDecision = (a: BaseDecision, b: BaseDecision) =>
+    sameQuestionKey(a.key, b.key) && sameQuestionSubstance(a.question, b.question);
+
+/**
+ * `to`, with what `current` decided since `madeFrom` on top: decisions the
+ * list made from `madeFrom` didn't know, so `to` (the result of saving that
+ * list) doesn't reflect them.
+ */
+function carryDecisions(
+    current: QuestionsBase | undefined,
+    madeFrom: QuestionsBase | undefined,
+    to: QuestionsBase,
+): QuestionsBase {
+    const known = madeFrom?.decided ?? [];
+    const decided = (current?.decided ?? []).filter(
+        (d) => !known.some((k) => sameDecision(k, d)),
+    );
+    const next: QuestionsBase = { sequence: to.sequence, questions: to.questions };
+    if (to.since !== undefined) next.since = to.since;
+    if (decided.length > 0) next.decided = decided;
+    return next;
 }
 
 export interface QuestionsReplacePayload {
@@ -59,6 +122,61 @@ export interface QuestionsReplacePayload {
     // retry of a merged save whose answer was lost sends the merged list,
     // and its answer is still read as a merge.
     merged?: { local: Questions; base: QuestionsBase };
+    // Versions of questions that lists this one replaced in the queue had
+    // changed, lists that were sent and not answered: one may be on the
+    // server. Only for telling, when merging, our own earlier edit there
+    // from another's (see mergeQuestionListsWithConflicts); never sent, and
+    // forgotten once a save is answered, which settles them.
+    own?: Questions;
+}
+
+// Kept at most, the latest; and no version larger than this (a custom
+// zone can be megabytes): one too large to keep is only ever ours to add
+// again, as before.
+const MAX_OWN_VERSIONS = 100;
+const MAX_OWN_VERSION_CHARS = 64 * 1024;
+
+// The versions of questions the replaced lists that were sent changed
+// against their base (for a merged one: the server's list it was merged
+// with, so the other side's versions it holds aren't counted as ours), and
+// what they carried. A list never sent can't be on the server.
+function ownVersions(replaced: PendingEvent[]): Questions {
+    const own: Questions = [];
+    const add = (question: Questions[number]) => {
+        const key = questionKey(question);
+        if (key === undefined) return;
+        if (JSON.stringify(question).length > MAX_OWN_VERSION_CHARS) return;
+        const known = own.some(
+            (q) =>
+                sameQuestionKey(questionKey(q)!, key) &&
+                sameQuestionSubstance(q, question),
+        );
+        if (!known) own.push(question);
+    };
+    for (const event of replaced) {
+        const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
+        for (const question of Array.isArray(payload?.own) ? payload.own : []) add(question);
+        // Queued by a build from before, which didn't mark it: it may have
+        // been on its way when that page went away.
+        const legacy = !("sent" in event) && isQuestionsBase(payload?.base);
+        const sent =
+            event.sent ||
+            legacy ||
+            event.status === "failed" ||
+            Boolean(payload?.merged);
+        if (!sent || !Array.isArray(payload?.questions)) continue;
+        // Against what it was made from, decisions included.
+        const base = isQuestionsBase(payload.base) ? baseQuestions(payload.base) : [];
+        for (const entry of payload.questions) {
+            const question = entry?.payloadJson;
+            const key = questionKey(question);
+            if (key === undefined) continue;
+            const was = findQuestionByKey(base, key);
+            if (was !== null && sameQuestionSubstance(was, question)) continue;
+            add(question);
+        }
+    }
+    return own.slice(-MAX_OWN_VERSIONS);
 }
 
 export interface CachedSessionState {
@@ -107,6 +225,10 @@ function isSessionSummary(
 
 export const CACHE_PREFIX = "taibled-cache-";
 export const PENDING_PREFIX = "taibled-pending-";
+// Questions held for the player to decide (see questionConflicts.ts), kept
+// next to the queue and per account like it, but out of it: they aren't
+// edits to send.
+export const CONFLICTS_PREFIX = "taibled-conflicts-";
 export const MAX_CACHED_SESSIONS = 10;
 
 // Each account has its own queue for a session, so edits queued by one are
@@ -150,6 +272,18 @@ function pendingKey(sessionId: string) {
         // Storage is best-effort; the legacy queue stays put.
     }
     return key;
+}
+
+/**
+ * Where this account's held question conflicts for a session are kept. The
+ * unowned key only before /me names an account (and in tests), as for the
+ * queue.
+ */
+export function conflictsKey(sessionId: string): string {
+    const owner = queueOwner();
+    return owner
+        ? `${CONFLICTS_PREFIX}${sessionId}~${owner}`
+        : `${CONFLICTS_PREFIX}${sessionId}`;
 }
 
 function cacheKey(sessionId: string) {
@@ -262,18 +396,39 @@ export function enqueueEvent(
 ): PendingEvent {
     // These events contain complete field snapshots. Persist the new snapshot
     // atomically in place of older intent, including requests with a lost ACK.
-    const events = getPendingEvents(event.sessionId).filter(
-        (queued) =>
-            !isReplacementEventType(event.type) || queued.type !== event.type,
-    );
+    const queued = getPendingEvents(event.sessionId);
+    const replaces = (q: PendingEvent) =>
+        isReplacementEventType(event.type) && q.type === event.type;
+    const events = queued.filter((q) => !replaces(q));
+    let payloadJson = event.payloadJson;
+    if (event.type === "questions.replace") {
+        const own = ownVersions(queued.filter(replaces));
+        if (own.length > 0) {
+            payloadJson = { ...(event.payloadJson as QuestionsReplacePayload), own };
+        }
+    }
     const newEvent: PendingEvent = {
         ...event,
+        payloadJson,
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
+        // Not sent yet (one without the mark is from a build before).
+        ...(event.type === "questions.replace" ? { sent: false } : {}),
     };
     events.push(newEvent);
-    writePendingQueue(event.sessionId, events);
+    try {
+        writePendingQueue(event.sessionId, events);
+    } catch (err) {
+        // No room: the edit matters more than telling our own earlier
+        // versions on the server from another's.
+        const payload = newEvent.payloadJson as Partial<QuestionsReplacePayload> | null;
+        if (event.type !== "questions.replace" || !payload?.own) throw err;
+        const rest = { ...payload };
+        delete rest.own;
+        newEvent.payloadJson = rest;
+        writePendingQueue(event.sessionId, events);
+    }
     return newEvent;
 }
 
@@ -381,6 +536,7 @@ export function setCachedSession(state: CachedSessionState): void {
     }
 }
 
+// The same server list (whatever was decided on top of it since).
 function sameBase(a: QuestionsBase | undefined, b: QuestionsBase): boolean {
     return (
         a !== undefined &&
@@ -432,11 +588,62 @@ export function questionsBase(sessionId: string): QuestionsBase | undefined {
     return { sequence: cached.lastSequence, questions: cached.questions };
 }
 
+/**
+ * The board was painted from the snapshot: it shows the latest list still
+ * queued, if any, so its base is that list's. A list merged on its way
+ * (its answer lost) is shown as merged now, not as first made: it no
+ * longer stands for the list and base it was first made from, and its
+ * answer is that of an ordinary list made from the base the board has
+ * (see QuestionsReplacePayload.merged). Nothing is sent again.
+ */
+export function boardPaintedFromSnapshot(sessionId: string): void {
+    const queued = latestQueuedQuestions(sessionId);
+    const payload = queued?.payloadJson as Partial<QuestionsReplacePayload> | undefined;
+    if (!queued || !isQuestionsBase(payload?.base)) return;
+    if (payload.merged) {
+        const rest = { ...payload };
+        delete rest.merged;
+        updateQueuedPayload(sessionId, queued.localId, rest);
+    }
+    setBoardBase(sessionId, payload.base);
+}
+
 /** The board's questions are now made from `base`. */
 export function setBoardBase(sessionId: string, base: QuestionsBase): void {
     const cached = getCachedSession(sessionId);
     if (!cached) return;
     setCachedSession({ ...cached, serverQuestions: base });
+}
+
+/**
+ * The board has seen `question` (null: its removal) as the server's version
+ * of the question with `key`, by the player's decision over it: the next
+ * list queued is made from that (see QuestionsBase.decided). Nothing to
+ * record if the board's base has that version already.
+ */
+export function decideBoardBaseQuestion(
+    sessionId: string,
+    key: number,
+    question: Questions[number] | null,
+    afterKey?: number | null,
+): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached) return;
+    const base = cached.serverQuestions ?? questionsBase(sessionId);
+    if (!base) return;
+    if (sameQuestionSubstance(findQuestionByKey(baseQuestions(base), key), question)) return;
+    const decision: BaseDecision = { key, question };
+    if (afterKey !== undefined) decision.afterKey = afterKey;
+    setCachedSession({
+        ...cached,
+        serverQuestions: {
+            ...base,
+            decided: [
+                ...(base.decided ?? []).filter((d) => !sameQuestionKey(d.key, key)),
+                decision,
+            ],
+        },
+    });
 }
 
 /**
@@ -452,12 +659,14 @@ export function advanceBoardBase(
     if (!cached) return;
     const current = cached.serverQuestions ?? queuedQuestionsBase(sessionId);
     if (!from || !sameBase(current, from)) return;
-    setCachedSession({ ...cached, serverQuestions: to });
+    setCachedSession({ ...cached, serverQuestions: carryDecisions(current, from, to) });
 }
 
 /**
  * Give the queued question lists made from `from` the base `to`, e.g. once
- * the list they followed on from is saved.
+ * the list they followed on from is saved. Every list sent before that one
+ * has landed or never will by then, so they no longer count versions of
+ * those as possibly ours (see QuestionsReplacePayload.own).
  */
 export function rebaseQueuedQuestions(
     sessionId: string,
@@ -480,9 +689,20 @@ export function rebaseQueuedQuestions(
             return event;
         }
         changed = true;
-        return { ...event, payloadJson: { ...payload, base: to } };
+        const next = { ...payload, base: carryDecisions(payload.base, from, to) };
+        delete next.own;
+        return { ...event, payloadJson: next };
     });
     if (changed) writePendingQueue(sessionId, rebased);
+}
+
+/** The queued event is being sent: it may land from now on. */
+export function markEventSent(sessionId: string, localId: string): void {
+    const events = getPendingEvents(sessionId);
+    const index = events.findIndex((event) => event.localId === localId);
+    if (index === -1 || events[index].sent) return;
+    events[index] = { ...events[index], sent: true };
+    writePendingQueue(sessionId, events);
 }
 
 /** Replace a queued event's payload, if it's still queued. */
@@ -509,7 +729,8 @@ export function clearCachedSession(sessionId: string): void {
 // snapshot in storage forever, and its disabled zones. A deleted session
 // takes every account's queue with it (`allAccounts`); one this account
 // lost access to only takes this account's and the unowned one, since
-// another account may still have access.
+// another account may still have access. Questions held for a decision go
+// the same way.
 export function discardSessionData(
     sessionId: string,
     { allAccounts = false }: { allAccounts?: boolean } = {},
@@ -517,20 +738,37 @@ export function discardSessionData(
     forgetDisabledZones(sessionId);
     try {
         if (allAccounts) {
-            const prefix = `${PENDING_PREFIX}${sessionId}~`;
+            const prefixes = [
+                `${PENDING_PREFIX}${sessionId}~`,
+                `${CONFLICTS_PREFIX}${sessionId}~`,
+            ];
             const keys: string[] = [];
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key?.startsWith(prefix)) keys.push(key);
+                if (key && prefixes.some((p) => key.startsWith(p))) keys.push(key);
             }
             for (const key of keys) localStorage.removeItem(key);
         }
         localStorage.removeItem(pendingKey(sessionId));
         localStorage.removeItem(legacyPendingKey(sessionId));
+        localStorage.removeItem(conflictsKey(sessionId));
+        localStorage.removeItem(`${CONFLICTS_PREFIX}${sessionId}`);
         localStorage.removeItem(cacheKey(sessionId));
     } catch (e) {
         console.warn("[eventQueue] failed to discard session data:", e);
     }
+    for (const listener of discardListeners) listener(sessionId);
+}
+
+type DiscardListener = (sessionId: string) => void;
+const discardListeners = new Set<DiscardListener>();
+
+/** Hear about a session's data being discarded. */
+export function onSessionDataDiscarded(listener: DiscardListener): () => void {
+    discardListeners.add(listener);
+    return () => {
+        discardListeners.delete(listener);
+    };
 }
 
 // Derive current local state by replaying pending events on top of a cached snapshot.

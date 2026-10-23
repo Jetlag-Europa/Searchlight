@@ -34,16 +34,25 @@ DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 const DrawerContent = React.forwardRef<
     React.ElementRef<typeof DrawerPrimitive.Content>,
-    React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+    React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Content> & {
+        // Where it's portalled; the map's container unless given.
+        container?: Element | null;
+        // Added to the overlay's classes, such as a higher z-index.
+        overlayClassName?: string;
+    }
+>(({ className, children, container, overlayClassName, ...props }, ref) => (
     <DrawerPortal
         container={
-            typeof document !== "undefined"
-                ? document.querySelector("#map-modal-dialog-container-leaflet")
-                : null
+            container !== undefined
+                ? container
+                : typeof document !== "undefined"
+                  ? document.querySelector(
+                        "#map-modal-dialog-container-leaflet",
+                    )
+                  : null
         }
     >
-        <DrawerOverlay />
+        <DrawerOverlay className={overlayClassName} />
         <DrawerPrimitive.Content
             ref={ref}
             className={cn(

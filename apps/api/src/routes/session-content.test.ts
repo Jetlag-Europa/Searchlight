@@ -4,7 +4,7 @@ import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
-import { sessionContentRoutes } from "./session-content.js";
+import { QUESTION_CHANGES_LIMIT, sessionContentRoutes } from "./session-content.js";
 import { sessionRoutes } from "./sessions.js";
 import { subscribe } from "../lib/broadcaster.js";
 import type { EventRecord } from "@searchlight/shared";
@@ -1151,5 +1151,360 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         await prisma.gameRevision.delete({ where: { id: target.id } });
       }
     });
+  });
+});
+
+describe("GET /sessions/:sessionId/questions/changes", () => {
+  const PREFIX = "test-qchanges";
+  const CREATOR = `${PREFIX}-creator`;
+  const PLAYER = `${PREFIX}-player`;
+  const NAMELESS = `${PREFIX}-nameless`;
+  const OUTSIDER = `${PREFIX}-outsider`;
+  const REVOKED = `${PREFIX}-revoked`;
+  const USERS = [CREATOR, PLAYER, NAMELESS, OUTSIDER, REVOKED];
+  const SERVER = `${PREFIX}-server`;
+  const GAME = `${PREFIX}-game`;
+  const SESSION = `${PREFIX}-session`;
+  const BUSY_SESSION = `${PREFIX}-busy`;
+  const ODD_SESSION = `${PREFIX}-odd`;
+  const SESSIONS = [SESSION, BUSY_SESSION, ODD_SESSION];
+  // Needs all 17 digits: one unit in the last place off reads differently.
+  const EXACT_KEY = 0.47550004144641034;
+
+  let app: FastifyInstance;
+  const cookies: Record<string, string> = {};
+
+  async function cleanUp() {
+    await prisma.event.deleteMany({ where: { sessionId: { in: SESSIONS } } });
+    await prisma.sessionQuestion.deleteMany({ where: { sessionId: { in: SESSIONS } } });
+    await prisma.sessionParticipant.deleteMany({ where: { sessionId: { in: SESSIONS } } });
+    await prisma.gameSession.deleteMany({ where: { id: { in: SESSIONS } } });
+    await prisma.gameRevision.deleteMany({ where: { gameId: GAME } });
+    await prisma.game.deleteMany({ where: { id: GAME } });
+    await prisma.server.deleteMany({ where: { id: SERVER } });
+    await prisma.authSession.deleteMany({ where: { userId: { in: USERS } } });
+    await prisma.user.deleteMany({ where: { discordId: { in: USERS } } });
+  }
+
+  const get = (query: string, as = CREATOR, sessionId = SESSION) =>
+    app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}/questions/changes${query}`,
+      headers: { cookie: cookies[as] },
+    });
+  const put = async (as: string, replacementId: string, payloads: unknown[]) => {
+    const res = await app.inject({
+      method: "PUT",
+      url: `/sessions/${SESSION}/questions`,
+      headers: { cookie: cookies[as] },
+      payload: {
+        replacementId,
+        questions: payloads.map((payloadJson, ordinal) => ({
+          clientUuid: `${PREFIX}-${replacementId}-${ordinal}`,
+          ordinal,
+          payloadJson,
+        })),
+      },
+    });
+    expect(res.statusCode).toBe(204);
+    return (await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION } })).eventSequence;
+  };
+
+  beforeAll(async () => {
+    await cleanUp();
+    const names: Record<string, string> = {
+      [CREATOR]: "Alex",
+      [PLAYER]: "Sam",
+      [NAMELESS]: "",
+      [OUTSIDER]: "Outsider",
+      [REVOKED]: "Revoked",
+    };
+    for (const id of USERS) {
+      await prisma.user.create({
+        data: {
+          discordId: id,
+          username: id,
+          displayName: names[id],
+          avatarUrl: "https://example.com/q.png",
+          discordAccessToken: "tok",
+          discordRefreshToken: "ref",
+          discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+        },
+      });
+    }
+    await prisma.server.create({ data: { id: SERVER, name: "Changes Server" } });
+    await prisma.game.create({
+      data: { id: GAME, serverId: SERVER, name: "Changes Game", gameKey: "qchanges-game", size: "medium" },
+    });
+    const rev = await prisma.gameRevision.create({
+      data: { gameId: GAME, revision: 1, checksum: "qchanges-checksum", definition: { id: "qchanges-game" } },
+    });
+    await prisma.gameSession.createMany({
+      data: SESSIONS.map((id) => ({
+        id,
+        gameId: GAME,
+        serverId: SERVER,
+        creatorId: CREATOR,
+        name: id,
+        gameRevisionId: rev.id,
+      })),
+    });
+    const now = new Date();
+    await prisma.sessionParticipant.createMany({
+      data: [
+        { sessionId: SESSION, userId: PLAYER, role: "member", acceptedAt: now },
+        { sessionId: SESSION, userId: NAMELESS, role: "member", acceptedAt: now },
+        { sessionId: SESSION, userId: REVOKED, role: "member", acceptedAt: now, revokedAt: now },
+      ],
+    });
+
+    app = await buildTestApp();
+    for (const id of USERS) {
+      await prisma.authSession.create({
+        data: { id: `${id}-auth`, userId: id, expiresAt: new Date(Date.now() + 86_400_000) },
+      });
+      cookies[id] = `session=${app.signCookie(`${id}-auth`)}`;
+    }
+  });
+
+  afterAll(async () => {
+    await app.close();
+    await cleanUp();
+    await prisma.$disconnect();
+  });
+
+  // Each test reads from the session's sequence when it starts.
+  const sequenceNow = async () =>
+    (await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION } })).eventSequence;
+
+  test("lists the replacements after a sequence, oldest first, with only the requested questions", async () => {
+    const start = await sequenceNow();
+    const a = { id: "radius", key: EXACT_KEY, data: { radius: 2 } };
+    const b = { id: "thermometer", key: 0.25, data: { hit: true } };
+    const c = { id: "matching", key: 3, data: {} };
+    await put(CREATOR, "keys-1", [a, b, c]);
+    const a2 = { ...a, data: { radius: 3 } };
+    const second = await put(PLAYER, "keys-2", [a2, c]);
+    // A stroke between them isn't a question change.
+    await app.inject({
+      method: "POST",
+      url: `/sessions/${SESSION}/strokes`,
+      headers: { cookie: cookies[PLAYER] },
+      payload: { clientUuid: `${PREFIX}-stroke`, payloadJson: { a: 1 } },
+    });
+    const third = await put(NAMELESS, "keys-3", [c]);
+
+    const res = await get(`?after=${start}&keys=${EXACT_KEY},0.25`, PLAYER);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      changes: [
+        { sequence: start + 1, userId: CREATOR, displayName: "Alex", questions: [a, b] },
+        { sequence: second, userId: PLAYER, displayName: "Sam", questions: [a2] },
+        // No name to show: the id stands in.
+        { sequence: third, userId: NAMELESS, displayName: NAMELESS, questions: [] },
+      ],
+    });
+    expect(third).toBe(second + 2);
+    // The key comes back with all its digits.
+    expect(res.json().changes[0].questions[0].key).toBe(EXACT_KEY);
+
+    const later = await get(`?after=${second - 1}&keys=3`);
+    expect(later.json().changes.map((e: { sequence: number }) => e.sequence)).toEqual([second, third]);
+    expect(later.json().changes.map((e: { questions: unknown[] }) => e.questions)).toEqual([[c], [c]]);
+    expect((await get(`?after=${third}&keys=3`)).json()).toEqual({ changes: [] });
+  });
+
+  test("stops at `until`, inclusive", async () => {
+    const start = await sequenceNow();
+    const q = (n: number) => ({ key: EXACT_KEY, n });
+    const first = await put(CREATOR, "until-1", [q(1)]);
+    const second = await put(PLAYER, "until-2", [q(2)]);
+    await put(CREATOR, "until-3", [q(3)]);
+
+    const res = await get(`?after=${start}&until=${second}&keys=${EXACT_KEY}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      changes: [
+        { sequence: first, userId: CREATOR, displayName: "Alex", questions: [q(1)] },
+        { sequence: second, userId: PLAYER, displayName: "Sam", questions: [q(2)] },
+      ],
+    });
+    expect((await get(`?after=${start}&until=${start}&keys=${EXACT_KEY}`)).json()).toEqual({ changes: [] });
+    // An `until` before `after` asks for nothing.
+    expect((await get(`?after=${second}&until=${first}&keys=${EXACT_KEY}`)).json()).toEqual({ changes: [] });
+  });
+
+  test("picks the requested questions out of a large list, and copes with any stored shape", async () => {
+    // Written as raw JSON text, like the PUT does, so every digit is kept.
+    const event = async (sequence: number, payloadText: string) => {
+      await prisma.$executeRaw`
+        INSERT INTO "Event" (id, "sessionId", "userId", sequence, type, "payloadJson", "clientUuid", "clientCreatedAt")
+        VALUES (${`${PREFIX}-odd-${sequence}`}, ${ODD_SESSION}, ${PLAYER}, ${sequence}, 'questions.replace',
+          ${payloadText}::jsonb, ${`${PREFIX}-odd-${sequence}`}, now())
+      `;
+    };
+    // A custom zone of 40,000 points: megabytes that never leave Postgres.
+    const zone = {
+      id: "custom-zone",
+      key: 0.123,
+      data: { polygon: Array.from({ length: 40_000 }, (_, i) => [5.123456789012345 + i * 1e-6, 50.98765432109876]) },
+    };
+    const wanted = { id: "radius", key: EXACT_KEY, data: { lat: 47.42790359754809 } };
+    const list = (payloads: unknown[]) =>
+      JSON.stringify({
+        replacementId: "odd",
+        questions: payloads.map((payloadJson, ordinal) => ({ clientUuid: `odd-${ordinal}`, ordinal, payloadJson })),
+      });
+    await event(1, list([zone, wanted]));
+    await event(2, JSON.stringify({ replacementId: "no-list" }));
+    await event(3, JSON.stringify({ questions: "not a list" }));
+    await event(4, JSON.stringify({ questions: [null, 7, "x", [], {}, { payloadJson: null }, { payloadJson: 3 }] }));
+    // Keys no double holds, and keys that aren't numbers.
+    await event(5, `{"questions":[{"payloadJson":{"key":1e400}},{"payloadJson":{"key":1e-400}},{"payloadJson":{"key":"${EXACT_KEY}"}},{"payloadJson":{"key":null}},{"payloadJson":{"key":{"n":1}}}]}`);
+    await event(6, list([wanted]));
+    await prisma.gameSession.update({ where: { id: ODD_SESSION }, data: { eventSequence: 6 } });
+
+    const res = await get(`?after=0&keys=${EXACT_KEY},0`, CREATOR, ODD_SESSION);
+    expect(res.statusCode).toBe(200);
+    // The answer is small: the zone isn't in it.
+    expect(res.body.length).toBeLessThan(2000);
+    expect(res.json()).toEqual({
+      changes: [1, 2, 3, 4, 5, 6].map((sequence) => ({
+        sequence,
+        userId: PLAYER,
+        displayName: "Sam",
+        questions: sequence === 1 || sequence === 6 ? [wanted] : [],
+      })),
+    });
+    expect(res.json().changes[0].questions[0].key).toBe(EXACT_KEY);
+    expect(res.json().changes[0].questions[0].data.lat).toBe(47.42790359754809);
+
+    const zoneOnly = await get("?after=0&until=1&keys=0.123", CREATOR, ODD_SESSION);
+    expect(zoneOnly.json().changes[0].questions).toEqual([zone]);
+  });
+
+  test("knows a key by its 17 digits, and one a few units in the last place off as the same key", async () => {
+    const start = await sequenceNow();
+    const near = 0.30000000000000004;
+    await put(CREATOR, "exact-1", [
+      { key: EXACT_KEY },
+      { key: near },
+      { key: 0.3 },
+      { key: "0.25" },
+      { data: {} },
+    ]);
+    const exact = await get(`?after=${start}&keys=${EXACT_KEY}`);
+    expect(exact.json().changes[0].questions).toEqual([{ key: EXACT_KEY }]);
+    // 0.4755000414464103 is the same key read one unit off.
+    const offByOne = await get(`?after=${start}&keys=0.4755000414464103`);
+    expect(offByOne.json().changes[0].questions).toEqual([{ key: EXACT_KEY }]);
+    // 0.3 and 0.30000000000000004 are one unit apart too.
+    const point3 = await get(`?after=${start}&keys=0.3`);
+    expect(point3.json().changes[0].questions).toEqual([{ key: near }, { key: 0.3 }]);
+    // A key 1e-15 apart (the step between new keys) is another question; a
+    // string key is no key.
+    const other = await get(`?after=${start}&keys=${EXACT_KEY * (1 + 1e-15)},0.25`);
+    expect(other.json().changes[0].questions).toEqual([]);
+  });
+
+  test("is only for the session's players", async () => {
+    expect((await get("?after=0&keys=1", PLAYER)).statusCode).toBe(200);
+    expect((await get("?after=0&keys=1", OUTSIDER)).statusCode).toBe(403);
+    expect((await get("?after=0&keys=1", REVOKED)).statusCode).toBe(403);
+    expect((await get("?after=0&keys=1", CREATOR, `${PREFIX}-missing`)).statusCode).toBe(404);
+    const anonymous = await app.inject({ method: "GET", url: `/sessions/${SESSION}/questions/changes?after=0&keys=1` });
+    expect(anonymous.statusCode).toBe(401);
+  });
+
+  test("refuses a missing or malformed after or keys", async () => {
+    const tooMany = Array.from({ length: 51 }, (_, i) => i).join(",");
+    const fifty = Array.from({ length: 50 }, (_, i) => i).join(",");
+    for (const query of [
+      "?keys=1",
+      "?after=0",
+      "?after=0&until=-1&keys=1",
+      "?after=0&until=1.5&keys=1",
+      "?after=0&until=x&keys=1",
+      "?after=-1&keys=1",
+      "?after=1.5&keys=1",
+      "?after=x&keys=1",
+      "?after=0&keys=",
+      "?after=0&keys=1,,2",
+      "?after=0&keys=1,",
+      "?after=0&keys=abc",
+      "?after=0&keys=0x10",
+      "?after=0&keys=NaN",
+      "?after=0&keys=Infinity",
+      "?after=0&keys=1e999",
+      "?after=0&keys=%201",
+      `?after=0&keys=${tooMany}`,
+      "?after=0&keys=1&keys=2",
+    ]) {
+      expect({ query, status: (await get(query)).statusCode }).toEqual({ query, status: 400 });
+    }
+    expect((await get(`?after=0&keys=${fifty}`)).statusCode).toBe(200);
+    expect((await get(`?after=0&keys=${encodeURIComponent("-1.5e-3,.5,2.,1E+2")}`)).statusCode).toBe(200);
+  });
+
+  test("answers at most QUESTION_CHANGES_LIMIT replacements, the oldest, and says there are more", async () => {
+    const total = QUESTION_CHANGES_LIMIT + 1;
+    await prisma.event.createMany({
+      data: Array.from({ length: total }, (_, i) => ({
+        sessionId: BUSY_SESSION,
+        userId: CREATOR,
+        sequence: i + 1,
+        type: "questions.replace",
+        payloadJson: { replacementId: `busy-${i}`, questions: [{ clientUuid: `busy-${i}`, ordinal: 0, payloadJson: { key: 1, n: i } }] },
+        clientUuid: `${PREFIX}-busy-${i}`,
+        clientCreatedAt: new Date(),
+      })),
+    });
+    await prisma.gameSession.update({ where: { id: BUSY_SESSION }, data: { eventSequence: total } });
+
+    const capped = (await get("?after=0&keys=1", CREATOR, BUSY_SESSION)).json();
+    expect(capped.truncated).toBe(true);
+    expect(capped.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
+    expect(capped.changes[0]).toEqual({
+      sequence: 1,
+      userId: CREATOR,
+      displayName: "Alex",
+      questions: [{ key: 1, n: 0 }],
+    });
+    expect(capped.changes.at(-1).sequence).toBe(QUESTION_CHANGES_LIMIT);
+
+    const rest = (await get(`?after=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    expect(rest).toEqual({
+      changes: [{ sequence: total, userId: CREATOR, displayName: "Alex", questions: [{ key: 1, n: total - 1 }] }],
+    });
+    const exactlyAtLimit = (await get("?after=1&keys=1", CREATOR, BUSY_SESSION)).json();
+    expect(exactlyAtLimit.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
+    expect(exactlyAtLimit.truncated).toBeUndefined();
+
+    // `until` bounds the page before the cap does.
+    const bounded = (await get(`?after=0&until=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    expect(bounded.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
+    expect(bounded.truncated).toBeUndefined();
+    const boundedCapped = (await get(`?after=0&until=${total}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    expect(boundedCapped.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
+    expect(boundedCapped.truncated).toBe(true);
+    const few = (await get("?after=10&until=12&keys=1", CREATOR, BUSY_SESSION)).json();
+    expect(few).toEqual({
+      changes: [11, 12].map((sequence) => ({
+        sequence,
+        userId: CREATOR,
+        displayName: "Alex",
+        questions: [{ key: 1, n: sequence - 1 }],
+      })),
+    });
+  });
+
+  test("leaves GET /questions as it was", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION}/questions`,
+      headers: { cookie: cookies[PLAYER] },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(res.json().sequence).toBe(await sequenceNow());
   });
 });

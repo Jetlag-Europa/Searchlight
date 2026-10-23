@@ -1,18 +1,29 @@
 import type { StrokeFeature } from "@/annotations/types";
 import {
+    compiledGameAtom,
+    filterSupportedQuestions,
+} from "@/game-definition/store";
+import {
     activeSessionId,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { pendingEventCount,syncStatus } from "@/lib/context";
+import {
+    gameDefinitionReady,
+    pendingEventCount,
+    questions,
+    syncStatus,
+} from "@/lib/context";
 import {
     advanceBoardBase,
+    baseQuestions,
     discardEvent,
     type EventType,
     getCachedSession,
     getPendingEvents,
     isReplacementEventType,
     markEventFailed,
+    markEventSent,
     markEventSynced,
     type PendingEvent,
     type QuestionsBase,
@@ -21,7 +32,22 @@ import {
     setCachedSession,
     updateQueuedPayload,
 } from "@/lib/eventQueue";
-import { mergeQuestionLists } from "@/lib/questionMerge";
+import {
+    lookUpConflictAuthors,
+    questionHistory,
+    reconcileQuestionConflicts,
+    recordQuestionConflicts,
+} from "@/lib/questionConflicts";
+import {
+    indexOfQuestionKey,
+    mergeQuestionLists,
+    mergeQuestionListsWithConflicts,
+    ownVersionsOf,
+    questionKey,
+    sameQuestionKey,
+    sameQuestionList,
+    sameQuestionSubstance,
+} from "@/lib/questionMerge";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -161,8 +187,116 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
 }
 
 /**
+ * Merge a list made on an older base into the server's. A question both
+ * sides changed differently is held for the player (see questionConflicts):
+ * the merged list has the server's version of it for now. The held
+ * conflicts are stored before anything is sent, so a page killed after the
+ * save lands still has them. If they can't be, ours is saved, as before.
+ */
+async function mergeWithServer(
+    event: PendingEvent,
+    payload: QuestionsReplacePayload & { base: QuestionsBase },
+    local: Questions,
+    server: QuestionsBase,
+    keepalive: boolean,
+): Promise<Questions> {
+    const { sessionId } = event;
+    const { base } = payload;
+    const own = Array.isArray(payload.own) ? payload.own : [];
+    // What the list was made from, decisions taken on the board included.
+    let from = baseQuestions(base);
+    // A question of ours the base doesn't have, added by a list whose
+    // answer never came: which of our versions of it landed (if any) is
+    // what it was made from. When the server doesn't have it now, or has
+    // another version and we have several, only the server's history tells
+    // (see mergeQuestionListsWithConflicts for the rest), so ask it, but not
+    // while the page may be going away (it can take seconds, and a pagehide
+    // save waits behind it). Without an answer it stays as before.
+    const hidden =
+        typeof document !== "undefined" && document.visibilityState === "hidden";
+    if (!keepalive && !hidden && own.length > 0) {
+        const ownOf = (key: number) => ownVersionsOf(own, key);
+        const asked: number[] = [];
+        for (const question of [...local, ...server.questions]) {
+            const key = questionKey(question);
+            if (
+                key === undefined ||
+                asked.some((k) => sameQuestionKey(k, key)) ||
+                indexOfQuestionKey(from, key) !== -1
+            ) {
+                continue;
+            }
+            const versions = ownOf(key);
+            const at = indexOfQuestionKey(server.questions, key);
+            const now = at === -1 ? null : server.questions[at];
+            if (
+                versions.length > 0 &&
+                (now === null ||
+                    (versions.length > 1 &&
+                        !versions.some((v) => sameQuestionSubstance(v, now))))
+            ) {
+                asked.push(key);
+            }
+        }
+        if (asked.length > 0) {
+            // From the first base this list was made from: a list of ours
+            // replaced since may have landed any time after it.
+            const after = Math.min(
+                base.sequence,
+                base.since ?? base.sequence,
+                payload.merged?.base.sequence ?? base.sequence,
+            );
+            const history = await questionHistory(
+                sessionId,
+                asked,
+                after,
+                server.sequence,
+            );
+            for (const key of asked) {
+                const landed = history
+                    ?.get(key)
+                    ?.find(
+                        (v) =>
+                            v !== null &&
+                            ownOf(key).some((o) => sameQuestionSubstance(o, v)),
+                    );
+                if (landed) from = [...from, landed];
+            }
+        }
+    }
+    // Conflicts held from earlier saves first: this list may settle them.
+    reconcileQuestionConflicts(sessionId, server.questions, server.sequence);
+    const { merged, conflicts } = mergeQuestionListsWithConflicts(
+        from,
+        local,
+        server.questions,
+        own,
+    );
+    if (conflicts.length === 0) return merged;
+    try {
+        recordQuestionConflicts(sessionId, conflicts, {
+            baseSequence: base.since ?? base.sequence,
+            theirsSequence: server.sequence,
+            madeFrom: base,
+        });
+    } catch (err) {
+        console.warn("[searchlight:sync] couldn't hold the conflicts, keeping ours:", err);
+        return mergeQuestionLists(from, local, server.questions);
+    }
+    console.info(
+        "[searchlight:sync] held",
+        conflicts.length,
+        "question(s) changed on both sides for the player to decide",
+    );
+    // Who changed them is only for showing: never in the save's way, and
+    // not while the page goes away.
+    if (!keepalive) void lookUpConflictAuthors(sessionId);
+    return merged;
+}
+
+/**
  * Save a queued question list. Made on a base the server has moved on from,
- * it is merged with the server's list first: see mergeQuestionLists. Each
+ * it is merged with the server's list first: see mergeWithServer. Each
  * merge replaces the queued list before it is sent, keeping its
  * replacementId: if the merged save commits but its answer is lost, the
  * retry sends that same merged list, which the server recognizes as done.
@@ -174,6 +308,13 @@ async function sendQuestions(
     const { sessionId } = event;
     let payload = event.payloadJson as QuestionsReplacePayload;
     const madeFrom = payload.merged?.base ?? payload.base;
+    if (!event.sent) {
+        try {
+            markEventSent(sessionId, event.localId);
+        } catch (err) {
+            console.warn("[searchlight:sync] couldn't mark the list sent:", err);
+        }
+    }
     for (let merges = 0; ; merges++) {
         const baseSequence = payload.base?.sequence;
         const body = JSON.stringify({
@@ -200,10 +341,12 @@ async function sendQuestions(
                 }
                 const server = await fetchServerQuestions(sessionId);
                 const list = payload.questions.map((q) => q.payloadJson);
-                const merged = mergeQuestionLists(
-                    payload.base.questions,
+                const merged = await mergeWithServer(
+                    event,
+                    { ...payload, base: payload.base },
                     list,
-                    server.questions,
+                    server,
+                    keepalive,
                 );
                 console.info(
                     "[searchlight:sync] questions changed elsewhere, merged",
@@ -381,6 +524,82 @@ function refreshSyncCounts(sessionId: string): void {
     }
 }
 
+// A question list landed: what followed on from it moves on.
+function settleQuestionsSaved(saved: QuestionsSaved, localId?: string): void {
+    const { sessionId, local, madeFrom, sequence, mergedWith } = saved;
+    if (sequence !== undefined) {
+        // The board, and the lists queued after this one made from the
+        // same base, followed on from it. Saved as it was, it's the
+        // server's list now. Merged, it isn't: they still lack the other
+        // side's changes, so they merge too (the board, until a merged
+        // list is shown: see onQuestionsSaved).
+        // Our own list as of the merge: its versions go back as far as
+        // what it was made from.
+        const next: QuestionsBase = mergedWith
+            ? {
+                  sequence: mergedWith.sequence,
+                  questions: local,
+                  since: madeFrom ? (madeFrom.since ?? madeFrom.sequence) : undefined,
+              }
+            : { sequence, questions: saved.saved };
+        if (next.since === undefined) delete next.since;
+        rebaseQueuedQuestions(sessionId, madeFrom, next, localId);
+        advanceBoardBase(sessionId, madeFrom, next);
+        // A board reopened from the snapshot shows the merged list as
+        // queued, made from the server's list it was merged with: it shows
+        // the saved list now, and it and the lists made on it move on from
+        // there (its answer isn't shown over it: see showMergedSave).
+        if (mergedWith && sessionId === activeSessionId.get()) {
+            const game = gameDefinitionReady.get() ? compiledGameAtom.get() : null;
+            const board = questions.get();
+            if (sameQuestionList(board, filterSupportedQuestions(saved.saved, game))) {
+                const to = { sequence, questions: saved.saved };
+                rebaseQueuedQuestions(sessionId, mergedWith, to, localId);
+                advanceBoardBase(sessionId, mergedWith, to);
+            }
+        }
+        answered.set(sessionId, Math.max(answered.get(sessionId) ?? -1, sequence));
+    }
+}
+
+// The latest sequence a question list of ours was saved at, by session, in
+// this page.
+const answered = new Map<string, number>();
+
+/** The latest sequence a question list of ours was saved at in this page. */
+export function latestSavedQuestionsSequence(sessionId: string): number | undefined {
+    return answered.get(sessionId);
+}
+
+function notifyQuestionsSaved(saved: QuestionsSaved): void {
+    for (const listener of questionsSavedListeners) listener(saved);
+}
+
+/**
+ * Our own queued list came back from the server's event stream before
+ * (or instead of: it was lost) its answer: it was saved, at `sequence`.
+ * The stream has taken it off the queue. Handled as its answer would be,
+ * so a merged list is shown and the board moves on from it; the answer,
+ * if it still comes, then changes nothing.
+ */
+export function questionsSavedByEcho(
+    sessionId: string,
+    payload: QuestionsReplacePayload,
+    saved: Questions,
+    sequence: number,
+): void {
+    const settled: QuestionsSaved = {
+        sessionId,
+        local: payload.merged?.local ?? saved,
+        saved,
+        madeFrom: payload.merged?.base ?? payload.base,
+        sequence,
+        mergedWith: payload.merged ? payload.base : undefined,
+    };
+    settleQuestionsSaved(settled);
+    notifyQuestionsSaved(settled);
+}
+
 async function dispatchQueuedEvent(
     requested: PendingEvent,
     keepalive: boolean,
@@ -401,37 +620,31 @@ async function dispatchQueuedEvent(
         const stillQueued = getPendingEvents(sessionId).some(
             (candidate) => candidate.localId === event.localId,
         );
+        if (savedQuestions) settleQuestionsSaved(savedQuestions, event.localId);
         if (savedQuestions && stillQueued) {
+            // The board as it stands with its base: the saved list once the
+            // base is it; a merged one not shown yet (see showMergedSave,
+            // which is skipped while a session loads) still shows ours as
+            // queued, made from our list as of the merge. A board reopened
+            // from the snapshot then shows the two together.
             const cached = getCachedSession(sessionId);
+            const { local, saved, sequence, mergedWith } = savedQuestions;
+            const shows =
+                !mergedWith ||
+                (sequence !== undefined && cached?.serverQuestions?.sequence === sequence)
+                    ? saved
+                    : local;
             setCachedSession({
                 ...cached,
                 sessionId,
                 strokes: cached?.strokes ?? [],
-                questions: savedQuestions.saved,
+                questions: shows,
                 lastSyncedAt: Date.now(),
                 lastSequence: cached?.lastSequence ?? 0,
             });
         }
-        if (savedQuestions?.sequence !== undefined) {
-            const { local, saved, madeFrom, sequence, mergedWith } =
-                savedQuestions;
-            // The board, and the lists queued after this one made from the
-            // same base, followed on from it. Saved as it was, it's the
-            // server's list now. Merged, it isn't: they still lack the other
-            // side's changes, so they merge too (the board, until a merged
-            // list is shown: see onQuestionsSaved).
-            const next = mergedWith
-                ? { sequence: mergedWith.sequence, questions: local }
-                : { sequence, questions: saved };
-            rebaseQueuedQuestions(sessionId, madeFrom, next, event.localId);
-            advanceBoardBase(sessionId, madeFrom, next);
-        }
         markEventSynced(sessionId, event.localId);
-        if (savedQuestions) {
-            for (const listener of questionsSavedListeners) {
-                listener(savedQuestions);
-            }
-        }
+        if (savedQuestions) notifyQuestionsSaved(savedQuestions);
     } catch (err) {
         if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;

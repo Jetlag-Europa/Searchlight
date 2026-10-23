@@ -29,6 +29,7 @@ import {
 } from "@/lib/eventQueue";
 import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
 import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
@@ -36,7 +37,11 @@ import {
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
 } from "@/lib/sessionState";
-import { retryPendingEvents } from "@/lib/syncManager";
+import {
+    onQuestionsSaved,
+    questionsSavedByEcho,
+    retryPendingEvents,
+} from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -87,6 +92,119 @@ function persistSessionCache(): void {
         lastSyncedAt: Date.now(),
     });
 }
+
+/**
+ * Show the server's question list as of `sequence` on the board (another
+ * player's), unless an edit of ours is still to be saved, in which case it
+ * is merged when that is (returns false), or the board is made from it or
+ * a later one already.
+ */
+function showServerQuestions(
+    sessionId: string,
+    serverList: Questions,
+    sequence: number,
+): boolean {
+    const unsynced = getPendingEvents(sessionId).filter(
+        (e) => e.type === "questions.replace" && e.status !== "synced",
+    );
+    if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
+        console.info(
+            "[searchlight:sse] questions.replace skipped — local edit not yet saved",
+            unsynced.length,
+            "pending",
+        );
+        return false;
+    }
+    if ((getCachedSession(sessionId)?.serverQuestions?.sequence ?? -1) >= sequence) {
+        // The board is made from this list or a later one already (a late
+        // echo of a save of ours that was answered).
+        console.info("[searchlight:sse] questions.replace skipped — the board has it");
+        return true;
+    }
+    setBoardBase(sessionId, { sequence, questions: serverList });
+    // Questions held for a decision may be settled by it, or changed again.
+    reconcileQuestionConflicts(sessionId, serverList, sequence);
+    const newQs = filterSupportedQuestions(
+        serverList,
+        compiledGameAtom.get(),
+    ) as Questions;
+    console.info(
+        "[searchlight:sse] applying questions.replace",
+        newQs.length,
+        "question(s)",
+    );
+    questions.set(suppressQuestionSave(newQs));
+    return true;
+}
+
+// A save of ours was answered at a sequence the stream has gone past: lists
+// the stream passed over meanwhile (ours was still to be saved, or a load
+// started the stream from a later cursor) may not show on the board. Read
+// the server's list then, and show it as one from the stream; until that
+// read succeeds, try again (with a doubling, capped delay) while the
+// stream is the session's. The board's base meanwhile is what the board
+// shows, so an edit made before then merges with the server's list rather
+// than overwriting it.
+let catchUp:
+    | { sessionId: string; generation: number; delay: number; timer?: NodeJS.Timeout }
+    | undefined;
+
+function stopCatchUp(): void {
+    clearTimeout(catchUp?.timer);
+    catchUp = undefined;
+}
+
+async function runCatchUp(): Promise<void> {
+    const job = catchUp;
+    if (!job) return;
+    const current = () =>
+        catchUp === job &&
+        job.generation === currentGeneration &&
+        job.sessionId === currentSessionId;
+    try {
+        const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
+            credentials: "include",
+        });
+        if (!current()) return;
+        // Gone or refused: the stream finds that out itself.
+        if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+            stopCatchUp();
+            return;
+        }
+        if (!res.ok) throw new Error(`questions: ${res.status}`);
+        const data = (await res.json()) as {
+            questions: Array<{ payloadJson: Questions[number] }>;
+            sequence?: unknown;
+        };
+        if (!current()) return;
+        stopCatchUp();
+        if (typeof data.sequence !== "number") return;
+        // Skipped with an edit of ours still to be saved: its merge brings
+        // the server's list in.
+        showServerQuestions(
+            job.sessionId,
+            data.questions.map((q) => q.payloadJson),
+            data.sequence,
+        );
+    } catch (err) {
+        if (!current()) return;
+        console.warn("[searchlight:sse] couldn't read the questions to catch up:", err);
+        const delay = job.delay;
+        job.delay = Math.min(delay * 2, RETRY_MAX_MS);
+        job.timer = setTimeout(() => void runCatchUp(), delay);
+    }
+}
+
+onQuestionsSaved(({ sessionId, sequence }) => {
+    if (sequence === undefined || sessionId !== currentSessionId) return;
+    if (sequence >= lastAppliedSequence) return;
+    // One at a time: a read running (or waiting to run again) catches up
+    // with this too.
+    if (catchUp?.sessionId === sessionId && catchUp.generation === currentGeneration) return;
+    stopCatchUp();
+    catchUp = { sessionId, generation: currentGeneration, delay: RETRY_MIN_MS };
+    void runCatchUp();
+});
 
 function handleServerEvent(
     event: EventRecord,
@@ -208,42 +326,23 @@ function handleServerEvent(
         ).questions.map((question) => question.payloadJson);
         if (own) {
             markEventSynced(targetSessionId, own.localId);
-            // The board's base moves on, unless the save was merged: then
-            // the board doesn't show the other side's changes yet (its
-            // answer does that, see syncManager).
             const payload = own.payloadJson as QuestionsReplacePayload;
             const local = payload.questions.map((question) => question.payloadJson);
-            if (!payload.merged && sameQuestionList(local, serverList)) {
-                advanceBoardBase(targetSessionId, payload.base, {
-                    sequence: eventSeq,
-                    questions: serverList,
-                });
+            if (payload.merged) {
+                // The board doesn't show the other side's changes yet: show
+                // the merged list, as its answer would (it may never come).
+                questionsSavedByEcho(targetSessionId, payload, serverList, eventSeq);
+            } else {
+                // The board's base moves on.
+                if (sameQuestionList(local, serverList)) {
+                    advanceBoardBase(targetSessionId, payload.base, {
+                        sequence: eventSeq,
+                        questions: serverList,
+                    });
+                }
             }
-        } else if (
-            unsynced.length > 0 ||
-            hasScheduledQuestionSave(targetSessionId)
-        ) {
-            console.info(
-                "[searchlight:sse] questions.replace skipped — local edit not yet saved",
-                unsynced.length,
-                "pending",
-            );
+        } else if (!showServerQuestions(targetSessionId, serverList, eventSeq)) {
             return;
-        } else {
-            setBoardBase(targetSessionId, {
-                sequence: eventSeq,
-                questions: serverList,
-            });
-            const newQs = filterSupportedQuestions(
-                serverList,
-                compiledGameAtom.get(),
-            ) as Questions;
-            console.info(
-                "[searchlight:sse] applying questions.replace",
-                newQs.length,
-                "question(s)",
-            );
-            questions.set(suppressQuestionSave(newQs));
         }
     } else if (event.type === "hider.update") {
         const { hiderLat, hiderLng } = event.payloadJson as {
@@ -612,6 +711,7 @@ export function stopSSE(): void {
     }
     clearTimeout(replayRetry);
     replayRetry = undefined;
+    stopCatchUp();
     clearTimeout(reconnectTimer);
     reconnectTimer = undefined;
     replayRetryDelay = RETRY_MIN_MS;
