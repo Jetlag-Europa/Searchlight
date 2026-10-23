@@ -121,9 +121,11 @@ describe("saving a question list made on an old base", () => {
         expect(getPendingEvents(SID)).toEqual([]);
         // The board still shows only ours: its base is ours, as of the list
         // merged with, until the merged list is shown (SessionManager).
+        // (Its versions go back to 4, for telling who changed one.)
         expect(getCachedSession(SID)?.serverQuestions).toEqual({
             sequence: 7,
             questions: [q(1)],
+            since: 4,
         });
         expect(saved).toHaveLength(1);
         expect(saved[0].saved).toEqual([q(1), q(2)]);

@@ -7,9 +7,9 @@ import {
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
     advanceBoardBase,
+    baseQuestions,
     discardEvent,
     type EventType,
-    forgetOwnVersions,
     getCachedSession,
     getPendingEvents,
     isReplacementEventType,
@@ -25,12 +25,17 @@ import {
 } from "@/lib/eventQueue";
 import {
     lookUpConflictAuthors,
+    questionHistory,
     reconcileQuestionConflicts,
     recordQuestionConflicts,
 } from "@/lib/questionConflicts";
 import {
+    indexOfQuestionKey,
     mergeQuestionLists,
     mergeQuestionListsWithConflicts,
+    questionKey,
+    sameQuestionKey,
+    sameQuestionSubstance,
 } from "@/lib/questionMerge";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
@@ -116,7 +121,7 @@ export interface QuestionsSaved {
     sequence?: number;
     // When merged: the server's list it was last merged with.
     mergedWith?: QuestionsBase;
-    // The save's own id (see questionConflicts' withResolvedConflictsSeen).
+    // The save's own id.
     replacementId?: string;
 }
 
@@ -179,33 +184,89 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
  * conflicts are stored before anything is sent, so a page killed after the
  * save lands still has them. If they can't be, ours is saved, as before.
  */
-function mergeWithServer(
+async function mergeWithServer(
     event: PendingEvent,
     payload: QuestionsReplacePayload & { base: QuestionsBase },
     local: Questions,
     server: QuestionsBase,
     keepalive: boolean,
-): Questions {
+): Promise<Questions> {
     const { sessionId } = event;
     const { base } = payload;
+    const own = Array.isArray(payload.own) ? payload.own : [];
+    // What the list was made from, decisions taken on the board included.
+    let from = baseQuestions(base);
+    // A question of ours the base doesn't have, added by a list whose
+    // answer never came: which of our versions of it landed (if any) is
+    // what it was made from. When the server doesn't have it now, or has
+    // another version and we have several, only the server's history tells
+    // (see mergeQuestionListsWithConflicts for the rest), so ask it, but not
+    // while the page goes away. Without an answer it stays as before.
+    if (!keepalive && own.length > 0) {
+        const ownOf = (key: number) =>
+            own.filter((q) => {
+                const ownKey = questionKey(q);
+                return ownKey !== undefined && sameQuestionKey(ownKey, key);
+            });
+        const asked: number[] = [];
+        for (const question of [...local, ...server.questions]) {
+            const key = questionKey(question);
+            if (
+                key === undefined ||
+                asked.some((k) => sameQuestionKey(k, key)) ||
+                indexOfQuestionKey(from, key) !== -1
+            ) {
+                continue;
+            }
+            const versions = ownOf(key);
+            const at = indexOfQuestionKey(server.questions, key);
+            const now = at === -1 ? null : server.questions[at];
+            if (
+                versions.length > 0 &&
+                (now === null ||
+                    (versions.length > 1 &&
+                        !versions.some((v) => sameQuestionSubstance(v, now))))
+            ) {
+                asked.push(key);
+            }
+        }
+        if (asked.length > 0) {
+            const history = await questionHistory(
+                sessionId,
+                asked,
+                base.sequence,
+                server.sequence,
+            );
+            for (const key of asked) {
+                const landed = history
+                    ?.get(key)
+                    ?.find(
+                        (v) =>
+                            v !== null &&
+                            ownOf(key).some((o) => sameQuestionSubstance(o, v)),
+                    );
+                if (landed) from = [...from, landed];
+            }
+        }
+    }
     // Conflicts held from earlier saves first: this list may settle them.
     reconcileQuestionConflicts(sessionId, server.questions, server.sequence);
     const { merged, conflicts } = mergeQuestionListsWithConflicts(
-        base.questions,
+        from,
         local,
         server.questions,
-        Array.isArray(payload.own) ? payload.own : [],
+        own,
     );
     if (conflicts.length === 0) return merged;
     try {
         recordQuestionConflicts(sessionId, conflicts, {
-            baseSequence: base.sequence,
+            baseSequence: base.since ?? base.sequence,
             theirsSequence: server.sequence,
-            replacementId: payload.replacementId,
+            madeFrom: base,
         });
     } catch (err) {
         console.warn("[searchlight:sync] couldn't hold the conflicts, keeping ours:", err);
-        return mergeQuestionLists(base.questions, local, server.questions);
+        return mergeQuestionLists(from, local, server.questions);
     }
     console.info(
         "[searchlight:sync] held",
@@ -265,7 +326,7 @@ async function sendQuestions(
                 }
                 const server = await fetchServerQuestions(sessionId);
                 const list = payload.questions.map((q) => q.payloadJson);
-                const merged = mergeWithServer(
+                const merged = await mergeWithServer(
                     event,
                     { ...payload, base: payload.base },
                     list,
@@ -458,13 +519,19 @@ function settleQuestionsSaved(saved: QuestionsSaved, localId?: string): void {
         // server's list now. Merged, it isn't: they still lack the other
         // side's changes, so they merge too (the board, until a merged
         // list is shown: see onQuestionsSaved).
-        const next = mergedWith
-            ? { sequence: mergedWith.sequence, questions: local }
+        // Our own list as of the merge: its versions go back as far as
+        // what it was made from.
+        const next: QuestionsBase = mergedWith
+            ? {
+                  sequence: mergedWith.sequence,
+                  questions: local,
+                  since: madeFrom ? (madeFrom.since ?? madeFrom.sequence) : undefined,
+              }
             : { sequence, questions: saved.saved };
+        if (next.since === undefined) delete next.since;
         rebaseQueuedQuestions(sessionId, madeFrom, next, localId);
         advanceBoardBase(sessionId, madeFrom, next);
     }
-    forgetOwnVersions(sessionId);
 }
 
 function notifyQuestionsSaved(saved: QuestionsSaved): void {

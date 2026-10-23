@@ -219,6 +219,36 @@ function mergeLists<Q>(
     const baseById = new Map(base.map((q) => [idOf(q), q]));
     const serverIndex = new Map(server.map((q, i) => [idOf(q), i]));
     const localIds = new Set(local.map(idOf));
+    // A question the base lacks that the server has may be one we added in
+    // a list whose answer never came: it is ours, not another's addition,
+    // made from the version of ours that landed: the one the server has;
+    // else our only one; else, not knowing which (the caller may have
+    // asked the server's history and put it in the base), one other than
+    // ours now, so a change of theirs is asked about rather than lost. One
+    // the server lacks stays ours to add: that list may never have landed.
+    if (hold !== false && hold.own.length > 0) {
+        const localById = new Map(local.map((q) => [idOf(q), q]));
+        for (const now of server) {
+            const id = idOf(now);
+            const key = numericKey(now);
+            if (baseById.has(id) || key === undefined) continue;
+            const versions = hold.own.filter((own) => {
+                const ownKey = numericKey(own);
+                return ownKey !== undefined && sameNumber(ownKey, key);
+            });
+            if (versions.length === 0) continue;
+            const mine = localById.get(id);
+            const older = versions.filter(
+                (v) => mine === undefined || changedInSubstance(v, mine),
+            );
+            const was = versions.some((v) => !changedInSubstance(v, now))
+                ? now
+                : versions.length === 1
+                  ? versions[0]
+                  : (older.at(-1) ?? versions.at(-1)!);
+            baseById.set(id, was);
+        }
+    }
     const merged: Q[] = [];
     const conflicts: DetectedQuestionConflict<Q>[] = [];
     // Only a question with a key is the same question on both sides; one

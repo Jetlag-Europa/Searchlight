@@ -13,6 +13,7 @@ import {
     sameQuestionKey,
     sameQuestionList,
     sameQuestionSubstance,
+    withDeviceFieldsOf,
 } from "@/lib/questionMerge";
 import type { Questions } from "@/maps/schema";
 
@@ -53,6 +54,64 @@ export interface PendingEvent {
 export interface QuestionsBase {
     sequence: number;
     questions: Questions;
+    // Versions the board has seen since, by the player's decision over a
+    // question held for one (see questionConflicts): the server's version
+    // as decided on. The list keeps its sequence; a list made from this base
+    // is made from them on top (see baseQuestions).
+    decided?: BaseDecision[];
+    // A base that is our own list as of a merge (see settleQuestionsSaved
+    // in syncManager): the server's sequence its versions go back to, for
+    // telling who changed a question since.
+    since?: number;
+}
+
+export interface BaseDecision {
+    key: number;
+    question: Questions[number] | null;
+    afterKey?: number | null;
+}
+
+/** A base's questions, with the versions decided on since (see decided). */
+export function baseQuestions(base: QuestionsBase): Questions {
+    let list = base.questions;
+    for (const decision of Array.isArray(base.decided) ? base.decided : []) {
+        list = withDecision(list, decision);
+    }
+    return list;
+}
+
+// The list with a decided version in place, shown as the list shows it
+// (folded, locked).
+function withDecision(list: Questions, decision: BaseDecision): Questions {
+    const at = indexOfQuestionKey(list, decision.key);
+    const question =
+        decision.question && at !== -1
+            ? withDeviceFieldsOf(decision.question, list[at])
+            : decision.question;
+    return placeQuestion(list, decision.key, question, decision.afterKey);
+}
+
+const sameDecision = (a: BaseDecision, b: BaseDecision) =>
+    sameQuestionKey(a.key, b.key) && sameQuestionSubstance(a.question, b.question);
+
+/**
+ * `to`, with what `current` decided since `madeFrom` on top: decisions the
+ * list made from `madeFrom` didn't know, so `to` (the result of saving that
+ * list) doesn't reflect them.
+ */
+export function carryDecisions(
+    current: QuestionsBase | undefined,
+    madeFrom: QuestionsBase | undefined,
+    to: QuestionsBase,
+): QuestionsBase {
+    const known = madeFrom?.decided ?? [];
+    const decided = (current?.decided ?? []).filter(
+        (d) => !known.some((k) => sameDecision(k, d)),
+    );
+    const next: QuestionsBase = { sequence: to.sequence, questions: to.questions };
+    if (to.since !== undefined) next.since = to.since;
+    if (decided.length > 0) next.decided = decided;
+    return next;
 }
 
 export interface QuestionsReplacePayload {
@@ -99,9 +158,17 @@ function ownVersions(replaced: PendingEvent[]): Questions {
     for (const event of replaced) {
         const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
         for (const question of Array.isArray(payload?.own) ? payload.own : []) add(question);
-        const sent = event.sent || event.status === "failed" || Boolean(payload?.merged);
+        // Queued by a build from before, which didn't mark it: it may have
+        // been on its way when that page went away.
+        const legacy = !("sent" in event) && isQuestionsBase(payload?.base);
+        const sent =
+            event.sent ||
+            legacy ||
+            event.status === "failed" ||
+            Boolean(payload?.merged);
         if (!sent || !Array.isArray(payload?.questions)) continue;
-        const base = isQuestionsBase(payload.base) ? payload.base.questions : [];
+        // Against what it was made from, decisions included.
+        const base = isQuestionsBase(payload.base) ? baseQuestions(payload.base) : [];
         for (const entry of payload.questions) {
             const question = entry?.payloadJson;
             const key = questionKey(question);
@@ -348,6 +415,8 @@ export function enqueueEvent(
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
+        // Not sent yet (one without the mark is from a build before).
+        ...(event.type === "questions.replace" ? { sent: false } : {}),
     };
     events.push(newEvent);
     writePendingQueue(event.sessionId, events);
@@ -458,6 +527,7 @@ export function setCachedSession(state: CachedSessionState): void {
     }
 }
 
+// The same server list (whatever was decided on top of it since).
 function sameBase(a: QuestionsBase | undefined, b: QuestionsBase): boolean {
     return (
         a !== undefined &&
@@ -518,11 +588,11 @@ export function setBoardBase(sessionId: string, base: QuestionsBase): void {
 
 /**
  * The board has seen `question` (null: its removal) as the server's version
- * of the question with `key`, e.g. once the player has decided a conflict
- * over it: the next list queued is made from that. The base keeps its
- * sequence. A question it lacks goes after `afterKey` (see placeQuestion).
+ * of the question with `key`, by the player's decision over it: the next
+ * list queued is made from that (see QuestionsBase.decided). Nothing to
+ * record if the board's base has that version already.
  */
-export function patchBoardBaseQuestion(
+export function decideBoardBaseQuestion(
     sessionId: string,
     key: number,
     question: Questions[number] | null,
@@ -532,11 +602,19 @@ export function patchBoardBaseQuestion(
     if (!cached) return;
     const base = cached.serverQuestions ?? questionsBase(sessionId);
     if (!base) return;
+    const list = baseQuestions(base);
+    const at = indexOfQuestionKey(list, key);
+    if (sameQuestionSubstance(at === -1 ? null : list[at], question)) return;
+    const decision: BaseDecision = { key, question };
+    if (afterKey !== undefined) decision.afterKey = afterKey;
     setCachedSession({
         ...cached,
         serverQuestions: {
-            sequence: base.sequence,
-            questions: placeQuestion(base.questions, key, question, afterKey),
+            ...base,
+            decided: [
+                ...(base.decided ?? []).filter((d) => !sameQuestionKey(d.key, key)),
+                decision,
+            ],
         },
     });
 }
@@ -554,12 +632,14 @@ export function advanceBoardBase(
     if (!cached) return;
     const current = cached.serverQuestions ?? queuedQuestionsBase(sessionId);
     if (!from || !sameBase(current, from)) return;
-    setCachedSession({ ...cached, serverQuestions: to });
+    setCachedSession({ ...cached, serverQuestions: carryDecisions(current, from, to) });
 }
 
 /**
  * Give the queued question lists made from `from` the base `to`, e.g. once
- * the list they followed on from is saved.
+ * the list they followed on from is saved. Every list sent before that one
+ * has landed or never will by then, so they no longer count versions of
+ * those as possibly ours (see QuestionsReplacePayload.own).
  */
 export function rebaseQueuedQuestions(
     sessionId: string,
@@ -582,7 +662,9 @@ export function rebaseQueuedQuestions(
             return event;
         }
         changed = true;
-        return { ...event, payloadJson: { ...payload, base: to } };
+        const next = { ...payload, base: carryDecisions(payload.base, from, to) };
+        delete next.own;
+        return { ...event, payloadJson: next };
     });
     if (changed) writePendingQueue(sessionId, rebased);
 }
@@ -594,25 +676,6 @@ export function markEventSent(sessionId: string, localId: string): void {
     if (index === -1 || events[index].sent) return;
     events[index] = { ...events[index], sent: true };
     writePendingQueue(sessionId, events);
-}
-
-/**
- * A question list was answered: every list sent before it has landed or
- * never will, so the lists queued since stop counting their versions as
- * possibly ours (see QuestionsReplacePayload.own).
- */
-export function forgetOwnVersions(sessionId: string): void {
-    const events = getPendingEvents(sessionId);
-    let changed = false;
-    const settled = events.map((event) => {
-        const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
-        if (event.type !== "questions.replace" || !payload?.own) return event;
-        changed = true;
-        const rest = { ...payload };
-        delete rest.own;
-        return { ...event, payloadJson: rest };
-    });
-    if (changed) writePendingQueue(sessionId, settled);
 }
 
 /** Replace a queued event's payload, if it's still queued. */

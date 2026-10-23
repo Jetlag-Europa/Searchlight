@@ -21,12 +21,14 @@ import {
 } from "@/lib/activeSession";
 import { gameDefinitionReady, questions } from "@/lib/context";
 import {
+    baseQuestions,
     CONFLICTS_PREFIX,
     conflictsKey,
+    decideBoardBaseQuestion,
     evictOldCachedSessions,
     getCachedSession,
     onSessionDataDiscarded,
-    patchBoardBaseQuestion,
+    type QuestionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import {
@@ -85,8 +87,6 @@ export interface QuestionConflict {
     // `theirs` changed again after it was first held.
     changedAgain?: boolean;
     detectedAt: number;
-    // The save (its replacementId) whose merge held it.
-    replacementId?: string;
 }
 
 const KINDS = new Set<unknown>(["both-changed", "they-deleted", "we-deleted"]);
@@ -271,15 +271,6 @@ function refreshIfActive(sessionId: string): void {
     if (sessionId === activeSessionId.get()) refresh();
 }
 
-// Conflicts decided in this page, by session and account: see
-// withResolvedConflictsSeen.
-const resolutions = new Map<string, QuestionConflict[]>();
-const MAX_RESOLUTIONS = 50;
-
-function resolutionsKey(sessionId: string): string {
-    return `${sessionId}\u0000${conflictsKey(sessionId)}`;
-}
-
 // What the atom shows follows the active session, the account and the game.
 const followSession = () => {
     refresh();
@@ -291,12 +282,7 @@ offlineUserId.listen(followSession);
 gameDefinitionReady.listen(refresh);
 compiledGameAtom.listen(refresh);
 
-onSessionDataDiscarded((sessionId) => {
-    for (const key of [...resolutions.keys()]) {
-        if (key.startsWith(`${sessionId}\u0000`)) resolutions.delete(key);
-    }
-    refreshIfActive(sessionId);
-});
+onSessionDataDiscarded((sessionId) => refreshIfActive(sessionId));
 refresh();
 
 /**
@@ -311,8 +297,13 @@ export function recordQuestionConflicts(
     {
         baseSequence,
         theirsSequence,
-        replacementId,
-    }: { baseSequence: number; theirsSequence: number; replacementId?: string },
+        madeFrom,
+    }: {
+        baseSequence: number;
+        theirsSequence: number;
+        // What the list the merge was of was made from.
+        madeFrom?: QuestionsBase;
+    },
 ): void {
     if (detected.length === 0) return;
     const storageKey = conflictsKey(sessionId);
@@ -320,11 +311,13 @@ export function recordQuestionConflicts(
     const detectedAt = Date.now();
     const arrived: number[] = [];
     for (const merged of detected) {
-        const found = asEditedSince(sessionId, merged);
+        const found = asOfBoard(sessionId, merged, madeFrom);
+        if (found === "superseded") continue;
         const at = held.findIndex((c) => sameQuestionKey(c.key, merged.key));
         const before = at === -1 ? undefined : held[at];
-        if (!found) {
-            // The player's edit since agrees with theirs, or undid ours.
+        if (!found || sameQuestionSubstance(found.mine, found.base)) {
+            // Ours is what both started from (taken back since), or the
+            // player's edit since agrees with theirs: theirs stands.
             if (before) held.splice(at, 1);
             continue;
         }
@@ -343,7 +336,6 @@ export function recordQuestionConflicts(
             baseSequence,
             theirsSequence,
             detectedAt,
-            ...(replacementId === undefined ? {} : { replacementId }),
         };
         if (
             before &&
@@ -369,18 +361,38 @@ export function recordQuestionConflicts(
 }
 
 /**
- * A conflict the merge of a list found, as of the board now: if the player
- * edited that question on the board since the list was made (it was on its
- * way), the edit is ours, not the list's version. Null when that leaves no
- * conflict: the edit agrees with theirs, or takes ours back to what both
- * started from.
+ * A conflict the merge of a list found, as of the board now. "superseded":
+ * the board has shown theirs since the list was made (its base has moved on
+ * to it, or a decision put it there), so the list's version is out of date
+ * and what the board shows now is the player's answer to theirs: nothing
+ * to ask, and nothing held is touched.
+ * If the player edited that question on the board since the list was made
+ * (it was on its way), the edit is ours, not the list's version. Null when
+ * that leaves no conflict: the edit agrees with theirs, or takes ours back
+ * to what both started from.
  */
-function asEditedSince(
+function asOfBoard(
     sessionId: string,
     found: DetectedQuestionConflict<Question>,
-): DetectedQuestionConflict<Question> | null {
+    madeFrom: QuestionsBase | undefined,
+): DetectedQuestionConflict<Question> | null | "superseded" {
+    if (sessionId !== activeSessionId.get()) return found;
+    const base = getCachedSession(sessionId)?.serverQuestions;
+    const decided = (b: QuestionsBase | undefined) =>
+        (b?.decided ?? []).some((d) => sameQuestionKey(d.key, found.key));
     if (
-        sessionId !== activeSessionId.get() ||
+        base &&
+        madeFrom &&
+        (base.sequence > madeFrom.sequence ||
+            (decided(base) && !decided(madeFrom))) &&
+        sameQuestionSubstance(
+            findByKey(baseQuestions(base), found.key),
+            found.theirs,
+        )
+    ) {
+        return "superseded";
+    }
+    if (
         lastBoard?.sessionId !== sessionId ||
         !touched.some((key) => sameQuestionKey(key, found.key))
     ) {
@@ -560,116 +572,101 @@ export function trackBoardQuestions(
     }
 }
 
-/**
- * The list a save was made from (`local`), as the board stands once the
- * player has decided conflicts that save's merge held: having seen theirs.
- * Its answer may come after the decision (it was on its way, or queued),
- * and shows the merged list on top of the board three-way from `local`
- * (see SessionManager): without this, a board still showing ours, kept by
- * the decision, would read as unchanged and take theirs from the saved
- * list. Only that save's answer: any other is made from what the board
- * showed when it was queued.
- */
-export function withResolvedConflictsSeen<Q>(
-    sessionId: string,
-    {
-        local,
-        saved,
-        replacementId,
-    }: { local: readonly Q[]; saved: readonly Q[]; replacementId?: string },
+// The base to show a merged save on the board from, question by question:
+// our list's version where the saved list kept it (it brings nothing new)
+// or where the board had it only from us (one we added), else the version
+// the board was made from (`seen`: what it showed before the player's edits
+// since, decisions included). So the board's own edits since read as
+// ours, the server's versions as theirs, and the board having shown the
+// server's version already (an earlier save's answer, a decision) reads as
+// no change of ours.
+function shownBase<Q>(
+    seen: readonly Q[],
+    local: readonly Q[],
+    saved: readonly Q[],
 ): Q[] {
-    let seen = [...local];
-    if (replacementId === undefined) return seen;
-    for (const conflict of resolutions.get(resolutionsKey(sessionId)) ?? []) {
-        if (conflict.replacementId !== replacementId) continue;
-        const ours = findByKey(seen, conflict.key);
-        if (
-            sameQuestionSubstance(ours, conflict.mine) &&
-            sameQuestionSubstance(
-                findByKey(saved, conflict.key),
-                conflict.theirs,
-            ) &&
-            !sameQuestionSubstance(conflict.mine, conflict.theirs)
-        ) {
-            const theirs =
-                conflict.theirs && ours
-                    ? withDeviceFieldsOf(conflict.theirs, ours)
-                    : conflict.theirs;
-            seen = placeQuestion(
-                seen,
-                conflict.key,
-                theirs as Q | null,
-                conflict.theirsAfterKey,
-            );
-        }
-    }
-    return seen;
+    let base = [...seen];
+    local.forEach((question, index) => {
+        const key = (question as { key?: unknown } | null)?.key;
+        if (typeof key !== "number") return;
+        const kept = findByKey(saved, key);
+        const ours =
+            findByKey(seen, key) === null ||
+            (kept !== null &&
+                sameQuestionSubstance(kept, question as Question));
+        if (ours)
+            base = placeQuestion(base, key, question, keyBefore(local, index));
+    });
+    return base;
 }
 
 /**
  * A question list saved here was merged with changes made elsewhere: show
  * them on the board, on top of anything edited since (SessionManager calls
- * this). A question the player changed on the board since the list was
- * queued, that the other side changed too, is held like any conflict: the
- * board shows theirs, and the player's edit is what "mine" keeps.
- * `saveScheduled`: an edit is waiting to be queued, holding the board as it
- * was, so the list shown must replace it.
+ * this). A question the player changed on the board without having seen
+ * the other side's change to it is held like any conflict: the board shows
+ * theirs, and the player's edit is what "mine" keeps. `saveScheduled`: an
+ * edit is waiting to be queued, holding the board as it was, so the list
+ * shown must replace it.
  */
 export function showMergedSave(
-    {
-        sessionId,
-        local,
-        saved,
-        madeFrom,
-        sequence,
-        mergedWith,
-        replacementId,
-    }: QuestionsSaved,
+    { sessionId, local, saved, madeFrom, sequence, mergedWith }: QuestionsSaved,
     { saveScheduled }: { saveScheduled: boolean },
 ): void {
     if (!mergedWith || sequence === undefined) return;
     const cached = getCachedSession(sessionId);
+    const boardBase = cached?.serverQuestions;
     // A later list (another player's, after ours) already shows on the
     // board, our save in it: nothing to add.
-    if ((cached?.serverQuestions?.sequence ?? -1) >= sequence) return;
+    if ((boardBase?.sequence ?? -1) >= sequence) return;
     // The saved list has the server's version of each question held for a
     // decision, which may settle some.
     reconcileQuestionConflicts(sessionId, saved, sequence);
-    // One the player has decided since counts as seen on the board.
-    const shown = withResolvedConflictsSeen(sessionId, {
-        local,
-        saved,
-        replacementId,
-    });
+    // The board's base, unless it is our own list as of this very save's
+    // merge (see settleQuestionsSaved): then what the board had seen is
+    // what that list was made from (with what was decided since).
+    const advancedHere =
+        boardBase?.since !== undefined &&
+        madeFrom !== undefined &&
+        sameQuestionList(boardBase.questions, local);
+    const seenFrom =
+        advancedHere && madeFrom
+            ? {
+                  ...madeFrom,
+                  decided: [
+                      ...(madeFrom.decided ?? []),
+                      ...(boardBase?.decided ?? []),
+                  ],
+              }
+            : (boardBase ?? madeFrom);
+    const seen = seenFrom ? baseQuestions(seenFrom) : local;
+    const from = shownBase(seen, local, saved);
     const current = questions.get();
-    const result = mergeQuestionListsWithConflicts(shown, current, saved);
+    const result = mergeQuestionListsWithConflicts(from, current, saved);
     const { conflicts } = result;
     let { merged } = result;
     if (conflicts.length > 0) {
         try {
-            recordQuestionConflicts(
-                sessionId,
-                conflicts.map((c) => ({
-                    ...c,
-                    base: findByKey(madeFrom?.questions ?? [], c.key) ?? c.base,
-                })),
-                {
-                    baseSequence: madeFrom?.sequence ?? mergedWith.sequence,
-                    theirsSequence: sequence,
-                },
-            );
+            recordQuestionConflicts(sessionId, conflicts, {
+                baseSequence: seenFrom
+                    ? (seenFrom.since ?? seenFrom.sequence)
+                    : mergedWith.sequence,
+                theirsSequence: sequence,
+                madeFrom: seenFrom,
+            });
         } catch (err) {
             console.warn(
                 "[searchlight:conflicts] couldn't hold the conflicts, keeping ours:",
                 err,
             );
-            merged = mergeQuestionLists(shown, current, saved);
+            merged = mergeQuestionLists(from, current, saved);
         }
     }
     const visible = filterSupportedQuestions(merged, boardGame()) as Questions;
     // The board is made from the saved list now: the next list queued has
-    // it as its base. The snapshot keeps the two together, for an offline
-    // restore.
+    // it as its base (decisions taken were part of `seen`: they are in what
+    // the board shows now). The snapshot keeps the two together, for an
+    // offline restore.
     if (cached) {
         setCachedSession({
             ...cached,
@@ -677,15 +674,23 @@ export function showMergedSave(
             serverQuestions: { sequence, questions: saved },
         });
     }
-    if (sameQuestionList(visible, current)) return;
+    // What the board shows that the server doesn't have (what the game
+    // doesn't support aside: the board never shows that) is saved: an edit
+    // since, or one a list of ours carried that its merge left out.
+    const onServer = sameQuestionList(
+        visible,
+        filterSupportedQuestions(saved, boardGame()) as Questions,
+    );
+    if (sameQuestionList(visible, current)) {
+        if (!onServer && !saveScheduled) questions.set([...current]);
+        return;
+    }
     // Showing it isn't the player's edit.
     trackBoardQuestions(sessionId, visible, false);
-    // Edited since, or an edit waiting to be queued: save the list shown.
-    // Else the server has it.
+    // An edit waiting to be queued holds the board as it was: the list
+    // shown replaces it.
     questions.set(
-        sameQuestionList(current, shown) && !saveScheduled
-            ? suppressQuestionSave(visible)
-            : visible,
+        onServer && !saveScheduled ? suppressQuestionSave(visible) : visible,
     );
 }
 
@@ -750,7 +755,7 @@ function resolve(
         // made from it. Keeping ours is then our change, which the next
         // merge keeps, unless theirs changed yet again, which it holds again
         // and asks about. Keeping theirs changes nothing against it.
-        patchBoardBaseQuestion(
+        decideBoardBaseQuestion(
             sessionId,
             conflict.key,
             conflict.theirs,
@@ -777,14 +782,6 @@ function resolve(
                   );
         board = placeQuestion(board, conflict.key, shownVersion, after);
     }
-    const key = resolutionsKey(sessionId);
-    resolutions.set(
-        key,
-        [
-            ...(resolutions.get(key) ?? []),
-            ...chosen.filter((c) => c.replacementId),
-        ].slice(-MAX_RESOLUTIONS),
-    );
     refresh();
 
     const visible = filterSupportedQuestions(board, game) as Questions;
@@ -844,6 +841,7 @@ async function fetchChanges(
     keys: number[],
     after: number,
     until: number,
+    signal?: AbortSignal,
 ): Promise<QuestionChange[] | null> {
     const changes: QuestionChange[] = [];
     // A raw "+" (as in 1e+21) would read as a space.
@@ -852,7 +850,7 @@ async function fetchChanges(
     for (;;) {
         const res = await fetch(
             `${API_BASE}/sessions/${sessionId}/questions/changes?after=${cursor}&until=${until}&keys=${keyList}`,
-            { credentials: "include" },
+            { credentials: "include", signal },
         );
         if (res.status === 404 || res.status === 400) return null;
         if (!res.ok) throw new Error(`questions/changes: ${res.status}`);
@@ -874,6 +872,49 @@ async function fetchChanges(
             return changes;
         }
         cursor = last;
+    }
+}
+
+const HISTORY_TIMEOUT_MS = 5_000;
+
+/**
+ * Each of `keys` as the session's question saves after `after`, up to
+ * `until`, had it, newest first (null: that save didn't have it). Null when
+ * the server can't tell or can't be reached.
+ */
+export async function questionHistory(
+    sessionId: string,
+    keys: readonly number[],
+    after: number,
+    until: number,
+): Promise<Map<number, Array<Question | null>> | null> {
+    // A save waits for this, so a slow connection gives up on it and the
+    // list merges as it would without.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), HISTORY_TIMEOUT_MS);
+    try {
+        const asked = keys.slice(0, MAX_KEYS);
+        const changes = await fetchChanges(
+            sessionId,
+            asked,
+            after,
+            until,
+            controller.signal,
+        );
+        if (!changes) return null;
+        const newestFirst = changes
+            .filter((c) => c.sequence > after && c.sequence <= until)
+            .sort((a, b) => b.sequence - a.sequence);
+        return new Map(
+            asked.map((key) => [
+                key,
+                newestFirst.map((c) => findByKey(c.questions, key)),
+            ]),
+        );
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
     }
 }
 

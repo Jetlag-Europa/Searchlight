@@ -20,7 +20,6 @@ import {
 } from "@/lib/context";
 import {
     advanceBoardBase,
-    forgetOwnVersions,
     getCachedSession,
     getPendingEvents,
     markEventSynced,
@@ -224,7 +223,6 @@ function handleServerEvent(
                         questions: serverList,
                     });
                 }
-                forgetOwnVersions(targetSessionId);
             }
         } else if (
             unsynced.length > 0 ||
@@ -236,6 +234,15 @@ function handleServerEvent(
                 "pending",
             );
             return;
+        } else if (
+            (getCachedSession(targetSessionId)?.serverQuestions?.sequence ?? -1) >=
+            eventSeq
+        ) {
+            // The board is made from this list or a later one already (a
+            // late echo of a save of ours that was answered).
+            console.info(
+                "[searchlight:sse] questions.replace skipped — the board has it",
+            );
         } else {
             setBoardBase(targetSessionId, {
                 sequence: eventSeq,

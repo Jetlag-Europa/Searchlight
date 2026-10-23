@@ -43,6 +43,7 @@ import {
 import { gameDefinitionReady, questions } from "@/lib/context";
 import {
     applyUnsyncedEvents,
+    enqueueEvent,
     discardSessionData,
     getCachedSession,
     getPendingEvents,
@@ -165,10 +166,13 @@ function fakeServer(seq: number, list: Questions) {
         if (String(url).includes("/questions/changes")) {
             const params = new URL(String(url)).searchParams;
             const after = Number(params.get("after"));
+            const until = params.has("until")
+                ? Number(params.get("until"))
+                : Infinity;
             const keys = params.get("keys")!.split(",").map(Number);
             return json(200, {
                 changes: server.changes
-                    .filter((c) => c.sequence > after)
+                    .filter((c) => c.sequence > after && c.sequence <= until)
                     .map((c) => ({
                         sequence: c.sequence,
                         userId: c.userId,
@@ -1402,5 +1406,235 @@ describe("a version the game doesn't support", () => {
         ).toEqual(["1:1", "5:matching-zoo"]);
         resolveQuestionConflict(SID, 5, "theirs");
         expect(held()).toEqual([]);
+    });
+});
+
+// Round two: each of these asked about, lost or brought back something
+// before it was fixed.
+describe("decisions and our own saves", () => {
+    let stopFollowing: () => void;
+    beforeEach(() => {
+        stopFollowing = followBoard();
+    });
+    afterEach(() => stopFollowing());
+    const saveNow = () => flushQuestionSave(SID).catch(() => {});
+    const release = (server: { hold: boolean; held: Array<() => void> }) => {
+        server.hold = false;
+        server.held.splice(0).forEach((r) => r());
+    };
+
+    test("keep mine while the merged save is on its way, another question it carried edited since: nothing asked, both kept", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(1, "theirs"), q(2)]);
+        server.hold = true;
+        questions.set([q(1, "mine"), q(2, "mine")]);
+        const first = saveNow();
+        await vi.waitFor(() => expect(server.held).toHaveLength(1));
+        questions.set([q(1, "mine"), q(2, "mine2")]);
+        resolveQuestionConflict(SID, 1, "mine");
+        const second = saveNow();
+        release(server);
+        await Promise.all([first, second]);
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:mine", "2:mine2"]);
+    });
+
+    test("keep mine on a merged list already shown, the next save on its way: nothing asked", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(1, "theirs"), q(2)]);
+        questions.set([q(1, "mine", { collapsed: true }), q(2)]);
+        await saveNow();
+        await flushPendingEvents(SID);
+        server.hold = true;
+        questions.set([questions.get()[0], q(2, "x")]);
+        const first = saveNow();
+        await vi.waitFor(() => expect(server.held).toHaveLength(1));
+        resolveQuestionConflict(SID, 1, "mine");
+        questions.set([questions.get()[0], q(2, "xy")]);
+        const second = saveNow();
+        release(server);
+        await Promise.all([first, second]);
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:mine", "2:xy"]);
+    });
+
+    test("an edit taken back to what it was while the merged save is on its way: theirs stands, nothing asked", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(1, "theirs"), q(2)]);
+        server.hold = true;
+        questions.set([q(1, "mine"), q(2)]);
+        const first = saveNow();
+        await vi.waitFor(() => expect(server.held).toHaveLength(1));
+        questions.set([q(1), q(2)]);
+        release(server);
+        await first;
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:theirs", "2:2"]);
+        expect(labels(questions.get())).toEqual(["1:theirs", "2:2"]);
+    });
+
+    test("a question we added, its save's answer lost, then removed: stays removed", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        questions.set([q(1), q(3, "added")]);
+        await saveNow();
+        server.lose = false;
+        questions.set([q(1)]);
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(labels(server.list)).toEqual(["1:1"]);
+    });
+
+    test("a question we added, its save's answer lost, then edited by the other player: their edit stands", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        questions.set([q(1), q(3, "added")]);
+        await saveNow();
+        server.lose = false;
+        server.other([q(1), q(3, "theirs")]);
+        questions.set([q(1, "mine"), q(3, "added")]);
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(labels(server.list)).toEqual(["1:mine", "3:theirs"]);
+        expect(stored()).toEqual([]);
+    });
+
+    test("a question we added, its save's answer lost, then removed by the other player: stays removed (the server's history tells)", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        questions.set([q(1), q(3, "added")]);
+        await saveNow();
+        server.lose = false;
+        server.other([q(1)]);
+        questions.set([q(1, "mine"), q(3, "added")]);
+        await saveNow();
+        await flushPendingEvents(SID);
+        expect(labels(server.list)).toEqual(["1:mine"]);
+        expect(stored()).toEqual([]);
+    });
+
+    test("a question we added whose save never landed stays, when the server's history doesn't have it", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        const inner = mockFetch.getMockImplementation()!;
+        let failPut = true;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                if (init?.method === "PUT" && failPut) {
+                    failPut = false;
+                    throw new TypeError("Failed to fetch");
+                }
+                return inner(url, init);
+            },
+        );
+        questions.set([q(1), q(3, "added")]);
+        await saveNow();
+        server.other([q(1, "theirs")]);
+        await flushPendingEvents(SID);
+        expect(labels(server.list)).toEqual(["1:theirs", "3:added"]);
+    });
+
+    test("a late echo of a save of ours already answered doesn't take the board back", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        questions.set([q(1, "a")]);
+        await saveNow();
+        const echo = server.changes.at(-1)!;
+        const [first] = mockFetch.mock.calls
+            .filter(([, init]) => init?.method === "PUT")
+            .map(([, init]) => JSON.parse(init.body as string));
+        questions.set([q(1, "b")]);
+        await saveNow();
+        expect(labels(server.list)).toEqual(["1:b"]);
+        setCachedSession({
+            ...getCachedSession(SID)!,
+            lastSequence: echo.sequence - 1,
+        });
+        startSSE(SID);
+        MockEventSource.last!.onmessage!({
+            data: JSON.stringify({
+                id: "late",
+                sequence: echo.sequence,
+                sessionId: SID,
+                userId: "u1",
+                type: "questions.replace",
+                payloadJson: { questions: wire(echo.list) },
+                clientUuid: `questions-replace-${first.replacementId}`,
+                clientCreatedAt: "2026-01-01T00:00:00.000Z",
+                serverReceivedAt: "2026-01-01T00:00:00.000Z",
+            }),
+        } as MessageEvent);
+        expect(labels(questions.get())).toEqual(["1:b"]);
+        expect(getCachedSession(SID)?.serverQuestions?.sequence).toBe(
+            server.seq,
+        );
+    });
+});
+
+describe("a list queued by a build from before", () => {
+    test("counts as possibly sent: a version of ours it holds isn't asked about", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        // On its way when that page went away, and it landed.
+        server.seq = 5;
+        server.list = [q(1, "a")];
+        store.set(
+            `taibled-pending-${SID}~u1`,
+            JSON.stringify([
+                {
+                    localId: "legacy",
+                    sessionId: SID,
+                    type: "questions.replace",
+                    payloadJson: {
+                        replacementId: "r-legacy",
+                        questions: wire([q(1, "a")]),
+                        base: { sequence: 4, questions: [q(1)] },
+                    },
+                    clientUuid: "questions-replace-r-legacy",
+                    clientCreatedAt: 0,
+                    status: "pending",
+                    createdAt: 0,
+                },
+            ]),
+        );
+        void enqueueEvent;
+        await saveQuestionsToServer(SID, [q(1, "b")]);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:b"]);
+    });
+});
+
+describe("who changed a question", () => {
+    test("is the other player, for a conflict a list made from our merged save finds", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(1), q(2, "theirs")], "u2", "Alex");
+        // Its answer isn't shown (a session loading, say).
+        stopShowing();
+        server.hold = true;
+        const first = saveQuestionsToServer(SID, [q(1, "mine"), q(2)]);
+        await vi.waitFor(() => expect(server.held).toHaveLength(1));
+        // Edited without having seen theirs, queued behind it.
+        const second = saveQuestionsToServer(SID, [q(1, "mine"), q(2, "mine")]);
+        server.hold = false;
+        server.held.splice(0).forEach((r) => r());
+        await Promise.all([first, second].map((p) => p.catch(() => {})));
+        await lookUpConflictAuthors(SID);
+        expect(stored().map((c) => [c.key, c.author?.displayName])).toEqual([
+            [2, "Alex"],
+        ]);
+        stopShowing = showMergedSaves();
     });
 });
