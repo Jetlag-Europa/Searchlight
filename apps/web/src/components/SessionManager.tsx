@@ -800,6 +800,16 @@ export function SessionManager() {
     // A board painted from the snapshot shows the latest list still queued,
     // if any: its base is that list's, not the snapshot's (a merged list
     // whose answer was lost comes with the server list it was merged with).
+    //
+    // Known limit: if that merged save did land (only its answer was lost),
+    // the server also has our side of it. An edit made on the reopened
+    // board before the queued list is sent then replaces it in the queue,
+    // and a question of ours that the edit removes again reads, in the next
+    // merge, as one the other side added, so it comes back. Telling the two
+    // apart takes asking the server about the replaced list first, which was
+    // tried and broke the live flow (a live board shows the list as first
+    // made, not as merged). It takes a lost answer, a reload and that edit
+    // in a row; the question can be removed again.
     const paintedFromSnapshot = (id: string) => {
         const base = queuedQuestionsBase(id);
         if (base) setBoardBase(id, base);

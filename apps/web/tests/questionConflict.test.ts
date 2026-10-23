@@ -160,34 +160,27 @@ describe("saving a question list made on an old base", () => {
         expect(getPendingEvents(SID)[0].status).toBe("failed");
     });
 
-    test("replays an earlier list whose send failed before the one replacing it", async () => {
+    test("queues offline edits as one list, sent once, made from the same base", async () => {
         snapshot("u1", [], 4);
-        // Two edits on a bad connection: the first send fails (it may have
-        // reached the server), and the second replaces it in the queue.
         mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
-        await saveQuestionsToServer(SID, [q(1)]).catch(() => {});
-        await saveQuestionsToServer(SID, [q(1), q(2)]).catch(() => {});
+        for (const list of [[1], [1, 2], [1, 2, 3], [2, 3]]) {
+            await saveQuestionsToServer(SID, list.map(q)).catch(() => {});
+        }
         const queued = getPendingEvents(SID);
         expect(queued).toHaveLength(1);
-        const payload = queued[0].payloadJson as {
+        const payload = queued[0].payloadJson as Record<string, unknown> & {
             base: { sequence: number };
-            prior: Array<{ baseSequence: number }>;
         };
         expect(payload.base.sequence).toBe(4);
-        expect(payload.prior.map((p) => p.baseSequence)).toEqual([4]);
+        expect(payload).not.toHaveProperty("prior");
 
-        // The first had landed (at 5): the second follows on from it.
         mockFetch.mockReset();
-        mockFetch
-            .mockResolvedValueOnce(json(200, { sequence: 5, duplicate: true }))
-            .mockResolvedValueOnce(json(200, { sequence: 6 }));
+        mockFetch.mockResolvedValueOnce(json(200, { sequence: 5 }));
         await flushPendingEvents(SID);
-        const [replay, last] = puts();
-        expect(replay.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1)]);
-        expect(last.baseSequence).toBe(5);
-        expect(last.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1), q(2)]);
+        expect(puts()).toHaveLength(1);
         expect(getPendingEvents(SID)).toEqual([]);
     });
+
 
 });
 
@@ -258,41 +251,8 @@ describe("a merged save whose answer was lost", () => {
 });
 
 describe("a board reopened offline after a merged save's answer was lost", () => {
-    test("is based on the list it was merged with, so removals stay removed", async () => {
-        const A = q(1), Q1 = q(2), B2 = q(3);
-        snapshot("u1", [A], 4);
-        mockFetch
-            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
-            .mockResolvedValueOnce(json(200, { questions: wire([A, B2]), sequence: 7 }))
-            .mockRejectedValueOnce(new TypeError("Failed to fetch"));
-        await saveQuestionsToServer(SID, [A, Q1]).catch(() => {});
-
-        // Reopened offline: the board shows the queued (merged) list, and
-        // takes its base (SessionManager's paint does this).
-        const board = applyUnsyncedEvents(SID, getCachedSession(SID)!).questions;
-        expect(board).toEqual([A, Q1, B2]);
-        setBoardBase(SID, queuedQuestionsBase(SID)!);
-        expect(questionsBase(SID)?.sequence).toBe(7);
-
-        // Offline we remove Q1.
-        mockFetch.mockReset();
-        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
-        await saveQuestionsToServer(SID, [A, B2]).catch(() => {});
-
-        // The merged save had committed at 8; then they removed B2 at 9. A
-        // server knows a save it has by its replacementId.
-        const merged = puts()[0].replacementId;
-        mockFetch.mockReset();
-        mockFetch.mockImplementation(async (_u: string, init?: RequestInit) => {
-            if (init?.method !== "PUT") return json(200, { questions: wire([A, Q1]), sequence: 9 });
-            const body = JSON.parse(init.body as string);
-            if (body.replacementId === merged) return json(200, { sequence: 8, duplicate: true });
-            return body.baseSequence < 9 ? json(409, { code: "QUESTIONS_CHANGED" }) : json(200, { sequence: 10 });
-        });
-        await flushPendingEvents(SID);
-        expect(puts().at(-1).questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([A]);
-    });
-
+    // If that save did land, a question of ours removed on the reopened
+    // board comes back: see the known limit in SessionManager.
     test("keeps our offline edits if that merged save never landed", async () => {
         const A = q(1), Q1 = q(2), B2 = q(3);
         snapshot("u1", [A], 4);
@@ -338,6 +298,83 @@ describe("a merged list that can't be queued for want of space", () => {
         expect(puts().at(-1).questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1), q(2)]);
         expect(getPendingEvents(SID)).toEqual([]);
     });
+});
+
+// A server for the tests below: it refuses a stale base, and knows the
+// saves it has by their replacementId.
+function fakeServer(seq: number, list: Questions, committed = new Map<string, number>()) {
+    const server = { seq, list };
+    mockFetch.mockImplementation(async (_u: string, init?: RequestInit) => {
+        if (init?.method !== "PUT") return json(200, { questions: wire(server.list), sequence: server.seq });
+        const body = JSON.parse(init.body as string);
+        if (committed.has(body.replacementId)) {
+            return json(200, { sequence: committed.get(body.replacementId), duplicate: true });
+        }
+        if (body.baseSequence < server.seq) return json(409, { code: "QUESTIONS_CHANGED" });
+        server.seq += 1;
+        server.list = body.questions.map((x: { payloadJson: Questions[number] }) => x.payloadJson);
+        committed.set(body.replacementId, server.seq);
+        return json(200, { sequence: server.seq });
+    });
+    return server;
+}
+const keysOf = (list: Questions) => list.map((x) => (x as unknown as { key: number }).key);
+
+describe("editing while a merged save is on its way (online)", () => {
+    test("keeps the question added elsewhere", async () => {
+        const A = q(1), Q1 = q(2), B2 = q(3), Q3 = q(4);
+        snapshot("u1", [A], 4);
+        // Another device added B2 at 7. The merged save's answer is held
+        // until we've edited again.
+        const server = fakeServer(7, [A, B2]);
+        const inner = mockFetch.getMockImplementation()!;
+        let release!: () => void;
+        let mergedSent!: () => void;
+        const mergedPut = new Promise<void>((resolve) => (mergedSent = resolve));
+        let puts = 0;
+        mockFetch.mockImplementation(async (url: string, init?: RequestInit) => {
+            if (init?.method === "PUT" && ++puts === 2) {
+                mergedSent();
+                await new Promise<void>((resolve) => (release = resolve));
+            }
+            return inner(url, init);
+        });
+        const first = saveQuestionsToServer(SID, [A, Q1]);
+        await mergedPut;
+        // The board still shows [A, Q1]; we add Q3.
+        const second = saveQuestionsToServer(SID, [A, Q1, Q3]);
+        release();
+        await Promise.all([first, second]);
+        expect(keysOf(server.list)).toEqual(expect.arrayContaining([1, 2, 3, 4]));
+    });
+});
+
+describe("editing after a merged save's answer was lost (no reload)", () => {
+    for (const landed of [true, false]) {
+        test(`keeps the question added elsewhere (the save ${landed ? "landed" : "didn't land"})`, async () => {
+            const A = q(1), Q1 = q(2), B2 = q(3), Q3 = q(4);
+            snapshot("u1", [A], 4);
+            mockFetch
+                .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+                .mockResolvedValueOnce(json(200, { questions: wire([A, B2]), sequence: 7 }))
+                .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+            await saveQuestionsToServer(SID, [A, Q1]).catch(() => {});
+            const merged = puts()[0].replacementId;
+            // The live board still shows [A, Q1], made from [A] at 4.
+            expect(questionsBase(SID)?.sequence).toBe(4);
+            mockFetch.mockReset();
+            mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+            await saveQuestionsToServer(SID, [A, Q1, Q3]).catch(() => {});
+
+            mockFetch.mockReset();
+            const server = landed
+                ? fakeServer(8, [A, Q1, B2], new Map([[merged, 8]]))
+                : fakeServer(7, [A, B2]);
+            await flushPendingEvents(SID);
+            expect(keysOf(server.list)).toEqual(expect.arrayContaining([1, 2, 3, 4]));
+            expect(server.list).toHaveLength(4);
+        });
+    }
 });
 
 describe("the base of a list", () => {

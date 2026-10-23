@@ -59,42 +59,6 @@ export interface QuestionsReplacePayload {
     // retry of a merged save whose answer was lost sends the merged list,
     // and its answer is still read as a merge.
     merged?: { local: Questions; base: QuestionsBase };
-    // Lists this one replaced in the queue after they were sent and may have
-    // been saved (no answer came). Sent again first, by the same
-    // replacementId: the server says whether it has them (see sendQuestions).
-    prior?: PriorQuestions[];
-}
-
-export interface PriorQuestions {
-    replacementId: string;
-    questions: QuestionsReplacePayload["questions"];
-    baseSequence: number;
-}
-
-// Kept at most, the latest: each holds a whole list.
-const MAX_PRIOR_LISTS = 3;
-
-// A replaced list that was sent (it failed, or was merged on the way) may be
-// on the server: the list replacing it carries it along.
-function priorLists(replaced: PendingEvent[]): PriorQuestions[] {
-    const prior: PriorQuestions[] = [];
-    for (const event of replaced) {
-        const payload = event.payloadJson as Partial<QuestionsReplacePayload>;
-        prior.push(...(payload?.prior ?? []));
-        if (
-            (event.status === "failed" || payload?.merged) &&
-            payload?.replacementId &&
-            Array.isArray(payload.questions) &&
-            isQuestionsBase(payload.base)
-        ) {
-            prior.push({
-                replacementId: payload.replacementId,
-                questions: payload.questions,
-                baseSequence: payload.base.sequence,
-            });
-        }
-    }
-    return prior.slice(-MAX_PRIOR_LISTS);
 }
 
 export interface CachedSessionState {
@@ -298,20 +262,12 @@ export function enqueueEvent(
 ): PendingEvent {
     // These events contain complete field snapshots. Persist the new snapshot
     // atomically in place of older intent, including requests with a lost ACK.
-    const queued = getPendingEvents(event.sessionId);
-    const replaces = (q: PendingEvent) =>
-        isReplacementEventType(event.type) && q.type === event.type;
-    const events = queued.filter((q) => !replaces(q));
-    let payloadJson = event.payloadJson;
-    if (event.type === "questions.replace") {
-        const prior = priorLists(queued.filter(replaces));
-        if (prior.length > 0) {
-            payloadJson = { ...(event.payloadJson as QuestionsReplacePayload), prior };
-        }
-    }
+    const events = getPendingEvents(event.sessionId).filter(
+        (queued) =>
+            !isReplacementEventType(event.type) || queued.type !== event.type,
+    );
     const newEvent: PendingEvent = {
         ...event,
-        payloadJson,
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
@@ -454,18 +410,23 @@ export function queuedQuestionsBase(
 
 /**
  * The base for a new question list: the server list the board's questions
- * were made from. Undefined when this browser knows none; the list is then
- * saved as before, over whatever the server has.
+ * were made from, as the snapshot tracks it (see serverQuestions). Undefined
+ * when this browser knows none; the list is then saved as before, over
+ * whatever the server has.
  */
 export function questionsBase(sessionId: string): QuestionsBase | undefined {
     const cached = getCachedSession(sessionId);
-    // While a list is queued the board shows it or edits of it, so its base
-    // holds, unless the board has moved past it (a merged list shown).
-    const queued = queuedQuestionsBase(sessionId);
-    const board = cached?.serverQuestions;
-    if (queued && board) return board.sequence > queued.sequence ? board : queued;
-    if (queued || board) return queued ?? board;
-    if (latestQueuedQuestions(sessionId) || !cached) return undefined;
+    if (cached?.serverQuestions) return cached.serverQuestions;
+    // No board base kept (a snapshot from before): a board that is live
+    // shows the queued list as first made, not as merged.
+    const queued = latestQueuedQuestions(sessionId)?.payloadJson as
+        | Partial<QuestionsReplacePayload>
+        | undefined;
+    if (queued) {
+        const base = queued.merged?.base ?? queued.base;
+        return isQuestionsBase(base) ? base : undefined;
+    }
+    if (!cached) return undefined;
     // A snapshot from before: its list as of its last event is the best
     // there is.
     return { sequence: cached.lastSequence, questions: cached.questions };
