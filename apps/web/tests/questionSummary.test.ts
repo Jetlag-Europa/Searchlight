@@ -71,7 +71,20 @@ describe("summarizing a question", () => {
                     location: false,
                 },
             }),
-        ).toBe("Custom locations 1 mi: None chosen");
+        ).toBe("Custom locations 1 mi: Not Within");
+        // An unnamed place reads as the card names it.
+        expect(
+            summarizeQuestion({
+                id: "tentacles",
+                key: 1,
+                data: {
+                    radius: 1,
+                    unit: "miles",
+                    locationType: "custom",
+                    location: { type: "Feature", properties: {} },
+                },
+            }),
+        ).toBe("Custom locations 1 mi: Location");
         expect(
             summarizeQuestion({
                 id: "matching",
@@ -125,6 +138,18 @@ describe("summarizing a question", () => {
                 { kindLabel },
             ),
         ).toBe("Museums 2 km: None chosen");
+    });
+
+    test("reads a radius saved without its unit in the player's unit", () => {
+        const legacy = {
+            id: "radius",
+            key: 1,
+            data: { radius: 2, within: true },
+        };
+        expect(summarizeQuestion(legacy, { unit: "miles" })).toBe(
+            "2 mi, Inside",
+        );
+        expect(summarizeQuestion(legacy)).toBe("2 km, Inside");
     });
 
     test("notes a hidden question", () => {

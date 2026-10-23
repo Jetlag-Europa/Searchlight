@@ -62,11 +62,17 @@ export function questionTypeLabel(question: unknown): string {
     return (id && TYPE_LABELS[id]) || "Question";
 }
 
-// "2 km", "500 m", "1.5 mi", as the radius cards' quick picks write them.
-function formatLength(value: unknown, unit: unknown): string | undefined {
+// "2 km", "500 m", "1.5 mi", as the radius cards' quick picks write them. A
+// question saved without its unit reads it in the player's, as the board
+// does (schema.ts defaults it so).
+function formatLength(
+    value: unknown,
+    unit: unknown,
+    options: SummaryOptions,
+): string | undefined {
     const n = finite(value);
     if (n === undefined) return undefined;
-    const u = unitOf(unit) ?? "kilometers";
+    const u = unitOf(unit) ?? options.unit ?? "kilometers";
     if (u === "meters" && n >= 1000 && n % 100 === 0) return `${n / 1000} km`;
     return `${n} ${UNIT_ABBREVIATIONS[u]}`;
 }
@@ -101,13 +107,14 @@ function kindLabel(
     return label ?? CUSTOM_KINDS[id] ?? tidyKind(id, prefix);
 }
 
+// The card's words: "Not Within" when the hider is near none of them, and
+// "Location" for a place without a name.
 function tentacleChoice(data: Fields): string {
     const location = data.location;
+    if (location === false) return "Not Within";
     if (!isFields(location)) return "None chosen";
     const name = fieldsOf(location.properties).name;
-    return (
-        text(name) ?? (typeof name === "number" ? String(name) : "A location")
-    );
+    return text(name) ?? (typeof name === "number" ? String(name) : "Location");
 }
 
 export interface QuestionSummary {
@@ -128,7 +135,7 @@ function summaryParts(
     switch (typeId(question)) {
         case "radius":
             return {
-                subject: formatLength(data.radius, data.unit),
+                subject: formatLength(data.radius, data.unit, options),
                 answer:
                     typeof data.within === "boolean"
                         ? data.within
@@ -151,7 +158,7 @@ function summaryParts(
             const kind = kindLabel(data.locationType, "tentacle-", options)
                 // The game calls them "Tentacles: Museums"; the type says that.
                 ?.replace(/^tentacles?\b:?\s*/i, "");
-            const radius = formatLength(data.radius, data.unit);
+            const radius = formatLength(data.radius, data.unit, options);
             return {
                 subject: [kind, radius].filter(Boolean).join(" ") || undefined,
                 answer: tentacleChoice(data),
@@ -389,7 +396,11 @@ export function conflictQuestionLabel(
 
 // Raw values, for two versions whose summaries read the same: a 2 km radius
 // and a 2000 m one both read "2 km".
-function rawValue(field: string, data: Fields): string | undefined {
+function rawValue(
+    field: string,
+    data: Fields,
+    options: SummaryOptions,
+): string | undefined {
     const value = data[field];
     if (field === "name")
         return typeof value === "string" && value.trim()
@@ -397,7 +408,7 @@ function rawValue(field: string, data: Fields): string | undefined {
             : "no name";
     if (field === "radius" || field === "unit") {
         const n = finite(data.radius);
-        const unit = unitOf(data.unit);
+        const unit = unitOf(data.unit) ?? options.unit;
         if (n === undefined) return undefined;
         return `radius ${n}${unit ? ` ${UNIT_ABBREVIATIONS[unit]}` : ""}`;
     }
@@ -421,6 +432,7 @@ function rawValue(field: string, data: Fields): string | undefined {
 export function rawDifferences(
     a: unknown,
     b: unknown,
+    options: SummaryOptions = {},
 ): { a: string[]; b: string[] } {
     const out = { a: [] as string[], b: [] as string[] };
     try {
@@ -431,8 +443,8 @@ export function rawDifferences(
         const fields = new Set([...Object.keys(da), ...Object.keys(db)]);
         for (const field of fields) {
             if (skip.has(field) || same(da[field], db[field])) continue;
-            const ra = rawValue(field, da);
-            const rb = rawValue(field, db);
+            const ra = rawValue(field, da, options);
+            const rb = rawValue(field, db, options);
             if (ra === undefined || rb === undefined || ra === rb) continue;
             if (!out.a.includes(ra)) out.a.push(ra);
             if (!out.b.includes(rb)) out.b.push(rb);
