@@ -1,16 +1,14 @@
-// Map tile caching, shared by the service worker (src/sw.ts) and the page.
-// Keep this module free of DOM, Leaflet and store imports: the service worker
-// bundles it too.
+// Map tile caching in the service worker (src/sw.ts). Keep this module free
+// of DOM, Leaflet and store imports: the service worker bundles it.
 
-/** Tiles cached as they are viewed. Bounded; the oldest are dropped first. */
+/** CARTO and Thunderforest tiles, kept as they are viewed. Bounded. */
 export const TILE_CACHE = "searchlight-tiles";
 
 /**
- * Tiles the player saved for a game's area ("Save map for offline"). The
- * service worker reads it before TILE_CACHE and never writes or trims it;
- * only the page adds and deletes entries.
+ * OpenStreetMap tiles. Kept apart: they are a fallback for a few days while
+ * the connection is bad, not a cache that answers first.
  */
-export const SAVED_TILE_CACHE = "searchlight-saved-tiles";
+export const OSM_TILE_CACHE = "searchlight-osm-tiles";
 
 // CARTO spreads tiles over a.–d. subdomains (Leaflet's `{s}`); the rest use
 // one host.
@@ -39,4 +37,10 @@ export function tileCacheKey(url: string): string {
         "$1",
     );
     return parsed.href;
+}
+
+export function isOsmTileUrl(url: URL): boolean {
+    return (
+        url.protocol === "https:" && url.hostname === "tile.openstreetmap.org"
+    );
 }

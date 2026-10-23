@@ -8,7 +8,7 @@
 // alias.
 import { CacheableResponsePlugin } from "workbox-cacheable-response";
 import { clientsClaim } from "workbox-core";
-import type { RouteHandlerCallbackOptions } from "workbox-core/types";
+import type { WorkboxPlugin } from "workbox-core/types";
 import { ExpirationPlugin } from "workbox-expiration";
 import {
     addPlugins,
@@ -19,12 +19,17 @@ import {
 } from "workbox-precaching";
 import { RangeRequestsPlugin } from "workbox-range-requests";
 import { registerRoute } from "workbox-routing";
-import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
+import {
+    CacheFirst,
+    NetworkFirst,
+    StaleWhileRevalidate,
+} from "workbox-strategies";
 
 import { pageCacheKey } from "./lib/pageCache";
 import {
+    isOsmTileUrl,
     isTileUrl,
-    SAVED_TILE_CACHE,
+    OSM_TILE_CACHE,
     TILE_CACHE,
     tileCacheKey,
 } from "./lib/tileCache";
@@ -34,6 +39,43 @@ declare const self: ServiceWorkerGlobalScope & {
 };
 
 const DAY = 24 * 60 * 60;
+
+const DOWNLOADED_AT = "X-Searchlight-Downloaded-At";
+
+/**
+ * Serves a cached response only within `maxAgeSeconds` of its download, and
+ * deletes it once it's older. ExpirationPlugin can't do this: it counts from
+ * a response's last use, and a CORS response doesn't show it the Date header.
+ * So the copy put in the cache is stamped with the time.
+ */
+function downloadedWithin(maxAgeSeconds: number): WorkboxPlugin {
+    return {
+        cacheWillUpdate: async ({ response }) => {
+            const headers = new Headers(response.headers);
+            headers.set(DOWNLOADED_AT, String(Date.now()));
+            return new Response(response.body, {
+                status: response.status,
+                statusText: response.statusText,
+                headers,
+            });
+        },
+        cachedResponseWillBeUsed: async ({
+            cacheName,
+            request,
+            cachedResponse,
+        }) => {
+            if (!cachedResponse) return null;
+            const downloadedAt = Number(
+                cachedResponse.headers.get(DOWNLOADED_AT),
+            );
+            if (Date.now() - downloadedAt <= maxAgeSeconds * 1000) {
+                return cachedResponse;
+            }
+            await (await caches.open(cacheName)).delete(request);
+            return null;
+        },
+    };
+}
 
 // The page asks a waiting update to take over when the player chooses to
 // reload (src/lib/serviceWorker.tsx); it never takes over on its own while
@@ -68,37 +110,54 @@ registerRoute(
 addPlugins([new RangeRequestsPlugin()]);
 precacheAndRoute(self.__WB_MANIFEST);
 
-// Map tiles, kept as they are viewed: the newest few thousand (tiles are
-// 20–60 KB) for a month. Only 200s are kept; a CORS response (the tile layers
-// set crossOrigin) costs its real size in storage, where an opaque one would
-// count for megabytes.
-const tiles = new CacheFirst({
-    cacheName: TILE_CACHE,
-    plugins: [
-        {
-            cacheKeyWillBeUsed: async ({ request }) =>
-                tileCacheKey(request.url),
-        },
-        new CacheableResponsePlugin({ statuses: [200] }),
-        new ExpirationPlugin({
-            maxEntries: 3000,
-            maxAgeSeconds: 30 * DAY,
-            purgeOnQuotaError: true,
-        }),
-    ],
-});
+// Map tiles, kept as they are viewed, as CORS responses (the tile layers set
+// crossOrigin): an opaque one would count for megabytes of storage. Only 200s
+// are kept, one copy per tile across CARTO's subdomains, the newest few
+// thousand (tiles are 20–60 KB).
+const tileKey: WorkboxPlugin = {
+    cacheKeyWillBeUsed: async ({ request }) => tileCacheKey(request.url),
+};
 
-async function tile(options: RouteHandlerCallbackOptions): Promise<Response> {
-    // Tiles the player saved for a game come first. That cache belongs to
-    // the page: this never writes to it or trims it.
-    const saved = await caches.match(tileCacheKey(options.request.url), {
-        cacheName: SAVED_TILE_CACHE,
-        ignoreVary: true,
-    });
-    return saved ?? tiles.handle(options);
-}
+// CARTO's terms allow keeping tiles on the device for 30 days at most, and
+// Thunderforest's until fresh ones are downloaded: they come from the cache
+// first, for 30 days after they were downloaded.
+registerRoute(
+    ({ url }) => isTileUrl(url) && !isOsmTileUrl(url),
+    new CacheFirst({
+        cacheName: TILE_CACHE,
+        plugins: [
+            tileKey,
+            new CacheableResponsePlugin({ statuses: [200] }),
+            downloadedWithin(30 * DAY),
+            new ExpirationPlugin({
+                maxEntries: 3000,
+                maxAgeSeconds: 30 * DAY,
+                purgeOnQuotaError: true,
+            }),
+        ],
+    }),
+);
 
-registerRoute(({ url }) => isTileUrl(url), tile);
+// OpenStreetMap asks clients to honour its caching headers (about a day,
+// then stale-if-error for a week). Its tiles come from the network, through
+// the browser's HTTP cache that applies them; the copy kept here is only
+// used when the network fails or takes over 3 s, and for a week at most.
+registerRoute(
+    ({ url }) => isOsmTileUrl(url),
+    new NetworkFirst({
+        cacheName: OSM_TILE_CACHE,
+        networkTimeoutSeconds: 3,
+        plugins: [
+            new CacheableResponsePlugin({ statuses: [200] }),
+            downloadedWithin(7 * DAY),
+            new ExpirationPlugin({
+                maxEntries: 1000,
+                maxAgeSeconds: 7 * DAY,
+                purgeOnQuotaError: true,
+            }),
+        ],
+    }),
+);
 
 // Google Fonts: the stylesheet is refreshed in the background, the font
 // files it names never change. Layout.astro loads the stylesheet with CORS,

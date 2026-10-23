@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { isTileUrl, tileCacheKey } from "@/lib/tileCache";
+import { isOsmTileUrl, isTileUrl, tileCacheKey } from "@/lib/tileCache";
 
 const tile = (url: string) => isTileUrl(new URL(url));
 
@@ -30,6 +30,20 @@ describe("isTileUrl", () => {
         expect(tile("http://tile.openstreetmap.org/1/0/0.png")).toBe(false);
         expect(tile("https://photon.komoot.io/api?q=x")).toBe(false);
         expect(tile("https://api.example.test/sessions")).toBe(false);
+    });
+});
+
+describe("isOsmTileUrl", () => {
+    it("matches only OpenStreetMap's tiles", () => {
+        const osm = (url: string) => isOsmTileUrl(new URL(url));
+        expect(osm("https://tile.openstreetmap.org/10/524/351.png")).toBe(true);
+        expect(osm("http://tile.openstreetmap.org/10/524/351.png")).toBe(false);
+        expect(osm("https://a.basemaps.cartocdn.com/dark_all/1/0/0.png")).toBe(
+            false,
+        );
+        expect(osm("https://tile.thunderforest.com/transport/1/0/0.png")).toBe(
+            false,
+        );
     });
 });
 
