@@ -21,7 +21,15 @@ import {
     setCachedSession,
     updateQueuedPayload,
 } from "@/lib/eventQueue";
-import { mergeQuestionLists } from "@/lib/questionMerge";
+import {
+    lookUpConflictAuthors,
+    reconcileQuestionConflicts,
+    recordQuestionConflicts,
+} from "@/lib/questionConflicts";
+import {
+    mergeQuestionLists,
+    mergeQuestionListsWithConflicts,
+} from "@/lib/questionMerge";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -106,6 +114,8 @@ export interface QuestionsSaved {
     sequence?: number;
     // When merged: the server's list it was last merged with.
     mergedWith?: QuestionsBase;
+    // The save's own id (see questionConflicts' withResolvedConflictsSeen).
+    replacementId?: string;
 }
 
 type QuestionsSavedListener = (saved: QuestionsSaved) => void;
@@ -161,8 +171,53 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
 }
 
 /**
+ * Merge a list made on an older base into the server's. A question both
+ * sides changed differently is held for the player (see questionConflicts):
+ * the merged list has the server's version of it for now. The held
+ * conflicts are stored before anything is sent, so a page killed after the
+ * save lands still has them. If they can't be, ours is saved, as before.
+ */
+function mergeWithServer(
+    sessionId: string,
+    payload: QuestionsReplacePayload & { base: QuestionsBase },
+    local: Questions,
+    server: QuestionsBase,
+    keepalive: boolean,
+): Questions {
+    const { base } = payload;
+    // Conflicts held from earlier saves first: this list may settle them.
+    reconcileQuestionConflicts(sessionId, server.questions, server.sequence);
+    const { merged, conflicts } = mergeQuestionListsWithConflicts(
+        base.questions,
+        local,
+        server.questions,
+        Array.isArray(payload.own) ? payload.own : [],
+    );
+    if (conflicts.length === 0) return merged;
+    try {
+        recordQuestionConflicts(sessionId, conflicts, {
+            baseSequence: base.sequence,
+            theirsSequence: server.sequence,
+            replacementId: payload.replacementId,
+        });
+    } catch (err) {
+        console.warn("[searchlight:sync] couldn't hold the conflicts, keeping ours:", err);
+        return mergeQuestionLists(base.questions, local, server.questions);
+    }
+    console.info(
+        "[searchlight:sync] held",
+        conflicts.length,
+        "question(s) changed on both sides for the player to decide",
+    );
+    // Who changed them is only for showing: never in the save's way, and
+    // not while the page goes away.
+    if (!keepalive) void lookUpConflictAuthors(sessionId);
+    return merged;
+}
+
+/**
  * Save a queued question list. Made on a base the server has moved on from,
- * it is merged with the server's list first: see mergeQuestionLists. Each
+ * it is merged with the server's list first: see mergeWithServer. Each
  * merge replaces the queued list before it is sent, keeping its
  * replacementId: if the merged save commits but its answer is lost, the
  * retry sends that same merged list, which the server recognizes as done.
@@ -200,10 +255,12 @@ async function sendQuestions(
                 }
                 const server = await fetchServerQuestions(sessionId);
                 const list = payload.questions.map((q) => q.payloadJson);
-                const merged = mergeQuestionLists(
-                    payload.base.questions,
+                const merged = mergeWithServer(
+                    sessionId,
+                    { ...payload, base: payload.base },
                     list,
-                    server.questions,
+                    server,
+                    keepalive,
                 );
                 console.info(
                     "[searchlight:sync] questions changed elsewhere, merged",
@@ -249,6 +306,7 @@ async function sendQuestions(
             madeFrom,
             sequence,
             mergedWith: payload.merged ? payload.base : undefined,
+            replacementId: payload.replacementId,
         };
     }
 }

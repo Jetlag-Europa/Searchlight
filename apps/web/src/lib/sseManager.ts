@@ -29,6 +29,7 @@ import {
 } from "@/lib/eventQueue";
 import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
 import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
@@ -234,6 +235,9 @@ function handleServerEvent(
                 sequence: eventSeq,
                 questions: serverList,
             });
+            // Questions held for a decision may be settled by it, or
+            // changed again.
+            reconcileQuestionConflicts(targetSessionId, serverList, eventSeq);
             const newQs = filterSupportedQuestions(
                 serverList,
                 compiledGameAtom.get(),

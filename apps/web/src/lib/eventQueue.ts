@@ -6,7 +6,14 @@ import type {
 import type { StrokeFeature } from "@/annotations/types";
 import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
-import { sameQuestionList } from "@/lib/questionMerge";
+import {
+    indexOfQuestionKey,
+    placeQuestion,
+    questionKey,
+    sameQuestionKey,
+    sameQuestionList,
+    sameQuestionSubstance,
+} from "@/lib/questionMerge";
 import type { Questions } from "@/maps/schema";
 
 export type EventType =
@@ -59,6 +66,47 @@ export interface QuestionsReplacePayload {
     // retry of a merged save whose answer was lost sends the merged list,
     // and its answer is still read as a merge.
     merged?: { local: Questions; base: QuestionsBase };
+    // Versions of questions that the lists this one replaced in the queue
+    // had changed: one of those may have been saved without its answer
+    // coming. Only for telling, when merging, our own earlier edit on the
+    // server from another's (see mergeQuestionListsWithConflicts); never
+    // sent.
+    own?: Questions;
+}
+
+// Kept at most, the latest.
+const MAX_OWN_VERSIONS = 100;
+
+// The versions of questions the replaced lists changed against their base
+// (for a merged one: the server's list it was merged with, so the other
+// side's versions it holds aren't counted as ours), and what they carried.
+function ownVersions(replaced: PendingEvent[]): Questions {
+    const own: Questions = [];
+    const add = (question: Questions[number]) => {
+        const key = questionKey(question);
+        if (key === undefined) return;
+        const known = own.some(
+            (q) =>
+                sameQuestionKey(questionKey(q)!, key) &&
+                sameQuestionSubstance(q, question),
+        );
+        if (!known) own.push(question);
+    };
+    for (const event of replaced) {
+        const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
+        for (const question of Array.isArray(payload?.own) ? payload.own : []) add(question);
+        if (!Array.isArray(payload?.questions)) continue;
+        const base = isQuestionsBase(payload.base) ? payload.base.questions : [];
+        for (const entry of payload.questions) {
+            const question = entry?.payloadJson;
+            const key = questionKey(question);
+            if (key === undefined) continue;
+            const at = indexOfQuestionKey(base, key);
+            if (at !== -1 && sameQuestionSubstance(base[at], question)) continue;
+            add(question);
+        }
+    }
+    return own.slice(-MAX_OWN_VERSIONS);
 }
 
 export interface CachedSessionState {
@@ -107,6 +155,10 @@ function isSessionSummary(
 
 export const CACHE_PREFIX = "taibled-cache-";
 export const PENDING_PREFIX = "taibled-pending-";
+// Questions held for the player to decide (see questionConflicts.ts), kept
+// next to the queue and per account like it, but out of it: they aren't
+// edits to send.
+export const CONFLICTS_PREFIX = "taibled-conflicts-";
 export const MAX_CACHED_SESSIONS = 10;
 
 // Each account has its own queue for a session, so edits queued by one are
@@ -150,6 +202,18 @@ function pendingKey(sessionId: string) {
         // Storage is best-effort; the legacy queue stays put.
     }
     return key;
+}
+
+/**
+ * Where this account's held question conflicts for a session are kept. The
+ * unowned key only before /me names an account (and in tests), as for the
+ * queue.
+ */
+export function conflictsKey(sessionId: string): string {
+    const owner = queueOwner();
+    return owner
+        ? `${CONFLICTS_PREFIX}${sessionId}~${owner}`
+        : `${CONFLICTS_PREFIX}${sessionId}`;
 }
 
 function cacheKey(sessionId: string) {
@@ -262,12 +326,20 @@ export function enqueueEvent(
 ): PendingEvent {
     // These events contain complete field snapshots. Persist the new snapshot
     // atomically in place of older intent, including requests with a lost ACK.
-    const events = getPendingEvents(event.sessionId).filter(
-        (queued) =>
-            !isReplacementEventType(event.type) || queued.type !== event.type,
-    );
+    const queued = getPendingEvents(event.sessionId);
+    const replaces = (q: PendingEvent) =>
+        isReplacementEventType(event.type) && q.type === event.type;
+    const events = queued.filter((q) => !replaces(q));
+    let payloadJson = event.payloadJson;
+    if (event.type === "questions.replace") {
+        const own = ownVersions(queued.filter(replaces));
+        if (own.length > 0) {
+            payloadJson = { ...(event.payloadJson as QuestionsReplacePayload), own };
+        }
+    }
     const newEvent: PendingEvent = {
         ...event,
+        payloadJson,
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
@@ -440,6 +512,31 @@ export function setBoardBase(sessionId: string, base: QuestionsBase): void {
 }
 
 /**
+ * The board has seen `question` (null: its removal) as the server's version
+ * of the question with `key`, e.g. once the player has decided a conflict
+ * over it: the next list queued is made from that. The base keeps its
+ * sequence. A question it lacks goes after `afterKey` (see placeQuestion).
+ */
+export function patchBoardBaseQuestion(
+    sessionId: string,
+    key: number,
+    question: Questions[number] | null,
+    afterKey?: number | null,
+): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached) return;
+    const base = cached.serverQuestions ?? questionsBase(sessionId);
+    if (!base) return;
+    setCachedSession({
+        ...cached,
+        serverQuestions: {
+            sequence: base.sequence,
+            questions: placeQuestion(base.questions, key, question, afterKey),
+        },
+    });
+}
+
+/**
  * The board moved from `from` to `to`, e.g. our list made from `from` was
  * saved as is. A board made from anything else stays as it is.
  */
@@ -509,7 +606,8 @@ export function clearCachedSession(sessionId: string): void {
 // snapshot in storage forever, and its disabled zones. A deleted session
 // takes every account's queue with it (`allAccounts`); one this account
 // lost access to only takes this account's and the unowned one, since
-// another account may still have access.
+// another account may still have access. Questions held for a decision go
+// the same way.
 export function discardSessionData(
     sessionId: string,
     { allAccounts = false }: { allAccounts?: boolean } = {},
@@ -517,20 +615,37 @@ export function discardSessionData(
     forgetDisabledZones(sessionId);
     try {
         if (allAccounts) {
-            const prefix = `${PENDING_PREFIX}${sessionId}~`;
+            const prefixes = [
+                `${PENDING_PREFIX}${sessionId}~`,
+                `${CONFLICTS_PREFIX}${sessionId}~`,
+            ];
             const keys: string[] = [];
             for (let i = 0; i < localStorage.length; i++) {
                 const key = localStorage.key(i);
-                if (key?.startsWith(prefix)) keys.push(key);
+                if (key && prefixes.some((p) => key.startsWith(p))) keys.push(key);
             }
             for (const key of keys) localStorage.removeItem(key);
         }
         localStorage.removeItem(pendingKey(sessionId));
         localStorage.removeItem(legacyPendingKey(sessionId));
+        localStorage.removeItem(conflictsKey(sessionId));
+        localStorage.removeItem(`${CONFLICTS_PREFIX}${sessionId}`);
         localStorage.removeItem(cacheKey(sessionId));
     } catch (e) {
         console.warn("[eventQueue] failed to discard session data:", e);
     }
+    for (const listener of discardListeners) listener(sessionId);
+}
+
+type DiscardListener = (sessionId: string) => void;
+const discardListeners = new Set<DiscardListener>();
+
+/** Hear about a session's data being discarded. */
+export function onSessionDataDiscarded(listener: DiscardListener): () => void {
+    discardListeners.add(listener);
+    return () => {
+        discardListeners.delete(listener);
+    };
 }
 
 // Derive current local state by replaying pending events on top of a cached snapshot.

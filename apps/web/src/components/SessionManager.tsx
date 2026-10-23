@@ -45,6 +45,11 @@ import {
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import {
+    reconcileQuestionConflicts,
+    trackBoardQuestions,
+    withResolvedConflictsSeen,
+} from "@/lib/questionConflicts";
 import { mergeQuestionLists, sameQuestionList } from "@/lib/questionMerge";
 import {
     isQuestionSaveSuppressed,
@@ -840,24 +845,29 @@ export function SessionManager() {
     // Debounce-save questions whenever they change (while a session is active).
     // Skip the first fire after a server load to avoid overwriting fresh server data.
     useEffect(() => {
-        if (!sessionId || !authUserId || savesBlocked()) return;
-        if (suppressNextSaveRef.current) {
-            suppressNextSaveRef.current = false;
-            return;
-        }
-        if (isQuestionSaveSuppressed(currentQuestions)) {
-            console.info(
-                "[searchlight:session] suppressing save — questions were set by SSE or game filtering",
-            );
-            return;
-        }
-        if (isLoadingSession()) {
-            console.info(
-                "[searchlight:session] suppressing save — session is loading",
-            );
-            return;
-        }
-        saveQuestionsDebounced(sessionId, currentQuestions);
+        const save = (() => {
+            if (!sessionId || !authUserId || savesBlocked()) return false;
+            if (suppressNextSaveRef.current) {
+                suppressNextSaveRef.current = false;
+                return false;
+            }
+            if (isQuestionSaveSuppressed(currentQuestions)) {
+                console.info(
+                    "[searchlight:session] suppressing save — questions were set by SSE or game filtering",
+                );
+                return false;
+            }
+            if (isLoadingSession()) {
+                console.info(
+                    "[searchlight:session] suppressing save — session is loading",
+                );
+                return false;
+            }
+            return true;
+        })();
+        // A player's edit to a question held for a decision decides it.
+        trackBoardQuestions(sessionId, currentQuestions, save);
+        if (save) saveQuestionsDebounced(sessionId, currentQuestions);
     }, [sessionId, authUserId, currentQuestions]);
 
     // Debounce-save hider mode whenever it changes (while a session is active).
@@ -1110,8 +1120,13 @@ export function SessionManager() {
                         questions: serverQs,
                         strokes: serverStrokes,
                         session: refreshedSession,
+                        cursor: serverCursor,
                     } = await loadSessionContent(storedId, authUserId);
                     if (!isCurrent()) return;
+                    // Questions held for a decision may be settled by now.
+                    if (serverCursor !== undefined) {
+                        reconcileQuestionConflicts(storedId, serverQs, serverCursor);
+                    }
                     const definitionReady = await switchToGame(
                         { id: refreshedSession.gameId },
                         {
@@ -1298,8 +1313,13 @@ export function SessionManager() {
                     questions: loadedQuestions,
                     strokes: loadedStrokes,
                     session: refreshedSession,
+                    cursor: loadedCursor,
                 } = await loadSessionContent(selected.id, authUserId);
                 if (!isCurrent()) return;
+                // Questions held for a decision may be settled by now.
+                if (loadedCursor !== undefined) {
+                    reconcileQuestionConflicts(selected.id, loadedQuestions, loadedCursor);
+                }
                 sessionToActivate = refreshedSession;
 
                 console.info(
@@ -1493,7 +1513,7 @@ export function SessionManager() {
     // the server's list anyway.
     useEffect(
         () =>
-            onQuestionsSaved(({ sessionId: savedId, local, saved, sequence, mergedWith }) => {
+            onQuestionsSaved(({ sessionId: savedId, local, saved, sequence, mergedWith, replacementId }) => {
                 if (!mergedWith || savedId !== activeSessionId.get()) return;
                 if (isLoadingSession()) return;
                 const cached = getCachedSession(savedId);
@@ -1505,9 +1525,18 @@ export function SessionManager() {
                 ) {
                     return;
                 }
+                // Questions held for a decision: the saved list has the
+                // server's version of each, which may settle some. One the
+                // player has decided since counts as seen on the board.
+                reconcileQuestionConflicts(savedId, saved, sequence);
+                const shown = withResolvedConflictsSeen(savedId, {
+                    local,
+                    saved,
+                    replacementId,
+                });
                 const current = questions.get();
                 const visible = filterSupportedQuestions(
-                    mergeQuestionLists(local, current, saved),
+                    mergeQuestionLists(shown, current, saved),
                     gameDefinitionReady.get() ? compiledGameAtom.get() : null,
                 );
                 // The board is made from the saved list now: the next list
@@ -1521,9 +1550,11 @@ export function SessionManager() {
                     });
                 }
                 if (sameQuestionList(visible, current)) return;
+                // Showing it isn't the player's edit of a held question.
+                trackBoardQuestions(savedId, visible, false);
                 // Edited since: save the rebased list. Else the server has it.
                 questions.set(
-                    sameQuestionList(current, local)
+                    sameQuestionList(current, shown)
                         ? suppressQuestionSave(visible)
                         : visible,
                 );
