@@ -20,6 +20,7 @@ import {
 } from "@/lib/context";
 import {
     advanceBoardBase,
+    forgetOwnVersions,
     getCachedSession,
     getPendingEvents,
     markEventSynced,
@@ -37,7 +38,7 @@ import {
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
 } from "@/lib/sessionState";
-import { retryPendingEvents } from "@/lib/syncManager";
+import { questionsSavedByEcho, retryPendingEvents } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -209,16 +210,21 @@ function handleServerEvent(
         ).questions.map((question) => question.payloadJson);
         if (own) {
             markEventSynced(targetSessionId, own.localId);
-            // The board's base moves on, unless the save was merged: then
-            // the board doesn't show the other side's changes yet (its
-            // answer does that, see syncManager).
             const payload = own.payloadJson as QuestionsReplacePayload;
             const local = payload.questions.map((question) => question.payloadJson);
-            if (!payload.merged && sameQuestionList(local, serverList)) {
-                advanceBoardBase(targetSessionId, payload.base, {
-                    sequence: eventSeq,
-                    questions: serverList,
-                });
+            if (payload.merged) {
+                // The board doesn't show the other side's changes yet: show
+                // the merged list, as its answer would (it may never come).
+                questionsSavedByEcho(targetSessionId, payload, serverList, eventSeq);
+            } else {
+                // The board's base moves on.
+                if (sameQuestionList(local, serverList)) {
+                    advanceBoardBase(targetSessionId, payload.base, {
+                        sequence: eventSeq,
+                        questions: serverList,
+                    });
+                }
+                forgetOwnVersions(targetSessionId);
             }
         } else if (
             unsynced.length > 0 ||

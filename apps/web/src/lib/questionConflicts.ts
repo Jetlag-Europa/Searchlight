@@ -21,21 +21,28 @@ import {
 } from "@/lib/activeSession";
 import { gameDefinitionReady, questions } from "@/lib/context";
 import {
+    CONFLICTS_PREFIX,
     conflictsKey,
     evictOldCachedSessions,
+    getCachedSession,
     onSessionDataDiscarded,
     patchBoardBaseQuestion,
+    setCachedSession,
 } from "@/lib/eventQueue";
 import {
     type DetectedQuestionConflict,
     indexOfQuestionKey,
     keyBefore,
+    mergeQuestionLists,
+    mergeQuestionListsWithConflicts,
     placeQuestion,
     sameQuestionKey,
     sameQuestionList,
     sameQuestionSubstance,
     withDeviceFieldsOf,
 } from "@/lib/questionMerge";
+import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
+import type { QuestionsSaved } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -73,7 +80,7 @@ export interface QuestionConflict {
     baseSequence: number;
     theirsSequence: number;
     // Who last changed it on the server since baseSequence. Undefined: not
-    // looked up yet; null: couldn't tell (an older API, a failed lookup).
+    // looked up yet; null: couldn't tell (an older API).
     author?: QuestionConflictAuthor | null;
     // `theirs` changed again after it was first held.
     changedAgain?: boolean;
@@ -156,9 +163,57 @@ export const questionConflicts: ReadableAtom<QuestionConflict[]> = $conflicts;
 
 /**
  * Bumped each time conflicts over questions not already held are recorded
- * for the active session in this page (not when loaded from storage).
+ * for the active session in this page, or when the player gets to a session
+ * that had them recorded in this page meanwhile (not for ones loaded from
+ * storage).
  */
 export const questionConflictArrivals: ReadableAtom<number> = $arrivals;
+
+const $decisionsPossible = atom(false);
+
+/**
+ * Whether a decision can be taken now: the board shows the active session
+ * and its edits are saved (not while a session loads, which replaces the
+ * board, nor offline on a board not kept for this account). Deciding
+ * otherwise does nothing. SessionManager sets it.
+ */
+export const questionDecisionsPossible: ReadableAtom<boolean> =
+    $decisionsPossible;
+
+export function setQuestionDecisionsPossible(possible: boolean): void {
+    if ($decisionsPossible.get() !== possible) $decisionsPossible.set(possible);
+}
+
+/**
+ * Whether that side's version can be kept: it's a removal, or the game the
+ * board shows supports it. One it doesn't support can't be put on the board,
+ * and keeping it would read as removing the question for everyone.
+ */
+export function isConflictVersionSupported(
+    conflict: QuestionConflict,
+    side: "mine" | "theirs",
+): boolean {
+    const version = side === "mine" ? conflict.mine : conflict.theirs;
+    return version === null || isQuestionSupported(version, boardGame());
+}
+
+// New conflicts recorded in this page for a session while it wasn't the
+// active one (by the flush of a session being opened, say), by storage key:
+// they count as arriving once the player gets to it.
+const unseen = new Map<string, number[]>();
+
+function arriveUnseen(): void {
+    const sessionId = activeSessionId.get();
+    if (!sessionId) return;
+    const storageKey = conflictsKey(sessionId);
+    const keys = unseen.get(storageKey);
+    if (!keys) return;
+    unseen.delete(storageKey);
+    const held = readHeld(storageKey);
+    if (held.some((c) => keys.some((key) => sameQuestionKey(key, c.key)))) {
+        $arrivals.set($arrivals.get() + 1);
+    }
+}
 
 // Where it is on the board, or next to its neighbour there, else last.
 function boardPosition(
@@ -176,7 +231,22 @@ function boardPosition(
     return Number.MAX_SAFE_INTEGER;
 }
 
+let followingOtherTabs = false;
+
 function refresh(): void {
+    // Other tabs' changes to what is held show here too.
+    if (
+        !followingOtherTabs &&
+        typeof window !== "undefined" &&
+        typeof window.addEventListener === "function"
+    ) {
+        followingOtherTabs = true;
+        window.addEventListener("storage", (event) => {
+            const key = (event as StorageEvent).key;
+            if (typeof key !== "string" || key.startsWith(CONFLICTS_PREFIX))
+                refresh();
+        });
+    }
     const sessionId = activeSessionId.get();
     let shown: QuestionConflict[] = [];
     if (sessionId && typeof localStorage !== "undefined") {
@@ -211,11 +281,16 @@ function resolutionsKey(sessionId: string): string {
 }
 
 // What the atom shows follows the active session, the account and the game.
-activeSessionId.listen(refresh);
-verifiedUserId.listen(refresh);
-offlineUserId.listen(refresh);
+const followSession = () => {
+    refresh();
+    arriveUnseen();
+};
+activeSessionId.listen(followSession);
+verifiedUserId.listen(followSession);
+offlineUserId.listen(followSession);
 gameDefinitionReady.listen(refresh);
 compiledGameAtom.listen(refresh);
+
 onSessionDataDiscarded((sessionId) => {
     for (const key of [...resolutions.keys()]) {
         if (key.startsWith(`${sessionId}\u0000`)) resolutions.delete(key);
@@ -243,10 +318,16 @@ export function recordQuestionConflicts(
     const storageKey = conflictsKey(sessionId);
     const held = readHeld(storageKey);
     const detectedAt = Date.now();
-    let arrived = false;
-    for (const found of detected) {
-        const at = held.findIndex((c) => sameQuestionKey(c.key, found.key));
+    const arrived: number[] = [];
+    for (const merged of detected) {
+        const found = asEditedSince(sessionId, merged);
+        const at = held.findIndex((c) => sameQuestionKey(c.key, merged.key));
         const before = at === -1 ? undefined : held[at];
+        if (!found) {
+            // The player's edit since agrees with theirs, or undid ours.
+            if (before) held.splice(at, 1);
+            continue;
+        }
         const record: QuestionConflict = {
             key: found.key,
             kind: found.kind,
@@ -275,14 +356,59 @@ export function recordQuestionConflicts(
             held[at] = record;
         } else {
             held.push(record);
-            arrived = true;
+            arrived.push(record.key);
         }
     }
     writeHeld(storageKey, held);
     if (sessionId === activeSessionId.get()) {
         refresh();
-        if (arrived) $arrivals.set($arrivals.get() + 1);
+        if (arrived.length > 0) $arrivals.set($arrivals.get() + 1);
+    } else if (arrived.length > 0) {
+        unseen.set(storageKey, [...(unseen.get(storageKey) ?? []), ...arrived]);
     }
+}
+
+/**
+ * A conflict the merge of a list found, as of the board now: if the player
+ * edited that question on the board since the list was made (it was on its
+ * way), the edit is ours, not the list's version. Null when that leaves no
+ * conflict: the edit agrees with theirs, or takes ours back to what both
+ * started from.
+ */
+function asEditedSince(
+    sessionId: string,
+    found: DetectedQuestionConflict<Question>,
+): DetectedQuestionConflict<Question> | null {
+    if (
+        sessionId !== activeSessionId.get() ||
+        lastBoard?.sessionId !== sessionId ||
+        !touched.some((key) => sameQuestionKey(key, found.key))
+    ) {
+        return found;
+    }
+    const board = lastBoard.questions;
+    const at = indexOfQuestionKey(board, found.key);
+    const mine = at === -1 ? null : board[at];
+    if (sameQuestionSubstance(mine, found.mine)) return found;
+    if (
+        sameQuestionSubstance(mine, found.theirs) ||
+        sameQuestionSubstance(mine, found.base)
+    ) {
+        return null;
+    }
+    const edited: DetectedQuestionConflict<Question> = {
+        ...found,
+        kind:
+            mine === null
+                ? "we-deleted"
+                : found.theirs === null
+                  ? "they-deleted"
+                  : "both-changed",
+        mine,
+    };
+    delete edited.mineAfterKey;
+    if (at !== -1) edited.mineAfterKey = keyBefore(board, at);
+    return edited;
 }
 
 /**
@@ -350,6 +476,35 @@ export function reconcileQuestionConflicts(
 // The board as last seen by trackBoardQuestions, to tell what an edit
 // changed. A copy: cards edit questions in place before publishing.
 let lastBoard: { sessionId: string; questions: Question[] } | undefined;
+// Keys of the questions on that board as the player last edited them (not
+// as the server, a load or a decision last set them).
+let touched: number[] = [];
+
+// Keys whose question is added, removed or changed in substance between
+// the two lists.
+function changedKeys(
+    before: readonly Question[],
+    after: readonly Question[],
+): number[] {
+    const keys: number[] = [];
+    for (const question of [...before, ...after]) {
+        const key = (question as { key?: unknown } | null)?.key;
+        if (
+            typeof key !== "number" ||
+            keys.some((k) => sameQuestionKey(k, key))
+        )
+            continue;
+        if (
+            !sameQuestionSubstance(
+                findByKey(before, key),
+                findByKey(after, key),
+            )
+        ) {
+            keys.push(key);
+        }
+    }
+    return keys;
+}
 
 /**
  * Follow the board. `edited`: the player changed it (a set that schedules a
@@ -370,7 +525,21 @@ export function trackBoardQuestions(
               questions: JSON.parse(JSON.stringify(board)) as Question[],
           }
         : undefined;
-    if (!edited || !before) return;
+    if (!before) {
+        touched = [];
+        return;
+    }
+    const changed = changedKeys(before, board);
+    if (changed.length === 0) return;
+    touched = edited
+        ? [
+              ...touched.filter(
+                  (k) => !changed.some((c) => sameQuestionKey(c, k)),
+              ),
+              ...changed,
+          ]
+        : touched.filter((k) => !changed.some((c) => sameQuestionKey(c, k)));
+    if (!edited) return;
     try {
         const storageKey = conflictsKey(sessionId);
         const held = readHeld(storageKey);
@@ -437,6 +606,89 @@ export function withResolvedConflictsSeen<Q>(
     return seen;
 }
 
+/**
+ * A question list saved here was merged with changes made elsewhere: show
+ * them on the board, on top of anything edited since (SessionManager calls
+ * this). A question the player changed on the board since the list was
+ * queued, that the other side changed too, is held like any conflict: the
+ * board shows theirs, and the player's edit is what "mine" keeps.
+ * `saveScheduled`: an edit is waiting to be queued, holding the board as it
+ * was, so the list shown must replace it.
+ */
+export function showMergedSave(
+    {
+        sessionId,
+        local,
+        saved,
+        madeFrom,
+        sequence,
+        mergedWith,
+        replacementId,
+    }: QuestionsSaved,
+    { saveScheduled }: { saveScheduled: boolean },
+): void {
+    if (!mergedWith || sequence === undefined) return;
+    const cached = getCachedSession(sessionId);
+    // A later list (another player's, after ours) already shows on the
+    // board, our save in it: nothing to add.
+    if ((cached?.serverQuestions?.sequence ?? -1) >= sequence) return;
+    // The saved list has the server's version of each question held for a
+    // decision, which may settle some.
+    reconcileQuestionConflicts(sessionId, saved, sequence);
+    // One the player has decided since counts as seen on the board.
+    const shown = withResolvedConflictsSeen(sessionId, {
+        local,
+        saved,
+        replacementId,
+    });
+    const current = questions.get();
+    const result = mergeQuestionListsWithConflicts(shown, current, saved);
+    const { conflicts } = result;
+    let { merged } = result;
+    if (conflicts.length > 0) {
+        try {
+            recordQuestionConflicts(
+                sessionId,
+                conflicts.map((c) => ({
+                    ...c,
+                    base: findByKey(madeFrom?.questions ?? [], c.key) ?? c.base,
+                })),
+                {
+                    baseSequence: madeFrom?.sequence ?? mergedWith.sequence,
+                    theirsSequence: sequence,
+                },
+            );
+        } catch (err) {
+            console.warn(
+                "[searchlight:conflicts] couldn't hold the conflicts, keeping ours:",
+                err,
+            );
+            merged = mergeQuestionLists(shown, current, saved);
+        }
+    }
+    const visible = filterSupportedQuestions(merged, boardGame()) as Questions;
+    // The board is made from the saved list now: the next list queued has
+    // it as its base. The snapshot keeps the two together, for an offline
+    // restore.
+    if (cached) {
+        setCachedSession({
+            ...cached,
+            questions: visible,
+            serverQuestions: { sequence, questions: saved },
+        });
+    }
+    if (sameQuestionList(visible, current)) return;
+    // Showing it isn't the player's edit.
+    trackBoardQuestions(sessionId, visible, false);
+    // Edited since, or an edit waiting to be queued: save the list shown.
+    // Else the server has it.
+    questions.set(
+        sameQuestionList(current, shown) && !saveScheduled
+            ? suppressQuestionSave(visible)
+            : visible,
+    );
+}
+
 // Where the chosen version goes when the board lacks it: after its
 // neighbour on that side, else after the other side's, else first.
 function neighbourOnBoard(
@@ -456,12 +708,26 @@ function resolve(
     pick: (conflict: QuestionConflict) => boolean,
     choice: "mine" | "theirs",
 ): void {
-    // The board is the active session's: only its conflicts are decided.
-    if (!sessionId || sessionId !== activeSessionId.get()) return;
+    // Another tab may have decided some already.
+    refresh();
+    // The board is the active session's: only its conflicts are decided,
+    // and only while the board's edits are saved.
+    if (
+        !sessionId ||
+        sessionId !== activeSessionId.get() ||
+        !$decisionsPossible.get()
+    ) {
+        return;
+    }
     const storageKey = conflictsKey(sessionId);
     const held = readHeld(storageKey);
     const game = boardGame();
-    const chosen = held.filter((c) => pick(c) && isShown(c, game));
+    const chosen = held.filter(
+        (c) =>
+            pick(c) &&
+            isShown(c, game) &&
+            isConflictVersionSupported(c, choice),
+    );
     if (chosen.length === 0) return;
     try {
         writeHeld(
@@ -469,11 +735,12 @@ function resolve(
             held.filter((c) => !chosen.includes(c)),
         );
     } catch (err) {
-        // Deciding edits the board below, which drops them anyway.
+        // Nothing is decided then: they stay, to be decided again.
         console.warn(
             "[searchlight:conflicts] couldn't store the decision:",
             err,
         );
+        return;
     }
 
     const current = questions.get();
@@ -568,9 +835,10 @@ function isChange(value: unknown): value is QuestionChange {
 // Asked about at most at once, as the API takes.
 const MAX_KEYS = 50;
 
-// The session's question saves after `after` up to `until` at least, with
-// only the given questions in them. Null: the API can't tell (an older one
-// without the lookup, or it refused); throws on a network error.
+// The session's question saves after `after` up to `until`, with only the
+// given questions in them. Null: the API can't tell (an older one without
+// the lookup, or it refused the request); throws when it may answer on
+// another try (no connection, a server error, signed out for now).
 async function fetchChanges(
     sessionId: string,
     keys: number[],
@@ -583,10 +851,11 @@ async function fetchChanges(
     let cursor = after;
     for (;;) {
         const res = await fetch(
-            `${API_BASE}/sessions/${sessionId}/questions/changes?after=${cursor}&keys=${keyList}`,
+            `${API_BASE}/sessions/${sessionId}/questions/changes?after=${cursor}&until=${until}&keys=${keyList}`,
             { credentials: "include" },
         );
-        if (!res.ok) return null;
+        if (res.status === 404 || res.status === 400) return null;
+        if (!res.ok) throw new Error(`questions/changes: ${res.status}`);
         const data = (await res.json().catch(() => null)) as {
             changes?: unknown;
             truncated?: unknown;
@@ -634,7 +903,12 @@ function authorOf(
     };
 }
 
-const lookups = new Map<string, Promise<void>>();
+// The lookup running for each storage key, and the one to run after it for
+// conflicts held or changed meanwhile.
+const lookups = new Map<
+    string,
+    { run: Promise<void>; again?: Promise<void> }
+>();
 
 async function lookUp(sessionId: string, storageKey: string): Promise<void> {
     const wanted = readHeld(storageKey).filter((c) => c.author === undefined);
@@ -653,7 +927,7 @@ async function lookUp(sessionId: string, storageKey: string): Promise<void> {
                 Math.max(...group.map((c) => c.theirsSequence)),
             );
         } catch {
-            // No connection: ask again next time.
+            // Ask again next time.
             continue;
         }
         changes?.sort((a, b) => a.sequence - b.sequence);
@@ -691,7 +965,7 @@ async function lookUp(sessionId: string, storageKey: string): Promise<void> {
 /**
  * Fill in who changed each held question on the server, where not known
  * yet. Never throws; does nothing offline, and an API without the lookup
- * leaves it unknown (null).
+ * leaves it unknown (null). Other failures leave it to the next call.
  */
 export function lookUpConflictAuthors(sessionId: string): Promise<void> {
     if (!sessionId || typeof localStorage === "undefined")
@@ -703,17 +977,26 @@ export function lookUpConflictAuthors(sessionId: string): Promise<void> {
         return Promise.resolve();
     }
     const running = lookups.get(storageKey);
-    if (running) return running;
-    const lookup = lookUp(sessionId, storageKey)
-        .catch((err) => {
-            console.warn(
-                "[searchlight:conflicts] couldn't look up who changed them:",
-                err,
-            );
-        })
-        .finally(() => {
-            lookups.delete(storageKey);
-        });
-    lookups.set(storageKey, lookup);
-    return lookup;
+    if (running) {
+        // It may have read them before they changed: once more after it.
+        running.again ??= running.run.then(() =>
+            lookUpConflictAuthors(sessionId),
+        );
+        return running.again;
+    }
+    const entry: { run: Promise<void>; again?: Promise<void> } = {
+        run: lookUp(sessionId, storageKey)
+            .catch((err) => {
+                console.warn(
+                    "[searchlight:conflicts] couldn't look up who changed them:",
+                    err,
+                );
+            })
+            .finally(() => {
+                if (lookups.get(storageKey) === entry)
+                    lookups.delete(storageKey);
+            }),
+    };
+    lookups.set(storageKey, entry);
+    return entry.run;
 }

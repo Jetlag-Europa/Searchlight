@@ -40,6 +40,9 @@ export interface PendingEvent {
     clientCreatedAt: number;
     status: "pending" | "synced" | "failed";
     createdAt: number;
+    // A question list once sent: it may be on the server even without an
+    // answer (see QuestionsReplacePayload.own).
+    sent?: boolean;
 }
 
 /**
@@ -66,20 +69,21 @@ export interface QuestionsReplacePayload {
     // retry of a merged save whose answer was lost sends the merged list,
     // and its answer is still read as a merge.
     merged?: { local: Questions; base: QuestionsBase };
-    // Versions of questions that the lists this one replaced in the queue
-    // had changed: one of those may have been saved without its answer
-    // coming. Only for telling, when merging, our own earlier edit on the
-    // server from another's (see mergeQuestionListsWithConflicts); never
-    // sent.
+    // Versions of questions that lists this one replaced in the queue had
+    // changed, lists that were sent and not answered: one may be on the
+    // server. Only for telling, when merging, our own earlier edit there
+    // from another's (see mergeQuestionListsWithConflicts); never sent, and
+    // forgotten once a save is answered, which settles them.
     own?: Questions;
 }
 
 // Kept at most, the latest.
 const MAX_OWN_VERSIONS = 100;
 
-// The versions of questions the replaced lists changed against their base
-// (for a merged one: the server's list it was merged with, so the other
-// side's versions it holds aren't counted as ours), and what they carried.
+// The versions of questions the replaced lists that were sent changed
+// against their base (for a merged one: the server's list it was merged
+// with, so the other side's versions it holds aren't counted as ours), and
+// what they carried. A list never sent can't be on the server.
 function ownVersions(replaced: PendingEvent[]): Questions {
     const own: Questions = [];
     const add = (question: Questions[number]) => {
@@ -95,7 +99,8 @@ function ownVersions(replaced: PendingEvent[]): Questions {
     for (const event of replaced) {
         const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
         for (const question of Array.isArray(payload?.own) ? payload.own : []) add(question);
-        if (!Array.isArray(payload?.questions)) continue;
+        const sent = event.sent || event.status === "failed" || Boolean(payload?.merged);
+        if (!sent || !Array.isArray(payload?.questions)) continue;
         const base = isQuestionsBase(payload.base) ? payload.base.questions : [];
         for (const entry of payload.questions) {
             const question = entry?.payloadJson;
@@ -580,6 +585,34 @@ export function rebaseQueuedQuestions(
         return { ...event, payloadJson: { ...payload, base: to } };
     });
     if (changed) writePendingQueue(sessionId, rebased);
+}
+
+/** The queued event is being sent: it may land from now on. */
+export function markEventSent(sessionId: string, localId: string): void {
+    const events = getPendingEvents(sessionId);
+    const index = events.findIndex((event) => event.localId === localId);
+    if (index === -1 || events[index].sent) return;
+    events[index] = { ...events[index], sent: true };
+    writePendingQueue(sessionId, events);
+}
+
+/**
+ * A question list was answered: every list sent before it has landed or
+ * never will, so the lists queued since stop counting their versions as
+ * possibly ours (see QuestionsReplacePayload.own).
+ */
+export function forgetOwnVersions(sessionId: string): void {
+    const events = getPendingEvents(sessionId);
+    let changed = false;
+    const settled = events.map((event) => {
+        const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
+        if (event.type !== "questions.replace" || !payload?.own) return event;
+        changed = true;
+        const rest = { ...payload };
+        delete rest.own;
+        return { ...event, payloadJson: rest };
+    });
+    if (changed) writePendingQueue(sessionId, settled);
 }
 
 /** Replace a queued event's payload, if it's still queued. */

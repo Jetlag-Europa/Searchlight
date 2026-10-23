@@ -37,9 +37,10 @@ function refreshSyncCounts(sessionId: string): void {
 
 // ── Questions ────────────────────────────────────────────────────────────────
 
-export async function loadQuestionsFromServer(
+// The list, and the sequence it is as of (an API from before sends none).
+async function fetchQuestions(
     sessionId: string,
-): Promise<Questions> {
+): Promise<{ questions: Questions; sequence?: number }> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
     });
@@ -50,8 +51,18 @@ export async function loadQuestionsFromServer(
             ordinal: number;
             payloadJson: unknown;
         }>;
+        sequence?: unknown;
     };
-    return data.questions.map((q) => q.payloadJson) as unknown as Questions;
+    return {
+        questions: data.questions.map((q) => q.payloadJson) as unknown as Questions,
+        sequence: typeof data.sequence === "number" ? data.sequence : undefined,
+    };
+}
+
+export async function loadQuestionsFromServer(
+    sessionId: string,
+): Promise<Questions> {
+    return (await fetchQuestions(sessionId)).questions;
 }
 
 interface SaveState {
@@ -365,6 +376,8 @@ export async function loadSessionContent(
     session: GameSessionSummary;
     questions: Questions;
     cursor?: number;
+    // The sequence the questions are as of, where the API tells.
+    questionsSequence?: number;
 }> {
     let serverCursor = 0;
     try {
@@ -376,9 +389,9 @@ export async function loadSessionContent(
         );
     }
 
-    const [loadedStrokes, loadedQuestions, session] = await Promise.all([
+    const [loadedStrokes, loaded, session] = await Promise.all([
         loadStrokesFromServer(sessionId),
-        loadQuestionsFromServer(sessionId),
+        fetchQuestions(sessionId),
         fetch(`${API_BASE}/sessions/${sessionId}`, {
             credentials: "include",
         }).then(async (res) => {
@@ -387,6 +400,7 @@ export async function loadSessionContent(
         }),
     ]);
 
+    const loadedQuestions = loaded.questions;
     setCachedSession({
         sessionId,
         userId,
@@ -409,5 +423,6 @@ export async function loadSessionContent(
         session,
         questions: loadedQuestions,
         cursor: serverCursor,
+        questionsSequence: loaded.sequence,
     };
 }

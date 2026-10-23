@@ -47,10 +47,10 @@ import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import {
     reconcileQuestionConflicts,
+    setQuestionDecisionsPossible,
+    showMergedSave,
     trackBoardQuestions,
-    withResolvedConflictsSeen,
 } from "@/lib/questionConflicts";
-import { mergeQuestionLists, sameQuestionList } from "@/lib/questionMerge";
 import {
     isQuestionSaveSuppressed,
     suppressQuestionSave,
@@ -63,6 +63,7 @@ import {
     cancelPendingQuestionSave,
     flushSavesOnPageExit,
     flushSessionSaves,
+    hasScheduledQuestionSave,
     loadSessionContent,
     saveHiderModeToServer,
     savePlanningModeToServer,
@@ -801,6 +802,19 @@ export function SessionManager() {
     // the empty board of a session that wasn't would wipe it on reconnect.
     const savesBlocked = () =>
         offlineRef.current && offlineBoardUserRef.current !== authUserId;
+    // Deciding a question conflict edits the board: only while the board is
+    // the active session's and its edits are saved.
+    const loadingRef = useRef(loading);
+    loadingRef.current = loading;
+    const refreshQuestionDecisions = () =>
+        setQuestionDecisionsPossible(
+            Boolean(activeSessionId.get() && authUserId) &&
+                !loadingRef.current &&
+                !isLoadingSession() &&
+                !savesBlocked(),
+        );
+    useEffect(refreshQuestionDecisions);
+    useEffect(() => () => setQuestionDecisionsPossible(false), []);
 
     // A board painted from the snapshot shows the latest list still queued,
     // if any: its base is that list's, not the snapshot's (a merged list
@@ -971,6 +985,7 @@ export function SessionManager() {
         // The same one keeps the edits it made, queued for the reconcile.
         const offlineBoardUser = offlineBoardUserRef.current;
         offlineBoardUserRef.current = null;
+        refreshQuestionDecisions();
         if (offlineBoardUser === authUserId && activeSessionId.get()) {
             flushSessionSaves(activeSessionId.get());
         } else {
@@ -1073,6 +1088,7 @@ export function SessionManager() {
             );
             if (paintCached()) {
                 offlineBoardUserRef.current = authUserId;
+                refreshQuestionDecisions();
                 restoreKept();
             }
             return cleanup;
@@ -1121,11 +1137,14 @@ export function SessionManager() {
                         strokes: serverStrokes,
                         session: refreshedSession,
                         cursor: serverCursor,
+                        questionsSequence,
                     } = await loadSessionContent(storedId, authUserId);
                     if (!isCurrent()) return;
                     // Questions held for a decision may be settled by now.
-                    if (serverCursor !== undefined) {
-                        reconcileQuestionConflicts(storedId, serverQs, serverCursor);
+                    // The list's own sequence, else the cursor read before it.
+                    const listSequence = questionsSequence ?? serverCursor;
+                    if (listSequence !== undefined) {
+                        reconcileQuestionConflicts(storedId, serverQs, listSequence);
                     }
                     const definitionReady = await switchToGame(
                         { id: refreshedSession.gameId },
@@ -1314,11 +1333,14 @@ export function SessionManager() {
                     strokes: loadedStrokes,
                     session: refreshedSession,
                     cursor: loadedCursor,
+                    questionsSequence,
                 } = await loadSessionContent(selected.id, authUserId);
                 if (!isCurrent()) return;
                 // Questions held for a decision may be settled by now.
-                if (loadedCursor !== undefined) {
-                    reconcileQuestionConflicts(selected.id, loadedQuestions, loadedCursor);
+                // The list's own sequence, else the cursor read before it.
+                const listSequence = questionsSequence ?? loadedCursor;
+                if (listSequence !== undefined) {
+                    reconcileQuestionConflicts(selected.id, loadedQuestions, listSequence);
                 }
                 sessionToActivate = refreshedSession;
 
@@ -1513,51 +1535,14 @@ export function SessionManager() {
     // the server's list anyway.
     useEffect(
         () =>
-            onQuestionsSaved(({ sessionId: savedId, local, saved, sequence, mergedWith, replacementId }) => {
-                if (!mergedWith || savedId !== activeSessionId.get()) return;
-                if (isLoadingSession()) return;
-                const cached = getCachedSession(savedId);
-                // A later list (another player's, after ours) already
-                // shows on the board, our save in it: nothing to add.
-                if (
-                    sequence === undefined ||
-                    (cached?.serverQuestions?.sequence ?? -1) >= sequence
-                ) {
+            onQuestionsSaved((saved) => {
+                if (!saved.mergedWith || saved.sessionId !== activeSessionId.get()) {
                     return;
                 }
-                // Questions held for a decision: the saved list has the
-                // server's version of each, which may settle some. One the
-                // player has decided since counts as seen on the board.
-                reconcileQuestionConflicts(savedId, saved, sequence);
-                const shown = withResolvedConflictsSeen(savedId, {
-                    local,
-                    saved,
-                    replacementId,
+                if (isLoadingSession()) return;
+                showMergedSave(saved, {
+                    saveScheduled: hasScheduledQuestionSave(saved.sessionId),
                 });
-                const current = questions.get();
-                const visible = filterSupportedQuestions(
-                    mergeQuestionLists(shown, current, saved),
-                    gameDefinitionReady.get() ? compiledGameAtom.get() : null,
-                );
-                // The board is made from the saved list now: the next list
-                // queued has it as its base. The snapshot keeps the two
-                // together, for an offline restore.
-                if (cached) {
-                    setCachedSession({
-                        ...cached,
-                        questions: visible,
-                        serverQuestions: { sequence, questions: saved },
-                    });
-                }
-                if (sameQuestionList(visible, current)) return;
-                // Showing it isn't the player's edit of a held question.
-                trackBoardQuestions(savedId, visible, false);
-                // Edited since: save the rebased list. Else the server has it.
-                questions.set(
-                    sameQuestionList(current, shown)
-                        ? suppressQuestionSave(visible)
-                        : visible,
-                );
             }),
         [],
     );

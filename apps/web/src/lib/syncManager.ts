@@ -9,10 +9,12 @@ import {
     advanceBoardBase,
     discardEvent,
     type EventType,
+    forgetOwnVersions,
     getCachedSession,
     getPendingEvents,
     isReplacementEventType,
     markEventFailed,
+    markEventSent,
     markEventSynced,
     type PendingEvent,
     type QuestionsBase,
@@ -178,12 +180,13 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
  * save lands still has them. If they can't be, ours is saved, as before.
  */
 function mergeWithServer(
-    sessionId: string,
+    event: PendingEvent,
     payload: QuestionsReplacePayload & { base: QuestionsBase },
     local: Questions,
     server: QuestionsBase,
     keepalive: boolean,
 ): Questions {
+    const { sessionId } = event;
     const { base } = payload;
     // Conflicts held from earlier saves first: this list may settle them.
     reconcileQuestionConflicts(sessionId, server.questions, server.sequence);
@@ -229,6 +232,13 @@ async function sendQuestions(
     const { sessionId } = event;
     let payload = event.payloadJson as QuestionsReplacePayload;
     const madeFrom = payload.merged?.base ?? payload.base;
+    if (!event.sent) {
+        try {
+            markEventSent(sessionId, event.localId);
+        } catch (err) {
+            console.warn("[searchlight:sync] couldn't mark the list sent:", err);
+        }
+    }
     for (let merges = 0; ; merges++) {
         const baseSequence = payload.base?.sequence;
         const body = JSON.stringify({
@@ -256,7 +266,7 @@ async function sendQuestions(
                 const server = await fetchServerQuestions(sessionId);
                 const list = payload.questions.map((q) => q.payloadJson);
                 const merged = mergeWithServer(
-                    sessionId,
+                    event,
                     { ...payload, base: payload.base },
                     list,
                     server,
@@ -439,6 +449,54 @@ function refreshSyncCounts(sessionId: string): void {
     }
 }
 
+// A question list landed: what followed on from it moves on.
+function settleQuestionsSaved(saved: QuestionsSaved, localId?: string): void {
+    const { sessionId, local, madeFrom, sequence, mergedWith } = saved;
+    if (sequence !== undefined) {
+        // The board, and the lists queued after this one made from the
+        // same base, followed on from it. Saved as it was, it's the
+        // server's list now. Merged, it isn't: they still lack the other
+        // side's changes, so they merge too (the board, until a merged
+        // list is shown: see onQuestionsSaved).
+        const next = mergedWith
+            ? { sequence: mergedWith.sequence, questions: local }
+            : { sequence, questions: saved.saved };
+        rebaseQueuedQuestions(sessionId, madeFrom, next, localId);
+        advanceBoardBase(sessionId, madeFrom, next);
+    }
+    forgetOwnVersions(sessionId);
+}
+
+function notifyQuestionsSaved(saved: QuestionsSaved): void {
+    for (const listener of questionsSavedListeners) listener(saved);
+}
+
+/**
+ * Our own queued list came back from the server's event stream before
+ * (or instead of: it was lost) its answer: it was saved, at `sequence`.
+ * The stream has taken it off the queue. Handled as its answer would be,
+ * so a merged list is shown and the board moves on from it; the answer,
+ * if it still comes, then changes nothing.
+ */
+export function questionsSavedByEcho(
+    sessionId: string,
+    payload: QuestionsReplacePayload,
+    saved: Questions,
+    sequence: number,
+): void {
+    const settled: QuestionsSaved = {
+        sessionId,
+        local: payload.merged?.local ?? saved,
+        saved,
+        madeFrom: payload.merged?.base ?? payload.base,
+        sequence,
+        mergedWith: payload.merged ? payload.base : undefined,
+        replacementId: payload.replacementId,
+    };
+    settleQuestionsSaved(settled);
+    notifyQuestionsSaved(settled);
+}
+
 async function dispatchQueuedEvent(
     requested: PendingEvent,
     keepalive: boolean,
@@ -470,26 +528,9 @@ async function dispatchQueuedEvent(
                 lastSequence: cached?.lastSequence ?? 0,
             });
         }
-        if (savedQuestions?.sequence !== undefined) {
-            const { local, saved, madeFrom, sequence, mergedWith } =
-                savedQuestions;
-            // The board, and the lists queued after this one made from the
-            // same base, followed on from it. Saved as it was, it's the
-            // server's list now. Merged, it isn't: they still lack the other
-            // side's changes, so they merge too (the board, until a merged
-            // list is shown: see onQuestionsSaved).
-            const next = mergedWith
-                ? { sequence: mergedWith.sequence, questions: local }
-                : { sequence, questions: saved };
-            rebaseQueuedQuestions(sessionId, madeFrom, next, event.localId);
-            advanceBoardBase(sessionId, madeFrom, next);
-        }
+        if (savedQuestions) settleQuestionsSaved(savedQuestions, event.localId);
         markEventSynced(sessionId, event.localId);
-        if (savedQuestions) {
-            for (const listener of questionsSavedListeners) {
-                listener(savedQuestions);
-            }
-        }
+        if (savedQuestions) notifyQuestionsSaved(savedQuestions);
     } catch (err) {
         if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;

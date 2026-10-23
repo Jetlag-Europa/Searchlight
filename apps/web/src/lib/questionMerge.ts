@@ -200,22 +200,22 @@ function mergeLists<Q>(
     const idOf = questionIds();
     // A question with a key, changed there to a version we may have saved
     // ourselves, isn't another's change to ask about.
+    const ours = (theirs: Q): boolean =>
+        hold !== false &&
+        hold.own.some((own) => {
+            const ownKey = numericKey(own);
+            const theirKey = numericKey(theirs);
+            return (
+                ownKey !== undefined &&
+                theirKey !== undefined &&
+                sameNumber(ownKey, theirKey) &&
+                !changedInSubstance(own, theirs)
+            );
+        });
     const holds = (question: Q, theirs: Q | undefined): boolean =>
         hold !== false &&
         numericKey(question) !== undefined &&
-        !(
-            theirs !== undefined &&
-            hold.own.some((own) => {
-                const ownKey = numericKey(own);
-                const theirKey = numericKey(theirs);
-                return (
-                    ownKey !== undefined &&
-                    theirKey !== undefined &&
-                    sameNumber(ownKey, theirKey) &&
-                    !changedInSubstance(own, theirs)
-                );
-            })
-        );
+        !(theirs !== undefined && ours(theirs));
     const baseById = new Map(base.map((q) => [idOf(q), q]));
     const serverIndex = new Map(server.map((q, i) => [idOf(q), i]));
     const localIds = new Set(local.map(idOf));
@@ -271,6 +271,9 @@ function mergeLists<Q>(
         if (localIds.has(id)) return;
         const was = baseById.get(id);
         if (was === undefined || changedInSubstance(question, was)) {
+            // Changed there to a version of ours that may have been saved
+            // (its answer never came): our removal of it since stands.
+            if (was !== undefined && ours(question)) return;
             merged.push(question);
             if (was !== undefined && holds(question, question)) {
                 conflict("we-deleted", was, null, { question, index });
