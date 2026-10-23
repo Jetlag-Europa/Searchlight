@@ -54,7 +54,9 @@ export async function loadRevision(sessionId: string, revision: number, gameRevi
 export function SessionUpgradeBanner() {
   const session = useStore(activeSessionData);
   // Played offline (see AuthGuard): an update needs the server.
-  const offline = !useStore(verifiedUserId) && Boolean(useStore(offlineUserId));
+  const verified = useStore(verifiedUserId);
+  const offlinePlayer = useStore(offlineUserId);
+  const offline = !verified && Boolean(offlinePlayer);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

@@ -116,13 +116,17 @@ export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
     };
 }
 
+// The server's own clientUuid for each question read from it, so a merged
+// list saves the questions it keeps from there under their ids.
+const serverClientUuids = new WeakMap<object, string>();
+
 async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
     });
     if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
     const data = (await res.json()) as {
-        questions: Array<{ payloadJson: Questions[number] }>;
+        questions: Array<{ clientUuid?: string; payloadJson: Questions[number] }>;
         sequence?: number;
     };
     if (typeof data.sequence !== "number") {
@@ -131,16 +135,26 @@ async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
     }
     return {
         sequence: data.sequence,
-        questions: data.questions.map((q) => q.payloadJson),
+        questions: data.questions.map((q) => {
+            if (q.payloadJson && typeof q.payloadJson === "object" && q.clientUuid) {
+                serverClientUuids.set(q.payloadJson, q.clientUuid);
+            }
+            return q.payloadJson;
+        }),
     };
 }
 
 function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
-    return questions.map((payloadJson, ordinal) => ({
-        clientUuid: randomUUID(),
-        ordinal,
-        payloadJson,
-    }));
+    const used = new Set<string>();
+    return questions.map((payloadJson, ordinal) => {
+        const own =
+            payloadJson && typeof payloadJson === "object"
+                ? serverClientUuids.get(payloadJson)
+                : undefined;
+        const clientUuid = own && !used.has(own) ? own : randomUUID();
+        used.add(clientUuid);
+        return { clientUuid, ordinal, payloadJson };
+    });
 }
 
 /**

@@ -113,6 +113,8 @@ describe("saving a question list made on an old base", () => {
             q(1),
             q(2),
         ]);
+        // Theirs keeps its id.
+        expect(second.questions[1].clientUuid).toBe("server-0");
         expect(getPendingEvents(SID)).toEqual([]);
         expect(getCachedSession(SID)?.serverQuestions).toEqual({
             sequence: 8,
