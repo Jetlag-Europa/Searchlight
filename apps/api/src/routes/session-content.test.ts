@@ -1166,7 +1166,8 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
   const GAME = `${PREFIX}-game`;
   const SESSION = `${PREFIX}-session`;
   const BUSY_SESSION = `${PREFIX}-busy`;
-  const SESSIONS = [SESSION, BUSY_SESSION];
+  const ODD_SESSION = `${PREFIX}-odd`;
+  const SESSIONS = [SESSION, BUSY_SESSION, ODD_SESSION];
   // Needs all 17 digits: one unit in the last place off reads differently.
   const EXACT_KEY = 0.47550004144641034;
 
@@ -1313,6 +1314,75 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     expect((await get(`?after=${third}&keys=3`)).json()).toEqual({ changes: [] });
   });
 
+  test("stops at `until`, inclusive", async () => {
+    const start = await sequenceNow();
+    const q = (n: number) => ({ key: EXACT_KEY, n });
+    const first = await put(CREATOR, "until-1", [q(1)]);
+    const second = await put(PLAYER, "until-2", [q(2)]);
+    await put(CREATOR, "until-3", [q(3)]);
+
+    const res = await get(`?after=${start}&until=${second}&keys=${EXACT_KEY}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({
+      changes: [
+        { sequence: first, userId: CREATOR, displayName: "Alex", questions: [q(1)] },
+        { sequence: second, userId: PLAYER, displayName: "Sam", questions: [q(2)] },
+      ],
+    });
+    expect((await get(`?after=${start}&until=${start}&keys=${EXACT_KEY}`)).json()).toEqual({ changes: [] });
+    // An `until` before `after` asks for nothing.
+    expect((await get(`?after=${second}&until=${first}&keys=${EXACT_KEY}`)).json()).toEqual({ changes: [] });
+  });
+
+  test("picks the requested questions out of a large list, and copes with any stored shape", async () => {
+    // Written as raw JSON text, like the PUT does, so every digit is kept.
+    const event = async (sequence: number, payloadText: string) => {
+      await prisma.$executeRaw`
+        INSERT INTO "Event" (id, "sessionId", "userId", sequence, type, "payloadJson", "clientUuid", "clientCreatedAt")
+        VALUES (${`${PREFIX}-odd-${sequence}`}, ${ODD_SESSION}, ${PLAYER}, ${sequence}, 'questions.replace',
+          ${payloadText}::jsonb, ${`${PREFIX}-odd-${sequence}`}, now())
+      `;
+    };
+    // A custom zone of 40,000 points: megabytes that never leave Postgres.
+    const zone = {
+      id: "custom-zone",
+      key: 0.123,
+      data: { polygon: Array.from({ length: 40_000 }, (_, i) => [5.123456789012345 + i * 1e-6, 50.98765432109876]) },
+    };
+    const wanted = { id: "radius", key: EXACT_KEY, data: { lat: 47.42790359754809 } };
+    const list = (payloads: unknown[]) =>
+      JSON.stringify({
+        replacementId: "odd",
+        questions: payloads.map((payloadJson, ordinal) => ({ clientUuid: `odd-${ordinal}`, ordinal, payloadJson })),
+      });
+    await event(1, list([zone, wanted]));
+    await event(2, JSON.stringify({ replacementId: "no-list" }));
+    await event(3, JSON.stringify({ questions: "not a list" }));
+    await event(4, JSON.stringify({ questions: [null, 7, "x", [], {}, { payloadJson: null }, { payloadJson: 3 }] }));
+    // Keys no double holds, and keys that aren't numbers.
+    await event(5, `{"questions":[{"payloadJson":{"key":1e400}},{"payloadJson":{"key":1e-400}},{"payloadJson":{"key":"${EXACT_KEY}"}},{"payloadJson":{"key":null}},{"payloadJson":{"key":{"n":1}}}]}`);
+    await event(6, list([wanted]));
+    await prisma.gameSession.update({ where: { id: ODD_SESSION }, data: { eventSequence: 6 } });
+
+    const res = await get(`?after=0&keys=${EXACT_KEY},0`, CREATOR, ODD_SESSION);
+    expect(res.statusCode).toBe(200);
+    // The answer is small: the zone isn't in it.
+    expect(res.body.length).toBeLessThan(2000);
+    expect(res.json()).toEqual({
+      changes: [1, 2, 3, 4, 5, 6].map((sequence) => ({
+        sequence,
+        userId: PLAYER,
+        displayName: "Sam",
+        questions: sequence === 1 || sequence === 6 ? [wanted] : [],
+      })),
+    });
+    expect(res.json().changes[0].questions[0].key).toBe(EXACT_KEY);
+    expect(res.json().changes[0].questions[0].data.lat).toBe(47.42790359754809);
+
+    const zoneOnly = await get("?after=0&until=1&keys=0.123", CREATOR, ODD_SESSION);
+    expect(zoneOnly.json().changes[0].questions).toEqual([zone]);
+  });
+
   test("knows a key by its 17 digits, and one a few units in the last place off as the same key", async () => {
     const start = await sequenceNow();
     const near = 0.30000000000000004;
@@ -1352,6 +1422,9 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     for (const query of [
       "?keys=1",
       "?after=0",
+      "?after=0&until=-1&keys=1",
+      "?after=0&until=1.5&keys=1",
+      "?after=0&until=x&keys=1",
       "?after=-1&keys=1",
       "?after=1.5&keys=1",
       "?after=x&keys=1",
@@ -1406,6 +1479,23 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     const exactlyAtLimit = (await get("?after=1&keys=1", CREATOR, BUSY_SESSION)).json();
     expect(exactlyAtLimit.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
     expect(exactlyAtLimit.truncated).toBeUndefined();
+
+    // `until` bounds the page before the cap does.
+    const bounded = (await get(`?after=0&until=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    expect(bounded.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
+    expect(bounded.truncated).toBeUndefined();
+    const boundedCapped = (await get(`?after=0&until=${total}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    expect(boundedCapped.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
+    expect(boundedCapped.truncated).toBe(true);
+    const few = (await get("?after=10&until=12&keys=1", CREATOR, BUSY_SESSION)).json();
+    expect(few).toEqual({
+      changes: [11, 12].map((sequence) => ({
+        sequence,
+        userId: CREATOR,
+        displayName: "Alex",
+        questions: [{ key: 1, n: sequence - 1 }],
+      })),
+    });
   });
 
   test("leaves GET /questions as it was", async () => {
