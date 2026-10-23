@@ -21,7 +21,10 @@ import {
     queuedQuestionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
-import { sendPendingEvent } from "@/lib/syncManager";
+import {
+    latestSavedQuestionsSequence,
+    sendPendingEvent,
+} from "@/lib/syncManager";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -400,7 +403,17 @@ export async function loadSessionContent(
         }),
     ]);
 
-    const loadedQuestions = loaded.questions;
+    // A save of ours (a retry) can land while the list is on its way: then
+    // the list is older than what we saved, and showing it would undo it.
+    // Read it again (a few times at most).
+    let loadedList = loaded;
+    for (let i = 0; i < 3; i++) {
+        const saved = latestSavedQuestionsSequence(sessionId);
+        const at = loadedList.sequence ?? serverCursor;
+        if (saved === undefined || saved <= at) break;
+        loadedList = await fetchQuestions(sessionId);
+    }
+    const loadedQuestions = loadedList.questions;
     setCachedSession({
         sessionId,
         userId,
@@ -423,6 +436,6 @@ export async function loadSessionContent(
         session,
         questions: loadedQuestions,
         cursor: serverCursor,
-        questionsSequence: loaded.sequence,
+        questionsSequence: loadedList.sequence,
     };
 }

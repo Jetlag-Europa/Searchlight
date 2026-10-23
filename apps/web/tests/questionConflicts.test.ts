@@ -72,6 +72,7 @@ import {
     cancelPendingQuestionSave,
     flushQuestionSave,
     hasScheduledQuestionSave,
+    loadSessionContent,
     saveQuestionsDebounced,
     saveQuestionsToServer,
 } from "@/lib/sessionState";
@@ -1636,5 +1637,202 @@ describe("who changed a question", () => {
             [2, "Alex"],
         ]);
         stopShowing = showMergedSaves();
+    });
+});
+
+// Round three: reloads, a load running while saves land, and storage.
+describe("a session loading", () => {
+    // The requests a load makes besides the question list.
+    function withSessionRoutes(server: { seq: number }) {
+        const inner = mockFetch.getMockImplementation()!;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                const path = new URL(String(url)).pathname;
+                if (path.endsWith("/strokes"))
+                    return json(200, { strokes: [] });
+                if (path.endsWith("/events/cursor"))
+                    return json(200, { sequence: server.seq });
+                if (path === `/sessions/${SID}`) {
+                    return json(200, {
+                        id: SID,
+                        gameId: "g",
+                        gameRevisionId: "r",
+                        name: "s",
+                    });
+                }
+                return inner(url, init);
+            },
+        );
+    }
+
+    test("shows a save of ours that lands while its list is on its way, not the list from before", async () => {
+        snapshot([q(1), q(3)], 4);
+        const server = fakeServer(4, [q(1), q(3, "c0.1")]);
+        server.seq = 4;
+        withSessionRoutes(server);
+        // The list is read before our retry lands, and answered after.
+        const inner = mockFetch.getMockImplementation()!;
+        let release!: () => void;
+        const held = new Promise<void>((resolve) => (release = resolve));
+        let first = true;
+        mockFetch.mockImplementation(
+            async (url: string, init?: RequestInit) => {
+                const path = new URL(String(url)).pathname;
+                if (
+                    first &&
+                    path.endsWith("/questions") &&
+                    init?.method !== "PUT"
+                ) {
+                    first = false;
+                    const res = await inner(url, init);
+                    await held;
+                    return res;
+                }
+                return inner(url, init);
+            },
+        );
+        const loading = loadSessionContent(SID, "u1");
+        await vi.waitFor(() => expect(first).toBe(false));
+        await saveQuestionsToServer(SID, [q(1), q(3, "c0.2")]);
+        expect(server.seq).toBe(5);
+        release();
+        const loaded = await loading;
+        expect(labels(loaded.questions)).toEqual(["1:1", "3:c0.2"]);
+        expect(loaded.questionsSequence).toBe(5);
+    });
+
+    test("a merged list painted on a reopened board, answered while it loads: the board moves on from the saved list", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(1), q(2, "theirs")]);
+        server.lose = true;
+        await saveQuestionsToServer(SID, [q(1, "mine"), q(2)]).catch(() => {});
+        server.lose = false;
+        // Reopened: painted from the snapshot, the queued merged list, on its base.
+        stopShowing();
+        questions.set(
+            suppressQuestionSave(
+                applyUnsyncedEvents(SID, getCachedSession(SID)!).questions,
+            ),
+        );
+        setBoardBase(SID, queuedQuestionsBase(SID)!);
+        trackBoardQuestions(SID, questions.get(), false);
+        // Its answer comes while the session loads (not shown over it).
+        await flushPendingEvents(SID);
+        expect(getCachedSession(SID)?.serverQuestions?.sequence).toBe(
+            server.seq,
+        );
+        stopShowing = showMergedSaves();
+        // The load fails; the player edits on.
+        await edit([q(1, "mine again"), q(2, "theirs")]);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:mine again", "2:theirs"]);
+    });
+});
+
+describe("a merged save answered while the session loads", () => {
+    test("leaves a snapshot whose board and base agree, so a reopened board's next edit asks nothing", async () => {
+        snapshot([q(1), q(2)], 4);
+        const server = fakeServer(4, [q(1), q(2)]);
+        server.other([q(1), q(2, "theirs")]);
+        // Its answer isn't shown: a load is running.
+        stopShowing();
+        await saveQuestionsToServer(SID, [q(1, "mine"), q(2)]);
+        // The page is reopened from the snapshot; they edit again.
+        questions.set(
+            suppressQuestionSave(
+                applyUnsyncedEvents(SID, getCachedSession(SID)!).questions,
+            ),
+        );
+        trackBoardQuestions(SID, questions.get(), false);
+        stopShowing = showMergedSaves();
+        server.other([q(1, "mine"), q(2, "theirs again")]);
+        await edit([q(1, "mine again"), ...questions.get().slice(1)]);
+        expect(stored()).toEqual([]);
+        expect(labels(server.list)).toEqual(["1:mine again", "2:theirs again"]);
+    });
+});
+
+describe("a save answered at a sequence the stream has gone past", () => {
+    test("catches the board up with what the stream passed over", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        // Our save lands at 5, its answer lost; another player's list at 6.
+        server.lose = true;
+        questions.set([q(1, "mine")]);
+        await saveQuestionsToServer(SID, [q(1, "mine")]).catch(() => {});
+        server.lose = false;
+        server.other([q(1, "mine"), q(2, "theirs")]);
+        // A load started the stream from the cursor (6); ours is still queued.
+        setCachedSession({ ...getCachedSession(SID)!, lastSequence: 6 });
+        startSSE(SID);
+        await flushPendingEvents(SID);
+        await vi.waitFor(() =>
+            expect(labels(questions.get())).toEqual(["1:mine", "2:theirs"]),
+        );
+        expect(getCachedSession(SID)?.serverQuestions?.sequence).toBe(6);
+    });
+});
+
+describe("our own versions that may be on the server", () => {
+    test("aren't looked up in the server's history while the page is hidden", async () => {
+        snapshot([q(1)], 4);
+        const server = fakeServer(4, [q(1)]);
+        server.lose = true;
+        await saveQuestionsToServer(SID, [q(1), q(3, "added")]).catch(() => {});
+        server.lose = false;
+        server.other([q(1)]);
+        const doc = document as unknown as { visibilityState: string };
+        doc.visibilityState = "hidden";
+        try {
+            await saveQuestionsToServer(SID, [
+                q(1, "mine"),
+                q(3, "added"),
+            ]).catch(() => {});
+        } finally {
+            doc.visibilityState = "visible";
+        }
+        expect(changeLookups()).toHaveLength(0);
+    });
+
+    test("are left out when the queue has no room for them, and the edit is queued", async () => {
+        snapshot([q(1)], 4);
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [q(1, "a")]).catch(() => {});
+        const setItem = localStorage.setItem.bind(localStorage);
+        vi.spyOn(localStorage, "setItem").mockImplementation(
+            (key: string, value: string) => {
+                if (
+                    key.startsWith("taibled-pending-") &&
+                    value.includes('"own"')
+                ) {
+                    throw new DOMException("full", "QuotaExceededError");
+                }
+                setItem(key, value);
+            },
+        );
+        await saveQuestionsToServer(SID, [q(1, "b")]).catch(() => {});
+        const queued = getPendingEvents(SID);
+        expect(queued).toHaveLength(1);
+        const payload = queued[0].payloadJson as {
+            own?: unknown;
+            questions: Array<{ payloadJson: Q }>;
+        };
+        expect(labels(payload.questions.map((x) => x.payloadJson))).toEqual([
+            "1:b",
+        ]);
+        expect(payload).not.toHaveProperty("own");
+    });
+
+    test("leave out a version too large to keep", async () => {
+        const big = q(1, "x".repeat(70 * 1024));
+        snapshot([q(1)], 4);
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [big, q(2, "small")]).catch(() => {});
+        await saveQuestionsToServer(SID, [q(1, "b"), q(2, "smaller")]).catch(
+            () => {},
+        );
+        const payload = getPendingEvents(SID)[0].payloadJson as { own?: Q[] };
+        expect(labels(payload.own ?? [])).toEqual(["2:small"]);
     });
 });

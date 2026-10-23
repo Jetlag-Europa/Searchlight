@@ -37,7 +37,11 @@ import {
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
 } from "@/lib/sessionState";
-import { questionsSavedByEcho, retryPendingEvents } from "@/lib/syncManager";
+import {
+    onQuestionsSaved,
+    questionsSavedByEcho,
+    retryPendingEvents,
+} from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -88,6 +92,80 @@ function persistSessionCache(): void {
         lastSyncedAt: Date.now(),
     });
 }
+
+/**
+ * Show the server's question list as of `sequence` on the board (another
+ * player's), unless an edit of ours is still to be saved, in which case it
+ * is merged when that is (returns false), or the board is made from it or
+ * a later one already.
+ */
+function showServerQuestions(
+    sessionId: string,
+    serverList: Questions,
+    sequence: number,
+): boolean {
+    const unsynced = getPendingEvents(sessionId).filter(
+        (e) => e.type === "questions.replace" && e.status !== "synced",
+    );
+    if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
+        console.info(
+            "[searchlight:sse] questions.replace skipped — local edit not yet saved",
+            unsynced.length,
+            "pending",
+        );
+        return false;
+    }
+    if ((getCachedSession(sessionId)?.serverQuestions?.sequence ?? -1) >= sequence) {
+        // The board is made from this list or a later one already (a late
+        // echo of a save of ours that was answered).
+        console.info("[searchlight:sse] questions.replace skipped — the board has it");
+        return true;
+    }
+    setBoardBase(sessionId, { sequence, questions: serverList });
+    // Questions held for a decision may be settled by it, or changed again.
+    reconcileQuestionConflicts(sessionId, serverList, sequence);
+    const newQs = filterSupportedQuestions(
+        serverList,
+        compiledGameAtom.get(),
+    ) as Questions;
+    console.info(
+        "[searchlight:sse] applying questions.replace",
+        newQs.length,
+        "question(s)",
+    );
+    questions.set(suppressQuestionSave(newQs));
+    return true;
+}
+
+// A save of ours was answered at a sequence the stream has gone past: lists
+// the stream passed over meanwhile (ours was still to be saved, or a load
+// started the stream from a later cursor) may not show on the board. Read
+// the server's list then, and show it as one from the stream.
+onQuestionsSaved(({ sessionId, sequence }) => {
+    if (sequence === undefined || sessionId !== currentSessionId) return;
+    if (sequence >= lastAppliedSequence) return;
+    const generation = currentGeneration;
+    void fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+        credentials: "include",
+    })
+        .then(async (res) => {
+            if (!res.ok) return;
+            const data = (await res.json()) as {
+                questions: Array<{ payloadJson: Questions[number] }>;
+                sequence?: unknown;
+            };
+            if (generation !== currentGeneration || sessionId !== currentSessionId) return;
+            if (typeof data.sequence !== "number") return;
+            showServerQuestions(
+                sessionId,
+                data.questions.map((q) => q.payloadJson),
+                data.sequence,
+            );
+        })
+        .catch((err) => {
+            console.warn("[searchlight:sse] couldn't read the questions to catch up:", err);
+        });
+});
 
 function handleServerEvent(
     event: EventRecord,
@@ -224,43 +302,8 @@ function handleServerEvent(
                     });
                 }
             }
-        } else if (
-            unsynced.length > 0 ||
-            hasScheduledQuestionSave(targetSessionId)
-        ) {
-            console.info(
-                "[searchlight:sse] questions.replace skipped — local edit not yet saved",
-                unsynced.length,
-                "pending",
-            );
+        } else if (!showServerQuestions(targetSessionId, serverList, eventSeq)) {
             return;
-        } else if (
-            (getCachedSession(targetSessionId)?.serverQuestions?.sequence ?? -1) >=
-            eventSeq
-        ) {
-            // The board is made from this list or a later one already (a
-            // late echo of a save of ours that was answered).
-            console.info(
-                "[searchlight:sse] questions.replace skipped — the board has it",
-            );
-        } else {
-            setBoardBase(targetSessionId, {
-                sequence: eventSeq,
-                questions: serverList,
-            });
-            // Questions held for a decision may be settled by it, or
-            // changed again.
-            reconcileQuestionConflicts(targetSessionId, serverList, eventSeq);
-            const newQs = filterSupportedQuestions(
-                serverList,
-                compiledGameAtom.get(),
-            ) as Questions;
-            console.info(
-                "[searchlight:sse] applying questions.replace",
-                newQs.length,
-                "question(s)",
-            );
-            questions.set(suppressQuestionSave(newQs));
         }
     } else if (event.type === "hider.update") {
         const { hiderLat, hiderLng } = event.payloadJson as {

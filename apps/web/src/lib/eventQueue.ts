@@ -7,13 +7,12 @@ import type { StrokeFeature } from "@/annotations/types";
 import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
 import {
-    indexOfQuestionKey,
-    placeQuestion,
+    findQuestionByKey,
+    placeVersion,
     questionKey,
     sameQuestionKey,
     sameQuestionList,
     sameQuestionSubstance,
-    withDeviceFieldsOf,
 } from "@/lib/questionMerge";
 import type { Questions } from "@/maps/schema";
 
@@ -83,12 +82,7 @@ export function baseQuestions(base: QuestionsBase): Questions {
 // The list with a decided version in place, shown as the list shows it
 // (folded, locked).
 function withDecision(list: Questions, decision: BaseDecision): Questions {
-    const at = indexOfQuestionKey(list, decision.key);
-    const question =
-        decision.question && at !== -1
-            ? withDeviceFieldsOf(decision.question, list[at])
-            : decision.question;
-    return placeQuestion(list, decision.key, question, decision.afterKey);
+    return placeVersion(list, decision.key, decision.question, [decision.afterKey]);
 }
 
 const sameDecision = (a: BaseDecision, b: BaseDecision) =>
@@ -99,7 +93,7 @@ const sameDecision = (a: BaseDecision, b: BaseDecision) =>
  * list made from `madeFrom` didn't know, so `to` (the result of saving that
  * list) doesn't reflect them.
  */
-export function carryDecisions(
+function carryDecisions(
     current: QuestionsBase | undefined,
     madeFrom: QuestionsBase | undefined,
     to: QuestionsBase,
@@ -136,8 +130,11 @@ export interface QuestionsReplacePayload {
     own?: Questions;
 }
 
-// Kept at most, the latest.
+// Kept at most, the latest; and no version larger than this (a custom
+// zone can be megabytes): one too large to keep is only ever ours to add
+// again, as before.
 const MAX_OWN_VERSIONS = 100;
+const MAX_OWN_VERSION_CHARS = 64 * 1024;
 
 // The versions of questions the replaced lists that were sent changed
 // against their base (for a merged one: the server's list it was merged
@@ -148,6 +145,7 @@ function ownVersions(replaced: PendingEvent[]): Questions {
     const add = (question: Questions[number]) => {
         const key = questionKey(question);
         if (key === undefined) return;
+        if (JSON.stringify(question).length > MAX_OWN_VERSION_CHARS) return;
         const known = own.some(
             (q) =>
                 sameQuestionKey(questionKey(q)!, key) &&
@@ -173,8 +171,8 @@ function ownVersions(replaced: PendingEvent[]): Questions {
             const question = entry?.payloadJson;
             const key = questionKey(question);
             if (key === undefined) continue;
-            const at = indexOfQuestionKey(base, key);
-            if (at !== -1 && sameQuestionSubstance(base[at], question)) continue;
+            const was = findQuestionByKey(base, key);
+            if (was !== null && sameQuestionSubstance(was, question)) continue;
             add(question);
         }
     }
@@ -419,7 +417,18 @@ export function enqueueEvent(
         ...(event.type === "questions.replace" ? { sent: false } : {}),
     };
     events.push(newEvent);
-    writePendingQueue(event.sessionId, events);
+    try {
+        writePendingQueue(event.sessionId, events);
+    } catch (err) {
+        // No room: the edit matters more than telling our own earlier
+        // versions on the server from another's.
+        const payload = newEvent.payloadJson as Partial<QuestionsReplacePayload> | null;
+        if (event.type !== "questions.replace" || !payload?.own) throw err;
+        const rest = { ...payload };
+        delete rest.own;
+        newEvent.payloadJson = rest;
+        writePendingQueue(event.sessionId, events);
+    }
     return newEvent;
 }
 
@@ -602,9 +611,7 @@ export function decideBoardBaseQuestion(
     if (!cached) return;
     const base = cached.serverQuestions ?? questionsBase(sessionId);
     if (!base) return;
-    const list = baseQuestions(base);
-    const at = indexOfQuestionKey(list, key);
-    if (sameQuestionSubstance(at === -1 ? null : list[at], question)) return;
+    if (sameQuestionSubstance(findQuestionByKey(baseQuestions(base), key), question)) return;
     const decision: BaseDecision = { key, question };
     if (afterKey !== undefined) decision.afterKey = afterKey;
     setCachedSession({

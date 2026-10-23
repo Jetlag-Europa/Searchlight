@@ -132,7 +132,11 @@ vi.stubGlobal("setTimeout", ((
 ) => {
     const c = cur();
     // Only the app's own timers are the client's: the test runner's (module
-    // loading, RPC) run for real.
+    // loading, RPC) run for real. Which is which is told by who called: a
+    // timer set from a file under apps/web/src/ is the app's. The routing
+    // through AsyncLocalStorage alone can't tell, since vitest's own work
+    // can run inside a client's context. (A moved source tree would make
+    // every timer real again, and the runs would then stall: see quiesce.)
     if (!c || !/apps\/web\/src\//.test(new Error().stack ?? ""))
         return realSetTimeout(cb as Any, delay, ...args);
     const id = ++timerIds;

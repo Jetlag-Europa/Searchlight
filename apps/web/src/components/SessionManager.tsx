@@ -798,10 +798,16 @@ export function SessionManager() {
     const offlineBoardUserRef = useRef<string | null>(null);
     const offlineRef = useRef(offline);
     offlineRef.current = offline;
+    // The session whose questions the board shows, for this account: painted
+    // from what was kept, or loaded. Null while it shows none (nothing was
+    // kept and the load failed, or another account's board was cleared).
+    const boardSessionRef = useRef<string | null>(null);
     // Offline, only a board painted from what was kept may be saved: saving
     // the empty board of a session that wasn't would wipe it on reconnect.
+    // Likewise a board that shows nothing of the active session.
     const savesBlocked = () =>
-        offlineRef.current && offlineBoardUserRef.current !== authUserId;
+        (offlineRef.current && offlineBoardUserRef.current !== authUserId) ||
+        boardSessionRef.current !== activeSessionId.get();
     // Deciding a question conflict edits the board: only while the board is
     // the active session's and its edits are saved.
     const loadingRef = useRef(loading);
@@ -965,6 +971,7 @@ export function SessionManager() {
             cancelPendingHiderSave(sessionId);
             cancelPendingPlanningModeSave(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
+            if (boardSessionRef.current === sessionId) boardSessionRef.current = null;
             setShowPicker(true);
         },
         [authUserId],
@@ -994,6 +1001,7 @@ export function SessionManager() {
             cancelPendingPlanningModeSave();
             if (offlineBoardUser) {
                 leaveGame();
+                boardSessionRef.current = null;
                 strokes.set([]);
                 questions.set(suppressQuestionSave([]));
                 hiderMode.set(false);
@@ -1050,9 +1058,13 @@ export function SessionManager() {
         // reconcile below finishes: it replaces the board, so an edit made
         // in between could not be kept (and must not be saved over fresher
         // server state).
+        // As kept when painted: a queued list may have been saved since the
+        // load started.
         const paintCached = () => {
-            if (!canPaintCache || !cached) return false;
-            const derived = applyUnsyncedEvents(storedId, cached);
+            const kept = getCachedSession(storedId);
+            if (!canPaintCache || !kept || kept.userId !== authUserId) return false;
+            const derived = applyUnsyncedEvents(storedId, kept);
+            boardSessionRef.current = storedId;
             gameDefinitionReady.set(false);
             setActiveGameDefinition(null);
             suppressNextSaveRef.current = true;
@@ -1176,6 +1188,7 @@ export function SessionManager() {
                         "question(s) from server",
                     );
                     suppressNextSaveRef.current = true;
+                    boardSessionRef.current = storedId;
                     questions.set(visibleQuestions);
                     const cachedState = getCachedSession(storedId);
                     if (cachedState && definitionReady) {
@@ -1302,6 +1315,7 @@ export function SessionManager() {
                 // As in the stored-session restore above, the board is shown
                 // under the loading overlay until the server state replaces it.
                 suppressNextSaveRef.current = true;
+                boardSessionRef.current = selected.id;
                 strokes.set(derived.strokes);
                 questions.set(
                     filterSupportedQuestions(derived.questions, null),
@@ -1312,6 +1326,7 @@ export function SessionManager() {
                 );
             } else {
                 suppressNextSaveRef.current = true;
+                boardSessionRef.current = null;
                 strokes.set([]);
                 questions.set([]);
             }
@@ -1375,6 +1390,7 @@ export function SessionManager() {
                     "question(s) from server",
                 );
                 suppressNextSaveRef.current = true;
+                boardSessionRef.current = selected.id;
                 questions.set(visibleQuestions);
                 const cachedState = getCachedSession(selected.id);
                 if (cachedState && definitionReady) {
@@ -1395,10 +1411,13 @@ export function SessionManager() {
                     "[searchlight:session] failed to load session content:",
                     e,
                 );
-                if (canPaintCache && cached) {
+                // As kept now: a queued list may have been saved meanwhile.
+                const kept = getCachedSession(selected.id);
+                if (canPaintCache && kept && kept.userId === authUserId) {
                     // Offline fallback: replay pending events on top of cached snapshot
-                    const derived = applyUnsyncedEvents(selected.id, cached);
+                    const derived = applyUnsyncedEvents(selected.id, kept);
                     suppressNextSaveRef.current = true;
+                    boardSessionRef.current = selected.id;
                     strokes.set(derived.strokes);
                     questions.set(
                         filterSupportedQuestions(derived.questions, null),
@@ -1406,6 +1425,7 @@ export function SessionManager() {
                     paintedFromSnapshot(selected.id);
                 } else {
                     // No cache and no server — leave atoms empty, don't publish stale session content
+                    boardSessionRef.current = null;
                     strokes.set([]);
                     questions.set([]);
                 }
@@ -1539,7 +1559,11 @@ export function SessionManager() {
                 if (!saved.mergedWith || saved.sessionId !== activeSessionId.get()) {
                     return;
                 }
-                if (isLoadingSession()) return;
+                // Only on a board that shows the session (one that shows
+                // nothing would read as removing everything).
+                if (isLoadingSession() || boardSessionRef.current !== saved.sessionId) {
+                    return;
+                }
                 showMergedSave(saved, {
                     saveScheduled: hasScheduledQuestionSave(saved.sessionId),
                 });

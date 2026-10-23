@@ -4,8 +4,9 @@
 // merged list is saved at once with the server's version, and the conflict
 // is held here, in storage next to the queue and per account like it, until
 // the player picks a side, edits the question, or the server's version comes
-// round to theirs. Held conflicts aren't edits: they stay out of the queue,
-// so sending, retrying and counting never see them.
+// round to ours (and if it changes again, theirs is updated: see
+// reconcileQuestionConflicts). Held conflicts aren't edits: they stay out of
+// the queue, so sending, retrying and counting never see them.
 
 import { atom, type ReadableAtom } from "nanostores";
 
@@ -33,15 +34,17 @@ import {
 } from "@/lib/eventQueue";
 import {
     type DetectedQuestionConflict,
+    findQuestionByKey,
     indexOfQuestionKey,
     keyBefore,
     mergeQuestionLists,
     mergeQuestionListsWithConflicts,
     placeQuestion,
+    placeVersion,
+    questionKey,
     sameQuestionKey,
     sameQuestionList,
     sameQuestionSubstance,
-    withDeviceFieldsOf,
 } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import type { QuestionsSaved } from "@/lib/syncManager";
@@ -132,10 +135,8 @@ function writeHeld(storageKey: string, held: QuestionConflict[]): void {
     }
 }
 
-function findByKey(list: readonly unknown[], key: number): Question | null {
-    const at = indexOfQuestionKey(list, key);
-    return at === -1 ? null : (list[at] as Question);
-}
+const findByKey = (list: readonly unknown[], key: number) =>
+    findQuestionByKey(list, key) as Question | null;
 
 function boardGame() {
     return gameDefinitionReady.get() ? compiledGameAtom.get() : null;
@@ -234,7 +235,9 @@ function boardPosition(
 let followingOtherTabs = false;
 
 function refresh(): void {
-    // Other tabs' changes to what is held show here too.
+    // Other tabs' changes to what is held show here too. Registered on the
+    // first refresh rather than at import: a window stubbed in after the
+    // module loads (tests) still gets it.
     if (
         !followingOtherTabs &&
         typeof window !== "undefined" &&
@@ -500,11 +503,8 @@ function changedKeys(
 ): number[] {
     const keys: number[] = [];
     for (const question of [...before, ...after]) {
-        const key = (question as { key?: unknown } | null)?.key;
-        if (
-            typeof key !== "number" ||
-            keys.some((k) => sameQuestionKey(k, key))
-        )
+        const key = questionKey(question);
+        if (key === undefined || keys.some((k) => sameQuestionKey(k, key)))
             continue;
         if (
             !sameQuestionSubstance(
@@ -587,8 +587,8 @@ function shownBase<Q>(
 ): Q[] {
     let base = [...seen];
     local.forEach((question, index) => {
-        const key = (question as { key?: unknown } | null)?.key;
-        if (typeof key !== "number") return;
+        const key = questionKey(question);
+        if (key === undefined) return;
         const kept = findByKey(saved, key);
         const ours =
             findByKey(seen, key) === null ||
@@ -694,20 +694,6 @@ export function showMergedSave(
     );
 }
 
-// Where the chosen version goes when the board lacks it: after its
-// neighbour on that side, else after the other side's, else first.
-function neighbourOnBoard(
-    board: readonly unknown[],
-    ...candidates: Array<number | null | undefined>
-): number | null {
-    for (const after of candidates) {
-        if (after === null) return null;
-        if (after !== undefined && indexOfQuestionKey(board, after) !== -1)
-            return after;
-    }
-    return null;
-}
-
 function resolve(
     sessionId: string,
     pick: (conflict: QuestionConflict) => boolean,
@@ -761,26 +747,16 @@ function resolve(
             conflict.theirs,
             conflict.theirsAfterKey,
         );
-        const version = choice === "mine" ? conflict.mine : conflict.theirs;
-        const at = indexOfQuestionKey(board, conflict.key);
-        // Folded or locked here stays so.
-        const shownVersion =
-            version && at !== -1
-                ? withDeviceFieldsOf(version, board[at])
-                : version;
-        const after =
+        // Folded or locked here stays so; one the board lacks goes after
+        // its neighbour on that side, else after the other side's.
+        board = placeVersion(
+            board,
+            conflict.key,
+            choice === "mine" ? conflict.mine : conflict.theirs,
             choice === "mine"
-                ? neighbourOnBoard(
-                      board,
-                      conflict.mineAfterKey,
-                      conflict.theirsAfterKey,
-                  )
-                : neighbourOnBoard(
-                      board,
-                      conflict.theirsAfterKey,
-                      conflict.mineAfterKey,
-                  );
-        board = placeQuestion(board, conflict.key, shownVersion, after);
+                ? [conflict.mineAfterKey, conflict.theirsAfterKey]
+                : [conflict.theirsAfterKey, conflict.mineAfterKey],
+        );
     }
     refresh();
 
@@ -1011,12 +987,7 @@ async function lookUp(sessionId: string, storageKey: string): Promise<void> {
 export function lookUpConflictAuthors(sessionId: string): Promise<void> {
     if (!sessionId || typeof localStorage === "undefined")
         return Promise.resolve();
-    let storageKey: string;
-    try {
-        storageKey = conflictsKey(sessionId);
-    } catch {
-        return Promise.resolve();
-    }
+    const storageKey = conflictsKey(sessionId);
     const running = lookups.get(storageKey);
     if (running) {
         // It may have read them before they changed: once more after it.

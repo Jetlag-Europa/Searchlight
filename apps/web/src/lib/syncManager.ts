@@ -1,10 +1,19 @@
 import type { StrokeFeature } from "@/annotations/types";
 import {
+    compiledGameAtom,
+    filterSupportedQuestions,
+} from "@/game-definition/store";
+import {
     activeSessionId,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { pendingEventCount,syncStatus } from "@/lib/context";
+import {
+    gameDefinitionReady,
+    pendingEventCount,
+    questions,
+    syncStatus,
+} from "@/lib/context";
 import {
     advanceBoardBase,
     baseQuestions,
@@ -33,8 +42,10 @@ import {
     indexOfQuestionKey,
     mergeQuestionLists,
     mergeQuestionListsWithConflicts,
+    ownVersionsOf,
     questionKey,
     sameQuestionKey,
+    sameQuestionList,
     sameQuestionSubstance,
 } from "@/lib/questionMerge";
 import { randomUUID } from "@/lib/utils";
@@ -121,8 +132,6 @@ export interface QuestionsSaved {
     sequence?: number;
     // When merged: the server's list it was last merged with.
     mergedWith?: QuestionsBase;
-    // The save's own id.
-    replacementId?: string;
 }
 
 type QuestionsSavedListener = (saved: QuestionsSaved) => void;
@@ -201,13 +210,12 @@ async function mergeWithServer(
     // what it was made from. When the server doesn't have it now, or has
     // another version and we have several, only the server's history tells
     // (see mergeQuestionListsWithConflicts for the rest), so ask it, but not
-    // while the page goes away. Without an answer it stays as before.
-    if (!keepalive && own.length > 0) {
-        const ownOf = (key: number) =>
-            own.filter((q) => {
-                const ownKey = questionKey(q);
-                return ownKey !== undefined && sameQuestionKey(ownKey, key);
-            });
+    // while the page may be going away (it can take seconds, and a pagehide
+    // save waits behind it). Without an answer it stays as before.
+    const hidden =
+        typeof document !== "undefined" && document.visibilityState === "hidden";
+    if (!keepalive && !hidden && own.length > 0) {
+        const ownOf = (key: number) => ownVersionsOf(own, key);
         const asked: number[] = [];
         for (const question of [...local, ...server.questions]) {
             const key = questionKey(question);
@@ -377,7 +385,6 @@ async function sendQuestions(
             madeFrom,
             sequence,
             mergedWith: payload.merged ? payload.base : undefined,
-            replacementId: payload.replacementId,
         };
     }
 }
@@ -531,7 +538,30 @@ function settleQuestionsSaved(saved: QuestionsSaved, localId?: string): void {
         if (next.since === undefined) delete next.since;
         rebaseQueuedQuestions(sessionId, madeFrom, next, localId);
         advanceBoardBase(sessionId, madeFrom, next);
+        // A board reopened from the snapshot shows the merged list as
+        // queued, made from the server's list it was merged with: it shows
+        // the saved list now, and it and the lists made on it move on from
+        // there (its answer isn't shown over it: see showMergedSave).
+        if (mergedWith && sessionId === activeSessionId.get()) {
+            const game = gameDefinitionReady.get() ? compiledGameAtom.get() : null;
+            const board = questions.get();
+            if (sameQuestionList(board, filterSupportedQuestions(saved.saved, game))) {
+                const to = { sequence, questions: saved.saved };
+                rebaseQueuedQuestions(sessionId, mergedWith, to, localId);
+                advanceBoardBase(sessionId, mergedWith, to);
+            }
+        }
+        answered.set(sessionId, Math.max(answered.get(sessionId) ?? -1, sequence));
     }
+}
+
+// The latest sequence a question list of ours was saved at, by session, in
+// this page.
+const answered = new Map<string, number>();
+
+/** The latest sequence a question list of ours was saved at in this page. */
+export function latestSavedQuestionsSequence(sessionId: string): number | undefined {
+    return answered.get(sessionId);
 }
 
 function notifyQuestionsSaved(saved: QuestionsSaved): void {
@@ -558,7 +588,6 @@ export function questionsSavedByEcho(
         madeFrom: payload.merged?.base ?? payload.base,
         sequence,
         mergedWith: payload.merged ? payload.base : undefined,
-        replacementId: payload.replacementId,
     };
     settleQuestionsSaved(settled);
     notifyQuestionsSaved(settled);
@@ -584,18 +613,29 @@ async function dispatchQueuedEvent(
         const stillQueued = getPendingEvents(sessionId).some(
             (candidate) => candidate.localId === event.localId,
         );
+        if (savedQuestions) settleQuestionsSaved(savedQuestions, event.localId);
         if (savedQuestions && stillQueued) {
+            // The board as it stands with its base: the saved list once the
+            // base is it; a merged one not shown yet (see showMergedSave,
+            // which is skipped while a session loads) still shows ours as
+            // queued, made from our list as of the merge. A board reopened
+            // from the snapshot then shows the two together.
             const cached = getCachedSession(sessionId);
+            const { local, saved, sequence, mergedWith } = savedQuestions;
+            const shows =
+                !mergedWith ||
+                (sequence !== undefined && cached?.serverQuestions?.sequence === sequence)
+                    ? saved
+                    : local;
             setCachedSession({
                 ...cached,
                 sessionId,
                 strokes: cached?.strokes ?? [],
-                questions: savedQuestions.saved,
+                questions: shows,
                 lastSyncedAt: Date.now(),
                 lastSequence: cached?.lastSequence ?? 0,
             });
         }
-        if (savedQuestions) settleQuestionsSaved(savedQuestions, event.localId);
         markEventSynced(sessionId, event.localId);
         if (savedQuestions) notifyQuestionsSaved(savedQuestions);
     } catch (err) {

@@ -200,18 +200,14 @@ function mergeLists<Q>(
     const idOf = questionIds();
     // A question with a key, changed there to a version we may have saved
     // ourselves, isn't another's change to ask about.
-    const ours = (theirs: Q): boolean =>
-        hold !== false &&
-        hold.own.some((own) => {
-            const ownKey = numericKey(own);
-            const theirKey = numericKey(theirs);
-            return (
-                ownKey !== undefined &&
-                theirKey !== undefined &&
-                sameNumber(ownKey, theirKey) &&
-                !changedInSubstance(own, theirs)
-            );
-        });
+    const ours = (theirs: Q): boolean => {
+        const key = numericKey(theirs);
+        return (
+            hold !== false &&
+            key !== undefined &&
+            ownVersionsOf(hold.own, key).some((own) => !changedInSubstance(own, theirs))
+        );
+    };
     const holds = (question: Q, theirs: Q | undefined): boolean =>
         hold !== false &&
         numericKey(question) !== undefined &&
@@ -219,23 +215,23 @@ function mergeLists<Q>(
     const baseById = new Map(base.map((q) => [idOf(q), q]));
     const serverIndex = new Map(server.map((q, i) => [idOf(q), i]));
     const localIds = new Set(local.map(idOf));
-    // A question the base lacks that the server has may be one we added in
-    // a list whose answer never came: it is ours, not another's addition,
-    // made from the version of ours that landed: the one the server has;
-    // else our only one; else, not knowing which (the caller may have
-    // asked the server's history and put it in the base), one other than
-    // ours now, so a change of theirs is asked about rather than lost. One
-    // the server lacks stays ours to add: that list may never have landed.
+    // The server has a question the base lacks, and we have versions of it
+    // from lists whose answer never came: we added it, and one of those
+    // landed. So it's ours, not their addition, made from the version that
+    // landed:
+    // - the one the server has, if it is one of ours;
+    // - else our only one;
+    // - else (which one landed only the server's history tells: the caller
+    //   may have asked it, and put the answer in the base) one other than
+    //   ours now, so a change of theirs is asked about rather than lost.
+    // One the server lacks stays ours to add: that list may not have landed.
     if (hold !== false && hold.own.length > 0) {
         const localById = new Map(local.map((q) => [idOf(q), q]));
         for (const now of server) {
             const id = idOf(now);
             const key = numericKey(now);
             if (baseById.has(id) || key === undefined) continue;
-            const versions = hold.own.filter((own) => {
-                const ownKey = numericKey(own);
-                return ownKey !== undefined && sameNumber(ownKey, key);
-            });
+            const versions = ownVersionsOf(hold.own, key);
             if (versions.length === 0) continue;
             const mine = localById.get(id);
             const older = versions.filter(
@@ -351,6 +347,44 @@ export function mergeQuestionListsWithConflicts<Q>(
     own: readonly Q[] = [],
 ): { merged: Q[]; conflicts: DetectedQuestionConflict<Q>[] } {
     return mergeLists(base, local, server, { own });
+}
+
+/** The versions in `own` of the question with `key`. */
+export function ownVersionsOf<Q>(own: readonly Q[], key: number): Q[] {
+    return own.filter((q) => {
+        const k = numericKey(q);
+        return k !== undefined && sameNumber(k, key);
+    });
+}
+
+/** The question with `key` in `list`, or null. */
+export function findQuestionByKey<Q>(list: readonly Q[], key: number): Q | null {
+    const at = indexOfQuestionKey(list, key);
+    return at === -1 ? null : list[at];
+}
+
+/**
+ * `list` with `version` (null: removed) as its question with `key`: shown as
+ * the list showed it (folded, locked) if it had it, else put after the
+ * first of `afterKeys` the list has (null: first; none: first too).
+ */
+export function placeVersion<Q>(
+    list: readonly Q[],
+    key: number,
+    version: Q | null,
+    afterKeys: ReadonlyArray<number | null | undefined>,
+): Q[] {
+    const at = indexOfQuestionKey(list, key);
+    const shown = version && at !== -1 ? withDeviceFieldsOf(version, list[at]) : version;
+    let after: number | null = null;
+    for (const candidate of afterKeys) {
+        if (candidate === null) break;
+        if (candidate !== undefined && indexOfQuestionKey(list, candidate) !== -1) {
+            after = candidate;
+            break;
+        }
+    }
+    return placeQuestion(list, key, shown, after);
 }
 
 /** The index of the question with `key` in `list`, or -1. */
