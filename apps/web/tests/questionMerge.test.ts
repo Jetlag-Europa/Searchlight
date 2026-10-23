@@ -85,11 +85,27 @@ const radius = (key: number, data: Record<string, unknown> = {}) => ({
 });
 
 describe("merging the same question changed on both sides", () => {
-    test("keeps each side's change to different fields", () => {
+    test("takes our question whole when both changed what it asks or its answer", () => {
         const base = [radius(1)];
         expect(
             mergeQuestionLists(base, [radius(1, { radius: 10 })], [radius(1, { within: false })]),
-        ).toEqual([radius(1, { radius: 10, within: false })]);
+        ).toEqual([radius(1, { radius: 10 })]);
+    });
+
+    test("never pairs fields that belong together from different sides", () => {
+        const tentacle = (data: Record<string, unknown>) => ({
+            id: "tentacles",
+            key: 1,
+            data: { lat: 47, lng: 8, radius: 15, unit: "kilometers", locationType: "tentacle-museum", places: [], ...data },
+        });
+        const theirs = tentacle({ locationType: "tentacle-zoo", places: [{ name: "Zoo" }] });
+        const ours = tentacle({ radius: 2, unit: "miles" });
+        expect(mergeQuestionLists([tentacle({})], [ours], [theirs])).toEqual([ours]);
+        // Only they changed it: theirs, whole, with our fold.
+        const folded = tentacle({ collapsed: true });
+        expect(mergeQuestionLists([tentacle({})], [folded], [theirs])).toEqual([
+            { ...theirs, data: { ...theirs.data, collapsed: true } },
+        ]);
     });
 
     test("keeps ours for a field both changed", () => {
@@ -134,6 +150,19 @@ describe("merging the same question changed on both sides", () => {
     });
 });
 
+describe("numbers the API stored a digit short", () => {
+    test("don't make a question count as changed, so our removal holds", () => {
+        const exact = radius(0.25, { lat: 47.42790359754809, lng: 8.540192 });
+        const rounded = radius(0.25, { lat: 47.427903597548094, lng: 8.540192 });
+        const other = radius(0.5);
+        expect(mergeQuestionLists([exact, other], [other], [rounded, other])).toEqual([other]);
+    });
+
+    test("still differ from a real change", () => {
+        expect(sameQuestion(radius(1, { lat: 47.4279 }), radius(1, { lat: 47.4280 }))).toBe(false);
+    });
+});
+
 describe("question keys the API stored a digit short", () => {
     // A 17-digit Math.random() key, and what the API used to store.
     const k = 0.47550004144641034;
@@ -142,6 +171,15 @@ describe("question keys the API stored a digit short", () => {
     test("are the same key", () => {
         expect(sameQuestion(radius(k), radius(stored))).toBe(true);
         expect(sameQuestion(radius(k), radius(0.4755000414464))).toBe(false);
+    });
+
+    test("never join two distinct new keys, however close", () => {
+        expect(
+            mergeQuestionLists([], [radius(0.123456789012345)], [radius(0.123456789012346)]),
+        ).toHaveLength(2);
+        expect(mergeQuestionLists([], [radius(0.999999999999999)], [radius(0.999999999999998)])).toHaveLength(2);
+        expect(mergeQuestionLists([], [radius(0)], [radius(1e-15)])).toHaveLength(2);
+        expect(mergeQuestionLists([], [radius(0)], [radius(1e-16)])).toHaveLength(2);
     });
 
     test("an edited question isn't doubled", () => {

@@ -7,67 +7,83 @@ type Question = unknown;
 type Fields = Record<string, unknown>;
 
 // Fields that only say how one device shows a question (folded, or its
-// marker locked). They never decide whether an edit or a removal wins.
+// marker locked). They merge on their own and never decide which side's
+// question wins, or whether an edit or a removal does.
 const DEVICE_FIELDS = new Set(["collapsed", "drag"]);
 
-// Questions are told apart by their `key`, which a question keeps for life.
-// Keys used to be any double from Math.random(), and the API stored them
-// with up to one unit in the last place lost (its query engine parsed JSON
-// numbers inexactly; it no longer does): 0.47550004144641034 came back as
-// 0.4755000414464103. Keys this close are the same key. Random keys are
-// never this close: two among a thousand questions have about a 1e-9
-// chance.
-const KEY_TOLERANCE = 1e-15;
+// Until the API wrote payloads exactly, every number in them that needed all
+// 17 digits could come back one unit in the last place off (a key
+// 0.47550004144641034 as 0.4755000414464103, a latitude likewise). Numbers
+// this close are the same number. That's well under the step between new
+// question keys (1e-15, see newQuestionKey) and anything a player enters.
+const RELATIVE_TOLERANCE = 4e-16;
+
+function sameNumber(a: number, b: number): boolean {
+    return a === b || Math.abs(a - b) <= RELATIVE_TOLERANCE * Math.max(Math.abs(a), Math.abs(b));
+}
+
+// Content equality, whatever order the fields come in (Postgres jsonb
+// reorders them), with numbers compared within rounding.
+function sameValue(a: unknown, b: unknown): boolean {
+    if (typeof a === "number" && typeof b === "number") return sameNumber(a, b);
+    if (Array.isArray(a) || Array.isArray(b)) {
+        return (
+            Array.isArray(a) &&
+            Array.isArray(b) &&
+            a.length === b.length &&
+            a.every((v, i) => sameValue(v, b[i]))
+        );
+    }
+    if (a && b && typeof a === "object" && typeof b === "object") {
+        const fields = new Set([...Object.keys(a), ...Object.keys(b)]);
+        for (const field of fields) {
+            if (!sameValue((a as Fields)[field], (b as Fields)[field])) return false;
+        }
+        return true;
+    }
+    // A missing field reads as undefined, the same as an undefined one.
+    return a === b;
+}
 
 function numericKey(question: Question): number | undefined {
     const key = (question as { key?: unknown } | null)?.key;
     return typeof key === "number" && Number.isFinite(key) ? key : undefined;
 }
 
-/** Ids for questions, the same for keys that differ only by rounding. */
+/** Whether two keys name the same question. */
+export function sameQuestionKey(a: number, b: number): boolean {
+    return sameNumber(a, b);
+}
+
+// A stable text for a question without a key, which is told apart by content.
+function stableJson(value: unknown): string {
+    if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
+    if (value && typeof value === "object") {
+        return `{${Object.keys(value)
+            .sort()
+            .filter((k) => (value as Fields)[k] !== undefined)
+            .map((k) => `${JSON.stringify(k)}:${stableJson((value as Fields)[k])}`)
+            .join(",")}}`;
+    }
+    return JSON.stringify(value) ?? "null";
+}
+
+/** Ids for questions, by key: the same for keys within rounding. */
 function questionIds() {
     const seen: number[] = [];
     return (question: Question): string => {
         const key = numericKey(question);
         if (key === undefined) return `json:${stableJson(question)}`;
-        const same = seen.find(
-            (k) => Math.abs(k - key) <= KEY_TOLERANCE * Math.max(1, Math.abs(k)),
-        );
+        const same = seen.find((k) => sameNumber(k, key));
         if (same !== undefined) return `key:${same}`;
         seen.push(key);
         return `key:${key}`;
     };
 }
 
-/** Whether two keys name the same question. */
-export function sameQuestionKey(a: number, b: number): boolean {
-    return Math.abs(a - b) <= KEY_TOLERANCE * Math.max(1, Math.abs(a));
-}
-
-// Stored payloads come back with their keys reordered (Postgres jsonb), so
-// compare by content, not by how it is written. Keys compare by id.
-function stableJson(value: unknown, depth = 0): string {
-    if (Array.isArray(value)) return `[${value.map((v) => stableJson(v, depth + 1)).join(",")}]`;
-    if (value && typeof value === "object") {
-        return `{${Object.keys(value)
-            .sort()
-            .filter((k) => (value as Fields)[k] !== undefined)
-            .filter((k) => !(depth === 0 && k === "key"))
-            .map((k) => `${JSON.stringify(k)}:${stableJson((value as Fields)[k], depth + 1)}`)
-            .join(",")}}`;
-    }
-    return JSON.stringify(value) ?? "null";
-}
-
-const same = (a: unknown, b: unknown) => stableJson(a, 1) === stableJson(b, 1);
-
-/** The same question with the same content (keys within rounding). */
+/** The same question with the same content (numbers within rounding). */
 export function sameQuestion(a: Question, b: Question): boolean {
-    const ka = numericKey(a);
-    const kb = numericKey(b);
-    if ((ka === undefined) !== (kb === undefined)) return false;
-    if (ka !== undefined && kb !== undefined && !sameQuestionKey(ka, kb)) return false;
-    return stableJson(a) === stableJson(b);
+    return sameValue(a, b);
 }
 
 export function sameQuestionList(a: readonly Question[], b: readonly Question[]): boolean {
@@ -79,40 +95,40 @@ function dataOf(question: Question): Fields {
     return data && typeof data === "object" && !Array.isArray(data) ? (data as Fields) : {};
 }
 
-// Changed beyond how it's shown on one device.
-function changedInSubstance(question: Question, base: Question): boolean {
-    const strip = (q: Question) => {
-        const data = Object.fromEntries(
-            Object.entries(dataOf(q)).filter(([k]) => !DEVICE_FIELDS.has(k)),
-        );
-        return { ...(q as Fields), data };
-    };
-    return !sameQuestion(strip(question), strip(base));
+// The question without its device fields and key: what it asks, and its
+// answer.
+function substance(question: Question): Fields {
+    const rest: Fields = { ...(question as Fields) };
+    delete rest.key;
+    rest.data = Object.fromEntries(
+        Object.entries(dataOf(question)).filter(([k]) => !DEVICE_FIELDS.has(k)),
+    );
+    return rest;
 }
 
-// Three-way, field by field: what we changed since `base` is ours, the rest
-// theirs. Fields inside `data` (an answer, a radius, a location, the lock)
-// each count apart. A field both sides changed keeps our value: this save is
-// the newest edit, made by someone who saw `base`. The question keeps the
+function changedInSubstance(question: Question, base: Question): boolean {
+    return !sameValue(substance(question), substance(base));
+}
+
+// Three-way. A question's substance (what it asks and its answer) is taken
+// whole from one side, since its fields only make sense together (a
+// tentacle's places and its kind, a radius and its unit): the side that
+// changed it, or ours if both did, as this save is the newest edit, made by
+// someone who saw `base`. The device fields (folded, locked) merge one by
+// one: ours where we changed them, else theirs. The question keeps the
 // server's key.
 function mergeQuestion(base: Question, ours: Question, theirs: Question): Question {
-    const pick = (b: Fields, o: Fields, t: Fields): Fields => {
-        const merged: Fields = {};
-        for (const field of new Set([...Object.keys(t), ...Object.keys(o)])) {
-            const value = !same(o[field], b[field]) ? o[field] : t[field];
-            if (value !== undefined) merged[field] = value;
-        }
-        return merged;
-    };
-    const b = base as Fields;
-    const o = ours as Fields;
-    const t = theirs as Fields;
-    const merged = pick(
-        { ...b, key: t.key, data: undefined },
-        { ...o, key: t.key, data: undefined },
-        { ...t, data: undefined },
-    );
-    if ("data" in t || "data" in o) merged.data = pick(dataOf(base), dataOf(ours), dataOf(theirs));
+    const winner = changedInSubstance(ours, base) ? ours : theirs;
+    const data: Fields = { ...dataOf(winner) };
+    for (const field of DEVICE_FIELDS) {
+        const value = !sameValue(dataOf(ours)[field], dataOf(base)[field])
+            ? dataOf(ours)[field]
+            : dataOf(theirs)[field];
+        if (value === undefined) delete data[field];
+        else data[field] = value;
+    }
+    const merged: Fields = { ...(winner as Fields), key: (theirs as Fields).key };
+    if ("data" in (winner as Fields) || Object.keys(data).length > 0) merged.data = data;
     return merged;
 }
 
@@ -120,11 +136,11 @@ function mergeQuestion(base: Question, ours: Question, theirs: Question): Questi
  * Merge `local`, made from `base`, into `server`'s current list. Ours: what
  * we added, changed or removed since `base`; theirs: everything else, so
  * what was added, changed or removed elsewhere stays that way. A question
- * changed on both sides merges field by field (see mergeQuestion). One we
- * removed that they changed in substance is kept with their change, and one
- * they removed that we changed in substance is kept with ours; a change to
- * how it's shown (folded, locked) alone doesn't keep it. Our order comes
- * first, then their additions in theirs.
+ * changed on both sides merges as mergeQuestion says. One we removed that
+ * they changed in substance is kept with their change, and one they removed
+ * that we changed in substance is kept with ours; a change to how it's shown
+ * (folded, locked) alone doesn't keep it. Our order comes first, then their
+ * additions in theirs.
  */
 export function mergeQuestionLists<Q>(
     base: readonly Q[],

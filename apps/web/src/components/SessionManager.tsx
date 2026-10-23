@@ -38,6 +38,8 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
+    queuedQuestionsBase,
+    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
@@ -795,6 +797,14 @@ export function SessionManager() {
     const savesBlocked = () =>
         offlineRef.current && offlineBoardUserRef.current !== authUserId;
 
+    // A board painted from the snapshot shows the latest list still queued,
+    // if any: its base is that list's, not the snapshot's (a merged list
+    // whose answer was lost comes with the server list it was merged with).
+    const paintedFromSnapshot = (id: string) => {
+        const base = queuedQuestionsBase(id);
+        if (base) setBoardBase(id, base);
+    };
+
     // A session's hider and planning mode, with this account's edits to them
     // that haven't synced yet.
     const showSessionModes = (session: GameSessionSummary) => {
@@ -1014,6 +1024,7 @@ export function SessionManager() {
             strokes.set(derived.strokes);
             // The game hasn't loaded: show only what it may support.
             questions.set(filterSupportedQuestions(derived.questions, null));
+            paintedFromSnapshot(storedId);
             return true;
         };
         // Then, still without the server: the session's details, its hider
@@ -1251,6 +1262,7 @@ export function SessionManager() {
                 questions.set(
                     filterSupportedQuestions(derived.questions, null),
                 );
+                paintedFromSnapshot(selected.id);
                 console.info(
                     "[searchlight:session] painted from cache, loading server state",
                 );
@@ -1339,6 +1351,7 @@ export function SessionManager() {
                     questions.set(
                         filterSupportedQuestions(derived.questions, null),
                     );
+                    paintedFromSnapshot(selected.id);
                 } else {
                     // No cache and no server — leave atoms empty, don't publish stale session content
                     strokes.set([]);
@@ -1473,6 +1486,15 @@ export function SessionManager() {
             onQuestionsSaved(({ sessionId: savedId, local, saved, sequence, mergedWith }) => {
                 if (!mergedWith || savedId !== activeSessionId.get()) return;
                 if (isLoadingSession()) return;
+                const cached = getCachedSession(savedId);
+                // A later list (another player's, after ours) already
+                // shows on the board, our save in it: nothing to add.
+                if (
+                    sequence === undefined ||
+                    (cached?.serverQuestions?.sequence ?? -1) >= sequence
+                ) {
+                    return;
+                }
                 const current = questions.get();
                 const visible = filterSupportedQuestions(
                     mergeQuestionLists(local, current, saved),
@@ -1481,8 +1503,7 @@ export function SessionManager() {
                 // The board is made from the saved list now: the next list
                 // queued has it as its base. The snapshot keeps the two
                 // together, for an offline restore.
-                const cached = getCachedSession(savedId);
-                if (cached && sequence !== undefined) {
+                if (cached) {
                     setCachedSession({
                         ...cached,
                         questions: visible,

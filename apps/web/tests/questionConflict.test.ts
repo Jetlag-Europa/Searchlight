@@ -28,6 +28,7 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
+    queuedQuestionsBase,
     questionsBase,
     setBoardBase,
     setCachedSession,
@@ -159,23 +160,35 @@ describe("saving a question list made on an old base", () => {
         expect(getPendingEvents(SID)[0].status).toBe("failed");
     });
 
-    test("follows a list that was saved as is with one based on it, without merging", async () => {
+    test("replays an earlier list whose send failed before the one replacing it", async () => {
         snapshot("u1", [], 4);
-        // Offline: two edits, the second replacing the first in the queue.
+        // Two edits on a bad connection: the first send fails (it may have
+        // reached the server), and the second replaces it in the queue.
         mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
         await saveQuestionsToServer(SID, [q(1)]).catch(() => {});
         await saveQuestionsToServer(SID, [q(1), q(2)]).catch(() => {});
-        const [queued] = getPendingEvents(SID);
-        expect(
-            (queued.payloadJson as { base: { sequence: number } }).base.sequence,
-        ).toBe(4);
+        const queued = getPendingEvents(SID);
+        expect(queued).toHaveLength(1);
+        const payload = queued[0].payloadJson as {
+            base: { sequence: number };
+            prior: Array<{ baseSequence: number }>;
+        };
+        expect(payload.base.sequence).toBe(4);
+        expect(payload.prior.map((p) => p.baseSequence)).toEqual([4]);
 
+        // The first had landed (at 5): the second follows on from it.
         mockFetch.mockReset();
-        mockFetch.mockResolvedValueOnce(json(200, { sequence: 5 }));
+        mockFetch
+            .mockResolvedValueOnce(json(200, { sequence: 5, duplicate: true }))
+            .mockResolvedValueOnce(json(200, { sequence: 6 }));
         await flushPendingEvents(SID);
-        expect(puts()).toHaveLength(1);
+        const [replay, last] = puts();
+        expect(replay.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1)]);
+        expect(last.baseSequence).toBe(5);
+        expect(last.questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1), q(2)]);
         expect(getPendingEvents(SID)).toEqual([]);
     });
+
 });
 
 describe("an edit made while the last save is on its way", () => {
@@ -241,6 +254,89 @@ describe("a merged save whose answer was lost", () => {
         const last = puts().at(-1);
         expect(last.baseSequence).toBe(8);
         expect(last.questions.map((x: { payloadJson: { key: number } }) => x.payloadJson.key)).toEqual([1, 2, 3]);
+    });
+});
+
+describe("a board reopened offline after a merged save's answer was lost", () => {
+    test("is based on the list it was merged with, so removals stay removed", async () => {
+        const A = q(1), Q1 = q(2), B2 = q(3);
+        snapshot("u1", [A], 4);
+        mockFetch
+            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+            .mockResolvedValueOnce(json(200, { questions: wire([A, B2]), sequence: 7 }))
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [A, Q1]).catch(() => {});
+
+        // Reopened offline: the board shows the queued (merged) list, and
+        // takes its base (SessionManager's paint does this).
+        const board = applyUnsyncedEvents(SID, getCachedSession(SID)!).questions;
+        expect(board).toEqual([A, Q1, B2]);
+        setBoardBase(SID, queuedQuestionsBase(SID)!);
+        expect(questionsBase(SID)?.sequence).toBe(7);
+
+        // Offline we remove Q1.
+        mockFetch.mockReset();
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [A, B2]).catch(() => {});
+
+        // The merged save had committed at 8; then they removed B2 at 9. A
+        // server knows a save it has by its replacementId.
+        const merged = puts()[0].replacementId;
+        mockFetch.mockReset();
+        mockFetch.mockImplementation(async (_u: string, init?: RequestInit) => {
+            if (init?.method !== "PUT") return json(200, { questions: wire([A, Q1]), sequence: 9 });
+            const body = JSON.parse(init.body as string);
+            if (body.replacementId === merged) return json(200, { sequence: 8, duplicate: true });
+            return body.baseSequence < 9 ? json(409, { code: "QUESTIONS_CHANGED" }) : json(200, { sequence: 10 });
+        });
+        await flushPendingEvents(SID);
+        expect(puts().at(-1).questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([A]);
+    });
+
+    test("keeps our offline edits if that merged save never landed", async () => {
+        const A = q(1), Q1 = q(2), B2 = q(3);
+        snapshot("u1", [A], 4);
+        mockFetch
+            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+            .mockResolvedValueOnce(json(200, { questions: wire([A, B2]), sequence: 7 }))
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [A, Q1]).catch(() => {});
+        setBoardBase(SID, queuedQuestionsBase(SID)!);
+        // Offline we change A and keep Q1.
+        const A2 = { ...A, data: { label: "A edited" } } as unknown as Questions[number];
+        mockFetch.mockReset();
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+        await saveQuestionsToServer(SID, [A2, Q1, B2]).catch(() => {});
+
+        // Nothing of ours landed; they removed B2 at 9.
+        mockFetch.mockReset();
+        mockFetch.mockImplementation(async (_u: string, init?: RequestInit) => {
+            if (init?.method !== "PUT") return json(200, { questions: wire([A]), sequence: 9 });
+            const body = JSON.parse(init.body as string);
+            return body.baseSequence < 9 ? json(409, { code: "QUESTIONS_CHANGED" }) : json(200, { sequence: 10 });
+        });
+        await flushPendingEvents(SID);
+        expect(puts().at(-1).questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([A2, Q1]);
+    });
+});
+
+describe("a merged list that can't be queued for want of space", () => {
+    test("is still sent", async () => {
+        snapshot("u1", [], 4);
+        const setItem = localStorage.setItem.bind(localStorage);
+        vi.spyOn(localStorage, "setItem").mockImplementation((key: string, value: string) => {
+            if (key.startsWith("taibled-pending-") && value.includes('"merged"')) {
+                throw new DOMException("full", "QuotaExceededError");
+            }
+            setItem(key, value);
+        });
+        mockFetch
+            .mockResolvedValueOnce(json(409, { code: "QUESTIONS_CHANGED" }))
+            .mockResolvedValueOnce(json(200, { questions: wire([q(2)]), sequence: 7 }))
+            .mockResolvedValueOnce(json(200, { sequence: 8 }));
+        await saveQuestionsToServer(SID, [q(1)]);
+        expect(puts().at(-1).questions.map((x: { payloadJson: unknown }) => x.payloadJson)).toEqual([q(1), q(2)]);
+        expect(getPendingEvents(SID)).toEqual([]);
     });
 });
 

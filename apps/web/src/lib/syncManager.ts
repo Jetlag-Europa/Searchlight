@@ -161,6 +161,46 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
 }
 
 /**
+ * Lists this one replaced may be on the server already (sent, no answer).
+ * Send each again first, by its replacementId and base: saved before or
+ * saved now, this list follows on from it, so it becomes the base. Refused
+ * as stale, it never landed, and this list has its edits anyway.
+ */
+async function settlePriorLists(
+    sessionId: string,
+    payload: QuestionsReplacePayload,
+): Promise<QuestionsReplacePayload> {
+    let base = payload.base;
+    for (const prior of payload.prior ?? []) {
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+            method: "PUT",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(prior),
+        });
+        if (res.status === 409) {
+            const code = await res
+                .json()
+                .then((data: { code?: unknown }) => data?.code)
+                .catch(() => undefined);
+            if (code === QUESTIONS_CHANGED) continue;
+        }
+        if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+        const sequence = await res
+            .json()
+            .then((data: { sequence?: unknown }) => data?.sequence)
+            .catch(() => undefined);
+        if (typeof sequence === "number") {
+            base = {
+                sequence,
+                questions: prior.questions.map((q) => q.payloadJson),
+            };
+        }
+    }
+    return { ...payload, base, prior: undefined };
+}
+
+/**
  * Save a queued question list. Made on a base the server has moved on from,
  * it is merged with the server's list first: see mergeQuestionLists. Each
  * merge replaces the queued list before it is sent, keeping its
@@ -173,6 +213,15 @@ async function sendQuestions(
 ): Promise<QuestionsSaved> {
     const { sessionId } = event;
     let payload = event.payloadJson as QuestionsReplacePayload;
+    const madeFrom = payload.merged?.base ?? payload.base;
+    if (payload.prior?.length) {
+        payload = await settlePriorLists(sessionId, payload);
+        try {
+            updateQueuedPayload(sessionId, event.localId, payload);
+        } catch (err) {
+            console.warn("[searchlight:sync] couldn't queue the settled list:", err);
+        }
+    }
     for (let merges = 0; ; merges++) {
         const baseSequence = payload.base?.sequence;
         const body = JSON.stringify({
@@ -218,7 +267,13 @@ async function sendQuestions(
                     base: server,
                     merged: payload.merged ?? { local: list, base: payload.base },
                 };
-                updateQueuedPayload(sessionId, event.localId, payload);
+                try {
+                    updateQueuedPayload(sessionId, event.localId, payload);
+                } catch (err) {
+                    // Storage is full: send the merged list anyway. Only a
+                    // lost answer to it can't be told apart from a new save.
+                    console.warn("[searchlight:sync] couldn't queue the merged list:", err);
+                }
                 continue;
             }
         }
@@ -239,7 +294,7 @@ async function sendQuestions(
             sessionId,
             local: payload.merged?.local ?? saved,
             saved,
-            madeFrom: payload.merged?.base ?? payload.base,
+            madeFrom,
             sequence,
             mergedWith: payload.merged ? payload.base : undefined,
         };
