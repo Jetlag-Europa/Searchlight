@@ -1,4 +1,8 @@
 // @ts-check
+import { createReadStream, readFileSync } from "node:fs";
+import { copyFile, mkdir } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import react from "@astrojs/react";
@@ -8,6 +12,47 @@ import { defineConfig } from "astro/config";
 
 import { precacheUrl } from "./src/lib/pageCache.ts";
 
+// ArcGIS's projection engine, a WASM file the geometry worker loads for
+// geodesic questions, is served with the app instead of from js.arcgis.com:
+// the service worker precaches it, so questions work without a connection,
+// and it is the very build of the installed @arcgis/core. Its path names
+// that version, so it can be cached as immutable like the rest of /_astro/.
+const arcgisDir = dirname(
+    createRequire(import.meta.url).resolve("@arcgis/core/package.json"),
+);
+const arcgisVersion = JSON.parse(
+    readFileSync(join(arcgisDir, "package.json"), "utf8"),
+).version;
+const ARCGIS_ASSETS_PATH = `/_astro/arcgis-${arcgisVersion}`;
+const PE_WASM = "esri/geometry/support/pe-wasm.wasm";
+
+/** @returns {import("astro").AstroIntegration} */
+function arcgisAssets() {
+    const source = join(arcgisDir, "assets", PE_WASM);
+    return {
+        name: "searchlight:arcgis-assets",
+        hooks: {
+            "astro:server:setup": ({ server }) => {
+                server.middlewares.use(
+                    `${ARCGIS_ASSETS_PATH}/${PE_WASM}`,
+                    (_req, res) => {
+                        res.setHeader("Content-Type", "application/wasm");
+                        createReadStream(source).pipe(res);
+                    },
+                );
+            },
+            // Before the service worker's precache list is made
+            "astro:build:done": async ({ dir }) => {
+                const target = fileURLToPath(
+                    new URL(`.${ARCGIS_ASSETS_PATH}/${PE_WASM}`, dir),
+                );
+                await mkdir(dirname(target), { recursive: true });
+                await copyFile(source, target);
+            },
+        },
+    };
+}
+
 // https://astro.build/config
 export default defineConfig({
     integrations: [
@@ -15,6 +60,8 @@ export default defineConfig({
         tailwind({
             applyBaseStyles: false,
         }),
+        // Before AstroPWA, whose build:done precaches what it copies
+        arcgisAssets(),
         AstroPWA({
             // src/sw.ts, built with the precache list injected.
             strategies: "injectManifest",
@@ -27,13 +74,14 @@ export default defineConfig({
                 rollupFormat: "iife",
                 // The plugin adds the manifest itself.
                 globPatterns: [
-                    "**/*.{js,css,html,png,svg,ico}",
+                    "**/*.{js,css,html,png,svg,ico,wasm}",
                     // The in-game alarm
                     "Mountain Audio - Alarm.mp3",
                 ],
                 // Files for AI agents and tools, not for the app
                 globIgnores: ["skills/**", "schemas/**"],
-                // ArcGIS's projection engine alone is about 5 MB.
+                // Above Workbox's 2 MB default: ArcGIS's projection engine
+                // WASM is 2.8 MB (its geometry chunks are about 1.5 MB).
                 maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
                 // Pages by the URL the server shows them at (src/sw.ts finds
                 // them by it).
@@ -107,6 +155,10 @@ export default defineConfig({
         }),
     ],
     vite: {
+        define: {
+            // src/maps/geo-utils/geometry.worker.ts
+            __ARCGIS_ASSETS_PATH__: JSON.stringify(ARCGIS_ASSETS_PATH),
+        },
         // Read PUBLIC_* settings from the repo-root .env shared with the API.
         envDir: fileURLToPath(new URL("../..", import.meta.url)),
         worker: {
