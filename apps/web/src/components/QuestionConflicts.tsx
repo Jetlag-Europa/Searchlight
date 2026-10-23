@@ -218,8 +218,9 @@ export function QuestionConflicts() {
 }
 
 const TITLE = "Choose which version to keep";
+// Short, so a small phone has room for the questions themselves.
 const DESCRIPTION =
-    "You and someone else changed these questions before seeing each other's changes. Until you choose, their version stays.";
+    "Someone else changed these too. Theirs stays until you choose.";
 
 // Above the map's corner chips (z 1041) and the sync pill (1042), which
 // would otherwise cover the drawer's handle, its title or the dialog's
@@ -491,20 +492,26 @@ function ConflictList({
                     />
                 ))}
             </ul>
+            {/* On a phone the two "Keep all" share a row, so a small screen
+                keeps its height for the list. */}
             <div
                 className={cn(
-                    "flex shrink-0 flex-col gap-2 border-t p-4 sm:flex-row sm:flex-wrap sm:justify-end",
-                    !large && "px-6",
+                    "shrink-0 gap-2 border-t",
+                    large
+                        ? "grid grid-cols-2 p-3"
+                        : "flex flex-row flex-wrap justify-end px-6 py-4",
                 )}
             >
                 {!possible && (
                     <p
                         role="status"
-                        className="text-sm text-amber-400 sm:basis-full sm:text-right"
+                        className={cn(
+                            "text-sm text-amber-400",
+                            large ? "col-span-2" : "basis-full text-right",
+                        )}
                     >
-                        Can&apos;t save a choice right now: the session is still
-                        loading, or this device can&apos;t save while offline.
-                        It can wait.
+                        Can&apos;t save a choice yet: the session is loading, or
+                        offline. It can wait.
                     </p>
                 )}
                 {conflicts.length > 1 && (
@@ -512,6 +519,7 @@ function ConflictList({
                         <Button
                             size={size}
                             variant="secondary"
+                            className={cn(large && "px-2")}
                             disabled={!canKeepAll("mine")}
                             onClick={() =>
                                 resolveAllQuestionConflicts(sessionId, "mine")
@@ -522,6 +530,7 @@ function ConflictList({
                         <Button
                             size={size}
                             variant="secondary"
+                            className={cn(large && "px-2")}
                             disabled={!canKeepAll("theirs")}
                             onClick={() =>
                                 resolveAllQuestionConflicts(sessionId, "theirs")
@@ -531,7 +540,12 @@ function ConflictList({
                         </Button>
                     </>
                 )}
-                <Button size={size} variant="ghost" onClick={onLater}>
+                <Button
+                    size={size}
+                    variant="ghost"
+                    className={cn(large && "col-span-2")}
+                    onClick={onLater}
+                >
                     Decide later
                 </Button>
             </div>
