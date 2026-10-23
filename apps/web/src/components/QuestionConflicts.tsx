@@ -1,25 +1,19 @@
 import { useStore } from "@nanostores/react";
-import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { TriangleAlert, X } from "lucide-react";
-import {
-    type ComponentPropsWithoutRef,
-    type RefObject,
-    useEffect,
-    useRef,
-    useState,
-} from "react";
+import { TriangleAlert } from "lucide-react";
+import { type RefObject, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Drawer as DrawerPrimitive } from "vaul";
 
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
+    DialogContent,
     DialogDescription,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
 import {
     Drawer,
+    DrawerContent,
     DrawerDescription,
     DrawerHeader,
     DrawerTitle,
@@ -154,9 +148,15 @@ export function QuestionConflicts() {
         .filter((c) => c.author === undefined)
         .map((c) => `${c.key}@${c.theirsSequence}`)
         .join(",");
+    // A lookup made offline gets nothing, so it's made again when the
+    // connection comes back while the window is open.
     useEffect(() => {
         if (!visible || !sessionId || !missing) return;
-        void lookUpConflictAuthors(sessionId).catch(() => {});
+        const lookUp = () =>
+            void lookUpConflictAuthors(sessionId).catch(() => {});
+        lookUp();
+        window.addEventListener("online", lookUp);
+        return () => window.removeEventListener("online", lookUp);
     }, [visible, sessionId, missing]);
 
     // On a phone an open sidebar covers the map, and the chip would cover
@@ -224,78 +224,9 @@ const DESCRIPTION =
 
 // Above the map's corner chips (z 1041) and the sync pill (1042), which
 // would otherwise cover the drawer's handle, its title or the dialog's
-// close button. Toasts, the session picker and the loading overlay stay
+// close button. Given to both the window and its overlay. Toasts, the session picker and the loading overlay stay
 // above it.
 const LAYER = "z-[1043]";
-
-// DrawerContent's look, portalled to the body rather than into the map. A
-// phone's question or zone sidebar is a modal sheet in the body, which hides
-// everything else from screen readers, the map included; this window can
-// open over it (when conflicts arrive), and inside the map it would be
-// hidden with the rest. Opened later, in the body, it isn't, and it hides
-// the sheet in turn while it's open. In full screen only the map shows (and
-// no sidebar), so it goes in the map then.
-function BodyDrawerContent({
-    className,
-    children,
-    ...props
-}: ComponentPropsWithoutRef<typeof DrawerPrimitive.Content>) {
-    const fullscreen = useFullscreenElement();
-    return (
-        <DrawerPrimitive.Portal container={fullscreen ?? document.body}>
-            <DrawerPrimitive.Overlay
-                className={cn("fixed inset-0 bg-black/80", LAYER)}
-            />
-            <DrawerPrimitive.Content
-                className={cn(
-                    "fixed inset-x-0 bottom-0 mt-24 flex h-auto flex-col rounded-t-[10px] border bg-background",
-                    LAYER,
-                    className,
-                )}
-                {...props}
-            >
-                <div className="mx-auto mt-4 h-2 w-[100px] rounded-full bg-muted" />
-                {children}
-            </DrawerPrimitive.Content>
-        </DrawerPrimitive.Portal>
-    );
-}
-
-// DialogContent's look and place (in the map), one layer up: see LAYER.
-function MapDialogContent({
-    className,
-    children,
-    ...props
-}: ComponentPropsWithoutRef<typeof DialogPrimitive.Content>) {
-    return (
-        <DialogPrimitive.Portal
-            container={document.querySelector(
-                "#map-modal-dialog-container-leaflet",
-            )}
-        >
-            <DialogPrimitive.Overlay
-                className={cn(
-                    "fixed inset-0 bg-black/80 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-                    LAYER,
-                )}
-            />
-            <DialogPrimitive.Content
-                className={cn(
-                    "fixed left-[50%] top-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
-                    LAYER,
-                    className,
-                )}
-                {...props}
-            >
-                {children}
-                <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none">
-                    <X className="h-4 w-4" />
-                    <span className="sr-only">Close</span>
-                </DialogPrimitive.Close>
-            </DialogPrimitive.Content>
-        </DialogPrimitive.Portal>
-    );
-}
 
 // Whether a modal other than this window is still open behind it: the
 // question sidebar's sheet on a phone, or a dialog such as Add Question.
@@ -322,6 +253,7 @@ function ConflictWindow({
     conflicts: QuestionConflict[];
 }) {
     const isMobile = useIsMobile();
+    const fullscreen = useFullscreenElement();
     const onOpenChange = (next: boolean) => {
         if (!next) onClose();
     };
@@ -379,9 +311,20 @@ function ConflictWindow({
     if (isMobile) {
         return (
             <Drawer open={open} onOpenChange={onOpenChange}>
-                <BodyDrawerContent
+                {/* Portalled to the body rather than into the map. A phone's
+                    question or zone sidebar is a modal sheet in the body,
+                    which hides everything else from screen readers, the map
+                    included; this window can open over it (when conflicts
+                    arrive), and inside the map it would be hidden with the
+                    rest. Opened later, in the body, it isn't, and it hides
+                    the sheet in turn while it's open. In full screen only
+                    the map shows (and no sidebar), so it goes in the map
+                    then. */}
+                <DrawerContent
+                    container={fullscreen ?? document.body}
+                    overlayClassName={LAYER}
                     data-question-conflicts=""
-                    className="max-h-[92svh]"
+                    className={cn("max-h-[92svh]", LAYER)}
                     onOpenAutoFocus={focusTitle}
                     onCloseAutoFocus={restoreFocus}
                 >
@@ -403,16 +346,20 @@ function ConflictWindow({
                         onLater={onClose}
                         large
                     />
-                </BodyDrawerContent>
+                </DrawerContent>
             </Drawer>
         );
     }
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <MapDialogContent
+            <DialogContent
+                overlayClassName={LAYER}
                 data-question-conflicts=""
-                className="flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0"
+                className={cn(
+                    "flex max-h-[85vh] max-w-2xl flex-col gap-0 p-0",
+                    LAYER,
+                )}
                 onOpenAutoFocus={focusTitle}
                 onCloseAutoFocus={restoreFocus}
             >
@@ -431,7 +378,7 @@ function ConflictWindow({
                     conflicts={conflicts}
                     onLater={onClose}
                 />
-            </MapDialogContent>
+            </DialogContent>
         </Dialog>
     );
 }
@@ -621,6 +568,7 @@ function ConflictItem({
                     possible={possible}
                     options={options}
                     action="Keep mine"
+                    questionLabel={name ?? label}
                     large={large}
                     onChoose={() => onChoose("mine")}
                 />
@@ -632,6 +580,7 @@ function ConflictItem({
                     possible={possible}
                     options={options}
                     action="Keep theirs"
+                    questionLabel={name ?? label}
                     large={large}
                     onChoose={() => onChoose("theirs")}
                 />
@@ -653,6 +602,7 @@ function VersionColumn({
     possible,
     options,
     action,
+    questionLabel,
     large,
     onChoose,
 }: {
@@ -665,6 +615,9 @@ function VersionColumn({
     possible: boolean;
     options: SummaryOptions;
     action: string;
+    // Which question it decides, for a screen reader: every item has the
+    // same two buttons.
+    questionLabel: string;
     large: boolean;
     onChoose: () => void;
 }) {
@@ -672,6 +625,7 @@ function VersionColumn({
     const answer =
         summary?.answer ?? summary?.subject ?? questionTypeLabel(question);
     const subject = summary?.answer ? summary.subject : undefined;
+    const versionId = useId();
 
     return (
         <div className="flex min-w-0 flex-col gap-2 rounded-md bg-muted/40 p-2">
@@ -681,7 +635,7 @@ function VersionColumn({
             >
                 {heading}
             </p>
-            <div className="min-w-0 flex-1">
+            <div id={versionId} className="min-w-0 flex-1">
                 {!question ? (
                     <p className="text-lg font-semibold italic text-muted-foreground">
                         Deleted
@@ -716,6 +670,9 @@ function VersionColumn({
                     className={cn("w-full", large && "px-2")}
                     disabled={!possible}
                     onClick={onChoose}
+                    // "Keep mine: Radius 1", then what that version says.
+                    aria-label={`${action}: ${questionLabel}`}
+                    aria-describedby={versionId}
                 >
                     {action}
                 </Button>
