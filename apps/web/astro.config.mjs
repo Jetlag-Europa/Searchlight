@@ -73,6 +73,14 @@ export default defineConfig({
         optimizeDeps: {
             rolldownOptions: { plugins: [leafletDrawSideEffectImport] },
         },
+        // Vite 6's default browsers. Vite 8 moved to Baseline (Safari/iOS
+        // 16.4, Chrome 111), whose range media queries older phones ignore.
+        // Vite 6 also listed "es2020", but Astro adds "esnext" to the client
+        // build's list and Rolldown rejects two ES versions.
+        build: {
+            target: ["edge88", "firefox78", "chrome87", "safari14"],
+            cssTarget: ["edge88", "firefox78", "chrome87", "safari14"],
+        },
         // Read PUBLIC_* settings from the repo-root .env shared with the API.
         envDir: fileURLToPath(new URL("../..", import.meta.url)),
         // Tailwind 3 through PostCSS, as @astrojs/tailwind (which doesn't
