@@ -1,4 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+    type MutableRefObject,
+    useCallback,
+    useEffect,
+    useRef,
+    useState,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +40,9 @@ export const readClipboardText = async (): Promise<string | null> => {
 export const usePasteText = () => {
     const [prompt, setPrompt] = useState<PastePrompt | null>(null);
     const resolveRef = useRef<((text: string | null) => void) | null>(null);
+    // Whether pasteDialog is on screen: it can be inside a dialog or drawer
+    // that closes while this hook's component stays.
+    const dialogMounted = useRef(false);
 
     const finish = useCallback((text: string | null) => {
         resolveRef.current?.(text);
@@ -45,6 +54,9 @@ export const usePasteText = () => {
         async (fallback: PastePrompt): Promise<string | null> => {
             const text = await readClipboardText();
             if (text !== null) return text;
+            // The dialog or drawer with the button closed while the browser
+            // was still asking: don't pop the field up the next time it opens.
+            if (!dialogMounted.current) return null;
             // A second paste click while the field is open replaces it.
             resolveRef.current?.(null);
             return new Promise((resolve) => {
@@ -58,7 +70,13 @@ export const usePasteText = () => {
     // Don't leave a caller waiting forever if the button goes away.
     useEffect(() => () => resolveRef.current?.(null), []);
 
-    const pasteDialog = <PasteFallbackDialog prompt={prompt} onDone={finish} />;
+    const pasteDialog = (
+        <PasteFallbackDialog
+            prompt={prompt}
+            onDone={finish}
+            mounted={dialogMounted}
+        />
+    );
 
     return { readPaste, pasteDialog };
 };
@@ -66,9 +84,11 @@ export const usePasteText = () => {
 const PasteFallbackDialog = ({
     prompt,
     onDone,
+    mounted,
 }: {
     prompt: PastePrompt | null;
     onDone: (text: string | null) => void;
+    mounted: MutableRefObject<boolean>;
 }) => {
     const [text, setText] = useState("");
     // Keep showing the last prompt while the dialog animates closed.
@@ -78,6 +98,15 @@ const PasteFallbackDialog = ({
     useEffect(() => {
         if (prompt) setText("");
     }, [prompt]);
+
+    useEffect(() => {
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            // Closing the surrounding dialog cancels the paste with it.
+            onDone(null);
+        };
+    }, [mounted, onDone]);
 
     return (
         <Dialog
@@ -90,7 +119,7 @@ const PasteFallbackDialog = ({
                 <DialogTitle>{shown.current?.title}</DialogTitle>
                 <DialogDescription>
                     {shown.current?.description ??
-                        "Your browser blocked reading the clipboard. Paste here instead."}
+                        "Couldn't read the clipboard. Paste here instead."}
                 </DialogDescription>
                 <textarea
                     autoFocus
@@ -98,11 +127,11 @@ const PasteFallbackDialog = ({
                     value={text}
                     placeholder={shown.current?.placeholder ?? "Paste here"}
                     onChange={(e) => setText(e.target.value)}
-                    // A paste is the whole point of the field, so use it right
-                    // away instead of making the user confirm.
+                    // A paste into the empty field is the whole point, so use
+                    // it right away. Into typed text, it pastes as usual.
                     onPaste={(e) => {
                         const pasted = e.clipboardData.getData("text/plain");
-                        if (pasted.trim() === "") return;
+                        if (pasted.trim() === "" || text.trim() !== "") return;
                         e.preventDefault();
                         onDone(pasted);
                     }}

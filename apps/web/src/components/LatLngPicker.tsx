@@ -132,6 +132,7 @@ const LatLngEditForm = ({
             e.clipboardData.getData("text/plain"),
         );
         if (lat === null || lng === null) return;
+        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
         e.preventDefault();
         onChange(lat, lng);
         toast.success("Coordinates set", { autoClose: 1000 });
@@ -593,10 +594,9 @@ export const LatitudeLongitude = ({
                                     return;
                                 }
                                 onChange(coords.lat, coords.lng);
-                                toast.success(
-                                    "Coordinates set",
-                                    { autoClose: 1000 },
-                                );
+                                toast.success("Coordinates set", {
+                                    autoClose: 1000,
+                                });
                             }}
                             disabled={disabled}
                             title="Paste coordinates from clipboard"
