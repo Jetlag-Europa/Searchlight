@@ -30,6 +30,7 @@ import {
     isPenErasing,
     isSecondaryMouseButton,
 } from "@/annotations/utils/penButtons";
+import { sessionReadOnly } from "@/lib/activeSession";
 import { randomUUID } from "@/lib/utils";
 
 interface ActiveStrokeState {
@@ -70,7 +71,11 @@ export function AnnotationLayer({ map }: { map: L.Map | null }) {
     const $tool = useStore(toolStore);
     const $color = useStore(colorStore);
     const $widthPreset = useStore(widthPresetStore);
-    const $drawingEnabled = useStore(drawingEnabled);
+    // Pen mode stays as the user left it for their other sessions, but a
+    // spectator's board is never drawn on.
+    const $penMode = useStore(drawingEnabled);
+    const $readOnly = useStore(sessionReadOnly);
+    const $drawingEnabled = $penMode && !$readOnly;
     const $detectPencil = useStore(detectPencilOnly);
     const $strokes = useStore(strokesStore);
 

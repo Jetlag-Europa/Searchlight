@@ -1,5 +1,5 @@
 import type { StrokeFeature } from "@/annotations/types";
-import { activeSessionId } from "@/lib/activeSession";
+import { activeSessionId, isSessionReadOnly } from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
     discardEvent,
@@ -210,6 +210,8 @@ async function dispatchQueuedEvent(
     keepalive: boolean,
 ): Promise<void> {
     const { sessionId } = requested;
+    // A spectator's board sends nothing, including edits queued before.
+    if (isSessionReadOnly(sessionId)) return;
     const queued = getPendingEvents(sessionId);
     const event = isReplacementEventType(requested.type)
         ? queued.findLast((candidate) => candidate.type === requested.type)
@@ -265,6 +267,7 @@ export function sendPendingEvent(
 }
 
 export async function flushPendingEvents(sessionId: string): Promise<void> {
+    if (isSessionReadOnly(sessionId)) return;
     const pending = getPendingEvents(sessionId).filter(
         (event) => event.status !== "synced",
     );

@@ -22,6 +22,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 <p id="link-label" class="text-sm text-white/50 uppercase tracking-widest"></p>
                 <h1 id="session-name" class="text-3xl font-bold tracking-tight"></h1>
                 <p id="game-name" class="text-lg text-white/60"></p>
+                <p id="link-note" class="hidden text-sm text-white/50"></p>
             </div>
 
             <button
@@ -63,12 +64,23 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             $("session-name").textContent = linkInfo.sessionName;
             $("game-name").textContent = linkInfo.gameName;
 
+            const redeemText =
+                linkInfo.linkType === "fork" ? "Get your copy"
+                : linkInfo.linkType === "view" ? "Watch session"
+                : "Join session";
             if (linkInfo.linkType === "fork") {
                 $("link-label").textContent = "Shared with you";
-                $("redeem-label").textContent = me ? "Get your copy" : "Log in to get your copy";
+                $("redeem-label").textContent = me ? redeemText : "Log in to get your copy";
+            } else if (linkInfo.linkType === "view") {
+                // A spectator link: they follow the board without changing it.
+                $("link-label").textContent = "You're invited to watch";
+                $("redeem-label").textContent = me ? redeemText : "Log in to watch";
+                $("link-note").textContent =
+                    "You'll see the board live, but can't change it. If you're already in this session, you keep your current role.";
+                showEl("link-note");
             } else {
                 $("link-label").textContent = "You're invited to join";
-                $("redeem-label").textContent = me ? "Join session" : "Log in to join";
+                $("redeem-label").textContent = me ? redeemText : "Log in to join";
             }
 
             showEl("valid");
@@ -101,7 +113,7 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                     $("redeem-error").textContent = e instanceof Error ? e.message : String(e);
                     $("redeem-error").classList.remove("hidden");
                     $("redeem-btn").disabled = false;
-                    $("redeem-label").textContent = linkInfo.linkType === "fork" ? "Get your copy" : "Join session";
+                    $("redeem-label").textContent = redeemText;
                 }
             });
         }).catch(() => {

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import { FeatureGroup, Marker, Polygon, Polyline } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
 
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     autoSave,
     drawingQuestionKey,
@@ -232,13 +233,17 @@ const MeasuringPointMarker = ({
 export const PolygonDraw = () => {
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $questions = useStore(questions);
+    const $readOnly = useStore(sessionReadOnly);
 
     const featureRef = useRef<any | null>(null);
 
-    // Drawing is only for the custom question being edited.
+    // Drawing is only for the custom question being edited, and never for a
+    // spectator.
     let question: Question | undefined;
 
-    if ($drawingQuestionKey !== -1) {
+    if ($drawingQuestionKey !== -1 && $readOnly) {
+        drawingQuestionKey.set(-1);
+    } else if ($drawingQuestionKey !== -1) {
         question = $questions.find((q) => q.key === $drawingQuestionKey);
 
         if (question && isZoneSizeChange(question)) question = undefined;

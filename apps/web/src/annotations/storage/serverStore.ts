@@ -1,4 +1,5 @@
 import type { StrokeFeature } from "@/annotations/types";
+import { isSessionReadOnly } from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
     enqueueEvent,
@@ -46,6 +47,8 @@ export async function saveStrokeToServer(
     stroke: StrokeFeature,
 ): Promise<void> {
     const clientUuid = stroke.properties.clientUuid;
+    // Spectators can't draw.
+    if (isSessionReadOnly(sessionId)) return;
     if (strokeTombstones.has(clientUuid)) {
         console.info(
             "[serverStore] stroke.create skipped — tombstone already exists:",
@@ -99,6 +102,7 @@ export async function deleteStrokeFromServer(
     sessionId: string,
     clientUuid: string,
 ): Promise<void> {
+    if (isSessionReadOnly(sessionId)) return;
     recordStrokeTombstone(clientUuid);
 
     const event = enqueueEvent({

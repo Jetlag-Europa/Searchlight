@@ -19,6 +19,7 @@ import {
     activeGameDefinitionAtom,
     compiledGameAtom,
 } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     allowGooglePlusCodes,
     animateMapMovements,
@@ -82,6 +83,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $customInitPref = useStore(customInitPreference);
     const $penToolbarVisible = useStore(penToolbarVisible);
     const $showZoneNames = useStore(showZoneNames);
+    const $readOnly = useStore(sessionReadOnly);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
     const { readPaste, pasteDialog } = usePasteText();
@@ -339,18 +341,31 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }}
                                         />
                                     </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Enable planning mode?
-                                        </label>
-                                        <Checkbox
-                                            checked={$planningMode}
-                                            onCheckedChange={(checked) => {
-                                                planningModeEnabled.set(
-                                                    checked === true,
-                                                );
-                                            }}
-                                        />
+                                    {/* Planning mode is the session's: a
+                                        spectator sees it as its players set
+                                        it, and is told so (phones show no
+                                        hover title). */}
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className="flex flex-row items-center gap-2">
+                                            <label className="text-2xl font-semibold font-poppins">
+                                                Enable planning mode?
+                                            </label>
+                                            <Checkbox
+                                                checked={$planningMode}
+                                                disabled={$readOnly}
+                                                onCheckedChange={(checked) => {
+                                                    planningModeEnabled.set(
+                                                        checked === true,
+                                                    );
+                                                }}
+                                            />
+                                        </div>
+                                        {$readOnly && (
+                                            <p className="text-xs text-gray-500">
+                                                Set by the players: spectators
+                                                can&apos;t change it.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex flex-row items-center gap-2">
                                         <label className="text-2xl font-semibold font-poppins">
@@ -422,19 +437,23 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }
                                         />
                                     </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Show pen toolbar?
-                                        </label>
-                                        <Checkbox
-                                            checked={$penToolbarVisible}
-                                            onCheckedChange={() =>
-                                                penToolbarVisible.set(
-                                                    !$penToolbarVisible,
-                                                )
-                                            }
-                                        />
-                                    </div>
+                                    {/* Spectators can't draw, so they get
+                                        no pen toolbar. */}
+                                    {!$readOnly && (
+                                        <div className="flex flex-row items-center gap-2">
+                                            <label className="text-2xl font-semibold font-poppins">
+                                                Show pen toolbar?
+                                            </label>
+                                            <Checkbox
+                                                checked={$penToolbarVisible}
+                                                onCheckedChange={() =>
+                                                    penToolbarVisible.set(
+                                                        !$penToolbarVisible,
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    )}
                                     <div className="flex flex-row items-center gap-2">
                                         <label className="text-2xl font-semibold font-poppins">
                                             Auto-lock questions?
@@ -448,36 +467,41 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }
                                         />
                                     </div>
-                                    <div
-                                        className="flex flex-row items-center gap-2"
-                                        title={
-                                            hiderModeUnavailable
-                                                ? "Available once the game has loaded"
-                                                : undefined
-                                        }
-                                    >
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Hider mode?
-                                        </label>
-                                        <Checkbox
-                                            checked={!!$hiderMode}
-                                            disabled={hiderModeUnavailable}
-                                            onCheckedChange={() => {
-                                                if ($hiderMode === false) {
-                                                    if (!$compiledGame) return;
-                                                    const { center } =
-                                                        $compiledGame;
-                                                    hiderMode.set({
-                                                        latitude: center[1],
-                                                        longitude: center[0],
-                                                    });
-                                                } else {
-                                                    hiderMode.set(false);
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    {$hiderMode !== false && (
+                                    {/* Spectators never see the hider. */}
+                                    {!$readOnly && (
+                                        <div
+                                            className="flex flex-row items-center gap-2"
+                                            title={
+                                                hiderModeUnavailable
+                                                    ? "Available once the game has loaded"
+                                                    : undefined
+                                            }
+                                        >
+                                            <label className="text-2xl font-semibold font-poppins">
+                                                Hider mode?
+                                            </label>
+                                            <Checkbox
+                                                checked={!!$hiderMode}
+                                                disabled={hiderModeUnavailable}
+                                                onCheckedChange={() => {
+                                                    if ($hiderMode === false) {
+                                                        if (!$compiledGame)
+                                                            return;
+                                                        const { center } =
+                                                            $compiledGame;
+                                                        hiderMode.set({
+                                                            latitude: center[1],
+                                                            longitude:
+                                                                center[0],
+                                                        });
+                                                    } else {
+                                                        hiderMode.set(false);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    {$hiderMode !== false && !$readOnly && (
                                         <SidebarMenu>
                                             <LatitudeLongitude
                                                 latitude={$hiderMode.latitude}
