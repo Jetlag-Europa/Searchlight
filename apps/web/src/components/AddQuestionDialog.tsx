@@ -2,6 +2,7 @@ import { useStore } from "@nanostores/react";
 import React from "react";
 import { toast } from "react-toastify";
 
+import { usePasteText } from "@/components/PasteFallback";
 import {
     Dialog,
     DialogContent,
@@ -45,6 +46,7 @@ export const AddQuestionDialog = ({
     const $isLoading = useStore(isLoading);
     const compiled = useStore(compiledGameAtom);
     const [open, setOpen] = React.useState(false);
+    const { readPaste, pasteDialog } = usePasteText();
 
     // Questions come from the game: nothing can be added until it has loaded.
     const disabled = $isLoading || !compiled;
@@ -130,36 +132,29 @@ export const AddQuestionDialog = ({
     };
 
     const runPasteQuestion = async () => {
-        if (!navigator || !navigator.clipboard) {
-            toast.error("Clipboard API not supported in your browser");
-            return false;
-        }
+        const text = await readPaste({
+            title: "Paste question",
+            placeholder: "The question JSON you were sent",
+        });
+        if (text === null) return false;
 
         try {
-            await toast.promise(
-                navigator.clipboard.readText().then((text) => {
-                    const parsed = JSON.parse(text);
-                    const question =
-                        parsed &&
-                        typeof parsed === "object" &&
-                        !Array.isArray(parsed)
-                            ? { ...parsed, key: Math.random() }
-                            : parsed;
+            const parsed = JSON.parse(text);
+            const question =
+                parsed && typeof parsed === "object" && !Array.isArray(parsed)
+                    ? { ...parsed, key: Math.random() }
+                    : parsed;
 
-                    return addQuestion(question);
-                }),
-                {
-                    pending: "Reading from clipboard",
-                    success: "Question added from clipboard!",
-                    error: "No valid question found in clipboard",
-                },
-                { autoClose: 1000 },
-            );
-
-            return true;
+            addQuestion(question);
         } catch {
+            toast.error("No valid question found in the pasted text", {
+                autoClose: 1000,
+            });
             return false;
         }
+
+        toast.success("Question added!", { autoClose: 1000 });
+        return true;
     };
 
     return (
@@ -241,6 +236,7 @@ export const AddQuestionDialog = ({
                         Paste Question
                     </SidebarMenuButton>
                 </div>
+                {pasteDialog}
             </DialogContent>
         </Dialog>
     );
