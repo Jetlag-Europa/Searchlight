@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Paste field when the clipboard is blocked (2026-10-27)
+
+- The paste buttons (Paste Question, Apply from clipboard on presets, paste coordinates, and Paste GeoJSON in the options) still read the clipboard directly where the browser allows it. Where it doesn't, because clipboard access is blocked, the Clipboard API is missing, or the browser's own "Paste" prompt was dismissed, they now open a field to paste into, instead of showing an error.
+- Pasting a coordinate pair or a Google Maps link into the Latitude or Longitude field now sets both. A single number still pastes as before.
+
 ## Game link previews (2026-10-21)
 
 - A game link (`/play?token=…`) posted in Discord, Slack, Telegram, WhatsApp and similar apps now previews as the game's name, its server and an image of its map (the play area and hiding zones), instead of the site's general description. A revoked link previews as "Link no longer active".

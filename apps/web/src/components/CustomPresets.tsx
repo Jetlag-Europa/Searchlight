@@ -2,6 +2,7 @@ import { useStore } from "@nanostores/react";
 import * as React from "react";
 import { toast } from "react-toastify";
 
+import { usePasteText } from "@/components/PasteFallback";
 import { Button } from "@/components/ui/button";
 import {
     type CustomPreset,
@@ -24,6 +25,7 @@ const safeClone = (v: any) =>
 
 const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
     const $presets = useStore(customPresets);
+    const { readPaste, pasteDialog } = usePasteText();
 
     const presets = $presets.filter((p) =>
         presetTypeHint ? p.type === presetTypeHint : true,
@@ -82,15 +84,16 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
     };
 
     const handleApplyFromClipboard = async () => {
+        // An empty clipboard opens the paste field, so text is never empty.
+        const text = await readPaste({
+            title: "Paste preset",
+            placeholder: "The preset JSON from Share",
+        });
+        if (text === null) return;
         try {
-            const text = await navigator.clipboard.readText();
-            if (!text) {
-                toast.error("Clipboard is empty");
-                return;
-            }
             const payload = JSON.parse(text);
             if (!payload.data) {
-                toast.error("Clipboard JSON is not a preset (missing data)");
+                toast.error("Pasted JSON is not a preset (missing data)");
                 return;
             }
             const src = safeClone(payload.data);
@@ -100,7 +103,7 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
             questionModified();
             toast.info(`Applied preset "${payload.name ?? "from clipboard"}"`);
         } catch {
-            toast.error("Could not read or parse clipboard JSON");
+            toast.error("Could not parse the pasted JSON");
         }
     };
 
@@ -112,6 +115,7 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
                     Apply from clipboard
                 </Button>
             </div>
+            {pasteDialog}
 
             {presets.length === 0 ? (
                 <div className="mt-2 text-sm text-muted-foreground">
