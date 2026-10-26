@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
+import type { SessionLinkType } from "@searchlight/shared";
 
 export async function linkRoutes(app: FastifyInstance) {
   // GET /links/:token — public, no auth required
@@ -20,7 +21,7 @@ export async function linkRoutes(app: FastifyInstance) {
         valid: true,
         sessionName: link.session.name,
         gameName: link.session.game.name,
-        linkType: link.linkType as "join" | "fork",
+        linkType: link.linkType as SessionLinkType,
       };
     },
   );
@@ -39,10 +40,10 @@ export async function linkRoutes(app: FastifyInstance) {
       });
       if (!link || link.revokedAt) throw notFound("Link is invalid or has been revoked");
       if (link.session.creatorId === user.discordId) {
-        // The creator is already in the session; opening their own join
-        // link just takes them there.
-        if (link.linkType === "join") {
-          return reply.status(200).send({ sessionId: link.session.id, linkType: "join" });
+        // The creator is already in the session; opening their own join or
+        // view link just takes them there.
+        if (link.linkType === "join" || link.linkType === "view") {
+          return reply.status(200).send({ sessionId: link.session.id, linkType: link.linkType });
         }
         throw forbidden("Cannot redeem your own link");
       }
@@ -89,20 +90,54 @@ export async function linkRoutes(app: FastifyInstance) {
         return reply.status(200).send({ sessionId: newSession.id, linkType: "fork" });
       }
 
-      // join: promote to shared if private
+      // join and view: promote to shared if private, so the session is listed
+      // for the people who open the link
+      const sessionId = link.session.id;
       if (link.session.visibility === "private") {
         await prisma.gameSession.update({
-          where: { id: link.session.id },
+          where: { id: sessionId },
           data: { visibility: "shared" },
         });
       }
-      await prisma.sessionParticipant.upsert({
-        where: { sessionId_userId: { sessionId: link.session.id, userId: user.discordId } },
-        update: { acceptedAt: new Date(), revokedAt: null },
-        create: { sessionId: link.session.id, userId: user.discordId, role: "member", acceptedAt: new Date() },
+
+      if (link.linkType === "view") {
+        // Makes the opener a viewer unless they already take part: a member
+        // who opens a view link stays a member. Someone who was kicked or left
+        // comes back as a viewer.
+        await prisma.sessionParticipant.updateMany({
+          where: {
+            sessionId,
+            userId: user.discordId,
+            OR: [{ revokedAt: { not: null } }, { acceptedAt: null }],
+          },
+          data: { role: "viewer", acceptedAt: new Date(), revokedAt: null },
+        });
+        await prisma.sessionParticipant.createMany({
+          data: { sessionId, userId: user.discordId, role: "viewer", acceptedAt: new Date() },
+          skipDuplicates: true,
+        });
+        req.log.info({ token, sessionId, userId: user.discordId }, "[links] view link redeemed");
+        return reply.status(200).send({ sessionId, linkType: "view" });
+      }
+
+      // join: makes the opener a member, kicked participants too, but leaves
+      // an active viewer a viewer and just takes them to the session. Only the
+      // creator promotes spectators, with the role route: otherwise one they
+      // made a spectator could undo it with a join link they still have.
+      await prisma.sessionParticipant.updateMany({
+        where: {
+          sessionId,
+          userId: user.discordId,
+          OR: [{ role: { not: "viewer" } }, { revokedAt: { not: null } }, { acceptedAt: null }],
+        },
+        data: { role: "member", acceptedAt: new Date(), revokedAt: null },
       });
-      req.log.info({ token, sessionId: link.session.id, userId: user.discordId }, "[links] join link redeemed");
-      return reply.status(200).send({ sessionId: link.session.id, linkType: "join" });
+      await prisma.sessionParticipant.createMany({
+        data: { sessionId, userId: user.discordId, role: "member", acceptedAt: new Date() },
+        skipDuplicates: true,
+      });
+      req.log.info({ token, sessionId, userId: user.discordId }, "[links] join link redeemed");
+      return reply.status(200).send({ sessionId, linkType: "join" });
     },
   );
 }

@@ -187,11 +187,13 @@ export async function gameRoutes(app: FastifyInstance) {
         FROM s
         GROUP BY "gameId"
       `;
+      // Viewers only watch, so they aren't players, here or live.
       const playerRows = await prisma.$queryRaw<{ gameId: string; players: number }[]>`
         SELECT gs."gameId", COUNT(DISTINCT p."userId")::int AS players
         FROM "SessionParticipant" p
         JOIN "GameSession" gs ON gs.id = p."sessionId"
         WHERE gs."gameId" IN (${Prisma.join(gameIds)}) AND p."acceptedAt" IS NOT NULL
+          AND p.role <> 'viewer'
         GROUP BY gs."gameId"
       `;
 
@@ -201,7 +203,11 @@ export async function gameRoutes(app: FastifyInstance) {
           ? []
           : await prisma.gameSession.findMany({
               where: { id: { in: [...connected.keys()] }, gameId: { in: gameIds } },
-              select: { id: true, gameId: true },
+              select: {
+                id: true,
+                gameId: true,
+                participants: { where: { role: "viewer" }, select: { userId: true } },
+              },
             });
 
       const stats = new Map(
@@ -230,9 +236,12 @@ export async function gameRoutes(app: FastifyInstance) {
       }
       for (const row of playerRows) stats.get(row.gameId)!.players = row.players;
       for (const session of liveSessions) {
+        const viewers = new Set(session.participants.map((p) => p.userId));
+        const players = connected.get(session.id)!.filter((userId) => !viewers.has(userId));
+        if (players.length === 0) continue;
         const entry = stats.get(session.gameId)!;
         entry.liveSessions++;
-        for (const userId of connected.get(session.id)!) entry.livePlayers.add(userId);
+        for (const userId of players) entry.livePlayers.add(userId);
       }
 
       return {
