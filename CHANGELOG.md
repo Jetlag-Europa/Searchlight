@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Game settings on the games page (2026-10-28)
+
+- Game editors (`games.edit` or `server.admin`) can now rename a game and change its size from `/games` → **Settings**, without importing its file again. The game's ID stays the same, so its links and exports keep working.
+- Saving makes a new revision, as an import of the edited file would: **Export JSON** has the new name, the new name shows in game lists and links right away, and sessions already started are offered the update ("Game update available"), even for a rename alone; a new size applies there once their creator accepts it. Changing the settings back makes the earlier revision current again instead of adding one.
+- If the game changed since the page loaded, for example through an import, the save is refused and the game isn't changed: reload the page and edit again. For a preloaded game, the next change to its file replaces the edit, as it replaces an upload.
+
 ## Paste field when the clipboard is blocked (2026-10-26)
 
 - The paste buttons (Paste Question, Apply from clipboard on presets, paste coordinates, and Paste GeoJSON in the options) still read the clipboard directly where the browser allows it. Where it doesn't, because clipboard access is blocked, the Clipboard API is missing, or the browser's own "Paste" prompt was dismissed, they now open a field to paste into, instead of showing an error.

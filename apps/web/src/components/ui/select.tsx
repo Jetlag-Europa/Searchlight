@@ -10,9 +10,12 @@ const Select = <T extends string>({
     options,
     groups,
     hints,
+    id,
     ...rest
 }: {
     disabled?: boolean;
+    // On the trigger, for a <Label htmlFor>.
+    id?: string;
     trigger: string | Record<"className" | "placeholder", string>;
     options?: Options<T>;
     groups?: Record<
@@ -61,7 +64,7 @@ const Select = <T extends string>({
     })();
     return (
         <SelectPrimitive.Root {...rest}>
-            <SelectTrigger {...{ className }}>
+            <SelectTrigger {...{ className, id }}>
                 <SelectValue placeholder={placeholder}>{currentLabel}</SelectValue>
             </SelectTrigger>
             <SelectContent>

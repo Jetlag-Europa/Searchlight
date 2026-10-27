@@ -100,6 +100,23 @@ export interface GamesResponse {
 }
 
 /**
+ * PATCH /games/:gameId/settings: the settings the games page edits. A change
+ * is saved as a new revision of the game's definition.
+ */
+export interface GameSettingsUpdate {
+  /** The revision the edit started from; a game changed since is refused (409). */
+  baseRevisionId: string;
+  name?: string;
+  size?: Game["size"];
+}
+
+export interface GameSettingsResponse {
+  status: "updated" | "unchanged";
+  revision: number;
+  game: Game;
+}
+
+/**
  * Usage of one game, summed over its sessions. Server admins see it on the
  * games page; nothing in it identifies a session or a player.
  */

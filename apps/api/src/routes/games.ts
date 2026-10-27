@@ -1,12 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import { Prisma } from "@prisma/client";
+import type { GameSettingsUpdate } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { assertCanManageGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
 import { connectedUserIds } from "../lib/broadcaster.js";
+import { ImportValidationError, updateGameSettings } from "../games/import-service.js";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -264,6 +266,94 @@ export async function gameRoutes(app: FastifyInstance) {
       const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
       req.log.info({ gameId: game.id, unlisted, userId: user.discordId }, "[games] listing changed");
       return serializeGame(updated);
+    },
+  );
+
+  // PATCH /games/:gameId/settings — change a game's name and size (game
+  // editors of its server). Saved as a new revision, like uploading the edited
+  // JSON, so sessions keep their revision and are offered the update.
+  app.patch(
+    "/:gameId/settings",
+    {
+      schema: {
+        params: Type.Object({ gameId: Type.String() }),
+        body: Type.Object(
+          {
+            baseRevisionId: Type.String({ minLength: 1 }),
+            // Its length is checked once trimmed.
+            name: Type.Optional(Type.String()),
+            size: Type.Optional(
+              Type.Union([Type.Literal("small"), Type.Literal("medium"), Type.Literal("large")]),
+            ),
+          },
+          // Rejects unknown fields: Fastify strips them where
+          // additionalProperties is false, which would hide a client's typo.
+          { additionalProperties: Type.Never() },
+        ),
+        response: {
+          200: Type.Object({
+            status: Type.Union([Type.Literal("updated"), Type.Literal("unchanged")]),
+            revision: Type.Integer(),
+            game: gameShape,
+          }),
+        },
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { gameId } = req.params as { gameId: string };
+      const body = req.body as GameSettingsUpdate;
+
+      const game = await findGameByIdOrKey(gameId);
+      if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      // Checked before the definition, which can be several MB, is loaded.
+      const perms = await getUserPermissions(user.discordId, game.serverId, true, req.log);
+      const canEdit = perms.has("games.edit") || perms.has("server.admin");
+      if (!canEdit) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+
+      const name = body.name?.trim();
+      if (name === "") {
+        throw Object.assign(new Error("The game's name can't be empty"), { statusCode: 400 });
+      }
+      if (name && name.length > 120) {
+        throw Object.assign(new Error("The game's name can be at most 120 characters"), { statusCode: 400 });
+      }
+
+      let result;
+      try {
+        result = await updateGameSettings({
+          game,
+          baseRevisionId: body.baseRevisionId,
+          name,
+          size: body.size,
+          actor: {
+            userId: user.discordId,
+            type: "cookie",
+            canCreateGames: () => false,
+            canEditGames: (serverId) => canEdit && serverId === game.serverId,
+          },
+        });
+      } catch (err) {
+        // A conflict (409 GAME_CHANGED) is sent as it is, like this route's
+        // other errors: { statusCode, code, error, message }. A validation
+        // failure gets the first issue as its message, for the dialog to show.
+        if (err instanceof ImportValidationError) {
+          const issue = err.errors[0];
+          throw Object.assign(
+            new Error(issue ? `${issue.message} (${issue.path})` : err.message),
+            { statusCode: 400, code: err.code },
+          );
+        }
+        throw err;
+      }
+
+      const updated = await prisma.game.findUnique({ where: { id: game.id } });
+      if (!updated) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      req.log.info(
+        { gameId: game.id, status: result.status, revision: result.revision, userId: user.discordId },
+        "[games] settings changed",
+      );
+      return { status: result.status, revision: result.revision, game: serializeGame(updated) };
     },
   );
 
