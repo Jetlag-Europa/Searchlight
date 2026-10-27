@@ -53,6 +53,8 @@ import {
     thermometerPlanningPolygon,
 } from "./questions/thermometer";
 import type {
+    CustomMatchingQuestion,
+    MatchingQuestion,
     MeasuringQuestion,
     Question,
     Questions,
@@ -356,6 +358,55 @@ export async function measuringDistance(
         measured.boundary = true;
     }
     return measured;
+}
+
+/**
+ * The name of what a matching question matches a point (the seeker's, unless
+ * given another) by: its nearest feature or the region it is in, as the
+ * hider's answer compares them. Undefined while the game loads, outside every
+ * region, or when that feature has no name.
+ */
+export function matchingTarget(
+    data: MatchingQuestion,
+    lat = data.lat,
+    lng = data.lng,
+): string | undefined {
+    const question = { id: "matching", data };
+    if (questionStatus(question) !== "ready") return undefined;
+    const compiled = compiledGameAtom.get()!;
+    const questionDef = resolveCompiledQuestion(question, compiled);
+    const point = turf.point([lng, lat]);
+    let target: Feature | undefined;
+    if (questionDef) {
+        const evaluator = questionDef.evaluator;
+        const source = geometrySource(evaluator, compiled.datasets, {});
+        if (!source) return undefined;
+        if (evaluator.operator === "containing-region-match") {
+            target = containingRegion(source.regions, point);
+        } else if (evaluator.operator === "nearest-feature-match") {
+            if (source.lines.length) {
+                target = nearestLine(source.lines, point);
+            } else if (source.points.length) {
+                target = turf.nearestPoint(
+                    point,
+                    turf.featureCollection(source.points),
+                );
+            }
+        }
+    } else if (data.type === "custom-points") {
+        // Pasted presets aren't checked, and this runs while the card renders.
+        const geo = (data as CustomMatchingQuestion).geo;
+        const points = (Array.isArray(geo) ? geo : []).filter(
+            (feature): feature is Feature<Point> =>
+                feature?.geometry?.type === "Point" &&
+                Array.isArray(feature.geometry.coordinates),
+        );
+        if (points.length) {
+            target = turf.nearestPoint(point, turf.featureCollection(points));
+        }
+    }
+    const name = target?.properties?.name;
+    return typeof name === "string" && name.trim() ? name : undefined;
 }
 
 export async function adjustMapGeoDataForQuestion(
