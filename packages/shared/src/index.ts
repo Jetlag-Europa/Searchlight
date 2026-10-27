@@ -73,6 +73,14 @@ export interface ServerRolesResponse {
 
 // ── Games ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Casual Games (formerly Home Games), a server with no Discord guild of its
+ * own. Its games are always unlisted and visible only to their creator and
+ * global admins; sessions of them start from game links. Who may create them
+ * comes from roles in its management guild (JetLag EU), mapped on /admin.
+ */
+export const CASUAL_SERVER_ID = "home-games";
+
 export interface Game {
   id: string;
   gameKey: string;
@@ -83,6 +91,8 @@ export interface Game {
   unlisted: boolean;
   currentRevisionId?: string | null;
   archivedAt?: string | null;
+  /** Discord id of whoever first imported it; null for preloaded and older games. */
+  createdById: string | null;
 }
 
 export interface GameImportResponse {
@@ -93,6 +103,24 @@ export interface GameImportResponse {
   checksum: string;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
+  /** Set when the file's id belongs to a game that already exists. */
+  existing?: ExistingGameComparison;
+}
+
+/**
+ * The game an import would update, compared with the file, so a file that
+ * reuses another game's id by mistake can be caught before it replaces it.
+ */
+export interface ExistingGameComparison {
+  name: string;
+  /** Its current revision, before the import. */
+  revision: number;
+  /** Whether the importer created it; null when its creator isn't recorded. */
+  createdByYou: boolean | null;
+  /** The file looks like a different game (name or play area differ). */
+  likelyMistake: boolean;
+  /** Human-readable reasons, e.g. 'Named "London 2026"; this file: "Paris 2026"'. */
+  differences: string[];
 }
 
 export interface GamesResponse {

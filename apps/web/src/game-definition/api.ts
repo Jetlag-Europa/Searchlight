@@ -17,6 +17,9 @@ export async function importGameDefinitionAPI(
   allowUpdate = false,
   // Only applies when the import creates the game.
   unlisted = false,
+  // With allowUpdate: the revision the update was previewed against. The API
+  // refuses (409 REVISION_CHANGED) if the game has changed since.
+  expectedRevision?: number,
 ): Promise<GameImportResponse> {
   const url = buildApiUrl("/games/import");
   if (dryRun) {
@@ -27,6 +30,9 @@ export async function importGameDefinitionAPI(
   }
   if (unlisted) {
     url.searchParams.set("unlisted", "true");
+  }
+  if (expectedRevision !== undefined) {
+    url.searchParams.set("expectedRevision", String(expectedRevision));
   }
   const res = await fetch(url.toString(), {
     method: "POST",

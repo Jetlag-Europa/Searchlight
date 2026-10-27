@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import {
   type ImportActor,
   ImportConflictError,
@@ -9,7 +10,7 @@ import {
   ImportValidationError,
 } from "../games/import-service.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
-import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
+import { getUserPermissions, hasPermissionOnSomeServer, isAdmin } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 
@@ -54,19 +55,30 @@ export async function resolveImportActor(
         statusCode: 401,
       });
     }
+    // On Casual Games a token acts for its creator and lasts only as long as
+    // their role does: they must still be a global admin or hold games.create
+    // there. games.edit covers other people's games there, which only global
+    // admins may change.
+    const ownerMayCreateCasualGames = async () =>
+      isAdmin(tokenRecord.createdBy) ||
+      (await getUserPermissions(tokenRecord.createdBy, CASUAL_SERVER_ID, true, req.log)).has(
+        "games.create",
+      );
     return {
       userId: tokenRecord.createdBy,
       type: "token",
-      canCreateGames(serverId: string) {
+      async canCreateGames(serverId: string) {
         return (
           tokenRecord.serverId === serverId &&
-          tokenRecord.permissions.includes("games.create")
+          tokenRecord.permissions.includes("games.create") &&
+          (serverId !== CASUAL_SERVER_ID || (await ownerMayCreateCasualGames()))
         );
       },
       canEditGames(serverId: string) {
         return (
           tokenRecord.serverId === serverId &&
-          tokenRecord.permissions.includes("games.edit")
+          tokenRecord.permissions.includes("games.edit") &&
+          (serverId !== CASUAL_SERVER_ID || isAdmin(tokenRecord.createdBy))
         );
       },
     };
@@ -128,7 +140,7 @@ async function assertGameDefinitionAccess({
   session,
 }: {
   req: FastifyRequest;
-  game: { id: string; serverId: string; unlisted: boolean };
+  game: { id: string; serverId: string; unlisted: boolean; createdById: string | null };
   // The requested revision and the game's current one; each one's role gate applies.
   revisionIds: (string | null | undefined)[];
   // Only for routes serving a single revision: participants of a session pinned
@@ -163,6 +175,14 @@ async function assertGameDefinitionAccess({
       tokenRecord.permissions.includes("games.edit") ||
       tokenRecord.permissions.includes("games.create");
     if (!hasPerm) {
+      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+    }
+    // A Casual game is its creator's, as for cookie auth (see canManageGame).
+    if (
+      game.serverId === CASUAL_SERVER_ID &&
+      !isAdmin(tokenRecord.createdBy) &&
+      game.createdById !== tokenRecord.createdBy
+    ) {
       throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
     }
     return;
@@ -221,22 +241,32 @@ export async function gameImportRoutes(app: FastifyInstance) {
         querystring: Type.Object({
           dryRun: Type.Optional(Type.Boolean()),
           allowUpdate: Type.Optional(Type.Boolean()),
+          // The existing game's revision a dry run showed: the update is
+          // refused (409 REVISION_CHANGED) if the game changed since.
+          expectedRevision: Type.Optional(Type.Integer({ minimum: 0 })),
           expectedServerId: Type.Optional(Type.String()),
           // Only applies when the import creates the game; PATCH /games/:id
-          // changes it later.
+          // changes it later. Casual games are always unlisted.
           unlisted: Type.Optional(Type.Boolean()),
         }),
       },
     },
     async (req, reply) => {
-      const { dryRun = false, allowUpdate = false, expectedServerId, unlisted = false } = req.query as {
-        dryRun?: boolean;
-        allowUpdate?: boolean;
-        expectedServerId?: string;
-        unlisted?: boolean;
-      };
+      const { dryRun = false, allowUpdate = false, expectedServerId, expectedRevision, unlisted = false } =
+        req.query as {
+          dryRun?: boolean;
+          allowUpdate?: boolean;
+          expectedServerId?: string;
+          expectedRevision?: number;
+          unlisted?: boolean;
+        };
       const body = req.body as Record<string, unknown> | null | undefined;
       const shouldAllowUpdate = allowUpdate || Boolean(body?.allowUpdate);
+      // Like allowUpdate, it may come with the game in the body.
+      const bodyRevision = body?.expectedRevision;
+      const pinnedRevision =
+        expectedRevision ??
+        (typeof bodyRevision === "number" && Number.isInteger(bodyRevision) ? bodyRevision : undefined);
       const actor = req.importActor!;
 
       try {
@@ -247,6 +277,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
           dryRun,
           expectedServerId,
           allowUpdate: shouldAllowUpdate,
+          expectedRevision: pinnedRevision,
           unlisted,
         });
 
@@ -269,6 +300,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
             message: err.message,
             canUpdate: err.canUpdate ?? false,
             existingRevision: err.existingRevision,
+            existing: err.existing,
           });
         }
         if (err instanceof ImportForbiddenError) {

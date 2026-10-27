@@ -1,11 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import { Prisma } from "@prisma/client";
+import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
-import { assertCanManageGame, canManageGames, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertCanManageGame, canManageGame, findGameByIdOrKey, isUnlisted } from "../lib/game-access.js";
 import { connectedUserIds } from "../lib/broadcaster.js";
 
 const gameShape = Type.Object({
@@ -17,6 +18,7 @@ const gameShape = Type.Object({
   unlisted: Type.Boolean(),
   currentRevisionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   archivedAt: Type.Optional(Type.Union([Type.String(), Type.Null()])),
+  createdById: Type.Union([Type.String(), Type.Null()]),
 });
 
 function serializeGame(game: Prisma.GameGetPayload<{}>) {
@@ -29,6 +31,7 @@ function serializeGame(game: Prisma.GameGetPayload<{}>) {
     unlisted: game.unlisted,
     currentRevisionId: game.currentRevisionId,
     archivedAt: game.archivedAt?.toISOString() ?? null,
+    createdById: game.createdById,
   };
 }
 
@@ -36,7 +39,8 @@ export async function gameRoutes(app: FastifyInstance) {
   // GET /games?serverId= — list games for a server (must be a guild member).
   // Unlisted games are left out: sessions of them start from game links only.
   // The games page lists them for the server's game managers with
-  // ?includeUnlisted=true.
+  // ?includeUnlisted=true. All Casual games are unlisted: each is listed there
+  // only for its creator (and global admins).
   app.get(
     "/",
     {
@@ -60,7 +64,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const server = await prisma.server.findUnique({ where: { id: serverId } });
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
 
-      // Virtual servers (e.g. Home Games) have no Discord guild — skip the
+      // Virtual servers (e.g. Casual Games) have no Discord guild — skip the
       // membership check; their games are gated individually below.
       if (!VIRTUAL_SERVER_IDS.has(serverId)) {
         await assertServerMembership(user.discordId, serverId, req.log);
@@ -70,11 +74,20 @@ export async function gameRoutes(app: FastifyInstance) {
         where: { serverId },
         orderBy: { name: "asc" },
       });
-      if (games.some((game) => game.unlisted)) {
-        const showUnlisted =
-          includeUnlisted &&
-          canManageGames(await getUserPermissions(user.discordId, serverId, true, req.log));
-        if (!showUnlisted) games = games.filter((game) => !game.unlisted);
+      if (!includeUnlisted) {
+        games = games.filter((game) => !isUnlisted(game));
+      } else if (serverId === CASUAL_SERVER_ID) {
+        const shown = [];
+        for (const game of games) {
+          if (await canManageGame(user.discordId, game, req.log)) shown.push(game);
+        }
+        games = shown;
+      } else if (
+        games.some((game) => game.unlisted) &&
+        // Elsewhere managing games is per server, whoever created them.
+        !(await canManageGame(user.discordId, { serverId, createdById: null }, req.log))
+      ) {
+        games = games.filter((game) => !game.unlisted);
       }
 
       // Only `visibility` is needed here; loading every multi-MB definition
@@ -242,7 +255,7 @@ export async function gameRoutes(app: FastifyInstance) {
   );
 
   // PATCH /games/:gameId — list or unlist a game (game managers of its server).
-  // Links to the game stay valid either way.
+  // Links to the game stay valid either way. Casual games can't be listed.
   app.patch(
     "/:gameId",
     {
@@ -260,6 +273,9 @@ export async function gameRoutes(app: FastifyInstance) {
       const game = await findGameByIdOrKey(gameId);
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
       await assertCanManageGame(user.discordId, game, req.log);
+      if (!unlisted && game.serverId === CASUAL_SERVER_ID) {
+        throw Object.assign(new Error("Casual games are always unlisted"), { statusCode: 400 });
+      }
 
       const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
       req.log.info({ gameId: game.id, unlisted, userId: user.discordId }, "[games] listing changed");

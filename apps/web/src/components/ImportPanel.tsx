@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import {
+    CASUAL_SERVER_ID,
     type GameDefinition,
     type GameImportResponse,
     resolveGameDefinitionId,
@@ -11,6 +12,15 @@ import { importGameDefinitionAPI } from "@/game-definition/api";
 import { verifiedUserId } from "@/lib/activeSession";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+// Import errors meaning the preview is out of date: the game was created,
+// changed or deleted since, so the preview is redone.
+const STALE_PREVIEW_CODES = [
+    "GAME_EXISTS",
+    "GAME_ID_TAKEN",
+    "GAME_DELETED",
+    "REVISION_CHANGED",
+];
 
 type ServerOption = { id: string; name: string; permissions?: string[] };
 
@@ -26,8 +36,8 @@ const requestedServer = () =>
     new URLSearchParams(window.location.search).get("server");
 
 /**
- * The import step of the import page: where the game goes, whether it may
- * replace an existing one, and the import itself. `definition` is the file
+ * The import step of the import page: where the game goes, confirming it
+ * replaces an existing one, and the import itself. `definition` is the file
  * as it will be sent, after any fixes made on the page.
  */
 export function ImportPanel({
@@ -55,12 +65,22 @@ export function ImportPanel({
         () =>
             (noServer ? null : definition.serverId) ?? requestedServer() ?? "",
     );
-    const [allowUpdate, setAllowUpdate] = useState(true);
     const [unlisted, setUnlisted] = useState(false);
     const [dryRun, setDryRun] = useState<GameImportResponse | null>(null);
+    const [previewing, setPreviewing] = useState(false);
+    // The preview's error code, e.g. GAME_ID_TAKEN when the file's id is
+    // another game's that the user can't edit.
+    const [previewCode, setPreviewCode] = useState<string | null>(null);
+    // Replacing a game the file looks unrelated to needs a second yes.
+    const [confirmReplace, setConfirmReplace] = useState(false);
+    // The preview's error, and the import's. The import's stays while the
+    // preview it outdated is redone, until the file or server changes.
     const [error, setError] = useState<string | null>(null);
+    const [importError, setImportError] = useState<string | null>(null);
     const [importing, setImporting] = useState(false);
     const [imported, setImported] = useState<GameImportResponse | null>(null);
+    // Bumped to redo the preview for the same file and server.
+    const [previewRefresh, setPreviewRefresh] = useState(0);
     const latestDryRun = useRef(0);
 
     // Load once AuthGuard has verified the login.
@@ -80,42 +100,75 @@ export function ImportPanel({
 
     const toSend = { ...definition, serverId };
 
-    // What importing would do, redone whenever the file or options change.
+    useEffect(() => setImportError(null), [definition, serverId]);
+
+    // What importing would do, redone whenever the file or server change.
+    // It may update, so an existing game is reported rather than refused.
     useEffect(() => {
         setImported(null);
+        setConfirmReplace(false);
         if (!serverId) return;
         const run = ++latestDryRun.current;
         setDryRun(null);
-        importGameDefinitionAPI(toSend, true, allowUpdate)
+        setPreviewing(true);
+        importGameDefinitionAPI(toSend, true, true)
             .then((result) => {
                 if (run !== latestDryRun.current) return;
                 setDryRun(result);
+                setConfirmReplace(false);
+                setPreviewCode(null);
                 setError(null);
             })
-            .catch((err: Error) => {
-                if (run === latestDryRun.current) setError(err.message);
+            .catch((err: Error & { code?: string }) => {
+                if (run !== latestDryRun.current) return;
+                setError(err.message);
+                setPreviewCode(err.code ?? null);
+            })
+            .finally(() => {
+                if (run === latestDryRun.current) setPreviewing(false);
             });
         // toSend changes with definition and serverId.
-    }, [definition, serverId, allowUpdate]);
+    }, [definition, serverId, previewRefresh]);
+
+    const casual = serverId === CASUAL_SERVER_ID;
+    const updating = dryRun?.status === "updated";
+    const existing = updating ? dryRun.existing : undefined;
+    const needsConfirm = !!existing?.likelyMistake && !confirmReplace;
 
     const handleImport = async () => {
+        // A result for a file or server that has changed since is dropped.
+        const run = latestDryRun.current;
         setImporting(true);
         setError(null);
+        setImportError(null);
         try {
-            setImported(
-                await importGameDefinitionAPI(
-                    toSend,
-                    false,
-                    allowUpdate,
-                    unlisted,
-                ),
+            // Updates only the game the preview showed, at the revision it
+            // showed. Without a preview, an existing game is refused rather
+            // than replaced.
+            const result = await importGameDefinitionAPI(
+                toSend,
+                false,
+                updating,
+                unlisted && !casual,
+                existing?.revision,
             );
+            if (run === latestDryRun.current) setImported(result);
         } catch (err: any) {
-            setError(err.message || "Import failed");
+            if (run !== latestDryRun.current) return;
+            setImportError(err.message || "Import failed");
+            if (STALE_PREVIEW_CODES.includes(err.code)) {
+                setPreviewCode(err.code);
+                setPreviewRefresh((n) => n + 1);
+            }
         } finally {
             setImporting(false);
         }
     };
+
+    // The redone preview may report the import's error again.
+    const errors = [...new Set([importError, error])].filter(
+        (e): e is string => !!e,
+    );
 
     const gameId = resolveGameDefinitionId(definition);
     // The file's server may not be one the user can import to; show it
@@ -169,6 +222,7 @@ export function ImportPanel({
                         className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
                         value={serverId}
                         onChange={(e) => setServerId(e.target.value)}
+                        disabled={importing}
                     >
                         {unknownServer && (
                             <option value={unknownServer}>
@@ -182,8 +236,10 @@ export function ImportPanel({
                         )}
                         {servers.map((s) => (
                             <option key={s.id} value={s.id}>
-                                {s.name} (
-                                {s.id === "home-games" ? "Virtual" : s.id})
+                                {/* Casual's note says who sees it */}
+                                {s.id === CASUAL_SERVER_ID
+                                    ? s.name
+                                    : `${s.name} (${s.id})`}
                             </option>
                         ))}
                     </select>
@@ -197,44 +253,98 @@ export function ImportPanel({
                 </div>
             )}
 
-            <label className="flex cursor-pointer items-start gap-2 text-xs">
-                <input
-                    type="checkbox"
-                    checked={allowUpdate}
-                    onChange={(e) => setAllowUpdate(e.target.checked)}
-                    className="mt-0.5 h-4 w-4 rounded border-input"
-                />
-                <span>
-                    Allow updating if a game with ID <code>{gameId}</code>{" "}
-                    already exists
-                </span>
-            </label>
+            {updating &&
+                (existing?.likelyMistake ? (
+                    <div className="space-y-2 rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
+                        <p>
+                            <span className="font-semibold">
+                                This file may be a different game.
+                            </span>{" "}
+                            ID <code>{gameId}</code> already belongs to{" "}
+                            <span className="font-medium">{existing.name}</span>{" "}
+                            (revision {existing.revision}).
+                        </p>
+                        {existing.differences.length > 0 && (
+                            <ul className="list-disc pl-4">
+                                {existing.differences.map((d) => (
+                                    <li key={d}>{d}</li>
+                                ))}
+                            </ul>
+                        )}
+                        <p>
+                            If this is a new game, change <code>id</code> in the
+                            file. Importing replaces {existing.name} as revision{" "}
+                            {dryRun.revision}; running sessions keep their
+                            revision.
+                        </p>
+                        <label className="flex cursor-pointer items-start gap-2 font-medium">
+                            <input
+                                type="checkbox"
+                                checked={confirmReplace}
+                                onChange={(e) =>
+                                    setConfirmReplace(e.target.checked)
+                                }
+                                className="mt-0.5 h-4 w-4 rounded border-input"
+                            />
+                            <span>Replace {existing.name} anyway</span>
+                        </label>
+                    </div>
+                ) : (
+                    <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-xs text-amber-700 dark:text-amber-300">
+                        A game with ID <code>{gameId}</code> already exists
+                        {existing && (
+                            <>
+                                :{" "}
+                                <span className="font-medium">
+                                    {existing.name}
+                                </span>
+                                , revision {existing.revision}
+                            </>
+                        )}
+                        .
+                        {existing?.createdByYou === false &&
+                            " Someone else created it."}{" "}
+                        Importing replaces it as revision {dryRun.revision};
+                        running sessions keep their revision.
+                    </p>
+                ))}
 
-            {/* Listing applies to new games; existing ones change it on the games page */}
-            {dryRun?.status === "created" && (
-                <label className="flex cursor-pointer items-start gap-2 text-xs">
-                    <input
-                        type="checkbox"
-                        checked={unlisted}
-                        onChange={(e) => setUnlisted(e.target.checked)}
-                        className="mt-0.5 h-4 w-4 rounded border-input"
-                    />
-                    <span>
-                        <span className="font-medium">Unlisted</span>
-                        <span className="block text-muted-foreground">
-                            Not offered when creating a session, for anyone.
-                            Sessions start from game links; it stays on the
-                            games page.
-                        </span>
-                    </span>
-                </label>
-            )}
-
-            {error && (
-                <p className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
-                    {error}
+            {/* Listing applies to new games; existing ones change it on the
+                games page. Casual games are always unlisted. */}
+            {casual ? (
+                <p className="text-xs text-muted-foreground">
+                    Only you and global admins see Casual games. Sessions start
+                    from a game link you create on the games page.
                 </p>
+            ) : (
+                dryRun?.status === "created" && (
+                    <label className="flex cursor-pointer items-start gap-2 text-xs">
+                        <input
+                            type="checkbox"
+                            checked={unlisted}
+                            onChange={(e) => setUnlisted(e.target.checked)}
+                            className="mt-0.5 h-4 w-4 rounded border-input"
+                        />
+                        <span>
+                            <span className="font-medium">Unlisted</span>
+                            <span className="block text-muted-foreground">
+                                Not offered when creating a session, for anyone.
+                                Sessions start from game links; it stays on the
+                                games page.
+                            </span>
+                        </span>
+                    </label>
+                )
             )}
+
+            {errors.map((e) => (
+                <p
+                    key={e}
+                    className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive"
+                >
+                    {e}
+                </p>
+            ))}
 
             {blocked && (
                 <p className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
@@ -256,12 +366,21 @@ export function ImportPanel({
                     className="w-full"
                     onClick={handleImport}
                     // A failed preview doesn't stop the import: as with the
-                    // old dialog, the import reports its own errors.
-                    disabled={!serverId || importing || busy || !!blocked}
+                    // old dialog, the import reports its own errors. A taken
+                    // id would only be refused again.
+                    disabled={
+                        !serverId ||
+                        importing ||
+                        busy ||
+                        !!blocked ||
+                        previewing ||
+                        needsConfirm ||
+                        previewCode === "GAME_ID_TAKEN"
+                    }
                 >
                     {importing
                         ? "Importing…"
-                        : dryRun?.status === "updated"
+                        : updating
                           ? "Update game"
                           : "Import game"}
                 </Button>

@@ -185,9 +185,9 @@ Known `serverId` values:
 | JetLag DE | `1333139120507064350` |
 | JetLag CH | `1458858559952523305` |
 | JetLag Nordics | `1376560872029290708` |
-| Home Games (open to every signed-in user) | `home-games` |
+| Casual Games (games outside the JetLag servers) | `home-games` |
 
-Only Searchlight admins can import into Home Games, since it has no Discord roles to grant import rights. A game dev imports into the Discord server where their role has game permissions (section 8).
+A game dev imports into the Discord server where their role has game permissions (section 8). Casual Games has no Discord server of its own: a role on JetLag EU grants creating Casual games. A Casual game is always unlisted and only its creator and Searchlight admins see it; every session of it starts from a game link, also for its creator.
 
 ## 4. Hiding zones
 
@@ -350,13 +350,13 @@ The checker ends with the question list and labels, which is what players will s
 
 ## 8. Import, update, export
 
-- **Web:** on `/games`, click **+ Import Game JSON**, which opens the import page, and pick the file. It draws the file on a map, lists the checker's findings, offers to fix overlapping regions, and previews the import with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game.
-- **Unlisted:** a new game can be imported unlisted (the import page's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing.
+- **Web:** on `/games`, click **+ Import Game JSON**, which opens the import page, and pick the file. It draws the file on a map, lists the checker's findings, offers to fix overlapping regions, and previews the import with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game: the page warns first, names the game it would replace, and asks for an extra confirmation when the file looks like a different game (another name or play area). For a new game, give the file a new `id` instead.
+- **Unlisted:** a new game can be imported unlisted (the import page's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing. Casual games have no **Unlisted** box: they are always unlisted, can't be made listed, and only their creator or a Searchlight admin manages their links.
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
-  - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id`, and `&unlisted=true` to create the game unlisted.
-  - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. Without either, the import is refused before the definition is validated.
-- **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them, `/games` shows no import button for that server.
-  - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission or a server change; `409` if the game exists and `allowUpdate` isn't set.
+  - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id` (with `&expectedRevision=<n>`, only if its current revision is still `n`), and `&unlisted=true` to create the game unlisted.
+  - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. On Casual Games, the creator updates their own game with `games.create` (`games.edit` can't be granted there); Searchlight admins can update any Casual game. Without either, the import is refused before the definition is validated.
+- **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them, `/games` shows no import button for that server. For Casual Games, a Searchlight admin opens the **Casual Games** card and ticks only **Create Casual games**, for one of JetLag EU's roles.
+  - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission, a server change, or an `id` taken by a game you can't edit (`GAME_ID_TAKEN`; change `id`); `409` if the game exists and `allowUpdate` isn't set, or with `REVISION_CHANGED` if it changed since `expectedRevision`.
   - The body limit is 50 MB.
 - **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json`. The file name must equal the `id`. The API imports and updates these files on every start, so the file wins over an earlier web import of the same game. A file that fails to import is logged as an error and skipped; the other files still load.
 - **Revisions:** every import with new content creates a new revision. Running sessions stay on the revision they started with. Content identical to the current revision is reported as `unchanged`; content identical to an older revision re-activates that revision (reported as `updated` with its number) instead of creating a new one.

@@ -23,7 +23,7 @@ const mockGetMember = discord.getGuildMember as unknown as ReturnType<typeof vi.
 
 const USER_ID = "test-servers-virtual-user";
 const AUTH_SESSION_ID = "test-servers-virtual-auth";
-const HOME_GAMES_ID = "home-games";
+const CASUAL_GAMES_ID = "home-games";
 const MEMBER_SERVER_ID = "test-servers-member";
 const OTHER_SERVER_ID = "test-servers-other";
 const SESSION_SERVER_ID = "test-servers-session";
@@ -74,7 +74,7 @@ describe("GET /servers", () => {
             data: { id: AUTH_SESSION_ID, userId: USER_ID, expiresAt: new Date(Date.now() + 86_400_000) },
         });
         await prisma.server.createMany({
-            data: [{ id: HOME_GAMES_ID, name: "Home Games" }],
+            data: [{ id: CASUAL_GAMES_ID, name: "Casual Games" }],
             skipDuplicates: true,
         });
         await prisma.server.createMany({
@@ -124,12 +124,11 @@ describe("GET /servers", () => {
         return res.json().servers as { id: string; permissions: string[]; isMember: boolean }[];
     }
 
-    test("lists the virtual Home Games server with empty permissions (no Discord call)", async () => {
-        const home = (await listServers()).find((s) => s.id === HOME_GAMES_ID);
-        expect(home, "Home Games should be present for every authed user").toBeDefined();
-        expect(home!.permissions).toEqual([]);
-        expect(home!.isMember).toBe(true);
-        expect(mockGetMember).not.toHaveBeenCalledWith(HOME_GAMES_ID, expect.anything(), expect.anything());
+    test("leaves out Casual Games for a user without sessions or permissions there", async () => {
+        const ids = (await listServers()).map((s) => s.id);
+        expect(ids).not.toContain(CASUAL_GAMES_ID);
+        // It has no guild to look up.
+        expect(mockGetMember).not.toHaveBeenCalledWith(CASUAL_GAMES_ID, expect.anything(), expect.anything());
     });
 
     test("lists servers the user is in and leaves out the ones they aren't", async () => {

@@ -1,7 +1,13 @@
 import type { FastifyBaseLogger } from "fastify";
 import { Prisma } from "@prisma/client";
+import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "./prisma.js";
-import { assertServerMembership, getUserPermissions, userPassesDiscordRoleGate } from "./permissions.js";
+import {
+  assertServerMembership,
+  getUserPermissions,
+  isAdmin,
+  userPassesDiscordRoleGate,
+} from "./permissions.js";
 import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
 
 // Routes address a game by id or gameKey. Ids are generated here but gameKeys
@@ -36,20 +42,43 @@ export async function findActiveLink(token: string) {
 // Any of these on a game's server lets a user see its unlisted games on the
 // games page, read their definitions, change listing and manage links.
 // Starting sessions of an unlisted game takes a game link, for them too.
+// Not on Casual Games, where each game is its creator's (see canManageGame).
 const GAME_MANAGER_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
-export function canManageGames(permissions: ReadonlySet<string>): boolean {
+function canManageGames(permissions: ReadonlySet<string>): boolean {
   return GAME_MANAGER_PERMISSIONS.some((p) => permissions.has(p));
+}
+
+// Casual games are always unlisted (imports create them so and they can't be
+// listed); checks don't rely on the flag alone.
+export function isUnlisted(game: { serverId: string; unlisted: boolean }): boolean {
+  return game.unlisted || game.serverId === CASUAL_SERVER_ID;
+}
+
+/**
+ * Whether the user manages the game: sees it while unlisted, reads its
+ * definitions and manages its links. On Casual Games, games.create only lets
+ * someone make games, so only global admins and the game's creator manage it;
+ * the creator keeps that if they lose the role.
+ */
+export async function canManageGame(
+  userId: string,
+  game: { serverId: string; createdById: string | null },
+  logger?: FastifyBaseLogger,
+): Promise<boolean> {
+  if (game.serverId === CASUAL_SERVER_ID) {
+    return isAdmin(userId) || (game.createdById !== null && game.createdById === userId);
+  }
+  return canManageGames(await getUserPermissions(userId, game.serverId, true, logger));
 }
 
 /** Throws 403 unless the user may change the game's listing and links. */
 export async function assertCanManageGame(
   userId: string,
-  game: { serverId: string },
+  game: { serverId: string; createdById: string | null },
   logger?: FastifyBaseLogger,
 ): Promise<void> {
-  const perms = await getUserPermissions(userId, game.serverId, true, logger);
-  if (!canManageGames(perms)) {
+  if (!(await canManageGame(userId, game, logger))) {
     throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
   }
 }
@@ -82,8 +111,8 @@ async function revisionVisibilities(revisionIds: (string | null | undefined)[]):
 
 /**
  * Throws 403 unless the user may use the game: membership of its server
- * (virtual servers have no guild to check), game management permissions if
- * the game is unlisted (POST /sessions refuses unlisted games to everyone),
+ * (virtual servers have no guild to check), managing the game if it is
+ * unlisted (POST /sessions refuses unlisted games to everyone),
  * and the role gate of every given revision. Every way
  * of reaching a game's definitions or pinning a session to one of its
  * revisions goes through this check. Exceptions: a session's participants may
@@ -92,7 +121,7 @@ async function revisionVisibilities(revisionIds: (string | null | undefined)[]):
  */
 export async function assertGameAccess(
   userId: string,
-  game: { serverId: string; unlisted: boolean },
+  game: { serverId: string; unlisted: boolean; createdById: string | null },
   revisionIds: (string | null | undefined)[],
   logger?: FastifyBaseLogger,
 ): Promise<void> {
@@ -100,9 +129,8 @@ export async function assertGameAccess(
     await assertServerMembership(userId, game.serverId, logger);
   }
 
-  if (game.unlisted) {
-    const perms = await getUserPermissions(userId, game.serverId, true, logger);
-    if (!canManageGames(perms)) {
+  if (isUnlisted(game)) {
+    if (!(await canManageGame(userId, game, logger))) {
       throw Object.assign(new Error("This game is unlisted"), { statusCode: 403 });
     }
   }

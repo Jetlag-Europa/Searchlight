@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertGameAccess, findGameByIdOrKey, isUnlisted } from "../lib/game-access.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
 import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
 import type { Event } from "@prisma/client";
@@ -24,6 +24,7 @@ async function resolveParticipant(sessionId: string, userId: string) {
         select: {
           name: true,
           unlisted: true,
+          createdById: true,
           currentRevisionId: true,
           currentRevision: { select: { id: true, revision: true } },
         },
@@ -57,7 +58,12 @@ async function resolveParticipant(sessionId: string, userId: string) {
  */
 async function assertUpgradeAccess(
   userId: string,
-  session: { gameId: string; serverId: string; gameLinkId: string | null; game: { unlisted: boolean } },
+  session: {
+    gameId: string;
+    serverId: string;
+    gameLinkId: string | null;
+    game: { unlisted: boolean; createdById: string | null };
+  },
   revisionId: string | null,
   logger: FastifyBaseLogger,
 ) {
@@ -70,7 +76,7 @@ async function assertUpgradeAccess(
   }
   await assertGameAccess(
     userId,
-    { serverId: session.serverId, unlisted: session.game.unlisted },
+    { serverId: session.serverId, unlisted: session.game.unlisted, createdById: session.game.createdById },
     [revisionId],
     logger,
   );
@@ -251,7 +257,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       });
       if (!game) throw notFound("Game not found");
       // For everyone, game managers included; GET /games leaves them out too.
-      if (game.unlisted) {
+      if (isUnlisted(game)) {
         throw forbidden("This game is unlisted; start sessions of it from a game link");
       }
 
