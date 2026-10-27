@@ -1,6 +1,6 @@
-import type { EventRecord, PresenceEvent, HiderUpdateEvent, PlanningToggleEvent, PresenceUser, SessionRevisionUpgradedEvent } from "@searchlight/shared";
+import type { EventRecord, PresenceEvent, HiderUpdateEvent, PlanningToggleEvent, PresenceUser, SessionRevisionUpgradedEvent, ZonesDisabledEvent } from "@searchlight/shared";
 
-type AnySSEEvent = EventRecord | PresenceEvent | HiderUpdateEvent | PlanningToggleEvent | SessionRevisionUpgradedEvent;
+type AnySSEEvent = EventRecord | PresenceEvent | HiderUpdateEvent | PlanningToggleEvent | ZonesDisabledEvent | SessionRevisionUpgradedEvent;
 type Listener = (event: AnySSEEvent) => void;
 
 const listeners = new Map<string, Set<Listener>>();

@@ -1,6 +1,7 @@
 import type { StrokeFeature } from "@/annotations/types";
 import { activeSessionId } from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
+import { zonesDeltaOf } from "@/lib/disabledZones";
 import {
     discardEvent,
     type EventType,
@@ -54,6 +55,19 @@ function failureOf(err: unknown): { kind: SendFailure; status?: number } {
 
 type RejectionListener = (event: PendingEvent, status: number) => void;
 const rejectionListeners = new Set<RejectionListener>();
+type SyncListener = (event: PendingEvent) => void;
+const syncListeners = new Set<SyncListener>();
+
+/**
+ * Hear about edits the server acknowledged while they were still queued
+ * (not those whose SSE echo already took them out of the queue).
+ */
+export function onEventSynced(listener: SyncListener): () => void {
+    syncListeners.add(listener);
+    return () => {
+        syncListeners.delete(listener);
+    };
+}
 
 /**
  * Hear about edits the server refused for good. A rejected edit has already
@@ -123,6 +137,21 @@ async function sendEvent(event: PendingEvent, keepalive: boolean): Promise<void>
             keepalive,
         });
         if (!res.ok) throw new SyncRequestError("planning.toggle", res.status);
+    } else if (event.type === "zones.disabled") {
+        // A delta (Disable All on a big game) can be large, like questions.
+        // The event's clientUuid lets the server ignore a resend.
+        const body = JSON.stringify({
+            ...zonesDeltaOf(event.payloadJson),
+            zonesClientUuid: event.clientUuid,
+        });
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+        });
+        if (!res.ok) throw new SyncRequestError("zones.disabled", res.status);
     }
 }
 
@@ -239,6 +268,9 @@ async function dispatchQueuedEvent(
             });
         }
         markEventSynced(sessionId, event.localId);
+        if (stillQueued) {
+            for (const listener of syncListeners) listener(event);
+        }
     } catch (err) {
         if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;

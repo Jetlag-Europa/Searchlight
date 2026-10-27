@@ -186,6 +186,8 @@ model GameSession {
   hiderLat            Float?
   hiderLng            Float?
   planningModeEnabled Boolean       @default(false)
+  // Zones (stations) players disabled by hand in the zone sidebar.
+  disabledZoneIds     String[]      @default([])
   gameRevisionId      String
   // The game link the session was started from, if any. While it is active,
   // the creator may upgrade the session without other access to the game.
@@ -288,7 +290,7 @@ model Event {
   sessionId        String
   userId           String
   sequence         Int
-  type             String   // "stroke.create" | "stroke.delete" | "questions.replace" | "hider.update" | "planning.toggle" | "session.revision-upgraded"
+  type             String   // "stroke.create" | "stroke.delete" | "questions.replace" | "hider.update" | "planning.toggle" | "zones.disabled" | "session.revision-upgraded"
   payloadJson      Json
   clientUuid       String   @unique
   clientCreatedAt  DateTime

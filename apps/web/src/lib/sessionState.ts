@@ -4,18 +4,35 @@ import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
 import { activeSessionId, verifiedUserId } from "@/lib/activeSession";
 import {
+    disabledStations,
     hiderMode,
     pendingEventCount,
     planningModeEnabled,
     syncStatus,
 } from "@/lib/context";
 import {
+    applyZonesDelta,
+    diffZoneIds,
+    forgetLegacyDisabledZones,
+    isNoZonesChange,
+    legacyDisabledZones,
+    sameZoneIds,
+    type ZonesDelta,
+    zonesDeltaOf,
+} from "@/lib/disabledZones";
+import {
     enqueueEvent,
     getPendingEvents,
+    markEventSynced,
     type PendingEvent,
     setCachedSession,
 } from "@/lib/eventQueue";
-import { sendPendingEvent } from "@/lib/syncManager";
+import {
+    flushPendingEvents,
+    onEventRejected,
+    onEventSynced,
+    sendPendingEvent,
+} from "@/lib/syncManager";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -295,6 +312,248 @@ export function flushPlanningModeSave(
     });
 }
 
+// ── Disabled zones ───────────────────────────────────────────────────────────
+
+// The board shows the server's list (the base) with this device's changes
+// the base doesn't show yet applied on top, oldest first:
+// - acknowledged: saved, but the reply beat the SSE echo. Kept until the echo
+//   arrives, so the board doesn't flicker back in between. Every saved
+//   change has one: the server records a change with an ID even when it
+//   changed nothing.
+// - queued: in the event queue, so they show after a reload too.
+// - scheduled: the edit waiting out the debounce.
+// The base follows the server (session loads and every zones.disabled event):
+// other players' edits show while ours are on their way, and our own echo
+// changes nothing.
+let zonesBase: { sessionId: string; ids: string[] } | null = null;
+// For zonesBase's session.
+let acknowledgedZones: Array<{ clientUuid: string; delta: ZonesDelta }> = [];
+const zonesTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const scheduledZones = new Map<string, ZonesDelta>();
+
+function isUnsyncedZonesEvent(event: PendingEvent): boolean {
+    return event.type === "zones.disabled" && event.status !== "synced";
+}
+
+/** The server's disabled zones for a session, as last heard, if known. */
+export function getDisabledZonesBase(sessionId: string): string[] | undefined {
+    return zonesBase?.sessionId === sessionId ? zonesBase.ids : undefined;
+}
+
+// The base with the changes already sent or queued: the board without the
+// edit waiting in the debounce.
+function savedDisabledZones(sessionId: string): string[] {
+    const acknowledged =
+        zonesBase?.sessionId === sessionId
+            ? acknowledgedZones.map((entry) => entry.delta)
+            : [];
+    const queued = getPendingEvents(sessionId)
+        .filter(isUnsyncedZonesEvent)
+        .map((event) => zonesDeltaOf(event.payloadJson));
+    return [...acknowledged, ...queued].reduce(
+        applyZonesDelta,
+        getDisabledZonesBase(sessionId) ?? [],
+    );
+}
+
+/** Show a session's disabled zones: the base with our changes on top. */
+export function showDisabledZones(sessionId: string): void {
+    const saved = savedDisabledZones(sessionId);
+    const scheduled = scheduledZones.get(sessionId);
+    const ids = scheduled ? applyZonesDelta(saved, scheduled) : saved;
+    // Keep the array (and the zone layers) when nothing changed.
+    if (!sameZoneIds(disabledStations.get(), ids)) disabledStations.set(ids);
+}
+
+function showDisabledZonesIfOnBoard(sessionId: string): void {
+    if (zonesBase?.sessionId === sessionId) showDisabledZones(sessionId);
+}
+
+/**
+ * Show a session's disabled zones from a fresh session load. Every change
+ * acknowledged before is in it.
+ */
+export function setDisabledZonesBase(sessionId: string, ids: string[]): void {
+    zonesBase = { sessionId, ids: [...ids] };
+    acknowledgedZones = [];
+    showDisabledZones(sessionId);
+}
+
+/**
+ * A zones.disabled event: the whole list after a change, ours or another
+ * player's. Events arrive in sequence order (see sseManager).
+ */
+export function applyDisabledZonesEvent(
+    sessionId: string,
+    ids: string[],
+    clientUuid: string,
+): void {
+    // Our own change came back (perhaps before its reply): it's in the base.
+    const own = getPendingEvents(sessionId).find(
+        (event) => isUnsyncedZonesEvent(event) && event.clientUuid === clientUuid,
+    );
+    if (own) {
+        markEventSynced(sessionId, own.localId);
+        refreshSyncCounts(sessionId);
+    }
+    if (zonesBase?.sessionId !== sessionId) acknowledgedZones = [];
+    zonesBase = { sessionId, ids: [...ids] };
+    acknowledgedZones = acknowledgedZones.filter(
+        (entry) => entry.clientUuid !== clientUuid,
+    );
+    showDisabledZones(sessionId);
+}
+
+// A change acknowledged before its echo stays on the board until the echo
+// comes (see applyDisabledZonesEvent).
+onEventSynced((event) => {
+    if (
+        event.type !== "zones.disabled" ||
+        zonesBase?.sessionId !== event.sessionId
+    ) {
+        return;
+    }
+    acknowledgedZones.push({
+        clientUuid: event.clientUuid,
+        delta: zonesDeltaOf(event.payloadJson),
+    });
+    showDisabledZones(event.sessionId);
+});
+
+// A refused change has left the queue: stop showing it.
+onEventRejected((event) => {
+    if (event.type === "zones.disabled") {
+        showDisabledZonesIfOnBoard(event.sessionId);
+    }
+});
+
+// No session, no zones (signing out, a session that's gone).
+activeSessionId.listen((sessionId) => {
+    if (sessionId) return;
+    zonesBase = null;
+    acknowledgedZones = [];
+    if (disabledStations.get().length > 0) disabledStations.set([]);
+});
+
+function queueZonesDelta(sessionId: string, delta: ZonesDelta): PendingEvent {
+    const event = enqueueEvent({
+        sessionId,
+        type: "zones.disabled",
+        payloadJson: delta,
+        clientUuid: `zones-disabled-${randomUUID()}`,
+        clientCreatedAt: Date.now(),
+    });
+    refreshSyncCounts(sessionId);
+    return event;
+}
+
+// Deltas must reach the server in order. One queued behind an earlier
+// unsynced delta (in flight, or failed and waiting for a retry) goes with
+// the in-order flush, which stops at a failure, instead of overtaking it.
+function sendZonesDelta(event: PendingEvent, keepalive = false): Promise<void> {
+    const behindAnother = getPendingEvents(event.sessionId).some(
+        (queued) =>
+            isUnsyncedZonesEvent(queued) && queued.localId !== event.localId,
+    );
+    return behindAnother
+        ? flushPendingEvents(event.sessionId)
+        : sendPendingEvent(event, keepalive);
+}
+
+export function cancelPendingDisabledZonesSave(sessionId?: string): void {
+    const ids = sessionId ? [sessionId] : [...zonesTimers.keys()];
+    for (const id of ids) {
+        clearTimeout(zonesTimers.get(id));
+        zonesTimers.delete(id);
+        scheduledZones.delete(id);
+    }
+}
+
+/**
+ * Save a change the player made to the board. The debounced delta is what
+ * the board now differs by from the changes already saved or queued, so a
+ * zone toggled back and forth saves nothing, unless another player changed
+ * it meanwhile.
+ */
+export function saveDisabledZonesDelta(
+    sessionId: string,
+    delta: ZonesDelta,
+): void {
+    const saved = savedDisabledZones(sessionId);
+    const scheduled = scheduledZones.get(sessionId);
+    const board = applyZonesDelta(
+        scheduled ? applyZonesDelta(saved, scheduled) : saved,
+        delta,
+    );
+    const next = diffZoneIds(saved, board);
+    cancelPendingDisabledZonesSave(sessionId);
+    if (!isNoZonesChange(next)) {
+        scheduledZones.set(sessionId, next);
+        zonesTimers.set(
+            sessionId,
+            setTimeout(() => {
+                flushDisabledZonesSave(sessionId).catch((err) => {
+                    console.warn("[sessionState] failed to save disabled zones:", err);
+                });
+            }, 300),
+        );
+    }
+    showDisabledZonesIfOnBoard(sessionId);
+}
+
+/**
+ * Queue the debounced delta durably now and start sending it. Rejects, never
+ * throws, if it can't even be queued.
+ */
+export async function flushDisabledZonesSave(
+    sessionId: string,
+    keepalive = false,
+): Promise<void> {
+    const delta = scheduledZones.get(sessionId);
+    if (!delta) return;
+    const event = queueZonesDelta(sessionId, delta);
+    cancelPendingDisabledZonesSave(sessionId);
+    await sendZonesDelta(event, keepalive);
+}
+
+// Disabled zones used to stay on the device (see legacyDisabledZones). Add
+// this device's to the session, whatever the server has: every player's old
+// list ends up on it. They are queued durably before the device's copy goes,
+// and the board shows them on top of the server's list once queued.
+function adoptLegacyDisabledZones(session: GameSessionSummary): void {
+    // A server without the field would drop the save, and the zones with it.
+    if (!Array.isArray(session.disabledZoneIds)) return;
+    const onServer = new Set(session.disabledZoneIds);
+    const legacy = legacyDisabledZones(session.id).filter(
+        (id) => !onServer.has(id),
+    );
+    if (legacy.length > 0) {
+        console.info(
+            "[sessionState] adding",
+            legacy.length,
+            "disabled zone(s) from this device to the session",
+        );
+        let event: PendingEvent;
+        try {
+            event = queueZonesDelta(session.id, {
+                disableZoneIds: legacy,
+                enableZoneIds: [],
+            });
+        } catch (err) {
+            // Storage is full: keep the device's copy for the next load.
+            console.warn("[sessionState] failed to queue legacy disabled zones:", err);
+            return;
+        }
+        sendZonesDelta(event).catch((err) => {
+            console.warn(
+                "[sessionState] failed to save legacy disabled zones:",
+                err,
+            );
+        });
+    }
+    forgetLegacyDisabledZones(session.id);
+}
+
 // ── Flushing ─────────────────────────────────────────────────────────────────
 
 /**
@@ -307,6 +566,9 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
     });
     flushHiderSave(sessionId, hiderMode.get(), keepalive);
     flushPlanningModeSave(sessionId, planningModeEnabled.get(), keepalive);
+    flushDisabledZonesSave(sessionId, keepalive).catch((err) => {
+        console.warn("[sessionState] failed to flush disabled zones save:", err);
+    });
 }
 
 /**
@@ -382,9 +644,13 @@ export async function loadSessionContent(
         userId,
         strokes: loadedStrokes,
         questions: loadedQuestions,
+        disabledZoneIds: Array.isArray(session.disabledZoneIds)
+            ? session.disabledZoneIds
+            : undefined,
         lastSyncedAt: Date.now(),
         lastSequence: serverCursor,
     });
+    adoptLegacyDisabledZones(session);
 
     return {
         strokes: loadedStrokes,

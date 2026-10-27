@@ -1,7 +1,7 @@
 import type { SessionVisibility } from "@searchlight/shared";
 
 import type { StrokeFeature } from "@/annotations/types";
-import { forgetDisabledZones } from "@/lib/disabledZones";
+import { forgetLegacyDisabledZones } from "@/lib/disabledZones";
 import type { Questions } from "@/maps/schema";
 
 export type EventType =
@@ -9,8 +9,11 @@ export type EventType =
     | "stroke.delete"
     | "questions.replace"
     | "hider.update"
-    | "planning.toggle";
+    | "planning.toggle"
+    | "zones.disabled";
 
+// zones.disabled events are deltas (see disabledZones), so unlike the
+// snapshots below each one must be sent, in order.
 export function isReplacementEventType(type: EventType): boolean {
     return (
         type === "questions.replace" ||
@@ -36,6 +39,8 @@ export interface CachedSessionState {
     visibility?: SessionVisibility;
     strokes: StrokeFeature[];
     questions: Questions;
+    // The server's disabled zones, without this device's unsaved changes.
+    disabledZoneIds?: string[];
     lastSyncedAt: number;
     lastSequence: number;
 }
@@ -242,6 +247,11 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
             visibility: parsed.visibility,
             strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+            disabledZoneIds: Array.isArray(parsed.disabledZoneIds)
+                ? parsed.disabledZoneIds.filter(
+                      (id): id is string => typeof id === "string",
+                  )
+                : undefined,
             lastSyncedAt:
                 typeof parsed.lastSyncedAt === "number"
                     ? parsed.lastSyncedAt
@@ -278,9 +288,9 @@ export function clearCachedSession(sessionId: string): void {
 
 // For a session that can never sync again (deleted, or this user removed):
 // unlike cache eviction, also drop its queue, which would otherwise pin the
-// snapshot in storage forever, and its disabled zones.
+// snapshot in storage forever, and its legacy disabled zones.
 export function discardSessionData(sessionId: string): void {
-    forgetDisabledZones(sessionId);
+    forgetLegacyDisabledZones(sessionId);
     try {
         localStorage.removeItem(pendingKey(sessionId));
         localStorage.removeItem(cacheKey(sessionId));
