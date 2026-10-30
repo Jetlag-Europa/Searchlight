@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Casual Games (2026-10-27)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too: share a game link to start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** a migration renames the server, links it to JetLag EU's roles and unlists its games. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
 ## Paste field when the clipboard is blocked (2026-10-26)
 
 - The paste buttons (Paste Question, Apply from clipboard on presets, paste coordinates, and Paste GeoJSON in the options) still read the clipboard directly where the browser allows it. Where it doesn't, because clipboard access is blocked, the Clipboard API is missing, or the browser's own "Paste" prompt was dismissed, they now open a field to paste into, instead of showing an error.

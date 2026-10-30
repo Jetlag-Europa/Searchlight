@@ -6,13 +6,16 @@ import { getListingAccess } from "../lib/permissions.js";
 import { requirePermission } from "../lib/require-permission.js";
 import { discord } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
+import { VIRTUAL_SERVER_IDS, VIRTUAL_SERVER_PERMISSIONS } from "../lib/virtual-servers.js";
 
 const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
 export async function serverRoutes(app: FastifyInstance) {
-  // GET /servers — the servers the authed user is in (and virtual ones), plus
-  // servers where they have sessions without being in the guild, e.g. sessions
-  // started from a game link. Each comes with the user's permissions there.
+  // GET /servers — the servers the authed user is in, plus servers where they
+  // have sessions without being in the guild, e.g. sessions started from a
+  // game link. Each comes with the user's permissions there. Virtual servers
+  // (Casual Games) are listed for those with sessions, games they created
+  // (which they keep without the role) or permissions there.
   // `recheck=true` asks Discord again about the servers the user wasn't in a
   // minute or more ago, for someone who just joined one.
   app.get(
@@ -40,7 +43,7 @@ export async function serverRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { recheck = false } = req.query as { recheck?: boolean };
-      const [servers, sessionServers] = await Promise.all([
+      const [servers, sessionServers, ownGameServers] = await Promise.all([
         prisma.server.findMany({ orderBy: { name: "asc" } }),
         // The sessions GET /sessions lists: created, or shared and accepted.
         prisma.gameSession.findMany({
@@ -58,8 +61,14 @@ export async function serverRoutes(app: FastifyInstance) {
           select: { serverId: true },
           distinct: ["serverId"],
         }),
+        prisma.game.findMany({
+          where: { serverId: { in: [...VIRTUAL_SERVER_IDS] }, createdById: user.discordId },
+          select: { serverId: true },
+          distinct: ["serverId"],
+        }),
       ]);
       const hasSessions = new Set(sessionServers.map((s) => s.serverId));
+      const hasOwnGames = new Set(ownGameServers.map((g) => g.serverId));
 
       const settled = await Promise.allSettled(
         servers.map(async (server) => {
@@ -74,6 +83,14 @@ export async function serverRoutes(app: FastifyInstance) {
           }
           const { isMember, permissions: perms } = access;
           if (!isMember && !hasSessions.has(server.id)) return null;
+          if (
+            VIRTUAL_SERVER_IDS.has(server.id) &&
+            perms.size === 0 &&
+            !hasSessions.has(server.id) &&
+            !hasOwnGames.has(server.id)
+          ) {
+            return null;
+          }
           return {
             id: server.id,
             name: server.name,
@@ -96,7 +113,8 @@ export async function serverRoutes(app: FastifyInstance) {
     },
   );
 
-  // GET /servers/:serverId/roles — Discord roles + permission mappings (server.admin only)
+  // GET /servers/:serverId/roles — Discord roles + permission mappings (server.admin only).
+  // A virtual server's roles are its management guild's.
   app.get(
     "/:serverId/roles",
     {
@@ -128,12 +146,24 @@ export async function serverRoutes(app: FastifyInstance) {
     async (req) => {
       const { serverId } = req.params as { serverId: string };
 
+      let guildId = serverId;
+      if (VIRTUAL_SERVER_IDS.has(serverId)) {
+        const server = await prisma.server.findUnique({
+          where: { id: serverId },
+          select: { managementGuildId: true },
+        });
+        if (!server?.managementGuildId) {
+          throw Object.assign(new Error("This server has no Discord roles"), { statusCode: 400 });
+        }
+        guildId = server.managementGuildId;
+      }
+
       const [mappings, roles] = await Promise.all([
         prisma.rolePermission.findMany({
           where: { serverId },
           select: { discordRoleId: true, permission: true },
         }),
-        discord.getGuildRoles(serverId, env.DISCORD_BOT_TOKEN, req.log),
+        discord.getGuildRoles(guildId, env.DISCORD_BOT_TOKEN, req.log),
       ]);
 
       return { roles, mappings };
@@ -170,6 +200,12 @@ export async function serverRoutes(app: FastifyInstance) {
 
       if (!KNOWN_PERMISSIONS.includes(permission)) {
         throw Object.assign(new Error(`Unknown permission: ${permission}`), { statusCode: 400 });
+      }
+      if (VIRTUAL_SERVER_IDS.has(serverId) && !VIRTUAL_SERVER_PERMISSIONS.includes(permission)) {
+        throw Object.assign(
+          new Error(`Only ${VIRTUAL_SERVER_PERMISSIONS.join(", ")} can be granted on this server`),
+          { statusCode: 400 },
+        );
       }
 
       return prisma.rolePermission.upsert({

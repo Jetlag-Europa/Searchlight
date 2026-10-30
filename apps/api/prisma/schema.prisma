@@ -105,6 +105,10 @@ model Game {
   // (null if never preloaded): the file only changes the game when its
   // content changes.
   preloadChecksum   String?
+  // Discord id of whoever first imported it (null for preloaded games and
+  // those imported before this was recorded). On Casual Games it decides who
+  // may see and change the game.
+  createdById       String?
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt

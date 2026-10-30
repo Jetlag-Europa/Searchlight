@@ -427,14 +427,14 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.json().errors[0].code).toBe("SERVER_NOT_FOUND");
     });
 
-    test("returns 403 for a non-admin importing to a virtual server, without a Discord call", async () => {
+    test("returns 403 for a user without a Casual Games role importing there, without looking up its id", async () => {
       await prisma.server.createMany({
-        data: [{ id: "home-games", name: "Home Games" }],
+        data: [{ id: "home-games", name: "Casual Games" }],
         skipDuplicates: true,
       });
       const getGuildMember = discord.getGuildMember as unknown as ReturnType<typeof vi.fn>;
       getGuildMember.mockClear();
-      // The virtual server's id is no Discord guild id, so a lookup would fail.
+      // Its roles come from its management guild, if it has role mappings.
       getGuildMember.mockRejectedValueOnce(new Error("Discord guild lookup failed: 400"));
 
       const res = await app.inject({
@@ -444,7 +444,8 @@ describe("Game Definition Access & Revision Security", () => {
         payload: importableDefinition("home-games"),
       });
       expect(res.statusCode).toBe(403);
-      expect(getGuildMember).not.toHaveBeenCalled();
+      // The virtual server's id is no Discord guild id.
+      expect(getGuildMember).not.toHaveBeenCalledWith("home-games", expect.anything(), expect.anything());
       getGuildMember.mockReset();
       getGuildMember.mockResolvedValue(null);
     });
