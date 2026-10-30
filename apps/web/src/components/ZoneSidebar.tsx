@@ -1,6 +1,5 @@
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
-import type { Feature, FeatureCollection } from "geojson";
 import * as L from "leaflet";
 import _ from "lodash";
 import { SidebarCloseIcon } from "lucide-react";
@@ -42,16 +41,18 @@ import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
 import { hidingZonesCalculated, zonesLeft } from "@/lib/zonesLeft";
-import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
     extractStationName,
+    hidingZoneLayer,
     lngLatToText,
     safeUnion,
     survivingHidingZones,
 } from "@/maps/geo-utils";
 import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
 
+import { IslandErrorBoundary } from "./IslandErrorBoundary";
+import { Button } from "./ui/button";
 import { Checkbox } from "./ui/checkbox";
 import {
     Command,
@@ -67,7 +68,37 @@ import { MENU_ITEM_CLASSNAME } from "./ui/sidebar-l";
 
 let buttonJustClicked = false;
 
-export const ZoneSidebar = () => {
+/** Take the zone sidebar's layers off the map. */
+function removeZoneLayers(map: L.Map | null) {
+    map?.eachLayer((layer: any) => {
+        // Hopefully only geoJSON layers
+        if (layer.hidingZones) map.removeLayer(layer);
+    });
+}
+
+/** Reset what decides how zones are drawn, as Deselect Zone does. */
+function resetZoneView() {
+    hidingZoneFocusedStationID.set("");
+    displayHidingZonesStyle.set("zones");
+}
+
+export const ZoneSidebar = () => (
+    <IslandErrorBoundary
+        name="zone sidebar"
+        onError={() => {
+            removeZoneLayers(leafletMapContext.get());
+            // Nothing recalculates the zones until a retry, so the count
+            // and the zone shortcuts would go stale.
+            hidingZonesCalculated.set(false);
+        }}
+        onRetry={resetZoneView}
+        fallback={(retry) => <ZoneSidebarFallback retry={retry} />}
+    >
+        <ZoneSidebarContent />
+    </IslandErrorBoundary>
+);
+
+const ZoneSidebarContent = () => {
     const $displayHidingZones = useStore(displayHidingZones);
     const $questionFinishedMapData = useStore(questionFinishedMapData);
     const $perQuestionMapData = useStore(perQuestionMapData);
@@ -135,16 +166,7 @@ export const ZoneSidebar = () => {
         };
     }, [map, $showZoneNames, LABEL_MIN_ZOOM]);
 
-    const removeHidingZones = () => {
-        if (!map) return;
-
-        map.eachLayer((layer: any) => {
-            if (layer.hidingZones) {
-                // Hopefully only geoJSON layers
-                map.removeLayer(layer);
-            }
-        });
-    };
+    const removeHidingZones = () => removeZoneLayers(map);
 
     const showGeoJSON = (
         geoJSONData: any,
@@ -343,10 +365,19 @@ export const ZoneSidebar = () => {
             const activeStations = stations.filter(
                 (x) => !$disabledStations.includes(x.properties.properties.id),
             );
-            showGeoJSON(
-                styleStations(activeStations, $displayHidingZonesStyle),
-                $displayHidingZonesStyle === "zones",
-            );
+            try {
+                showGeoJSON(
+                    hidingZoneLayer(activeStations, $displayHidingZonesStyle),
+                    $displayHidingZonesStyle === "zones",
+                );
+            } catch (error) {
+                console.error("Error drawing hiding zones:", error);
+                // A throw before showGeoJSON would leave the old zones up.
+                removeHidingZones();
+                toast.error("The hiding zones couldn't be drawn", {
+                    toastId: "hiding-zone-display-error",
+                });
+            }
         } else if (!$displayHidingZones) {
             removeHidingZones();
         }
@@ -678,23 +709,44 @@ export const ZoneSidebar = () => {
     );
 };
 
-function styleStations(
-    circles: StationCircle[],
-    style: string,
-): FeatureCollection | Feature {
-    switch (style) {
-        case "no-display":
-            return { type: "FeatureCollection", features: [] };
-
-        case "no-overlap":
-            return safeUnion(turf.featureCollection(circles));
-
-        case "stations":
-            return turf.featureCollection(circles.map((c) => c.properties));
-
-        default:
-            return turf.featureCollection(circles);
-    }
+/** Shown in place of the sidebar once it has failed. */
+function ZoneSidebarFallback({ retry }: { retry: () => void }) {
+    return (
+        <Sidebar side="right">
+            <div className="flex items-center justify-between">
+                <h2 className="ml-4 mt-4 font-poppins text-2xl">Hiding Zone</h2>
+                <SidebarCloseIcon
+                    className="mr-2 visible md:hidden scale-x-[-1]"
+                    onClick={() => {
+                        SidebarContext.get().setOpenMobile(false);
+                    }}
+                />
+            </div>
+            <SidebarContent>
+                <div className="flex flex-col items-start gap-3 p-4">
+                    <p className="font-semibold font-poppins">
+                        The hiding zones couldn&apos;t be shown.
+                    </p>
+                    <p className="text-sm">
+                        Something went wrong in the zone sidebar.
+                    </p>
+                    <Button onClick={retry}>Reset zone view</Button>
+                    <p className="text-sm text-muted-foreground">
+                        If this keeps happening, reload the page or{" "}
+                        <a
+                            href="https://github.com/Jetlag-Europa/Searchlight/issues/new/choose"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                        >
+                            report it
+                        </a>
+                        .
+                    </p>
+                </div>
+            </SidebarContent>
+        </Sidebar>
+    );
 }
 
 async function selectionProcess(
