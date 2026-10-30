@@ -31,6 +31,7 @@ import {
     sessionPickerOpen,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
+import { onDisabledZonesEdit } from "@/lib/disabledZones";
 import {
     applyUnsyncedEvents,
     discardSessionData,
@@ -44,15 +45,18 @@ import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
 import {
+    cancelPendingDisabledZonesSave,
     cancelPendingHiderSave,
     cancelPendingPlanningModeSave,
     cancelPendingQuestionSave,
     flushSavesOnPageExit,
     flushSessionSaves,
     loadSessionContent,
+    saveDisabledZonesDelta,
     saveHiderModeToServer,
     savePlanningModeToServer,
     saveQuestionsDebounced,
+    setDisabledZonesBase,
 } from "@/lib/sessionState";
 import { startSSE, stopSSE } from "@/lib/sseManager";
 import { flushPendingEvents, startSyncManager } from "@/lib/syncManager";
@@ -818,7 +822,31 @@ export function SessionManager() {
         savePlanningModeToServer(sessionId, currentPlanningMode);
     }, [sessionId, authUserId, currentPlanningMode]);
 
-    // Flush pending question, hider & planning saves when the page may close.
+    // Save the player's own disabled zone edits (see setDisabledStations).
+    // Zones shown from the server never come through here.
+    useEffect(
+        () =>
+            onDisabledZonesEdit((delta) => {
+                const id = activeSessionId.get();
+                if (!id || !verifiedUserId.get()) return;
+                if (isLoadingSession()) {
+                    console.info(
+                        "[searchlight:session] disabled zones save skipped — session is loading",
+                    );
+                    return;
+                }
+                console.info("[searchlight:session] queuing disabled zones save", {
+                    sessionId: id,
+                    disable: delta.disableZoneIds.length,
+                    enable: delta.enableZoneIds.length,
+                });
+                saveDisabledZonesDelta(id, delta);
+            }),
+        [],
+    );
+
+    // Flush pending question, hider, planning & disabled zone saves when the
+    // page may close.
     useEffect(() => flushSavesOnPageExit(), []);
 
     // The session was deleted (404) or this user can no longer open it (403):
@@ -836,6 +864,7 @@ export function SessionManager() {
             cancelPendingQuestionSave(sessionId);
             cancelPendingHiderSave(sessionId);
             cancelPendingPlanningModeSave(sessionId);
+            cancelPendingDisabledZonesSave(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
             setShowPicker(true);
         },
@@ -905,6 +934,7 @@ export function SessionManager() {
             strokes.set(derived.strokes);
             // The game hasn't loaded: show only what it may support.
             questions.set(filterSupportedQuestions(derived.questions, null));
+            setDisabledZonesBase(storedId, cached.disabledZoneIds ?? []);
             return true;
         };
         setLoading(true);
@@ -934,6 +964,9 @@ export function SessionManager() {
                 // server reconcile may be saved over fresher questions.
                 loadingGenerationRef.current = generation;
                 paintCached();
+                if (data.disabledZoneIds) {
+                    setDisabledZonesBase(storedId, data.disabledZoneIds);
+                }
                 // storedId === data.id always here (we fetched by storedId), so
                 // activeSessionId won't change — no suppress needed for sessionId effect.
                 setActiveSession(data);
@@ -963,6 +996,7 @@ export function SessionManager() {
                     cancelPendingQuestionSave();
                     cancelPendingHiderSave();
                     cancelPendingPlanningModeSave();
+                    cancelPendingDisabledZonesSave();
                     setActiveSession(refreshedSession);
                     // Keep edits the flush above couldn't deliver on top of the
                     // server state, as an explicit selection does.
@@ -1013,6 +1047,10 @@ export function SessionManager() {
                         suppressNextPlanningModeRef.current = true;
                     }
                     planningModeEnabled.set(newPlanningMode);
+                    setDisabledZonesBase(
+                        storedId,
+                        refreshedSession.disabledZoneIds ?? [],
+                    );
                     startSSE(storedId, (status) =>
                         forgetSession(storedId, status),
                     );
@@ -1081,6 +1119,13 @@ export function SessionManager() {
             const cached = getCachedSession(selected.id);
             const canPaintCache = Boolean(
                 cached && cached.userId === authUserId,
+            );
+            // Never the outgoing session's zones, even offline.
+            setDisabledZonesBase(
+                selected.id,
+                selected.disabledZoneIds ??
+                    (canPaintCache ? cached?.disabledZoneIds : undefined) ??
+                    [],
             );
             if (canPaintCache && cached) {
                 const derived = applyUnsyncedEvents(selected.id, cached);
@@ -1179,6 +1224,10 @@ export function SessionManager() {
                     suppressNextPlanningModeRef.current = true;
                 }
                 planningModeEnabled.set(newPlanningMode);
+                setDisabledZonesBase(
+                    selected.id,
+                    refreshedSession.disabledZoneIds ?? [],
+                );
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),
                 );
@@ -1225,6 +1274,7 @@ export function SessionManager() {
             cancelPendingQuestionSave();
             cancelPendingHiderSave();
             cancelPendingPlanningModeSave();
+            cancelPendingDisabledZonesSave();
             // Only suppress the sessionId-change hider effect if the session is
             // actually changing — same-session re-selects don't fire the effect.
             if (activeSessionId.get() !== selected.id) {

@@ -48,12 +48,16 @@ vi.stubGlobal("fetch", mockFetch);
 // ── Imports (after globals are stubbed) ───────────────────────────────────────
 import { startSSE, stopSSE } from "@/lib/sseManager";
 import {
+    cancelPendingDisabledZonesSave,
     cancelPendingQuestionSave,
+    saveDisabledZonesDelta,
     saveQuestionsDebounced,
+    setDisabledZonesBase,
 } from "@/lib/sessionState";
+import { onDisabledZonesEdit } from "@/lib/disabledZones";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
-import { questions, syncStatus } from "@/lib/context";
+import { disabledStations, questions, syncStatus } from "@/lib/context";
 import {
     enqueueEvent,
     getPendingEvents,
@@ -112,6 +116,7 @@ beforeEach(() => {
     mockFetch.mockReset();
     strokes.set([]);
     questions.set([] as unknown as Questions);
+    disabledStations.set([]);
     syncStatus.set("synced");
 });
 
@@ -424,6 +429,126 @@ describe("handleServerEvent — questions.replace", () => {
         }>;
         expect(qs[0]?.id).toBe("radius");
         expect(qs[0]?.key).toBe(2);
+    });
+});
+
+describe("handleServerEvent — zones.disabled", () => {
+    const zones = (ids: string[], sequence = 1) =>
+        makeEvent("zones.disabled", { disabledZoneIds: ids }, { sequence });
+    const queueDelta = (disableZoneIds: string[], enableZoneIds: string[] = []) =>
+        enqueueEvent({
+            sessionId: SID,
+            type: "zones.disabled",
+            payloadJson: { disableZoneIds, enableZoneIds },
+            clientUuid: `zones-disabled-local-${Math.random()}`,
+            clientCreatedAt: Date.now(),
+        });
+
+    beforeEach(() => {
+        cancelPendingDisabledZonesSave();
+        setDisabledZonesBase(SID, []);
+    });
+
+    afterEach(() => {
+        cancelPendingDisabledZonesSave();
+    });
+
+    test("applies another player's zones without saving them", () => {
+        const edits = vi.fn();
+        const stop = onDisabledZonesEdit(edits);
+        try {
+            startSSE(SID);
+            simulateMessage(zones(["a", "b"]));
+            expect(disabledStations.get()).toEqual(["a", "b"]);
+            expect(edits).not.toHaveBeenCalled();
+            expect(getPendingEvents(SID)).toEqual([]);
+        } finally {
+            stop();
+        }
+    });
+
+    test("shows another player's zones while our own save is on its way", () => {
+        queueDelta(["mine"]);
+        setDisabledZonesBase(SID, []);
+        expect(disabledStations.get()).toEqual(["mine"]);
+
+        startSSE(SID);
+        // Committed before ours: it doesn't have our zone yet.
+        simulateMessage(zones(["theirs"], 1));
+        expect(disabledStations.get()).toEqual(
+            expect.arrayContaining(["mine", "theirs"]),
+        );
+        expect(disabledStations.get()).toHaveLength(2);
+        // Our own echo changes nothing.
+        const before = disabledStations.get();
+        simulateMessage(zones(["mine", "theirs"], 2));
+        expect(disabledStations.get()).toBe(before);
+        // Our save is still queued, unchanged: nothing was reverted.
+        expect(getPendingEvents(SID)).toMatchObject([
+            { payloadJson: { disableZoneIds: ["mine"], enableZoneIds: [] } },
+        ]);
+    });
+
+    test("keeps an edit still waiting in the debounce on top", () => {
+        saveDisabledZonesDelta(SID, { disableZoneIds: ["mine"], enableZoneIds: [] });
+        startSSE(SID);
+        simulateMessage(zones(["theirs"]));
+        expect([...disabledStations.get()].sort()).toEqual(["mine", "theirs"]);
+    });
+
+    test("our own echo takes our change out of the queue", () => {
+        const own = queueDelta(["a"]);
+        startSSE(SID);
+        simulateMessage(
+            makeEvent("zones.disabled", { disabledZoneIds: ["a"] }, {
+                sequence: 1,
+                clientUuid: own.clientUuid,
+            }),
+        );
+        expect(getPendingEvents(SID)).toEqual([]);
+        // Another player enables it again: the board follows.
+        simulateMessage(zones([], 2));
+        expect(disabledStations.get()).toEqual([]);
+    });
+
+    test("keeps a zone we enabled hidden from an update that still has it", () => {
+        setDisabledZonesBase(SID, ["a", "b"]);
+        queueDelta([], ["a"]);
+        setDisabledZonesBase(SID, ["a", "b"]);
+        expect(disabledStations.get()).toEqual(["b"]);
+        startSSE(SID);
+        simulateMessage(zones(["a", "b", "c"]));
+        expect([...disabledStations.get()].sort()).toEqual(["b", "c"]);
+    });
+
+    test("another player enabling a zone shows, with our disable kept", () => {
+        setDisabledZonesBase(SID, ["a", "c"]);
+        queueDelta(["b"]);
+        startSSE(SID);
+        simulateMessage(zones(["c"]));
+        expect([...disabledStations.get()].sort()).toEqual(["b", "c"]);
+    });
+
+    test("caches the server's list, not our unsaved changes", () => {
+        setCachedSession({
+            sessionId: SID,
+            strokes: [],
+            questions: [] as unknown as Questions,
+            disabledZoneIds: [],
+            lastSyncedAt: 0,
+            lastSequence: 0,
+        });
+        queueDelta(["mine"]);
+        startSSE(SID);
+        simulateMessage(zones(["theirs"]));
+        expect(getCachedSession(SID)?.disabledZoneIds).toEqual(["theirs"]);
+    });
+
+    test("ignores a malformed payload", () => {
+        setDisabledZonesBase(SID, ["a"]);
+        startSSE(SID);
+        simulateMessage(makeEvent("zones.disabled", { disabledZoneIds: null }));
+        expect(disabledStations.get()).toEqual(["a"]);
     });
 });
 

@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Disabled zones sync with the session (2026-10-27)
+
+- Hiding zones disabled by hand in the zone sidebar are now saved with the session, so everyone in it sees them right away, and they're there when you open the session on another device. Before, they stayed on the device that disabled them. Players disabling or enabling different zones at the same time keep each other's changes.
+- Zones a device disabled before this update are added to the session the next time it opens there, on top of any the session already has.
+- **Upgrading:** with the web app on Cloudflare (see `DEPLOY.md`), update the API first: an older API ignores the new app's disabled-zone changes, so they don't reach other players and are gone after a reload. A device's old disabled zones wait until the API is updated.
+
 ## Paste field when the clipboard is blocked (2026-10-26)
 
 - The paste buttons (Paste Question, Apply from clipboard on presets, paste coordinates, and Paste GeoJSON in the options) still read the clipboard directly where the browser allows it. Where it doesn't, because clipboard access is blocked, the Clipboard API is missing, or the browser's own "Paste" prompt was dismissed, they now open a field to paste into, instead of showing an error.

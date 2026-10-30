@@ -1,0 +1,1 @@
+ALTER TABLE "GameSession" ADD COLUMN "disabledZoneIds" TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[];

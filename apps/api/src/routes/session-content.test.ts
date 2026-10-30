@@ -771,6 +771,55 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       expect(finalSession.eventSequence).toBe(initialSeq + 2);
     });
 
+    test("persists and broadcasts a zones.disabled event with the whole list, only when it changes", async () => {
+      const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      const initialSeq = session.eventSequence;
+      const broadcasted: EventRecord[] = [];
+      const unsubscribe = subscribe(SESSION_ID, (ev) => {
+        if ("type" in ev && ev.type === "zones.disabled") {
+          broadcasted.push(ev as EventRecord);
+        }
+      });
+
+      try {
+        const res = await app.inject({
+          method: "PATCH",
+          url: `/sessions/${SESSION_ID}`,
+          headers: { cookie },
+          payload: { disableZoneIds: ["zone-b", "zone-a"], zonesClientUuid: `zones-disabled-${SESSION_ID}` },
+        });
+        expect(res.statusCode).toBe(200);
+        expect(res.json<{ disabledZoneIds: string[] }>().disabledZoneIds).toEqual(["zone-a", "zone-b"]);
+
+        const zonesEvent = await prisma.event.findUniqueOrThrow({
+          where: { clientUuid: `zones-disabled-${SESSION_ID}` },
+        });
+        expect(zonesEvent.type).toBe("zones.disabled");
+        expect(zonesEvent.sequence).toBe(initialSeq + 1);
+        expect(zonesEvent.payloadJson).toEqual({ disabledZoneIds: ["zone-a", "zone-b"] });
+        expect(broadcasted).toHaveLength(1);
+        expect(broadcasted[0].clientUuid).toBe(zonesEvent.clientUuid);
+        expect(broadcasted[0].payloadJson).toEqual({ disabledZoneIds: ["zone-a", "zone-b"] });
+
+        // The same change again (a retry) is no change: no event, no broadcast
+        const resSame = await app.inject({
+          method: "PATCH",
+          url: `/sessions/${SESSION_ID}`,
+          headers: { cookie },
+          payload: { disableZoneIds: ["zone-a"] },
+        });
+        expect(resSame.statusCode).toBe(200);
+        expect(resSame.json<{ disabledZoneIds: string[] }>().disabledZoneIds).toEqual(["zone-a", "zone-b"]);
+        expect(broadcasted).toHaveLength(1);
+
+        const finalSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+        expect(finalSession.eventSequence).toBe(initialSeq + 1);
+      } finally {
+        unsubscribe();
+        await prisma.gameSession.update({ where: { id: SESSION_ID }, data: { disabledZoneIds: [] } });
+      }
+    });
+
     test("upgrade-revision creates durable session.revision-upgraded event with sequence", async () => {
       const rev2 = await prisma.gameRevision.create({
         data: {

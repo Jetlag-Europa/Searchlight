@@ -5,7 +5,6 @@ import {
     compiledGameAtom,
     setActiveGameDefinition,
 } from "@/game-definition/store";
-import { activeSessionId } from "@/lib/activeSession";
 import {
     displayHidingZones,
     perQuestionMapData,
@@ -96,15 +95,12 @@ describe("zonesLeft", () => {
             removeItem: () => {},
         });
         displayHidingZones.set(true);
-        // Disabled zones are kept per session.
-        activeSessionId.set("zones-left-session");
         setDisabledStations([]);
         applyGameDefinition(definition);
     });
 
     afterEach(() => {
         setDisabledStations([]);
-        activeSessionId.set("");
         vi.unstubAllGlobals();
         resetGameState();
     });

@@ -166,7 +166,12 @@ export const animateMapMovements = persistentAtom<boolean>(
         decode: JSON.parse,
     },
 );
-export { disabledStations, setDisabledStations } from "@/lib/disabledZones";
+export {
+    disabledStations,
+    disableZones,
+    setDisabledStations,
+    toggleDisabledZone,
+} from "@/lib/disabledZones";
 export const autoSave = persistentAtom<boolean>("autoSave", true, {
     encode: JSON.stringify,
     decode: JSON.parse,
