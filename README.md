@@ -65,6 +65,16 @@ docker compose -f docker-compose.dev.yml down                      # stop Postgr
 docker compose -f docker-compose.dev.yml down -v                   # ...and delete the database
 ```
 
+Check that a generated `migration.sql` holds only your change. CI also fails
+when `schema.prisma` and the migrations disagree, for example after a
+hand-written migration. To run that check against your dev database, once
+`pnpm dev` has applied this branch's migrations (an empty migration means they
+match):
+
+```bash
+pnpm --filter @searchlight/api prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script
+```
+
 The API scripts read the root `.env`; so does the web app (for `PUBLIC_API_BASE`).
 
 ### When something doesn't work
