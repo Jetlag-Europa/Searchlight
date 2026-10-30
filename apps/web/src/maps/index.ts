@@ -3,7 +3,12 @@ import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
-import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
+import {
+    hiderMode,
+    mapGeoJSON,
+    polyGeoJSON,
+    showAllMatchingCells,
+} from "@/lib/context";
 import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 
 import { arcDistanceToPoint } from "./geo-utils";
@@ -24,8 +29,12 @@ import {
     geometrySource,
     nearestLine,
     regionLines,
+    withCellBorders,
 } from "./questions/operators/geometry";
-import { determineMatchingGeometry } from "./questions/operators/matching";
+import {
+    determineMatchingCellBorders,
+    determineMatchingGeometry,
+} from "./questions/operators/matching";
 import {
     determineMeasuringGeometry,
     determineMeasuringTargets,
@@ -199,8 +208,19 @@ async function determinePlanningPolygonCompiled(
         data: question.data,
     };
     if (questionDef.family === "matching") {
-        const geometry = await determineMatchingGeometry(params);
-        return geometry ? regionLines(geometry.region) : null;
+        const area = polyGeoJSON.get() ?? mapGeoJSON.get();
+        const [geometry, borders] = await Promise.all([
+            determineMatchingGeometry(params),
+            // Only context: if they fail, the seeker's cell still shows.
+            showAllMatchingCells.get() && area
+                ? determineMatchingCellBorders(params, area).catch(
+                      () => undefined,
+                  )
+                : undefined,
+        ]);
+        if (!geometry) return null;
+        const lines = regionLines(geometry.region);
+        return borders ? withCellBorders(borders, lines.features) : lines;
     }
     if (questionDef.family === "measuring") {
         // Shares the buffer the map is clipped with (the same boundary).
@@ -313,7 +333,10 @@ export const determinePlanningPolygon = async (
             case "tentacles":
                 return tentaclesPlanningPolygon(question.data);
             case "matching":
-                return matchingPlanningPolygon(question.data);
+                return matchingPlanningPolygon(
+                    question.data,
+                    showAllMatchingCells.get(),
+                );
             case "measuring":
                 return measuringPlanningPolygon(question.data);
         }

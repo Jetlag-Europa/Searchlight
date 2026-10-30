@@ -37,6 +37,7 @@ import {
     permanentOverlay,
     planningModeEnabled,
     save,
+    showAllMatchingCells,
     showZoneNames,
     thunderforestApiKey,
     trainStations,
@@ -75,6 +76,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
     const $planningMode = useStore(planningModeEnabled);
+    const $showAllMatchingCells = useStore(showAllMatchingCells);
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $autoLockQuestions = useStore(autoLockQuestions);
@@ -350,6 +352,20 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                     checked === true,
                                                 );
                                             }}
+                                        />
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Show all matching cells when
+                                            planning?
+                                        </label>
+                                        <Checkbox
+                                            checked={$showAllMatchingCells}
+                                            onCheckedChange={() =>
+                                                showAllMatchingCells.set(
+                                                    !$showAllMatchingCells,
+                                                )
+                                            }
                                         />
                                     </div>
                                     <div className="flex flex-row items-center gap-2">

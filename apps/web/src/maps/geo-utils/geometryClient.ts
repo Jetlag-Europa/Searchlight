@@ -1,12 +1,14 @@
 import type {
     Feature,
     FeatureCollection,
+    MultiLineString,
     MultiPolygon,
     Polygon,
 } from "geojson";
 
 import type * as BufferGeometry from "./bufferGeometry";
 import type { BufferRequest, DistanceRequest } from "./bufferGeometry";
+import { calculateCellBorders, type CellBordersRequest } from "./cellBorders";
 import type {
     BoundaryTargetRequest,
     ClipRequest,
@@ -115,6 +117,9 @@ export function requestGeometry(
 export function requestGeometry(request: ClipRequest): Promise<GeometryResult>;
 export function requestGeometry(request: UnionRequest): Promise<GeometryResult>;
 export function requestGeometry(
+    request: CellBordersRequest,
+): Promise<Feature<MultiLineString> | null>;
+export function requestGeometry(
     request: LineVoronoiRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[][]>;
 export function requestGeometry(
@@ -127,6 +132,7 @@ export async function requestGeometry(
     request:
         | BoundaryTargetRequest
         | BufferRequest
+        | CellBordersRequest
         | ClipRequest
         | DistanceRequest
         | LineVoronoiRequest
@@ -138,6 +144,8 @@ export async function requestGeometry(
     if (typeof Worker === "undefined") {
         if (request.kind === "clip") return calculateClip(request);
         if (request.kind === "union") return calculateUnion(request);
+        if (request.kind === "cellBorders")
+            return calculateCellBorders(request);
         if (request.kind === "boundaryTarget")
             return calculateBoundaryTarget(request);
         if (request.kind === "lineVoronoi")

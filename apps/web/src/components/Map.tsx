@@ -35,6 +35,7 @@ import {
     questionFinishedMapData,
     questions,
     setScopedLoading,
+    showAllMatchingCells,
     thunderforestApiKey,
     triggerLocalRefresh,
 } from "@/lib/context";
@@ -58,6 +59,7 @@ import {
     requestGeometry,
     SupersededError,
 } from "@/maps/geo-utils/geometryClient";
+import { PLANNING_CONTEXT } from "@/maps/questions/operators/geometry";
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
@@ -241,6 +243,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
     const $planningMode = useStore(planningModeEnabled);
+    const $showAllMatchingCells = useStore(showAllMatchingCells);
     const $compiledGame = useStore(compiledGameAtom);
     const $followMe = useStore(followMe);
     const $permanentOverlay = useStore(permanentOverlay);
@@ -287,6 +290,7 @@ export const Map = ({ className }: { className?: string }) => {
 
         const sourceQuestions = questions.get();
         const planning = planningModeEnabled.get();
+        const allCells = showAllMatchingCells.get();
         const compiled = compiledGameAtom.get();
         const hider = hiderMode.get();
         const boundary = polyGeoJSON.get();
@@ -309,6 +313,7 @@ export const Map = ({ className }: { className?: string }) => {
             currentGameId.get() === activeGameId &&
             questions.get() === sourceQuestions &&
             planningModeEnabled.get() === planning &&
+            showAllMatchingCells.get() === allCells &&
             compiledGameAtom.get() === compiled &&
             hiderMode.get() === hider &&
             polyGeoJSON.get() === boundary &&
@@ -371,7 +376,14 @@ export const Map = ({ className }: { className?: string }) => {
                 );
                 if (!isCurrent()) return;
                 if (!geometry) continue;
-                const layer = L.geoJSON(geometry);
+                const layer = L.geoJSON(geometry, {
+                    // Borders drawn for context stay out of the way of the
+                    // seeker's own cell.
+                    style: (feature) =>
+                        feature?.properties?.[PLANNING_CONTEXT]
+                            ? { weight: 2, opacity: 0.6 }
+                            : {},
+                });
                 Object.assign(layer, { questionKey: question.key });
                 previews.push(layer);
             }
@@ -635,6 +647,7 @@ export const Map = ({ className }: { className?: string }) => {
         map,
         $hiderMode,
         $planningMode,
+        $showAllMatchingCells,
         $compiledGame,
         $polyGeoJSON,
         $gameDefinitionReady,

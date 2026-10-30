@@ -19,6 +19,11 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Searchlight now has numbered releases on [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases), each summing up the changes since the one before. 1.0 is Searchlight as Jules built it on top of JetLagHideAndSeek, up to 26 September 2026; 2.0 is everything since, starting with importable games.
 - **Upgrading:** when a release is published, its Docker images are also tagged with its version, such as `2.0.0` and `2.0`. Set `SEARCHLIGHT_IMAGE_TAG=2.0` in `.env` to stay on a release and still get its fixes, instead of following `latest`.
 
+## Every matching cell while planning (2026-10-20)
+
+- A new option, **Show all matching cells when planning?**, draws the borders of every cell a matching question could answer with, not just the seeker's own, while planning mode is on. They are drawn thin and faint behind the seeker's cell, clipped to the play area and simplified. It works for "nearest" questions on point layers, for "same region" questions, and for custom points; line layers such as rivers and rail lines still show only the seeker's cell. Dragging the pin reuses the drawn borders, so only the seeker's cell is redrawn.
+- The option is off by default, as a layer with hundreds of cells can slow down the map in some browsers.
+
 ## Overlap check agrees with the checker (2026-10-20)
 
 - The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.
