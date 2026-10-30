@@ -27,6 +27,7 @@ import {
     hiderifyQuestion,
     determinePlanningPolygon,
     adjustMapGeoDataForQuestion,
+    matchingTarget,
     measuringDistance,
 } from "@/maps";
 import {
@@ -167,7 +168,7 @@ describe("maps dispatch and hider regression suite", () => {
             },
             {
                 name: "Districts",
-                enabledFor: ["measuring"],
+                enabledFor: ["matching", "measuring"],
                 data: {
                     type: "FeatureCollection" as const,
                     features: [
@@ -762,6 +763,55 @@ describe("maps dispatch and hider regression suite", () => {
             km([139.64, 35.62], [139.65, 35.62]),
             -1,
         );
+    });
+
+    it("names the closest thing to a matching question's pin", () => {
+        const shrines = matchingQuestionSchema.parse({
+            type: "matching-shrines",
+            lat: 35.65,
+            lng: 139.69,
+        });
+        expect(matchingTarget(shrines)).toBe("Meiji Shrine");
+        // From another point.
+        expect(matchingTarget(shrines, 35.66, 139.73)).toBe("Nezu Shrine");
+
+        const districts = matchingQuestionSchema.parse({
+            type: "matching-districts",
+            lat: 35.62,
+            lng: 139.64,
+        });
+        expect(matchingTarget(districts)).toBe("District Exclave");
+        // Outside every region: nothing to name.
+        expect(matchingTarget(districts, 35.62, 139.8)).toBeUndefined();
+
+        const custom = matchingQuestionSchema.parse({
+            type: "custom-points",
+            geo: [
+                turf.point([139.6, 35.6], { name: "West" }),
+                turf.point([139.9, 35.6]),
+            ],
+            lat: 35.6,
+            lng: 139.62,
+        });
+        expect(matchingTarget(custom)).toBe("West");
+        // The nearest point has no name.
+        expect(matchingTarget(custom, 35.6, 139.88)).toBeUndefined();
+        // Pasted points that aren't points are skipped.
+        const pasted = matchingQuestionSchema.parse({
+            type: "custom-points",
+            geo: [
+                null,
+                { lat: 35.6, lng: 139.6 },
+                turf.point([139.7, 35.6], { name: "East" }),
+            ],
+            lat: 35.6,
+            lng: 139.62,
+        });
+        expect(matchingTarget(pasted)).toBe("East");
+
+        // Nothing is named while the game loads.
+        setActiveGameDefinition(null);
+        expect(matchingTarget(shrines)).toBeUndefined();
     });
 
     it("measures custom measures to what is drawn, and nothing before", async () => {
