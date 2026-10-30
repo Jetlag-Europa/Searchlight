@@ -3,24 +3,13 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { subscribe, addPresence, removePresence, getPresence, registerUserStream } from "../lib/broadcaster.js";
-import type { PresenceUser } from "@searchlight/shared";
+import type { PresenceUser, SessionRole } from "@searchlight/shared";
 import { env } from "../lib/env.js";
+import { eventForRole, resolveSessionAccess } from "../lib/session-access.js";
 
 // How long a stream waits for its client to read a backed-up write before
 // dropping it. An object so tests can shorten it.
 export const stallTimeout = { ms: 30_000 };
-
-async function assertParticipant(sessionId: string, userId: string) {
-  const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
-  if (!session) throw Object.assign(new Error("Session not found"), { statusCode: 404 });
-  if (session.creatorId === userId) return;
-  const participant = await prisma.sessionParticipant.findUnique({
-    where: { sessionId_userId: { sessionId, userId } },
-  });
-  if (!participant || participant.acceptedAt === null || participant.revokedAt !== null) {
-    throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-  }
-}
 
 export async function eventRoutes(app: FastifyInstance) {
   // GET /sessions/:sessionId/events/cursor — returns { sequence: number }
@@ -37,13 +26,7 @@ export async function eventRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
-
-      const session = await prisma.gameSession.findUnique({
-        where: { id: sessionId },
-        select: { eventSequence: true },
-      });
-      if (!session) throw Object.assign(new Error("Session not found"), { statusCode: 404 });
+      const { session } = await resolveSessionAccess(sessionId, user.discordId);
 
       return {
         sequence: session.eventSequence ?? 0,
@@ -84,7 +67,7 @@ export async function eventRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      const { role } = await resolveSessionAccess(sessionId, user.discordId);
 
       const query = req.query as { after?: number; limit?: number };
       const after = query.after ?? 0;
@@ -106,7 +89,7 @@ export async function eventRoutes(app: FastifyInstance) {
       const nextAfter = hasMore && events.length > 0 ? events[events.length - 1].sequence : null;
 
       return {
-        events: events.map((e) => ({
+        events: events.map((e) => eventForRole({
           id: e.id,
           sessionId: e.sessionId,
           userId: e.userId,
@@ -116,7 +99,7 @@ export async function eventRoutes(app: FastifyInstance) {
           clientUuid: e.clientUuid,
           clientCreatedAt: e.clientCreatedAt.toISOString(),
           serverReceivedAt: e.serverReceivedAt.toISOString(),
-        })),
+        }, role)),
         nextAfter,
       };
     },
@@ -131,7 +114,7 @@ export async function eventRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      await resolveSessionAccess(sessionId, user.discordId);
 
       const userRecord = await prisma.user.findUnique({
         where: { discordId: user.discordId },
@@ -219,13 +202,15 @@ export async function eventRoutes(app: FastifyInstance) {
       unregisterStream = registerUserStream(sessionId, user.discordId, doClose);
       if (isClosed) return;
 
-      // A kick, leave or delete that landed between the check above and
-      // registerUserStream closed this user's streams before this one was
-      // registered. Check again now that any later one will find it, before
-      // opening the stream: once it's open the client starts catching up, so
-      // from then on it must get every new event.
+      // A kick, leave, role change or delete that landed between the check
+      // above and registerUserStream closed this user's streams before this
+      // one was registered. Check again now that any later one will find it,
+      // before opening the stream: once it's open the client starts catching
+      // up, so from then on it must get every new event. The stream is
+      // filtered for the role this finds; changing it closes the stream.
+      let role: SessionRole;
       try {
-        await assertParticipant(sessionId, user.discordId);
+        ({ role } = await resolveSessionAccess(sessionId, user.discordId));
       } catch (err) {
         const statusCode = (err as { statusCode?: number }).statusCode;
         req.log.info(
@@ -250,7 +235,7 @@ export async function eventRoutes(app: FastifyInstance) {
       unsubscribe = subscribe(sessionId, (event) => {
         if (isClosed) return;
         req.log.info({ sessionId, eventType: event.type }, "[sse] pushing event to client");
-        send(`data: ${JSON.stringify(event)}\n\n`);
+        send(`data: ${JSON.stringify(eventForRole(event, role))}\n\n`);
       });
 
       // Send current presence roster to this client before registering them

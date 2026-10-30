@@ -12,7 +12,11 @@ import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
-import { activeSessionData, activeSessionId } from "@/lib/activeSession";
+import {
+    activeSessionData,
+    activeSessionId,
+    sessionReadOnly,
+} from "@/lib/activeSession";
 import { CARTO_API_KEY } from "@/lib/basemap";
 import { bootstrapDefaults } from "@/lib/bootstrap";
 import { startCalculation } from "@/lib/calculating";
@@ -250,6 +254,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $currentGameId = useStore(currentGameId);
     const $activeSession = useStore(activeSessionData);
     const $activeSessionId = useStore(activeSessionId);
+    const $readOnly = useStore(sessionReadOnly);
     const $lastGameView = useStore(lastGameView);
     const refreshQueue = useMemo(() => createLatestTask(), []);
     const renderedGameIdRef = useRef<string | null>(null);
@@ -538,14 +543,16 @@ export const Map = ({ className }: { className?: string }) => {
     );
 
     // Questions come from the game: none can be added before it has loaded.
+    // A spectator can't add any, so the menu doesn't offer them.
     useEffect(() => {
         const contextmenu = (map as any)?.contextmenu;
         if (!contextmenu) return;
         ADD_QUESTION_MENU_ITEMS.forEach((_, item) => {
-            contextmenu.setDisabled(item, !$compiledGame);
+            contextmenu.setDisabled(item, !$compiledGame || $readOnly);
             // setDisabled only greys the item out; say why.
             const el: HTMLElement | undefined = contextmenu._items[item]?.el;
             if (!el) return;
+            el.style.display = $readOnly ? "none" : "";
             if ($compiledGame) {
                 el.removeAttribute("title");
                 el.removeAttribute("aria-disabled");
@@ -554,7 +561,7 @@ export const Map = ({ className }: { className?: string }) => {
                 el.setAttribute("aria-disabled", "true");
             }
         });
-    }, [map, $compiledGame]);
+    }, [map, $compiledGame, $readOnly]);
 
     // Until a game has loaded, open on this tab's game, or the session being
     // restored, as last framed: a definition can take a while to load, or

@@ -12,6 +12,7 @@ import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
 import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { listedSessionsWhere } from "../lib/session-access.js";
 
 // Game definitions embed full GeoJSON boundaries; preloaded ones reach ~8 MB,
 // well past Fastify's 1 MiB default.
@@ -171,26 +172,15 @@ async function assertGameDefinitionAccess({
   // 2. Cookie session auth
   const { user } = await resolveSession(req);
 
-  // 3. Shared session access check: matches established /sessions GET access
+  // 3. Shared session access check: the sessions GET /sessions lists for the
+  // user, viewers' included
   if (session?.id) {
     const pinned = await prisma.gameSession.findFirst({
       where: {
         id: session.id,
         gameId: game.id,
         gameRevisionId: session.revisionId,
-        OR: [
-          { creatorId: user.discordId },
-          {
-            visibility: "shared",
-            participants: {
-              some: {
-                userId: user.discordId,
-                acceptedAt: { not: null },
-                revokedAt: null,
-              },
-            },
-          },
-        ],
+        ...listedSessionsWhere(user.discordId),
       },
       select: { id: true },
     });

@@ -1,6 +1,7 @@
-import type { SessionVisibility } from "@searchlight/shared";
+import type { SessionRole, SessionVisibility } from "@searchlight/shared";
 
 import type { StrokeFeature } from "@/annotations/types";
+import { isSessionReadOnly } from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
 import type { Questions } from "@/maps/schema";
 
@@ -34,6 +35,8 @@ export interface CachedSessionState {
     sessionId: string;
     userId?: string;
     visibility?: SessionVisibility;
+    // So a board restored offline knows its user only spectates.
+    role?: SessionRole;
     strokes: StrokeFeature[];
     questions: Questions;
     lastSyncedAt: number;
@@ -156,18 +159,27 @@ function writePendingQueue(sessionId: string, events: PendingEvent[]): void {
 export function enqueueEvent(
     event: Omit<PendingEvent, "localId" | "status" | "createdAt">,
 ): PendingEvent {
-    // These events contain complete field snapshots. Persist the new snapshot
-    // atomically in place of older intent, including requests with a lost ACK.
-    const events = getPendingEvents(event.sessionId).filter(
-        (queued) =>
-            !isReplacementEventType(event.type) || queued.type !== event.type,
-    );
     const newEvent: PendingEvent = {
         ...event,
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
     };
+    // A spectator's edit is never queued, and so never sent: dispatching an
+    // event only sends what is still queued.
+    if (isSessionReadOnly(event.sessionId)) {
+        console.warn(
+            "[eventQueue] not queuing an edit to a read-only session:",
+            event.type,
+        );
+        return newEvent;
+    }
+    // These events contain complete field snapshots. Persist the new snapshot
+    // atomically in place of older intent, including requests with a lost ACK.
+    const events = getPendingEvents(event.sessionId).filter(
+        (queued) =>
+            !isReplacementEventType(event.type) || queued.type !== event.type,
+    );
     events.push(newEvent);
     writePendingQueue(event.sessionId, events);
     return newEvent;
@@ -240,6 +252,7 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
             sessionId: parsed.sessionId ?? sessionId,
             userId: parsed.userId,
             visibility: parsed.visibility,
+            role: parsed.role,
             strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
             lastSyncedAt:
@@ -274,6 +287,16 @@ export function setCachedSession(state: CachedSessionState): void {
 export function clearCachedSession(sessionId: string): void {
     localStorage.removeItem(cacheKey(sessionId));
     // Do NOT remove pendingKey(sessionId) — avoid losing pending queue on cache eviction
+}
+
+// Drop the edits waiting to be sent to a session, keeping its snapshot: for a
+// spectator, who can't change it.
+export function discardPendingEvents(sessionId: string): void {
+    try {
+        localStorage.removeItem(pendingKey(sessionId));
+    } catch (e) {
+        console.warn("[eventQueue] failed to discard pending events:", e);
+    }
 }
 
 // For a session that can never sync again (deleted, or this user removed):

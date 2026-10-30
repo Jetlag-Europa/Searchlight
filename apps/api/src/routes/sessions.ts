@@ -6,7 +6,15 @@ import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
 import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
-import type { Event } from "@prisma/client";
+import {
+  assertCanWrite,
+  hiderPositionForRole,
+  listedSessionsWhere,
+  resolveSessionAccess,
+  sessionRole,
+} from "../lib/session-access.js";
+import type { Event, Prisma } from "@prisma/client";
+import type { SessionLinkType } from "@searchlight/shared";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -16,38 +24,20 @@ function conflict(msg: string) {
 
 const nullableNumber = Type.Unsafe<number | null>({ type: ["number", "null"] });
 
-async function resolveParticipant(sessionId: string, userId: string) {
-  const session = await prisma.gameSession.findUnique({
-    where: { id: sessionId },
-    include: {
-      game: {
-        select: {
-          name: true,
-          unlisted: true,
-          currentRevisionId: true,
-          currentRevision: { select: { id: true, revision: true } },
-        },
-      },
-      gameRevision: { select: { id: true, revision: true } },
+const sessionInclude = {
+  game: {
+    select: {
+      name: true,
+      unlisted: true,
+      currentRevisionId: true,
+      currentRevision: { select: { id: true, revision: true } },
     },
-  });
-  if (!session) throw notFound("Session not found");
+  },
+  gameRevision: { select: { id: true, revision: true } },
+} satisfies Prisma.GameSessionInclude;
 
-  const participant = await prisma.sessionParticipant.findUnique({
-    where: { sessionId_userId: { sessionId, userId } },
-  });
-
-  const isCreator = session.creatorId === userId;
-  const isActiveParticipant =
-    participant &&
-    participant.acceptedAt !== null &&
-    participant.revokedAt === null;
-
-  if (!isCreator && !isActiveParticipant) {
-    throw forbidden();
-  }
-
-  return { session, participant, isCreator };
+function resolveParticipant(sessionId: string, userId: string) {
+  return resolveSessionAccess(sessionId, userId, sessionInclude);
 }
 
 /**
@@ -160,24 +150,8 @@ export async function sessionRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { serverId } = req.query as { serverId: string };
 
-      // Sessions where user is creator OR shared+accepted participant
       const sessions = await prisma.gameSession.findMany({
-        where: {
-          serverId,
-          OR: [
-            { creatorId: user.discordId },
-            {
-              visibility: "shared",
-              participants: {
-                some: {
-                  userId: user.discordId,
-                  acceptedAt: { not: null },
-                  revokedAt: null,
-                },
-              },
-            },
-          ],
-        },
+        where: { serverId, ...listedSessionsWhere(user.discordId) },
         include: {
           game: {
             select: {
@@ -196,26 +170,28 @@ export async function sessionRoutes(app: FastifyInstance) {
       });
 
       return {
-        sessions: sessions.map((s) => ({
-          id: s.id,
-          gameId: s.gameId,
-          gameName: s.game.name,
-          serverId: s.serverId,
-          name: s.name,
-          visibility: s.visibility,
-          role: s.participants[0]?.role ?? "creator",
-          createdAt: s.createdAt.toISOString(),
-          hiderLat: s.hiderLat,
-          hiderLng: s.hiderLng,
-          planningModeEnabled: s.planningModeEnabled,
-          gameRevisionId: s.gameRevisionId,
-          sessionRevision: s.gameRevision.revision,
-          currentRevision: s.game.currentRevision?.revision ?? null,
-          hasNewerRevision: Boolean(
-            s.game.currentRevisionId &&
-              s.gameRevisionId !== s.game.currentRevisionId,
-          ),
-        })),
+        sessions: sessions.map((s) => {
+          const role = sessionRole(s, user.discordId, s.participants[0]);
+          return {
+            id: s.id,
+            gameId: s.gameId,
+            gameName: s.game.name,
+            serverId: s.serverId,
+            name: s.name,
+            visibility: s.visibility,
+            role,
+            createdAt: s.createdAt.toISOString(),
+            ...hiderPositionForRole(s, role),
+            planningModeEnabled: s.planningModeEnabled,
+            gameRevisionId: s.gameRevisionId,
+            sessionRevision: s.gameRevision.revision,
+            currentRevision: s.game.currentRevision?.revision ?? null,
+            hasNewerRevision: Boolean(
+              s.game.currentRevisionId &&
+                s.gameRevisionId !== s.game.currentRevisionId,
+            ),
+          };
+        }),
       };
     },
   );
@@ -309,7 +285,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
 
-      const { session } = await resolveParticipant(sessionId, user.discordId);
+      const { session, role } = await resolveParticipant(sessionId, user.discordId);
 
       const participants = await prisma.sessionParticipant.findMany({
         where: { sessionId, revokedAt: null, acceptedAt: { not: null } },
@@ -334,10 +310,9 @@ export async function sessionRoutes(app: FastifyInstance) {
         serverId: session.serverId,
         name: session.name,
         visibility: session.visibility,
-        role: session.creatorId === user.discordId ? "creator" : "member",
+        role,
         createdAt: session.createdAt.toISOString(),
-        hiderLat: session.hiderLat,
-        hiderLng: session.hiderLng,
+        ...hiderPositionForRole(session, role),
         planningModeEnabled: session.planningModeEnabled,
         gameRevisionId: session.gameRevisionId,
         sessionRevision: session.gameRevision.revision,
@@ -532,7 +507,9 @@ export async function sessionRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      const { isCreator } = await resolveParticipant(sessionId, user.discordId);
+      const { isCreator, role } = await resolveParticipant(sessionId, user.discordId);
+      // Every field here changes the session, so viewers may set none of them.
+      assertCanWrite(role);
 
       const body = req.body as {
         name?: string;
@@ -542,7 +519,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         planningModeEnabled?: boolean;
       };
 
-      // name and visibility are creator-only; hiderLat/hiderLng any participant can update
+      // name and visibility are creator-only; hiderLat/hiderLng any member can update
       if ((body.name !== undefined || body.visibility !== undefined) && !isCreator) {
         throw forbidden("Only the creator can update the session name or visibility");
       }
@@ -659,7 +636,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         serverId: updated.serverId,
         name: updated.name,
         visibility: updated.visibility,
-        role: isCreator ? "creator" : "member",
+        role,
         createdAt: updated.createdAt.toISOString(),
         hiderLat: updated.hiderLat,
         hiderLng: updated.hiderLng,
@@ -725,6 +702,57 @@ export async function sessionRoutes(app: FastifyInstance) {
     },
   );
 
+  // PATCH /sessions/:sessionId/participants/:userId — make a participant a
+  // member or a viewer (creator only)
+  app.patch(
+    "/:sessionId/participants/:userId",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String(), userId: Type.String() }),
+        body: Type.Object({
+          role: Type.Union([Type.Literal("member"), Type.Literal("viewer")]),
+        }, { additionalProperties: false }),
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { sessionId, userId: targetUserId } = req.params as {
+        sessionId: string;
+        userId: string;
+      };
+      const { role } = req.body as { role: "member" | "viewer" };
+
+      const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
+      if (!isCreator) throw forbidden("Only the creator can change participants' roles");
+      if (targetUserId === session.creatorId) throw forbidden("Cannot change the session creator's role");
+
+      const target = await prisma.sessionParticipant.findUnique({
+        where: { sessionId_userId: { sessionId, userId: targetUserId } },
+      });
+      if (!target || target.acceptedAt === null || target.revokedAt !== null) {
+        throw notFound("Participant not found");
+      }
+      if (target.role === role) return { userId: targetUserId, role };
+
+      await prisma.sessionParticipant.update({
+        where: { sessionId_userId: { sessionId, userId: targetUserId } },
+        data: { role },
+      });
+      // Tells the participant's open boards to reload with the new role. The
+      // write is queued on their streams before closeUserStreams ends them, so
+      // it still reaches them. Their streams are filtered by the role they
+      // had when they connected, so they reconnect for the new one.
+      broadcast(sessionId, {
+        type: "participant.role-changed",
+        payloadJson: { userId: targetUserId, role },
+      });
+      closeUserStreams(sessionId, targetUserId);
+
+      req.log.info({ sessionId, userId: targetUserId, role }, "[sessions] participant role changed");
+      return { userId: targetUserId, role };
+    },
+  );
+
   // DELETE /sessions/:sessionId/leave — participant leaves a shared session
   app.delete(
     "/:sessionId/leave",
@@ -749,21 +777,21 @@ export async function sessionRoutes(app: FastifyInstance) {
     },
   );
 
-  // POST /sessions/:sessionId/links — create a join or share link (creator only)
+  // POST /sessions/:sessionId/links — create a join, view or fork link (creator only)
   app.post(
     "/:sessionId/links",
     {
       schema: {
         params: Type.Object({ sessionId: Type.String() }),
         body: Type.Object({
-          linkType: Type.Union([Type.Literal("join"), Type.Literal("fork")]),
+          linkType: Type.Union([Type.Literal("join"), Type.Literal("view"), Type.Literal("fork")]),
         }),
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      const { linkType } = req.body as { linkType: "join" | "fork" };
+      const { linkType } = req.body as { linkType: SessionLinkType };
       const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (!isCreator) throw forbidden("Only the creator can create links");
 
@@ -792,14 +820,15 @@ export async function sessionRoutes(app: FastifyInstance) {
         return reply.status(201).send({ id: link.id, token: link.token });
       }
 
-      // join: promote to shared if private
+      // join and view: promote to shared if private. Both are live, so they
+      // need no snapshot.
       if (session.visibility === "private") {
         await prisma.gameSession.update({ where: { id: sessionId }, data: { visibility: "shared" } });
       }
       const link = await prisma.sessionLink.create({
         data: { token, sessionId, createdById: user.discordId, linkType },
       });
-      req.log.info({ sessionId, linkId: link.id }, "[links] join link created");
+      req.log.info({ sessionId, linkId: link.id }, `[links] ${linkType} link created`);
       return reply.status(201).send({ id: link.id, token: link.token });
     },
   );
@@ -823,7 +852,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         links: links.map((l) => ({
           id: l.id,
           token: l.token,
-          linkType: l.linkType as "join" | "fork",
+          linkType: l.linkType as SessionLinkType,
           createdAt: l.createdAt.toISOString(),
         })),
       };

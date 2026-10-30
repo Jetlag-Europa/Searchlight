@@ -142,6 +142,10 @@ export interface GameLinksResponse {
 
 export type SessionVisibility = "private" | "shared";
 
+// A viewer follows the session live but can't change it, and never sees the
+// hider's position.
+export type SessionRole = "creator" | "member" | "viewer";
+
 export interface GameSessionSummary {
   id: string;
   gameId: string;
@@ -149,7 +153,7 @@ export interface GameSessionSummary {
   serverId: string;
   name: string;
   visibility: SessionVisibility;
-  role: "creator" | "member";
+  role: SessionRole;
   createdAt: string;
   hiderLat: number | null;
   hiderLng: number | null;
@@ -166,10 +170,14 @@ export interface SessionsResponse {
 
 // ── Session links ─────────────────────────────────────────────────────────────
 
+// "join" makes the opener a member, "view" a viewer, and "fork" gives them a
+// copy of the session as it was when the link was made.
+export type SessionLinkType = "join" | "view" | "fork";
+
 export interface SessionLinkSummary {
   id: string;
   token: string;
-  linkType: "join" | "fork";
+  linkType: SessionLinkType;
   createdAt: string;
 }
 
@@ -212,6 +220,13 @@ export interface SessionRevisionUpgradedEvent {
     gameRevisionId: string;
     revision: number;
   };
+}
+
+// Sent live (not stored) when the creator makes a participant a member or a
+// viewer, so that participant's open boards reload with their new role.
+export interface ParticipantRoleChangedEvent {
+  type: "participant.role-changed";
+  payloadJson: { userId: string; role: Exclude<SessionRole, "creator"> };
 }
 
 export interface EventRecord {
