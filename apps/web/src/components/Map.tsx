@@ -61,6 +61,7 @@ import {
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
+import { LiveLocationMarkers } from "./LiveLocations";
 import { MapPrint } from "./MapPrint";
 import { PolygonDraw } from "./PolygonDraw";
 
@@ -513,6 +514,7 @@ export const Map = ({ className }: { className?: string }) => {
                     {getTileLayer($baseTileLayer, $thunderforestApiKey)}
                 </Fragment>
                 <DraggableMarkers />
+                <LiveLocationMarkers />
                 <div className="leaflet-top leaflet-right">
                     <div className="leaflet-control flex-col flex gap-2">
                         <LeafletFullScreenButton />

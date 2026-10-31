@@ -18,6 +18,7 @@ import { SessionManager } from "@/components/SessionManager";
 import { SyncIndicator } from "@/components/SyncIndicator";
 import { CalculatingIndicator } from "@/components/CalculatingIndicator";
 import { ZonesLeftIndicator } from "@/components/ZonesLeftIndicator";
+import { LiveLocationsChip } from "@/components/LiveLocations";
 import { PreferencesSync } from "@/components/PreferencesSync";
 import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
 ---
@@ -92,6 +93,8 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
                                 </div>
                                 <!-- How many hiding zones are left -->
                                 <ZonesLeftIndicator client:only="react" />
+                                <!-- Google Maps location sharing (tracker stack only) -->
+                                <LiveLocationsChip client:only="react" />
                             </div>
                             <div
                                 class="bottom-5 left-2 right-2 mb-2 absolute z-[1030] group-[.fullscreen]:hidden"

@@ -9,7 +9,7 @@ function conflict(msg = "Conflict") {
   return Object.assign(new Error(msg), { statusCode: 409 });
 }
 
-async function assertParticipant(sessionId: string, userId: string) {
+export async function assertParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
   if (!session) throw notFound("Session not found");
 
