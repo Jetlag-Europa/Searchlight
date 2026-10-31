@@ -13,7 +13,7 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { activeSessionId } from "@/lib/activeSession";
 import { leafletMapContext } from "@/lib/context";
 import {
@@ -209,7 +209,7 @@ function PersonRow({
             <Avatar person={person} name={name} size={28} />
             <span className="flex flex-1 flex-col min-w-0">
                 {editing !== null ? (
-                    <Input
+                    <RawInput
                         autoFocus
                         value={editing}
                         maxLength={40}
