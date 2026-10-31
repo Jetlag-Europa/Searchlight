@@ -40,7 +40,9 @@ export const env = {
   TEST_AUTH_USER_ID: process.env["TEST_AUTH_USER_ID"] ?? "e2e-test-user",
   // Preview deployments only: when set, enables /auth/dev-login, which logs in as
   // any Discord user ID given this token. NEVER set in prod.
-  DEV_LOGIN_TOKEN: devLoginToken(),
+  // Always off on the tracker stack: the token is shared by every preview, and
+  // logging in as someone with locations.view would show the live locations.
+  DEV_LOGIN_TOKEN: (devLoginToken(), ""),
   // The Google Maps location sharing reader (searchlight-tracker). Its container
   // joins this stack's network under this name.
   LOCATION_TRACKER_URL: process.env["LOCATION_TRACKER_URL"] || "http://location-tracker:8080",
