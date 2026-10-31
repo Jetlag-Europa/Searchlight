@@ -75,6 +75,7 @@ import {
 import { DraggableMarkers } from "./DraggableMarkers";
 import { GoogleBasemap } from "./GoogleBasemap";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
+import { LiveLocationMarkers } from "./LiveLocations";
 import { PolygonDraw } from "./PolygonDraw";
 
 // Before a game has loaded, the map shows the world, or the game it showed
@@ -590,6 +591,7 @@ export const Map = ({ className }: { className?: string }) => {
                     )}
                 </Fragment>
                 <DraggableMarkers />
+                <LiveLocationMarkers />
                 <div className="leaflet-top leaflet-right">
                     <div className="leaflet-control flex-col flex gap-2">
                         <LeafletFullScreenButton />
