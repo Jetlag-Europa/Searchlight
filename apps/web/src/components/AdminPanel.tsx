@@ -12,7 +12,7 @@ import { useCallback,useEffect, useState } from "react";
 import { verifiedUserId } from "@/lib/activeSession";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"] as const;
+const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin", "locations.view"] as const;
 // Casual Games borrows JetLag EU's roles, and they can only grant creating
 // Casual games: managing them is up to each game's creator and global admins.
 const CASUAL_PERMISSIONS = ["games.create"] as const;

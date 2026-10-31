@@ -9,7 +9,7 @@ import { discord } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
 import { VIRTUAL_SERVER_IDS, VIRTUAL_SERVER_PERMISSIONS } from "../lib/virtual-servers.js";
 
-const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin", "locations.view"];
 
 export async function serverRoutes(app: FastifyInstance) {
   // GET /servers — the servers the authed user is in, plus servers where they

@@ -164,7 +164,7 @@ export function LiveLocationsChip() {
 
     useEffect(() => startLiveLocations(), []);
 
-    if (!$sessionId) return null;
+    if (!$sessionId || $state.allowed !== true) return null;
 
     const problem = !$state.reachable || !$state.ok ? $state.error : null;
     const shownCount = $state.people.filter((p) =>

@@ -10,7 +10,8 @@ import { VIRTUAL_SERVER_IDS, VIRTUAL_SERVER_PERMISSIONS } from "./virtual-server
 const DEFAULT_TTL_MS = 60 * 60 * 1000; // 1 hour
 const PRIVILEGED_TTL_MS = 60 * 1000; // 1 minute
 
-const ALL_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+// locations.view: see Google Maps live locations in the server's sessions (tracker stack).
+const ALL_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin", "locations.view"];
 
 export function isAdmin(userId: string): boolean {
   return env.ADMIN_DISCORD_IDS.split(",").some((id) => id.trim() === userId);
