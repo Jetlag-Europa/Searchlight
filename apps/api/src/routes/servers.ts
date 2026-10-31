@@ -7,7 +7,7 @@ import { requirePermission } from "../lib/require-permission.js";
 import { discord } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
 
-const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin", "locations.view"];
 
 export async function serverRoutes(app: FastifyInstance) {
   // GET /servers — the servers the authed user is in (and virtual ones), plus

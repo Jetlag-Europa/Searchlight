@@ -5,7 +5,7 @@ import { useCallback,useEffect, useState } from "react";
 import { verifiedUserId } from "@/lib/activeSession";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"] as const;
+const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin", "locations.view"] as const;
 
 function ServerCard({ server }: { server: ServerWithPermissions }) {
   const isAdmin = server.permissions.includes("server.admin");

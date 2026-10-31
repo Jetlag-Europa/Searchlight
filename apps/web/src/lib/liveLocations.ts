@@ -24,6 +24,9 @@ export interface LivePerson {
 }
 
 export interface LiveLocationsState {
+    // Whether the user may see live locations in this session (locations.view
+    // on its server); null until the server has said.
+    allowed: boolean | null;
     // false until the first answer, and while the tracker is unreachable.
     reachable: boolean;
     // Whether the tracker's last read from Google worked.
@@ -34,6 +37,7 @@ export interface LiveLocationsState {
 }
 
 export const liveLocations = atom<LiveLocationsState>({
+    allowed: null,
     reachable: false,
     ok: false,
     error: null,
@@ -90,6 +94,7 @@ async function poll(sessionId: string, gen: number): Promise<void> {
             const body = await res.json().catch(() => null);
             liveLocations.set({
                 ...liveLocations.get(),
+                ...(res.status === 403 && { allowed: false, people: [] }),
                 reachable: false,
                 ok: false,
                 error: body?.error ?? `HTTP ${res.status}`,
@@ -98,10 +103,10 @@ async function poll(sessionId: string, gen: number): Promise<void> {
         }
         const body = (await res.json()) as Omit<
             LiveLocationsState,
-            "reachable"
+            "allowed" | "reachable"
         >;
         if (gen !== generation) return;
-        liveLocations.set({ ...body, reachable: true });
+        liveLocations.set({ ...body, allowed: true, reachable: true });
     } catch {
         if (gen !== generation) return;
         liveLocations.set({
@@ -136,6 +141,7 @@ export function startLiveLocations(): () => void {
 
     const unlisten = activeSessionId.listen(() => {
         liveLocations.set({
+            allowed: null,
             reachable: false,
             ok: false,
             error: null,

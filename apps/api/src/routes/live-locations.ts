@@ -1,6 +1,8 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import { env } from "../lib/env.js";
+import { forbidden } from "../lib/http-errors.js";
+import { getUserPermissions } from "../lib/permissions.js";
 import { resolveSession } from "../lib/session.js";
 import { assertParticipant } from "./session-content.js";
 
@@ -25,7 +27,9 @@ interface TrackerState {
 
 export async function liveLocationRoutes(app: FastifyInstance) {
   // GET /sessions/:sessionId/live-locations — everyone sharing their location
-  // with the tracker's Google account. Each device picks whom to show.
+  // with the tracker's Google account. Each device picks whom to show. Needs
+  // locations.view on the session's server: admins map it to Discord roles on
+  // the admin page, and global admins always have it.
   app.get(
     "/:sessionId/live-locations",
     {
@@ -36,7 +40,11 @@ export async function liveLocationRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      const session = await assertParticipant(sessionId, user.discordId);
+      const perms = await getUserPermissions(user.discordId, session.serverId, true, req.log);
+      if (!perms.has("locations.view")) {
+        throw forbidden("Your roles on this server don't include seeing live locations");
+      }
 
       reply.header("cache-control", "no-store");
       let state: TrackerState;
