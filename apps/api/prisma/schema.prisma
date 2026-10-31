@@ -305,3 +305,24 @@ model Event {
   @@index([sessionId, serverReceivedAt])
   @@unique([sessionId, sequence])
 }
+
+// Tracker stack: every position the location tracker reads, for later replays.
+// recordedAt is when the phone reported it; an unchanged position isn't
+// stored twice. Rows older than LOCATION_LOG_DAYS are deleted.
+model LocationLog {
+  id         BigInt   @id @default(autoincrement())
+  account    String
+  personId   String
+  name       String
+  lat        Float
+  lng        Float
+  accuracy   Float?
+  battery    Int?
+  charging   Boolean?
+  recordedAt DateTime
+  createdAt  DateTime @default(now())
+
+  @@unique([account, personId, recordedAt])
+  @@index([account, recordedAt])
+  @@index([recordedAt])
+}

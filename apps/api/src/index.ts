@@ -24,6 +24,7 @@ import { linkRoutes } from "./routes/links.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
 import { ogRoutes } from "./routes/og.js";
 import { liveLocationRoutes, liveLocationServerRoutes } from "./routes/live-locations.js";
+import { startLocationLog } from "./lib/location-log.js";
 
 const app = Fastify({
   logger: {
@@ -150,3 +151,5 @@ if (activePreloadDir) {
 }
 
 const address = await app.listen({ port: env.PORT, host: env.HOST });
+
+if (env.LOCATION_LOG_DAYS > 0) startLocationLog(app.log);

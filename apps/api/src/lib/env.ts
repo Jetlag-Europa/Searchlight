@@ -46,4 +46,6 @@ export const env = {
   // The Google Maps location sharing reader (searchlight-tracker). Its container
   // joins this stack's network under this name.
   LOCATION_TRACKER_URL: process.env["LOCATION_TRACKER_URL"] || "http://location-tracker:8080",
+  // How long the location log keeps positions; 0 turns the log off.
+  LOCATION_LOG_DAYS: Number(process.env["LOCATION_LOG_DAYS"] ?? "7"),
 };

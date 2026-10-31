@@ -1,45 +1,15 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
-import { env } from "../lib/env.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
+import { fetchTracker, type TrackerAccount, type TrackerState } from "../lib/location-tracker.js";
 import { getUserPermissions, isAdmin } from "../lib/permissions.js";
 import { resolveSession } from "../lib/session.js";
 import { assertParticipant } from "./session-content.js";
 
-// The location tracker (searchlight-tracker, a Playwright container outside
-// this repo) reads Google Maps location sharing for several Google accounts.
-// Global admins give each server an account; a session shows the people
-// sharing with its server's account, and stores which of them are pinned.
-
-interface TrackerPerson {
-  id: string;
-  name: string;
-  photoUrl: string | null;
-  lat: number;
-  lng: number;
-  accuracy: number | null;
-  timestamp: number | null;
-  battery: number | null;
-  charging: boolean | null;
-}
-
-// GET /people?account= on the tracker.
-interface TrackerState {
-  ok: boolean;
-  updatedAt: number | null;
-  error: string | null;
-  people: TrackerPerson[];
-}
-
-// GET /accounts on the tracker.
-interface TrackerAccount {
-  name: string;
-  ok: boolean;
-  error: string | null;
-  updatedAt: number | null;
-  people: number;
-}
+// Global admins give each server one of the location tracker's Google
+// accounts; a session shows the people sharing with its server's account, and
+// stores which of them are pinned.
 
 interface LivePins {
   shown: string[];
@@ -52,13 +22,6 @@ const MAX_PINS = 100;
 
 function trackerUnavailable() {
   return Object.assign(new Error("The location tracker isn't running"), { statusCode: 503 });
-}
-
-async function fetchTracker<T>(path: string): Promise<{ status: number; body: T }> {
-  const res = await fetch(new URL(path, env.LOCATION_TRACKER_URL), {
-    signal: AbortSignal.timeout(5_000),
-  });
-  return { status: res.status, body: (await res.json()) as T };
 }
 
 function readPins(value: unknown): LivePins {
