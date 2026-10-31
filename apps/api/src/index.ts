@@ -26,7 +26,7 @@ import { questionHistoryRoutes } from "./routes/question-history.js";
 import { linkRoutes } from "./routes/links.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
 import { ogRoutes } from "./routes/og.js";
-import { liveLocationRoutes } from "./routes/live-locations.js";
+import { liveLocationRoutes, liveLocationServerRoutes } from "./routes/live-locations.js";
 
 const app = Fastify({
   logger: {
@@ -87,6 +87,7 @@ app.get(
 await app.register(authRoutes, { prefix: "/auth" });
 await app.register(meRoute);
 await app.register(serverRoutes, { prefix: "/servers" });
+await app.register(liveLocationServerRoutes, { prefix: "/servers" });
 await app.register(gameRoutes, { prefix: "/games" });
 await app.register(gameImportRoutes, { prefix: "/games" });
 await app.register(gameLinkManagementRoutes, { prefix: "/games" });

@@ -1,15 +1,14 @@
 import { atom, computed } from "nanostores";
 
 import { activeSessionId } from "@/lib/activeSession";
-import { readStorage, writeStorage } from "@/lib/safeStorage";
 
 // Live positions from Google Maps location sharing, which the API relays from
-// the location tracker. Which people show is a per-device choice, saved for
-// each session.
+// the location tracker for the Google account of the session's server. Which
+// people are pinned, and what their pins are called, is saved with the
+// session, so everyone in it who may see live locations sees the same pins.
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const POLL_MS = 15_000;
-const STORAGE_PREFIX = "searchlight-live-locations:";
 
 export interface LivePerson {
     id: string;
@@ -27,6 +26,8 @@ export interface LiveLocationsState {
     // Whether the user may see live locations in this session (locations.view
     // on its server); null until the server has said.
     allowed: boolean | null;
+    // The server's Google account; null when it has none.
+    account: string | null;
     // false until the first answer, and while the tracker is unreachable.
     reachable: boolean;
     // Whether the tracker's last read from Google worked.
@@ -34,56 +35,41 @@ export interface LiveLocationsState {
     error: string | null;
     updatedAt: number | null;
     people: LivePerson[];
+    // The session's pins: who shows on the map, and renamed pins.
+    shown: string[];
+    labels: Record<string, string>;
 }
 
-export const liveLocations = atom<LiveLocationsState>({
+const EMPTY: LiveLocationsState = {
     allowed: null,
+    account: null,
     reachable: false,
     ok: false,
     error: null,
     updatedAt: null,
     people: [],
-});
+    shown: [],
+    labels: {},
+};
 
-function readShown(sessionId: string): string[] {
-    try {
-        const ids = JSON.parse(
-            readStorage("localStorage", STORAGE_PREFIX + sessionId) ?? "[]",
-        );
-        return Array.isArray(ids)
-            ? ids.filter((id) => typeof id === "string")
-            : [];
-    } catch {
-        return [];
-    }
-}
+export const liveLocations = atom<LiveLocationsState>(EMPTY);
 
-// The IDs of the people this device shows in the active session.
-export const shownPersonIds = atom<string[]>(readShown(activeSessionId.get()));
-activeSessionId.listen((sessionId) => shownPersonIds.set(readShown(sessionId)));
+export const displayName = (
+    person: LivePerson,
+    labels: Record<string, string>,
+): string => labels[person.id] ?? person.name;
 
-export function setPersonShown(id: string, shown: boolean): void {
-    const sessionId = activeSessionId.get();
-    const ids = shownPersonIds.get().filter((other) => other !== id);
-    if (shown) ids.push(id);
-    shownPersonIds.set(ids);
-    if (sessionId) {
-        writeStorage(
-            "localStorage",
-            STORAGE_PREFIX + sessionId,
-            JSON.stringify(ids),
-        );
-    }
-}
-
-export const shownPeople = computed(
-    [liveLocations, shownPersonIds],
-    (state, ids) => state.people.filter((p) => ids.includes(p.id)),
+export const shownPeople = computed(liveLocations, (state) =>
+    state.people.filter((p) => state.shown.includes(p.id)),
 );
 
 let generation = 0;
+// When pins last changed here. Poll answers requested before that may carry
+// the old pins, so they keep the local ones.
+let lastPinEdit = 0;
 
 async function poll(sessionId: string, gen: number): Promise<void> {
+    const requestedAt = Date.now();
     try {
         const res = await fetch(
             `${API_BASE}/sessions/${sessionId}/live-locations`,
@@ -97,7 +83,7 @@ async function poll(sessionId: string, gen: number): Promise<void> {
                 ...(res.status === 403 && { allowed: false, people: [] }),
                 reachable: false,
                 ok: false,
-                error: body?.error ?? `HTTP ${res.status}`,
+                error: body?.message ?? body?.error ?? `HTTP ${res.status}`,
             });
             return;
         }
@@ -106,7 +92,15 @@ async function poll(sessionId: string, gen: number): Promise<void> {
             "allowed" | "reachable"
         >;
         if (gen !== generation) return;
-        liveLocations.set({ ...body, allowed: true, reachable: true });
+        const current = liveLocations.get();
+        const keepPins = requestedAt <= lastPinEdit;
+        liveLocations.set({
+            ...body,
+            allowed: true,
+            reachable: true,
+            shown: keepPins ? current.shown : body.shown,
+            labels: keepPins ? current.labels : body.labels,
+        });
     } catch {
         if (gen !== generation) return;
         liveLocations.set({
@@ -117,6 +111,66 @@ async function poll(sessionId: string, gen: number): Promise<void> {
         });
     }
 }
+
+// Applies the change here at once, then saves it with the session; puts the
+// pins back if saving fails.
+async function editPin(
+    personId: string,
+    change: { shown?: boolean; label?: string | null },
+    local: (state: LiveLocationsState) => Partial<LiveLocationsState>,
+): Promise<void> {
+    const sessionId = activeSessionId.get();
+    if (!sessionId) return;
+    lastPinEdit = Date.now();
+    const before = liveLocations.get();
+    liveLocations.set({ ...before, ...local(before) });
+    try {
+        const res = await fetch(
+            `${API_BASE}/sessions/${sessionId}/live-locations`,
+            {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ personId, ...change }),
+            },
+        );
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const pins = (await res.json()) as Pick<
+            LiveLocationsState,
+            "shown" | "labels"
+        >;
+        lastPinEdit = Date.now();
+        if (activeSessionId.get() === sessionId) {
+            liveLocations.set({ ...liveLocations.get(), ...pins });
+        }
+    } catch (e) {
+        if (activeSessionId.get() === sessionId) {
+            liveLocations.set({
+                ...liveLocations.get(),
+                shown: before.shown,
+                labels: before.labels,
+            });
+        }
+        throw e;
+    }
+}
+
+export const setPersonShown = (id: string, shown: boolean) =>
+    editPin(id, { shown }, (s) => ({
+        shown: shown
+            ? [...s.shown.filter((other) => other !== id), id]
+            : s.shown.filter((other) => other !== id),
+    }));
+
+export const setPersonLabel = (id: string, label: string) => {
+    const trimmed = label.trim();
+    return editPin(id, { label: trimmed || null }, (s) => {
+        const labels = { ...s.labels };
+        if (trimmed) labels[id] = trimmed;
+        else delete labels[id];
+        return { labels };
+    });
+};
 
 /**
  * Polls while a session is active and the page is visible. Returns a stop
@@ -140,14 +194,7 @@ export function startLiveLocations(): () => void {
     };
 
     const unlisten = activeSessionId.listen(() => {
-        liveLocations.set({
-            allowed: null,
-            reachable: false,
-            ok: false,
-            error: null,
-            updatedAt: null,
-            people: [],
-        });
+        liveLocations.set(EMPTY);
         restart();
     });
     document.addEventListener("visibilitychange", restart);
