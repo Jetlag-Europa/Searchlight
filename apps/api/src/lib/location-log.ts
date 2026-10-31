@@ -32,7 +32,8 @@ async function recordPositions(log: FastifyBaseLogger): Promise<void> {
           lng: p.lng,
           accuracy: p.accuracy,
           battery: p.battery === null ? null : Math.round(p.battery),
-          charging: p.charging,
+          // Google sends 0/1.
+          charging: p.charging === null ? null : Boolean(p.charging),
           recordedAt: new Date(p.timestamp!),
         }));
       // A position the phone hasn't updated has the same recordedAt: skipped.
