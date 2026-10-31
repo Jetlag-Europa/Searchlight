@@ -112,18 +112,31 @@ async function poll(sessionId: string, gen: number): Promise<void> {
     }
 }
 
-// Applies the change here at once, then saves it with the session; puts the
-// pins back if saving fails.
+// Edits started here so far; a PATCH answer only counts if no newer edit began.
+let editSeq = 0;
+
+// Applies the change here at once, then saves it with the session. If saving
+// fails, only this change is undone.
 async function editPin(
     personId: string,
     change: { shown?: boolean; label?: string | null },
-    local: (state: LiveLocationsState) => Partial<LiveLocationsState>,
+    apply: (
+        state: Pick<LiveLocationsState, "shown" | "labels">,
+        shown: boolean | undefined,
+        label: string | null | undefined,
+    ) => Pick<LiveLocationsState, "shown" | "labels">,
 ): Promise<void> {
     const sessionId = activeSessionId.get();
     if (!sessionId) return;
+    const seq = ++editSeq;
     lastPinEdit = Date.now();
     const before = liveLocations.get();
-    liveLocations.set({ ...before, ...local(before) });
+    const wasShown = before.shown.includes(personId);
+    const oldLabel = before.labels[personId] ?? null;
+    liveLocations.set({
+        ...before,
+        ...apply(before, change.shown, change.label),
+    });
     try {
         const res = await fetch(
             `${API_BASE}/sessions/${sessionId}/live-locations`,
@@ -140,37 +153,52 @@ async function editPin(
             "shown" | "labels"
         >;
         lastPinEdit = Date.now();
-        if (activeSessionId.get() === sessionId) {
+        if (seq === editSeq && activeSessionId.get() === sessionId) {
             liveLocations.set({ ...liveLocations.get(), ...pins });
         }
     } catch (e) {
         if (activeSessionId.get() === sessionId) {
+            const now = liveLocations.get();
             liveLocations.set({
-                ...liveLocations.get(),
-                shown: before.shown,
-                labels: before.labels,
+                ...now,
+                ...apply(
+                    now,
+                    change.shown === undefined ? undefined : wasShown,
+                    change.label === undefined ? undefined : oldLabel,
+                ),
             });
         }
         throw e;
     }
 }
 
-export const setPersonShown = (id: string, shown: boolean) =>
-    editPin(id, { shown }, (s) => ({
-        shown: shown
-            ? [...s.shown.filter((other) => other !== id), id]
-            : s.shown.filter((other) => other !== id),
-    }));
+// Sets one person's pin and name in `state`; undefined leaves that part.
+function applyPin(
+    personId: string,
+    state: Pick<LiveLocationsState, "shown" | "labels">,
+    shown: boolean | undefined,
+    label: string | null | undefined,
+): Pick<LiveLocationsState, "shown" | "labels"> {
+    let { shown: ids, labels } = state;
+    if (shown !== undefined) {
+        ids = ids.filter((other) => other !== personId);
+        if (shown) ids = [...ids, personId];
+    }
+    if (label !== undefined) {
+        labels = { ...labels };
+        if (label) labels[personId] = label;
+        else delete labels[personId];
+    }
+    return { shown: ids, labels };
+}
 
-export const setPersonLabel = (id: string, label: string) => {
-    const trimmed = label.trim();
-    return editPin(id, { label: trimmed || null }, (s) => {
-        const labels = { ...s.labels };
-        if (trimmed) labels[id] = trimmed;
-        else delete labels[id];
-        return { labels };
-    });
-};
+export const setPersonShown = (id: string, shown: boolean) =>
+    editPin(id, { shown }, (state, s, l) => applyPin(id, state, s, l));
+
+export const setPersonLabel = (id: string, label: string) =>
+    editPin(id, { label: label.trim() || null }, (state, s, l) =>
+        applyPin(id, state, s, l),
+    );
 
 /**
  * Polls while a session is active and the page is visible. Returns a stop
@@ -185,7 +213,11 @@ export function startLiveLocations(): () => void {
         if (!sessionId || document.visibilityState !== "visible") return;
         const gen = generation;
         void poll(sessionId, gen).finally(() => {
-            if (gen === generation) timer = setTimeout(schedule, POLL_MS);
+            // Without locations.view, stop until the session changes or the
+            // page is shown again.
+            if (gen === generation && liveLocations.get().allowed !== false) {
+                timer = setTimeout(schedule, POLL_MS);
+            }
         });
     };
     const restart = () => {
