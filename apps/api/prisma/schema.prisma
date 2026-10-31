@@ -56,6 +56,9 @@ model Server {
   name              String
   iconUrl           String?
   managementGuildId String?
+  // Tracker stack: the Google account (searchlight-tracker) whose location
+  // sharing this server's sessions show. Only global admins set it.
+  locationAccount   String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -186,6 +189,8 @@ model GameSession {
   hiderLat            Float?
   hiderLng            Float?
   planningModeEnabled Boolean       @default(false)
+  // Tracker stack: { shown: personId[], labels: { personId: name } }.
+  livePins            Json          @default("{\"shown\":[],\"labels\":{}}")
   gameRevisionId      String
   // The game link the session was started from, if any. While it is active,
   // the creator may upgrade the session without other access to the game.

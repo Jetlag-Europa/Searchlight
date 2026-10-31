@@ -7,6 +7,95 @@ import { verifiedUserId } from "@/lib/activeSession";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin", "locations.view"] as const;
 
+interface LocationAccountInfo {
+  account: string | null;
+  // The tracker's accounts; null while it can't be reached.
+  accounts: { name: string; ok: boolean; error: string | null; people: number }[] | null;
+}
+
+// Tracker stack: the Google account whose location sharing the server's
+// sessions show. Only global admins get an answer, so others see nothing.
+function LocationAccount({ serverId }: { serverId: string }) {
+  const [info, setInfo] = useState<LocationAccountInfo | null>(null);
+  const [draft, setDraft] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API_BASE}/servers/${serverId}/location-account`, { credentials: "include" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: LocationAccountInfo | null) => {
+        setInfo(data);
+        setDraft(data?.account ?? "");
+      })
+      .catch(() => setInfo(null));
+  }, [serverId]);
+
+  if (!info) return null;
+
+  const save = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      const account = draft.trim() || null;
+      const res = await fetch(`${API_BASE}/servers/${serverId}/location-account`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ account }),
+      });
+      if (!res.ok) throw new Error(res.status === 400 ? "Use lowercase letters, digits and dashes" : `HTTP ${res.status}`);
+      setInfo({ ...info, account });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const current = info.accounts?.find((a) => a.name === info.account);
+  const status = !info.account
+    ? "Sessions on this server show no live locations."
+    : !info.accounts
+      ? "The location tracker isn't running."
+      : !current
+        ? `No cookies for "${info.account}" yet: put them in secrets/accounts/${info.account}/cookies.`
+        : current.ok
+          ? `Working: ${current.people} ${current.people === 1 ? "person shares" : "people share"} their location.`
+          : `Not working: ${current.error}`;
+
+  return (
+    <div className="mb-4 rounded border border-border p-3 text-sm">
+      <label className="font-medium" htmlFor={`location-account-${serverId}`}>
+        Live locations account
+      </label>
+      <div className="mt-2 flex gap-2">
+        <input
+          id={`location-account-${serverId}`}
+          list={`location-accounts-${serverId}`}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="none"
+          className="flex-1 rounded border border-border bg-background px-2 py-1"
+        />
+        <datalist id={`location-accounts-${serverId}`}>
+          {info.accounts?.map((a) => <option key={a.name} value={a.name} />)}
+        </datalist>
+        <button
+          onClick={save}
+          disabled={saving || draft.trim() === (info.account ?? "")}
+          className="px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+        >
+          Save
+        </button>
+      </div>
+      <p className={`mt-2 text-xs ${current && !current.ok ? "text-amber-500" : "text-muted-foreground"}`}>
+        {error ?? status} Who sees them: roles with locations.view below.
+      </p>
+    </div>
+  );
+}
+
 function ServerCard({ server }: { server: ServerWithPermissions }) {
   const isAdmin = server.permissions.includes("server.admin");
   const [expanded, setExpanded] = useState(false);
@@ -69,6 +158,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
 
       {expanded && isAdmin && (
         <div className="mt-4">
+          <LocationAccount serverId={server.id} />
           {loading && <p className="text-sm text-muted-foreground">Loading roles…</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
           {rolesData && !loading && (

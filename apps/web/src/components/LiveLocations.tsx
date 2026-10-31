@@ -1,8 +1,9 @@
 import { useStore } from "@nanostores/react";
 import * as L from "leaflet";
-import { LocateFixed, MapPin } from "lucide-react";
+import { LocateFixed, MapPin, Pencil } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { Circle, Marker, Tooltip } from "react-leaflet";
+import { toast } from "react-toastify";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -12,14 +13,16 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { activeSessionId } from "@/lib/activeSession";
 import { leafletMapContext } from "@/lib/context";
 import {
+    displayName,
     liveLocations,
     type LivePerson,
+    setPersonLabel,
     setPersonShown,
     shownPeople,
-    shownPersonIds,
     startLiveLocations,
 } from "@/lib/liveLocations";
 import { cn } from "@/lib/utils";
@@ -71,7 +74,15 @@ const escapeHtml = (s: string) =>
             })[c]!,
     );
 
-function Avatar({ person, size }: { person: LivePerson; size: number }) {
+function Avatar({
+    person,
+    name,
+    size,
+}: {
+    person: LivePerson;
+    name: string;
+    size: number;
+}) {
     return person.photoUrl ? (
         <img
             src={person.photoUrl}
@@ -85,7 +96,7 @@ function Avatar({ person, size }: { person: LivePerson; size: number }) {
             className="rounded-full bg-sky-600 text-white flex items-center justify-center shrink-0 font-semibold"
             style={{ width: size, height: size, fontSize: size / 2 }}
         >
-            {person.name.charAt(0).toUpperCase()}
+            {name.charAt(0).toUpperCase()}
         </span>
     );
 }
@@ -93,13 +104,18 @@ function Avatar({ person, size }: { person: LivePerson; size: number }) {
 // react-leaflet rebuilds a marker's DOM whenever its icon changes, so share
 // one icon per look.
 const icons = new Map<string, L.DivIcon>();
-function personIcon(person: LivePerson, stale: boolean): L.DivIcon {
-    const key = `${person.name}|${person.photoUrl}|${stale}`;
+function personIcon(
+    person: LivePerson,
+    name: string,
+    stale: boolean,
+): L.DivIcon {
+    const initial = name.charAt(0).toUpperCase();
+    const key = `${initial}|${person.photoUrl}|${stale}`;
     let icon = icons.get(key);
     if (!icon) {
         const picture = person.photoUrl
             ? `<img src="${escapeHtml(person.photoUrl)}" referrerpolicy="no-referrer" alt="" style="width:100%;height:100%;object-fit:cover">`
-            : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;background:#0284c7;color:#fff;font:600 16px sans-serif">${escapeHtml(person.name.charAt(0).toUpperCase())}</span>`;
+            : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;background:#0284c7;color:#fff;font:600 16px sans-serif">${escapeHtml(initial)}</span>`;
         icon = L.divIcon({
             className: "",
             iconSize: [36, 36],
@@ -112,13 +128,15 @@ function personIcon(person: LivePerson, stale: boolean): L.DivIcon {
     return icon;
 }
 
-/** The people this device shows, inside the MapContainer. */
+/** The session's pinned people, inside the MapContainer. */
 export function LiveLocationMarkers() {
     const $shownPeople = useStore(shownPeople);
+    const { labels } = useStore(liveLocations);
     const now = useNow();
     return $shownPeople.map((person) => {
         const stale = !person.timestamp || now - person.timestamp > STALE_MS;
         const center: L.LatLngTuple = [person.lat, person.lng];
+        const name = displayName(person, labels);
         return (
             <Fragment key={person.id}>
                 {person.accuracy !== null && person.accuracy > 0 && (
@@ -135,11 +153,11 @@ export function LiveLocationMarkers() {
                 )}
                 <Marker
                     position={center}
-                    icon={personIcon(person, stale)}
+                    icon={personIcon(person, name, stale)}
                     zIndexOffset={1000}
                 >
                     <Tooltip direction="bottom" permanent>
-                        <span className="font-medium">{person.name}</span>
+                        <span className="font-medium">{name}</span>
                         <span className="text-muted-foreground">
                             {" "}
                             {ago(person.timestamp, now)}
@@ -151,33 +169,111 @@ export function LiveLocationMarkers() {
     });
 }
 
+const saveFailed = () => toast.error("Couldn't save the pin");
+
+function PersonRow({
+    person,
+    label,
+    shown,
+    now,
+    onGoTo,
+}: {
+    person: LivePerson;
+    label: string | undefined;
+    shown: boolean;
+    now: number;
+    onGoTo: () => void;
+}) {
+    const [editing, setEditing] = useState<string | null>(null);
+    const name = label ?? person.name;
+
+    const finishEditing = () => {
+        if (editing === null) return;
+        setEditing(null);
+        if (editing.trim() !== (label ?? "")) {
+            setPersonLabel(person.id, editing).catch(saveFailed);
+        }
+    };
+
+    return (
+        <li className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent">
+            <Checkbox
+                checked={shown}
+                aria-label={`Pin ${name}`}
+                onCheckedChange={(checked) =>
+                    setPersonShown(person.id, checked === true).catch(
+                        saveFailed,
+                    )
+                }
+            />
+            <Avatar person={person} name={name} size={28} />
+            <span className="flex flex-1 flex-col min-w-0">
+                {editing !== null ? (
+                    <Input
+                        autoFocus
+                        value={editing}
+                        maxLength={40}
+                        placeholder={person.name}
+                        aria-label={`Name for ${person.name}`}
+                        className="h-7 text-sm"
+                        onChange={(e) => setEditing(e.target.value)}
+                        onBlur={finishEditing}
+                        onKeyDown={(e) => {
+                            if (e.key === "Enter") finishEditing();
+                            // The dialog stays open (see its onEscapeKeyDown).
+                            if (e.key === "Escape") setEditing(null);
+                        }}
+                    />
+                ) : (
+                    <span className="text-sm font-medium truncate">{name}</span>
+                )}
+                <span className="text-xs text-muted-foreground truncate">
+                    {label && `${person.name} · `}
+                    {details(person, now)}
+                </span>
+            </span>
+            <button
+                type="button"
+                title={`Rename ${name}'s pin`}
+                onClick={() => setEditing(label ?? "")}
+                className="text-muted-foreground hover:text-foreground"
+            >
+                <Pencil className="h-4 w-4" />
+            </button>
+            <button
+                type="button"
+                title={`Go to ${name}`}
+                onClick={onGoTo}
+                className="text-muted-foreground hover:text-foreground"
+            >
+                <LocateFixed className="h-4 w-4" />
+            </button>
+        </li>
+    );
+}
+
 /**
  * The live locations chip in the map's chip stack, and its dialog for picking
- * whom to show on this device. Also runs the polling.
+ * and renaming the session's pins. Also runs the polling.
  */
 export function LiveLocationsChip() {
     const $sessionId = useStore(activeSessionId);
     const $state = useStore(liveLocations);
-    const $shownIds = useStore(shownPersonIds);
     const [open, setOpen] = useState(false);
     const now = useNow();
 
     useEffect(() => startLiveLocations(), []);
 
-    if (!$sessionId || $state.allowed !== true) return null;
+    if (!$sessionId || $state.allowed !== true || !$state.account) return null;
 
     const problem = !$state.reachable || !$state.ok ? $state.error : null;
     const shownCount = $state.people.filter((p) =>
-        $shownIds.includes(p.id),
+        $state.shown.includes(p.id),
     ).length;
 
     const goTo = (person: LivePerson) => {
-        leafletMapContext
-            .get()
-            ?.flyTo(
-                [person.lat, person.lng],
-                Math.max(15, leafletMapContext.get()!.getZoom()),
-            );
+        const map = leafletMapContext.get();
+        map?.flyTo([person.lat, person.lng], Math.max(15, map.getZoom()));
         setOpen(false);
     };
 
@@ -198,12 +294,20 @@ export function LiveLocationsChip() {
                 {problem && <span className="text-amber-500">!</span>}
             </button>
             <Dialog open={open} onOpenChange={setOpen}>
-                <DialogContent className="max-w-md">
+                <DialogContent
+                    className="max-w-md"
+                    // Escape in a pin's name field only stops renaming.
+                    onEscapeKeyDown={(e) => {
+                        if (document.activeElement instanceof HTMLInputElement)
+                            e.preventDefault();
+                    }}
+                >
                     <DialogHeader>
                         <DialogTitle>Live locations</DialogTitle>
                         <DialogDescription>
-                            From Google Maps location sharing. Whom you show
-                            only changes this device, for this session.
+                            From Google Maps location sharing. Pins and their
+                            names are saved with this session, for everyone in
+                            it who can see live locations.
                         </DialogDescription>
                     </DialogHeader>
                     {problem && (
@@ -216,47 +320,20 @@ export function LiveLocationsChip() {
                     {$state.people.length === 0 ? (
                         <p className="text-sm text-muted-foreground">
                             {$state.reachable && $state.ok
-                                ? "Nobody is sharing their location with the tracker's account."
+                                ? "Nobody is sharing their location with this server's account."
                                 : !problem && "Loading…"}
                         </p>
                     ) : (
                         <ul className="flex flex-col gap-1">
                             {$state.people.map((person) => (
-                                <li
+                                <PersonRow
                                     key={person.id}
-                                    className="flex items-center gap-3 rounded-md px-2 py-1.5 hover:bg-accent"
-                                >
-                                    <label className="flex flex-1 min-w-0 items-center gap-3 cursor-pointer">
-                                        <Checkbox
-                                            checked={$shownIds.includes(
-                                                person.id,
-                                            )}
-                                            onCheckedChange={(checked) =>
-                                                setPersonShown(
-                                                    person.id,
-                                                    checked === true,
-                                                )
-                                            }
-                                        />
-                                        <Avatar person={person} size={28} />
-                                        <span className="flex flex-col min-w-0">
-                                            <span className="text-sm font-medium truncate">
-                                                {person.name}
-                                            </span>
-                                            <span className="text-xs text-muted-foreground truncate">
-                                                {details(person, now)}
-                                            </span>
-                                        </span>
-                                    </label>
-                                    <button
-                                        type="button"
-                                        title={`Go to ${person.name}`}
-                                        onClick={() => goTo(person)}
-                                        className="text-muted-foreground hover:text-foreground"
-                                    >
-                                        <LocateFixed className="h-4 w-4" />
-                                    </button>
-                                </li>
+                                    person={person}
+                                    label={$state.labels[person.id]}
+                                    shown={$state.shown.includes(person.id)}
+                                    now={now}
+                                    onGoTo={() => goTo(person)}
+                                />
                             ))}
                         </ul>
                     )}
