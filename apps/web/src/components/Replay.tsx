@@ -598,7 +598,7 @@ export function ReplayPage() {
                                     replayZoomToRemaining.set(e.target.checked)
                                 }
                             />
-                            Zoom to what's left after each answer
+                            Zoom to what&apos;s left after each answer
                         </label>
                     </div>
                 )}
