@@ -1,3 +1,5 @@
+import * as turf from "@turf/turf";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
 import { atom } from "nanostores";
 
 import type { Question, Questions } from "@/maps/schema";
@@ -138,6 +140,69 @@ export function questionsAt(replay: Replay, time: number): Questions {
                       data: { ...q.question.data, drag },
                   } as Question);
         });
+}
+
+export interface Board {
+    questions: Questions;
+    // The clear (the endgame) this board comes after, if any: from then on the
+    // board is the hider's zone and only later questions cut it.
+    endgameAt: number | null;
+}
+
+/**
+ * The board at `time`. Before the endgame, every question asked by then on
+ * the game's play area. From the endgame (the latest clear by then) on, only
+ * the questions asked since, which cut the hider's zone.
+ */
+export function boardAt(replay: Replay, time: number): Board {
+    const endgameAt = replay.clears.filter((at) => at <= time).pop() ?? null;
+    const questions = questionsAt(replay, time);
+    if (endgameAt === null) {
+        const firstClear = replay.clears[0];
+        return {
+            questions:
+                firstClear === undefined
+                    ? questions
+                    : questions.filter((q) => askedAt(replay, q) < firstClear),
+            endgameAt,
+        };
+    }
+    return {
+        questions: questions.filter((q) => askedAt(replay, q) >= endgameAt),
+        endgameAt,
+    };
+}
+
+const askedAt = (replay: Replay, question: Question): number =>
+    replay.questions.find((q) => q.question.key === question.key)!.askedAt;
+
+/**
+ * The zone the hider was in: the one containing their position, the nearest
+ * by its centre if several do, or else the nearest within `maxKm` (a GPS fix
+ * can land just outside). Null if none is that close.
+ */
+export function hiderZone<T extends Feature<Polygon | MultiPolygon>>(
+    zones: T[],
+    position: { lat: number; lng: number },
+    maxKm = 1,
+): T | null {
+    const point = turf.point([position.lng, position.lat]);
+    const distance = (zone: T) =>
+        turf.distance(point, turf.centroid(zone), { units: "kilometers" });
+    const byDistance = (a: T, b: T) => distance(a) - distance(b);
+    const containing = zones
+        .filter((zone) => turf.booleanPointInPolygon(point, zone))
+        .sort(byDistance);
+    if (containing.length > 0) return containing[0]!;
+    const nearest = zones
+        .map((zone) => ({
+            zone,
+            km: turf.pointToPolygonDistance(point, zone, {
+                units: "kilometers",
+            }),
+        }))
+        .sort((a, b) => a.km - b.km)[0];
+    return nearest && nearest.km <= maxKm ? nearest.zone : null;
 }
 
 // [time ms, lat, lng, accuracy m]
