@@ -1,8 +1,11 @@
+import * as turf from "@turf/turf";
 import { describe, expect, it } from "vitest";
 
 import {
+    boardAt,
     condenseReplay,
     guessRoles,
+    hiderZone,
     type LoggedPosition,
     positionAt,
     questionsAt,
@@ -193,5 +196,58 @@ describe("guessRoles", () => {
         expect(
             guessRoles([{ id: "a", positions: [[0, 52, 4, null]] }], 0).size,
         ).toBe(0);
+    });
+});
+
+describe("boardAt", () => {
+    const replay = condenseReplay([
+        snap(100, radar(1, false), radar(2, false)),
+        snap(200),
+        snap(300, radar(3, true)),
+        snap(310, radar(3, false)),
+    ]);
+
+    it("shows the questions before the endgame on the play area", () => {
+        expect(boardAt(replay, 150)).toEqual({
+            questions: expect.any(Array),
+            endgameAt: null,
+        });
+        expect(boardAt(replay, 150).questions.map((q) => q.key)).toEqual([
+            1, 2,
+        ]);
+    });
+
+    it("shows only the endgame's questions from the clear on", () => {
+        expect(boardAt(replay, 250)).toEqual({ questions: [], endgameAt: 200 });
+        const late = boardAt(replay, 400);
+        expect(late.endgameAt).toBe(200);
+        expect(late.questions.map((q) => [q.key, dragOf(q)])).toEqual([
+            [3, false],
+        ]);
+    });
+});
+
+describe("hiderZone", () => {
+    const a = turf.circle([4.0, 52.0], 0.5, {
+        units: "kilometers",
+        properties: { id: "a" },
+    });
+    const b = turf.circle([4.1, 52.0], 0.5, {
+        units: "kilometers",
+        properties: { id: "b" },
+    });
+
+    it("picks the zone the hider is in", () => {
+        expect(
+            hiderZone([a, b], { lat: 52.0, lng: 4.101 })?.properties.id,
+        ).toBe("b");
+    });
+
+    it("takes a zone just outside, but not a far one", () => {
+        // ~0.7 km east of b's centre: 0.2 km outside it.
+        expect(hiderZone([a, b], { lat: 52.0, lng: 4.11 })?.properties.id).toBe(
+            "b",
+        );
+        expect(hiderZone([a, b], { lat: 52.2, lng: 4.5 })).toBeNull();
     });
 });

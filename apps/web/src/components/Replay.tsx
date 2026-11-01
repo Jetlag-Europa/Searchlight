@@ -13,13 +13,16 @@ import {
     hiderMode,
     leafletMapContext,
     planningModeEnabled,
+    polyGeoJSON,
     questions,
 } from "@/lib/context";
 import { applyGameDefinition, currentGameId } from "@/lib/games";
 import { defaultQuestionLabel, questionName } from "@/lib/questionNames";
 import {
+    boardAt,
     condenseReplay,
     guessRoles,
+    hiderZone,
     type LoggedPosition,
     positionAt,
     questionsAt,
@@ -30,6 +33,8 @@ import {
     trail,
 } from "@/lib/replay";
 import { cn } from "@/lib/utils";
+import type { StationCircle } from "@/maps/api/types";
+import { hidingZoneCircles } from "@/maps/geo-utils/hidingZones";
 import { type Question, type Questions, questionSchema } from "@/maps/schema";
 
 // The replay page (tracker stack): a session's questions, as they were asked
@@ -305,27 +310,64 @@ export function ReplayPage() {
         };
     }, [playing, replay, speed, marks, end]);
 
-    // The board at this time. The questions atom only changes when a question
-    // appears or its lock changes, so the geometry isn't redone every frame.
-    const board = useMemo(() => {
-        if (!replay) return [];
-        return questionsAt(replay, time).map((q) =>
-            holding.includes(q.key) && "drag" in q.data && !q.data.drag
-                ? ({ ...q, data: { ...q.data, drag: true } } as Question)
-                : q,
-        );
-    }, [replay, time, holding]);
-    const boardKey = board
-        .map((q) => `${q.key}:${"drag" in q.data && q.data.drag}`)
-        .join(",");
+    // The hider's zone at each endgame (a clear): where the hider was then.
+    const $compiled = useStore(compiledGameAtom);
+    const endgameZones = useMemo(() => {
+        const zones = new Map<number, StationCircle>();
+        const hider = data?.people.find((p) => p.id === hiderId);
+        if (!replay || !$compiled || !hider) return zones;
+        const circles = hidingZoneCircles($compiled);
+        for (const at of replay.clears) {
+            const position =
+                positionAt(hider.positions, at) ??
+                positionAt(hider.positions, Infinity);
+            const zone = position && hiderZone(circles, position);
+            if (zone) zones.set(at, zone);
+        }
+        return zones;
+    }, [replay, $compiled, data, hiderId]);
+
+    // The board at this time. From the endgame on it's the hider's zone, cut
+    // by the questions asked since; without a zone (no hider position), every
+    // question on the play area. The questions atom only changes when a
+    // question appears or its lock changes, so the geometry isn't redone
+    // every frame.
+    const { board, zone } = useMemo(() => {
+        if (!replay) return { board: [], zone: null };
+        const at = boardAt(replay, time);
+        const zone =
+            at.endgameAt === null
+                ? null
+                : (endgameZones.get(at.endgameAt) ?? null);
+        const shown =
+            at.endgameAt !== null && !zone
+                ? questionsAt(replay, time)
+                : at.questions;
+        return {
+            zone,
+            board: shown.map((q) =>
+                holding.includes(q.key) && "drag" in q.data && !q.data.drag
+                    ? ({ ...q, data: { ...q.data, drag: true } } as Question)
+                    : q,
+            ),
+        };
+    }, [replay, time, holding, endgameZones]);
+    const zoneName = zone?.properties.properties.name ?? null;
+    const boardKey =
+        `${zone ? zone.properties.properties.id : ""}|` +
+        board
+            .map((q) => `${q.key}:${"drag" in q.data && q.data.drag}`)
+            .join(",");
     useEffect(() => {
-        if (!replay) return;
-        const compiled = compiledGameAtom.get();
-        questions.set(
-            compiled ? filterSupportedQuestions(board, compiled) : board,
+        if (!replay || !$compiled) return;
+        polyGeoJSON.set(
+            zone
+                ? { type: "FeatureCollection", features: [zone] }
+                : $compiled.playArea,
         );
-        // Only when the board's questions or locks change, not every frame.
-    }, [boardKey, replay]);
+        questions.set(filterSupportedQuestions(board, $compiled));
+        // Only when the board's questions, locks or zone change, not every frame.
+    }, [boardKey, replay, $compiled]);
 
     // People shown, with their roles and names.
     const people = useMemo(() => {
@@ -663,6 +705,11 @@ export function ReplayPage() {
                     </button>
                     <span className="font-mono tabular-nums">
                         {clock.format(time)}
+                        {zoneName && (
+                            <span className="ml-2 text-xs font-sans text-red-400">
+                                Endgame · {zoneName}
+                            </span>
+                        )}
                     </span>
                     <select
                         aria-label="Speed"
