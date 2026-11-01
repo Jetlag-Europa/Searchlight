@@ -28,6 +28,10 @@ export interface Replay {
     end: number;
 }
 
+// Questions without pins (zone size) have no lock: they count as locked.
+const unlocked = (question: Question): boolean =>
+    "drag" in question.data && question.data.drag;
+
 interface Track {
     question: Question;
     askedAt: number;
@@ -64,7 +68,7 @@ export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
             }
             track.question = question;
             track.removed = null;
-            if (!question.data.drag && track.answeredAt === null)
+            if (!unlocked(question) && track.answeredAt === null)
                 track.answeredAt = at;
         }
         const gone = [...onBoard].filter((key) => !now.has(key));
@@ -79,7 +83,7 @@ export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
     for (const track of tracks.values()) {
         if (
             track.removed === "deleted" ||
-            track.question.data.drag ||
+            unlocked(track.question) ||
             track.answeredAt === null
         )
             continue;
@@ -108,7 +112,7 @@ export function questionsAt(replay: Replay, time: number): Questions {
         .filter((q) => q.askedAt <= time)
         .map((q) => {
             const drag = q.answeredAt > time;
-            return q.question.data.drag === drag
+            return !("drag" in q.question.data) || unlocked(q.question) === drag
                 ? q.question
                 : ({
                       ...q.question,
@@ -169,4 +173,42 @@ export function trail(
     const end = positionAt(positions, to);
     if (end) points.push([end.lat, end.lng]);
     return points;
+}
+
+export type Role = "hider" | "seeker";
+
+// Rough distance in km, plenty for comparing how far people roam.
+function km(lat1: number, lng1: number, lat2: number, lng2: number): number {
+    const x = (lng2 - lng1) * Math.cos(((lat1 + lat2) / 2) * (Math.PI / 180));
+    return Math.hypot(x, lat2 - lat1) * 111.32;
+}
+
+/**
+ * Tells the hider from the seekers: once questions start, the hider stays in
+ * their zone while the seekers travel. The person whose positions from `from`
+ * on lie closest around their own middle is the hider; everyone else seeks.
+ * People with no positions from then on get no role.
+ */
+export function guessRoles(
+    people: { id: string; positions: LoggedPosition[] }[],
+    from: number,
+): Map<string, Role> {
+    const spreads = people
+        .map(({ id, positions }) => {
+            const after = positions.filter(([t]) => t >= from);
+            if (after.length === 0) return null;
+            const lat = after.reduce((sum, p) => sum + p[1], 0) / after.length;
+            const lng = after.reduce((sum, p) => sum + p[2], 0) / after.length;
+            const spread =
+                after.reduce((sum, p) => sum + km(p[1], p[2], lat, lng), 0) /
+                after.length;
+            return { id, spread };
+        })
+        .filter((s): s is { id: string; spread: number } => s !== null);
+    const roles = new Map<string, Role>();
+    if (spreads.length < 2) return roles;
+    const hider = spreads.reduce((a, b) => (b.spread < a.spread ? b : a));
+    for (const { id } of spreads)
+        roles.set(id, id === hider.id ? "hider" : "seeker");
+    return roles;
 }
