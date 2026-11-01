@@ -337,6 +337,12 @@ export function LiveLocationsChip() {
                             ))}
                         </ul>
                     )}
+                    <a
+                        href={`/replay?session=${encodeURIComponent($sessionId)}`}
+                        className="text-sm text-muted-foreground underline hover:text-foreground"
+                    >
+                        Replay this session
+                    </a>
                 </DialogContent>
             </Dialog>
         </>
