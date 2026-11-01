@@ -1,0 +1,30 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { Map } from "@/components/Map";
+import { AuthGuard } from "@/components/AuthGuard";
+import { CalculatingIndicator } from "@/components/CalculatingIndicator";
+import { ReplayPage } from "@/components/Replay";
+---
+<!--
+    A session replay (tracker stack): /replay?session=<id>. Its own page, so
+    the map page and the active session are left as they are.
+-->
+<Layout className="bg-jetlag">
+    <div
+        id="auth-loading-overlay"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
+    >
+        <div
+            class="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent"
+        >
+        </div>
+    </div>
+
+    <AuthGuard client:only="react" />
+    <CalculatingIndicator client:only="react" />
+
+    <main class="relative h-svh w-full">
+        <Map className="w-full !h-full" replay client:only="react" />
+        <ReplayPage client:only="react" />
+    </main>
+</Layout>

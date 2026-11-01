@@ -236,7 +236,17 @@ const ADD_QUESTION_MENU_ITEMS = [
     },
 ];
 
-export const Map = ({ className }: { className?: string }) => {
+/**
+ * The board. `replay` (the replay page, tracker stack) shows questions only:
+ * no editing, drawing, follow me or remembered views, so nothing is saved.
+ */
+export const Map = ({
+    className,
+    replay = false,
+}: {
+    className?: string;
+    replay?: boolean;
+}) => {
     const $questions = useStore(questions);
     const $baseTileLayer = useStore(baseTileLayer);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
@@ -477,7 +487,7 @@ export const Map = ({ className }: { className?: string }) => {
                 contextmenu={true}
                 contextmenuWidth={140}
                 contextmenuItems={[
-                    ...ADD_QUESTION_MENU_ITEMS,
+                    ...(replay ? [] : ADD_QUESTION_MENU_ITEMS),
                     {
                         text: "Copy Coordinates",
                         callback: (e: any) => {
@@ -513,30 +523,32 @@ export const Map = ({ className }: { className?: string }) => {
                 <Fragment key={$baseTileLayer}>
                     {getTileLayer($baseTileLayer, $thunderforestApiKey)}
                 </Fragment>
-                <DraggableMarkers />
-                <LiveLocationMarkers />
+                {!replay && <DraggableMarkers />}
+                {!replay && <LiveLocationMarkers />}
                 <div className="leaflet-top leaflet-right">
                     <div className="leaflet-control flex-col flex gap-2">
                         <LeafletFullScreenButton />
                     </div>
                 </div>
-                <PolygonDraw />
+                {!replay && <PolygonDraw />}
                 <ScaleControl position="bottomleft" />
-                <MapPrint
-                    position="topright"
-                    sizeModes={["Current", "A4Portrait", "A4Landscape"]}
-                    hideControlContainer={false}
-                    hideClasses={[
-                        "leaflet-full-screen-specific-name",
-                        "leaflet-top",
-                        "leaflet-control-easyPrint",
-                        "leaflet-draw",
-                    ]}
-                    title="Print"
-                />
+                {!replay && (
+                    <MapPrint
+                        position="topright"
+                        sizeModes={["Current", "A4Portrait", "A4Landscape"]}
+                        hideControlContainer={false}
+                        hideClasses={[
+                            "leaflet-full-screen-specific-name",
+                            "leaflet-top",
+                            "leaflet-control-easyPrint",
+                            "leaflet-draw",
+                        ]}
+                        title="Print"
+                    />
+                )}
             </MapContainer>
         ),
-        [map, $baseTileLayer, $thunderforestApiKey],
+        [map, $baseTileLayer, $thunderforestApiKey, replay],
     );
 
     // Questions come from the game: none can be added before it has loaded.
@@ -592,7 +604,7 @@ export const Map = ({ className }: { className?: string }) => {
             framedGameIdRef.current = $currentGameId;
             fitGameBounds(map, $compiledGame.bounds);
         }
-        if (!isGameBounds($compiledGame.bounds)) return;
+        if (replay || !isGameBounds($compiledGame.bounds)) return;
         const session = activeSessionData.get();
         rememberGameView(
             $currentGameId,
@@ -604,6 +616,7 @@ export const Map = ({ className }: { className?: string }) => {
     // A session selected after its game loaded plays the framed game too.
     useEffect(() => {
         const view = lastGameView.get();
+        if (replay) return;
         if (!$activeSession || view?.gameId !== $activeSession.gameId) return;
         if (view.sessionId === $activeSession.id) return;
         rememberGameView(view.gameId, view.bounds, $activeSession.id);
@@ -669,7 +682,7 @@ export const Map = ({ className }: { className?: string }) => {
 
     useEffect(() => {
         if (!map) return;
-        if (!$followMe) {
+        if (!$followMe || replay) {
             if (followMeMarkerRef.current) {
                 map.removeLayer(followMeMarkerRef.current);
                 followMeMarkerRef.current = null;
@@ -784,7 +797,7 @@ export const Map = ({ className }: { className?: string }) => {
         <>
             {displayMap}
             {/* ANNOTATION LAYER MOUNT — see src/annotations/ */}
-            <AnnotationLayer map={map} />
+            {!replay && <AnnotationLayer map={map} />}
         </>
     );
 };
