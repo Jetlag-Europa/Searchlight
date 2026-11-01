@@ -48,6 +48,7 @@ import {
 } from "@/lib/gameView";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
+import { replayZoomToRemaining } from "@/lib/replay";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
@@ -442,8 +443,8 @@ export const Map = ({
             perQuestionMapData.set(perQuestionRegions);
             questionFinishedMapData.set(mapGeoData);
 
-            // The replay keeps the view where its viewer put it.
-            if (autoZoom.get() && !replay) {
+            // The replay has its own switch, so its viewer can pan freely.
+            if (replay ? replayZoomToRemaining.get() : autoZoom.get()) {
                 if (!remaining.features.length) return;
                 const bbox = turf.bbox(remaining);
                 const bounds: L.LatLngBoundsExpression = [
