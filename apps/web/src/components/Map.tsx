@@ -442,7 +442,8 @@ export const Map = ({
             perQuestionMapData.set(perQuestionRegions);
             questionFinishedMapData.set(mapGeoData);
 
-            if (autoZoom.get()) {
+            // The replay keeps the view where its viewer put it.
+            if (autoZoom.get() && !replay) {
                 if (!remaining.features.length) return;
                 const bbox = turf.bbox(remaining);
                 const bounds: L.LatLngBoundsExpression = [
@@ -554,7 +555,8 @@ export const Map = ({
     // Questions come from the game: none can be added before it has loaded.
     useEffect(() => {
         const contextmenu = (map as any)?.contextmenu;
-        if (!contextmenu) return;
+        // The replay's menu has no question items.
+        if (!contextmenu || replay) return;
         ADD_QUESTION_MENU_ITEMS.forEach((_, item) => {
             contextmenu.setDisabled(item, !$compiledGame);
             // setDisabled only greys the item out; say why.
@@ -568,7 +570,7 @@ export const Map = ({
                 el.setAttribute("aria-disabled", "true");
             }
         });
-    }, [map, $compiledGame]);
+    }, [map, $compiledGame, replay]);
 
     // Until a game has loaded, open on this tab's game, or the session being
     // restored, as last framed: a definition can take a while to load, or
@@ -762,7 +764,8 @@ export const Map = ({
             if (layer.permanentGeoJSON) map.removeLayer(layer);
         });
 
-        if ($permanentOverlay === null) return;
+        // The overlay belongs to the map page's game, not the replayed one.
+        if ($permanentOverlay === null || replay) return;
 
         try {
             const overlay = L.geoJSON($permanentOverlay, {
@@ -791,7 +794,7 @@ export const Map = ({
         } catch (e) {
             toast.error(`Failed to display GeoJSON overlay: ${e}`);
         }
-    }, [$permanentOverlay, map]);
+    }, [$permanentOverlay, map, replay]);
 
     return (
         <>

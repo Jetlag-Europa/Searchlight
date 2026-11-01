@@ -51,6 +51,9 @@ export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
     const tracks = new Map<number, Track>();
     const clears: number[] = [];
     let onBoard = new Set<number>();
+    // The questions the last clear removed, until the next change shows it
+    // stuck (an undo brings them back).
+    let lastCleared: number[] = [];
 
     for (const { at, questions } of snapshots) {
         const now = new Set<number>();
@@ -71,9 +74,19 @@ export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
             if (!unlocked(question) && track.answeredAt === null)
                 track.answeredAt = at;
         }
+        if (lastCleared.some((key) => now.has(key))) clears.pop();
+        lastCleared = [];
         const gone = [...onBoard].filter((key) => !now.has(key));
-        const cleared = questions.length === 0 && gone.length > 0;
-        if (cleared) clears.push(at);
+        // A clear takes several answered questions off at once; deleting the
+        // last question on the board is just a deletion.
+        const cleared =
+            questions.length === 0 &&
+            gone.filter((key) => !unlocked(tracks.get(key)!.question)).length >=
+                2;
+        if (cleared) {
+            clears.push(at);
+            lastCleared = gone;
+        }
         for (const key of gone)
             tracks.get(key)!.removed = cleared ? "cleared" : "deleted";
         onBoard = now;

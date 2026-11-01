@@ -69,14 +69,20 @@ interface ReplayResponse {
     people: ReplayPerson[];
 }
 
+// Leaflet inserts string tooltips as HTML; question names are user input.
+const textNode = (text: string): HTMLElement => {
+    const span = document.createElement("span");
+    span.textContent = text;
+    return span;
+};
+
+// In the viewer's time zone.
 const clock = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Amsterdam",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
 });
 const shortClock = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Amsterdam",
     hour: "2-digit",
     minute: "2-digit",
 });
@@ -183,6 +189,8 @@ export function ReplayPage() {
     const [showEveryone, setShowEveryone] = useState(false);
     const [hiderId, setHiderId] = useState<string | null>(null);
     const timeRef = useRef(0);
+    // Until when (performance.now()) playback holds on a question; 0 = not.
+    const holdUntilRef = useRef(0);
     timeRef.current = time;
 
     // Load the session's history and its game, once the login is confirmed.
@@ -195,7 +203,7 @@ export function ReplayPage() {
         let cancelled = false;
         (async () => {
             const res = await fetch(
-                `${API_BASE}/sessions/${sessionId}/replay`,
+                `${API_BASE}/sessions/${encodeURIComponent(sessionId)}/replay`,
                 {
                     credentials: "include",
                 },
@@ -254,16 +262,15 @@ export function ReplayPage() {
         if (!playing || !replay) return;
         let frame = 0;
         let last = performance.now();
-        let holdUntil = 0;
         const step = (now: number) => {
             const dt = now - last;
             last = now;
-            if (now < holdUntil) {
+            if (now < holdUntilRef.current) {
                 frame = requestAnimationFrame(step);
                 return;
             }
-            if (holdUntil) {
-                holdUntil = 0;
+            if (holdUntilRef.current) {
+                holdUntilRef.current = 0;
                 setHolding([]);
             }
             const from = timeRef.current;
@@ -271,7 +278,7 @@ export function ReplayPage() {
             const crossed = marks.filter((m) => m.at > from && m.at <= to);
             if (crossed.length > 0) {
                 to = crossed[0]!.at;
-                holdUntil = now + HOLD_MS;
+                holdUntilRef.current = now + HOLD_MS;
                 setHolding(
                     crossed
                         .filter((m) => m.at === to && m.kind === "asked")
@@ -287,7 +294,13 @@ export function ReplayPage() {
             frame = requestAnimationFrame(step);
         };
         frame = requestAnimationFrame(step);
-        return () => cancelAnimationFrame(frame);
+        return () => {
+            cancelAnimationFrame(frame);
+            // A speed change or pause ends a hold rather than leaving the
+            // question drawn as unanswered.
+            holdUntilRef.current = 0;
+            setHolding([]);
+        };
     }, [playing, replay, speed, marks, end]);
 
     // The board at this time. The questions atom only changes when a question
@@ -442,7 +455,9 @@ export function ReplayPage() {
                     color: "#fff",
                     fillColor: (q.data as { color?: string }).color ?? "#111",
                     fillOpacity: 1,
-                }).bindTooltip(questionTitle(all, q), { direction: "top" }),
+                }).bindTooltip(textNode(questionTitle(all, q)), {
+                    direction: "top",
+                }),
             ),
         );
         for (const pin of pins) layer.addLayer(pin);
@@ -453,6 +468,7 @@ export function ReplayPage() {
     }, [boardKey, replay, map]);
 
     const seek = (at: number) => {
+        holdUntilRef.current = 0;
         setHolding([]);
         timeRef.current = at;
         setTime(at);

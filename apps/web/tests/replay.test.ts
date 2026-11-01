@@ -65,15 +65,32 @@ describe("condenseReplay", () => {
 
     it("keeps locked questions a clear removed, and records the clear", () => {
         const replay = condenseReplay([
-            snap(100, radar(1, false)),
-            snap(110, radar(1, false), radar(2, true)),
+            snap(100, radar(1, false), radar(4, false)),
+            snap(110, radar(1, false), radar(4, false), radar(2, true)),
             snap(120),
             snap(130, radar(3, true)),
             snap(140, radar(3, false)),
         ]);
         // 2 was still a draft when the board was cleared.
-        expect(replay.questions.map((q) => q.question.key)).toEqual([1, 3]);
+        expect(replay.questions.map((q) => q.question.key)).toEqual([1, 4, 3]);
         expect(replay.clears).toEqual([120]);
+    });
+
+    it("treats deleting the only question, or undoing a clear, as no clear", () => {
+        const deletedLast = condenseReplay([
+            snap(100, radar(1, false)),
+            snap(110),
+        ]);
+        expect(deletedLast.questions).toEqual([]);
+        expect(deletedLast.clears).toEqual([]);
+
+        const undone = condenseReplay([
+            snap(100, radar(1, false), radar(2, false)),
+            snap(110),
+            snap(120, radar(1, false), radar(2, false)),
+        ]);
+        expect(undone.clears).toEqual([]);
+        expect(undone.questions).toHaveLength(2);
     });
 
     it("handles no history", () => {

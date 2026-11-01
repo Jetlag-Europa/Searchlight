@@ -10,8 +10,11 @@ import { assertParticipant } from "./session-content.js";
 // users with locations.view, the logged positions of the people sharing with
 // the server's account while the session ran.
 
-// Positions this long before the first and after the last question change.
+// Positions this long before the first and after the last question change,
+// and never more than MAX_SPAN_MS after the first: a session edited days later
+// mustn't hand out days of everyone's whereabouts.
 const MARGIN_MS = 15 * 60_000;
+const MAX_SPAN_MS = 12 * 60 * 60_000;
 
 interface StoredQuestion {
   ordinal: number;
@@ -66,7 +69,9 @@ export async function replayRoutes(app: FastifyInstance) {
             account,
             recordedAt: {
               gte: new Date(snapshots[0]!.at - MARGIN_MS),
-              lte: new Date(snapshots[snapshots.length - 1]!.at + MARGIN_MS),
+              lte: new Date(
+                Math.min(snapshots[snapshots.length - 1]!.at + MARGIN_MS, snapshots[0]!.at + MAX_SPAN_MS),
+              ),
             },
           },
           orderBy: { recordedAt: "asc" },
