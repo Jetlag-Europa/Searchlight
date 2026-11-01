@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     condenseReplay,
+    guessRoles,
     type LoggedPosition,
     positionAt,
     questionsAt,
@@ -16,6 +17,8 @@ const radar = (key: number, drag: boolean, radius = 5): Question =>
         key,
         data: { lat: 52, lng: 5, drag, radius, unit: "kilometers" },
     });
+
+const dragOf = (q: Question) => (q.data as { drag?: boolean }).drag;
 
 const snap = (at: number, ...questions: Question[]): ReplaySnapshot => ({
     at,
@@ -93,16 +96,16 @@ describe("questionsAt", () => {
 
     it("shows asked questions unlocked until answered, then locked", () => {
         expect(questionsAt(replay, 99)).toEqual([]);
-        expect(
-            questionsAt(replay, 110).map((q) => [q.key, q.data.drag]),
-        ).toEqual([[1, true]]);
-        expect(
-            questionsAt(replay, 210).map((q) => [q.key, q.data.drag]),
-        ).toEqual([
-            [1, false],
-            [2, true],
-        ]);
-        expect(questionsAt(replay, 300).map((q) => q.data.drag)).toEqual([
+        expect(questionsAt(replay, 110).map((q) => [q.key, dragOf(q)])).toEqual(
+            [[1, true]],
+        );
+        expect(questionsAt(replay, 210).map((q) => [q.key, dragOf(q)])).toEqual(
+            [
+                [1, false],
+                [2, true],
+            ],
+        );
+        expect(questionsAt(replay, 300).map((q) => dragOf(q))).toEqual([
             false,
             false,
         ]);
@@ -136,5 +139,42 @@ describe("positionAt", () => {
             [52, 4],
             [52.5, 4.5],
         ]);
+    });
+});
+
+describe("guessRoles", () => {
+    it("takes whoever stays put once questions start for the hider", () => {
+        const roles = guessRoles(
+            [
+                // Travelled to the zone before questions, then stayed.
+                {
+                    id: "h",
+                    positions: [
+                        [0, 52.0, 4.0, null],
+                        [50, 52.3, 4.5, null],
+                        [100, 52.3, 4.5, null],
+                        [200, 52.301, 4.501, null],
+                    ],
+                },
+                // Waited, then travelled once questions started.
+                {
+                    id: "s",
+                    positions: [
+                        [0, 52.0, 4.0, null],
+                        [100, 52.0, 4.0, null],
+                        [200, 52.2, 4.3, null],
+                        [300, 52.25, 4.4, null],
+                    ],
+                },
+            ],
+            100,
+        );
+        expect(Object.fromEntries(roles)).toEqual({ h: "hider", s: "seeker" });
+    });
+
+    it("guesses nothing for fewer than two people", () => {
+        expect(
+            guessRoles([{ id: "a", positions: [[0, 52, 4, null]] }], 0).size,
+        ).toBe(0);
     });
 });
