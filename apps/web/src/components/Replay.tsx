@@ -25,6 +25,7 @@ import {
     questionsAt,
     type Replay,
     type ReplayQuestion,
+    replayZoomToRemaining,
     type Role,
     trail,
 } from "@/lib/replay";
@@ -187,6 +188,7 @@ export function ReplayPage() {
     // Questions shown unlocked while playback holds on their being asked.
     const [holding, setHolding] = useState<number[]>([]);
     const [showEveryone, setShowEveryone] = useState(false);
+    const $zoomToRemaining = useStore(replayZoomToRemaining);
     const [hiderId, setHiderId] = useState<string | null>(null);
     const timeRef = useRef(0);
     // Until when (performance.now()) playback holds on a question; 0 = not.
@@ -587,6 +589,16 @@ export function ReplayPage() {
                                 }
                             />
                             Everyone sharing their location
+                        </label>
+                        <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <input
+                                type="checkbox"
+                                checked={$zoomToRemaining}
+                                onChange={(e) =>
+                                    replayZoomToRemaining.set(e.target.checked)
+                                }
+                            />
+                            Zoom to what's left after each answer
                         </label>
                     </div>
                 )}

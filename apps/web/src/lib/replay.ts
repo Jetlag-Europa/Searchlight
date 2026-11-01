@@ -1,9 +1,15 @@
+import { atom } from "nanostores";
+
 import type { Question, Questions } from "@/maps/schema";
 
 // Session replays (tracker stack). A session's history is its question list
 // after every change, and most changes are noise: pins being placed, drafts
 // deleted again, questions unlocked to fix a detail. A replay keeps only the
 // questions that were really asked, each with when it was asked and answered.
+
+// Whether the replay's map zooms to what's left after each answer, instead of
+// the app's auto-zoom setting. In memory only.
+export const replayZoomToRemaining = atom(true);
 
 export interface ReplaySnapshot {
     // When the server received the change, in ms.
