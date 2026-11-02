@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { verifiedUserId } from "@/lib/activeSession";
 
 import { GameLinksDialog } from "./GameLinksDialog";
+import { GameSettingsDialog } from "./GameSettingsDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 // Unlike the session picker's catalog, this page lists unlisted games too.
@@ -93,6 +94,9 @@ function GameCard({
         : ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
             permissions.includes(p),
         );
+    // Same check as the API; a settings edit needs a revision to build on.
+    const canEditSettings =
+        ["games.edit", "server.admin"].some((p) => permissions.includes(p)) && !!game.currentRevisionId;
 
     const handleToggleListed = async () => {
         setError(null);
@@ -155,7 +159,7 @@ function GameCard({
     };
 
     return (
-        <div className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
+        <div className="border border-border rounded-lg p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
                 <p className="text-sm font-medium flex items-center gap-2">
                     {game.name}
@@ -174,7 +178,7 @@ function GameCard({
                 {stats && <GameStatsLine stats={stats} />}
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
-            <div className="flex flex-wrap justify-end gap-2 shrink-0">
+            <div className="flex flex-wrap gap-2 sm:justify-end sm:shrink-0">
                 {canManage && !casual && (
                     <Button
                         size="sm"
@@ -191,6 +195,7 @@ function GameCard({
                     </Button>
                 )}
                 {canManage && <GameLinksDialog game={game} />}
+                {canEditSettings && <GameSettingsDialog game={game} onUpdated={onUpdated} />}
                 {(canManage || !casual) && (
                     <Button size="sm" variant="outline" onClick={handleExport}>
                         Export JSON

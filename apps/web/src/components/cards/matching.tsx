@@ -33,6 +33,7 @@ import {
     setQuestionName,
 } from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
+import { matchingTarget } from "@/maps";
 import {
     customSwitchStart,
     determineMatchingBoundary,
@@ -41,6 +42,24 @@ import type { MatchingQuestion } from "@/maps/schema";
 
 import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
+
+/** The name of the closest thing to the pin. */
+function useClosestName(data: MatchingQuestion) {
+    const compiled = useStore(compiledGameAtom);
+    const enabled = data.enabled ?? true;
+    // Drawing custom points edits `geo` in place, so compare by value.
+    const inputs = JSON.stringify([
+        data.type,
+        data.lat,
+        data.lng,
+        data.type === "custom-points" ? data.geo : null,
+        enabled,
+    ]);
+    return React.useMemo(
+        () => (enabled ? matchingTarget(data) : undefined),
+        [inputs, compiled],
+    );
+}
 
 export const MatchingQuestionComponent = ({
     data,
@@ -68,6 +87,7 @@ export const MatchingQuestionComponent = ({
     >(null);
     const prefillSeqRef = React.useRef(0);
     const prefillScope = React.useMemo(() => Symbol("matching-prefill"), []);
+    const closest = useClosestName(data);
 
     React.useEffect(() => {
         return () => {
@@ -239,6 +259,14 @@ export const MatchingQuestionComponent = ({
                     }}
                     disabled={!data.drag || $isLoading}
                 />
+            )}
+            {closest && (
+                <p className="px-2 text-sm text-muted-foreground">
+                    Closest:{" "}
+                    <span className="font-medium text-foreground">
+                        {closest}
+                    </span>
+                </p>
             )}
             <div className="flex gap-2 items-center p-2">
                 <Label

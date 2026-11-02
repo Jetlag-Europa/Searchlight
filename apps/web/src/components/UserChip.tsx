@@ -1,10 +1,10 @@
 import { useStore } from "@nanostores/react";
 import type { User } from "@searchlight/shared";
 
-import { clearActiveSession, verifiedUserId } from "@/lib/activeSession";
+import { clearActiveSession } from "@/lib/activeSession";
 import { sessionPickerOpen } from "@/lib/context";
 import { forgetGameViews } from "@/lib/gameView";
-import { removeStorage } from "@/lib/safeStorage";
+import { forgetAccount } from "@/lib/offlineAccess";
 
 import { StatusChip } from "./StatusChip";
 
@@ -17,19 +17,27 @@ export function UserChip({ user, apiBase }: Props) {
     const pickerOpen = useStore(sessionPickerOpen);
 
     async function handleLogout() {
-        await fetch(`${apiBase}/auth/logout`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "X-CSRF": "1" },
-        });
-        verifiedUserId.set(null);
-        clearActiveSession();
-        forgetGameViews();
-        removeStorage("localStorage", "taibled-authed-user");
-        console.info(
-            "[searchlight] logged out — active session and user cleared",
-        );
-        window.location.href = "/";
+        try {
+            await fetch(`${apiBase}/auth/logout`, {
+                method: "POST",
+                credentials: "include",
+                headers: { "X-CSRF": "1" },
+            });
+        } catch (err) {
+            console.warn("[searchlight] logout request failed:", err);
+        } finally {
+            // Whatever the server answered, this browser forgets the account:
+            // nobody plays this browser's kept sessions while offline. Their
+            // snapshots and unsent edits stay, each in its owner's queue, for
+            // that account alone, after logging back in.
+            clearActiveSession();
+            forgetGameViews();
+            await forgetAccount();
+            console.info(
+                "[searchlight] logged out — active session, user and kept games cleared",
+            );
+            window.location.href = "/";
+        }
     }
 
     return (
