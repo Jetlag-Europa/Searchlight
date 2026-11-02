@@ -2,7 +2,7 @@ import type { Question } from "@/maps/schema";
 
 export const QUESTION_NAME_MAX_LENGTH = 60;
 
-export const TYPE_LABELS: Record<Question["id"], string> = {
+const TYPE_LABELS: Record<Question["id"], string> = {
     radius: "Radius",
     thermometer: "Thermometer",
     tentacles: "Tentacles",

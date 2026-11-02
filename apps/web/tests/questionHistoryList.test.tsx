@@ -1,9 +1,10 @@
 import type { QuestionHistoryEntry } from "@searchlight/shared";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HistoryList } from "@/components/QuestionHistory";
 import { historyLines } from "@/lib/historyLines";
+import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
 import { questionSchema } from "@/maps/schema";
 
 const radar = (key: number, name?: string) =>
@@ -67,6 +68,9 @@ const render = (current: { id: "radius"; key: number; data: object }[]) => {
 };
 
 describe("the question history list", () => {
+    beforeEach(() => setQuestionDecisionsPossible(true));
+    afterEach(() => setQuestionDecisionsPossible(false));
+
     it("shows who did what, newest first, with Restore", () => {
         const { html } = render([]);
         const text = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
@@ -84,6 +88,56 @@ describe("the question history list", () => {
     it("says On the board for a question that's back", () => {
         const { html } = render([{ id: "radius", key: 0.5, data: {} }]);
         expect(html).toContain("On the board");
+        expect(html).not.toContain(">Restore</button>");
+    });
+
+    it("says On the board for the question it was restored as, edited since", () => {
+        const deleted = entries[1].changes[0].question as {
+            id: "radius";
+            data: Record<string, unknown>;
+        };
+        // Restored under a new key, then moved there.
+        const restored: QuestionHistoryEntry = {
+            sequence: 3,
+            userId: "u2",
+            displayName: "Alex",
+            at: "2026-11-02T14:06:00.000Z",
+            changes: [
+                {
+                    kind: "added",
+                    key: 0.875,
+                    id: "radius",
+                    index: 0,
+                    typeIndex: 1,
+                    after: deleted.data,
+                },
+            ],
+        };
+        const lines = historyLines([...entries, restored], { selfId: "u1" });
+        expect(lines[0].text).toBe("restored Airport");
+        // Moved there since.
+        const moved = {
+            ...deleted,
+            key: 0.875,
+            data: { ...deleted.data, lat: 51 },
+        };
+        const html = renderToStaticMarkup(
+            <HistoryList
+                lines={lines}
+                current={[moved]}
+                compiled={null}
+                disabled={false}
+                onRestore={vi.fn()}
+            />,
+        );
+        expect(html).toContain("On the board");
+        expect(html).not.toContain(">Restore</button>");
+    });
+
+    it("says why Restore waits while no decision can be taken", () => {
+        setQuestionDecisionsPossible(false);
+        const { html } = render([]);
+        expect(html).toContain("Not right now");
         expect(html).not.toContain(">Restore</button>");
     });
 });

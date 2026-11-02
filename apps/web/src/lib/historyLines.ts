@@ -1,17 +1,20 @@
-import {
-    isRecord,
-    PIN_FIELD_PAIRS,
-    type QuestionChange,
-    type QuestionHistoryEntry,
-    sameJsonValue,
-    sameQuestionKey,
-} from "@searchlight/shared";
-import * as turf from "@turf/turf";
+import type { QuestionChange, QuestionHistoryEntry } from "@searchlight/shared";
 
-import { questionName, TYPE_LABELS } from "@/lib/questionNames";
-import { formatDistance } from "@/lib/utils";
+import {
+    sameQuestion,
+    sameQuestionKey,
+    sameQuestionSubstance,
+} from "@/lib/questionMerge";
+import { questionName } from "@/lib/questionNames";
+import {
+    PIN_FIELDS,
+    pinMoves,
+    questionDifferences,
+    questionSummaryParts,
+    questionTypeLabel,
+} from "@/lib/questionSummary";
 import { SPLIT_ANSWERS } from "@/maps/answerSplit";
-import type { Question, Units } from "@/maps/schema";
+import type { Units } from "@/maps/schema";
 
 // A question a line deleted, as needed to put it back.
 export interface RemovedQuestion {
@@ -19,6 +22,11 @@ export interface RemovedQuestion {
     index: number;
     label: string;
     question: unknown;
+    /**
+     * Keys it was restored as later in the history: an added question with
+     * its key, or the same content (Restore puts it back under a new key).
+     */
+    restoredAs?: number[];
 }
 
 export interface HistoryLine {
@@ -63,51 +71,73 @@ const ANSWER_FIELDS: Partial<Record<string, string>> = {
     tentacles: "location",
 };
 
-const FIELD_WORDS: Record<string, string> = {
-    radius: "radius",
-    unit: "unit",
-    color: "color",
-    colorA: "color",
-    colorB: "color",
-    multiplier: "size change",
-    type: "kind",
-    locationType: "kind",
-    featureName: "place",
-    geo: "area",
-    places: "places",
+const PIN_COORDINATES = new Set(PIN_FIELDS.flatMap(([lat, lng]) => [lat, lng]));
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === "object" && value !== null && !Array.isArray(value);
+
+// Areas and places are left out of the history's changes: both sides read
+// { omitted: true }, so whether they changed can't be told from them.
+const isOmitted = (value: unknown) => isRecord(value) && value.omitted === true;
+
+// A question as the history's changes give it, to tell one restored under a
+// new key: areas and places left out, as in an added question's `after`.
+interface Content {
+    id: string;
+    data: Record<string, unknown>;
+}
+const BULKY_FIELDS = ["geo", "places"];
+const contentOf = (id: string, data: unknown): Content => {
+    const fields = isRecord(data) ? { ...data } : {};
+    for (const field of BULKY_FIELDS) {
+        if (fields[field] !== undefined) fields[field] = { omitted: true };
+    }
+    return { id, data: fields };
 };
 
-const PIN_FIELDS = new Set(PIN_FIELD_PAIRS.flat());
+// A question deleted earlier in the history, for "restored".
+interface Deleted {
+    removed: RemovedQuestion;
+    content: Content;
+    // Taken as restored by a question added since.
+    matched?: true;
+}
 
-// The answer as the card's toggle words it.
-const answerWord = (id: string, field: string, value: unknown): string => {
-    if (field === "location") {
-        if (!isRecord(value)) return "Not Within";
-        const name = isRecord(value.properties)
-            ? value.properties.name
-            : undefined;
-        return typeof name === "string" && name ? name : "a location";
-    }
-    return (
-        SPLIT_ANSWERS[id as Question["id"]]?.find(
-            (answer) => answer.data[field] === value,
-        )?.label ?? String(value)
-    );
+// "moved Radius 1 (150 m)", "moved Thermometer 1 (end 111 m)".
+const movedPhrase = (
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+    id: string,
+    unit: Units,
+): ((subject: string) => string) => {
+    const moves = pinMoves({ id, data: before }, { id, data: after }, { unit })
+        .map(({ pin, distance }) =>
+            pin === "pin"
+                ? (distance ?? "")
+                : [pin, distance].filter(Boolean).join(" "),
+        )
+        .filter(Boolean);
+    const how = moves.length > 0 ? ` (${moves.join(", ")})` : "";
+    return (subject) => `moved ${subject}${how}`;
 };
 
-// How far the furthest moved pin went, in metres, or null if unknown.
-const pinDistance = (change: QuestionChange): number | null => {
-    let furthest: number | null = null;
-    for (const [latField, lngField] of PIN_FIELD_PAIRS) {
-        const from = [change.before?.[lngField], change.before?.[latField]];
-        const to = [change.after?.[lngField], change.after?.[latField]];
-        if (![...from, ...to].every((n) => typeof n === "number")) continue;
-        const meters = turf.distance(from as number[], to as number[], {
-            units: "meters",
-        });
-        if (meters > (furthest ?? -1)) furthest = meters;
+// What else changed, in the conflict window's words: "radius", "kind", "area".
+const otherChanges = (
+    fields: readonly string[],
+    before: Record<string, unknown>,
+    after: Record<string, unknown>,
+    id: string,
+    unit: Units,
+): string[] => {
+    const a: Record<string, unknown> = {};
+    const b: Record<string, unknown> = {};
+    for (const field of fields) {
+        a[field] = before[field];
+        b[field] = after[field];
+        // Listed as changed, yet reads the same: one side blank still names it.
+        if (sameQuestion(a[field], b[field])) a[field] = undefined;
     }
-    return furthest;
+    return questionDifferences({ id, data: a }, { id, data: b }, { unit });
 };
 
 const joinParts = (parts: string[]): string =>
@@ -145,29 +175,34 @@ export function describeChange(
     }
     const answerField = ANSWER_FIELDS[change.id];
     if (answerField && fields.includes(answerField)) {
-        const word = answerWord(change.id, answerField, after[answerField]);
-        phrases.push((subject) => `answered ${subject}: ${word}`);
+        // The card's words for it, as the conflict window has them too.
+        const word = questionSummaryParts({
+            id: change.id,
+            data: after,
+        }).answer;
+        phrases.push((subject) =>
+            word
+                ? `answered ${subject}: ${word}`
+                : `cleared the answer of ${subject}`,
+        );
     }
-    if (fields.some((field) => PIN_FIELDS.has(field))) {
-        const meters = pinDistance(change);
-        const distance =
-            meters === null ? "" : ` (${formatDistance(meters, unit)})`;
-        phrases.push((subject) => `moved ${subject}${distance}`);
+    if (fields.some((field) => PIN_COORDINATES.has(field))) {
+        phrases.push(movedPhrase(before, after, change.id, unit));
     }
-    const others = [
-        ...new Set(
-            fields
-                .filter(
-                    (field) =>
-                        field !== "name" &&
-                        field !== answerField &&
-                        field !== "drag" &&
-                        field !== "enabled" &&
-                        !PIN_FIELDS.has(field),
-                )
-                .map((field) => FIELD_WORDS[field] ?? field),
+    const others = otherChanges(
+        fields.filter(
+            (field) =>
+                field !== "name" &&
+                field !== answerField &&
+                field !== "drag" &&
+                field !== "enabled" &&
+                !PIN_COORDINATES.has(field),
         ),
-    ];
+        before,
+        after,
+        change.id,
+        unit,
+    );
     if (others.length > 0) {
         phrases.push((subject) => `changed ${subject} (${others.join(", ")})`);
     }
@@ -193,14 +228,12 @@ export function describeChange(
     );
 }
 
-// Labels as the cards show them when the question is still on the board,
-// else as it was called at the time of the change.
 // A question's label as its card showed it at the time: its name, or its type
 // and place among those of its type ("Radius 2"). Not today's label: after a
 // delete, today's "Radius 1" may be another question than the one a line is about.
 function labeller() {
     const defaultLabel = (change: QuestionChange) =>
-        `${TYPE_LABELS[change.id as Question["id"]] ?? change.id} ${change.typeIndex}`;
+        `${questionTypeLabel({ id: change.id })} ${change.typeIndex}`;
     const label = (change: QuestionChange) => {
         const data = isRecord(change.question)
             ? change.question.data
@@ -237,7 +270,8 @@ export function mergeChanges(
         after.name = changes[changes.length - 1].after?.name;
     }
     // A moved pin's other coordinate, to measure the move.
-    for (const pair of PIN_FIELD_PAIRS) {
+    for (const [lat, lng] of PIN_FIELDS) {
+        const pair = [lat, lng];
         if (!pair.some((field) => fields.includes(field))) continue;
         for (const field of pair) {
             if (fields.includes(field)) continue;
@@ -250,8 +284,11 @@ export function mergeChanges(
     }
     return {
         ...changes[changes.length - 1],
+        // An area or places can't be compared here, so stay changed.
         fields: fields.filter(
-            (field) => !sameJsonValue(before[field], after[field]),
+            (field) =>
+                isOmitted(after[field]) ||
+                !sameQuestion(before[field], after[field]),
         ),
         before,
         after,
@@ -311,7 +348,7 @@ function addEntryLines(
     who: string,
     labels: Labels,
     unit: Units,
-    deletedKeys: number[],
+    deleted: Deleted[],
 ) {
     let part = 0;
     const push = (
@@ -328,12 +365,31 @@ function addEntryLines(
             who,
             ...line,
         });
-    const wasDeleted = (key: number) =>
-        deletedKeys.some((k) => sameQuestionKey(k, key));
+    // Put back under its key, or restored under a new one (the content it
+    // was deleted with). Only questions deleted before count: a twin that
+    // was never deleted isn't a restore. Each added question is the restore
+    // of one at most, and each deleted one is restored once: the newest not
+    // taken yet, by key first. Restored under a new key, it learns the key.
+    const wasDeleted = (c: QuestionChange) => {
+        const open = deleted.filter((d) => !d.matched).reverse();
+        const content = contentOf(c.id, c.after);
+        const found =
+            open.find((d) => sameQuestionKey(d.removed.key, c.key)) ??
+            open.find((d) => sameQuestionSubstance(d.content, content));
+        if (!found) return false;
+        found.matched = true;
+        if (!sameQuestionKey(found.removed.key, c.key)) {
+            found.removed.restoredAs = [
+                ...(found.removed.restoredAs ?? []),
+                c.key,
+            ];
+        }
+        return true;
+    };
 
     const added = entry.changes.filter((c) => c.kind === "added");
     if (added.length >= GROUP_AT) {
-        const restored = added.every((c) => wasDeleted(c.key));
+        const restored = added.map(wasDeleted).every(Boolean);
         push({
             text: `${restored ? "restored" : "added"} ${pluralQuestions(added.length)}`,
             items: added.map((c) => ({ label: labels.label(c) })),
@@ -341,7 +397,7 @@ function addEntryLines(
     } else {
         for (const c of added) {
             push({
-                text: `${wasDeleted(c.key) ? "restored" : "added"} ${labels.label(c)}`,
+                text: `${wasDeleted(c) ? "restored" : "added"} ${labels.label(c)}`,
             });
         }
     }
@@ -363,16 +419,15 @@ function addEntryLines(
         });
     }
 
-    const removed = entry.changes
-        .filter((c) => c.kind === "removed")
-        .map(
-            (c): RemovedQuestion => ({
-                key: c.key,
-                index: c.index,
-                label: labels.label(c),
-                question: c.question,
-            }),
-        );
+    const removedChanges = entry.changes.filter((c) => c.kind === "removed");
+    const removed = removedChanges.map(
+        (c): RemovedQuestion => ({
+            key: c.key,
+            index: c.index,
+            label: labels.label(c),
+            question: c.question,
+        }),
+    );
     if (removed.length >= GROUP_AT) {
         push({
             text: `deleted ${pluralQuestions(removed.length)}`,
@@ -389,7 +444,15 @@ function addEntryLines(
             });
         }
     }
-    deletedKeys.push(...removed.map((q) => q.key));
+    removedChanges.forEach((c, i) =>
+        deleted.push({
+            removed: removed[i],
+            content: contentOf(
+                c.id,
+                isRecord(c.question) ? c.question.data : undefined,
+            ),
+        }),
+    );
 
     if (entry.reordered) push({ text: "reordered the questions" });
 }
@@ -401,14 +464,14 @@ export function historyLines(
 ): HistoryLine[] {
     const labels = labeller();
     const unit = options.unit ?? "kilometers";
-    const deletedKeys: number[] = [];
+    const deleted: Deleted[] = [];
     const lines: DraftLine[] = [];
     for (const entry of [...entries].sort((a, b) => a.sequence - b.sequence)) {
         const who =
             options.selfId && entry.userId === options.selfId
                 ? "You"
                 : entry.displayName || entry.userId;
-        addEntryLines(lines, entry, who, labels, unit, deletedKeys);
+        addEntryLines(lines, entry, who, labels, unit, deleted);
     }
     // Newest save first; the lines of one save keep the list's order. Quick
     // edits that undid themselves leave no line.

@@ -1,17 +1,22 @@
 import type {
+    QuestionChange,
     QuestionHistoryEntry,
     QuestionHistoryResponse,
 } from "@searchlight/shared";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { questions } from "@/lib/context";
+import { historyLines } from "@/lib/historyLines";
+import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
 import {
     appendOlderPage,
     fetchQuestionHistory,
     formatHistoryTime,
     prependNewer,
     QuestionHistoryError,
+    asRestored,
     restorable,
+    restoreBlocked,
     restoreFromHistory,
 } from "@/lib/questionHistory";
 import { type Question, questionSchema } from "@/maps/schema";
@@ -117,11 +122,22 @@ describe("fetching the history", () => {
     });
 });
 
-const radar = (key: number, lat = 50): Question =>
-    questionSchema.parse({ id: "radius", key, data: { lat, lng: 6 } });
+type Radar = Extract<Question, { id: "radius" }>;
+const radar = (key: number, lat = 50): Radar =>
+    questionSchema.parse({
+        id: "radius",
+        key,
+        data: { lat, lng: 6 },
+    }) as Radar;
+const latOf = (q: Question) => (q as Radar).data.lat;
 
 describe("restoring from the history", () => {
-    afterEach(() => questions.set([]));
+    // As on a session's board, saved and editable.
+    beforeEach(() => setQuestionDecisionsPossible(true));
+    afterEach(() => {
+        questions.set([]);
+        setQuestionDecisionsPossible(false);
+    });
 
     it("says why a question can't go back", () => {
         const deleted = radar(0.5);
@@ -157,24 +173,313 @@ describe("restoring from the history", () => {
         });
     });
 
-    it("puts a question back where it was, on the board everyone sees", () => {
+    it("puts a question back where it was, under a new key", () => {
         const [a, b, c] = [radar(0.25, 1), radar(0.5, 2), radar(0.75, 3)];
         // The board's first question was saved one ulp off since.
         questions.set([{ ...a, key: nextUp(a.key) }, c]);
         restoreFromHistory({ order: [a.key, b.key, c.key] }, [
             { key: b.key, index: 1, label: "Radius 2", question: b },
         ]);
-        expect(questions.get().map((q) => q.key)).toEqual([
-            nextUp(a.key),
-            b.key,
-            c.key,
-        ]);
-        // Again: it's there now.
-        const before = questions.get();
+        const board = questions.get();
+        expect(board).toHaveLength(3);
+        expect(board[0].key).toBe(nextUp(a.key));
+        expect(board[2].key).toBe(c.key);
+        // The same question, but not the deleted one's key.
+        expect(board[1].key).not.toBe(b.key);
+        expect({ ...board[1], key: b.key }).toEqual(b);
+        // Clicked again before the History reloads: it's there now.
         restoreFromHistory({ order: [a.key, b.key, c.key] }, [
             { key: b.key, index: 1, label: "Radius 2", question: b },
         ]);
-        expect(questions.get()).toBe(before);
+        expect(questions.get()).toBe(board);
+    });
+
+    it("keeps the order of questions restored together", () => {
+        const [a, b, c] = [radar(0.25, 1), radar(0.5, 2), radar(0.75, 3)];
+        const d = radar(0.9, 4);
+        questions.set([d]);
+        restoreFromHistory({ order: [a.key, b.key, c.key, d.key] }, [
+            { key: c.key, index: 2, label: "Radius 3", question: c },
+            { key: a.key, index: 0, label: "Radius 1", question: a },
+            { key: b.key, index: 1, label: "Radius 2", question: b },
+        ]);
+        expect(questions.get().map(latOf)).toEqual([1, 2, 3, 4]);
+    });
+
+    it("says On the board for the question it was restored as, edited or not", () => {
+        const deleted = radar(0.5);
+        const copy = asRestored(deleted, 0.125);
+        // Answered and moved since: still the restored one.
+        const edited = { ...copy, data: { ...copy.data, lat: 51 } };
+        expect(
+            restorable(
+                { key: 0.5, question: deleted, restoredAs: [0.125] },
+                [edited],
+                null,
+            ),
+        ).toEqual({ status: "unavailable", reason: "On the board" });
+        // A twin with the same content isn't it: the deleted one can go back.
+        expect(
+            restorable(
+                { key: 0.5, question: deleted },
+                [asRestored(deleted, 0.375)],
+                null,
+            ).status,
+        ).toBe("ok");
+    });
+
+    it("keeps the order of questions restored one by one", () => {
+        const [x, a, b, y] = [1, 2, 3, 4].map((lat) => radar(lat / 8, lat));
+        const order = [x.key, a.key, b.key, y.key];
+        const target = (q: Radar, index: number) => ({
+            key: q.key,
+            index,
+            label: `Radius ${index + 1}`,
+            question: q,
+        });
+        questions.set([x, y]);
+        restoreFromHistory({ order }, [target(a, 1)]);
+        restoreFromHistory({ order }, [target(b, 2)]);
+        expect(questions.get().map(latOf)).toEqual([1, 2, 3, 4]);
+        // As the History tells it once reloaded, with nothing restored here.
+        const [p, q, r, z] = [5, 6, 7, 8].map((lat) => radar(lat / 16, lat));
+        const qCopy = asRestored(q, 0.9);
+        questions.set([p, qCopy, z]);
+        const removed = [{ ...target(q, 1), restoredAs: [0.9] }, target(r, 2)];
+        restoreFromHistory(
+            { order: [p.key, q.key, r.key, z.key] },
+            [removed[1]],
+            [{ removed }],
+        );
+        expect(questions.get().map(latOf)).toEqual([5, 6, 7, 8]);
+    });
+
+    it("copies the question it restores", () => {
+        const deleted = radar(0.5);
+        const copy = asRestored(deleted, 0.75);
+        expect(copy.key).toBe(0.75);
+        expect(copy.data).not.toBe(deleted.data);
+        expect(asRestored(deleted).key).not.toBe(0.5);
+    });
+});
+
+// A history as the API gives it, oldest save first.
+let seq = 100;
+const save = (
+    changes: QuestionChange[],
+    order?: number[],
+): QuestionHistoryEntry => ({
+    sequence: ++seq,
+    userId: "u1",
+    displayName: "Sam",
+    at: new Date(Date.UTC(2026, 10, 2, 14, 0, seq)).toISOString(),
+    changes,
+    ...(order ? { order } : {}),
+});
+const addedQ = (q: Radar, index = 0): QuestionChange => ({
+    kind: "added",
+    key: q.key,
+    id: "radius",
+    index,
+    typeIndex: index + 1,
+    after: q.data,
+});
+const removedQ = (q: Radar, index = 0): QuestionChange => ({
+    kind: "removed",
+    key: q.key,
+    id: "radius",
+    index,
+    typeIndex: index + 1,
+    question: q,
+});
+const changedQ = (q: Radar, lat: number): QuestionChange => ({
+    kind: "changed",
+    key: q.key,
+    id: "radius",
+    index: 0,
+    typeIndex: 1,
+    fields: ["lat"],
+    before: { lat: q.data.lat, lng: q.data.lng },
+    after: { lat, lng: q.data.lng },
+});
+const moved = (q: Radar, lat: number): Radar => ({
+    ...q,
+    data: { ...q.data, lat },
+});
+// The deletions of a key in the lines, oldest first.
+const deletionsOf = (lines: ReturnType<typeof historyLines>, key: number) =>
+    lines
+        .flatMap((line) => line.removed ?? [])
+        .filter((r) => r.key === key)
+        .reverse();
+
+describe("what a deleted question became", () => {
+    beforeEach(() => setQuestionDecisionsPossible(true));
+    afterEach(() => {
+        questions.set([]);
+        setQuestionDecisionsPossible(false);
+    });
+
+    it("follows restores of restores, for the line and its order", () => {
+        // a and x deleted together; a restored as b, b moved and deleted,
+        // then restored as c.
+        const [a, x, y] = [radar(0.11, 1), radar(0.12, 2), radar(0.13, 3)];
+        const b = asRestored(a, 0.21);
+        const c = asRestored(moved(b, 4), 0.31);
+        const lines = historyLines(
+            [
+                save([removedQ(a, 0), removedQ(x, 1)], [a.key, x.key, y.key]),
+                save([addedQ(b)]),
+                save([changedQ(b, 4)]),
+                save([removedQ(moved(b, 4))], [b.key, y.key]),
+                save([addedQ(c)]),
+            ],
+            {},
+        );
+        const [deletedA] = deletionsOf(lines, a.key);
+        const [deletedX] = deletionsOf(lines, x.key);
+        expect(deletedA.restoredAs).toEqual([b.key]);
+        expect(restorable(deletedA, [c, y], null, lines)).toEqual({
+            status: "unavailable",
+            reason: "On the board",
+        });
+        // x goes back below c, which a became.
+        questions.set([c, y]);
+        const line = lines.find((l) => l.removed?.includes(deletedX))!;
+        restoreFromHistory(line, [deletedX], lines);
+        expect(questions.get().map(latOf)).toEqual([4, 2, 3]);
+    });
+
+    it("doesn't offer an older line of a key put back by Undo and restored since", () => {
+        // a deleted, put back by Undo (its key), moved, deleted again and
+        // restored from that newer line as c.
+        const a = radar(0.41, 1);
+        const c = asRestored(moved(a, 5), 0.51);
+        const lines = historyLines(
+            [
+                save([removedQ(a)], [a.key]),
+                save([addedQ(a)]),
+                save([changedQ(a, 5)]),
+                save([removedQ(moved(a, 5))], [a.key]),
+                save([addedQ(c)]),
+            ],
+            {},
+        );
+        const [older, newer] = deletionsOf(lines, a.key);
+        expect(older.restoredAs).toBeUndefined();
+        expect(newer.restoredAs).toEqual([c.key]);
+        // Only the other lines tell.
+        expect(restorable(older, [c], null).status).toBe("ok");
+        expect(restorable(older, [c], null, lines)).toEqual({
+            status: "unavailable",
+            reason: "On the board",
+        });
+    });
+
+    it("waits for a decision held over what it was restored as", () => {
+        expect(
+            restoreBlocked(
+                { key: 0.5, restoredAs: [0.6] },
+                [{ key: 0.6 }],
+                true,
+            ),
+        ).toBe("Needs a decision first");
+        // Two steps on: 0.6 was deleted and restored as 0.7.
+        const lines = [
+            {
+                removed: [
+                    {
+                        key: 0.6,
+                        index: 0,
+                        label: "Radius 1",
+                        question: null,
+                        restoredAs: [0.7],
+                    },
+                ],
+            },
+        ];
+        expect(
+            restoreBlocked(
+                { key: 0.5, restoredAs: [0.6] },
+                [{ key: 0.7 }],
+                true,
+                lines,
+            ),
+        ).toBe("Needs a decision first");
+        expect(
+            restoreBlocked(
+                { key: 0.5, restoredAs: [0.6] },
+                [{ key: 0.8 }],
+                true,
+                lines,
+            ),
+        ).toBeNull();
+    });
+
+    it("takes a question added as the restore of one deleted question at most", () => {
+        // Two identical questions, deleted one after the other.
+        const p = radar(0.61, 6);
+        // Parsed once: a random default would tell them apart.
+        const q = { ...p, key: 0.62 };
+        const copy = asRestored(p, 0.71);
+        const lines = historyLines(
+            [
+                save([removedQ(p)], [p.key, q.key]),
+                save([removedQ(q)], [q.key]),
+                save([addedQ(copy)]),
+            ],
+            {},
+        );
+        expect(lines[0].text).toBe("restored Radius 1");
+        const [first] = deletionsOf(lines, p.key);
+        const [second] = deletionsOf(lines, q.key);
+        // The newest one.
+        expect(second.restoredAs).toEqual([copy.key]);
+        expect(first.restoredAs).toBeUndefined();
+        expect(restorable(first, [copy], null, lines).status).toBe("ok");
+    });
+});
+
+describe("when Restore waits", () => {
+    afterEach(() => {
+        questions.set([]);
+        setQuestionDecisionsPossible(false);
+    });
+
+    it("waits for a decision over that question, and for an editable board", () => {
+        expect(restoreBlocked(0.5, [], true)).toBeNull();
+        // Held under a key saved one ulp off.
+        expect(restoreBlocked(0.5, [{ key: nextUp(0.5) }], true)).toBe(
+            "Needs a decision first",
+        );
+        expect(restoreBlocked(0.5, [{ key: 0.25 }], true)).toBeNull();
+        expect(restoreBlocked(0.5, [], false)).toBe("Not right now");
+        expect(restoreBlocked(0.5, [{ key: 0.5 }], false)).toBe(
+            "Needs a decision first",
+        );
+    });
+
+    it("says so instead of putting the question back", () => {
+        const deleted = radar(0.5);
+        const target = {
+            key: 0.5,
+            index: 0,
+            label: "Radius 1",
+            question: deleted,
+        };
+        // The board isn't showing a saved session yet.
+        setQuestionDecisionsPossible(false);
+        expect(restorable(target, [], null)).toEqual({
+            status: "unavailable",
+            reason: "Not right now",
+        });
+        restoreFromHistory({ order: [0.5] }, [target]);
+        expect(questions.get()).toEqual([]);
+        // Once it is, it goes back.
+        setQuestionDecisionsPossible(true);
+        expect(restoreBlocked(0.5)).toBeNull();
+        restoreFromHistory({ order: [0.5] }, [target]);
+        expect(questions.get().map(latOf)).toEqual([50]);
     });
 });
 

@@ -64,7 +64,7 @@ const DEVICE_FIELDS: readonly string[] = ["collapsed"];
 const BULKY_FIELDS: readonly string[] = ["geo", "places"];
 
 /** A pin's coordinates, which go together: a pin moved along one axis still has both. */
-export const PIN_FIELD_PAIRS: readonly (readonly [lat: string, lng: string])[] = [
+const PIN_FIELD_PAIRS: readonly (readonly [lat: string, lng: string])[] = [
   ["lat", "lng"],
   ["latA", "lngA"],
   ["latB", "lngB"],
@@ -78,15 +78,15 @@ const OMITTED = { omitted: true } as const;
 const sameNumber = (a: number, b: number) =>
   a === b || Math.abs(a - b) <= 4e-16 * Math.max(Math.abs(a), Math.abs(b));
 
-export const sameQuestionKey = (a: unknown, b: unknown): boolean =>
+const sameQuestionKey = (a: unknown, b: unknown): boolean =>
   typeof a === "number" && typeof b === "number" && sameNumber(a, b);
 
-export const isRecord = (value: unknown): value is Record<string, unknown> =>
+const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 // Deep equality that ignores field order, treats a missing field as
 // undefined, and compares numbers with the same tolerance as keys.
-export function sameJsonValue(a: unknown, b: unknown): boolean {
+function sameJsonValue(a: unknown, b: unknown): boolean {
   if (typeof a === "number" && typeof b === "number") return sameNumber(a, b);
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;

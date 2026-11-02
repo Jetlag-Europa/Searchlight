@@ -1,4 +1,4 @@
-import { sameQuestionKey } from "@searchlight/shared";
+import { sameQuestionKey } from "@/lib/questionMerge";
 
 // What a delete removed, for its Undo: the questions and the order of the list
 // they were deleted from. Undo puts them back into the list as it is by then:

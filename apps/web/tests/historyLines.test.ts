@@ -154,7 +154,7 @@ describe("question history lines", () => {
         ]);
     });
 
-    it("uses the cards' words for answers", () => {
+    it("uses the cards' words for answers, as the conflict window does", () => {
         const location = {
             type: "Feature",
             geometry: { type: "Point", coordinates: [4, 52] },
@@ -193,10 +193,27 @@ describe("question history lines", () => {
             "Sam answered Radius 1: Outside",
             "Sam answered Thermometer 1: Colder",
             "Sam answered Matching 1: Different",
-            "Sam answered Measuring 1: Further",
+            "Sam answered Measuring 1: Hider Further",
             "Sam answered Tentacles 1: Rijksmuseum",
             "Sam answered Tentacles 1: Not Within",
         ]);
+        // An answer taken back.
+        expect(texts([entry([changed(K1, { within: true }, {})])])).toEqual([
+            "Sam cleared the answer of Radius 1",
+        ]);
+        // A place without a name.
+        expect(
+            texts([
+                entry([
+                    changed(
+                        K2,
+                        { location: false },
+                        { location: { ...location, properties: {} } },
+                        "tentacles",
+                    ),
+                ]),
+            ]),
+        ).toEqual(["Sam answered Tentacles 1: Location"]);
     });
 
     it("says how far a pin moved, in the player's unit", () => {
@@ -216,7 +233,18 @@ describe("question history lines", () => {
         );
         thermometer.fields = ["latB"];
         expect(texts([entry([thermometer])])).toEqual([
-            "Sam moved Thermometer 1 (111 m)",
+            "Sam moved Thermometer 1 (end 111 m)",
+        ]);
+        // Both ends, one of them without a place to measure from.
+        const both = changed(
+            K2,
+            { latA: 52, lngA: 4, lngB: 4 },
+            { latA: 52.001, lngA: 4, latB: 52, lngB: 4 },
+            "thermometer",
+        );
+        both.fields = ["latA", "latB"];
+        expect(texts([entry([both])])).toEqual([
+            "Sam moved Thermometer 1 (start 111 m, end)",
         ]);
     });
 
@@ -251,9 +279,32 @@ describe("question history lines", () => {
             "Sam unlocked Radius 1",
             "Sam turned off Radius 1",
             "Sam turned on Radius 1",
-            "Sam changed Radius 1 (radius, unit)",
-            "Sam changed Zone Size 1 (size change)",
+            "Sam changed Radius 1 (radius)",
+            "Sam changed Zone Size 1 (size)",
         ]);
+    });
+
+    it("names an area or places changed, which the history leaves out", () => {
+        const zone = (seconds: number) =>
+            entry(
+                [
+                    changed(
+                        K1,
+                        { geo: { omitted: true } },
+                        { geo: { omitted: true } },
+                        "matching",
+                    ),
+                ],
+                { seconds },
+            );
+        expect(texts([zone(0)])).toEqual(["Sam changed Matching 1 (area)"]);
+        // Two quick edits of it still read as a change.
+        expect(texts([zone(0), zone(20)])).toEqual([
+            "Sam changed Matching 1 (area)",
+        ]);
+        expect(
+            texts([entry([changed(K1, { mystery: 1 }, { mystery: 2 })])]),
+        ).toEqual(["Sam changed Radius 1 (other details)"]);
     });
 
     it("combines several kinds of change in one line", () => {
@@ -478,6 +529,91 @@ describe("question history lines", () => {
                 }),
             ]),
         ).toEqual(["Sam locked Radius 1"]);
+    });
+
+    it("doesn't take a twin that was never deleted for a restore", () => {
+        // Two unnamed ×1.5 curses: the same content.
+        const curse = (key: number, typeIndex: number): QuestionChange => ({
+            ...added(key, typeIndex, "zone-size"),
+            after: { multiplier: 1.5 },
+        });
+        const lines = historyLines(
+            [
+                entry([curse(K1, 1), curse(K2, 2)]),
+                entry([
+                    {
+                        ...removed(K1),
+                        id: "zone-size",
+                        question: {
+                            id: "zone-size",
+                            key: K1,
+                            data: { multiplier: 1.5 },
+                        },
+                    },
+                ]),
+            ],
+            {},
+        );
+        expect(lines.map((l) => l.text)).toEqual([
+            "deleted Zone Size 1",
+            "added Zone Size 1",
+            "added Zone Size 2",
+        ]);
+        expect(lines[0].removed?.[0].restoredAs).toBeUndefined();
+    });
+
+    it("says restored for a deleted question put back under a new key", () => {
+        const radar = (key: number, data: Record<string, unknown>) => ({
+            ...added(key),
+            after: { ...data, geo: { omitted: true } },
+        });
+        const deleted = (key: number, data: Record<string, unknown>) => ({
+            ...removed(key),
+            question: { id: "radius", key, data: { ...data, geo: [1, 2] } },
+        });
+        expect(
+            texts([
+                entry([deleted(K1, { lat: 1, lng: 2 })]),
+                // Folded and locked differently, the same question.
+                entry([
+                    radar(K2, { lat: 1, lng: 2, drag: false, collapsed: true }),
+                ]),
+                entry([radar(K3, { lat: 1, lng: 3 })]),
+            ]),
+        ).toEqual([
+            "Sam added Radius 1",
+            "Sam restored Radius 1",
+            "Sam deleted Radius 1",
+        ]);
+        // The deleted one knows what it was restored as.
+        expect(
+            historyLines(
+                [
+                    entry([deleted(K1, { lat: 1, lng: 2 })]),
+                    entry([radar(K2, { lat: 1, lng: 2 })]),
+                ],
+                {},
+            )[1].removed?.[0].restoredAs,
+        ).toEqual([K2]);
+        // Three at once, each under a new key.
+        const all = [
+            { ...deleted(K1, { lat: 1 }), index: 0 },
+            { ...deleted(K2, { lat: 2 }), index: 1, typeIndex: 2 },
+            { ...deleted(K3, { lat: 3 }), index: 2, typeIndex: 3 },
+        ];
+        expect(
+            historyLines(
+                [
+                    entry(all),
+                    entry([
+                        radar(0.11, { lat: 1 }),
+                        { ...radar(0.22, { lat: 2 }), typeIndex: 2 },
+                        { ...radar(0.33, { lat: 3 }), typeIndex: 3 },
+                    ]),
+                ],
+                {},
+            ).map((l) => l.text),
+        ).toEqual(["restored 3 questions", "deleted 3 questions"]);
     });
 
     it("says restored for a save that brings back 3 or more deleted questions", () => {

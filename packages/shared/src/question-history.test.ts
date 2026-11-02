@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { diffQuestionLists, sameQuestionKey } from "./question-history.js";
+import { diffQuestionLists } from "./question-history.js";
 
 const radius = (key: number, data: Record<string, unknown> = {}) => ({
   id: "radius",
@@ -18,24 +18,6 @@ const nextUp = (x: number) => {
 const K1 = 0.12345678901234567;
 const K2 = 0.7654321098765432;
 const K3 = 0.3141592653589793;
-
-describe("sameQuestionKey", () => {
-  it("matches a key one ulp off", () => {
-    const drifted = nextUp(K1);
-    expect(drifted).not.toBe(K1);
-    expect(sameQuestionKey(K1, drifted)).toBe(true);
-  });
-
-  it("tells different keys apart", () => {
-    expect(sameQuestionKey(K1, K2)).toBe(false);
-    expect(sameQuestionKey(K1, K1 * (1 + 1e-12))).toBe(false);
-  });
-
-  it("is false for anything that isn't a number", () => {
-    expect(sameQuestionKey("1", 1)).toBe(false);
-    expect(sameQuestionKey(undefined, undefined)).toBe(false);
-  });
-});
 
 describe("diffQuestionLists", () => {
   it("lists an added question with its position", () => {

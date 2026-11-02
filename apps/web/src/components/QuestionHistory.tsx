@@ -20,6 +20,10 @@ import {
     type RemovedQuestion,
 } from "@/lib/historyLines";
 import {
+    questionConflicts,
+    questionDecisionsPossible,
+} from "@/lib/questionConflicts";
+import {
     appendOlderPage,
     fetchQuestionHistory,
     formatHistoryTime,
@@ -63,7 +67,9 @@ export const HistoryList = ({
     // Restore, or why not, as visible text: a disabled button's tooltip never
     // shows on a phone.
     const restoreControl = (line: HistoryLine, targets: RemovedQuestion[]) => {
-        const checks = targets.map((t) => restorable(t, current, compiled));
+        const checks = targets.map((t) =>
+            restorable(t, current, compiled, lines),
+        );
         const unavailable = checks.find((c) => c.status === "unavailable");
         if (!checks.some((c) => c.status === "ok")) {
             return (
@@ -145,6 +151,9 @@ export const QuestionHistory = () => {
     const selfId = useStore(verifiedUserId);
     const unit = useStore(defaultUnit);
     const compiled = useStore(compiledGameAtom);
+    // Whether Restore is offered depends on these too (restoreBlocked).
+    useStore(questionConflicts);
+    useStore(questionDecisionsPossible);
 
     const [history, setHistory] = useState<QuestionHistoryResponse | null>(
         null,
@@ -327,7 +336,9 @@ export const QuestionHistory = () => {
                 current={$questions}
                 compiled={compiled}
                 disabled={$isLoading}
-                onRestore={restoreFromHistory}
+                onRestore={(line, targets) =>
+                    restoreFromHistory(line, targets, lines)
+                }
             />
             {hasOlder && (
                 <div className="flex flex-col items-center gap-1 px-4 pt-2">

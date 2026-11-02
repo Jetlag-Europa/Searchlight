@@ -10,8 +10,15 @@
 // folds or locks any), as in ordinary play: nothing may be lost, come back
 // or be asked about. "shared": both edit and delete everything and decide
 // what they're asked; every conflict asked must be real, and decisions
-// stand. The invariants are checked in checkStep and finalChecks.
+// stand. The invariants are checked in checkStep and finalChecks. With
+// restores on, players also put deleted questions back from the History, as
+// its Restore does.
 import { AsyncLocalStorage } from "node:async_hooks";
+
+import {
+    diffQuestionLists,
+    type QuestionHistoryEntry,
+} from "@searchlight/shared";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
 const realSetTimeout = globalThis.setTimeout;
@@ -348,6 +355,8 @@ async function loadGraph() {
         sync: "@/lib/syncManager",
         merge: "@/lib/questionMerge",
         store: "@/game-definition/store",
+        history: "@/lib/questionHistory",
+        lines: "@/lib/historyLines",
     };
     for (const [name, path] of Object.entries(names))
         g[name] = await import(/* @vite-ignore */ path);
@@ -368,7 +377,14 @@ type Action =
     | {
           t: "user";
           c: number;
-          kind: "add" | "edit" | "drag" | "collapse" | "delete" | "resolve";
+          kind:
+              | "add"
+              | "edit"
+              | "drag"
+              | "collapse"
+              | "delete"
+              | "resolve"
+              | "restore";
           pick: number;
           choice?: "mine" | "theirs";
       }
@@ -384,7 +400,7 @@ interface HistoryEntry {
     step: number;
     c: number;
     key: number;
-    kind: "add" | "edit" | "delete" | "resolve";
+    kind: "add" | "edit" | "delete" | "resolve" | "restore";
     label: string | null;
 }
 
@@ -393,6 +409,9 @@ const run = {
     log: [] as string[],
     history: [] as HistoryEntry[],
     labelAuthor: new Map<string, number>(),
+    // Who restored each question and the label it came back with, by its
+    // new key: the label was written before, maybe by the other player.
+    restoredBy: new Map<number, { c: number; label: string | null }>(),
     addCount: [0, 0],
     labelCount: 0,
     step: 0,
@@ -443,6 +462,7 @@ async function setup() {
         log: [],
         history: [],
         labelAuthor: new Map(),
+        restoredBy: new Map(),
         addCount: [0, 0],
         labelCount: 0,
         step: 0,
@@ -523,6 +543,80 @@ function candidates(c: Client, mode: Mode, needOwn: boolean): Any[] {
     );
 }
 
+// The server's history as the History route gives it (see
+// question-history.ts in the API), newest first.
+function historyEntries(): QuestionHistoryEntry[] {
+    let prev: unknown[] = INITIAL.map((k) => mkQ(k, `init-${k}`));
+    const entries: QuestionHistoryEntry[] = [];
+    for (const e of server.events) {
+        if (e.type !== "questions.replace") continue;
+        const list = e.payloadJson.questions.map((x: Any) => x.payloadJson);
+        const diff = diffQuestionLists(prev, list);
+        prev = list;
+        if (diff.changes.length === 0 && !diff.reordered) continue;
+        entries.push({
+            sequence: e.sequence,
+            userId: e.userId,
+            displayName: e.userId,
+            at: e.serverReceivedAt,
+            changes: diff.changes,
+            ...(diff.reordered ? { reordered: true as const } : {}),
+            ...(diff.prevOrder ? { order: diff.prevOrder } : {}),
+        });
+    }
+    return entries.reverse();
+}
+
+interface RestoreCandidate {
+    key: number;
+    version: Any;
+    order: number[];
+    index: number;
+    lines: Any[];
+}
+
+// What the device's History offers to restore, read from its lines as the
+// UI does: deleted questions not on its board under their key or as what
+// they were restored as (isOnBoard), not held for a decision
+// (restoreBlocked), and in owned mode its own.
+function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
+    const board = c.g.context.questions.get() as Any[];
+    const lines = c.g.lines.historyLines(historyEntries(), {}) as Any[];
+    const out: RestoreCandidate[] = [];
+    for (const line of lines) {
+        for (const removed of line.removed ?? []) {
+            if (
+                c.g.history.isOnBoard(removed, board, lines) ||
+                (mode === "owned" && owner(removed.key) !== c.idx) ||
+                c.g.history.restoreBlocked(
+                    removed,
+                    undefined,
+                    undefined,
+                    lines,
+                ) !== null
+            )
+                continue;
+            out.push({
+                key: removed.key,
+                version: removed.question,
+                order: line.order ?? [],
+                index: removed.index,
+                lines,
+            });
+        }
+    }
+    return out.sort((x, y) => x.key - y.key);
+}
+
+// Whether that side wrote a question's label: it's its own, or it restored
+// the question (by its new key) with that label.
+const wrote = (key: number, label: string | null, c: number) => {
+    if (label === null) return false;
+    if (run.labelAuthor.get(label) === c) return true;
+    const restored = run.restoredBy.get(key);
+    return restored?.c === c && restored.label === label;
+};
+
 async function applyUser(
     a: Extract<Action, { t: "user" }>,
     mode: Mode,
@@ -571,6 +665,47 @@ async function applyUser(
         });
         run.publishes++;
         return `resolve ${conflict.key} → ${choice} (${labelOf(chosen)})`;
+    }
+    if (a.kind === "restore") {
+        const options = restoreCandidates(c, mode);
+        if (options.length === 0) return null;
+        const { key, version, order, index, lines } =
+            options[Math.floor(a.pick * options.length)];
+        const label = labelOf(version);
+        // As restoreFromHistory does, from the same pieces: it can't be
+        // called itself, as its restorable() re-reads the deleted question
+        // with the app's schema, which these bare test questions (a label,
+        // no pin) don't pass. A copy under a new key, here from the
+        // restorer's range so owner() still tells whose it is. (Undo puts
+        // the same key back instead, so a list made before the delete can
+        // still merge it away when the delete's answer was lost.)
+        const fresh = 1000 * (a.c + 1) + ++run.addCount[a.c];
+        await inClient(c, () => {
+            const next = c.g.history.placeRestored(
+                context.questions.get(),
+                order,
+                [
+                    {
+                        from: key,
+                        index,
+                        question: c.g.history.asRestored(version, fresh),
+                    },
+                ],
+                lines,
+            );
+            if (next) context.questions.set(next);
+        });
+        // Checked under its new key; the old key's delete stands.
+        run.history.push({
+            step: run.step,
+            c: a.c,
+            key: fresh,
+            kind: "restore",
+            label,
+        });
+        run.restoredBy.set(fresh, { c: a.c, label });
+        run.publishes++;
+        return `restore ${key} as ${fresh}:${label}`;
     }
     const own = a.kind === "edit" || a.kind === "delete";
     const list = candidates(c, mode, own);
@@ -708,7 +843,12 @@ async function applyAction(a: Action, mode: Mode): Promise<string | null> {
     }
 }
 
-function enabled(mode: Mode, userBudget: boolean, rng: () => number): Action[] {
+function enabled(
+    mode: Mode,
+    userBudget: boolean,
+    rng: () => number,
+    withRestores = false,
+): Action[] {
     const out: Array<[number, Action]> = [];
     for (const c of clients) {
         const i = c.idx;
@@ -734,6 +874,13 @@ function enabled(mode: Mode, userBudget: boolean, rng: () => number): Action[] {
                     },
                 ]);
             }
+            // Only with restores on: another draw would change every
+            // seeded run without them.
+            if (withRestores && restoreCandidates(c, mode).length > 0)
+                out.push([
+                    2,
+                    { t: "user", c: i, kind: "restore", pick: rng() },
+                ]);
         }
         if (c.timers.length > 0) out.push([3, { t: "timer", c: i }]);
         if (c.reqs.some((r) => r.state === "sent")) {
@@ -825,15 +972,22 @@ async function checkStep(mode: Mode) {
                 problems.push("base == mine");
             if (substanceKey(conflict.base) === substanceKey(conflict.theirs))
                 problems.push("base == theirs");
+            // Written by that side, or put back by it with a restore.
             const mineBy = conflict.mine
                 ? run.labelAuthor.get(labelOf(conflict.mine)!)
                 : undefined;
             const theirsBy = conflict.theirs
                 ? run.labelAuthor.get(labelOf(conflict.theirs)!)
                 : undefined;
-            if (conflict.mine && mineBy !== c.idx)
+            if (
+                conflict.mine &&
+                !wrote(conflict.key, labelOf(conflict.mine), c.idx)
+            )
                 problems.push(`mine authored by ${mineBy}`);
-            if (conflict.theirs && theirsBy !== 1 - c.idx)
+            if (
+                conflict.theirs &&
+                !wrote(conflict.key, labelOf(conflict.theirs), 1 - c.idx)
+            )
                 problems.push(`theirs authored by ${theirsBy}`);
             if (
                 !conflict.theirs &&
@@ -919,16 +1073,30 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
         const now = serverByKey.get(key);
         if (mode === "owned") {
             const own = hs.filter((h) => h.c === owner(key));
-            const deleted = own.some((h) => h.kind === "delete");
+            // A restore brings it back; a later delete takes it away again.
+            const deleted =
+                [...own]
+                    .reverse()
+                    .find(
+                        (h) =>
+                            h.kind === "add" ||
+                            h.kind === "delete" ||
+                            h.kind === "restore",
+                    )?.kind === "delete";
             const last = [...own]
                 .reverse()
-                .find((h) => h.kind === "edit" || h.kind === "add");
+                .find(
+                    (h) =>
+                        h.kind === "edit" ||
+                        h.kind === "add" ||
+                        h.kind === "restore",
+                );
             const expected = last?.label ?? `init-${key}`;
             if (deleted && now)
                 v.push(`I3 deleted ${key} came back: ${labelOf(now)}`);
             if (!deleted && !now)
                 v.push(
-                    `I2 ${key} (${expected}) lost; never deleted by its owner c${owner(key)}`,
+                    `I2 ${key} (${expected}) lost; its owner c${owner(key)} didn't delete it last`,
                 );
             if (!deleted && now && labelOf(now) !== expected)
                 v.push(
@@ -1014,11 +1182,12 @@ async function runSeed(
     seed: number,
     mode: Mode,
     length: number,
+    withRestores = false,
 ): Promise<string[]> {
     await setup();
     const rng = mulberry32(seed);
     for (let i = 0; i < length; i++) {
-        const [a] = enabled(mode, i < length * 0.85, rng);
+        const [a] = enabled(mode, i < length * 0.85, rng, withRestores);
         if (!a) break;
         run.step++;
         const did = await applyAction(a, mode);
@@ -1136,14 +1305,35 @@ const failing = async (
     length: number,
     first: number,
     count: number,
+    withRestores = false,
 ) => {
     const out: string[] = [];
     for (let seed = first; seed < first + count; seed++) {
-        const vs = await runSeed(seed, mode, length);
+        const vs = await runSeed(seed, mode, length, withRestores);
         if (vs.length) out.push(`seed ${seed}: ${vs.join(" | ")}`);
     }
     return out;
 };
+
+// The server's keys in order, each once, and labels (or their start).
+function expectServer(keys: number[], labels: Record<number, string>) {
+    const now = server.list.map((x) => x.payloadJson);
+    expect(now.map(keyOf), run.log.join("\n")).toEqual(keys);
+    for (const [key, label] of Object.entries(labels)) {
+        const found = labelOf(now.find((q: Any) => q.key === Number(key)));
+        expect(found?.startsWith(label), `${key}: ${found}`).toBe(true);
+    }
+}
+
+// The question with that key is on the server once, with that label (or
+// its start).
+function expectOnServer(key: number, label: string) {
+    const found = server.list
+        .map((x) => x.payloadJson)
+        .filter((q: Any) => q.key === key);
+    expect(found, run.log.join("\n")).toHaveLength(1);
+    expect(labelOf(found[0])?.startsWith(label), labelOf(found[0])!).toBe(true);
+}
 
 // Shrunk traces of failures found this way, one or more per cause.
 const TRACES: Array<{
@@ -1151,6 +1341,8 @@ const TRACES: Array<{
     mode: Mode;
     seed: number;
     actions: Action[];
+    // More to check once it has settled.
+    check?: () => void;
 }> = [
     {
         name: "owned: a question deleted after its save's answer was lost stays deleted",
@@ -1900,6 +2092,233 @@ const TRACES: Array<{
             { t: "respond", c: 1, pick: 0.8224441171623766, lose: true },
         ],
     },
+    // Restores, as the History's Restore makes them (withRestores only).
+    {
+        name: "shared: a question restored with an unsent edit, after the server moved on, stays restored",
+        mode: "shared",
+        seed: 1,
+        actions: [
+            { t: "open", c: 0 },
+            { t: "open", c: 1 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // B deletes question 1, and it's saved.
+            { t: "user", c: 1, kind: "delete", pick: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A sees the delete, edits question 2 and, before that's
+            // saved, restores question 1.
+            { t: "sse", c: 0 },
+            { t: "user", c: 0, kind: "edit", pick: 0 },
+            { t: "user", c: 0, kind: "restore", pick: 0 },
+            // B saves an edit of question 3 that A hasn't seen.
+            { t: "user", c: 1, kind: "edit", pick: 0.4 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A's save is on an old base: 409, merged, saved again.
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/PUT base=4 .*→ 409/);
+            expectServer([1001, 2, 3, 4], {
+                1001: "init-1",
+                2: "c0.",
+                3: "c1.",
+            });
+        },
+    },
+    {
+        name: "shared: a restore merged with the other player's save that went first stays",
+        mode: "shared",
+        seed: 2,
+        actions: [
+            { t: "open", c: 0 },
+            { t: "open", c: 1 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            { t: "user", c: 1, kind: "delete", pick: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            { t: "sse", c: 0 },
+            // A restores question 1 while B edits question 2; both save at
+            // once, and B's gets there first.
+            { t: "user", c: 0, kind: "restore", pick: 0 },
+            { t: "user", c: 1, kind: "edit", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/PUT base=4 .*→ 409/);
+            expectServer([1001, 2, 3, 4], { 1001: "init-1", 2: "c1." });
+        },
+    },
+    {
+        name: "owned: a question restored after its delete's answer was lost is on the server once",
+        mode: "owned",
+        seed: 3,
+        actions: [
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: true },
+            // Sent again: the server knows it already.
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "user", c: 0, kind: "restore", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => expectServer([1001, 2, 3, 4], { 1001: "init-1" }),
+    },
+    {
+        name: "shared: both restoring a question at once gives two, each once",
+        mode: "shared",
+        seed: 6,
+        actions: [
+            { t: "open", c: 0 },
+            { t: "open", c: 1 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "sse", c: 1 },
+            // Neither has seen the other's restore.
+            { t: "user", c: 0, kind: "restore", pick: 0 },
+            { t: "user", c: 1, kind: "restore", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "respond", c: 1, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/PUT base=4 .*→ 409/);
+            const keys = server.list
+                .map((x) => x.payloadJson.key)
+                .sort((a, b) => a - b);
+            expect(keys).toEqual([2, 3, 4, 1001, 2001]);
+            expectOnServer(1001, "init-1");
+            expectOnServer(2001, "init-1");
+        },
+    },
+    // Restores that went wrong while Restore put the deleted key back, kept
+    // as regression tests now that it restores under a new key.
+    {
+        name: "owned: a restore made while our own save deleting it hasn't been answered stays",
+        mode: "owned",
+        seed: 4,
+        actions: [
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: true },
+            { t: "user", c: 0, kind: "restore", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => expectServer([1001, 2, 3, 4], { 1001: "init-1" }),
+    },
+    {
+        name: "shared: a restore doesn't turn a held 'they deleted it' into a false 'both changed'",
+        mode: "shared",
+        seed: 5,
+        actions: [
+            // A deletes question 1 while B edits it; A's save goes first.
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "user", c: 1, kind: "edit", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            // B's save meets it: B is asked, and saves the rest.
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A restores it, as a new question: B's decision is still
+            // about the deleted one.
+            { t: "user", c: 0, kind: "restore", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => expectOnServer(1001, "init-1"),
+    },
+    {
+        name: "owned: the other player's list from before a delete leaves the restored question (seed 48)",
+        mode: "owned",
+        seed: 48,
+        actions: [
+            { t: "user", c: 1, kind: "delete", pick: 0.59562938218005 },
+            { t: "user", c: 0, kind: "delete", pick: 0.1380593916401267 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "user", c: 1, kind: "add", pick: 0.7656115107238293 },
+            { t: "arrive", c: 0, pick: 0.6749952062964439 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0.3366285194642842 },
+            { t: "respond", c: 1, pick: 0.49165692762471735, lose: false },
+            { t: "arrive", c: 1, pick: 0.22654975997284055 },
+            { t: "user", c: 0, kind: "restore", pick: 0.9179255010094494 },
+            { t: "respond", c: 1, pick: 0.2312664717901498, lose: false },
+            { t: "arrive", c: 1, pick: 0.08693231944926083 },
+            { t: "timer", c: 0 },
+        ],
+        check: () => expectOnServer(1001, "init-1"),
+    },
+    {
+        name: "shared: two restores of one question don't replace an edit made since (seed 193)",
+        mode: "shared",
+        seed: 193,
+        actions: [
+            { t: "user", c: 0, kind: "add", pick: 0.7350726046133786 },
+            { t: "user", c: 0, kind: "add", pick: 0.9193546483293176 },
+            { t: "timer", c: 0 },
+            { t: "user", c: 0, kind: "delete", pick: 0.7627009155694395 },
+            { t: "arrive", c: 0, pick: 0.6037480763625354 },
+            { t: "respond", c: 0, pick: 0.666212287498638, lose: false },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0.6513102566823363 },
+            { t: "user", c: 0, kind: "restore", pick: 0.6054274472407997 },
+            { t: "user", c: 1, kind: "restore", pick: 0.3038784780073911 },
+            { t: "user", c: 0, kind: "delete", pick: 0.951697904849425 },
+            { t: "user", c: 0, kind: "edit", pick: 0.9098931110929698 },
+        ],
+        check: () => {
+            // c0's copy, edited since, and c1's copy as it was deleted.
+            expectOnServer(1003, "c0.");
+            expectOnServer(2001, "c0.1");
+        },
+    },
 ];
 
 describe("two players editing questions, at random", () => {
@@ -1930,6 +2349,7 @@ describe("two players editing questions, at random", () => {
                 mulberry32(trace.seed ^ 0x9e3779b9),
             );
             expect(vs, run.log.join("\n")).toEqual([]);
+            trace.check?.();
         });
     }
 
@@ -1941,5 +2361,15 @@ describe("two players editing questions, at random", () => {
     test("both editing everything: only real conflicts asked, decisions stand", async () => {
         expect(await failing("shared", 60, 1, 300)).toEqual([]);
         expect(await failing("shared", 120, 1001, 100)).toEqual([]);
+    }, 60_000);
+
+    test("each editing their own questions, restoring deleted ones: nothing lost, back or asked", async () => {
+        expect(await failing("owned", 60, 1, 300, true)).toEqual([]);
+        expect(await failing("owned", 120, 1001, 100, true)).toEqual([]);
+    }, 60_000);
+
+    test("both editing everything, restoring deleted ones: only real conflicts asked, restores stand", async () => {
+        expect(await failing("shared", 60, 1, 300, true)).toEqual([]);
+        expect(await failing("shared", 120, 1001, 100, true)).toEqual([]);
     }, 60_000);
 });
