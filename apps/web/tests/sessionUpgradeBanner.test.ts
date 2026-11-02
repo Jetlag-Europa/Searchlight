@@ -43,6 +43,7 @@ const session: GameSessionSummary = {
     hiderLat: null,
     hiderLng: null,
     planningModeEnabled: false,
+    disabledZoneIds: [],
     gameRevisionId: "rev-1",
     sessionRevision: 1,
     currentRevision: 2,

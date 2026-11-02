@@ -33,6 +33,8 @@ import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
+    applyDisabledZonesEvent,
+    getDisabledZonesBase,
     hasPendingHiderSave,
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
@@ -88,6 +90,8 @@ function persistSessionCache(): void {
         ...cached,
         strokes: strokes.get(),
         questions: questions.get(),
+        disabledZoneIds:
+            getDisabledZonesBase(currentSessionId) ?? cached.disabledZoneIds,
         lastSequence: lastAppliedSequence,
         lastSyncedAt: Date.now(),
     });
@@ -380,6 +384,24 @@ function handleServerEvent(
         console.info("[searchlight:sse] applying planning.toggle", enabled);
         suppressNextPlanningModeSave();
         planningModeEnabled.set(enabled);
+    } else if (event.type === "zones.disabled") {
+        // The whole list after the change: the board shows it with this
+        // device's unsaved deltas on top, so applying it never saves anything
+        // and never hides an edit of ours still on its way. Our own change's
+        // echo also takes it out of the queue, as for questions.replace.
+        const { disabledZoneIds } = event.payloadJson as {
+            disabledZoneIds: unknown;
+        };
+        if (!Array.isArray(disabledZoneIds)) return;
+        const ids = disabledZoneIds.filter(
+            (id): id is string => typeof id === "string",
+        );
+        console.info(
+            "[searchlight:sse] applying zones.disabled",
+            ids.length,
+            "zone(s)",
+        );
+        applyDisabledZonesEvent(targetSessionId, ids, event.clientUuid);
     } else if (event.type === "session.revision-upgraded") {
         console.info(
             "[searchlight:sse] session.revision-upgraded received",

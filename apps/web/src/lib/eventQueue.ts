@@ -5,7 +5,7 @@ import type {
 
 import type { StrokeFeature } from "@/annotations/types";
 import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
-import { forgetDisabledZones } from "@/lib/disabledZones";
+import { forgetLegacyDisabledZones } from "@/lib/disabledZones";
 import {
     findQuestionByKey,
     placeVersion,
@@ -21,8 +21,11 @@ export type EventType =
     | "stroke.delete"
     | "questions.replace"
     | "hider.update"
-    | "planning.toggle";
+    | "planning.toggle"
+    | "zones.disabled";
 
+// zones.disabled events are deltas (see disabledZones), so unlike the
+// snapshots below each one must be sent, in order.
 export function isReplacementEventType(type: EventType): boolean {
     return (
         type === "questions.replace" ||
@@ -189,6 +192,8 @@ export interface CachedSessionState {
     strokes: StrokeFeature[];
     // What the board showed, edits not yet synced included.
     questions: Questions;
+    // The server's disabled zones, without this device's unsaved changes.
+    disabledZoneIds?: string[];
     // The server's list the board's questions were made from (its "board
     // base"): the base of the next list queued. Moves on only when the board
     // does: a load, another player's list shown, a save of ours answered, or
@@ -507,6 +512,11 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
                 : undefined,
             strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+            disabledZoneIds: Array.isArray(parsed.disabledZoneIds)
+                ? parsed.disabledZoneIds.filter(
+                      (id): id is string => typeof id === "string",
+                  )
+                : undefined,
             lastSyncedAt:
                 typeof parsed.lastSyncedAt === "number"
                     ? parsed.lastSyncedAt
@@ -726,7 +736,7 @@ export function clearCachedSession(sessionId: string): void {
 
 // For a session that can never sync again (deleted, or this user removed):
 // unlike cache eviction, also drop its queue, which would otherwise pin the
-// snapshot in storage forever, and its disabled zones. A deleted session
+// snapshot in storage forever, and its legacy disabled zones. A deleted session
 // takes every account's queue with it (`allAccounts`); one this account
 // lost access to only takes this account's and the unowned one, since
 // another account may still have access. Questions held for a decision go
@@ -735,7 +745,7 @@ export function discardSessionData(
     sessionId: string,
     { allAccounts = false }: { allAccounts?: boolean } = {},
 ): void {
-    forgetDisabledZones(sessionId);
+    forgetLegacyDisabledZones(sessionId);
     try {
         if (allAccounts) {
             const prefixes = [

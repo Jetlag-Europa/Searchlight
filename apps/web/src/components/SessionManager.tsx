@@ -33,6 +33,10 @@ import {
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
 import {
+    legacyDisabledZones,
+    onDisabledZonesEdit,
+} from "@/lib/disabledZones";
+import {
     applyPendingModes,
     applyUnsyncedEvents,
     boardPaintedFromSnapshot,
@@ -57,6 +61,7 @@ import {
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
 import {
+    cancelPendingDisabledZonesSave,
     cancelPendingHiderSave,
     cancelPendingPlanningModeSave,
     cancelPendingQuestionSave,
@@ -64,9 +69,11 @@ import {
     flushSessionSaves,
     hasScheduledQuestionSave,
     loadSessionContent,
+    saveDisabledZonesDelta,
     saveHiderModeToServer,
     savePlanningModeToServer,
     saveQuestionsDebounced,
+    setDisabledZonesBase,
 } from "@/lib/sessionState";
 import { startSSE, stopSSE } from "@/lib/sseManager";
 import {
@@ -944,7 +951,33 @@ export function SessionManager() {
         savePlanningModeToServer(sessionId, currentPlanningMode);
     }, [sessionId, authUserId, currentPlanningMode]);
 
-    // Flush pending question, hider & planning saves when the page may close.
+    // Save the player's own disabled zone edits (see setDisabledStations).
+    // Zones shown from the server never come through here. Offline too, on a
+    // board painted from what was kept, like the other saves: they're queued
+    // for this account and sent once /me verifies it.
+    useEffect(
+        () =>
+            onDisabledZonesEdit((delta) => {
+                const id = activeSessionId.get();
+                if (!id || !authUserId || savesBlocked()) return;
+                if (isLoadingSession()) {
+                    console.info(
+                        "[searchlight:session] disabled zones save skipped — session is loading",
+                    );
+                    return;
+                }
+                console.info("[searchlight:session] queuing disabled zones save", {
+                    sessionId: id,
+                    disable: delta.disableZoneIds.length,
+                    enable: delta.enableZoneIds.length,
+                });
+                saveDisabledZonesDelta(id, delta);
+            }),
+        [authUserId],
+    );
+
+    // Flush pending question, hider, planning & disabled zone saves when the
+    // page may close.
     useEffect(() => flushSavesOnPageExit(), []);
 
     // The session was deleted (404) or this user can no longer open it (403):
@@ -962,6 +995,7 @@ export function SessionManager() {
             cancelPendingQuestionSave(sessionId);
             cancelPendingHiderSave(sessionId);
             cancelPendingPlanningModeSave(sessionId);
+            cancelPendingDisabledZonesSave(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
             if (boardSessionRef.current === sessionId) boardSessionRef.current = null;
             setShowPicker(true);
@@ -991,6 +1025,7 @@ export function SessionManager() {
             cancelPendingQuestionSave();
             cancelPendingHiderSave();
             cancelPendingPlanningModeSave();
+            cancelPendingDisabledZonesSave();
             if (offlineBoardUser) {
                 leaveGame();
                 boardSessionRef.current = null;
@@ -1063,6 +1098,16 @@ export function SessionManager() {
             strokes.set(derived.strokes);
             // The game hasn't loaded: show only what it may support.
             questions.set(filterSupportedQuestions(derived.questions, null));
+            // The server's zones as last heard, with this account's
+            // unsynced changes on top. A snapshot from before zones synced
+            // has none: this device's own then, until a load adds them to
+            // the session (see adoptLegacyDisabledZones).
+            setDisabledZonesBase(
+                storedId,
+                kept.disabledZoneIds ??
+                    kept.session?.disabledZoneIds ??
+                    legacyDisabledZones(storedId),
+            );
             paintedFromSnapshot(storedId);
             return true;
         };
@@ -1124,6 +1169,9 @@ export function SessionManager() {
                 // server reconcile may be saved over fresher questions.
                 loadingGenerationRef.current = generation;
                 paintCached();
+                if (data.disabledZoneIds) {
+                    setDisabledZonesBase(storedId, data.disabledZoneIds);
+                }
                 // storedId === data.id always here (we fetched by storedId), so
                 // activeSessionId won't change — no suppress needed for sessionId effect.
                 setActiveSession(data);
@@ -1161,6 +1209,7 @@ export function SessionManager() {
                     cancelPendingQuestionSave();
                     cancelPendingHiderSave();
                     cancelPendingPlanningModeSave();
+                    cancelPendingDisabledZonesSave();
                     setActiveSession(refreshedSession);
                     // Keep edits the flush above couldn't deliver on top of the
                     // server state, as an explicit selection does.
@@ -1194,6 +1243,10 @@ export function SessionManager() {
                     // Edits the flush couldn't deliver stay on top, as for
                     // questions.
                     showSessionModes(refreshedSession);
+                    setDisabledZonesBase(
+                        storedId,
+                        refreshedSession.disabledZoneIds ?? [],
+                    );
                     startSSE(storedId, (status) =>
                         forgetSession(storedId, status),
                     );
@@ -1302,6 +1355,13 @@ export function SessionManager() {
             const canPaintCache = Boolean(
                 cached && cached.userId === authUserId,
             );
+            // Never the outgoing session's zones, even offline.
+            setDisabledZonesBase(
+                selected.id,
+                selected.disabledZoneIds ??
+                    (canPaintCache ? cached?.disabledZoneIds : undefined) ??
+                    [],
+            );
             if (canPaintCache && cached) {
                 const derived = applyUnsyncedEvents(selected.id, cached);
                 // As in the stored-session restore above, the board is shown
@@ -1394,6 +1454,10 @@ export function SessionManager() {
                     });
                 }
                 showSessionModes(refreshedSession);
+                setDisabledZonesBase(
+                    selected.id,
+                    refreshedSession.disabledZoneIds ?? [],
+                );
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),
                 );
@@ -1445,6 +1509,7 @@ export function SessionManager() {
             cancelPendingQuestionSave();
             cancelPendingHiderSave();
             cancelPendingPlanningModeSave();
+            cancelPendingDisabledZonesSave();
             // Only suppress the sessionId-change hider effect if the session is
             // actually changing — same-session re-selects don't fire the effect.
             if (activeSessionId.get() !== selected.id) {

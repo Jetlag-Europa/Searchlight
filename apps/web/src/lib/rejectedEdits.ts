@@ -11,6 +11,7 @@ const REJECTED_EDITS: Record<EventType, string> = {
     "questions.replace": "Your question changes",
     "hider.update": "The hider's position",
     "planning.toggle": "Planning mode",
+    "zones.disabled": "Disabled hiding zones",
 };
 
 // Edits flushed together are often refused together: wait this long so they

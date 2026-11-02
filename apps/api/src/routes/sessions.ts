@@ -1,12 +1,13 @@
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
-import { randomBytes } from "crypto";
+import { randomBytes, randomUUID } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
-import { forbidden, notFound } from "../lib/http-errors.js";
+import { badRequest, forbidden, notFound } from "../lib/http-errors.js";
 import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
 import type { Event } from "@prisma/client";
+import { MAX_DISABLED_ZONES, MAX_ZONE_ID_LENGTH } from "@searchlight/shared";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -15,6 +16,15 @@ function conflict(msg: string) {
 }
 
 const nullableNumber = Type.Unsafe<number | null>({ type: ["number", "null"] });
+
+const zoneIdList = Type.Array(
+  Type.String({ minLength: 1, maxLength: MAX_ZONE_ID_LENGTH }),
+  { maxItems: MAX_DISABLED_ZONES },
+);
+
+// Total characters of a session's disabled zone IDs: it is sent whole with
+// every change, so keep it well under a request's limits.
+const MAX_DISABLED_ZONE_CHARS = 200_000;
 
 async function resolveParticipant(sessionId: string, userId: string) {
   const session = await prisma.gameSession.findUnique({
@@ -136,6 +146,7 @@ export async function createSession({
     hiderLat: null,
     hiderLng: null,
     planningModeEnabled: false,
+    disabledZoneIds: [],
     gameRevisionId: session.gameRevisionId,
     sessionRevision: revision.revision,
     currentRevision: game.currentRevision?.revision ?? null,
@@ -208,6 +219,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           hiderLat: s.hiderLat,
           hiderLng: s.hiderLng,
           planningModeEnabled: s.planningModeEnabled,
+          disabledZoneIds: s.disabledZoneIds,
           gameRevisionId: s.gameRevisionId,
           sessionRevision: s.gameRevision.revision,
           currentRevision: s.game.currentRevision?.revision ?? null,
@@ -339,6 +351,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         hiderLat: session.hiderLat,
         hiderLng: session.hiderLng,
         planningModeEnabled: session.planningModeEnabled,
+        disabledZoneIds: session.disabledZoneIds,
         gameRevisionId: session.gameRevisionId,
         sessionRevision: session.gameRevision.revision,
         currentRevision: session.game.currentRevision?.revision ?? null,
@@ -526,6 +539,17 @@ export async function sessionRoutes(app: FastifyInstance) {
           hiderLat: Type.Optional(nullableNumber),
           hiderLng: Type.Optional(nullableNumber),
           planningModeEnabled: Type.Optional(Type.Boolean()),
+          // Zones to add to and remove from the session's disabled zones.
+          // Players edit the set one zone at a time, so changes, not the
+          // whole list, let concurrent edits and retries all apply.
+          disableZoneIds: Type.Optional(zoneIdList),
+          enableZoneIds: Type.Optional(zoneIdList),
+          // The app's ID for the change, stored as its event's clientUuid:
+          // a resend (lost reply, another tab) is recognised and ignored, and
+          // the app knows its own change when it comes back over SSE.
+          zonesClientUuid: Type.Optional(
+            Type.String({ pattern: "^zones-disabled-[A-Za-z0-9-]{1,100}$" }),
+          ),
         }, { additionalProperties: false }),
       },
     },
@@ -540,11 +564,21 @@ export async function sessionRoutes(app: FastifyInstance) {
         hiderLat?: number | null;
         hiderLng?: number | null;
         planningModeEnabled?: boolean;
+        disableZoneIds?: string[];
+        enableZoneIds?: string[];
+        zonesClientUuid?: string;
       };
 
       // name and visibility are creator-only; hiderLat/hiderLng any participant can update
       if ((body.name !== undefined || body.visibility !== undefined) && !isCreator) {
         throw forbidden("Only the creator can update the session name or visibility");
+      }
+
+      // The app never asks for both: a zone disabled and enabled again
+      // before it saves is no change.
+      const enabling = new Set(body.enableZoneIds ?? []);
+      if (body.disableZoneIds?.some((id) => enabling.has(id))) {
+        throw badRequest("A zone can't be both disabled and enabled");
       }
 
       const { updated, eventsToBroadcast } = await prisma.$transaction(async (tx) => {
@@ -554,8 +588,9 @@ export async function sessionRoutes(app: FastifyInstance) {
           hiderLat: number | null;
           hiderLng: number | null;
           planningModeEnabled: boolean;
+          disabledZoneIds: string[];
         }>>`
-          SELECT id, "eventSequence", "hiderLat", "hiderLng", "planningModeEnabled"
+          SELECT id, "eventSequence", "hiderLat", "hiderLng", "planningModeEnabled", "disabledZoneIds"
           FROM "GameSession"
           WHERE id = ${sessionId}
           FOR UPDATE
@@ -573,6 +608,39 @@ export async function sessionRoutes(app: FastifyInstance) {
         const planningRequested = body.planningModeEnabled !== undefined;
         const newPlanning = planningRequested ? body.planningModeEnabled : locked.planningModeEnabled;
         const planningChanged = planningRequested && newPlanning !== locked.planningModeEnabled;
+
+        // A change already applied (its event exists) is not applied again:
+        // in between, another player may have undone part of it.
+        const zonesClientUuid = body.zonesClientUuid ?? `zones-disabled-${randomUUID()}`;
+        let zonesAlreadyApplied = false;
+        if (body.zonesClientUuid !== undefined) {
+          const existing = await tx.event.findUnique({ where: { clientUuid: zonesClientUuid } });
+          if (existing) {
+            if (existing.sessionId !== sessionId || existing.type !== "zones.disabled") {
+              throw conflict("The zones change ID belongs to another change");
+            }
+            zonesAlreadyApplied = true;
+          }
+        }
+
+        // Set operations under the row lock: edits from several players all
+        // apply. Stored deduplicated and sorted.
+        const oldDisabledZoneIds = [...locked.disabledZoneIds].sort();
+        const disabledZones = new Set(oldDisabledZoneIds);
+        if (!zonesAlreadyApplied) {
+          for (const id of body.disableZoneIds ?? []) disabledZones.add(id);
+          for (const id of enabling) disabledZones.delete(id);
+        }
+        const newDisabledZoneIds = [...disabledZones].sort();
+        const disabledZonesChanged =
+          newDisabledZoneIds.length !== oldDisabledZoneIds.length ||
+          newDisabledZoneIds.some((id, i) => id !== oldDisabledZoneIds[i]);
+        if (disabledZonesChanged && (
+          newDisabledZoneIds.length > MAX_DISABLED_ZONES ||
+          newDisabledZoneIds.reduce((sum, id) => sum + id.length, 0) > MAX_DISABLED_ZONE_CHARS
+        )) {
+          throw badRequest("The session has too many disabled zones");
+        }
 
         if (hiderChanged) {
           curSequence += 1;
@@ -606,6 +674,28 @@ export async function sessionRoutes(app: FastifyInstance) {
           events.push(planningEvent);
         }
 
+        // A change with an ID is recorded even if it changed nothing (another
+        // player made it first): a resend is then still recognised, and the
+        // app sees it come back over SSE.
+        const recordZonesChange = !zonesAlreadyApplied && (
+          disabledZonesChanged || body.zonesClientUuid !== undefined
+        );
+        if (recordZonesChange) {
+          curSequence += 1;
+          const zonesEvent = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: curSequence,
+              type: "zones.disabled",
+              payloadJson: { disabledZoneIds: newDisabledZoneIds },
+              clientUuid: zonesClientUuid,
+              clientCreatedAt: new Date(),
+            },
+          });
+          events.push(zonesEvent);
+        }
+
         // Copy only the fields this route owns; never spread the request body
         // into the update, or a caller could overwrite creatorId, serverId, etc.
         const updateData: Record<string, unknown> = {};
@@ -615,6 +705,9 @@ export async function sessionRoutes(app: FastifyInstance) {
         if (body.hiderLng !== undefined) updateData.hiderLng = body.hiderLng;
         if (body.planningModeEnabled !== undefined) {
           updateData.planningModeEnabled = body.planningModeEnabled;
+        }
+        if (disabledZonesChanged) {
+          updateData.disabledZoneIds = newDisabledZoneIds;
         }
         if (curSequence !== locked.eventSequence) {
           updateData.eventSequence = curSequence;
@@ -636,6 +729,13 @@ export async function sessionRoutes(app: FastifyInstance) {
         });
 
         return { updated: updatedSession, eventsToBroadcast: events };
+      }).catch((err: unknown) => {
+        // The row lock orders resends to one session; the same change ID
+        // sent to two sessions at once loses the race here.
+        if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+          throw conflict("The zones change ID belongs to another change");
+        }
+        throw err;
       });
 
       for (const e of eventsToBroadcast) {
@@ -664,6 +764,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         hiderLat: updated.hiderLat,
         hiderLng: updated.hiderLng,
         planningModeEnabled: updated.planningModeEnabled,
+        disabledZoneIds: updated.disabledZoneIds,
         gameRevisionId: updated.gameRevisionId,
         sessionRevision: updated.gameRevision.revision,
         currentRevision: updated.game.currentRevision?.revision ?? null,

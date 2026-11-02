@@ -34,7 +34,6 @@ import {
     setDisabledStations,
     trainStations,
 } from "@/lib/context";
-import { discardSessionData } from "@/lib/eventQueue";
 import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { hidingZoneCircles } from "@/maps/geo-utils";
 import type { Questions } from "@/maps/schema";
@@ -392,10 +391,6 @@ describe("keeping the board", () => {
         type: "FeatureCollection",
         features: [],
     };
-    const otherSession = {
-        ...pinnedSession,
-        id: "session-two",
-    } as GameSessionSummary;
     // This tab's sessionStorage, and the localStorage all tabs share.
     let tabStorage: Map<string, string>;
     let sharedStorage: Map<string, string>;
@@ -418,10 +413,7 @@ describe("keeping the board", () => {
     });
 
     afterEach(() => {
-        for (const session of [pinnedSession, otherSession]) {
-            setActiveSession(session);
-            setDisabledStations([]);
-        }
+        setDisabledStations([]);
         leaveGame();
         clearActiveSession();
         vi.restoreAllMocks();
@@ -429,7 +421,7 @@ describe("keeping the board", () => {
         clearDefinitionCache();
     });
 
-    it("keeps each session's disabled zones when its game loads again", async () => {
+    it("keeps the disabled zones when the session's game loads again", async () => {
         expect(await switchToGame(game, pinned)).toBe(true);
         expect(appliedRadius()).toBe(500);
         setDisabledStations(["a", "b"]);
@@ -437,41 +429,6 @@ describe("keeping the board", () => {
         // Reloading the session loads its game again.
         expect(await switchToGame(game, pinned)).toBe(true);
         expect(disabledStations.get()).toEqual(["a", "b"]);
-
-        leaveGame();
-        setActiveSession(otherSession);
-        await switchToGame(game, {
-            revisionId: "revision-one",
-            sessionId: otherSession.id,
-        });
-        expect(disabledStations.get()).toEqual([]);
-        setDisabledStations(["c"]);
-
-        leaveGame();
-        setActiveSession(pinnedSession);
-        await switchToGame(game, pinned);
-        expect(disabledStations.get()).toEqual(["a", "b"]);
-    });
-
-    it("keeps the disabled zones another tab stored for its session", () => {
-        // Another tab, on the other session, disabled a zone since this tab
-        // last read the zones.
-        sharedStorage.set(
-            "disabledZones",
-            JSON.stringify({ [otherSession.id]: ["x"] }),
-        );
-        setDisabledStations(["a"]);
-
-        setActiveSession(otherSession);
-        expect(disabledStations.get()).toEqual(["x"]);
-        setActiveSession(pinnedSession);
-        expect(disabledStations.get()).toEqual(["a"]);
-    });
-
-    it("forgets a discarded session's disabled zones", () => {
-        setDisabledStations(["a"]);
-        discardSessionData(pinnedSession.id);
-        expect(disabledStations.get()).toEqual([]);
     });
 
     it("keeps the overlay and zone display for the same game only", async () => {
