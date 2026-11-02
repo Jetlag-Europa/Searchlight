@@ -1,3 +1,5 @@
+import esriConfig from "@arcgis/core/config.js";
+
 import {
     type BufferRequest,
     calculateBuffer,
@@ -26,6 +28,11 @@ import {
     calculateFilterZoneIndexes,
     type FilterZoneRequest,
 } from "./zoneFilter";
+
+// ArcGIS's assets (its projection engine WASM) come with the app, so geodesic
+// questions work offline: astro.config.mjs serves them, the service worker
+// precaches them. The operators load on demand, after this has run.
+esriConfig.assetsPath = __ARCGIS_ASSETS_PATH__;
 
 type GeometryRequest =
     | BoundaryTargetRequest

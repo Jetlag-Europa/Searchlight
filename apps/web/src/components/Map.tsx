@@ -100,6 +100,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
                     minZoom={2}
                     noWrap
+                    crossOrigin
                     bounds={WORLD_BOUNDS}
                 />
             );
@@ -113,6 +114,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
                     minZoom={2}
                     noWrap
+                    crossOrigin
                     bounds={WORLD_BOUNDS}
                 />
             );
@@ -126,6 +128,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                         maxZoom={22}
                         minZoom={2}
                         noWrap
+                        crossOrigin
                         bounds={WORLD_BOUNDS}
                     />
                 );
@@ -140,6 +143,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                         maxZoom={22}
                         minZoom={2}
                         noWrap
+                        crossOrigin
                         bounds={WORLD_BOUNDS}
                     />
                 );
@@ -153,6 +157,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     maxZoom={19}
                     minZoom={2}
                     noWrap
+                    crossOrigin
                     bounds={WORLD_BOUNDS}
                 />
             );
@@ -166,6 +171,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
             maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
             minZoom={2}
             noWrap
+            crossOrigin
             bounds={WORLD_BOUNDS}
         />
     );

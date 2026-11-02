@@ -6,7 +6,11 @@ import {
     getPendingEvents,
     markEventSynced,
 } from "@/lib/eventQueue";
-import { recordSendFailure, SyncRequestError } from "@/lib/syncManager";
+import {
+    assertMaySend,
+    recordSendFailure,
+    SyncRequestError,
+} from "@/lib/syncManager";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -68,6 +72,7 @@ export async function saveStrokeToServer(
 
     const postPromise = (async () => {
         try {
+            assertMaySend();
             const res = await fetch(
                 `${API_BASE}/sessions/${sessionId}/strokes`,
                 {
@@ -125,6 +130,7 @@ export async function deleteStrokeFromServer(
     }
 
     try {
+        assertMaySend();
         const res = await fetch(
             `${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`,
             {

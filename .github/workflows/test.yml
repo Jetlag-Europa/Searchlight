@@ -72,6 +72,7 @@ jobs:
               run: pnpm --filter @searchlight/api exec tsc -p tsconfig.seed.json --noEmit
 
             - name: Migrate the test database
+              id: migrate
               working-directory: apps/api
               run: pnpm exec prisma migrate deploy
 
@@ -89,3 +90,22 @@ jobs:
 
             - name: Game JSON schema
               run: pnpm check:game-schema
+
+            # schema.prisma must describe exactly what the migrations build, or
+            # the difference lands in whichever migration `prisma migrate dev`
+            # generates next. On failure this prints the SQL that would make the
+            # database match the schema. Runs last, even after a failed test, so
+            # one CI run reports both.
+            - name: Schema matches the migrations
+              if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+              working-directory: apps/api
+              run: |
+                  status=0
+                  pnpm exec prisma migrate diff \
+                      --from-url "$DATABASE_URL" \
+                      --to-schema-datamodel prisma/schema.prisma \
+                      --script --exit-code || status=$?
+                  if [ "$status" -eq 2 ]; then
+                      echo "::error file=apps/api/prisma/schema.prisma::schema.prisma differs from the database its migrations build. Add the SQL above as a migration, or change schema.prisma to match the migrations."
+                  fi
+                  exit "$status"

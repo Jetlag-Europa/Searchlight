@@ -17,6 +17,20 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             <a href="/" class="text-sm text-white/50 hover:text-white/80 underline">Go to home</a>
         </div>
 
+        <div id="unreachable" class="hidden flex-col items-center gap-6 text-center max-w-md">
+            <div class="flex flex-col gap-2">
+                <h1 class="text-3xl font-bold tracking-tight">Can't reach Searchlight</h1>
+                <p class="text-white/60">Check your connection. This page tries again as soon as you're back online.</p>
+            </div>
+            <button
+                id="retry-btn"
+                type="button"
+                class="flex items-center justify-center gap-2 rounded-xl bg-primary px-8 py-3.5 text-base font-semibold text-primary-foreground shadow-lg transition-opacity hover:opacity-90 active:opacity-75"
+            >
+                Try again
+            </button>
+        </div>
+
         <div id="valid" class="hidden flex-col items-center gap-8 text-center max-w-md w-full">
             <div class="flex flex-col gap-2">
                 <p id="link-label" class="text-sm text-white/50 uppercase tracking-widest"></p>
@@ -46,79 +60,107 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
     const params = new URLSearchParams(window.location.search);
     const token = params.get("token");
 
+    // The page opens without a connection (the service worker keeps it), so
+    // a failed request means the server can't be reached, not that the link
+    // is invalid: say so, and try again once the device is back online.
+    let loadingLink = false;
+    function hideEl(id) { $(id).classList.add("hidden"); $(id).classList.remove("flex"); }
+    function showUnreachable() { loadingLink = false; $("loading").classList.add("hidden"); showEl("unreachable"); }
+    function load() {
+        if (loadingLink) return;
+        loadingLink = true;
+        hideEl("unreachable");
+        $("loading").classList.remove("hidden");
+        Promise.all([
+            fetch(`${apiBase}/links/${encodeURIComponent(token)}`).then((r) => {
+                if (r.status === 404) return { valid: false };
+                if (!r.ok) throw new Error(`${r.status}`);
+                return r.json();
+            }),
+            fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+        ]).then(([linkInfo, me]) => {
+            loadingLink = false;
+            show(linkInfo, me);
+        }, showUnreachable);
+    }
+    $("retry-btn").addEventListener("click", load);
+    window.addEventListener("online", () => {
+        if (!$("unreachable").classList.contains("hidden")) load();
+    });
+
     if (!token) {
         $("loading").classList.add("hidden");
         showEl("invalid");
     } else {
-        Promise.all([
-            fetch(`${apiBase}/links/${encodeURIComponent(token)}`).then((r) => r.json()),
-            fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
-        ]).then(([linkInfo, me]) => {
-            $("loading").classList.add("hidden");
+        load();
+    }
 
-            if (!linkInfo.valid) {
-                showEl("invalid");
+    function show(linkInfo, me) {
+        $("loading").classList.add("hidden");
+
+        if (!linkInfo?.valid) {
+            showEl("invalid");
+            return;
+        }
+
+        $("session-name").textContent = linkInfo.sessionName;
+        $("game-name").textContent = linkInfo.gameName;
+
+        const redeemText =
+            linkInfo.linkType === "fork" ? "Get your copy"
+            : linkInfo.linkType === "view" ? "Watch session"
+            : "Join session";
+        if (linkInfo.linkType === "fork") {
+            $("link-label").textContent = "Shared with you";
+            $("redeem-label").textContent = me ? redeemText : "Log in to get your copy";
+        } else if (linkInfo.linkType === "view") {
+            // A spectator link: they follow the board without changing it.
+            $("link-label").textContent = "You're invited to watch";
+            $("redeem-label").textContent = me ? redeemText : "Log in to watch";
+            $("link-note").textContent =
+                "You'll see the board live, but can't change it. If you're already in this session, you keep your current role.";
+            showEl("link-note");
+        } else {
+            $("link-label").textContent = "You're invited to join";
+            $("redeem-label").textContent = me ? redeemText : "Log in to join";
+        }
+
+        showEl("valid");
+
+        $("redeem-btn").addEventListener("click", async () => {
+            $("redeem-btn").disabled = true;
+            $("redeem-label").textContent = "…";
+            $("redeem-error").classList.add("hidden");
+
+            if (!me) {
+                // Whoever logs in may be someone else than the account
+                // stored here, so it doesn't play offline until /me says
+                // who it is (see offlineAccess.ts).
+                try { localStorage.setItem("taibled-login-started", String(Date.now())); } catch {}
+                const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
+                window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
                 return;
             }
 
-            $("session-name").textContent = linkInfo.sessionName;
-            $("game-name").textContent = linkInfo.gameName;
-
-            const redeemText =
-                linkInfo.linkType === "fork" ? "Get your copy"
-                : linkInfo.linkType === "view" ? "Watch session"
-                : "Join session";
-            if (linkInfo.linkType === "fork") {
-                $("link-label").textContent = "Shared with you";
-                $("redeem-label").textContent = me ? redeemText : "Log in to get your copy";
-            } else if (linkInfo.linkType === "view") {
-                // A spectator link: they follow the board without changing it.
-                $("link-label").textContent = "You're invited to watch";
-                $("redeem-label").textContent = me ? redeemText : "Log in to watch";
-                $("link-note").textContent =
-                    "You'll see the board live, but can't change it. If you're already in this session, you keep your current role.";
-                showEl("link-note");
-            } else {
-                $("link-label").textContent = "You're invited to join";
-                $("redeem-label").textContent = me ? redeemText : "Log in to join";
+            try {
+                const res = await fetch(`${apiBase}/links/${encodeURIComponent(token)}/redeem`, {
+                    method: "POST",
+                    credentials: "include",
+                });
+                if (!res.ok) {
+                    if (res.status === 404) { $("valid").classList.replace("flex", "hidden"); showEl("invalid"); return; }
+                    const body = await res.json().catch(() => null);
+                    throw new Error(body?.message ?? "Something went wrong. Try again.");
+                }
+                const { sessionId } = await res.json();
+                localStorage.setItem("taibled-pending-link-session", sessionId);
+                window.location.href = "/map";
+            } catch (e) {
+                $("redeem-error").textContent = e instanceof Error ? e.message : String(e);
+                $("redeem-error").classList.remove("hidden");
+                $("redeem-btn").disabled = false;
+                $("redeem-label").textContent = redeemText;
             }
-
-            showEl("valid");
-
-            $("redeem-btn").addEventListener("click", async () => {
-                $("redeem-btn").disabled = true;
-                $("redeem-label").textContent = "…";
-                $("redeem-error").classList.add("hidden");
-
-                if (!me) {
-                    const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
-                    window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
-                    return;
-                }
-
-                try {
-                    const res = await fetch(`${apiBase}/links/${encodeURIComponent(token)}/redeem`, {
-                        method: "POST",
-                        credentials: "include",
-                    });
-                    if (!res.ok) {
-                        if (res.status === 404) { $("valid").classList.replace("flex", "hidden"); showEl("invalid"); return; }
-                        const body = await res.json().catch(() => null);
-                        throw new Error(body?.message ?? "Something went wrong. Try again.");
-                    }
-                    const { sessionId } = await res.json();
-                    localStorage.setItem("taibled-pending-link-session", sessionId);
-                    window.location.href = "/map";
-                } catch (e) {
-                    $("redeem-error").textContent = e instanceof Error ? e.message : String(e);
-                    $("redeem-error").classList.remove("hidden");
-                    $("redeem-btn").disabled = false;
-                    $("redeem-label").textContent = redeemText;
-                }
-            });
-        }).catch(() => {
-            $("loading").classList.add("hidden");
-            showEl("invalid");
         });
     }
 </script>

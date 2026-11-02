@@ -11,6 +11,7 @@ import {
     activeSessionId,
     activeSessionRole,
     isSessionReadOnly,
+    offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
 import {
@@ -22,15 +23,21 @@ import {
     syncStatus,
 } from "@/lib/context";
 import {
+    type CachedSessionState,
     discardPendingEvents,
     enqueueEvent,
     getCachedSession,
     getPendingEvents,
     type PendingEvent,
+    questionsBase,
+    queuedQuestionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
-import { sendPendingEvent } from "@/lib/syncManager";
+import {
+    latestSavedQuestionsSequence,
+    sendPendingEvent,
+} from "@/lib/syncManager";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -46,9 +53,10 @@ function refreshSyncCounts(sessionId: string): void {
 
 // ── Questions ────────────────────────────────────────────────────────────────
 
-export async function loadQuestionsFromServer(
+// The list, and the sequence it is as of (an API from before sends none).
+async function fetchQuestions(
     sessionId: string,
-): Promise<Questions> {
+): Promise<{ questions: Questions; sequence?: number }> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
     });
@@ -59,8 +67,18 @@ export async function loadQuestionsFromServer(
             ordinal: number;
             payloadJson: unknown;
         }>;
+        sequence?: unknown;
     };
-    return data.questions.map((q) => q.payloadJson) as unknown as Questions;
+    return {
+        questions: data.questions.map((q) => q.payloadJson) as unknown as Questions,
+        sequence: typeof data.sequence === "number" ? data.sequence : undefined,
+    };
+}
+
+export async function loadQuestionsFromServer(
+    sessionId: string,
+): Promise<Questions> {
+    return (await fetchQuestions(sessionId)).questions;
 }
 
 interface SaveState {
@@ -154,6 +172,8 @@ function hasPendingSave(
 
 function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
     const replacementId = randomUUID();
+    // What the board's questions were made from.
+    const base = questionsBase(sessionId);
     const event = enqueueEvent({
         sessionId,
         type: "questions.replace",
@@ -164,6 +184,7 @@ function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
                 ordinal,
                 payloadJson: question,
             })),
+            ...(base ? { base } : {}),
         },
         clientUuid: `questions-replace-${replacementId}`,
         clientCreatedAt: Date.now(),
@@ -331,7 +352,24 @@ export function discardSessionEdits(sessionId: string): void {
 // unsent edits for a role they no longer have.
 export function cacheSessionRole(sessionId: string, role: SessionRole): void {
     const cached = getCachedSession(sessionId);
-    if (cached && cached.role !== role) setCachedSession({ ...cached, role });
+    if (!cached) return;
+    const next = cachedForRole(cached, role);
+    if (JSON.stringify(next) !== JSON.stringify(cached)) setCachedSession(next);
+}
+
+// The cached copy for a user with `role`. The session details kept for an
+// offline restore carry the role too, and a spectator's no hider position.
+function cachedForRole(
+    cached: CachedSessionState,
+    role: SessionRole,
+): CachedSessionState {
+    if (!cached.session) return { ...cached, role };
+    const session: GameSessionSummary = { ...cached.session, role };
+    if (role === "viewer") {
+        session.hiderLat = null;
+        session.hiderLng = null;
+    }
+    return { ...cached, role, session };
 }
 
 /**
@@ -346,7 +384,7 @@ export function becomeSpectator(sessionId: string): void {
     discardSessionEdits(sessionId);
     const cached = getCachedSession(sessionId);
     if (!cached) return;
-    setCachedSession({ ...cached, role: "viewer" });
+    setCachedSession(cachedForRole(cached, "viewer"));
     // Another account's copy is never shown.
     if (!active || cached.userId !== verifiedUserId.get()) return;
     strokes.set(cached.strokes);
@@ -383,7 +421,8 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
 export function flushSavesOnPageExit(): () => void {
     const flush = () => {
         const id = activeSessionId.get();
-        if (!id || !verifiedUserId.get()) return;
+        // Edits made offline too: the page is often closed before it's back.
+        if (!id || !(verifiedUserId.get() ?? offlineUserId.get())) return;
         console.info("[sessionState] page may be closing — flushing saves for", id);
         flushSessionSaves(id, true);
     };
@@ -420,6 +459,8 @@ export async function loadSessionContent(
     session: GameSessionSummary;
     questions: Questions;
     cursor?: number;
+    // The sequence the questions are as of, where the API tells.
+    questionsSequence?: number;
 }> {
     let serverCursor = 0;
     try {
@@ -431,9 +472,9 @@ export async function loadSessionContent(
         );
     }
 
-    const [loadedStrokes, loadedQuestions, session] = await Promise.all([
+    const [loadedStrokes, loaded, session] = await Promise.all([
         loadStrokesFromServer(sessionId),
-        loadQuestionsFromServer(sessionId),
+        fetchQuestions(sessionId),
         fetch(`${API_BASE}/sessions/${sessionId}`, {
             credentials: "include",
         }).then(async (res) => {
@@ -442,12 +483,31 @@ export async function loadSessionContent(
         }),
     ]);
 
+    // A save of ours (a retry) can land while the list is on its way: then
+    // the list is older than what we saved, and showing it would undo it.
+    // Read it again (a few times at most).
+    let loadedList = loaded;
+    for (let i = 0; i < 3; i++) {
+        const saved = latestSavedQuestionsSequence(sessionId);
+        const at = loadedList.sequence ?? serverCursor;
+        if (saved === undefined || saved <= at) break;
+        loadedList = await fetchQuestions(sessionId);
+    }
+    const loadedQuestions = loadedList.questions;
     setCachedSession({
         sessionId,
         userId,
         role: session.role,
+        session,
         strokes: loadedStrokes,
         questions: loadedQuestions,
+        // The board shows the loaded list, or the list still queued on top of
+        // it, made from that list's base. The cursor was read first: it
+        // never claims more than the list has.
+        serverQuestions: queuedQuestionsBase(sessionId) ?? {
+            sequence: serverCursor,
+            questions: loadedQuestions,
+        },
         lastSyncedAt: Date.now(),
         lastSequence: serverCursor,
     });
@@ -457,5 +517,6 @@ export async function loadSessionContent(
         session,
         questions: loadedQuestions,
         cursor: serverCursor,
+        questionsSequence: loadedList.sequence,
     };
 }
