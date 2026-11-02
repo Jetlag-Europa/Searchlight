@@ -11,6 +11,7 @@ import { defineConfig } from "astro/config";
 import autoprefixer from "autoprefixer";
 import tailwindcss from "tailwindcss";
 
+import { geometryFallbackChunks as findFallbackChunks } from "./src/lib/geometryFallbackChunks.ts";
 import { precacheUrl } from "./src/lib/pageCache.ts";
 
 // react-leaflet-draw imports a default export from leaflet-draw, a plain
@@ -88,60 +89,27 @@ const BROWSERS = ["edge88", "firefox78", "chrome87", "safari14"];
 // chunks with generic names (label, form, request, ...) that pages' own
 // chunks can have too, so they're found by the bundle graph, not by name:
 // the chunks reachable from bufferGeometry.ts but not from any entry without
-// passing through it.
+// passing through it. The build fails if pages could reach them otherwise.
 const GEOMETRY_FALLBACK = "/src/maps/geo-utils/bufferGeometry.ts";
+const GEOMETRY_FALLBACK_LOADER = "/src/maps/geo-utils/geometryClient.ts";
 /** @type {Set<string>} */
 const geometryFallbackChunks = new Set();
 
-/**
- * The fields used here of a Rolldown output chunk.
- * @typedef {{ fileName: string, isEntry: boolean, imports: string[],
- *   dynamicImports: string[], moduleIds: string[] }} OutputChunk
- */
 const findGeometryFallbackChunks = {
     name: "searchlight:geometry-fallback-chunks",
     /** @param {{ name: string }} environment */
     applyToEnvironment: (environment) => environment.name === "client",
     /**
      * @param {unknown} _options
-     * @param {Record<string, { type: string } & OutputChunk>} bundle
+     * @param {Record<string, { type: string } & import("./src/lib/geometryFallbackChunks.ts").OutputChunk>} bundle
      */
     generateBundle(_options, bundle) {
-        /** @type {Map<string, OutputChunk>} */
-        const chunks = new Map();
-        for (const file of Object.values(bundle)) {
-            if (file.type === "chunk") chunks.set(file.fileName, file);
-        }
-        /** @param {Iterable<string>} start @param {Set<string>} blocked */
-        const reachable = (start, blocked) => {
-            const seen = new Set();
-            const todo = [...start];
-            while (todo.length > 0) {
-                const name = /** @type {string} */ (todo.pop());
-                if (seen.has(name) || blocked.has(name)) continue;
-                seen.add(name);
-                const chunk = chunks.get(name);
-                if (chunk) todo.push(...chunk.imports, ...chunk.dynamicImports);
-            }
-            return seen;
-        };
-        const fallback = new Set(
-            [...chunks.values()]
-                .filter((chunk) =>
-                    chunk.moduleIds.some((id) =>
-                        id.replaceAll("\\", "/").endsWith(GEOMETRY_FALLBACK),
-                    ),
-                )
-                .map((chunk) => chunk.fileName),
+        const found = findFallbackChunks(
+            Object.values(bundle).filter((file) => file.type === "chunk"),
+            GEOMETRY_FALLBACK,
+            GEOMETRY_FALLBACK_LOADER,
         );
-        if (fallback.size === 0) return;
-        const entries = [...chunks.values()]
-            .filter((chunk) => chunk.isEntry)
-            .map((chunk) => chunk.fileName);
-        const pages = reachable(entries, fallback);
-        for (const name of reachable(fallback, new Set())) {
-            if (!pages.has(name)) geometryFallbackChunks.add(name);
-        }
+        for (const name of found) geometryFallbackChunks.add(name);
     },
 };
 
