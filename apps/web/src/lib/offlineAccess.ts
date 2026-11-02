@@ -10,6 +10,12 @@ import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 // login ends (a 401) it no longer may, but the next account to log in must
 // still be told apart from it, so it moves here.
 export const PREVIOUS_USER_KEY = "taibled-previous-user";
+// When /me last verified the stored account, in ms since the epoch.
+export const VERIFIED_AT_KEY = "taibled-authed-user-verified";
+// How long after that it may still play offline. Past it, a shared device
+// stops showing the last player's board (the hider's position included),
+// as the login cookie may well have lapsed by then.
+export const OFFLINE_ACCESS_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** The account this browser played as last, to compare a new login with. */
 export function lastUser(): string | null {
@@ -20,20 +26,44 @@ export function lastUser(): string | null {
     );
 }
 
-/** `userId` is verified: it may play offline here next time. */
-export function rememberUser(userId: string): void {
+/** `userId` is verified: it may play offline here for a while. */
+export function rememberUser(userId: string, now = Date.now()): void {
     writeStorage("localStorage", STORED_USER_KEY, userId);
+    writeStorage("localStorage", VERIFIED_AT_KEY, String(now));
     removeStorage("localStorage", PREVIOUS_USER_KEY);
 }
 
 /**
- * The stored account's login is gone (/me said 401): nothing it kept opens
- * offline any more, until it logs in again.
+ * The stored account, if it may still play offline: /me verified it less
+ * than OFFLINE_ACCESS_MS ago. Past that, its offline access ends as with a
+ * 401. An account stored by an older build, which kept no time, counts as
+ * verified now: its player may be mid-game on a bad connection, and the
+ * clock starts here.
+ */
+export function offlineAccount(now = Date.now()): string | null {
+    const stored = readStorage("localStorage", STORED_USER_KEY);
+    if (!stored) return null;
+    const verifiedAt = readStorage("localStorage", VERIFIED_AT_KEY);
+    if (verifiedAt === null) {
+        writeStorage("localStorage", VERIFIED_AT_KEY, String(now));
+        return stored;
+    }
+    // A clock set wrong either way doesn't keep it open for good.
+    if (Math.abs(now - Number(verifiedAt)) < OFFLINE_ACCESS_MS) return stored;
+    void endOfflineAccess();
+    return null;
+}
+
+/**
+ * The stored account's login is gone (/me said 401), or was last verified
+ * too long ago: nothing it kept opens offline any more, until it logs in
+ * again.
  */
 export async function endOfflineAccess(): Promise<void> {
     const stored = readStorage("localStorage", STORED_USER_KEY);
     if (stored) writeStorage("localStorage", PREVIOUS_USER_KEY, stored);
     removeStorage("localStorage", STORED_USER_KEY);
+    removeStorage("localStorage", VERIFIED_AT_KEY);
     offlineUserId.set(null);
     await clearStoredRevisions();
 }
@@ -43,6 +73,7 @@ export async function forgetAccount(): Promise<void> {
     verifiedUserId.set(null);
     offlineUserId.set(null);
     removeStorage("localStorage", STORED_USER_KEY);
+    removeStorage("localStorage", VERIFIED_AT_KEY);
     removeStorage("localStorage", PREVIOUS_USER_KEY);
     await clearStoredRevisions();
 }
