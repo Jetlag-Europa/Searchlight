@@ -32,7 +32,10 @@ import {
     sessionPickerOpen,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
-import { onDisabledZonesEdit } from "@/lib/disabledZones";
+import {
+    legacyDisabledZones,
+    onDisabledZonesEdit,
+} from "@/lib/disabledZones";
 import {
     applyPendingModes,
     applyUnsyncedEvents,
@@ -1096,10 +1099,14 @@ export function SessionManager() {
             // The game hasn't loaded: show only what it may support.
             questions.set(filterSupportedQuestions(derived.questions, null));
             // The server's zones as last heard, with this account's
-            // unsynced changes on top.
+            // unsynced changes on top. A snapshot from before zones synced
+            // has none: this device's own then, until a load adds them to
+            // the session (see adoptLegacyDisabledZones).
             setDisabledZonesBase(
                 storedId,
-                kept.disabledZoneIds ?? kept.session?.disabledZoneIds ?? [],
+                kept.disabledZoneIds ??
+                    kept.session?.disabledZoneIds ??
+                    legacyDisabledZones(storedId),
             );
             paintedFromSnapshot(storedId);
             return true;
