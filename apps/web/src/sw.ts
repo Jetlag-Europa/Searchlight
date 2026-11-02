@@ -25,6 +25,7 @@ import {
     StaleWhileRevalidate,
 } from "workbox-strategies";
 
+import { FONT_STYLES_CACHE, keepFontStyles, responseWithin } from "./lib/fonts";
 import { pageCacheKey } from "./lib/pageCache";
 import {
     isOsmTileUrl,
@@ -161,30 +162,52 @@ registerRoute(
     }),
 );
 
-// Google Fonts: the stylesheet is refreshed in the background, the font
-// files it names never change. Layout.astro loads the stylesheet with CORS,
-// like the font files, so neither is kept as an opaque response.
+// Google Fonts. Layout.astro loads the stylesheet with CORS, like the font
+// files, so neither is kept as an opaque response. Every page waits for the
+// stylesheet before it shows anything: it is kept as the service worker
+// installs (the first visit loads it before the service worker controls the
+// page), then comes from the cache at once and is refreshed in the
+// background. Without a kept copy, the page waits 3 s for it at most and
+// shows in the fallback fonts. The font files it names never change, and
+// don't hold the page up (display=swap). Caches are matched by URL alone:
+// Google varies the stylesheet by Sec-Fetch headers, which the request kept
+// at install doesn't carry.
+const FONT_STYLES_TIMEOUT_MS = 3_000;
+self.addEventListener("install", (event) => {
+    event.waitUntil(
+        caches
+            .open(FONT_STYLES_CACHE)
+            .then((cache) => keepFontStyles(cache, 10_000))
+            .catch(() => {}),
+    );
+});
+const fontStyles = new StaleWhileRevalidate({
+    cacheName: FONT_STYLES_CACHE,
+    matchOptions: { ignoreVary: true },
+    plugins: [
+        new CacheableResponsePlugin({ statuses: [200] }),
+        new ExpirationPlugin({ maxEntries: 5 }),
+    ],
+});
 registerRoute(
     ({ url }) => url.origin === "https://fonts.googleapis.com",
-    new StaleWhileRevalidate({
-        cacheName: "searchlight-font-styles",
-        plugins: [
-            new CacheableResponsePlugin({ statuses: [200] }),
-            new ExpirationPlugin({ maxEntries: 5 }),
-        ],
-    }),
+    (options) =>
+        responseWithin(fontStyles.handle(options), FONT_STYLES_TIMEOUT_MS),
 );
+const fonts = new CacheFirst({
+    cacheName: "searchlight-fonts",
+    plugins: [
+        new CacheableResponsePlugin({ statuses: [200] }),
+        new ExpirationPlugin({
+            maxEntries: 30,
+            maxAgeSeconds: 365 * DAY,
+            purgeOnQuotaError: true,
+        }),
+    ],
+});
+// A font never kept, offline: the browser falls back, without the error
+// Workbox would throw for it being logged.
 registerRoute(
     ({ url }) => url.origin === "https://fonts.gstatic.com",
-    new CacheFirst({
-        cacheName: "searchlight-fonts",
-        plugins: [
-            new CacheableResponsePlugin({ statuses: [200] }),
-            new ExpirationPlugin({
-                maxEntries: 30,
-                maxAgeSeconds: 365 * DAY,
-                purgeOnQuotaError: true,
-            }),
-        ],
-    }),
+    (options) => fonts.handle(options).catch(() => Response.error()),
 );
