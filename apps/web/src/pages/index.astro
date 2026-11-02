@@ -46,6 +46,11 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
   // Pages that need a login send visitors here with ?returnTo=<path>.
   const returnTo = new URLSearchParams(location.search).get("returnTo");
   if (returnTo) document.getElementById("login").search = `?returnTo=${encodeURIComponent(returnTo)}`;
+  // Whoever logs in may be someone else than the account stored here, so it
+  // doesn't play offline until /me says who it is (see offlineAccess.ts).
+  document.getElementById("login").addEventListener("click", () => {
+    try { localStorage.setItem("taibled-login-started", "1"); } catch {}
+  });
 
   // If the user already has a valid session, skip the login page entirely.
   fetch(`${apiBase}/me`, { credentials: "include" })

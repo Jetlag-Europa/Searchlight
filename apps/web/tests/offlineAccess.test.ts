@@ -1,3 +1,6 @@
+import { readdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
 const local = new Map<string, string>();
@@ -21,6 +24,7 @@ import {
     endOfflineAccess,
     forgetAccount,
     lastUser,
+    LOGIN_STARTED_KEY,
     OFFLINE_ACCESS_MS,
     offlineAccount,
     rememberUser,
@@ -128,5 +132,66 @@ describe("offline access", () => {
         await forgetAccount();
         expect(local.has(VERIFIED_AT)).toBe(false);
         expect(offlineAccount(T0)).toBeNull();
+    });
+});
+
+describe("starting a login", () => {
+    test("ends offline play for the stored account until /me verifies one", async () => {
+        rememberUser("u1", T0);
+        local.set(LOGIN_STARTED_KEY, "1");
+        // The new player's first /me fails: u1's board isn't theirs to see.
+        expect(offlinePlayer(offlineAccount(T0), null)).toBeNull();
+        await vi.waitFor(() =>
+            expect(deleted).toEqual(["searchlight-game-revisions-v1"]),
+        );
+        expect(local.get(STORED)).toBeUndefined();
+        // u1 is still told apart, so /me for someone else clears u1's session.
+        expect(lastUser()).toBe("u1");
+
+        // /me verifies the new account: it may play offline from then on.
+        rememberUser("u2", T0);
+        expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
+        expect(offlineAccount(T0)).toBe("u2");
+    });
+
+    test("verified before the connection drops, the account plays on", () => {
+        rememberUser("u1", T0);
+        local.set(LOGIN_STARTED_KEY, "1");
+        rememberUser("u1", T0 + 1);
+        expect(offlineAccount(T0 + 2)).toBe("u1");
+    });
+
+    test("logging out forgets it too", async () => {
+        local.set(LOGIN_STARTED_KEY, "1");
+        await forgetAccount();
+        expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
+    });
+
+    // The pages' scripts are inline, without imports, so they spell the key
+    // out: every login link there must set it.
+    test("is marked by every login link in the app", () => {
+        const sources = (dir: string): [string, string][] =>
+            readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+                const path = resolve(dir, entry.name);
+                if (entry.isDirectory()) return sources(path);
+                return /\.(astro|tsx?)$/.test(entry.name)
+                    ? [[entry.name, readFileSync(path, "utf8")]]
+                    : [];
+            });
+        const marked = new Map<string, [number, number]>();
+        for (const [name, source] of sources(resolve(__dirname, "../src"))) {
+            const logins = source.split("/auth/discord/login").length - 1;
+            if (logins === 0) continue;
+            const marks =
+                source.split(
+                    `localStorage.setItem("${LOGIN_STARTED_KEY}", "1")`,
+                ).length - 1;
+            marked.set(name, [logins, marks]);
+        }
+        expect(Object.fromEntries(marked)).toEqual({
+            "index.astro": [1, 1],
+            "join.astro": [1, 1],
+            "play.astro": [1, 1],
+        });
     });
 });
