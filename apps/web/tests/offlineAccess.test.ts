@@ -33,6 +33,7 @@ import {
     forgetAccount,
     lastUser,
     LOGIN_STARTED_KEY,
+    LOGIN_STARTED_MS,
     OFFLINE_ACCESS_MS,
     offlineAccount,
     playOfflineWhileUnreachable,
@@ -147,7 +148,7 @@ describe("offline access", () => {
 describe("starting a login", () => {
     test("ends offline play for the stored account until /me verifies one", async () => {
         rememberUser("u1", T0);
-        local.set(LOGIN_STARTED_KEY, "1");
+        local.set(LOGIN_STARTED_KEY, String(T0));
         // The new player's first /me fails: u1's board isn't theirs to see.
         expect(offlinePlayer(offlineAccount(T0), null)).toBeNull();
         await vi.waitFor(() =>
@@ -165,13 +166,43 @@ describe("starting a login", () => {
 
     test("verified before the connection drops, the account plays on", () => {
         rememberUser("u1", T0);
-        local.set(LOGIN_STARTED_KEY, "1");
+        local.set(LOGIN_STARTED_KEY, String(T0));
         rememberUser("u1", T0 + 1);
         expect(offlineAccount(T0 + 2)).toBe("u1");
     });
 
-    test("logging out forgets it too", async () => {
+    test("counts for 15 minutes after it started", async () => {
+        expect(LOGIN_STARTED_MS).toBe(15 * 60 * 1000);
+        rememberUser("u1", T0);
+        local.set(LOGIN_STARTED_KEY, String(T0));
+        expect(offlineAccount(T0 + LOGIN_STARTED_MS - 1)).toBeNull();
+        await vi.waitFor(() =>
+            expect(deleted).toEqual(["searchlight-game-revisions-v1"]),
+        );
+    });
+
+    test("one cancelled or failed is forgotten after that, kept games and all", async () => {
+        rememberUser("u1", T0);
+        // The login page couldn't reach the API, and the player went back.
+        local.set(LOGIN_STARTED_KEY, String(T0 + DAY));
+        expect(offlineAccount(T0 + DAY + LOGIN_STARTED_MS)).toBe("u1");
+        expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
+        expect(local.get(STORED)).toBe("u1");
+        await Promise.resolve();
+        expect(deleted).toEqual([]);
+    });
+
+    test("a mark from an older build, without a time, has expired", () => {
+        rememberUser("u1", T0);
         local.set(LOGIN_STARTED_KEY, "1");
+        expect(offlineAccount(T0)).toBe("u1");
+        expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
+        local.set(LOGIN_STARTED_KEY, "garbage");
+        expect(offlineAccount(T0)).toBe("u1");
+    });
+
+    test("logging out forgets it too", async () => {
+        local.set(LOGIN_STARTED_KEY, String(T0));
         await forgetAccount();
         expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
     });
@@ -193,7 +224,7 @@ describe("starting a login", () => {
             if (logins === 0) continue;
             const marks =
                 source.split(
-                    `localStorage.setItem("${LOGIN_STARTED_KEY}", "1")`,
+                    `localStorage.setItem("${LOGIN_STARTED_KEY}", String(Date.now()))`,
                 ).length - 1;
             marked.set(name, [logins, marks]);
         }
@@ -254,7 +285,7 @@ describe("a bad connection that outlasts the week", () => {
         vi.setSystemTime(T0 + 7 * DAY + 60_000);
         await vi.advanceTimersByTimeAsync(60_000);
         // …and with a login started in another tab.
-        local.set(LOGIN_STARTED_KEY, "1");
+        local.set(LOGIN_STARTED_KEY, String(Date.now()));
         await vi.advanceTimersByTimeAsync(60_000);
         expect(mockFetch.mock.calls.length).toBeGreaterThan(4);
 
