@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import type { Feature, MultiPolygon, Polygon } from "geojson";
+import type { BBox, Feature, MultiPolygon, Polygon } from "geojson";
 import { atom } from "nanostores";
 
 import type { Question, Questions } from "@/maps/schema";
@@ -144,37 +144,44 @@ export function questionsAt(replay: Replay, time: number): Questions {
 
 export interface Board {
     questions: Questions;
-    // The clear (the endgame) this board comes after, if any: from then on the
-    // board is the hider's zone and only later questions cut it.
-    endgameAt: number | null;
+    // Whether the endgame has started: the board is then the hider's zone
+    // and only the endgame's questions cut it.
+    endgame: boolean;
 }
 
 /**
- * The board at `time`. Before the endgame, every question asked by then on
- * the game's play area. From the endgame (the latest clear by then) on, only
- * the questions asked since, which cut the hider's zone.
+ * The board at `time`. Before the endgame (from `endgameAt`), every question
+ * asked before it, on the game's play area; from then on, only the questions
+ * asked since, which cut the hider's zone.
  */
-export function boardAt(replay: Replay, time: number): Board {
-    const endgameAt = replay.clears.filter((at) => at <= time).pop() ?? null;
+export function boardAt(
+    replay: Replay,
+    time: number,
+    endgameAt: number | null,
+): Board {
     const questions = questionsAt(replay, time);
-    if (endgameAt === null) {
-        const firstClear = replay.clears[0];
-        return {
-            questions:
-                firstClear === undefined
-                    ? questions
-                    : questions.filter((q) => askedAt(replay, q) < firstClear),
-            endgameAt,
-        };
-    }
+    if (endgameAt === null) return { questions, endgame: false };
+    const endgame = time >= endgameAt;
     return {
-        questions: questions.filter((q) => askedAt(replay, q) >= endgameAt),
-        endgameAt,
+        questions: questions.filter(
+            (q) => askedAt(replay, q) >= endgameAt === endgame,
+        ),
+        endgame,
     };
 }
 
 const askedAt = (replay: Replay, question: Question): number =>
     replay.questions.find((q) => q.question.key === question.key)!.askedAt;
+
+const boxes = new WeakMap<Feature, BBox>();
+const boxOf = (zone: Feature): BBox => {
+    let box = boxes.get(zone);
+    if (!box) {
+        box = turf.bbox(zone);
+        boxes.set(zone, box);
+    }
+    return box;
+};
 
 /**
  * The zone the hider was in: the one containing their position, the nearest
@@ -187,14 +194,26 @@ export function hiderZone<T extends Feature<Polygon | MultiPolygon>>(
     maxKm = 1,
 ): T | null {
     const point = turf.point([position.lng, position.lat]);
+    // Only zones whose box, grown by maxKm, holds the point can be close.
+    const dLat = maxKm / 111;
+    const dLng = dLat / Math.cos((position.lat * Math.PI) / 180);
+    const candidates = zones.filter((zone) => {
+        const [west, south, east, north] = boxOf(zone);
+        return (
+            position.lat >= south - dLat &&
+            position.lat <= north + dLat &&
+            position.lng >= west - dLng &&
+            position.lng <= east + dLng
+        );
+    });
     const distance = (zone: T) =>
         turf.distance(point, turf.centroid(zone), { units: "kilometers" });
     const byDistance = (a: T, b: T) => distance(a) - distance(b);
-    const containing = zones
+    const containing = candidates
         .filter((zone) => turf.booleanPointInPolygon(point, zone))
         .sort(byDistance);
     if (containing.length > 0) return containing[0]!;
-    const nearest = zones
+    const nearest = candidates
         .map((zone) => ({
             zone,
             km: turf.pointToPolygonDistance(point, zone, {
@@ -203,6 +222,143 @@ export function hiderZone<T extends Feature<Polygon | MultiPolygon>>(
         }))
         .sort((a, b) => a.km - b.km)[0];
     return nearest && nearest.km <= maxKm ? nearest.zone : null;
+}
+
+/** Where a question's pins are: most have one, the thermometer two. */
+export function questionPins(question: Question): [number, number][] {
+    const d = question.data as Record<string, unknown>;
+    if (typeof d.latA === "number" && typeof d.lngA === "number") {
+        const pins: [number, number][] = [[d.latA, d.lngA]];
+        if (typeof d.latB === "number" && typeof d.lngB === "number")
+            pins.push([d.latB, d.lngB]);
+        return pins;
+    }
+    if (typeof d.lat === "number" && typeof d.lng === "number")
+        return [[d.lat, d.lng]];
+    return [];
+}
+
+// A seeker has arrived in the hider's zone once they've stayed this long,
+// not counting dips outside shorter than DIP_MS (GPS jitter, the zone's
+// edge); a train passing through doesn't count.
+const STAY_MS = 5 * 60_000;
+const DIP_MS = 3 * 60_000;
+// Questions asked this long before the seekers arrived, from this close to
+// the zone, already cut it down: the endgame starts with them.
+const LEAD_MS = 15 * 60_000;
+const NEAR_KM = 2;
+
+export interface Endgame<T> {
+    // When it started: the seekers arriving in the hider's zone, or the
+    // first question asked as they got there.
+    at: number;
+    // The hider's zone; null if the hider's positions don't show it.
+    zone: T | null;
+    // What showed it: the seekers' positions, or (without those) the board
+    // being cleared.
+    by: "arrival" | "clear";
+}
+
+/**
+ * The zone the hider spent the most time in from `from` to `to`, by their
+ * reports there; null if none is near them.
+ */
+export function mainZone<T extends Feature<Polygon | MultiPolygon>>(
+    zones: T[],
+    positions: LoggedPosition[],
+    from: number,
+    to: number,
+): T | null {
+    const counts = new Map<T, number>();
+    for (const [t, lat, lng] of positions) {
+        if (t < from || t > to) continue;
+        const zone = hiderZone(zones, { lat, lng });
+        if (zone) counts.set(zone, (counts.get(zone) ?? 0) + 1);
+    }
+    let best: T | null = null;
+    for (const [zone, count] of counts)
+        if (best === null || count > counts.get(best)!) best = zone;
+    return best;
+}
+
+/**
+ * When someone arrived in `zone` to stay, between `from` and `to`: the start
+ * of their first stay of at least STAY_MS, or of a stay their reports end in.
+ */
+export function arrivedAt(
+    positions: LoggedPosition[],
+    zone: Feature<Polygon | MultiPolygon>,
+    from: number,
+    to: number,
+): number | null {
+    let since: number | null = null;
+    let outSince: number | null = null;
+    for (const [t, lat, lng] of positions) {
+        if (t < from) continue;
+        if (t > to) break;
+        if (turf.booleanPointInPolygon(turf.point([lng, lat]), zone)) {
+            // Out too long since leaving: a new stay.
+            if (since === null || (outSince !== null && t - outSince >= DIP_MS))
+                since = t;
+            outSince = null;
+            if (t - since >= STAY_MS) return since;
+        } else if (since !== null) {
+            outSince ??= t;
+            if (t - outSince >= DIP_MS) since = outSince = null;
+        }
+    }
+    return outSince === null ? since : null;
+}
+
+/**
+ * When the endgame started, and where. It starts when the first seeker
+ * arrives in the hider's zone (the one the hider spent the game in), or
+ * earlier with a question asked as they got there: shortly before, with its
+ * pin near the zone. Without positions to tell, the first clear of the board
+ * marks it.
+ */
+export function findEndgame<T extends Feature<Polygon | MultiPolygon>>(
+    replay: Replay,
+    zones: T[],
+    hider: LoggedPosition[] | null,
+    seekers: LoggedPosition[][],
+): Endgame<T> | null {
+    const from = replay.questions[0]?.askedAt ?? replay.start;
+    const zone = hider ? mainZone(zones, hider, from, replay.end) : null;
+    if (zone) {
+        const arrivals = seekers
+            .map((positions) => arrivedAt(positions, zone, from, replay.end))
+            .filter((at): at is number => at !== null);
+        if (arrivals.length > 0) {
+            const arrived = Math.min(...arrivals);
+            const near = (lat: number, lng: number) =>
+                turf.pointToPolygonDistance(turf.point([lng, lat]), zone, {
+                    units: "kilometers",
+                }) <= NEAR_KM;
+            const lead = replay.questions.filter(
+                (q) =>
+                    q.askedAt >= arrived - LEAD_MS &&
+                    q.askedAt < arrived &&
+                    questionPins(q.question).some(([lat, lng]) =>
+                        near(lat, lng),
+                    ),
+            );
+            return {
+                at: Math.min(arrived, ...lead.map((q) => q.askedAt)),
+                zone,
+                by: "arrival",
+            };
+        }
+    }
+    const cleared = replay.clears[0];
+    if (cleared === undefined) return null;
+    const position =
+        hider && (positionAt(hider, cleared) ?? positionAt(hider, Infinity));
+    return {
+        at: cleared,
+        zone: zone ?? (position ? hiderZone(zones, position) : null),
+        by: "clear",
+    };
 }
 
 // [time ms, lat, lng, accuracy m]

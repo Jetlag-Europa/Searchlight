@@ -21,11 +21,12 @@ import { defaultQuestionLabel, questionName } from "@/lib/questionNames";
 import {
     boardAt,
     condenseReplay,
+    type Endgame,
+    findEndgame,
     guessRoles,
-    hiderZone,
     type LoggedPosition,
     positionAt,
-    questionsAt,
+    questionPins,
     type Replay,
     type ReplayQuestion,
     replayZoomToRemaining,
@@ -33,7 +34,6 @@ import {
     trail,
 } from "@/lib/replay";
 import { cn } from "@/lib/utils";
-import type { StationCircle } from "@/maps/api/types";
 import { hidingZoneCircles } from "@/maps/geo-utils/hidingZones";
 import { type Question, type Questions, questionSchema } from "@/maps/schema";
 
@@ -143,27 +143,13 @@ function parseSnapshots(snapshots: ReplayResponse["snapshots"]) {
     }));
 }
 
-// Where a question's pins are: most have one, the thermometer two.
-function questionPins(question: Question): [number, number][] {
-    const d = question.data as Record<string, unknown>;
-    if (typeof d.latA === "number" && typeof d.lngA === "number") {
-        const pins: [number, number][] = [[d.latA, d.lngA]];
-        if (typeof d.latB === "number" && typeof d.lngB === "number")
-            pins.push([d.latB, d.lngB]);
-        return pins;
-    }
-    if (typeof d.lat === "number" && typeof d.lng === "number")
-        return [[d.lat, d.lng]];
-    return [];
-}
-
 type Mark = {
     at: number;
     kind: "asked" | "answered" | "endgame";
     key?: number;
 };
 
-function marksOf(replay: Replay): Mark[] {
+function marksOf(replay: Replay, endgame: Endgame<unknown> | null): Mark[] {
     return [
         ...replay.questions.flatMap((q) => [
             { at: q.askedAt, kind: "asked" as const, key: q.question.key },
@@ -173,7 +159,7 @@ function marksOf(replay: Replay): Mark[] {
                 key: q.question.key,
             },
         ]),
-        ...replay.clears.map((at) => ({ at, kind: "endgame" as const })),
+        ...(endgame ? [{ at: endgame.at, kind: "endgame" as const }] : []),
     ].sort((a, b) => a.at - b.at);
 }
 
@@ -259,7 +245,25 @@ export function ReplayPage() {
         };
     }, [userId, sessionId]);
 
-    const marks = useMemo(() => (replay ? marksOf(replay) : []), [replay]);
+    // The endgame: when the seekers arrived in the hider's zone (or, without
+    // their positions, when the board was cleared).
+    const $compiled = useStore(compiledGameAtom);
+    const endgame = useMemo(() => {
+        if (!replay || !$compiled || !data) return null;
+        const pinned = data.people.filter((p) => p.pinned);
+        const hider = pinned.find((p) => p.id === hiderId);
+        return findEndgame(
+            replay,
+            hidingZoneCircles($compiled),
+            hider?.positions ?? null,
+            pinned.filter((p) => p !== hider).map((p) => p.positions),
+        );
+    }, [replay, $compiled, data, hiderId]);
+    const marks = useMemo(
+        () => (replay ? marksOf(replay, endgame) : []),
+        [replay, endgame],
+    );
+
     const start = replay ? replay.start - MARGIN_MS : 0;
     const end = replay ? replay.end + MARGIN_MS : 0;
 
@@ -310,23 +314,6 @@ export function ReplayPage() {
         };
     }, [playing, replay, speed, marks, end]);
 
-    // The hider's zone at each endgame (a clear): where the hider was then.
-    const $compiled = useStore(compiledGameAtom);
-    const endgameZones = useMemo(() => {
-        const zones = new Map<number, StationCircle>();
-        const hider = data?.people.find((p) => p.id === hiderId);
-        if (!replay || !$compiled || !hider) return zones;
-        const circles = hidingZoneCircles($compiled);
-        for (const at of replay.clears) {
-            const position =
-                positionAt(hider.positions, at) ??
-                positionAt(hider.positions, Infinity);
-            const zone = position && hiderZone(circles, position);
-            if (zone) zones.set(at, zone);
-        }
-        return zones;
-    }, [replay, $compiled, data, hiderId]);
-
     // The board at this time. From the endgame on it's the hider's zone, cut
     // by the questions asked since; without a zone (no hider position), every
     // question on the play area. The questions atom only changes when a
@@ -334,24 +321,17 @@ export function ReplayPage() {
     // every frame.
     const { board, zone } = useMemo(() => {
         if (!replay) return { board: [], zone: null };
-        const at = boardAt(replay, time);
-        const zone =
-            at.endgameAt === null
-                ? null
-                : (endgameZones.get(at.endgameAt) ?? null);
-        const shown =
-            at.endgameAt !== null && !zone
-                ? questionsAt(replay, time)
-                : at.questions;
+        const zone = endgame?.zone ?? null;
+        const at = boardAt(replay, time, zone ? endgame!.at : null);
         return {
-            zone,
-            board: shown.map((q) =>
+            zone: at.endgame ? zone : null,
+            board: at.questions.map((q) =>
                 holding.includes(q.key) && "drag" in q.data && !q.data.drag
                     ? ({ ...q, data: { ...q.data, drag: true } } as Question)
                     : q,
             ),
         };
-    }, [replay, time, holding, endgameZones]);
+    }, [replay, time, holding, endgame]);
     const zoneName = zone?.properties.properties.name ?? null;
     const boardKey =
         `${zone ? zone.properties.properties.id : ""}|` +
@@ -653,7 +633,9 @@ export function ReplayPage() {
                             key={i}
                             title={
                                 m.kind === "endgame"
-                                    ? "Endgame"
+                                    ? endgame?.by === "arrival"
+                                        ? "Endgame: the seekers reached the hider's zone"
+                                        : "Endgame: the board was cleared"
                                     : `${m.kind === "asked" ? "Asked" : "Answered"}: ${questionTitle(all, all.find((q) => q.key === m.key)!)}`
                             }
                             className={cn(
@@ -666,15 +648,14 @@ export function ReplayPage() {
                             style={{ left: pct(m.at) }}
                         />
                     ))}
-                    {replay.clears.map((at) => (
+                    {endgame && (
                         <span
-                            key={at}
                             className="absolute top-0 pl-1.5 text-[10px] leading-none text-red-500"
-                            style={{ left: pct(at) }}
+                            style={{ left: pct(endgame.at) }}
                         >
                             Endgame
                         </span>
-                    ))}
+                    )}
                 </div>
                 <input
                     type="range"
