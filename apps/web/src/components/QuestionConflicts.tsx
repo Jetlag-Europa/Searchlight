@@ -30,6 +30,7 @@ import {
     sidebarContextL,
     sidebarContextR,
 } from "@/lib/context";
+import { type OpenWhenFree, openWhenFree } from "@/lib/openWhenFree";
 import {
     isConflictVersionSupported,
     lookUpConflictAuthors,
@@ -75,7 +76,7 @@ function useFullscreenElement(): Element | null {
  * someone else's. Nothing waits on it: the server's version is saved and
  * shown meanwhile, so closing it just leaves a chip in the map's corner to
  * come back to. It opens by itself when new conflicts arrive while the page
- * is in view, or as soon as it comes back into view.
+ * is in view and the player isn't typing, or as soon as both are so.
  */
 export function QuestionConflicts() {
     const sessionId = useStore(activeSessionId);
@@ -91,6 +92,20 @@ export function QuestionConflicts() {
     const [open, setOpen] = useState(false);
     const chipRef = useRef<HTMLButtonElement>(null);
 
+    // Opening by itself waits for a hidden page to be looked at, and for the
+    // player to leave the field they're typing in: the window takes focus,
+    // which would close a phone's keyboard mid-word. The chip shows
+    // meanwhile. Declared first, as the effects below use it.
+    const autoOpen = useRef<OpenWhenFree | null>(null);
+    useEffect(() => {
+        const opener = openWhenFree(document, () => setOpen(true));
+        autoOpen.current = opener;
+        return () => {
+            opener.stop();
+            autoOpen.current = null;
+        };
+    }, []);
+
     // Another session's conflicts didn't just arrive: they wait for the chip.
     // Declared before the arrivals below, which it mustn't undo: conflicts
     // recorded for a session before it was opened arrive as it opens.
@@ -99,44 +114,27 @@ export function QuestionConflicts() {
         if (sessionId === lastSessionId.current) return;
         lastSessionId.current = sessionId;
         setOpen(false);
-        openWhenVisible.current = false;
+        autoOpen.current?.cancel();
     }, [sessionId]);
 
     // Arrivals start at 0 and count new conflicts recorded in this page, so
     // any count above the last one seen is news, even one from before this
-    // mounted. A hidden page opens it when it's next looked at. Arrivals the
-    // window has nothing to show for (their game doesn't have either
-    // version) don't open it, now or later.
+    // mounted. Arrivals the window has nothing to show for (their game
+    // doesn't have either version) don't open it, now or later.
     const seenArrivals = useRef(0);
-    const openWhenVisible = useRef(false);
     useEffect(() => {
         if (arrivals === seenArrivals.current) return;
         seenArrivals.current = arrivals;
         if (shown.length === 0) return;
-        if (document.visibilityState === "visible") setOpen(true);
-        else openWhenVisible.current = true;
+        autoOpen.current?.request();
     }, [arrivals]);
-    useEffect(() => {
-        const onVisibility = () => {
-            if (
-                document.visibilityState === "visible" &&
-                openWhenVisible.current
-            ) {
-                openWhenVisible.current = false;
-                setOpen(true);
-            }
-        };
-        document.addEventListener("visibilitychange", onVisibility);
-        return () =>
-            document.removeEventListener("visibilitychange", onVisibility);
-    }, []);
 
     // Once every one is decided (here, or by an edit that settled it), it
     // closes, and only new arrivals open it again.
     useEffect(() => {
         if (shown.length > 0) return;
         setOpen(false);
-        openWhenVisible.current = false;
+        autoOpen.current?.cancel();
     }, [shown.length]);
 
     const visible = open && !pickerOpen && shown.length > 0;
