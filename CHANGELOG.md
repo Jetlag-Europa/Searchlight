@@ -4,6 +4,14 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Zone sidebar stays with "No Overlap" (2026-10-31)
+
+- With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
+
+## Map no longer freezes after closing a confirm (2026-10-31)
+
+- The map's buttons (the question and hiding zone sidebars, the options) could stop responding to taps until a reload, with only the map's zoom buttons still working. It happened when a confirm dialog closed together with the window it was opened from, for example deleting a question from its map marker, or turning a phone sideways while a delete confirm was open in the sidebar.
+
 ## Game settings on the games page (2026-10-28)
 
 - Game editors (`games.edit` or `server.admin`) can now rename a game and change its size from `/games` → **Settings**, without importing its file again. The game's ID stays the same, so its links and exports keep working.
