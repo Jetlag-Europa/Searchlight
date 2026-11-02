@@ -126,6 +126,9 @@ export async function eventRoutes(app: FastifyInstance) {
   app.get(
     "/:sessionId/stream",
     {
+      // Events have to reach the client one by one, not wait in a
+      // compressor's buffer. The reply is hijacked, so this is a safeguard.
+      compress: false,
       schema: { params: Type.Object({ sessionId: Type.String() }) },
     },
     async (req, reply) => {
