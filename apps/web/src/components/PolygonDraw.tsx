@@ -2,7 +2,9 @@ import "leaflet-draw/dist/leaflet.draw.css";
 
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
-import * as L from "leaflet";
+// The default import is Leaflet's own object, which leaflet-draw extends with
+// drawLocal. A namespace import is a copy made before leaflet-draw runs.
+import L from "leaflet";
 import _ from "lodash";
 import { useEffect, useRef, useState } from "react";
 import { FeatureGroup, Marker, Polygon, Polyline } from "react-leaflet";
