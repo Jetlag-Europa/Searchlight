@@ -4,3 +4,9 @@
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   X-Frame-Options: DENY
+# The service worker and the manifest are revalidated on every check, so a new
+# build is found as soon as it is deployed (nginx.conf does the same).
+/sw.js
+  Cache-Control: no-cache
+/manifest.webmanifest
+  Cache-Control: no-cache

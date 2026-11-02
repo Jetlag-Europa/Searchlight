@@ -39,9 +39,10 @@ const markerIcon = (color: string): Icon => {
     let icon = markerIcons.get(color);
     if (!icon) {
         icon = new Icon({
-            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${color}.png`,
-            shadowUrl:
-                "https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png",
+            // pointhi/leaflet-color-markers, served with the app so the
+            // service worker precaches them (public/markers)
+            iconUrl: `/markers/marker-icon-2x-${color}.png`,
+            shadowUrl: "/markers/marker-shadow.png",
             iconSize: [25, 41],
             iconAnchor: [12, 41],
             popupAnchor: [1, -34],
