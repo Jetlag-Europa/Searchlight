@@ -161,8 +161,11 @@ describe("game-tools.mjs", () => {
                 [[[4.5, 50.25], [5, 50], [5, 51], [4.5, 50.25]]],
             ],
         };
+        // West of Greenwich, plus what JSON writes for tiny numbers.
+        const west = { type: "LineString", coordinates: [[-8.611, 41.149], [-0.1276, -51.5], [1e-7, 2.5e-7]] };
         for (const game of [
             { name: "Areas", features: [pin({ name: "S60" }, geometry), pin({ name: "Stop" })] },
+            { name: "West", features: [pin({ name: "Porto" }, west)] },
             { properties: { coordinates: "52.1 N, 4.3 E" }, geometry: { coordinates: [["a", 1]] } },
             { note: "\u0000[1,2]\u0000", geometry: { coordinates: [1, 2] } },
             { "\u0000[1]\u0000": 1, geometry: { coordinates: [1, 2] } },
@@ -172,6 +175,9 @@ describe("game-tools.mjs", () => {
         }
         expect(gt.formatGame({ geometry })).toContain(
             `"coordinates": ${JSON.stringify(geometry.coordinates)}`,
+        );
+        expect(gt.formatGame({ geometry: west })).toContain(
+            `"coordinates": ${JSON.stringify(west.coordinates)}`,
         );
     });
 });

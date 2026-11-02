@@ -92,6 +92,15 @@ describe("formatGameDefinitionJson", () => {
     );
   });
 
+  it("puts negative and exponent coordinates on one line", () => {
+    // West of Greenwich and south of the equator, plus what JSON writes
+    // for tiny numbers.
+    const coordinates = [[-8.611, 41.149], [-0.1276, -51.5], [1e-7, 2.5e-7]];
+    expect(formatGameDefinitionJson({ geometry: { type: "LineString", coordinates } })).toBe(
+      '{\n  "geometry": {\n    "type": "LineString",\n    "coordinates": [[-8.611,41.149],[-0.1276,-51.5],[1e-7,2.5e-7]]\n  }\n}\n',
+    );
+  });
+
   it("takes the indent to use", () => {
     expect(formatGameDefinitionJson({ a: { coordinates: [1, 2] } }, "\t")).toBe(
       '{\n\t"a": {\n\t\t"coordinates": [1,2]\n\t}\n}\n',
