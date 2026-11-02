@@ -15,7 +15,13 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { activeSessionData, activeSessionId, setActiveSession } from "@/lib/activeSession";
+import {
+  activeSessionData,
+  activeSessionId,
+  offlineUserId,
+  setActiveSession,
+  verifiedUserId,
+} from "@/lib/activeSession";
 import { switchToGame } from "@/lib/games";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -47,6 +53,10 @@ export async function loadRevision(sessionId: string, revision: number, gameRevi
 
 export function SessionUpgradeBanner() {
   const session = useStore(activeSessionData);
+  // Played offline (see AuthGuard): an update needs the server.
+  const verified = useStore(verifiedUserId);
+  const offlinePlayer = useStore(offlineUserId);
+  const offline = !verified && Boolean(offlinePlayer);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -106,6 +116,8 @@ export function SessionUpgradeBanner() {
         </div>
         {error && !session.hasNewerRevision ? (
           <Button size="sm" variant="outline" onClick={() => window.location.reload()}>Refresh page</Button>
+        ) : offline ? (
+          <p className="text-xs text-muted-foreground">The game board can be updated once the server can be reached.</p>
         ) : session.role === "creator" ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>

@@ -1,7 +1,10 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 
 export default defineConfig({
   test: {
+    // tsc compiles the tests into dist/ too. Vitest 4 no longer skips dist by
+    // default, and running both copies at once breaks the database tests.
+    exclude: [...configDefaults.exclude, "**/dist/**", "**/dist-seed/**"],
     // The dev database from docker-compose.dev.yml unless DATABASE_URL is set.
     env: {
       DATABASE_URL:

@@ -15,7 +15,8 @@ The API tests need a migrated database. They use the dev one from
 and create and delete their own rows.
 
 CI (`.github/workflows/test.yml`) runs all of the above on every pull request
-and push to `main`, after `pnpm build`.
+and push to `main`, after `pnpm build`. It also checks that
+`apps/api/prisma/schema.prisma` matches the migrations (`prisma migrate diff`).
 
 ## Question geometry
 
@@ -55,8 +56,9 @@ The seed (`apps/api/prisma/seed-test.ts`) creates the `e2e-test-user` and the
 
 - Use `127.0.0.1`, not `localhost`: the stack listens on IPv4 only, and
   Chromium resolves `localhost` to `::1`.
-- The Playwright context blocks the service worker, which would upgrade
-  navigations to https on the plain-http stack.
+- The Playwright context blocks the service worker, which serves pages and
+  scripts from its precache: a test could run the build it cached instead of
+  the deployed one.
 - Run the API with `ENABLE_TEST_AUTH=1` anywhere else only with
   `HOST=127.0.0.1`: test login skips Discord entirely.
 
