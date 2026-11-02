@@ -10,6 +10,11 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Zones a device disabled before this update are added to the session the next time it opens there, on top of any the session already has.
 - **Upgrading:** with the web app on Cloudflare (see `DEPLOY.md`), update the API first: an older API ignores the new app's disabled-zone changes, so they don't reach other players and are gone after a reload. A device's old disabled zones wait until the API is updated.
 
+## One page for checking and importing games (2026-11-02)
+
+- `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
+- The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
