@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## What's new in a release (2026-11-02)
+
+- After a new release (2.1, 3.0, but not a fix-only 2.1.1), the map shows its highlights once, the first time your session loads. **What's new in 2.0** in the map's menu shows them again. You see them once per account, not once per device, and a new player starts on the current release without them.
+- Players who used Searchlight before this change see the 2.0 notes once.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.

@@ -12,6 +12,11 @@ since the last release (`compare/v2.0.0...v2.1.0`) for everything else. Use full
 links, since the body is also shown on GitHub, where relative links don't
 resolve.
 
+The app shows a major or minor release's notes once to every player who used
+an earlier release, and again from the map's menu. It understands paragraphs,
+`##` headings, bullet lists, bold, code and links, and shows anything else as
+plain text.
+
 A release describes how it differs from the last one. Leave out fixes for
 problems that came up after the last release and were fixed before this one:
 players of the last release never saw them. Before listing a fix, check that

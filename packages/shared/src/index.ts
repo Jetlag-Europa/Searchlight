@@ -25,6 +25,7 @@ export interface UserPreferences {
   penToolbarVisible?: boolean;
   showZoneNames?: boolean;
   autoLockQuestions?: boolean;
+  lastSeenRelease?: string;
 }
 
 export interface MeResponse {

@@ -4,7 +4,12 @@ import { useEffect, useRef } from "react";
 
 import { verifiedUserId } from "@/lib/activeSession";
 import { authRetryDelay } from "@/lib/authCheck";
-import { applyPreferences, collectPreferences,PREF_ENTRIES } from "@/lib/preferencesSync";
+import {
+    applyPreferences,
+    collectPreferences,
+    PREF_ENTRIES,
+    preferencesLoaded,
+} from "@/lib/preferencesSync";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -72,6 +77,7 @@ export function PreferencesSync() {
                         );
                     }
                     suppressSave.current = false;
+                    preferencesLoaded.set(true);
                 })
                 .catch((e) => {
                     if (stopped) return;
