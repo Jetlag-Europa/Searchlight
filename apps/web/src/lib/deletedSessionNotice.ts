@@ -1,3 +1,5 @@
+import type { GameSessionSummary } from "@searchlight/shared";
+
 /**
  * What to tell someone whose session the server no longer has, or null to
  * say nothing. Only a 404 means it was deleted (a 403 is lost access, which
@@ -17,8 +19,9 @@ export function deletedSessionNotice({
     status: number;
     activeSessionId: string;
     deletedHere: boolean;
-    // Unknown while a stored session is still being restored.
-    role?: "creator" | "member";
+    // Unknown without the session's details: a cache from before they were
+    // kept, or another account's.
+    role?: GameSessionSummary["role"];
     name?: string;
 }): string | null {
     if (status !== 404 || sessionId !== activeSessionId || deletedHere)
@@ -27,6 +30,7 @@ export function deletedSessionNotice({
     // Only the creator can delete a session.
     if (role === "creator")
         return `${session} was deleted from another tab or device.`;
-    if (role === "member") return `${session} was deleted by its creator.`;
-    return `${session} was deleted.`;
+    return role
+        ? `${session} was deleted by its creator.`
+        : `${session} was deleted.`;
 }
