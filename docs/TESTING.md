@@ -15,7 +15,8 @@ The API tests need a migrated database. They use the dev one from
 and create and delete their own rows.
 
 CI (`.github/workflows/test.yml`) runs all of the above on every pull request
-and push to `main`, after `pnpm build`.
+and push to `main`, after `pnpm build`. It also checks that
+`apps/api/prisma/schema.prisma` matches the migrations (`prisma migrate diff`).
 
 ## Question geometry
 
