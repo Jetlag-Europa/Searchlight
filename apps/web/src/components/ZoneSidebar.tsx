@@ -47,9 +47,15 @@ import {
     hidingZoneLayer,
     lngLatToText,
     safeUnion,
+    sameZones,
     survivingHidingZones,
 } from "@/maps/geo-utils";
-import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
+import {
+    filterZoneIndexes,
+    requestGeometry,
+    SupersededError,
+} from "@/maps/geo-utils/geometryClient";
+import { zoneNameLabel } from "@/maps/zoneLabels";
 
 import { IslandErrorBoundary } from "./IslandErrorBoundary";
 import { Button } from "./ui/button";
@@ -74,6 +80,18 @@ function removeZoneLayers(map: L.Map | null) {
         // Hopefully only geoJSON layers
         if (layer.hidingZones) map.removeLayer(layer);
     });
+}
+
+/**
+ * The map pane the zones draw in, above the question shapes and the
+ * elimination mask. Those are redrawn after every answer, and a recalculation
+ * that keeps the same zones no longer redraws the zones over them.
+ */
+function zonePane(map: L.Map): string {
+    if (!map.getPane("hidingZones")) {
+        map.createPane("hidingZones").style.zIndex = "410";
+    }
+    return "hidingZones";
 }
 
 /** Reset what decides how zones are drawn, as Deselect Zone does. */
@@ -120,6 +138,7 @@ const ZoneSidebarContent = () => {
     const sidebarRef = useRef<HTMLDivElement>(null);
     const zoneRefreshQueue = useMemo(() => createLatestTask(), []);
     const selectionTaskQueue = useMemo(() => createLatestTask(), []);
+    const outlineTaskQueue = useMemo(() => createLatestTask(), []);
 
     // The game's hiding radius, for reference: zones take theirs from the
     // game, resized by any zone size change in the questions.
@@ -177,7 +196,12 @@ const ZoneSidebarContent = () => {
 
         removeHidingZones();
 
+        const labels: [L.Polygon, string][] = [];
         const geoJsonLayer = L.geoJSON(geoJSONData, {
+            pane: zonePane(map),
+            // Only zones take taps (to focus one): the merged outline and the
+            // focus mask would block shapes in the panes below.
+            interactive: nonOverlappingStations,
             style: {
                 color: "green",
                 fillColor: "green",
@@ -203,17 +227,7 @@ const ZoneSidebarContent = () => {
                         feature.properties?.["name:en"] ||
                         feature.properties?.name ||
                         "";
-                    if (name) {
-                        // Names come from the game definition: Leaflet renders
-                        // a string as HTML, so pass it as text.
-                        const label = document.createElement("span");
-                        label.textContent = name;
-                        (layer as L.Polygon).bindTooltip(label, {
-                            permanent: true,
-                            direction: "center",
-                            className: "zone-name-label",
-                        });
-                    }
+                    if (name) labels.push([layer as L.Polygon, name]);
                 }
             },
             pointToLayer(geoJsonPoint, latlng) {
@@ -241,6 +255,11 @@ const ZoneSidebarContent = () => {
         geoJsonLayer.hidingZones = true;
 
         geoJsonLayer.addTo(map);
+        // getCenter() needs the polygon on the map. In the same group, the
+        // labels go when the zones do.
+        for (const [layer, name] of labels) {
+            geoJsonLayer.addLayer(zoneNameLabel(layer.getCenter(), name));
+        }
     };
 
     useEffect(() => {
@@ -275,7 +294,10 @@ const ZoneSidebarContent = () => {
                 try {
                     const circles = await initializeHidingZones(isCurrent);
                     if (isCurrent() && circles) {
-                        setStations(circles);
+                        // The same zones would only redraw the same map.
+                        if (!sameZones(trainStations.get(), circles)) {
+                            setStations(circles);
+                        }
                         hidingZonesCalculated.set(true);
                     }
                 } catch (error) {
@@ -365,6 +387,34 @@ const ZoneSidebarContent = () => {
             const activeStations = stations.filter(
                 (x) => !$disabledStations.includes(x.properties.properties.id),
             );
+            if (
+                $displayHidingZonesStyle === "no-overlap" &&
+                activeStations.length > 1
+            ) {
+                // Merging hundreds of zones can take a second, so the worker
+                // does it while the current drawing stays up.
+                void outlineTaskQueue.request(async (isCurrent) => {
+                    try {
+                        const union = await requestGeometry(
+                            { kind: "union", regions: activeStations },
+                            { supersede: "hiding-zone-outline" },
+                        );
+                        if (!isCurrent()) return;
+                        showGeoJSON(union ?? turf.featureCollection([]));
+                    } catch (error) {
+                        if (!isCurrent() || error instanceof SupersededError) {
+                            return;
+                        }
+                        console.error("Error merging hiding zones:", error);
+                        // Else the outline of the last zones would stay up.
+                        removeHidingZones();
+                        toast.error("The hiding zones couldn't be drawn", {
+                            toastId: "hiding-zone-display-error",
+                        });
+                    }
+                });
+                return () => outlineTaskQueue.cancel();
+            }
             try {
                 showGeoJSON(
                     hidingZoneLayer(activeStations, $displayHidingZonesStyle),

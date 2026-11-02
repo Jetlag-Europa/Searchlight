@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Smoother hiding-zone map on big games (2026-11-02)
+
+- With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
+- "No Overlap" merges the zones without freezing the page. The map keeps the previous outline until the new one is ready.
+- An answer or a teammate's update that rules out no zone no longer redraws the zones.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
