@@ -3,6 +3,8 @@
   "id": "zurich-2026",
   "name": "Zurich 2026",
   "serverId": "1458858559952523305",
+  "date": "2026-07-04",
+  "rulesUrl": "https://docs.google.com/document/d/140BfXjAxHC05QBjleeXcLcZ-7T239cpWbWb4E3rAaV4/edit",
   "size": "large",
   "visibility": {
     "kind": "server-members"

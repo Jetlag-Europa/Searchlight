@@ -23,6 +23,7 @@ import { eventRoutes } from "./routes/events.js";
 import { linkRoutes } from "./routes/links.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
 import { ogRoutes } from "./routes/og.js";
+import { gameCatalogRoutes } from "./routes/game-catalog.js";
 
 const app = Fastify({
   logger: {
@@ -82,6 +83,7 @@ await app.register(serverRoutes, { prefix: "/servers" });
 await app.register(gameRoutes, { prefix: "/games" });
 await app.register(gameImportRoutes, { prefix: "/games" });
 await app.register(gameLinkManagementRoutes, { prefix: "/games" });
+await app.register(gameCatalogRoutes, { prefix: "/games" });
 await app.register(sessionRoutes, { prefix: "/sessions" });
 await app.register(sessionContentRoutes, { prefix: "/sessions" });
 await app.register(eventRoutes, { prefix: "/sessions" });
@@ -137,6 +139,7 @@ if (activePreloadDir) {
         updated: summary.updated,
         unchanged: summary.unchanged,
         kept: summary.kept.length,
+        detailsUpdated: summary.detailsUpdated,
         failed: summary.failures.length,
       },
       "Preloaded game definitions",

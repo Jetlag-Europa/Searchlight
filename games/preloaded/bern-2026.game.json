@@ -3,6 +3,8 @@
   "id": "bern-2026",
   "name": "Espace Mittelland 2026",
   "serverId": "1458858559952523305",
+  "date": "2026-06-06",
+  "rulesUrl": "https://docs.google.com/document/d/1hAFBFvb0hUxsXY723ORK96Cw_NKArYvSGFsZ3q1VFEQ/edit",
   "size": "large",
   "visibility": {
     "kind": "server-members"

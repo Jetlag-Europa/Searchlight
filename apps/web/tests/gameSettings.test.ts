@@ -11,6 +11,9 @@ const game: Game = {
     size: "medium",
     unlisted: false,
     currentRevisionId: "r1",
+    date: null,
+    endDate: null,
+    rulesUrl: null,
 };
 
 describe("gameSettingsUpdate", () => {

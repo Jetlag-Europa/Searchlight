@@ -5,7 +5,7 @@ import type {
     ServersResponse,
     SessionsResponse,
 } from "@searchlight/shared";
-import { Settings, TriangleAlert } from "lucide-react";
+import { BookOpen, Compass, Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
@@ -23,6 +23,7 @@ import {
     activeSessionId,
     clearActiveSession,
     offlineUserId,
+    PENDING_SESSION_KEY,
     setActiveSession,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -32,6 +33,7 @@ import {
     sessionPickerOpen,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
+import { formatEventDate, rulesLink } from "@/lib/eventDate";
 import {
     applyPendingModes,
     applyUnsyncedEvents,
@@ -325,6 +327,14 @@ function SessionPickerOverlay({
                         Select a Session
                     </h1>
                     <div className="flex shrink-0 items-center gap-1">
+                        <a
+                            href="/browse"
+                            title="Find a game"
+                            aria-label="Find a game"
+                            className="rounded-md p-1.5 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                        >
+                            <Compass className="h-5 w-5" />
+                        </a>
                         {canManageGames && (
                             <a
                                 href="/games"
@@ -516,18 +526,34 @@ function SessionPickerOverlay({
                         )}
 
                         {!selectedIsMember ? (
-                            <p className="text-xs text-muted-foreground">
-                                You aren’t in this Discord server, so you can
-                                only open sessions shared with you here.
-                            </p>
+                            <div className="flex flex-col items-start gap-2">
+                                <p className="text-xs text-muted-foreground">
+                                    You aren’t in this Discord server, so you can
+                                    only open sessions shared with you here.
+                                </p>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <a href="/browse">
+                                        <Compass />
+                                        Find a game
+                                    </a>
+                                </Button>
+                            </div>
                         ) : !showCreateForm ? (
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setShowCreateForm(true)}
-                            >
-                                + New session
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setShowCreateForm(true)}
+                                >
+                                    + New session
+                                </Button>
+                                <Button variant="ghost" size="sm" asChild>
+                                    <a href="/browse">
+                                        <Compass />
+                                        Find a game
+                                    </a>
+                                </Button>
+                            </div>
                         ) : (
                             <div className="border border-border rounded-lg p-4 space-y-3 mt-3">
                                 <p className="text-sm font-medium">
@@ -565,9 +591,13 @@ function SessionPickerOverlay({
                                                 )
                                             }
                                         >
+                                            {/* Newest event first, as the API lists them. */}
                                             {availableGames.map((g) => (
                                                 <option key={g.id} value={g.id}>
                                                     {g.name}
+                                                    {g.date
+                                                        ? ` · ${formatEventDate(g.date, g.endDate)}`
+                                                        : ""}
                                                 </option>
                                             ))}
                                         </select>
@@ -578,6 +608,16 @@ function SessionPickerOverlay({
                                         sessions cannot be created.
                                     </p>
                                 )}
+                                <p className="text-xs text-muted-foreground">
+                                    Looking for somewhere else to play?{" "}
+                                    <a
+                                        href="/browse"
+                                        className="underline hover:text-foreground"
+                                    >
+                                        Browse every game you can play
+                                    </a>
+                                    .
+                                </p>
                                 <p className="text-xs text-muted-foreground">
                                     Only you can see a new session. Use Invite
                                     to play it with others, or Share a copy to
@@ -662,6 +702,8 @@ function SessionChip({
     onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
     inert: boolean;
 }) {
+    const rules = rulesLink(session.rulesUrl);
+
     return (
         <StatusChip slot="session">
             <div
@@ -674,6 +716,19 @@ function SessionChip({
                 >
                     {session.name}
                 </span>
+                {rules && (
+                    <a
+                        href={rules}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-muted-foreground hover:text-foreground underline whitespace-nowrap"
+                        aria-label="Game rules (opens in a new tab)"
+                        title="The game's rules doc"
+                    >
+                        <BookOpen className="size-3" aria-hidden="true" />
+                        Rules
+                    </a>
+                )}
                 <button
                     onClick={onChangeSession}
                     className="text-muted-foreground hover:text-foreground underline whitespace-nowrap"
@@ -1005,11 +1060,11 @@ export function SessionManager() {
         // Offline, it waits for /me.
         const pendingLinkSession = readStorage(
             "localStorage",
-            "taibled-pending-link-session",
+            PENDING_SESSION_KEY,
         );
         if (pendingLinkSession && offline) return cleanup;
         if (pendingLinkSession) {
-            removeStorage("localStorage", "taibled-pending-link-session");
+            removeStorage("localStorage", PENDING_SESSION_KEY);
             setLoading(true);
             fetch(`${API_BASE}/sessions/${pendingLinkSession}`, {
                 credentials: "include",

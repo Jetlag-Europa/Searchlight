@@ -3,6 +3,8 @@
   "id": "paris-2026",
   "name": "Paris 15-08",
   "serverId": "1190673594649415730",
+  "date": "2026-08-15",
+  "rulesUrl": "https://docs.google.com/document/d/1Ui2FWWa558uxRi1x1NX_G63eDUhjZqcoUb2C_lJHkCY/edit",
   "size": "large",
   "visibility": {
     "kind": "server-members"

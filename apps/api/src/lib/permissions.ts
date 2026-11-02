@@ -233,6 +233,45 @@ async function getListingMembership(
   return { isMember: cached.isMember, roles: cached.roles };
 }
 
+// A recheck asks Discord at most this often per (user, server), whatever the
+// cache holds: the first recheck after joining always reaches Discord.
+const RECHECK_MIN_INTERVAL_MS = 10 * 1000;
+const lastRecheck = new Map<string, number>();
+
+/**
+ * Asks Discord again whether the user is in the server, past the cache, so
+ * someone who just joined can use its games right away. Returns membership;
+ * throws 429 when asked again within RECHECK_MIN_INTERVAL_MS and 503 when
+ * Discord doesn't answer.
+ */
+export async function recheckServerMembership(
+  userId: string,
+  serverId: string,
+  logger?: FastifyBaseLogger,
+): Promise<boolean> {
+  if (isAdmin(userId) || VIRTUAL_SERVER_IDS.has(serverId)) return true;
+
+  const now = Date.now();
+  const key = `${userId}:${serverId}`;
+  const last = lastRecheck.get(key);
+  if (last !== undefined && now - last < RECHECK_MIN_INTERVAL_MS) {
+    throw Object.assign(new Error("Checked a moment ago; try again in a few seconds"), {
+      statusCode: 429,
+    });
+  }
+  if (lastRecheck.size > 10_000) {
+    for (const [k, t] of lastRecheck) if (now - t >= RECHECK_MIN_INTERVAL_MS) lastRecheck.delete(k);
+  }
+  lastRecheck.set(key, now);
+
+  try {
+    return (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+  } catch (err) {
+    logger?.warn({ userId, serverId, err }, "Could not recheck server membership");
+    throw Object.assign(new Error("Couldn't reach Discord; try again shortly"), { statusCode: 503 });
+  }
+}
+
 export async function assertServerMembership(
   userId: string,
   serverId: string,

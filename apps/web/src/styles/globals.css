@@ -126,6 +126,15 @@ div.leaflet-control-attribution.leaflet-control {
         @apply !mt-[104px] md:!mt-[40px];
     }
 
+    /* The Find a game map sits in the page, below no toolbar. */
+    main:not(.fullscreen)
+        .browse-map
+        .leaflet-control-container
+        .leaflet-top
+        .leaflet-control {
+        @apply !mt-2.5;
+    }
+
     div.leaflet-top div.leaflet-control-easyPrint {
         @apply !mt-[140px] md:!mt-[74px];
     }
@@ -166,4 +175,30 @@ div.leaflet-control-attribution.leaflet-control {
 }
 .zone-labels-hidden .zone-name-label {
     display: none !important;
+}
+
+/* The Find a game map: its cards and the names of its games, in the app's colours. */
+.browse-map .leaflet-popup-content-wrapper,
+.browse-map .leaflet-popup-tip {
+    @apply border border-border bg-background text-foreground shadow-lg;
+}
+
+.browse-map .leaflet-popup-content {
+    margin: 12px 14px;
+}
+
+.browse-map .leaflet-popup-content p {
+    margin: 0;
+}
+
+.browse-map .leaflet-popup-content a {
+    color: inherit;
+}
+
+.browse-map .leaflet-tooltip.game-label {
+    @apply border-0 bg-background/80 px-1.5 py-0.5 text-[11px] font-medium text-foreground shadow-none;
+}
+
+.browse-map .leaflet-tooltip.game-label::before {
+    display: none;
 }

@@ -3,6 +3,8 @@
   "id": "rotterdam-2026-09",
   "name": "Rotterdam 12-09",
   "serverId": "1369664929975767120",
+  "date": "2026-09-12",
+  "rulesUrl": "https://docs.google.com/document/d/104CAovTOh7luUX_PoefEaj_wx9eqKmMk2pe1Fx6aGw4/edit",
   "size": "medium",
   "visibility": {
     "kind": "server-members"

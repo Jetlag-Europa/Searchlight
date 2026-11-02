@@ -3,6 +3,8 @@
   "id": "south-limburg-2026",
   "name": "South Limburg 2026",
   "serverId": "1369664929975767120",
+  "date": "2026-07-04",
+  "rulesUrl": "https://docs.google.com/document/d/1T0gmRrzy2le6fHQozXyVu7rdaFEftEk9hEHUNj-QzzQ/edit",
   "size": "medium",
   "visibility": {
     "kind": "server-members"

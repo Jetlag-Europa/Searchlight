@@ -4,6 +4,11 @@ import { atom } from "nanostores";
 import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 
 const SS_KEY = "taibled-active-session";
+/**
+ * A session for the map page to open instead of the session picker, set by
+ * pages that start one (/browse here; /join and /play use the same literal).
+ */
+export const PENDING_SESSION_KEY = "taibled-pending-link-session";
 const LS_KEY = "taibled-last-session";
 
 function initialSessionId(): string {

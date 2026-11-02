@@ -88,6 +88,22 @@
         }
       ]
     },
+    "date": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The event day, YYYY-MM-DD. Game lists show the newest event first.",
+      "type": "string"
+    },
+    "endDate": {
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+      "description": "The last day of a multi-day event, YYYY-MM-DD; needs date.",
+      "type": "string"
+    },
+    "rulesUrl": {
+      "minLength": 1,
+      "maxLength": 2048,
+      "description": "An https link to the game's rules doc, opened by the Rules button.",
+      "type": "string"
+    },
     "unit": {
       "anyOf": [
         {

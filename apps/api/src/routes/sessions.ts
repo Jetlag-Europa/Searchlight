@@ -24,6 +24,7 @@ async function resolveParticipant(sessionId: string, userId: string) {
         select: {
           name: true,
           unlisted: true,
+          rulesUrl: true,
           currentRevisionId: true,
           currentRevision: { select: { id: true, revision: true } },
         },
@@ -92,6 +93,7 @@ export async function createSession({
     id: string;
     serverId: string;
     name: string;
+    rulesUrl: string | null;
     currentRevisionId: string | null;
     currentRevision: { revision: number } | null;
   };
@@ -128,6 +130,7 @@ export async function createSession({
     id: session.id,
     gameId: session.gameId,
     gameName: game.name,
+    rulesUrl: game.rulesUrl,
     serverId: session.serverId,
     name: session.name,
     visibility: session.visibility,
@@ -182,6 +185,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           game: {
             select: {
               name: true,
+              rulesUrl: true,
               currentRevisionId: true,
               currentRevision: { select: { revision: true } },
             },
@@ -200,6 +204,7 @@ export async function sessionRoutes(app: FastifyInstance) {
           id: s.id,
           gameId: s.gameId,
           gameName: s.game.name,
+          rulesUrl: s.game.rulesUrl,
           serverId: s.serverId,
           name: s.name,
           visibility: s.visibility,
@@ -331,6 +336,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         id: session.id,
         gameId: session.gameId,
         gameName: session.game.name,
+        rulesUrl: session.game.rulesUrl,
         serverId: session.serverId,
         name: session.name,
         visibility: session.visibility,
@@ -627,6 +633,7 @@ export async function sessionRoutes(app: FastifyInstance) {
             game: {
               select: {
                 name: true,
+                rulesUrl: true,
                 currentRevisionId: true,
                 currentRevision: { select: { revision: true } },
               },
@@ -656,6 +663,7 @@ export async function sessionRoutes(app: FastifyInstance) {
         id: updated.id,
         gameId: updated.gameId,
         gameName: updated.game.name,
+        rulesUrl: updated.game.rulesUrl,
         serverId: updated.serverId,
         name: updated.name,
         visibility: updated.visibility,

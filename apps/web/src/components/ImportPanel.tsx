@@ -143,7 +143,9 @@ export function ImportPanel({
                             ? "New game"
                             : dryRun.status === "updated"
                               ? `Update (rev ${dryRun.revision})`
-                              : "Identical"}
+                              : dryRun.detailsChanged
+                                ? "Same map, new date or rules link"
+                                : "Identical"}
                     </span>
                 )}
             </div>

@@ -3,6 +3,9 @@
   "id": "luxembourg-2026",
   "name": "OLD Luxembourg 2026 (do not use)",
   "serverId": "1190673594649415730",
+  "date": "2026-05-07",
+  "endDate": "2026-05-09",
+  "rulesUrl": "https://docs.google.com/document/d/10tVm4sF2HzPTL1jS78VaCf_beYf2GFE9k-jnER5CWME/edit",
   "size": "medium",
   "visibility": {
     "kind": "server-members"

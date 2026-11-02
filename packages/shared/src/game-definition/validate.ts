@@ -1,4 +1,5 @@
 import { Value } from "@sinclair/typebox/value";
+import { validateGameDetails } from "./details.js";
 import {
   deriveFeatureQuestionId,
   type GameDefinition,
@@ -123,7 +124,10 @@ export function validateGameDefinition(raw: unknown): ValidationResult {
     });
   }
 
-  // 3. Map bounds validation
+  // 3. The game's details: real dates, in order, and an https rules link
+  errors.push(...validateGameDetails(def));
+
+  // 4. Map bounds validation
   if (def.map.bounds) {
     const [west, south, east, north] = def.map.bounds;
     if (west > east) {
@@ -142,7 +146,7 @@ export function validateGameDefinition(raw: unknown): ValidationResult {
     }
   }
 
-  // 4. Closed rings validation for Polygons
+  // 5. Closed rings validation for Polygons
   def.map.playArea.features.forEach((feat, idx) => {
     validateClosedRings(feat.geometry, `/map/playArea/features/${idx}/geometry`, errors);
   });
@@ -151,7 +155,7 @@ export function validateGameDefinition(raw: unknown): ValidationResult {
     validateClosedRings(feat.geometry, `/hidingZones/features/features/${idx}/geometry`, errors);
   });
 
-  // 5. Features collection validation (optional)
+  // 6. Features collection validation (optional)
   if (def.features) {
     const names = new Set<string>();
     const seenQuestionIds = new Map<string, string>();

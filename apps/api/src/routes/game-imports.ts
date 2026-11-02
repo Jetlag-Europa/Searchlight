@@ -9,6 +9,7 @@ import {
   ImportValidationError,
 } from "../games/import-service.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
+import { rowDetails } from "../lib/game-details.js";
 import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
@@ -307,15 +308,28 @@ export async function gameImportRoutes(app: FastifyInstance) {
         revisionIds: [revision.id],
       });
 
-      const etag = `"${revision.checksum}"`;
+      // The game's details aren't in the revision: the export carries them, so
+      // that saving it as a game file keeps the date and rules link.
+      const details = Object.fromEntries(
+        Object.entries(rowDetails(game)).filter(([, value]) => value !== null),
+      );
+      const detailsTag = createHash("sha256").update(JSON.stringify(details)).digest("hex").slice(0, 12);
+      const etag = `"${revision.checksum}-${detailsTag}"`;
       if (matchesETag(req.headers["if-none-match"], etag)) {
         return reply.status(304).send();
       }
 
-      const definition = await loadDefinition(revision.id);
-      if (!definition) {
+      const stored = await loadDefinition(revision.id);
+      if (!stored) {
         return reply.status(404).send({ error: "Game definition not found" });
       }
+      // After serverId, where game files keep them.
+      const definition: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(stored as Record<string, unknown>)) {
+        definition[key] = value;
+        if (key === "serverId") Object.assign(definition, details);
+      }
+      Object.assign(definition, details);
 
       // Compact JSON: pretty-printing made definitions ~4.5x larger on the
       // wire. Downloads are re-formatted client-side.
