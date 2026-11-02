@@ -24,6 +24,7 @@ import {
     newQuestionPosition,
     newThermometerData,
 } from "@/lib/questionPosition";
+import { newQuestionKey } from "@/maps/schema";
 
 // New questions start at the seeker while Follow Me knows where they are, so
 // they don't have to tap "Set to current location" on every card. Uses the
@@ -142,7 +143,7 @@ export const AddQuestionDialog = ({
             const parsed = JSON.parse(text);
             const question =
                 parsed && typeof parsed === "object" && !Array.isArray(parsed)
-                    ? { ...parsed, key: Math.random() }
+                    ? { ...parsed, key: newQuestionKey() }
                     : parsed;
 
             addQuestion(question);

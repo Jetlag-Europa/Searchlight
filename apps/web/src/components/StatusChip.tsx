@@ -11,7 +11,7 @@ export function StatusChip({
     slot,
     children,
 }: {
-    slot: "user" | "session";
+    slot: "user" | "session" | "conflicts";
     children: ReactNode;
 }) {
     const el = document.getElementById(`${slot}-chip-slot`);
