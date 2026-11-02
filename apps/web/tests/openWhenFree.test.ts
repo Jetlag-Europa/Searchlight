@@ -20,6 +20,21 @@ class FakeDocument extends EventTarget {
         this.visibilityState = state;
         this.dispatchEvent(new Event("visibilitychange"));
     }
+    pointer(type: string, pointerId = 1, buttons = 0) {
+        this.dispatchEvent(
+            Object.assign(new Event(type), { pointerId, buttons }),
+        );
+    }
+    // A mouse click on `element`: the press moves focus, the click comes
+    // after the release, in the same task.
+    press(element: Element | null) {
+        this.pointer("pointerdown", 1, 1);
+        this.focus(element);
+    }
+    release(onClick: () => void) {
+        this.pointer("pointerup");
+        onClick();
+    }
 }
 
 describe("isTypingIn", () => {
@@ -91,16 +106,16 @@ describe("openWhenFree", () => {
 
         // Typing on, from field to field: still waits.
         doc.focus(otherField);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         expect(open).not.toHaveBeenCalled();
 
         doc.focus(button);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         expect(open).toHaveBeenCalledTimes(1);
         // Only once per request.
         doc.focus(textField);
         doc.focus(null);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         expect(open).toHaveBeenCalledTimes(1);
     });
 
@@ -114,7 +129,7 @@ describe("openWhenFree", () => {
         expect(open).not.toHaveBeenCalled();
 
         doc.focus(null);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         expect(open).toHaveBeenCalledTimes(1);
     });
 
@@ -123,7 +138,7 @@ describe("openWhenFree", () => {
         opener.request();
         doc.show("hidden");
         doc.focus(null);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         expect(open).not.toHaveBeenCalled();
         doc.show("visible");
         expect(open).toHaveBeenCalledTimes(1);
@@ -134,15 +149,101 @@ describe("openWhenFree", () => {
         opener.request();
         opener.cancel();
         doc.focus(null);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         expect(open).not.toHaveBeenCalled();
 
         doc.focus(textField);
         opener.request();
         opener.stop();
         doc.focus(null);
-        vi.runAllTimers();
+        vi.advanceTimersByTime(1);
         doc.show("visible");
         expect(open).not.toHaveBeenCalled();
+    });
+
+    test("a press that takes focus from the field opens it after its click", () => {
+        const clicked = vi.fn(() => {
+            // The window would be over the button by now.
+            expect(open).not.toHaveBeenCalled();
+        });
+        doc.focus(textField);
+        opener.request();
+
+        doc.press(button);
+        // The player holds the button down for a while.
+        vi.advanceTimersByTime(3_000);
+        expect(open).not.toHaveBeenCalled();
+
+        doc.release(clicked);
+        expect(clicked).toHaveBeenCalledTimes(1);
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    test("a cancelled press, or one released off the page, ends too", () => {
+        doc.focus(textField);
+        opener.request();
+        doc.press(null);
+        doc.pointer("pointercancel");
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(1);
+
+        doc.focus(textField);
+        opener.request();
+        doc.press(null);
+        // Still held: moves with the button down don't end it.
+        doc.pointer("pointermove", 1, 1);
+        vi.advanceTimersByTime(1_000);
+        expect(open).toHaveBeenCalledTimes(1);
+        // Back over the page with the button up.
+        doc.pointer("pointermove", 1, 0);
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(2);
+    });
+
+    test("doesn't open mid-press even when nothing is typed in", () => {
+        doc.pointer("pointerdown", 1, 1);
+        opener.request();
+        expect(open).not.toHaveBeenCalled();
+        doc.pointer("pointerup");
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    test("a focused field taken off the page, without a focusout", () => {
+        doc.focus(textField);
+        opener.request();
+        // As Safari and Firefox do: focus is back on the page, silently.
+        doc.activeElement = null;
+        vi.advanceTimersByTime(999);
+        expect(open).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    test("a key let go after the field went opens it sooner", () => {
+        doc.focus(textField);
+        opener.request();
+        doc.activeElement = null;
+        doc.dispatchEvent(new Event("keyup"));
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(1);
+    });
+
+    test("stops looking again once it opened or was cancelled", () => {
+        doc.focus(textField);
+        opener.request();
+        opener.cancel();
+        doc.activeElement = null;
+        vi.advanceTimersByTime(5_000);
+        expect(open).not.toHaveBeenCalled();
+        expect(vi.getTimerCount()).toBe(0);
+
+        doc.focus(textField);
+        opener.request();
+        doc.focus(null);
+        vi.advanceTimersByTime(1);
+        expect(open).toHaveBeenCalledTimes(1);
+        expect(vi.getTimerCount()).toBe(0);
     });
 });

@@ -41,12 +41,19 @@ export interface OpenWhenFree {
     stop(): void;
 }
 
+// While a request waits on a field, how often to look again whether it is
+// still focused. Safari and Firefox fire no focusout for a focused field
+// taken off the page.
+const RECHECK_MS = 1_000;
+
 /**
  * Opens a window that wasn't asked for only once the player is free to look
  * at it: with the page in view, and not while they type. Taking focus from
  * a field would close a phone's keyboard mid-word. A request made meanwhile
  * opens it when the page comes back into view, or when focus leaves the
- * field for something that isn't another one.
+ * field for something that isn't another one. If a press (a mouse button or
+ * a pen) moved it there, the window waits for the press to end and its
+ * click to land: opened in between, it would take the click instead.
  */
 export function openWhenFree(
     doc: Pick<
@@ -60,33 +67,72 @@ export function openWhenFree(
 ): OpenWhenFree {
     let waiting = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let recheck: ReturnType<typeof setInterval> | undefined;
+    // Pointers pressed on the page now.
+    const pressed = new Set<number>();
+    const stopWaiting = () => {
+        waiting = false;
+        clearTimeout(timer);
+        clearInterval(recheck);
+        recheck = undefined;
+    };
     const openIfFree = () => {
         if (!waiting) return;
         if (doc.visibilityState !== "visible") return;
         if (isTypingIn(doc.activeElement)) return;
-        waiting = false;
+        if (pressed.size > 0) return;
+        stopWaiting();
         open();
     };
-    // Focus moves on after focusout: wait for where it lands.
-    const onFocusOut = () => {
+    // Focus moves on after focusout, and a click comes after pointerup:
+    // wait for them.
+    const onVisibilityChange = () => {
+        // Hidden, the page may miss a press ending.
+        if (doc.visibilityState !== "visible") pressed.clear();
+        openIfFree();
+    };
+    const openSoon = () => {
+        if (!waiting) return;
         clearTimeout(timer);
         timer = setTimeout(openIfFree, 0);
     };
-    doc.addEventListener("visibilitychange", openIfFree);
-    doc.addEventListener("focusout", onFocusOut);
+    const onPointerDown = (event: Event) => {
+        pressed.add((event as PointerEvent).pointerId);
+    };
+    const onPointerUp = (event: Event) => {
+        pressed.delete((event as PointerEvent).pointerId);
+        openSoon();
+    };
+    // A pointerup missed (released outside the window, say): a move with
+    // no button down ends the press too.
+    const onPointerMove = (event: Event) => {
+        const { buttons, pointerId } = event as PointerEvent;
+        if (buttons === 0 && pressed.delete(pointerId)) openSoon();
+    };
+    // In the capture phase: the map stops some pointer events on their way up.
+    const listeners: [string, (event: Event) => void, boolean][] = [
+        ["visibilitychange", onVisibilityChange, false],
+        ["focusout", openSoon, false],
+        ["keyup", openSoon, false],
+        ["pointerdown", onPointerDown, true],
+        ["pointerup", onPointerUp, true],
+        ["pointercancel", onPointerUp, true],
+        ["pointermove", onPointerMove, true],
+    ];
+    for (const [type, listener, capture] of listeners)
+        doc.addEventListener(type, listener, capture);
     return {
         request() {
             waiting = true;
             openIfFree();
+            if (waiting && recheck === undefined)
+                recheck = setInterval(openIfFree, RECHECK_MS);
         },
-        cancel() {
-            waiting = false;
-        },
+        cancel: stopWaiting,
         stop() {
-            waiting = false;
-            clearTimeout(timer);
-            doc.removeEventListener("visibilitychange", openIfFree);
-            doc.removeEventListener("focusout", onFocusOut);
+            stopWaiting();
+            for (const [type, listener, capture] of listeners)
+                doc.removeEventListener(type, listener, capture);
         },
     };
 }
