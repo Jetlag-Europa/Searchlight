@@ -6,7 +6,9 @@ Searchlight ships as two Docker images plus Postgres:
   from the database, then starts Fastify on port 3000, which imports every
   `games/preloaded/*.game.json`. A changed game becomes a new revision; running
   sessions stay on the revision they started with. `GET /health` returns
-  `{"ok":true}`.
+  `{"ok":true}`. It compresses its own responses (brotli or gzip), so a proxy
+  in front of it doesn't need to, but it must pass `/sessions/:id/stream`
+  (live updates) through unbuffered.
 - **web** is nginx serving the static build on port 80. The API URL
   (`PUBLIC_API_BASE`) is baked in when the image is built.
 

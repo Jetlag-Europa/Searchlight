@@ -17,6 +17,7 @@
         "postinstall": "prisma generate"
     },
     "dependencies": {
+        "@fastify/compress": "^9.3.0",
         "@fastify/cookie": "^11.0.2",
         "@fastify/cors": "^10.0.2",
         "@fastify/type-provider-typebox": "^5.0.0",
