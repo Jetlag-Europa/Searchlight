@@ -94,9 +94,12 @@ function GameCard({
         : ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
             permissions.includes(p),
         );
-    // Same check as the API; a settings edit needs a revision to build on.
+    // Same check as the API; a settings edit needs a revision to build on. A
+    // Casual game's creator edits it while they hold games.create there.
     const canEditSettings =
-        ["games.edit", "server.admin"].some((p) => permissions.includes(p)) && !!game.currentRevisionId;
+        (["games.edit", "server.admin"].some((p) => permissions.includes(p)) ||
+            (casual && !!userId && game.createdById === userId && permissions.includes("games.create"))) &&
+        !!game.currentRevisionId;
 
     const handleToggleListed = async () => {
         setError(null);

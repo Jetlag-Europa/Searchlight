@@ -285,8 +285,9 @@ export async function gameRoutes(app: FastifyInstance) {
   );
 
   // PATCH /games/:gameId/settings — change a game's name and size (game
-  // editors of its server). Saved as a new revision, like uploading the edited
-  // JSON, so sessions keep their revision and are offered the update.
+  // editors of its server; on Casual Games, also the game's creator). Saved
+  // as a new revision, like uploading the edited JSON, so sessions keep their
+  // revision and are offered the update.
   app.patch(
     "/:gameId/settings",
     {
@@ -324,7 +325,14 @@ export async function gameRoutes(app: FastifyInstance) {
       // Checked before the definition, which can be several MB, is loaded.
       const perms = await getUserPermissions(user.discordId, game.serverId, true, req.log);
       const canEdit = perms.has("games.edit") || perms.has("server.admin");
-      if (!canEdit) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+      // A Casual game's creator edits it while they hold games.create there,
+      // as for an import of it.
+      const ownCasualGame =
+        game.serverId === CASUAL_SERVER_ID &&
+        game.createdById !== null &&
+        game.createdById === user.discordId &&
+        perms.has("games.create");
+      if (!canEdit && !ownCasualGame) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
       const name = body.name?.trim();
       if (name === "") {
@@ -344,7 +352,7 @@ export async function gameRoutes(app: FastifyInstance) {
           actor: {
             userId: user.discordId,
             type: "cookie",
-            canCreateGames: () => false,
+            canCreateGames: (serverId) => ownCasualGame && serverId === game.serverId,
             canEditGames: (serverId) => canEdit && serverId === game.serverId,
           },
         });

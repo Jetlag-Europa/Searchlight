@@ -362,6 +362,38 @@ describe("Casual Games", () => {
       expect(del.statusCode).toBe(403);
     });
 
+    test("the creator renames their game while they hold the role; others can't", async () => {
+      const created = await importAs(CREATOR, definition(`${KEY_PREFIX}settings`, "Settings 2026"));
+      expect(created.statusCode).toBe(201);
+      const settingsGameId = created.json().gameId;
+      const rename = async (userId: string, name: string) => {
+        const game = await prisma.game.findUniqueOrThrow({ where: { id: settingsGameId } });
+        return app.inject({
+          method: "PATCH",
+          url: `/games/${settingsGameId}/settings`,
+          headers: as(userId),
+          payload: { baseRevisionId: game.currentRevisionId, name },
+        });
+      };
+
+      for (const userId of [RIVAL, PLAYER]) {
+        expect((await rename(userId, "Not Yours 2026")).statusCode).toBe(403);
+      }
+      await setEuRoles(CREATOR, []);
+      expect((await rename(CREATOR, "Without The Role 2026")).statusCode).toBe(403);
+      await setEuRoles(CREATOR, [CREATOR_ROLE]);
+
+      const own = await rename(CREATOR, "Settings 2026 Renamed");
+      expect(own.statusCode).toBe(200);
+      expect(own.json()).toMatchObject({
+        status: "updated",
+        game: { name: "Settings 2026 Renamed", unlisted: true, createdById: CREATOR },
+      });
+      const admin = await rename(ADMIN, "Settings 2026 By Admin");
+      expect(admin.statusCode).toBe(200);
+      expect(admin.json().game).toMatchObject({ name: "Settings 2026 By Admin", createdById: CREATOR });
+    });
+
     test("the creator can't delete their game; that's for global admins", async () => {
       const res = await app.inject({ method: "DELETE", url: `/games/${gameId}`, headers: as(CREATOR) });
       expect(res.statusCode).toBe(403);
