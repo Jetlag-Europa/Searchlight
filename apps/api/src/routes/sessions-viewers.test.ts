@@ -374,6 +374,15 @@ describe("session viewers", () => {
         url: `/sessions/${SESSION_ID}/questions`,
         payload: { questions: [{ clientUuid: "q1", ordinal: 0, payloadJson: {} }], replacementId: "test-sview-r1" },
       },
+      {
+        method: "PUT",
+        url: `/sessions/${SESSION_ID}/questions`,
+        payload: {
+          questions: [{ clientUuid: "q1", ordinal: 0, payloadJson: {} }],
+          replacementId: "test-sview-r2",
+          baseSequence: 0,
+        },
+      },
       { method: "POST", url: `/sessions/${SESSION_ID}/links`, payload: { linkType: "join" } },
       { method: "POST", url: `/sessions/${SESSION_ID}/upgrade-revision` },
       { method: "DELETE", url: `/sessions/${SESSION_ID}/participants/${MEMBER_ID}` },
@@ -404,6 +413,45 @@ describe("session viewers", () => {
       const res = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/${url}`, headers: as(VIEWER_ID) });
       expect(res.statusCode, url).toBe(200);
     }
+  });
+
+  test("viewers read the questions and who changed them, but can't save them", async () => {
+    const save = (userId: string, replacementId: string, key: number, baseSequence: number) =>
+      app.inject({
+        method: "PUT",
+        url: `/sessions/${SESSION_ID}/questions`,
+        headers: as(userId),
+        payload: {
+          questions: [{ clientUuid: `test-sview-${replacementId}`, ordinal: 0, payloadJson: { key } }],
+          replacementId: `test-sview-${replacementId}`,
+          baseSequence,
+        },
+      });
+    expect((await save(MEMBER_ID, "q-member", 0.5, 0)).statusCode).toBe(200);
+
+    const list = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/questions`, headers: as(VIEWER_ID) });
+    expect(list.statusCode).toBe(200);
+    expect(list.json()).toMatchObject({ questions: [{ payloadJson: { key: 0.5 } }], sequence: 1 });
+
+    const changesUrl = `/sessions/${SESSION_ID}/questions/changes?after=0&keys=0.5`;
+    const changes = await app.inject({ method: "GET", url: changesUrl, headers: as(VIEWER_ID) });
+    expect(changes.statusCode).toBe(200);
+    expect(changes.json()).toMatchObject({
+      changes: [{ sequence: 1, userId: MEMBER_ID, questions: [{ key: 0.5 }] }],
+    });
+    for (const url of [`/sessions/${SESSION_ID}/questions`, changesUrl]) {
+      const res = await app.inject({ method: "GET", url, headers: as(OUTSIDER_ID) });
+      expect(res.statusCode, url).toBe(403);
+    }
+
+    // A save on top of the latest list, as a player's board would send it.
+    const res = await save(VIEWER_ID, "q-viewer", 0.25, 1);
+    expect(res.statusCode).toBe(403);
+    expect(res.json().message ?? res.body).toContain("Spectators can't change this session");
+    expect(await prisma.sessionQuestion.findMany({ where: { sessionId: SESSION_ID } })).toMatchObject([
+      { payloadJson: { key: 0.5 } },
+    ]);
+    expect((await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } })).eventSequence).toBe(1);
   });
 
   test("a viewer can leave", async () => {

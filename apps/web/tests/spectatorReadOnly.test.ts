@@ -51,7 +51,7 @@ import {
     saveStrokeToServer,
 } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
-import type { EventRecord } from "@searchlight/shared";
+import type { EventRecord, GameSessionSummary } from "@searchlight/shared";
 import {
     activeSessionId,
     activeSessionRole,
@@ -67,6 +67,7 @@ import {
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 import {
     applyUnsyncedEvents,
+    conflictsKey,
     enqueueEvent,
     getCachedSession,
     getPendingEvents,
@@ -74,6 +75,7 @@ import {
 } from "@/lib/eventQueue";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import { questionConflicts } from "@/lib/questionConflicts";
 import {
     becomeSpectator,
     cacheSessionRole,
@@ -396,6 +398,37 @@ describe("becoming a spectator", () => {
         strokes.set([stroke("from-server"), stroke("unsent")]);
     }
 
+    // The session's details as kept for an offline restore.
+    const keptSession = {
+        id: SID,
+        gameId: "game-1",
+        gameName: "Game",
+        serverId: "server-1",
+        name: "Session",
+        visibility: "shared",
+        role: "member",
+        createdAt: "2025-01-01T00:00:00.000Z",
+        hiderLat: 47.37,
+        hiderLng: 8.54,
+        planningModeEnabled: false,
+        gameRevisionId: "rev-1",
+        sessionRevision: 1,
+        currentRevision: 1,
+        hasNewerRevision: false,
+    } as GameSessionSummary;
+
+    // A question conflict held for this account to decide.
+    const heldConflict = {
+        key: 0.5,
+        kind: "both-changed",
+        mine: { id: "radius", key: 0.5 },
+        theirs: { id: "radius", key: 0.5 },
+        base: { id: "radius", key: 0.5 },
+        baseSequence: 1,
+        theirsSequence: 2,
+        detectedAt: 0,
+    };
+
     test("makes the board read-only and drops unsent edits", () => {
         playWithCache();
         becomeSpectator(SID);
@@ -419,6 +452,46 @@ describe("becoming a spectator", () => {
 
         expect(getCachedSession(SID)?.role).toBe("viewer");
         expect(getCachedSession(SID)?.strokes).toHaveLength(1);
+    });
+
+    test("keeps the session's details for an offline restore without the hider", () => {
+        playWithCache();
+        setCachedSession({ ...getCachedSession(SID)!, session: keptSession });
+        becomeSpectator(SID);
+
+        expect(getCachedSession(SID)?.session).toMatchObject({
+            id: SID,
+            name: "Session",
+            role: "viewer",
+            hiderLat: null,
+            hiderLng: null,
+        });
+    });
+
+    test("drops the question conflicts held for a decision, and shows none", () => {
+        playWithCache();
+        localStorage.setItem(conflictsKey(SID), JSON.stringify([heldConflict]));
+        // Shown to a player; the atom follows the account and session.
+        activeSessionId.set("");
+        activeSessionId.set(SID);
+        expect(questionConflicts.get()).toHaveLength(1);
+
+        becomeSpectator(SID);
+
+        expect(localStorage.getItem(conflictsKey(SID))).toBeNull();
+        expect(questionConflicts.get()).toEqual([]);
+    });
+
+    test("hides conflicts still stored while the board is read-only", () => {
+        playWithCache();
+        localStorage.setItem(conflictsKey(SID), JSON.stringify([heldConflict]));
+        activeSessionRole.set("viewer");
+        activeSessionId.set("");
+        activeSessionId.set(SID);
+
+        expect(questionConflicts.get()).toEqual([]);
+        // Another tab, say, wrote them: still none for the spectator.
+        expect(localStorage.getItem(conflictsKey(SID))).not.toBeNull();
     });
 
     test("doesn't show another account's cached copy", () => {
@@ -446,6 +519,34 @@ describe("the cached role", () => {
 
         expect(getCachedSession(SID)?.role).toBe("member");
         expect(getCachedSession(SID)?.strokes).toHaveLength(1);
+    });
+
+    test("is written to the kept session's details too", () => {
+        const session = {
+            id: SID,
+            gameId: "game-1",
+            gameRevisionId: "rev-1",
+            name: "Session",
+            role: "member",
+            hiderLat: 47.37,
+            hiderLng: 8.54,
+        } as GameSessionSummary;
+        setCachedSession({
+            sessionId: SID,
+            userId: "user-1",
+            role: "member",
+            session,
+            strokes: [],
+            questions: [],
+            lastSyncedAt: 0,
+            lastSequence: 0,
+        });
+        cacheSessionRole(SID, "viewer");
+
+        expect(getCachedSession(SID)).toMatchObject({
+            role: "viewer",
+            session: { role: "viewer", hiderLat: null, hiderLng: null },
+        });
     });
 
     test("isn't written for a session with no cached copy", () => {
