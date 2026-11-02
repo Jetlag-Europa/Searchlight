@@ -4,10 +4,56 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
-## One page for checking and importing games (2026-10-21)
+## One page for checking and importing games (2026-11-02)
 
 - `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
 - The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
+
+## Zone sidebar stays with "No Overlap" (2026-10-31)
+
+- With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
+
+## Map no longer freezes after closing a confirm (2026-10-31)
+
+- The map's buttons (the question and hiding zone sidebars, the options) could stop responding to taps until a reload, with only the map's zoom buttons still working. It happened when a confirm dialog closed together with the window it was opened from, for example deleting a question from its map marker, or turning a phone sideways while a delete confirm was open in the sidebar.
+
+## Game settings on the games page (2026-10-28)
+
+- Game editors (`games.edit` or `server.admin`) can now rename a game and change its size from `/games` → **Settings**, without importing its file again. The game's ID stays the same, so its links and exports keep working.
+- Saving makes a new revision, as an import of the edited file would: **Export JSON** has the new name, the new name shows in game lists and links right away, and sessions already started are offered the update ("Game update available"), even for a rename alone; a new size applies there once their creator accepts it. Changing the settings back makes the earlier revision current again instead of adding one.
+- If the game changed since the page loaded, for example through an import, the save is refused and the game isn't changed: reload the page and edit again. For a preloaded game, the next change to its file replaces the edit, as it replaces an upload.
+
+## Paste field when the clipboard is blocked (2026-10-26)
+
+- The paste buttons (Paste Question, Apply from clipboard on presets, paste coordinates, and Paste GeoJSON in the options) still read the clipboard directly where the browser allows it. Where it doesn't, because clipboard access is blocked, the Clipboard API is missing, or the browser's own "Paste" prompt was dismissed, they now open a field to paste into, instead of showing an error.
+- Pasting a coordinate pair or a Google Maps link into the Latitude or Longitude field now sets both. A single number still pastes as before.
+
+## Asked before a question is overwritten (2026-10-24)
+
+- When your questions reach the server after the connection was down, or while another player was saving, and you and another player changed the same question differently, Searchlight now asks which version to keep instead of picking one. It also asks when one of you deleted a question the other changed. Everything else still merges on its own: new questions, changes to different questions, and folding or locking.
+- A window lists each of these questions with both versions side by side, as the question cards put them ("2 km, Inside" against "500 m, Outside"), and names who made the other change. Keep mine or Keep theirs for each, or for all at once. On a phone it opens from the bottom of the screen.
+- The rest of your changes are saved straight away. Until you choose, the question keeps the other player's version, for everyone.
+- Closing the window leaves "1 question needs a decision" under the session at the top right; tap it to choose later. Questions waiting for a decision are kept on the device for the account that changed them, so they survive a reload or the app being closed.
+- Your choice is saved like any other change. If the other player changes the question again before it arrives, you're asked again rather than overwriting their newer change. Changing a waiting question yourself, once it shows the other player's version, also decides it: your new change is kept. The choices wait while the session is loading, or while this device can't save. A version the game no longer offers (after the game was updated) can't be kept, and a question neither of whose versions it offers isn't asked about until it does.
+- **Upgrading:** the API has a new route, `GET /sessions/:id/questions/changes`, which the window uses to name the other player. Without it (an older API), the window says "another player".
+
+## Install Searchlight as an app (2026-10-23)
+
+- Searchlight can be installed on a phone or computer: **Install app** in Chrome and Edge (Android and desktop), or **Share → Add to Home Screen** in Safari on iPhone and iPad. It opens on the map in its own window, with the new Searchlight logo as its icon.
+- It keeps working when the connection drops for a while. The app itself is kept on the device, so its pages open without a connection, and questions are still worked out: ArcGIS's projection engine now comes with the app instead of from js.arcgis.com. Changes made meanwhile are sent once the connection is back, as before.
+- Reopening or reloading the map while the server can't be reached shows your session and its game as you left them, with "Can't reach the server, retrying…", and catches up once the server answers. This works for the last account that logged in on that browser, for up to a week after it last reached the server (a map already open and playing offline carries on past that until the server answers), and only until it logs out: logging out also deletes the games kept for it (the 4 most recently played game versions). Starting to log in on that browser ends it too, until the server confirms who logged in; a login cancelled or left unfinished stops counting after 15 minutes.
+- Questions saved after the connection was down, or by two players at the same moment, no longer overwrite questions other players added or changed meanwhile. Searchlight merges the lists: other players' new questions and answers stay, and your changes are applied on top. Where both sides changed the same question differently, Searchlight asks which version to keep (see above). Folding or locking a question on your device never overrides someone else's answer.
+- Map tiles you've looked at are kept on the device, so those areas still show while you're offline: CARTO and Thunderforest tiles for up to 30 days after they were downloaded (3,000 tiles at most), and OpenStreetMap tiles for up to 7 days. OpenStreetMap tiles still come from the network first, following its caching headers as its tile policy asks; the kept copy is used when the network fails or takes over 3 seconds.
+- A new version shows "A new version of Searchlight is available" with a **Reload** button instead of replacing the page mid-game. Reload also reloads the app's other open tabs, which can't keep running the old version; the map saves its state first. Open pages check for a new version every hour, and when they come back to the foreground (at most every 10 minutes).
+- A game or invite link opened without a connection now says Searchlight can't be reached, and tries again once the connection is back, instead of calling the link invalid.
+- The coloured question markers come with the app instead of from GitHub and cdnjs.
+- On iPhone and iPad, an app added to the Home Screen keeps its own cookies, so you may have to log in once more inside it.
+- **Upgrading:** players keep running the web version they have until they click **Reload**, so after an update some browsers still run the previous one for a while: keep the API working with the previous web version. Saving questions stays compatible: a save without the new `baseSequence` replaces the list as before. The web image's nginx now serves the app's manifest as `application/manifest+json` and compresses the WASM file; a web app hosted on Cloudflare gets `no-cache` for `/sw.js` and the manifest from `public/_headers`. Players' browsers download the whole app (about 6.7 MB before compression) on their first visit after the update.
+
+## Game link previews (2026-10-21)
+
+- A game link (`/play?token=…`) posted in Discord, Slack, Telegram, WhatsApp and similar apps now previews as the game's name, its server and an image of its map (the play area and hiding zones), instead of the site's general description. A revoked link previews as "Link no longer active".
+- **Upgrading:** the web container's nginx now forwards link-preview requests to the API at `http://api:3000`, the name the compose files give it, found through Docker's DNS on the compose network. Without it, previews fall back to the general one. A web app hosted on Cloudflare (see `DEPLOY.md`) keeps the general preview.
 
 ## Numbered releases (2026-10-20)
 

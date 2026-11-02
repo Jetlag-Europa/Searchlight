@@ -9,6 +9,7 @@ import { toast } from "react-toastify";
 
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
 import { InviteDrawer } from "@/components/InviteDrawer";
+import { usePasteText } from "@/components/PasteFallback";
 import { ShareDrawer } from "@/components/ShareDrawer";
 import {
     Drawer,
@@ -86,6 +87,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $showZoneNames = useStore(showZoneNames);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
+    const { readPaste, pasteDialog } = usePasteText();
 
     return (
         <div className={cn("flex flex-col items-end gap-2", className)}>
@@ -300,19 +302,16 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         </Button>
                                         <Button
                                             onClick={async () => {
-                                                if (
-                                                    !navigator ||
-                                                    !navigator.clipboard
-                                                )
-                                                    return toast.error(
-                                                        "Clipboard not supported",
-                                                    );
+                                                const text = await readPaste({
+                                                    title: "Paste GeoJSON overlay",
+                                                    placeholder:
+                                                        "A GeoJSON FeatureCollection",
+                                                });
+                                                if (text === null) return;
 
                                                 try {
-                                                    const clipboard =
-                                                        await navigator.clipboard.readText();
                                                     const geojson =
-                                                        JSON.parse(clipboard);
+                                                        JSON.parse(text);
                                                     permanentOverlay.set(
                                                         geojson,
                                                     );
@@ -325,6 +324,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         >
                                             Paste GeoJSON
                                         </Button>
+                                        {pasteDialog}
                                     </div>
                                     <Separator className="bg-slate-300 w-[280px]" />
                                     <div className="flex flex-row items-center gap-2">
@@ -535,7 +535,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                 }}
                                                 label="Hider Location"
                                             />
-                                            {!autoSave && (
+                                            {!$autoSave && (
                                                 <SidebarMenuItem>
                                                     <SidebarMenuButton
                                                         className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500 mt-2"
