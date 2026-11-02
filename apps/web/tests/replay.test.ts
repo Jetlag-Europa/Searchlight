@@ -2,8 +2,10 @@ import * as turf from "@turf/turf";
 import { describe, expect, it } from "vitest";
 
 import {
+    arrivedAt,
     boardAt,
     condenseReplay,
+    findEndgame,
     guessRoles,
     hiderZone,
     type LoggedPosition,
@@ -206,21 +208,28 @@ describe("boardAt", () => {
         snap(300, radar(3, true)),
         snap(310, radar(3, false)),
     ]);
+    const keys = (time: number, endgameAt: number | null) =>
+        boardAt(replay, time, endgameAt).questions.map((q) => q.key);
 
-    it("shows the questions before the endgame on the play area", () => {
-        expect(boardAt(replay, 150)).toEqual({
-            questions: expect.any(Array),
-            endgameAt: null,
-        });
-        expect(boardAt(replay, 150).questions.map((q) => q.key)).toEqual([
-            1, 2,
-        ]);
+    it("shows every question without an endgame", () => {
+        expect(boardAt(replay, 400, null).endgame).toBe(false);
+        expect(keys(400, null)).toEqual([1, 2, 3]);
     });
 
-    it("shows only the endgame's questions from the clear on", () => {
-        expect(boardAt(replay, 250)).toEqual({ questions: [], endgameAt: 200 });
-        const late = boardAt(replay, 400);
-        expect(late.endgameAt).toBe(200);
+    it("shows the questions before the endgame on the play area", () => {
+        expect(boardAt(replay, 150, 250)).toEqual({
+            questions: expect.any(Array),
+            endgame: false,
+        });
+        expect(keys(150, 250)).toEqual([1, 2]);
+    });
+
+    it("shows only the endgame's questions from its start on", () => {
+        expect(boardAt(replay, 250, 250)).toEqual({
+            questions: [],
+            endgame: true,
+        });
+        const late = boardAt(replay, 400, 250);
         expect(late.questions.map((q) => [q.key, dragOf(q)])).toEqual([
             [3, false],
         ]);
@@ -249,5 +258,107 @@ describe("hiderZone", () => {
             "b",
         );
         expect(hiderZone([a, b], { lat: 52.2, lng: 4.5 })).toBeNull();
+    });
+});
+
+// Around a 0.5 km zone at (52, 4): ~0.0045° of latitude is 0.5 km.
+const MIN = 60_000;
+const inZone: [number, number] = [52.0, 4.0];
+const outside: [number, number] = [52.05, 4.0];
+const nearby: [number, number] = [52.01, 4.0];
+const track = (...points: [number, [number, number]][]): LoggedPosition[] =>
+    points.map(([minute, [lat, lng]]) => [minute * MIN, lat, lng, 10]);
+
+describe("arrivedAt", () => {
+    const zone = turf.circle([4.0, 52.0], 0.5, { units: "kilometers" });
+
+    it("finds the start of the first stay", () => {
+        const seeker = track(
+            [0, outside],
+            [10, inZone],
+            [13, inZone],
+            [16, inZone],
+        );
+        expect(arrivedAt(seeker, zone, 0, Infinity)).toBe(10 * MIN);
+    });
+
+    it("ignores passing through, and short dips outside", () => {
+        const seeker = track(
+            [0, inZone],
+            [2, outside],
+            [20, inZone],
+            [22, nearby],
+            [23, inZone],
+            [26, inZone],
+        );
+        expect(arrivedAt(seeker, zone, 0, Infinity)).toBe(20 * MIN);
+    });
+
+    it("counts a stay the reports end in, but nothing before `from`", () => {
+        expect(arrivedAt(track([5, inZone]), zone, 0, Infinity)).toBe(5 * MIN);
+        expect(
+            arrivedAt(track([5, inZone]), zone, 6 * MIN, Infinity),
+        ).toBeNull();
+    });
+});
+
+describe("findEndgame", () => {
+    const zones = [
+        turf.circle([4.0, 52.0], 0.5, {
+            units: "kilometers",
+            properties: { id: "hider" },
+        }),
+        turf.circle([4.5, 52.0], 0.5, {
+            units: "kilometers",
+            properties: { id: "other" },
+        }),
+    ];
+    const at = (minute: number, lat: number, lng: number, drag = false) =>
+        questionSchema.parse({
+            id: "radius",
+            key: minute,
+            data: { lat, lng, drag, radius: 1, unit: "kilometers" },
+        });
+    const hider = track(
+        [0, [52.0, 4.5]],
+        [5, inZone],
+        [30, inZone],
+        [60, inZone],
+    );
+    const seeker = track([0, outside], [40, inZone], [50, inZone]);
+
+    it("starts when a seeker arrives in the hider's zone", () => {
+        const replay = condenseReplay([
+            snap(1 * MIN, at(1, ...outside)),
+            snap(45 * MIN, at(1, ...outside), at(45, ...inZone)),
+            snap(60 * MIN, at(1, ...outside), at(45, ...inZone)),
+        ]);
+        const endgame = findEndgame(replay, zones, hider, [seeker]);
+        expect(endgame?.at).toBe(40 * MIN);
+        expect(endgame?.zone?.properties.id).toBe("hider");
+        expect(endgame?.by).toBe("arrival");
+    });
+
+    it("starts with a question asked near the zone just before", () => {
+        const replay = condenseReplay([
+            snap(1 * MIN, at(1, ...outside)),
+            snap(35 * MIN, at(1, ...outside), at(35, ...nearby)),
+            snap(60 * MIN, at(1, ...outside), at(35, ...nearby)),
+        ]);
+        expect(findEndgame(replay, zones, hider, [seeker])?.at).toBe(35 * MIN);
+    });
+
+    it("falls back to the clear without the seekers' positions", () => {
+        const replay = condenseReplay([
+            snap(1 * MIN, at(1, ...outside), at(2, ...outside)),
+            snap(30 * MIN),
+            snap(60 * MIN, at(50, ...inZone)),
+        ]);
+        expect(findEndgame(replay, zones, hider, [])).toMatchObject({
+            at: 30 * MIN,
+            by: "clear",
+            zone: { properties: { id: "hider" } },
+        });
+        expect(findEndgame(replay, zones, null, [])?.zone).toBeNull();
     });
 });
