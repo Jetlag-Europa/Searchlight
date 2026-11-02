@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Question cards stay usable while the map calculates (2026-11-02)
+
+- While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves.
+- Renaming or folding a question, locking or unlocking it outside planning mode, or a teammate's save that changes no answer no longer recalculates the map or the hiding zones, or moves your map back to the remaining area.
+- **Set to current location** now only greys out its own location while it waits for a GPS fix, not every card.
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
