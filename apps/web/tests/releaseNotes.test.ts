@@ -105,6 +105,11 @@ describe("checkReleaseNotes", () => {
         expect(notes.checkReleaseNotes()).toBe(false);
     });
 
+    it("counts a player whose login lapsed as returning", async () => {
+        const notes = await load({ "taibled-previous-user": "123" });
+        expect(notes.checkReleaseNotes()).toBe(true);
+    });
+
     it("loads the notes of every release in docs/releases", async () => {
         const notes = await load({});
         for (const file of readdirSync(RELEASES_DIR)) {

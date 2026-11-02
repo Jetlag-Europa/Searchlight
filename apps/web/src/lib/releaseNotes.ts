@@ -32,8 +32,13 @@ export const releaseNotesOpen = atom(false);
 
 // Searchlight wrote these before it tracked releases, so a player who has
 // them used the app before. Read when the page loads, before this load's
-// login (and its session) writes them for a brand-new player.
-const USED_BEFORE_KEYS = ["taibled-authed-user", "taibled-last-session"];
+// login (and its session) writes them for a brand-new player. A login that
+// lapsed moves taibled-authed-user to taibled-previous-user.
+const USED_BEFORE_KEYS = [
+    "taibled-authed-user",
+    "taibled-previous-user",
+    "taibled-last-session",
+];
 const usedBefore = USED_BEFORE_KEYS.some(
     (key) => readStorage("localStorage", key) !== null,
 );
