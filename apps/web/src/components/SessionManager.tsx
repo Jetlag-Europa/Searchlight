@@ -100,6 +100,14 @@ const ROW_ACTION_HIDDEN_CLASS =
 // isn't news, even when the delete's reply was lost.
 const deletedHere = new Set<string>();
 
+// Edits still waiting to be queued can never be delivered either, and would
+// put the session's queue back after it was discarded.
+function cancelPendingSaves(sessionId: string): void {
+    cancelPendingQuestionSave(sessionId);
+    cancelPendingHiderSave(sessionId);
+    cancelPendingPlanningModeSave(sessionId);
+}
+
 // ── Session picker overlay ────────────────────────────────────────────────────
 
 function SessionPickerOverlay({
@@ -278,6 +286,7 @@ function SessionPickerOverlay({
                 (prev) => prev?.filter((s) => s.id !== sessionId) ?? null,
             );
             discardSessionData(sessionId, { allAccounts: true });
+            cancelPendingSaves(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
         } catch (e: unknown) {
             setError(`Failed to delete session: ${(e as Error).message}`);
@@ -305,6 +314,7 @@ function SessionPickerOverlay({
                 (prev) => prev?.filter((s) => s.id !== sessionId) ?? null,
             );
             discardSessionData(sessionId);
+            cancelPendingSaves(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
         } catch (e: unknown) {
             setError(`Failed to leave session: ${(e as Error).message}`);
@@ -1066,10 +1076,7 @@ export function SessionManager() {
             ) {
                 discardSessionData(sessionId, { allAccounts: status === 404 });
             }
-            // Edits still waiting to be queued can never be delivered either.
-            cancelPendingQuestionSave(sessionId);
-            cancelPendingHiderSave(sessionId);
-            cancelPendingPlanningModeSave(sessionId);
+            cancelPendingSaves(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
             if (boardSessionRef.current === sessionId) boardSessionRef.current = null;
             setShowPicker(true);

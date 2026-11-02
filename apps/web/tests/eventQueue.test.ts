@@ -15,6 +15,7 @@ import {
     setCachedSession,
     type PendingEvent,
 } from "@/lib/eventQueue";
+import { verifiedUserId } from "@/lib/activeSession";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 import type { GameSessionSummary } from "@searchlight/shared";
@@ -322,6 +323,58 @@ describe("discardSessionData", () => {
         expect(getPendingEvents(SID)).toEqual([]);
         expect(getCachedSession(SID)).toBeNull();
         expect(getPendingEvents("other-session")).toHaveLength(1);
+    });
+
+    // Leaving drops only the leaver's unsent edits; a deleted session's can
+    // never be sent by anyone. Neither touches another session, even one
+    // whose id starts with this one's.
+    describe("on a device two accounts share", () => {
+        const sessions = [SID, `${SID}0`, "other-session"];
+        const keys = (account: string) =>
+            sessions.flatMap((sid) => [
+                `taibled-pending-${sid}~${account}`,
+                `taibled-conflicts-${sid}~${account}`,
+            ]);
+        beforeEach(() => {
+            for (const account of ["u1", "u2"]) {
+                verifiedUserId.set(account);
+                for (const sid of sessions) {
+                    enqueueEvent(baseEvent({ sessionId: sid }));
+                    store.set(`taibled-conflicts-${sid}~${account}`, "[]");
+                }
+            }
+            verifiedUserId.set("u1");
+        });
+        afterEach(() => verifiedUserId.set(null));
+
+        test("leaving drops this account's edits for that session only", () => {
+            expect(keys("u1").every((k) => store.has(k))).toBe(true);
+            discardSessionData(SID);
+            const gone = [
+                `taibled-pending-${SID}~u1`,
+                `taibled-conflicts-${SID}~u1`,
+            ];
+            expect(gone.filter((k) => store.has(k))).toEqual([]);
+            expect(
+                [...keys("u1"), ...keys("u2")].filter(
+                    (k) => !gone.includes(k) && !store.has(k),
+                ),
+            ).toEqual([]);
+        });
+
+        test("deleting drops every account's edits for that session only", () => {
+            discardSessionData(SID, { allAccounts: true });
+            const gone = ["u1", "u2"].flatMap((account) => [
+                `taibled-pending-${SID}~${account}`,
+                `taibled-conflicts-${SID}~${account}`,
+            ]);
+            expect(gone.filter((k) => store.has(k))).toEqual([]);
+            expect(
+                [...keys("u1"), ...keys("u2")].filter(
+                    (k) => !gone.includes(k) && !store.has(k),
+                ),
+            ).toEqual([]);
+        });
     });
 });
 
