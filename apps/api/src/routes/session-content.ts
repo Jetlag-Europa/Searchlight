@@ -3,15 +3,56 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { broadcast } from "../lib/broadcaster.js";
-import type { Event, Stroke } from "@prisma/client";
-function notFound(msg = "Not found") {
-  return Object.assign(new Error(msg), { statusCode: 404 });
+import { forbidden, notFound } from "../lib/http-errors.js";
+import type { Event, Prisma, Stroke } from "@prisma/client";
+function conflict(msg = "Conflict", code?: string) {
+  return Object.assign(new Error(msg), { statusCode: 409, ...(code ? { code } : {}) });
 }
-function forbidden(msg = "Forbidden") {
-  return Object.assign(new Error(msg), { statusCode: 403 });
+
+function badRequest(msg = "Bad Request") {
+  return Object.assign(new Error(msg), { statusCode: 400 });
 }
-function conflict(msg = "Conflict") {
-  return Object.assign(new Error(msg), { statusCode: 409 });
+
+// A question list saved over one the client hasn't seen: it merges the two.
+export const QUESTIONS_CHANGED = "QUESTIONS_CHANGED";
+
+// The most list replacements one GET /questions/changes answers with.
+export const QUESTION_CHANGES_LIMIT = 500;
+const QUESTION_CHANGES_MAX_KEYS = 50;
+
+// A question key as written in a query: a plain decimal number, as
+// JSON.stringify writes one (Number() alone would also take "", "0x1f" or
+// " 1"). Parsing it gives the same double the client has.
+const QUERY_NUMBER = "-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
+
+// The same tolerance the client's merge (questionMerge.ts) knows a question
+// by: payloads saved before the API wrote them exactly can hold a key one
+// unit in the last place off.
+const KEY_RELATIVE_TOLERANCE = 4e-16;
+
+function isRequestedKey(key: unknown, keys: number[]): boolean {
+  if (typeof key !== "number") return false;
+  return keys.some(
+    (k) => k === key || Math.abs(k - key) <= KEY_RELATIVE_TOLERANCE * Math.max(Math.abs(k), Math.abs(key)),
+  );
+}
+
+// Prisma's query engine reads a Json value's numbers inexactly: a double
+// needing all 17 digits (0.47550004144641034) can come out one unit in the
+// last place off (0.4755000414464103). Question keys are such doubles, and
+// a question is known by its key, so the payloads are written again as the
+// JSON text received, which Postgres stores exactly. Reads are exact.
+async function storeExactly(
+  tx: Prisma.TransactionClient,
+  sessionId: string,
+  questions: Array<{ clientUuid: string; payloadJson: unknown }>,
+): Promise<void> {
+  const rows = JSON.stringify(questions.map((q) => ({ c: q.clientUuid, p: q.payloadJson })));
+  await tx.$executeRaw`
+    UPDATE "SessionQuestion" AS q SET "payloadJson" = COALESCE(x.p, q."payloadJson")
+    FROM jsonb_to_recordset(${rows}::jsonb) AS x(c text, p jsonb)
+    WHERE q."sessionId" = ${sessionId} AND q."clientUuid" = x.c
+  `;
 }
 
 async function assertParticipant(sessionId: string, userId: string) {
@@ -306,7 +347,9 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      // Read before the questions: `sequence` never claims a later change
+      // than the list has, which a save's baseSequence relies on.
+      const session = await assertParticipant(sessionId, user.discordId);
 
       const questions = await prisma.sessionQuestion.findMany({
         where: { sessionId },
@@ -319,11 +362,103 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           ordinal: q.ordinal,
           payloadJson: q.payloadJson,
         })),
+        sequence: session.eventSequence,
       };
     },
   );
 
+  // GET /sessions/:sessionId/questions/changes?after=<sequence>&until=<sequence>&keys=<k1,k2,…>
+  //
+  // Who changed some questions since a list the client had: the list
+  // replacements after `after` (and up to `until`, inclusive, if given),
+  // oldest first, each with only the requested questions it held (by key).
+  // A replacement without one of them is still listed, as it removed them.
+  // At most QUESTION_CHANGES_LIMIT, with `truncated` when there are more.
+  app.get(
+    "/:sessionId/questions/changes",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String() }),
+        querystring: Type.Object({
+          after: Type.Integer({ minimum: 0, maximum: 2147483647 }),
+          until: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })),
+          keys: Type.String({
+            pattern: `^${QUERY_NUMBER}(?:,${QUERY_NUMBER}){0,${QUESTION_CHANGES_MAX_KEYS - 1}}$`,
+            maxLength: 2000,
+          }),
+        }),
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+      await assertParticipant(sessionId, user.discordId);
+
+      const { after, until = 2147483647, keys: keysParam } = req.query as {
+        after: number;
+        until?: number;
+        keys: string;
+      };
+      const keys = keysParam.split(",").map(Number);
+      // The pattern lets through numbers too large for a double (1e999).
+      if (!keys.every(Number.isFinite)) throw badRequest("keys must be finite numbers");
+
+      // A list holds every question in full (a custom zone's polygon, a
+      // tentacle question's places), so Postgres picks out the requested
+      // ones and only those leave the database. It compares keys as
+      // numeric, which can't overflow or fail on any stored number, a little
+      // more loosely than the client does; the exact comparison is below.
+      // The questions come back as JSON text: Postgres prints the digits it
+      // stored, and JSON.parse reads them as the same doubles, which Prisma
+      // reading a Json value might not (see storeExactly).
+      const rows = await prisma.$queryRaw<
+        Array<{ sequence: number; userId: string; displayName: string | null; questions: string }>
+      >`
+        SELECT e.sequence, e."userId", u."displayName",
+          COALESCE((
+            SELECT jsonb_agg(l.q->'payloadJson' ORDER BY l.i)::text
+            FROM jsonb_array_elements(
+              CASE WHEN jsonb_typeof(e."payloadJson"->'questions') = 'array'
+                THEN e."payloadJson"->'questions' ELSE '[]'::jsonb END
+            ) WITH ORDINALITY AS l(q, i)
+            CROSS JOIN LATERAL (
+              SELECT CASE WHEN jsonb_typeof(l.q->'payloadJson'->'key') = 'number'
+                THEN (l.q->'payloadJson'->>'key')::numeric END AS key
+            ) AS k
+            WHERE EXISTS (
+              SELECT 1 FROM unnest(string_to_array(${keys.map(String).join(",")}, ',')::numeric[]) AS r(key)
+              WHERE abs(k.key - r.key) <= 1e-15 * greatest(abs(k.key), abs(r.key))
+            )
+          ), '[]') AS questions
+        FROM "Event" e
+        LEFT JOIN "User" u ON u."discordId" = e."userId"
+        WHERE e."sessionId" = ${sessionId} AND e.type = 'questions.replace'
+          AND e.sequence > ${after} AND e.sequence <= ${until}
+        ORDER BY e.sequence
+        LIMIT ${QUESTION_CHANGES_LIMIT + 1}
+      `;
+
+      const truncated = rows.length > QUESTION_CHANGES_LIMIT;
+      const changes = (truncated ? rows.slice(0, QUESTION_CHANGES_LIMIT) : rows).map((e) => ({
+        sequence: e.sequence,
+        userId: e.userId,
+        displayName: e.displayName || e.userId,
+        questions: (JSON.parse(e.questions) as unknown[]).filter((p) =>
+          isRequestedKey((p as { key?: unknown } | null)?.key, keys),
+        ),
+      }));
+
+      return { changes, ...(truncated ? { truncated } : {}) };
+    },
+  );
+
   // PUT /sessions/:sessionId/questions — full replacement
+  //
+  // With `baseSequence`, the event sequence the client's list was based on,
+  // a list replaced since then (by another player or device) is not
+  // overwritten: 409 QUESTIONS_CHANGED, and the client merges and saves
+  // again. Such a save answers 200 with its sequence. Without it (builds
+  // from before), the list is replaced as always, with 204.
   app.put(
     "/:sessionId/questions",
     {
@@ -338,6 +473,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
             }),
           ),
           replacementId: Type.String({ minLength: 1 }),
+          baseSequence: Type.Optional(Type.Integer({ minimum: 0 })),
         }),
       },
     },
@@ -346,12 +482,16 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await assertParticipant(sessionId, user.discordId);
 
-      const { questions: incoming, replacementId } = req.body as {
+      const { questions: incoming, replacementId, baseSequence } = req.body as {
         questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }>;
         replacementId: string;
+        baseSequence?: number;
       };
 
       let eventToBroadcast: Event | null = null;
+      let savedSequence: number | undefined;
+      let duplicate = false;
+      const eventPayload = { replacementId, questions: incoming };
       try {
         eventToBroadcast = await prisma.$transaction(async (tx) => {
           const [locked] = await tx.$queryRaw<Array<{ id: string; eventSequence: number }>>`
@@ -369,7 +509,24 @@ export async function sessionContentRoutes(app: FastifyInstance) {
             if (existingEvent.sessionId !== sessionId) {
               throw conflict("Question replacementId belongs to another session");
             }
+            savedSequence = existingEvent.sequence;
+            duplicate = true;
             return null;
+          }
+
+          // A base from beyond the session's sequence can't be what it has:
+          // the client merges with what it does have.
+          if (baseSequence !== undefined && baseSequence > (locked.eventSequence ?? 0)) {
+            throw conflict("The questions changed since this list was made", QUESTIONS_CHANGED);
+          }
+          if (baseSequence !== undefined) {
+            const newer = await tx.event.findFirst({
+              where: { sessionId, type: "questions.replace", sequence: { gt: baseSequence } },
+              select: { sequence: true },
+            });
+            if (newer) {
+              throw conflict("The questions changed since this list was made", QUESTIONS_CHANGED);
+            }
           }
 
           await tx.sessionQuestion.deleteMany({ where: { sessionId } });
@@ -382,6 +539,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
                 payloadJson: q.payloadJson as object,
               })),
             });
+            await storeExactly(tx, sessionId, incoming);
           }
 
           const nextSequence = (locked.eventSequence ?? 0) + 1;
@@ -396,12 +554,17 @@ export async function sessionContentRoutes(app: FastifyInstance) {
               userId: user.discordId,
               sequence: nextSequence,
               type: "questions.replace",
-              payloadJson: { replacementId, questions: incoming } as object,
+              payloadJson: eventPayload as object,
               clientUuid: `questions-replace-${replacementId}`,
               clientCreatedAt: new Date(),
             },
           });
-          return event;
+          await tx.$executeRaw`
+            UPDATE "Event" SET "payloadJson" = ${JSON.stringify(eventPayload)}::jsonb
+            WHERE id = ${event.id}
+          `;
+          savedSequence = event.sequence;
+          return { ...event, payloadJson: eventPayload as object };
         });
       } catch (err: unknown) {
         if (replacementId && typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
@@ -410,6 +573,8 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           });
           if (existingEvent && existingEvent.sessionId === sessionId) {
             eventToBroadcast = null;
+            savedSequence = existingEvent.sequence;
+            duplicate = true;
           } else if (existingEvent && existingEvent.sessionId !== sessionId) {
             throw conflict("Question replacementId belongs to another session");
           } else {
@@ -438,7 +603,10 @@ export async function sessionContentRoutes(app: FastifyInstance) {
         req.log.info({ sessionId, replacementId }, "[events] questions.replace duplicate skipped broadcast");
       }
 
-      return reply.status(204).send();
+      if (baseSequence === undefined) return reply.status(204).send();
+      // `duplicate`: this list was saved before (a retry whose first answer
+      // was lost); nothing changed now.
+      return reply.status(200).send({ sequence: savedSequence, ...(duplicate ? { duplicate } : {}) });
     },
   );
 }

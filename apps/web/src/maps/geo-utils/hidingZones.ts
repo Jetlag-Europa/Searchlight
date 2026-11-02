@@ -10,6 +10,8 @@ import type {
 import type { CompiledGame } from "@/game-definition/compile";
 import type { StationCircle, StationPlace } from "@/maps/api";
 
+import { safeUnion } from "./operators";
+
 const isUnit = (unit: unknown): unit is DistanceUnit =>
     unit === "meters" || unit === "kilometers" || unit === "miles";
 
@@ -50,6 +52,37 @@ export function hidingZoneCircles(
             properties: place,
         });
     });
+}
+
+/** How the zone sidebar shows the zones. */
+export type ZoneDisplayStyle =
+    | "zones"
+    | "stations"
+    | "no-overlap"
+    | "no-display";
+
+/**
+ * The layer the zone sidebar draws for the zones still in play: each zone,
+ * each zone's station, or the zones merged into one shape ("no-overlap").
+ * With no zones (not worked out yet, all ruled out, or all disabled by hand)
+ * there is nothing to draw, in every style.
+ */
+export function hidingZoneLayer(
+    zones: StationCircle[],
+    style: ZoneDisplayStyle,
+): FeatureCollection {
+    if (style === "no-display" || zones.length === 0)
+        return turf.featureCollection([]);
+    switch (style) {
+        case "no-overlap":
+            return turf.featureCollection([
+                safeUnion(turf.featureCollection(zones)),
+            ]);
+        case "stations":
+            return turf.featureCollection(zones.map((zone) => zone.properties));
+        default:
+            return turf.featureCollection(zones);
+    }
 }
 
 /** A question's still-possible region and the zone size it was asked at. */

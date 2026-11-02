@@ -78,6 +78,11 @@ docker image prune -f                         # drop the images the update repla
 Wait for the commit's "Docker images" run to finish before pulling; until it
 has, `latest` is still the previous commit.
 
+Players' browsers keep the web app they have (its service worker,
+`apps/web/src/sw.ts`) until they choose **Reload** on the "new version"
+message, so the previous web build talks to the new API for a while after
+every update. Keep API changes working with it.
+
 - **Stay on a release:** set `SEARCHLIGHT_IMAGE_TAG` in `.env` to a release's
   version, such as `2.0` (its latest fixes) or `2.0.0` (exactly that release),
   then pull and `up -d`. Published releases are listed on
@@ -123,6 +128,11 @@ project rooted in `apps/web`) point at the build output. Build with
 set to the API's URL, then `npx wrangler deploy`. Set the API's
 `FRONTEND_ORIGIN` to the site's exact origin: the API rejects writes from
 browsers on any other origin with a 403.
+
+Game links hosted this way preview with the site-wide description only. In the
+Docker image, nginx sends link-preview bots' requests for `/play`, and requests
+for `/og/`, to the API (`apps/api/src/routes/og.ts`) for the game's name and
+map; Workers static-asset hosting has no such step.
 
 ## Operations
 

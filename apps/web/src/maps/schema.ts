@@ -210,35 +210,44 @@ const zoneSizeChangeSchema = z.object({
     name: questionNameSchema,
 });
 
+/**
+ * A new question's key: random, with at most 15 significant digits, so any
+ * JSON parser reads it back as exactly the same number (a full 17-digit
+ * Math.random() value didn't always survive the API).
+ */
+export function newQuestionKey(): number {
+    return Math.floor(Math.random() * 1e15) / 1e15;
+}
+
 export const questionSchema = z.union([
     z.object({
         id: z.literal("radius"),
-        key: z.number().default(Math.random),
+        key: z.number().default(newQuestionKey),
         data: radiusQuestionSchema,
     }),
     z.object({
         id: z.literal("thermometer"),
-        key: z.number().default(Math.random),
+        key: z.number().default(newQuestionKey),
         data: thermometerQuestionSchema,
     }),
     z.object({
         id: z.literal("tentacles"),
-        key: z.number().default(Math.random),
+        key: z.number().default(newQuestionKey),
         data: tentacleQuestionSchema,
     }),
     z.object({
         id: z.literal("measuring"),
-        key: z.number().default(Math.random),
+        key: z.number().default(newQuestionKey),
         data: measuringQuestionSchema,
     }),
     z.object({
         id: z.literal("matching"),
-        key: z.number().default(Math.random),
+        key: z.number().default(newQuestionKey),
         data: matchingQuestionSchema,
     }),
     z.object({
         id: z.literal("zone-size"),
-        key: z.number().default(Math.random),
+        key: z.number().default(newQuestionKey),
         data: zoneSizeChangeSchema,
     }),
 ]);
