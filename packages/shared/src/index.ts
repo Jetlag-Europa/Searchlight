@@ -1,6 +1,7 @@
 import type { ValidationIssue } from "./game-definition/index.js";
 export * from "./games.js";
 export * from "./game-definition/index.js";
+export * from "./question-history.js";
 
 // ── Auth / User ──────────────────────────────────────────────────────────────
 

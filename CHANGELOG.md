@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Question history (2026-11-02)
+
+- A **Questions | History** toggle at the top of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A save that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question are shown as one.
+- A deleted question has a **Restore** button there, long after its Undo is gone. It puts the question back where it was, for everyone.
+- History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.

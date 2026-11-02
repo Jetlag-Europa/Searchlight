@@ -22,6 +22,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { sidebarContextL as SidebarContext } from "@/lib/context";
 import {
     autoSave,
@@ -42,6 +43,7 @@ import {
     ThermometerQuestionComponent,
     ZoneSizeComponent,
 } from "./QuestionCards";
+import { QuestionHistory } from "./QuestionHistory";
 
 export const QuestionSidebar = () => {
     useStore(triggerLocalRefresh);
@@ -50,6 +52,8 @@ export const QuestionSidebar = () => {
     const $isLoading = useStore(isLoading);
     const $warningAlarm = useStore(warningAlarm);
     const [alarmActive, setAlarmActive] = useState(false);
+    // History is only fetched while its tab is shown.
+    const [tab, setTab] = useState<"questions" | "history">("questions");
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const startAlarm = () => {
@@ -85,8 +89,25 @@ export const QuestionSidebar = () => {
                     }}
                 />
             </div>
+            <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                // On a phone the session chips float over the sheet's top.
+                className="mt-6 grid grid-cols-2 gap-1 px-4 pt-2 md:mt-0"
+                value={tab}
+                onValueChange={(value: string) => {
+                    if (value === "questions" || value === "history") {
+                        setTab(value);
+                    }
+                }}
+            >
+                <ToggleGroupItem value="questions">Questions</ToggleGroupItem>
+                <ToggleGroupItem value="history">History</ToggleGroupItem>
+            </ToggleGroup>
             <SidebarContent>
-                {$questions.map((question) => {
+                {tab === "history" && <QuestionHistory />}
+                {tab === "questions" && $questions.map((question) => {
                     switch (question.id) {
                         case "radius":
                             return (
@@ -141,7 +162,7 @@ export const QuestionSidebar = () => {
                     }
                 })}
             </SidebarContent>
-            <SidebarGroup>
+            <SidebarGroup className={tab === "history" ? "hidden" : undefined}>
                 <SidebarGroupContent>
                     <SidebarMenu>
                         <SidebarMenuItem>

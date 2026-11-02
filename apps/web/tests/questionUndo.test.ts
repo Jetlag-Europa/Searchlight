@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { deleteQuestions, undoDeletion } from "@/lib/questionUndo";
+import {
+    deleteQuestions,
+    placeRemovedQuestions,
+    undoDeletion,
+} from "@/lib/questionUndo";
 
 const q = (key: number, label = String(key)) => ({ key, label });
 const keys = (list: { key: number }[]) => list.map((x) => x.key);
@@ -105,5 +109,40 @@ describe("undoing a question delete", () => {
         );
         expect(undoDeletion(remaining, deletion, "s2")).toBeNull();
         expect(undoDeletion(remaining, deletion, "")).toBeNull();
+    });
+});
+
+describe("putting deleted questions back with drifted keys", () => {
+    // The next double up: a key saved and read back one ulp off.
+    const nextUp = (x: number) => {
+        const view = new DataView(new ArrayBuffer(8));
+        view.setFloat64(0, x);
+        view.setBigUint64(0, view.getBigUint64(0) + 1n);
+        return view.getFloat64(0);
+    };
+    const [A, B, C] = [0.12345678901234566, 0.22222222222222222, 0.33];
+
+    it("anchors below a question whose key drifted", () => {
+        const board = [q(nextUp(A)), q(C)];
+        expect(
+            keys(
+                placeRemovedQuestions(
+                    board,
+                    [A, B, C],
+                    [{ question: q(B), index: 1 }],
+                )!,
+            ),
+        ).toEqual([nextUp(A), B, C]);
+    });
+
+    it("doesn't undo a delete twice when the question came back with a drifted key", () => {
+        const { remaining, deletion } = deleteQuestions(
+            [q(A), q(B)],
+            new Set([A]),
+            "s1",
+        );
+        // Restored from History meanwhile, and read back one ulp off.
+        const current = [q(nextUp(A)), ...remaining];
+        expect(undoDeletion(current, deletion, "s1")).toBeNull();
     });
 });
