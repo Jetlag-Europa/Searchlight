@@ -305,7 +305,7 @@ describe("session viewers", () => {
     expect((await getSession(MEMBER_ID)).json().role).toBe("viewer");
   });
 
-  test("a join link leaves a viewer a viewer, but brings a kicked viewer back as a member", async () => {
+  test("a join link leaves a viewer a viewer, and brings a kicked viewer back as one", async () => {
     const { token } = await createLink("join");
 
     const res = await redeem(token, VIEWER_ID);
@@ -319,7 +319,20 @@ describe("session viewers", () => {
       data: { revokedAt: new Date() },
     });
     expect((await redeem(token, VIEWER_ID)).statusCode).toBe(200);
-    expect(await participantRow(VIEWER_ID)).toMatchObject({ role: "member", revokedAt: null });
+    expect(await participantRow(VIEWER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
+  });
+
+  test("a join link brings a kicked member back as a member", async () => {
+    const kick = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/participants/${MEMBER_ID}`,
+      headers: as(CREATOR_ID),
+    });
+    expect(kick.statusCode).toBe(204);
+    const { token } = await createLink("join");
+
+    expect((await redeem(token, MEMBER_ID)).statusCode).toBe(200);
+    expect(await participantRow(MEMBER_ID)).toMatchObject({ role: "member", revokedAt: null });
   });
 
   test("a member made a viewer can't make themselves a member again with the join link", async () => {
@@ -332,6 +345,25 @@ describe("session viewers", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ sessionId: SESSION_ID, linkType: "join" });
     expect(await participantRow(OUTSIDER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
+  });
+
+  test("a member made a viewer can't become a member again by leaving and reopening the join link", async () => {
+    const { token } = await createLink("join");
+    expect((await redeem(token, OUTSIDER_ID)).statusCode).toBe(200);
+    expect((await setRole(OUTSIDER_ID, "viewer")).statusCode).toBe(200);
+    const leave = await app.inject({ method: "DELETE", url: `/sessions/${SESSION_ID}/leave`, headers: as(OUTSIDER_ID) });
+    expect(leave.statusCode).toBe(204);
+
+    expect((await redeem(token, OUTSIDER_ID)).statusCode).toBe(200);
+    expect(await participantRow(OUTSIDER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
+    expect((await getSession(OUTSIDER_ID)).json()).toMatchObject({ role: "viewer", hiderLat: null, hiderLng: null });
+    const write = await app.inject({
+      method: "PATCH",
+      url: `/sessions/${SESSION_ID}`,
+      headers: as(OUTSIDER_ID),
+      payload: { hiderLat: 1, hiderLng: 2 },
+    });
+    expect(write.statusCode).toBe(403);
   });
 
   test("a viewer opening a fork link gets a copy without the hider position", async () => {

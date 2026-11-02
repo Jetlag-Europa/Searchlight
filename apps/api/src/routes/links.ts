@@ -120,17 +120,18 @@ export async function linkRoutes(app: FastifyInstance) {
         return reply.status(200).send({ sessionId, linkType: "view" });
       }
 
-      // join: makes the opener a member, kicked participants too, but leaves
-      // an active viewer a viewer and just takes them to the session. Only the
-      // creator promotes spectators, with the role route: otherwise one they
-      // made a spectator could undo it with a join link they still have.
+      // join: makes a newcomer a member, and brings back someone who left or
+      // was kicked in the role they had. A spectator stays one, even after
+      // leaving: only the creator promotes spectators, with the role route.
+      // Otherwise one they made a spectator could undo it with a join link
+      // they still have.
       await prisma.sessionParticipant.updateMany({
         where: {
           sessionId,
           userId: user.discordId,
-          OR: [{ role: { not: "viewer" } }, { revokedAt: { not: null } }, { acceptedAt: null }],
+          OR: [{ revokedAt: { not: null } }, { acceptedAt: null }],
         },
-        data: { role: "member", acceptedAt: new Date(), revokedAt: null },
+        data: { acceptedAt: new Date(), revokedAt: null },
       });
       await prisma.sessionParticipant.createMany({
         data: { sessionId, userId: user.discordId, role: "member", acceptedAt: new Date() },
