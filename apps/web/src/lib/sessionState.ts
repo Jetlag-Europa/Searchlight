@@ -380,6 +380,7 @@ export async function loadSessionContent(
     setCachedSession({
         sessionId,
         userId,
+        name: session.name,
         strokes: loadedStrokes,
         questions: loadedQuestions,
         lastSyncedAt: Date.now(),

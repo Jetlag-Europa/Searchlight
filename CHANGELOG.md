@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Deleting a session asks first (2026-11-02)
+
+- Deleting a session from the session list now opens a confirm that names the session and says it is deleted for everyone in it, with its questions and drawings. Before, two taps on the right end of a row deleted it on a phone, where the button couldn't be seen.
+- On a phone or other touch screen, each row's Delete and Leave are always shown and big enough to tap. With a mouse they still appear on hover, and now also on keyboard focus.
+- Teammates who had the session open are told it was deleted, instead of landing on the session list without a word.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.

@@ -12,6 +12,16 @@ import { toast } from "react-toastify";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { StatusChip } from "@/components/StatusChip";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
     compiledGameAtom,
@@ -31,6 +41,8 @@ import {
     sessionPickerOpen,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
+import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
+import { isSameDoubleTap } from "@/lib/doubleTap";
 import {
     applyUnsyncedEvents,
     discardSessionData,
@@ -59,6 +71,17 @@ import { flushPendingEvents, startSyncManager } from "@/lib/syncManager";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
+// A row's Delete and Leave: shown on hover or focus with a mouse, and always,
+// big enough to tap, on a touch screen.
+const ROW_ACTION_CLASS =
+    "shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors [@media(any-pointer:coarse)]:my-1 [@media(any-pointer:coarse)]:min-h-11 [@media(any-pointer:coarse)]:self-stretch";
+const ROW_ACTION_HIDDEN_CLASS =
+    "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(any-pointer:coarse)]:opacity-100";
+
+// Sessions this tab asked the server to delete: their own stream's 404 later
+// isn't news, even when the delete's reply was lost.
+const deletedHere = new Set<string>();
+
 // ── Session picker overlay ────────────────────────────────────────────────────
 
 function SessionPickerOverlay({
@@ -84,11 +107,24 @@ function SessionPickerOverlay({
     const [showCreateForm, setShowCreateForm] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [deletingId, setDeletingId] = useState<string | null>(null);
-    const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    // The session the delete confirm is open for (kept while it closes).
+    const [deleteTarget, setDeleteTarget] = useState<GameSessionSummary | null>(
+        null,
+    );
+    const [confirmingDelete, setConfirmingDelete] = useState(false);
+    // Where focus goes when the confirm closes; the picker when null.
+    const deleteReturnFocusRef = useRef<HTMLElement | null>(null);
     const [leavingId, setLeavingId] = useState<string | null>(null);
     const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
+    // When Leave was armed, or the delete confirm opened: the second tap of a
+    // quick double tap mustn't also confirm.
+    const leaveArmedAtRef = useRef<number | null>(null);
+    const deleteOpenedAtRef = useRef<number | null>(null);
     const loadSessionsReqRef = useRef(0);
     const titleId = useId();
+    // The confirm renders in here: the board, where dialogs usually go, is
+    // inert and under the picker.
+    const [overlay, setOverlay] = useState<HTMLDivElement | null>(null);
     const dialogRef = useRef<HTMLDivElement>(null);
     const backButtonRef = useRef<HTMLButtonElement>(null);
     // A session being created will be switched to: stay until it is.
@@ -207,18 +243,19 @@ function SessionPickerOverlay({
     }, [selectedServerId, selectedIsMember, loadSessionsForServer]);
 
     const handleDeleteSession = async (sessionId: string) => {
-        if (confirmDeleteId !== sessionId) {
-            setConfirmDeleteId(sessionId);
-            return;
-        }
         setDeletingId(sessionId);
-        setConfirmDeleteId(null);
+        deletedHere.add(sessionId);
         try {
             const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
                 method: "DELETE",
                 credentials: "include",
             });
-            if (!res.ok) throw new Error(`${res.status}`);
+            // When the request itself fails it may still have gone through,
+            // so the id stays.
+            if (!res.ok) {
+                deletedHere.delete(sessionId);
+                throw new Error(`${res.status}`);
+            }
             setSessions(
                 (prev) => prev?.filter((s) => s.id !== sessionId) ?? null,
             );
@@ -233,9 +270,11 @@ function SessionPickerOverlay({
 
     const handleLeaveSession = async (sessionId: string) => {
         if (confirmLeaveId !== sessionId) {
+            leaveArmedAtRef.current = Date.now();
             setConfirmLeaveId(sessionId);
             return;
         }
+        if (isSameDoubleTap(leaveArmedAtRef.current, Date.now())) return;
         setLeavingId(sessionId);
         setConfirmLeaveId(null);
         try {
@@ -293,7 +332,10 @@ function SessionPickerOverlay({
     );
 
     return (
-        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm">
+        <div
+            ref={setOverlay}
+            className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm"
+        >
             <div
                 ref={dialogRef}
                 role="dialog"
@@ -404,8 +446,6 @@ function SessionPickerOverlay({
                                         key={session.id}
                                         className="flex items-center border border-border rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors group/row"
                                         onMouseLeave={() => {
-                                            if (confirmDeleteId === session.id)
-                                                setConfirmDeleteId(null);
                                             if (confirmLeaveId === session.id)
                                                 setConfirmLeaveId(null);
                                         }}
@@ -432,37 +472,29 @@ function SessionPickerOverlay({
                                         </button>
                                         {session.role === "creator" && (
                                             <button
-                                                onClick={() =>
-                                                    handleDeleteSession(
-                                                        session.id,
-                                                    )
-                                                }
+                                                type="button"
+                                                onClick={(event) => {
+                                                    deleteReturnFocusRef.current =
+                                                        event.currentTarget;
+                                                    deleteOpenedAtRef.current =
+                                                        Date.now();
+                                                    setDeleteTarget(session);
+                                                    setConfirmingDelete(true);
+                                                }}
                                                 disabled={
                                                     deletingId === session.id
                                                 }
-                                                className={`shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors ${
-                                                    confirmDeleteId ===
-                                                    session.id
-                                                        ? "text-destructive hover:bg-destructive/10 font-medium"
-                                                        : "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100"
-                                                }`}
-                                                title={
-                                                    confirmDeleteId ===
-                                                    session.id
-                                                        ? "Click again to confirm"
-                                                        : "Delete session"
-                                                }
+                                                aria-label={`Delete session “${session.name}”`}
+                                                className={`${ROW_ACTION_CLASS} ${ROW_ACTION_HIDDEN_CLASS}`}
                                             >
                                                 {deletingId === session.id
                                                     ? "…"
-                                                    : confirmDeleteId ===
-                                                        session.id
-                                                      ? "Confirm?"
-                                                      : "✕"}
+                                                    : "Delete"}
                                             </button>
                                         )}
                                         {session.role === "member" && (
                                             <button
+                                                type="button"
                                                 onClick={() =>
                                                     handleLeaveSession(
                                                         session.id,
@@ -471,11 +503,17 @@ function SessionPickerOverlay({
                                                 disabled={
                                                     leavingId === session.id
                                                 }
-                                                className={`shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors ${
+                                                aria-label={
+                                                    confirmLeaveId ===
+                                                    session.id
+                                                        ? `Confirm leaving session “${session.name}”`
+                                                        : `Leave session “${session.name}”`
+                                                }
+                                                className={`${ROW_ACTION_CLASS} ${
                                                     confirmLeaveId ===
                                                     session.id
                                                         ? "text-destructive hover:bg-destructive/10 font-medium"
-                                                        : "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100"
+                                                        : ROW_ACTION_HIDDEN_CLASS
                                                 }`}
                                                 title={
                                                     confirmLeaveId ===
@@ -592,6 +630,58 @@ function SessionPickerOverlay({
                     </div>
                 )}
             </div>
+            <AlertDialog
+                open={confirmingDelete}
+                onOpenChange={setConfirmingDelete}
+            >
+                <AlertDialogContent
+                    container={overlay}
+                    className="max-w-[calc(100vw-2rem)] rounded-lg sm:max-w-lg"
+                    onCloseAutoFocus={(event) => {
+                        // There's no trigger to go back to.
+                        event.preventDefault();
+                        const target = deleteReturnFocusRef.current;
+                        (target?.isConnected
+                            ? target
+                            : dialogRef.current
+                        )?.focus();
+                    }}
+                >
+                    <AlertDialogHeader>
+                        <AlertDialogTitle className="[overflow-wrap:anywhere]">
+                            Delete “{deleteTarget?.name}”?
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            This will delete the session for everyone in it,
+                            with its questions and drawings. It can’t be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={(event) => {
+                                // It can open under the second click of a
+                                // double click on the row's Delete.
+                                if (
+                                    isSameDoubleTap(
+                                        deleteOpenedAtRef.current,
+                                        Date.now(),
+                                    )
+                                ) {
+                                    event.preventDefault();
+                                    return;
+                                }
+                                // Its row is going away.
+                                deleteReturnFocusRef.current = null;
+                                if (deleteTarget)
+                                    void handleDeleteSession(deleteTarget.id);
+                            }}
+                        >
+                            Delete session
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 }
@@ -826,6 +916,23 @@ export function SessionManager() {
     // can also follow a user switch, so keep another account's local edits.
     const forgetSession = useCallback(
         (sessionId: string, status: number) => {
+            // Named before the cache that may hold the name is discarded; a
+            // cache left by another account on this device isn't ours to name.
+            const active = activeSessionData.get();
+            const cached = getCachedSession(sessionId);
+            const notice = deletedSessionNotice({
+                sessionId,
+                status,
+                activeSessionId: activeSessionId.get(),
+                deletedHere: deletedHere.has(sessionId),
+                role: active?.id === sessionId ? active.role : undefined,
+                name:
+                    active?.id === sessionId
+                        ? active.name
+                        : cached?.userId === authUserId
+                          ? cached?.name
+                          : undefined,
+            });
             if (
                 status === 404 ||
                 getCachedSession(sessionId)?.userId === authUserId
@@ -838,6 +945,7 @@ export function SessionManager() {
             cancelPendingPlanningModeSave(sessionId);
             if (activeSessionId.get() === sessionId) clearActiveSession();
             setShowPicker(true);
+            if (notice) toast.warn(notice);
         },
         [authUserId],
     );

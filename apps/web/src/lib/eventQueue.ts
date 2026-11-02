@@ -33,6 +33,8 @@ export interface PendingEvent {
 export interface CachedSessionState {
     sessionId: string;
     userId?: string;
+    // For saying which session was deleted before its details have loaded.
+    name?: string;
     visibility?: SessionVisibility;
     strokes: StrokeFeature[];
     questions: Questions;
@@ -239,6 +241,7 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
         return {
             sessionId: parsed.sessionId ?? sessionId,
             userId: parsed.userId,
+            name: typeof parsed.name === "string" ? parsed.name : undefined,
             visibility: parsed.visibility,
             strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],

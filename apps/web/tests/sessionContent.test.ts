@@ -1,6 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import type { StrokeFeature } from "@/annotations/types";
+import { getCachedSession } from "@/lib/eventQueue";
 import { loadSessionContent } from "@/lib/sessionState";
 
 const activeStroke: StrokeFeature = {
@@ -61,4 +62,37 @@ it("loading another session cannot replace the active annotations before the cal
     const loaded = await loadSessionContent("old-session", "verified-user");
     expect(loaded.strokes).toEqual([oldStroke]);
     expect(strokes.get()).toEqual([activeStroke]);
+});
+
+it("caches the session's name, to say which one was deleted on the next load", async () => {
+    const store = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => {
+            store.set(k, v);
+        },
+        removeItem: (k: string) => {
+            store.delete(k);
+        },
+    });
+    vi.stubGlobal(
+        "fetch",
+        vi.fn(
+            async (url: string) =>
+                new Response(
+                    JSON.stringify(
+                        url.endsWith("/events/cursor")
+                            ? { sequence: 0 }
+                            : url.endsWith("/strokes")
+                              ? { strokes: [] }
+                              : url.endsWith("/questions")
+                                ? { questions: [] }
+                                : { id: "team-b", name: "Team B" },
+                    ),
+                    { status: 200 },
+                ),
+        ),
+    );
+    await loadSessionContent("team-b", "verified-user");
+    expect(getCachedSession("team-b")?.name).toBe("Team B");
 });
