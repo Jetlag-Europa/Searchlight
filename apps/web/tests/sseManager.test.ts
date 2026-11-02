@@ -261,6 +261,38 @@ describe("handleServerEvent — questions.replace", () => {
         expect(qs[0].id).toBe("radius");
     });
 
+    test("settles a question held for a decision once another player's list agrees with ours", () => {
+        const ours = { id: "radius", key: 1, data: { label: "mine" } };
+        const theirs = { id: "radius", key: 1, data: { label: "theirs" } };
+        const held = (key: number, mine: unknown) => ({
+            key,
+            kind: "both-changed",
+            mine,
+            theirs: { ...theirs, key },
+            base: { id: "radius", key, data: {} },
+            baseSequence: 0,
+            theirsSequence: 0,
+            detectedAt: 1,
+        });
+        store.set(
+            `taibled-conflicts-${SID}`,
+            JSON.stringify([held(1, ours), held(2, { id: "radius", key: 2, data: { label: "mine 2" } })]),
+        );
+        startSSE(SID);
+        simulateMessage(
+            makeEvent("questions.replace", {
+                questions: [
+                    { clientUuid: "q1", ordinal: 0, payloadJson: ours },
+                    { clientUuid: "q2", ordinal: 1, payloadJson: { id: "radius", key: 2, data: { label: "newer" } } },
+                ],
+            }),
+        );
+        const left = JSON.parse(store.get(`taibled-conflicts-${SID}`)!);
+        // q(1) agrees now; q(2) changed again, and is asked about anew.
+        expect(left).toHaveLength(1);
+        expect(left[0]).toMatchObject({ key: 2, theirs: { data: { label: "newer" } }, theirsSequence: 1, changedAgain: true });
+    });
+
     test("a replay page of several replaces cannot swallow the next local edit", async () => {
         const replace = (sequence: number, key: number) =>
             makeEvent(

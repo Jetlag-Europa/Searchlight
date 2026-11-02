@@ -23,9 +23,9 @@ export default defineConfig({
     use: {
         baseURL: WEB_BASE,
         trace: "on-first-retry",
-        // The PWA service worker (workbox) upgrades navigations to https, which
-        // breaks the plain-http test stack (ERR_SSL_PROTOCOL_ERROR). It's only
-        // offline caching — irrelevant to the assertions — so block it.
+        // The PWA service worker serves pages and scripts from its precache,
+        // so a test could run the build it cached instead of the deployed
+        // one. It's only caching — irrelevant to the assertions — so block it.
         serviceWorkers: "block",
     },
     metadata: { apiBase: API_BASE },

@@ -1,5 +1,6 @@
 {
     "name": "searchlight",
+    "version": "2.0.0",
     "private": true,
     "packageManager": "pnpm@11.1.3",
     "engines": {
@@ -14,6 +15,6 @@
         "fix:region-overlaps": "tsx scripts/fix-region-overlaps.ts"
     },
     "devDependencies": {
-        "tsx": "^4.19.2"
+        "tsx": "^4.23.15"
     }
 }
