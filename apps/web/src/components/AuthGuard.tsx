@@ -5,17 +5,16 @@ import { clearStoredRevisions } from "@/game-definition/revisionCache";
 import {
     clearActiveSession,
     offlineUserId,
-    STORED_USER_KEY,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { offlinePlayer, watchAuth } from "@/lib/authCheck";
+import { watchAuth } from "@/lib/authCheck";
 import { forgetGameViews } from "@/lib/gameView";
 import {
     endOfflineAccess,
     lastUser,
+    playOfflineWhileUnreachable,
     rememberUser,
 } from "@/lib/offlineAccess";
-import { readStorage } from "@/lib/safeStorage";
 
 import { StatusChip } from "./StatusChip";
 import { UserChip } from "./UserChip";
@@ -38,15 +37,11 @@ export function AuthGuard() {
                 },
                 // A slow connection or a deploy: keep the player here, and
                 // don't leave them behind the loading spinner either. The
-                // last account verified here goes on playing what this
-                // browser kept for it until /me answers.
+                // last account verified here (in the last week) goes on
+                // playing what this browser kept for it until /me answers,
+                // even past the week once it has started.
                 unreachable: () => {
-                    offlineUserId.set(
-                        offlinePlayer(
-                            readStorage("localStorage", STORED_USER_KEY),
-                            verifiedUserId.get(),
-                        ),
-                    );
+                    playOfflineWhileUnreachable();
                     setUnreachable(true);
                     document.getElementById("auth-loading-overlay")?.remove();
                 },

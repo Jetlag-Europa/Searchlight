@@ -1,4 +1,5 @@
 ---
+import { FONT_STYLESHEET_URL } from "@/lib/fonts";
 import "@/styles/globals.css";
 import { ToastContainer } from "react-toastify";
 // @ts-ignore
@@ -70,9 +71,10 @@ const { className } = Astro.props;
         <meta name="apple-mobile-web-app-status-bar-style" content="black" />
         <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <!-- With CORS, so the service worker can keep it (src/sw.ts) -->
+        <!-- With CORS, so the service worker can keep it (src/sw.ts, which
+             fetches the same URL as it installs) -->
         <link
-            href="https://fonts.googleapis.com/css2?family=Oxygen:wght@300;400;700&family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+            href={FONT_STYLESHEET_URL}
             rel="stylesheet"
             crossorigin
         />

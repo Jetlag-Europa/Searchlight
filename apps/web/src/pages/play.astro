@@ -130,6 +130,10 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
         }
 
         function logIn() {
+            // Whoever logs in may be someone else than the account stored
+            // here, so it doesn't play offline until /me says who it is
+            // (see offlineAccess.ts).
+            try { localStorage.setItem("taibled-login-started", String(Date.now())); } catch {}
             const returnTo = encodeURIComponent(`${location.pathname}${location.search}`);
             window.location.href = `${apiBase}/auth/discord/login?returnTo=${returnTo}`;
         }

@@ -2,8 +2,11 @@ import { describe, expect, test } from "vitest";
 
 import {
     mergeQuestionLists,
+    mergeQuestionListsWithConflicts,
+    placeQuestion,
     sameQuestion,
     sameQuestionList,
+    sameQuestionSubstance,
 } from "@/lib/questionMerge";
 
 const q = (key: number, label = "a") => ({ id: "radius", key, data: { label } });
@@ -208,5 +211,90 @@ describe("new question keys", () => {
             expect(Number(key.toPrecision(15))).toBe(key);
             expect(JSON.parse(JSON.stringify(key))).toBe(key);
         }
+    });
+});
+
+describe("merging with conflicts held", () => {
+    const withConflicts = mergeQuestionListsWithConflicts;
+
+    test("holds a question both changed differently, with their version in the list", () => {
+        const { merged, conflicts } = withConflicts(
+            [radius(1), radius(2)],
+            [radius(2), radius(1, { radius: 10, collapsed: true })],
+            [radius(1, { within: false }), radius(2)],
+        );
+        // Their substance, our fold.
+        expect(merged).toEqual([radius(2), radius(1, { within: false, collapsed: true })]);
+        expect(conflicts).toEqual([
+            {
+                key: 1,
+                kind: "both-changed",
+                mine: radius(1, { radius: 10, collapsed: true }),
+                theirs: radius(1, { within: false }),
+                base: radius(1),
+                mineAfterKey: 2,
+                theirsAfterKey: null,
+            },
+        ]);
+    });
+
+    test("doesn't hold the same change made on both sides", () => {
+        const same = radius(1, { radius: 10 });
+        expect(withConflicts([radius(1)], [same], [{ ...same, data: { ...same.data, collapsed: true } }]).conflicts).toEqual([]);
+    });
+
+    test("doesn't hold a change only one side made to what it asks", () => {
+        // A fold or lock is no change to what it asks.
+        expect(withConflicts([radius(1)], [radius(1, { drag: false })], [radius(1, { within: false })]).conflicts).toEqual([]);
+        expect(withConflicts([radius(1)], [radius(1, { within: false })], [radius(1, { collapsed: true })]).conflicts).toEqual([]);
+        expect(withConflicts([radius(1)], [], [radius(1, { collapsed: true })])).toEqual({ merged: [], conflicts: [] });
+        expect(withConflicts([radius(1)], [radius(1, { drag: false })], [])).toEqual({ merged: [], conflicts: [] });
+    });
+
+    test("holds an edit of ours they removed, left out until decided", () => {
+        const { merged, conflicts } = withConflicts([radius(1), radius(2)], [radius(1), radius(2, { radius: 9 })], [radius(1)]);
+        expect(merged).toEqual([radius(1)]);
+        expect(conflicts).toMatchObject([{ key: 2, kind: "they-deleted", theirs: null, mineAfterKey: 1 }]);
+    });
+
+    test("holds a removal of ours they edited, kept until decided", () => {
+        const { merged, conflicts } = withConflicts([radius(1), radius(2)], [radius(2)], [radius(1, { lat: 1 }), radius(2)]);
+        expect(merged).toEqual([radius(2), radius(1, { lat: 1 })]);
+        expect(conflicts).toMatchObject([{ key: 1, kind: "we-deleted", mine: null, theirsAfterKey: null }]);
+    });
+
+    test("never holds a question without a key", () => {
+        const a = { id: "zone-size", data: { size: 1 } };
+        expect(withConflicts([a], [{ id: "zone-size", data: { size: 2 } }], []).conflicts).toEqual([]);
+    });
+
+    test("doesn't hold a version we may have saved ourselves", () => {
+        const ours = radius(1, { radius: 7 });
+        const { merged, conflicts } = withConflicts([radius(1)], [radius(1, { radius: 8 })], [ours], [ours]);
+        expect(conflicts).toEqual([]);
+        expect(merged).toEqual([radius(1, { radius: 8 })]);
+    });
+
+    test("leaves mergeQuestionLists as it was: ours wins", () => {
+        expect(mergeQuestionLists([radius(1)], [radius(1, { radius: 10 })], [radius(1, { within: false })])).toEqual([
+            radius(1, { radius: 10 }),
+        ]);
+    });
+});
+
+describe("placing a question", () => {
+    test("replaces it, or puts it after its neighbour, first, or removes it", () => {
+        const list = [q(1), q(2), q(3)];
+        expect(placeQuestion(list, 2, q(2, "b"), 3)).toEqual([q(1), q(2, "b"), q(3)]);
+        expect(placeQuestion([q(1), q(3)], 2, q(2), 1)).toEqual([q(1), q(2), q(3)]);
+        expect(placeQuestion([q(1), q(3)], 2, q(2), null)).toEqual([q(2), q(1), q(3)]);
+        expect(placeQuestion([q(1), q(3)], 2, q(2), 9)).toEqual([q(2), q(1), q(3)]);
+        expect(placeQuestion(list, 2, null)).toEqual([q(1), q(3)]);
+    });
+
+    test("compares substance only", () => {
+        expect(sameQuestionSubstance(radius(1, { collapsed: true }), radius(1))).toBe(true);
+        expect(sameQuestionSubstance(radius(1), null)).toBe(false);
+        expect(sameQuestionSubstance(null, null)).toBe(true);
     });
 });

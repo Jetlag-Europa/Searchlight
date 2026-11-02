@@ -20,6 +20,7 @@ import { CalculatingIndicator } from "@/components/CalculatingIndicator";
 import { ZonesLeftIndicator } from "@/components/ZonesLeftIndicator";
 import { PreferencesSync } from "@/components/PreferencesSync";
 import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
+import { QuestionConflicts } from "@/components/QuestionConflicts";
 ---
 <Layout className="bg-jetlag">
     <!--
@@ -56,6 +57,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     <!-- CalculatingIndicator shows question results that take a while to work out -->
     <CalculatingIndicator client:only="react" />
 
+    <!-- QuestionConflicts asks which version to keep when this player's edits met another's; its chip goes in the conflicts slot -->
+    <QuestionConflicts client:only="react" />
+
     <!-- The board; SessionManager makes it inert while the session picker is open -->
     <div id="map-board" class="contents">
         <SidebarProviderL client:load>
@@ -79,8 +83,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
                             </div>
                             <!--
                                 The status chips, stacked in the map's corner so
-                                they move aside with the zone sidebar. AuthGuard
-                                and SessionManager render theirs into the slots.
+                                they move aside with the zone sidebar. AuthGuard,
+                                SessionManager and QuestionConflicts render
+                                theirs into the slots.
                                 The column has no width and its chips (w-max)
                                 stick out to the left, so the column itself
                                 covers none of the map.
@@ -90,6 +95,9 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
                             >
                                 <div id="user-chip-slot" class="contents"></div>
                                 <div id="session-chip-slot" class="contents">
+                                </div>
+                                <!-- Questions waiting for a decision -->
+                                <div id="conflicts-chip-slot" class="contents">
                                 </div>
                                 <!-- How many hiding zones are left -->
                                 <ZonesLeftIndicator client:only="react" />

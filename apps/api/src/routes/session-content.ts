@@ -9,8 +9,33 @@ function conflict(msg = "Conflict", code?: string) {
   return Object.assign(new Error(msg), { statusCode: 409, ...(code ? { code } : {}) });
 }
 
+function badRequest(msg = "Bad Request") {
+  return Object.assign(new Error(msg), { statusCode: 400 });
+}
+
 // A question list saved over one the client hasn't seen: it merges the two.
 export const QUESTIONS_CHANGED = "QUESTIONS_CHANGED";
+
+// The most list replacements one GET /questions/changes answers with.
+export const QUESTION_CHANGES_LIMIT = 500;
+const QUESTION_CHANGES_MAX_KEYS = 50;
+
+// A question key as written in a query: a plain decimal number, as
+// JSON.stringify writes one (Number() alone would also take "", "0x1f" or
+// " 1"). Parsing it gives the same double the client has.
+const QUERY_NUMBER = "-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
+
+// The same tolerance the client's merge (questionMerge.ts) knows a question
+// by: payloads saved before the API wrote them exactly can hold a key one
+// unit in the last place off.
+const KEY_RELATIVE_TOLERANCE = 4e-16;
+
+function isRequestedKey(key: unknown, keys: number[]): boolean {
+  if (typeof key !== "number") return false;
+  return keys.some(
+    (k) => k === key || Math.abs(k - key) <= KEY_RELATIVE_TOLERANCE * Math.max(Math.abs(k), Math.abs(key)),
+  );
+}
 
 // Prisma's query engine reads a Json value's numbers inexactly: a double
 // needing all 17 digits (0.47550004144641034) can come out one unit in the
@@ -339,6 +364,91 @@ export async function sessionContentRoutes(app: FastifyInstance) {
         })),
         sequence: session.eventSequence,
       };
+    },
+  );
+
+  // GET /sessions/:sessionId/questions/changes?after=<sequence>&until=<sequence>&keys=<k1,k2,…>
+  //
+  // Who changed some questions since a list the client had: the list
+  // replacements after `after` (and up to `until`, inclusive, if given),
+  // oldest first, each with only the requested questions it held (by key).
+  // A replacement without one of them is still listed, as it removed them.
+  // At most QUESTION_CHANGES_LIMIT, with `truncated` when there are more.
+  app.get(
+    "/:sessionId/questions/changes",
+    {
+      schema: {
+        params: Type.Object({ sessionId: Type.String() }),
+        querystring: Type.Object({
+          after: Type.Integer({ minimum: 0, maximum: 2147483647 }),
+          until: Type.Optional(Type.Integer({ minimum: 0, maximum: 2147483647 })),
+          keys: Type.String({
+            pattern: `^${QUERY_NUMBER}(?:,${QUERY_NUMBER}){0,${QUESTION_CHANGES_MAX_KEYS - 1}}$`,
+            maxLength: 2000,
+          }),
+        }),
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { sessionId } = req.params as { sessionId: string };
+      await assertParticipant(sessionId, user.discordId);
+
+      const { after, until = 2147483647, keys: keysParam } = req.query as {
+        after: number;
+        until?: number;
+        keys: string;
+      };
+      const keys = keysParam.split(",").map(Number);
+      // The pattern lets through numbers too large for a double (1e999).
+      if (!keys.every(Number.isFinite)) throw badRequest("keys must be finite numbers");
+
+      // A list holds every question in full (a custom zone's polygon, a
+      // tentacle question's places), so Postgres picks out the requested
+      // ones and only those leave the database. It compares keys as
+      // numeric, which can't overflow or fail on any stored number, a little
+      // more loosely than the client does; the exact comparison is below.
+      // The questions come back as JSON text: Postgres prints the digits it
+      // stored, and JSON.parse reads them as the same doubles, which Prisma
+      // reading a Json value might not (see storeExactly).
+      const rows = await prisma.$queryRaw<
+        Array<{ sequence: number; userId: string; displayName: string | null; questions: string }>
+      >`
+        SELECT e.sequence, e."userId", u."displayName",
+          COALESCE((
+            SELECT jsonb_agg(l.q->'payloadJson' ORDER BY l.i)::text
+            FROM jsonb_array_elements(
+              CASE WHEN jsonb_typeof(e."payloadJson"->'questions') = 'array'
+                THEN e."payloadJson"->'questions' ELSE '[]'::jsonb END
+            ) WITH ORDINALITY AS l(q, i)
+            CROSS JOIN LATERAL (
+              SELECT CASE WHEN jsonb_typeof(l.q->'payloadJson'->'key') = 'number'
+                THEN (l.q->'payloadJson'->>'key')::numeric END AS key
+            ) AS k
+            WHERE EXISTS (
+              SELECT 1 FROM unnest(string_to_array(${keys.map(String).join(",")}, ',')::numeric[]) AS r(key)
+              WHERE abs(k.key - r.key) <= 1e-15 * greatest(abs(k.key), abs(r.key))
+            )
+          ), '[]') AS questions
+        FROM "Event" e
+        LEFT JOIN "User" u ON u."discordId" = e."userId"
+        WHERE e."sessionId" = ${sessionId} AND e.type = 'questions.replace'
+          AND e.sequence > ${after} AND e.sequence <= ${until}
+        ORDER BY e.sequence
+        LIMIT ${QUESTION_CHANGES_LIMIT + 1}
+      `;
+
+      const truncated = rows.length > QUESTION_CHANGES_LIMIT;
+      const changes = (truncated ? rows.slice(0, QUESTION_CHANGES_LIMIT) : rows).map((e) => ({
+        sequence: e.sequence,
+        userId: e.userId,
+        displayName: e.displayName || e.userId,
+        questions: (JSON.parse(e.questions) as unknown[]).filter((p) =>
+          isRequestedKey((p as { key?: unknown } | null)?.key, keys),
+        ),
+      }));
+
+      return { changes, ...(truncated ? { truncated } : {}) };
     },
   );
 
