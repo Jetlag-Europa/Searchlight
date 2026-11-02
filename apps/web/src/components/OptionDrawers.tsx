@@ -534,7 +534,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                 }}
                                                 label="Hider Location"
                                             />
-                                            {!autoSave && (
+                                            {!$autoSave && (
                                                 <SidebarMenuItem>
                                                     <SidebarMenuButton
                                                         className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500 mt-2"
