@@ -501,11 +501,14 @@ describe("becoming a spectator", () => {
 
         expect(strokes.get()).toHaveLength(2);
         expect(getPendingEvents(SID)).toEqual([]);
+        // Nor marks it as a spectator's: the other account may play.
+        expect(getCachedSession(SID)?.role).toBe("member");
     });
 });
 
 describe("the cached role", () => {
     test("follows the server's, so a player made one again keeps their offline edits", () => {
+        verifiedUserId.set("user-1");
         setCachedSession({
             sessionId: SID,
             userId: "user-1",
@@ -522,6 +525,7 @@ describe("the cached role", () => {
     });
 
     test("is written to the kept session's details too", () => {
+        verifiedUserId.set("user-1");
         const session = {
             id: SID,
             gameId: "game-1",
@@ -547,6 +551,22 @@ describe("the cached role", () => {
             role: "viewer",
             session: { role: "viewer", hiderLat: null, hiderLng: null },
         });
+    });
+
+    test("isn't written to another account's cached copy", () => {
+        verifiedUserId.set("account-b");
+        setCachedSession({
+            sessionId: SID,
+            userId: "account-a",
+            role: "member",
+            strokes: [],
+            questions: [],
+            lastSyncedAt: 0,
+            lastSequence: 0,
+        });
+        cacheSessionRole(SID, "viewer");
+
+        expect(getCachedSession(SID)?.role).toBe("member");
     });
 
     test("isn't written for a session with no cached copy", () => {

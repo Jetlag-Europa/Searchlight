@@ -352,9 +352,16 @@ export function discardSessionEdits(sessionId: string): void {
 // unsent edits for a role they no longer have.
 export function cacheSessionRole(sessionId: string, role: SessionRole): void {
     const cached = getCachedSession(sessionId);
-    if (!cached) return;
+    if (!cached || !isOwnCopy(cached)) return;
     const next = cachedForRole(cached, role);
     if (JSON.stringify(next) !== JSON.stringify(cached)) setCachedSession(next);
+}
+
+// Whether the cached copy is this account's: another account on the same
+// browser may have a different role in the session, and edits of its own.
+function isOwnCopy(cached: CachedSessionState): boolean {
+    const account = verifiedUserId.get() ?? offlineUserId.get();
+    return account !== null && cached.userId === account;
 }
 
 // The cached copy for a user with `role`. The session details kept for an
@@ -383,10 +390,10 @@ export function becomeSpectator(sessionId: string): void {
     if (active) activeSessionRole.set("viewer");
     discardSessionEdits(sessionId);
     const cached = getCachedSession(sessionId);
-    if (!cached) return;
+    // Another account's copy is neither changed nor shown.
+    if (!cached || !isOwnCopy(cached)) return;
     setCachedSession(cachedForRole(cached, "viewer"));
-    // Another account's copy is never shown.
-    if (!active || cached.userId !== verifiedUserId.get()) return;
+    if (!active) return;
     strokes.set(cached.strokes);
     questions.set(
         suppressQuestionSave(
