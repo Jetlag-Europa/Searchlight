@@ -210,6 +210,15 @@ describe("openWhenFree", () => {
         expect(open).toHaveBeenCalledTimes(1);
     });
 
+    test("a touch that lost its pointerup stops holding it after 30 s", () => {
+        doc.pointer("pointerdown", 2, 1);
+        opener.request();
+        vi.advanceTimersByTime(30_000);
+        expect(open).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1_000);
+        expect(open).toHaveBeenCalledTimes(1);
+    });
+
     test("a focused field taken off the page, without a focusout", () => {
         doc.focus(textField);
         opener.request();

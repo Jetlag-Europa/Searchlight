@@ -45,6 +45,9 @@ export interface OpenWhenFree {
 // still focused. Safari and Firefox fire no focusout for a focused field
 // taken off the page.
 const RECHECK_MS = 1_000;
+// A press held longer than this has lost its pointerup and pointercancel (a
+// touch has no buttonless move to end it), so it no longer holds a window.
+const PRESS_LOST_MS = 30_000;
 
 /**
  * Opens a window that wasn't asked for only once the player is free to look
@@ -68,8 +71,8 @@ export function openWhenFree(
     let waiting = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let recheck: ReturnType<typeof setInterval> | undefined;
-    // Pointers pressed on the page now.
-    const pressed = new Set<number>();
+    // Pointers pressed on the page now, with when they went down.
+    const pressed = new Map<number, number>();
     const stopWaiting = () => {
         waiting = false;
         clearTimeout(timer);
@@ -80,6 +83,9 @@ export function openWhenFree(
         if (!waiting) return;
         if (doc.visibilityState !== "visible") return;
         if (isTypingIn(doc.activeElement)) return;
+        for (const [pointerId, since] of pressed) {
+            if (Date.now() - since > PRESS_LOST_MS) pressed.delete(pointerId);
+        }
         if (pressed.size > 0) return;
         stopWaiting();
         open();
@@ -97,7 +103,7 @@ export function openWhenFree(
         timer = setTimeout(openIfFree, 0);
     };
     const onPointerDown = (event: Event) => {
-        pressed.add((event as PointerEvent).pointerId);
+        pressed.set((event as PointerEvent).pointerId, Date.now());
     };
     const onPointerUp = (event: Event) => {
         pressed.delete((event as PointerEvent).pointerId);
