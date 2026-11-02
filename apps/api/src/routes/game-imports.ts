@@ -94,8 +94,8 @@ export async function resolveImportActor(
   };
 }
 
-// Proxies such as Cloudflare weaken ETags when they compress (W/"..."), and
-// If-None-Match may list several tags.
+// A proxy that compresses or recompresses responses weakens ETags (W/"..."),
+// and If-None-Match may list several tags.
 function matchesETag(ifNoneMatch: string | undefined, etag: string): boolean {
   if (!ifNoneMatch) return false;
   return ifNoneMatch

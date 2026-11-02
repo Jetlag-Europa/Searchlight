@@ -777,10 +777,14 @@ export async function sessionRoutes(app: FastifyInstance) {
     },
   );
 
+  // The link routes' responses hold secret tokens. They're left uncompressed
+  // so a response's length can't give anything away about them (BREACH).
+
   // POST /sessions/:sessionId/links — create a join, view or fork link (creator only)
   app.post(
     "/:sessionId/links",
     {
+      compress: false,
       schema: {
         params: Type.Object({ sessionId: Type.String() }),
         body: Type.Object({
@@ -836,7 +840,7 @@ export async function sessionRoutes(app: FastifyInstance) {
   // GET /sessions/:sessionId/links — list active links (creator only)
   app.get(
     "/:sessionId/links",
-    { schema: { params: Type.Object({ sessionId: Type.String() }) } },
+    { compress: false, schema: { params: Type.Object({ sessionId: Type.String() }) } },
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
