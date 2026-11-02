@@ -1,9 +1,0 @@
----
-import Layout from "@/layouts/Layout.astro";
-import { GameDesigner } from "@/components/GameDesigner";
----
-
-<!-- No login: the file is checked and drawn in the browser, never uploaded. -->
-<Layout>
-    <GameDesigner client:only="react" />
-</Layout>
