@@ -3,8 +3,13 @@ import { atom, computed } from "nanostores";
 
 import { questionSchema } from "@/maps/schema";
 
-import { fetchGameRevisionAPI } from "./api.js";
+import { fetchGameRevisionJSON } from "./api.js";
 import { type CompiledGame,compileGameDefinition } from "./compile.js";
+import {
+    dropStoredRevision,
+    readStoredRevision,
+    storeRevision,
+} from "./revisionCache.js";
 
 function canonicalQuestionId(question: any): {
     family: string;
@@ -105,6 +110,20 @@ export const compiledGameAtom = computed(
     },
 );
 
+function compiles(definition: GameDefinition): boolean {
+    if (compiledDefinitionCache.has(definition)) return true;
+    try {
+        compiledDefinitionCache.set(
+            definition,
+            compileGameDefinition(definition),
+        );
+        return true;
+    } catch (err) {
+        console.warn("[searchlight:revisions] kept copy doesn't compile", err);
+        return false;
+    }
+}
+
 // Sessions load pinned revisions, which never change, so they can be cached.
 const revisionDefinitionCache = new Map<string, GameDefinition>();
 const pendingDefinitions = new Map<string, Promise<GameDefinition>>();
@@ -165,6 +184,11 @@ export function cacheRevisionDefinition(
 /**
  * Load a session's pinned revision. Share only requests made with the same
  * revision and session access scope.
+ *
+ * A copy this browser kept comes first: revisions never change. Callers load
+ * a session's game only once the server has authorized the session, or, with
+ * the server out of reach, for the account last verified here (see
+ * SessionManager), which loaded it before.
  */
 export function loadGameDefinition(
     gameId: string,
@@ -178,7 +202,20 @@ export function loadGameDefinition(
     const cached = getCachedRevisionDefinition(gameId, revisionId, sessionId);
     if (cached) return Promise.resolve(cached);
 
-    const request = fetchGameRevisionAPI(gameId, revisionId, sessionId)
+    const request = readStoredRevision(gameId, revisionId)
+        .then(async (stored) => {
+            // A kept copy must still make a game (the compiled game is
+            // cached with it): one that doesn't is dropped and loaded again.
+            if (stored && compiles(stored)) return stored;
+            if (stored) await dropStoredRevision(gameId, revisionId);
+            const { definition, json } = await fetchGameRevisionJSON(
+                gameId,
+                revisionId,
+                sessionId,
+            );
+            void storeRevision(gameId, revisionId, json);
+            return definition;
+        })
         .then((definition) => {
             // A cache clear also invalidates requests that started before it.
             if (pendingDefinitions.get(key) === request) {

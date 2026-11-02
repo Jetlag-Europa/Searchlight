@@ -15,7 +15,11 @@ import {
     type ZonesDelta,
 } from "@/lib/disabledZones";
 import { discardSessionData, getPendingEvents } from "@/lib/eventQueue";
-import { activeSessionId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    offlineUserId,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import {
     applyDisabledZonesEvent,
     cancelPendingDisabledZonesSave,
@@ -291,6 +295,46 @@ describe("saving disabled zones", () => {
         await expect(flushDisabledZonesSave(SID)).rejects.toThrow();
         expect(getPendingEvents(SID)).toEqual([]);
         expect(disabledStations.get()).toEqual(["a"]);
+    });
+});
+
+describe("disabled zones changed while playing offline", () => {
+    const SID = "zones-offline";
+
+    afterEach(() => {
+        offlineUserId.set(null);
+        verifiedUserId.set(null);
+    });
+
+    it("are queued for the account played as, and sent once /me verifies it", async () => {
+        offlineUserId.set("u1");
+        setDisabledZonesBase(SID, ["a"]);
+        saveDisabledZonesDelta(SID, delta(["b"], ["a"]));
+        // Offline the page may close any time: the change is queued now.
+        await expect(flushDisabledZonesSave(SID, true)).rejects.toThrow();
+        expect(requests).toEqual([]);
+        expect(store.has(`taibled-pending-${SID}~u1`)).toBe(true);
+        expect(store.has(`taibled-pending-${SID}`)).toBe(false);
+        expect(disabledStations.get()).toEqual(["b"]);
+
+        // A reload, still offline: the board shows it from the queue.
+        disabledStations.set([]);
+        setDisabledZonesBase(SID, ["a"]);
+        expect(disabledStations.get()).toEqual(["b"]);
+
+        // Another account on this browser neither sees nor sends it.
+        offlineUserId.set(null);
+        verifiedUserId.set("u2");
+        setDisabledZonesBase(SID, ["a"]);
+        expect(disabledStations.get()).toEqual(["a"]);
+        await flushPendingEvents(SID);
+        expect(requests).toEqual([]);
+
+        // /me verifies the account it was made by.
+        verifiedUserId.set("u1");
+        await flushPendingEvents(SID);
+        expect(requests.map(changeOf)).toEqual([delta(["b"], ["a"])]);
+        expect(getPendingEvents(SID)).toEqual([]);
     });
 });
 

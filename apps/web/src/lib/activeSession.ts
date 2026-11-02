@@ -26,6 +26,14 @@ export const activeSessionData = atom<GameSessionSummary | null>(null);
 // cannot authorize painting cached questions from a previous account.
 export const verifiedUserId = atom<string | null>(null);
 
+// The last account /me verified in this browser. Logging out removes it.
+export const STORED_USER_KEY = "taibled-authed-user";
+
+// While /me can't be reached (no connection, a timeout, a server error, but
+// never a 401) and none is verified yet: the account stored above. Only the
+// session manager plays as it, from what this browser kept for it.
+export const offlineUserId = atom<string | null>(null);
+
 export function setActiveSession(session: GameSessionSummary): void {
     writeStorage("sessionStorage", SS_KEY, session.id);
     writeStorage("localStorage", LS_KEY, session.id);
