@@ -14,6 +14,18 @@ export function authCheckOutcome(status: number | undefined): AuthCheckOutcome {
     return "unreachable";
 }
 
+/**
+ * Who plays while /me can't be reached: the last account verified in this
+ * browser, if any, and nobody once /me has verified one.
+ */
+export function offlinePlayer(
+    storedUserId: string | null,
+    verifiedUserId: string | null,
+): string | null {
+    if (verifiedUserId) return null;
+    return storedUserId || null;
+}
+
 const RETRY_MIN_MS = 2_000;
 const RETRY_MAX_MS = 30_000;
 export const ME_TIMEOUT_MS = 8_000;
