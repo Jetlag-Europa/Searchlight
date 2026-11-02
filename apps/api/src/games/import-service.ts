@@ -95,6 +95,9 @@ interface ImportContext {
   actor?: ImportActor;
   dryRun: boolean;
   allowUpdate: boolean;
+  // Refuse the update (409 GAME_CHANGED) unless this is still the current
+  // revision once the game is locked.
+  expectedCurrentRevisionId?: string;
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -343,6 +346,14 @@ async function importRevision(
     if (!locked) {
       throw new ImportConflictError("The game was deleted during the import", "GAME_DELETED");
     }
+    // An import committed since the caller read the definition it edited:
+    // saving the edit would undo that import.
+    if (
+      ctx.expectedCurrentRevisionId !== undefined &&
+      locked.currentRevisionId !== ctx.expectedCurrentRevisionId
+    ) {
+      throw gameChanged();
+    }
     const cur = locked.currentRevisionId
       ? await tx.gameRevision.findUnique({
           where: { id: locked.currentRevisionId },
@@ -473,4 +484,78 @@ async function importRevision(
 
     return result;
   });
+}
+
+function gameChanged(): ImportConflictError {
+  return new ImportConflictError(
+    "This game was changed since this page loaded. Reload the page to see the latest.",
+    "GAME_CHANGED",
+  );
+}
+
+export interface UpdateGameSettingsParams {
+  game: { id: string; gameKey: string; serverId: string; currentRevisionId: string | null };
+  // The revision the edit started from.
+  baseRevisionId: string;
+  name?: string;
+  size?: GameDefinition["size"];
+  // Already authorized to edit the game's games.
+  actor: ImportActor;
+}
+
+/**
+ * Changes a game's name and size as a new revision of its current definition,
+ * like an upload of the edited JSON: an import overwrites Game.name/size from
+ * the definition, exports serve it, and sessions stay on their revision.
+ */
+export async function updateGameSettings(
+  params: UpdateGameSettingsParams,
+): Promise<{ status: "updated" | "unchanged"; revision: number; checksum: string }> {
+  const { game, baseRevisionId, name, size, actor } = params;
+  if (game.currentRevisionId !== baseRevisionId) throw gameChanged();
+
+  // Loaded, validated and hashed outside the lock: definitions are multi-MB.
+  const base = await prisma.gameRevision.findFirst({
+    where: { id: baseRevisionId, gameId: game.id },
+    select: { definition: true },
+  });
+  if (!base) throw gameChanged();
+
+  const def = base.definition as unknown as GameDefinition;
+  if (name !== undefined) def.name = name;
+  if (size !== undefined) def.size = size;
+  // Without an id the key is derived from the name, so a rename would become
+  // another game. The checksum materializes the derived id, so pinning it
+  // doesn't change it. `revision` stays as stored: reverting an edit then
+  // reproduces the old checksum and re-activates that revision.
+  def.id = game.gameKey;
+
+  const validation = validateGameDefinition(def);
+  if (!validation.valid) {
+    throw new ImportValidationError(validation.errors, validation.warnings);
+  }
+
+  const result = await importRevision(
+    {
+      def,
+      // Stored revisions hold the map without the game's details, and a
+      // settings edit leaves the details alone.
+      map: def,
+      details: {},
+      gameKey: game.gameKey,
+      checksum: computeGameDefinitionChecksum(def),
+      warnings: validation.warnings,
+      source: "web",
+      actor,
+      dryRun: false,
+      allowUpdate: true,
+      expectedCurrentRevisionId: baseRevisionId,
+    },
+    game,
+  );
+  return {
+    status: result.status as "updated" | "unchanged",
+    revision: result.revision,
+    checksum: result.checksum,
+  };
 }

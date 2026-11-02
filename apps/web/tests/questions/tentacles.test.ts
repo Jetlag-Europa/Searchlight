@@ -101,10 +101,10 @@ async function checkAgainstOracle(
     edgeMarginFrac = 0.08,
 ) {
     const mask = (await maskFor(s)) as Feature<Polygon> | null;
-    // Skip points near radius/Voronoi edges: the real cells come from a
-    // Mercator-reprojected spherical Voronoi whose boundaries differ slightly
-    // from the oracle's geodesic bisectors, so near-edge points can legitimately
-    // disagree by a sliver. The margin is a fraction of the radius.
+    // Skip points near radius/Voronoi edges: the radius circle and the cells are
+    // drawn as polygons, which stray slightly from the oracle's true circle and
+    // geodesic bisectors, so near-edge points can legitimately disagree by a
+    // sliver. The margin is a fraction of the radius.
     const edgeMargin = s.radius * edgeMarginFrac;
 
     let survives = 0;
@@ -143,13 +143,12 @@ afterEach(() => hiderMode.set(false));
 describe("adjustPerTentacle — well-separated POIs (spherical Voronoi)", () => {
     // Seeker in canton Zürich; three POIs a few km apart so the spherical
     // Voronoi is non-degenerate. Answer = the western POI "A".
-    // Three POIs ~450-670 m from the seeker, with a deliberately small 0.8 km
-    // radius. `geoSpatialVoronoi`'s Mercator reprojection error grows with
-    // distance from the POI centroid, so we keep the radius tight: every grid
-    // point still being tested for *cell membership* lies within 0.8 km of the
-    // seeker (close to the POIs, where the projection is accurate), while points
-    // further out are eliminated by the radius circle — where the oracle and the
-    // app trivially agree. The spherical path stays non-degenerate (well-spread).
+    // Three POIs ~450-670 m from the seeker, with a small 0.8 km radius: every
+    // grid point tested for *cell membership* lies within 0.8 km of the seeker,
+    // while points further out are eliminated by the radius circle. (The tight
+    // radius used to keep the grid where the old Mercator-reprojected cells were
+    // accurate; the cells are now exact on the sphere, which the 6 km test below
+    // checks across a much wider area.)
     const scenario: TentacleScenario = {
         seeker: [8.54, 47.37],
         radius: 0.8,
@@ -168,16 +167,27 @@ describe("adjustPerTentacle — well-separated POIs (spherical Voronoi)", () => 
     });
 
     it("masked region agrees with the independent oracle on every clear point", async () => {
-        // ~160 m edge margin (0.20 × 0.8 km) absorbs the small Voronoi-vs-
-        // geodesic boundary fuzz (the Mercator reprojection nudges cell edges
-        // ~100 m off the true bisector, and the three cells meet in a genuinely
-        // ambiguous triple point near the seeker). Within the radius the
-        // projection is accurate, so the interior must agree exactly.
+        // A generous ~160 m edge margin (0.20 × 0.8 km), kept from the
+        // Mercator era; the test below holds the cells to a far tighter one.
         const r = await checkAgainstOracle(scenario, 32, 0.2);
         expect(r.failures).toEqual([]);
         // The scenario must genuinely test both outcomes, else a no-op passes.
         expect(r.survives).toBeGreaterThan(10);
         expect(r.eliminated).toBeGreaterThan(10);
+    });
+
+    it("agrees with the oracle up to 10 cm from an edge across a 6 km radius", async () => {
+        // The base lies wholly inside the radius, so every grid point, up to
+        // ~5 km from the POIs, is tested for cell membership.
+        const wide: TentacleScenario = {
+            ...scenario,
+            radius: 6,
+            base: boundary(8.49, 47.34, 8.59, 47.4),
+        };
+        const r = await checkAgainstOracle(wide, 40, 0.0001 / wide.radius);
+        expect(r.failures).toEqual([]);
+        expect(r.survives).toBeGreaterThan(100);
+        expect(r.eliminated).toBeGreaterThan(100);
     });
 
     it("never exceeds the base boundary or the radius circle (invariants)", async () => {
@@ -196,14 +206,13 @@ describe("adjustPerTentacle — well-separated POIs (spherical Voronoi)", () => 
     });
 });
 
-describe("adjustPerTentacle — tightly-clustered POIs (planar Voronoi fallback)", () => {
+describe("adjustPerTentacle — tightly-clustered POIs", () => {
     // Three POIs within ~150 m, the consulate-cluster case from Entry 35 that
-    // breaks the spherical Voronoi and triggers geoSpatialVoronoiSafe's planar
-    // fallback. Far from such a tight cluster, *which* cell a point belongs to
-    // is genuinely ill-conditioned (the runner-up POI is only ~150 m further),
-    // so the far-field grid oracle is meaningless here. Instead we assert
-    // structurally: the fallback fires, the mask is valid, and near the cluster
-    // the correct cell wins.
+    // broke the old Mercator-reprojected spherical Voronoi (a site fell outside
+    // its own cell) and forced geoSpatialVoronoiSafe's planar fallback. The
+    // spherical cells are now exact, so we assert they are sound themselves, the
+    // mask is valid, near the cluster the correct cell wins, and even far from
+    // it, where the runner-up POI is only metres further, the oracle agrees.
     const seeker: [number, number] = [8.54, 47.37];
     const places = [
         poi("P1", 8.5398, 47.3698), // SW
@@ -219,10 +228,10 @@ describe("adjustPerTentacle — tightly-clustered POIs (planar Voronoi fallback)
         base: boundary(8.5, 47.35, 8.58, 47.39),
     };
 
-    it("the spherical Voronoi is degenerate, forcing the planar fallback", () => {
+    it("every site lies in its own cell, spherical and safe alike", () => {
         const fc = turf.featureCollection(places);
-        // Degeneracy signature geoSpatialVoronoiSafe checks for: at least one
-        // site does NOT fall inside its own spherical cell.
+        // The soundness check geoSpatialVoronoiSafe applies before it would
+        // fall back: every site falls inside its own spherical cell.
         const spherical = geoSpatialVoronoi(fc);
         const everySiteInOwnCell = spherical.features.every((f) => {
             const site = (f.properties as { site?: Feature<Point> }).site;
@@ -230,9 +239,9 @@ describe("adjustPerTentacle — tightly-clustered POIs (planar Voronoi fallback)
                 ? turf.booleanPointInPolygon(site, f as Feature<Polygon>)
                 : false;
         });
-        expect(everySiteInOwnCell).toBe(false);
+        expect(everySiteInOwnCell).toBe(true);
 
-        // The safe variant must repair it: every site lands in its own cell.
+        // The safe variant keeps them: every site lands in its own cell.
         const bbox = turf.bbox(
             turf.buffer(turf.point(seeker), scenario.radius * 1.2, {
                 units: "kilometers",
@@ -262,6 +271,19 @@ describe("adjustPerTentacle — tightly-clustered POIs (planar Voronoi fallback)
             });
             expect(d).toBeLessThanOrEqual(scenario.radius * 1.02);
         });
+    });
+
+    it("agrees with the oracle up to 10 cm from an edge across the base", async () => {
+        // The base lies wholly inside the radius, so the radius edge never
+        // decides a grid point.
+        const r = await checkAgainstOracle(
+            scenario,
+            40,
+            0.0001 / scenario.radius,
+        );
+        expect(r.failures).toEqual([]);
+        expect(r.survives).toBeGreaterThan(100);
+        expect(r.eliminated).toBeGreaterThan(100);
     });
 
     it("keeps a hider just north of the cluster (P3's side), drops one to the south", async () => {

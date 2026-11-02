@@ -4,7 +4,12 @@ const mockFetch = vi.fn();
 vi.stubGlobal("fetch", mockFetch);
 vi.stubGlobal("window", new EventTarget());
 
-import { authCheckOutcome, authRetryDelay, watchAuth } from "@/lib/authCheck";
+import {
+    authCheckOutcome,
+    authRetryDelay,
+    offlinePlayer,
+    watchAuth,
+} from "@/lib/authCheck";
 
 describe("/me outcome", () => {
     test("only a 401 signs the visitor out", () => {
@@ -21,6 +26,22 @@ describe("/me outcome", () => {
             expect(authCheckOutcome(status)).toBe("unreachable");
         },
     );
+});
+
+describe("playing while /me can't be reached", () => {
+    test("is for the account last verified in this browser", () => {
+        expect(offlinePlayer("u1", null)).toBe("u1");
+    });
+
+    test("is for nobody when none was verified here", () => {
+        expect(offlinePlayer(null, null)).toBeNull();
+        expect(offlinePlayer("", null)).toBeNull();
+    });
+
+    test("ends once /me verifies an account", () => {
+        expect(offlinePlayer("u1", "u1")).toBeNull();
+        expect(offlinePlayer("u1", "u2")).toBeNull();
+    });
 });
 
 describe("/me retry delay", () => {

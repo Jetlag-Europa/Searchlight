@@ -9,8 +9,8 @@ import type { Feature, Point, Polygon, MultiPolygon } from "geojson";
  * each scenario is checked against an **independent oracle** — a verdict for each
  * sample point computed a second, simpler way. A point is `ambiguous` when it
  * sits on a decision boundary where the real algorithm and the oracle can
- * legitimately disagree by a sliver (radius edge, Voronoi/bisector edge,
- * Mercator-reprojection drift); callers skip those and assert only on points
+ * legitimately disagree by a sliver (radius edge, Voronoi/bisector edge, each
+ * drawn as a polygon); callers skip those and assert only on points
  * with a clear answer.
  */
 

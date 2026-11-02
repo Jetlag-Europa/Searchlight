@@ -20,14 +20,16 @@ import { CalculatingIndicator } from "@/components/CalculatingIndicator";
 import { ZonesLeftIndicator } from "@/components/ZonesLeftIndicator";
 import { PreferencesSync } from "@/components/PreferencesSync";
 import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
+import { QuestionConflicts } from "@/components/QuestionConflicts";
 ---
 <Layout className="bg-jetlag">
     <!--
         Auth loading overlay — visible immediately (no JS required).
         AuthGuard removes it once /me responds 200, so map content
         is never visible to an unauthenticated visitor. It also removes it
-        while the server can't be reached: no session loads before /me
-        answers 200, so only the empty map shows.
+        while the server can't be reached: then only the session this
+        browser kept for the account it last verified shows, or the empty
+        map.
     -->
     <div
         id="auth-loading-overlay"
@@ -55,8 +57,8 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
     <!-- CalculatingIndicator shows question results that take a while to work out -->
     <CalculatingIndicator client:only="react" />
 
-    <!-- ZonesLeftIndicator shows how many hiding zones are left, in the same spot -->
-    <ZonesLeftIndicator client:only="react" />
+    <!-- QuestionConflicts asks which version to keep when this player's edits met another's; its chip goes in the conflicts slot -->
+    <QuestionConflicts client:only="react" />
 
     <!-- The board; SessionManager makes it inert while the session picker is open -->
     <div id="map-board" class="contents">
@@ -78,6 +80,27 @@ import { SessionUpgradeBanner } from "@/components/SessionUpgradeBanner";
                                 class="absolute top-[72px] md:top-2 right-2 z-[1030] group-[.fullscreen]:hidden"
                             >
                                 <SidebarTriggerR client:load />
+                            </div>
+                            <!--
+                                The status chips, stacked in the map's corner so
+                                they move aside with the zone sidebar. AuthGuard,
+                                SessionManager and QuestionConflicts render
+                                theirs into the slots.
+                                The column has no width and its chips (w-max)
+                                stick out to the left, so the column itself
+                                covers none of the map.
+                            -->
+                            <div
+                                class="absolute top-2 right-14 z-[1041] flex w-0 flex-col items-end gap-1 group-[.fullscreen]:hidden"
+                            >
+                                <div id="user-chip-slot" class="contents"></div>
+                                <div id="session-chip-slot" class="contents">
+                                </div>
+                                <!-- Questions waiting for a decision -->
+                                <div id="conflicts-chip-slot" class="contents">
+                                </div>
+                                <!-- How many hiding zones are left -->
+                                <ZonesLeftIndicator client:only="react" />
                             </div>
                             <div
                                 class="bottom-5 left-2 right-2 mb-2 absolute z-[1030] group-[.fullscreen]:hidden"

@@ -2,25 +2,156 @@
 
 Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
+[Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
-## Game dates, rules links and archiving (2026-10-18)
+## Game dates, rules links and archiving (2026-11-02)
 
 - Each game can have a date (and a last day for multi-day events) and a link to its rules doc. Game lists show the newest event first, and a **Rules** button next to the session name during play opens the rules doc; Find a game shows both on its cards. Game managers set them on the games page with **Details**, or in the game file (`date`, `endDate`, `rulesUrl`). Changing only these never makes a new revision, so running sessions aren't asked to upgrade.
 - The preloaded games now carry their dates, and rules links where the organisers posted one.
 - Game managers can **Archive** a past event on the games page. It is no longer offered when creating a session, and Find a game shows it only under "Show past events". Its sessions, links and upgrades keep working, and you can still start new sessions of it from Find a game or a link. Importing an update no longer un-archives a game. A game with sessions can't be deleted; the message now suggests archiving it.
 - **Upgrading:** the `20261018110000_game_details` migration adds `Game.date`, `endDate`, `rulesUrl` and `preloadDetails`. The first start fills the preloaded games' dates and rules links without new revisions.
 
-## Find a game (2026-10-18)
+## Find a game (2026-11-02)
 
 - A new **Find a game** page (`/browse`, the compass next to the cogwheel in the session picker) lists the games of all your servers on a map and as cards. Search for a game, a server or a place: "Manchester" finds Greater Manchester, "Switzerland" both Swiss games. Sort by distance from the place, newest event or name, and press **Play** to start a session. Searches stay in the address, so they can be shared.
 - The map stays in view beside the list on wide screens, and opens full screen with the button in its corner. Click a pin for the game's card with **Play**; games played at the same spot share a pin. Zoomed in, the map names the games.
 - Server admins can set the server's Discord invite on the admin page. A server with an invite also shows its listed games to players who aren't in it, greyed out, with **Join** and **Joined? Check again**, which unlocks them as soon as Discord lists you. Servers without an invite show their games to members only, as before. Role-gated and unlisted games never show to people who can't play them.
 - **Upgrading:** the `20261018100000_add_server_invite_url` migration adds `Server.inviteUrl`.
 
+## Zone sidebar stays with "No Overlap" (2026-10-31)
+
+- With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
+
+## Map no longer freezes after closing a confirm (2026-10-31)
+
+- The map's buttons (the question and hiding zone sidebars, the options) could stop responding to taps until a reload, with only the map's zoom buttons still working. It happened when a confirm dialog closed together with the window it was opened from, for example deleting a question from its map marker, or turning a phone sideways while a delete confirm was open in the sidebar.
+
+## Game settings on the games page (2026-10-28)
+
+- Game editors (`games.edit` or `server.admin`) can now rename a game and change its size from `/games` → **Settings**, without importing its file again. The game's ID stays the same, so its links and exports keep working.
+- Saving makes a new revision, as an import of the edited file would: **Export JSON** has the new name, the new name shows in game lists and links right away, and sessions already started are offered the update ("Game update available"), even for a rename alone; a new size applies there once their creator accepts it. Changing the settings back makes the earlier revision current again instead of adding one.
+- If the game changed since the page loaded, for example through an import, the save is refused and the game isn't changed: reload the page and edit again. For a preloaded game, the next change to its file replaces the edit, as it replaces an upload.
+
+## Paste field when the clipboard is blocked (2026-10-26)
+
+- The paste buttons (Paste Question, Apply from clipboard on presets, paste coordinates, and Paste GeoJSON in the options) still read the clipboard directly where the browser allows it. Where it doesn't, because clipboard access is blocked, the Clipboard API is missing, or the browser's own "Paste" prompt was dismissed, they now open a field to paste into, instead of showing an error.
+- Pasting a coordinate pair or a Google Maps link into the Latitude or Longitude field now sets both. A single number still pastes as before.
+
+## Asked before a question is overwritten (2026-10-24)
+
+- When your questions reach the server after the connection was down, or while another player was saving, and you and another player changed the same question differently, Searchlight now asks which version to keep instead of picking one. It also asks when one of you deleted a question the other changed. Everything else still merges on its own: new questions, changes to different questions, and folding or locking.
+- A window lists each of these questions with both versions side by side, as the question cards put them ("2 km, Inside" against "500 m, Outside"), and names who made the other change. Keep mine or Keep theirs for each, or for all at once. On a phone it opens from the bottom of the screen.
+- The rest of your changes are saved straight away. Until you choose, the question keeps the other player's version, for everyone.
+- Closing the window leaves "1 question needs a decision" under the session at the top right; tap it to choose later. Questions waiting for a decision are kept on the device for the account that changed them, so they survive a reload or the app being closed.
+- Your choice is saved like any other change. If the other player changes the question again before it arrives, you're asked again rather than overwriting their newer change. Changing a waiting question yourself, once it shows the other player's version, also decides it: your new change is kept. The choices wait while the session is loading, or while this device can't save. A version the game no longer offers (after the game was updated) can't be kept, and a question neither of whose versions it offers isn't asked about until it does.
+- **Upgrading:** the API has a new route, `GET /sessions/:id/questions/changes`, which the window uses to name the other player. Without it (an older API), the window says "another player".
+
+## Install Searchlight as an app (2026-10-23)
+
+- Searchlight can be installed on a phone or computer: **Install app** in Chrome and Edge (Android and desktop), or **Share → Add to Home Screen** in Safari on iPhone and iPad. It opens on the map in its own window, with the new Searchlight logo as its icon.
+- It keeps working when the connection drops for a while. The app itself is kept on the device, so its pages open without a connection, and questions are still worked out: ArcGIS's projection engine now comes with the app instead of from js.arcgis.com. Changes made meanwhile are sent once the connection is back, as before.
+- Reopening or reloading the map while the server can't be reached shows your session and its game as you left them, with "Can't reach the server, retrying…", and catches up once the server answers. This works for the last account that logged in on that browser, for up to a week after it last reached the server (a map already open and playing offline carries on past that until the server answers), and only until it logs out: logging out also deletes the games kept for it (the 4 most recently played game versions). Starting to log in on that browser ends it too, until the server confirms who logged in; a login cancelled or left unfinished stops counting after 15 minutes.
+- Questions saved after the connection was down, or by two players at the same moment, no longer overwrite questions other players added or changed meanwhile. Searchlight merges the lists: other players' new questions and answers stay, and your changes are applied on top. Where both sides changed the same question differently, Searchlight asks which version to keep (see above). Folding or locking a question on your device never overrides someone else's answer.
+- Map tiles you've looked at are kept on the device, so those areas still show while you're offline: CARTO and Thunderforest tiles for up to 30 days after they were downloaded (3,000 tiles at most), and OpenStreetMap tiles for up to 7 days. OpenStreetMap tiles still come from the network first, following its caching headers as its tile policy asks; the kept copy is used when the network fails or takes over 3 seconds.
+- A new version shows "A new version of Searchlight is available" with a **Reload** button instead of replacing the page mid-game. Reload also reloads the app's other open tabs, which can't keep running the old version; the map saves its state first. Open pages check for a new version every hour, and when they come back to the foreground (at most every 10 minutes).
+- A game or invite link opened without a connection now says Searchlight can't be reached, and tries again once the connection is back, instead of calling the link invalid.
+- The coloured question markers come with the app instead of from GitHub and cdnjs.
+- On iPhone and iPad, an app added to the Home Screen keeps its own cookies, so you may have to log in once more inside it.
+- **Upgrading:** players keep running the web version they have until they click **Reload**, so after an update some browsers still run the previous one for a while: keep the API working with the previous web version. Saving questions stays compatible: a save without the new `baseSequence` replaces the list as before. The web image's nginx now serves the app's manifest as `application/manifest+json` and compresses the WASM file; a web app hosted on Cloudflare gets `no-cache` for `/sw.js` and the manifest from `public/_headers`. Players' browsers download the whole app (about 6.7 MB before compression) on their first visit after the update.
+
+## Game link previews (2026-10-21)
+
+- A game link (`/play?token=…`) posted in Discord, Slack, Telegram, WhatsApp and similar apps now previews as the game's name, its server and an image of its map (the play area and hiding zones), instead of the site's general description. A revoked link previews as "Link no longer active".
+- **Upgrading:** the web container's nginx now forwards link-preview requests to the API at `http://api:3000`, the name the compose files give it, found through Docker's DNS on the compose network. Without it, previews fall back to the general one. A web app hosted on Cloudflare (see `DEPLOY.md`) keeps the general preview.
+
+## Numbered releases (2026-10-20)
+
+- Searchlight now has numbered releases on [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases), each summing up the changes since the one before. 1.0 is Searchlight as Jules built it on top of JetLagHideAndSeek, up to 26 September 2026; 2.0 is everything since, starting with importable games.
+- **Upgrading:** when a release is published, its Docker images are also tagged with its version, such as `2.0.0` and `2.0`. Set `SEARCHLIGHT_IMAGE_TAG=2.0` in `.env` to stay on a release and still get its fixes, instead of following `latest`.
+
+## Overlap check agrees with the checker (2026-10-20)
+
+- The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.
+- The file the page offers for download after a fix keeps the original's formatting. A file on one line used to come back indented, several times larger: a 4.9 MB game came back as 23 MB, and the size warning then counted the larger copy.
+- The overlap check, which the import button waits for, runs 3–6 times faster: a game with about 50,000 border vertices, such as Belgium or Greater Manchester, now takes under a second instead of 3–4 s. It also works from the regions' coordinates, so a region carrying a stale or 3D `bbox` no longer makes it miss an overlap.
+
+## Radar listed once, at any radius (2026-10-19)
+
+- The import page's and `/designer`'s "Questions offered" list shows a game's radar as one question, such as "Radar: any radius (presets 400 m, 600 m)" or "Radar: any radius (starts at 1 km)", instead of one "Radar (1000 meters)" line per declared size. The declared sizes were always only where a new radar starts and the radar card's quick picks; players can ask any radius. `check-game.mjs` lists it the same way.
+
+## Fewer false heavy-geometry warnings (2026-10-19)
+
+- The game checker (on the import page, `/designer` and `check-game.mjs`) no longer warns about a region layer only used for matching because of its total vertex count: matching only ever works with the one region a seeker is in. It counts every vertex of layers used for measuring and of line layers used for matching, and the largest region of a region layer used for matching.
+- It only suggests simplifying where the vertices lie closer than about 50 m, and now says to use a topology-preserving simplifier, since simplifying each region on its own opens gaps and overlaps between neighbours. A heavy layer whose vertices are already far apart gets a note instead.
+- Belgium's "Arrondissement" layer (24,748 vertices, already about 330 m apart) and Greater Manchester's "Ward" layer (36,201 vertices), both only used for matching, are no longer flagged.
+
+## Faster distance-to-border questions on fixed layers (2026-10-19)
+
+- On a region layer marked `"noOverlaps": true` (see below), a distance-to-border question now buffers the whole border network once, each shared border once, instead of buffering every region and cutting them together. In Belgium, a province-border question takes about 1 second at most distances (down from 1 to 2.5 seconds), and 3 to 4 seconds about a kilometre from a border (down from 8 to 12 seconds). The zones it leaves are the same.
+
+## Import page, with a fix for overlapping regions (2026-10-19)
+
+- Importing a game now has its own page, `/games/import`, opened from **+ Import Game JSON** on the games page. It draws the file on the map like `/designer`, lists the checker's findings, and imports it, with the same server, update and unlisted options the import dialog had.
+- The import page and `/designer` check every region layer for overlapping regions, such as provinces whose borders were traced separately. For each layer they show how many overlaps there are, their area, the widest, and how many hiding zones reach into one, and draw them on the map.
+- **Fix** gives each overlap to the first region in the file, as the game already does when it decides which region a player is in: players stay in the regions they were in (new corners are rounded to about 0.1 m), and a distance to a border moves by at most the overlap's width. Regions that only touch their neighbours are left as they were. The page then offers the fixed file for download, so your copy stays in step.
+- A layer already marked `noOverlaps` whose regions do overlap can't be imported until it's fixed or the mark is removed, and `check-game.mjs --strict` fails on one.
+- Fixed layers, and layers found without overlaps, are marked `"noOverlaps": true` in the file, and distance-to-border questions on them are answered faster (see above).
+- The preloaded games are fixed and marked. Their overlaps were up to 42 m wide (Bucharest, Exeter-Rotterdam and Rotterdam), 29 m in Belgium's provinces.
+- **Upgrading:** 21 of the 22 preloaded games changed (all but Brussels), so the API imports a new revision of each of them on its next start.
+
+## Enclaves no longer ruled out by distance questions (2026-10-19)
+
+- A distance-to-boundary question could wrongly rule out the middle of an enclave: a place inside a hole in a region, such as Brussels inside Flemish Brabant. In Belgium, a hider in central Brussels who answered "farther" from a province border than a seeker near one was eliminated, and a "closer" answer kept all of Brussels possible. Measuring and radius questions now keep holes inside holes as they should.
+
+## Faster measuring questions (2026-10-19)
+
+- Measuring questions now build their distance buffers in a map projection centred on the area, which is several times faster than working on the globe directly and just as accurate: the buffer stays within the same tolerance as before (0.05% of the distance, at least 3 ft). In Belgium, "closer to a province border" now takes about 2 seconds instead of 7 to 8 at most distances.
+- Borders are never simplified, so answers and the zones they leave are unchanged.
+- Working out a distance-to-boundary question no longer blocks the page while it cuts up the regions.
+- On a big game, a question asked about a kilometre from a border is still slow (about 10 seconds in Belgium, down from 15 to 19). On a layer marked `noOverlaps` it's faster still (see "Faster distance-to-border questions on fixed layers" above).
+
+## Link copying, place search and full screen fixes (2026-10-19)
+
+- The **Invite** and **Share a copy** drawers only say "Copied!" when the link was really copied. When the browser refuses, as iPhone Safari does after creating a link, they show the link in a field to copy by hand. A failed revoke now shows an error.
+- Place search shows the results for what you typed last, not a slower answer to an earlier search. Names with `&`, `#` or `+`, such as "Bahnhof & Post", are searched in full.
+- Short Google Plus codes use the whole town after the code ("Q9CM+3P Bad Homburg", not just "Bad"), also with a comma after the code as Google Maps copies it. A short code without a town asks for one.
+- The map's full-screen button shows the right icon after leaving full screen with Esc, and is hidden where the browser can't go full screen, such as on iPhone.
+
+## Old questions are back (2026-10-19)
+
+- The old Searchlight looked many questions up in OpenStreetMap while playing. The questions players asked there are now part of their games, with the data looked up once and stored in the game:
+  - Bern: Same Canton (also Distance to Canton Boundary), Same Bezirk and Same Administrative Region.
+  - Zurich: Same Bezirk, Distance to International Border, Distance to Airport and Distance to Canton Boundary.
+  - Budapest: Same District and Distance to Coastline.
+  - Brno: Nearest Mountain and Distance to Mountain.
+  - Belgium: Nearest Aquarium, Distance to Aquarium, Nearest Mountain and Distance to Mountain.
+  - South Limburg: Same Postcode.
+  - Rotterdam 12-09: Nearest Park and Distance to Park.
+  - London and Accessible London: Distance to High-Speed Rail and Distance to Coastline.
+  - Greater Manchester: Distance to Coastline, plus Nearest Library, Distance to Library and Tentacles: Library.
+  - North London: Nearest Airport.
+  - Paris: Distance to High-Speed Rail and Distance to Coastline.
+  - Stockholm 2026 and Luxembourg 2026: Distance to Coastline.
+  - Bucharest: Tentacles: Theme Park.
+- Sessions already running keep their game version. New sessions get the new questions.
+- "Same train line" and a few other old questions still have no equivalent.
+
+## Back where you were after logging in (2026-10-19)
+
+- Logging in now takes you back to the page you opened, such as `/games`, `/admin` or a game link, instead of always the map.
+- After logging in from an invite link you're back on the invite page; click **Join** to join the session. Before, you were joined automatically.
+- The **Invites** button is now called **Invite**.
+
+## Server list loads without waiting on Discord (2026-10-19)
+
+- The server list in the session picker now shows what Searchlight already knows about your servers and checks with Discord in the background, so it only waits on Discord the first time you open it.
+- It checks the servers you aren't in less often. After joining a Discord server, click **Check again** under the server list to see it straight away; otherwise it can take up to half a day to appear.
+- Opening a game or session still checks your membership and roles as before.
+
 ## Game designer page (2026-10-18)
 
 - A new page, `/designer`, shows a game file on a map before you import it: its play area, bounds, hiding zones and each feature layer, with a panel listing its details, the questions players will be offered and any problems found. No login is needed, and the file never leaves your browser.
-- Importing a game on the games page now shows the game checker's warnings and notes, and marks the ones that are always data mistakes as defects. They don't block the import.
+- Importing a game now shows the game checker's warnings and notes, and marks the ones that are always data mistakes as defects. They don't block the import, except a layer marked `noOverlaps` whose regions overlap (see "Import page" above).
 - `check-game.mjs` no longer starts with `#!/usr/bin/env node`, so run it as `node check-game.mjs`, as the game guide does.
 
 ## Planning mode previews each answer (2026-10-18)

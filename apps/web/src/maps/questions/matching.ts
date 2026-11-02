@@ -1,17 +1,13 @@
 import * as turf from "@turf/turf";
 
+import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 import {
-    hiderMode,
-    mapGeoJSON,
-    polyGeoJSON,
-} from "@/lib/context";
-import {
+    geoSpatialVoronoiSafe,
     holedMask,
     identityKey,
     modifyMapData,
     setBounded,
 } from "@/maps/geo-utils";
-import { geoSpatialVoronoi } from "@/maps/geo-utils";
 import type { CustomMatchingQuestion, MatchingQuestion } from "@/maps/schema";
 
 // Manual memoize so we can skip caching undefined results, such as a custom
@@ -41,51 +37,33 @@ const determineMatchingBoundaryInner = async (question: MatchingQuestion) => {
                 break;
             }
 
-            const voronoi = geoSpatialVoronoi(data);
             const point = turf.point([question.lng, question.lat]);
-
-            for (const feature of voronoi.features) {
-                if (!feature?.geometry) continue;
-                if (turf.booleanPointInPolygon(point, feature)) {
-                    boundary = feature;
-                    break;
-                }
+            // Cells are drawn finely over the game area, the POIs and the pin.
+            let [minX, minY, maxX, maxY] = turf.bbox(
+                turf.featureCollection([...data, point]),
+            );
+            const poly = polyGeoJSON.get();
+            if (poly) {
+                const [pa, pb, pc, pd] = turf.bbox(poly as any);
+                minX = Math.min(minX, pa);
+                minY = Math.min(minY, pb);
+                maxX = Math.max(maxX, pc);
+                maxY = Math.max(maxY, pd);
             }
-
-            if (!boundary) {
-                // geoSpatialVoronoi (spherical voronoi reprojected through
-                // Mercator) produces overlapping/gappy cells for tightly
-                // clustered POIs — e.g. 3 consulates within ~150 m — so the
-                // pin can land in no cell and the question silently stops
-                // cropping. Fall back to a planar voronoi clipped to a bbox
-                // covering the game area, the POIs and the pin, which tiles
-                // cleanly.
-                let [minX, minY, maxX, maxY] = turf.bbox(
-                    turf.featureCollection([...data, point]),
-                );
-                const poly = polyGeoJSON.get();
-                if (poly) {
-                    const [pa, pb, pc, pd] = turf.bbox(poly as any);
-                    minX = Math.min(minX, pa);
-                    minY = Math.min(minY, pb);
-                    maxX = Math.max(maxX, pc);
-                    maxY = Math.max(maxY, pd);
-                }
-                const padX = (maxX - minX) * 0.1 || 0.1;
-                const padY = (maxY - minY) * 0.1 || 0.1;
-                const planar = turf.voronoi(turf.featureCollection(data), {
-                    bbox: [minX - padX, minY - padY, maxX + padX, maxY + padY],
-                });
-                for (const feature of planar.features ?? []) {
-                    if (
-                        feature?.geometry &&
-                        turf.booleanPointInPolygon(point, feature)
-                    ) {
-                        boundary = feature;
-                        break;
-                    }
-                }
-            }
+            const padX = (maxX - minX) * 0.1 || 0.1;
+            const padY = (maxY - minY) * 0.1 || 0.1;
+            const voronoi = geoSpatialVoronoiSafe(
+                turf.featureCollection(data),
+                [minX - padX, minY - padY, maxX + padX, maxY + padY],
+            );
+            // The pin's cell is its nearest POI's, found by the cell's own site.
+            const nearest = turf.nearestPoint(
+                point,
+                turf.featureCollection(
+                    voronoi.features.map((cell) => cell.properties!.site),
+                ),
+            );
+            boundary = voronoi.features[nearest.properties.featureIndex];
             break;
         }
     }

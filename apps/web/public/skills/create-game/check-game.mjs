@@ -10,12 +10,13 @@
 // It finishes by listing the questions the game will offer, with their labels.
 // Exit code 1 when there are errors. --strict also fails (FAIL instead of WARN)
 // on the warnings in STRICT_CODES, which are always data defects: misplaced or
-// swapped coordinates, duplicate IDs, undecoded names, single-feature matching
-// and region layers no zone lies in. Searchlight's preloaded games must pass it.
+// swapped coordinates, duplicate IDs, undecoded names, single-feature matching,
+// region layers no zone lies in, and layers marked noOverlaps whose regions
+// overlap. Searchlight's preloaded games must pass it.
 //
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.
-// Browsers import it too (Searchlight's import dialog and /designer page), so
+// Browsers import it too (Searchlight's import and /designer pages), so
 // it loads node: modules only in Node (at the end). No shebang line either:
 // Vite's dev server prepends imports to the file, which would break one.
 
@@ -29,7 +30,107 @@ export const STRICT_CODES = new Set([
   "escaped-name",
   "single-feature-matching",
   "zones-outside-all-regions",
+  "no-overlaps-overlapping",
 ]);
+
+// Overlaps narrower than this (meters) are rounding between borders traced
+// from the same data, as the import page's overlap check treats them.
+const HAIRLINE = 0.5;
+const METERS_PER_DEGREE = 6371008.8 * Math.PI / 180;
+
+/** Whether a point is inside a polygon's rings (holes taken out). */
+function inRings(pt, polygon) {
+  let inside = false;
+  for (const ring of polygon) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/** Whether a point lies within `limit` meters of an edge of the rings. */
+function nearEdge(pt, rings, limit) {
+  const k = Math.cos(pt[1] * Math.PI / 180);
+  const toXY = ([x, y]) => [(x - pt[0]) * k * METERS_PER_DEGREE, (y - pt[1]) * METERS_PER_DEGREE];
+  for (const ring of rings) {
+    for (let i = 1; i < ring.length; i++) {
+      const [ax, ay] = toXY(ring[i - 1]), [bx, by] = toXY(ring[i]);
+      const dx = bx - ax, dy = by - ay;
+      const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
+      if (Math.hypot(ax + t * dx, ay + t * dy) <= limit) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * How many corners of the regions, or middles of their edges, lie inside
+ * another region further than a hairline from its edge, with one pair of
+ * names as an example. Middles catch regions whose corners all sit on the
+ * other's border, as when two rectangles overlap.
+ */
+function cornersInsideOthers(feats) {
+  const regions = feats.map((f) => {
+    const polygons = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    const rings = polygons.flat();
+    const box = [Infinity, Infinity, -Infinity, -Infinity];
+    for (const [x, y] of rings.flat()) {
+      box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
+      box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+    }
+    const corners = new Set(rings.flat().map(([x, y]) => `${x},${y}`));
+    return { name: f.properties?.name ?? "(unnamed)", polygons, rings, box, corners };
+  });
+  let count = 0, example = null;
+  regions.forEach((region, r) => {
+    // Each point with the corners it lies on or between.
+    const points = region.rings.flatMap((ring) => ring.flatMap((pt, i) => (i
+      ? [{ pt: [(ring[i - 1][0] + pt[0]) / 2, (ring[i - 1][1] + pt[1]) / 2], ends: [ring[i - 1], pt] }, { pt, ends: [pt] }]
+      : [{ pt, ends: [pt] }])));
+    for (const { pt, ends } of points) {
+      for (let o = 0; o < regions.length; o++) {
+        const other = regions[o];
+        if (o === r || pt[0] < other.box[0] || pt[0] > other.box[2] || pt[1] < other.box[1] || pt[1] > other.box[3]) continue;
+        // A corner, or an edge, the two regions share is on its border.
+        if (ends.every(([x, y]) => other.corners.has(`${x},${y}`))) continue;
+        if (!other.polygons.some((polygon) => inRings(pt, polygon))) continue;
+        if (nearEdge(pt, other.rings, HAIRLINE)) continue;
+        count++;
+        example ??= [region.name, other.name];
+        break;
+      }
+    }
+  });
+  return { count, example };
+}
+
+// The vertices one question can work through before it slows down: every
+// border or line of a layer measured to or matched on as lines, or the one
+// region a seeker is in (matching a 7,000-vertex region takes about 0.3 s).
+// Simplifying is only worth suggesting where vertices lie closer than
+// DENSE_EDGE meters, as on borders traced point by point from OSM.
+const VERTEX_BUDGET = 20000;
+const DENSE_EDGE = 50;
+
+/** The mean length in meters of the edges of lines' or rings' coordinates. */
+function meanEdge(coordinates) {
+  let length = 0, edges = 0;
+  const walk = (c) => {
+    if (typeof c?.[0]?.[0] === "number") {
+      for (let i = 1; i < c.length; i++) {
+        const [x1, y1] = c[i - 1], [x2, y2] = c[i];
+        // Equirectangular: exact enough for edges of a few kilometers.
+        const k = Math.cos(((y1 + y2) / 2) * Math.PI / 180);
+        length += 6371008.8 * Math.PI / 180 * Math.hypot((x2 - x1) * k, y2 - y1);
+        edges++;
+      }
+    } else if (Array.isArray(c)) c.forEach(walk);
+  };
+  walk(coordinates);
+  return edges ? length / edges : 0;
+}
 
 const slug = (s) => String(s).toLowerCase().normalize("NFD")
   .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
@@ -53,6 +154,12 @@ export function questionLabel(name, kind, family) {
   }
   return /^tentacles?\b/i.test(name) ? name : `Tentacles: ${name}`;
 }
+
+/** A radius as the app shows it (see formatRadius in compile.ts): "500 m", "2 km". */
+const formatRadius = (value, unit) =>
+  unit === "meters" && value >= 1000 && value % 100 === 0
+    ? `${value / 1000} km`
+    : `${value} ${{ meters: "m", kilometers: "km", miles: "mi" }[unit]}`;
 
 /**
  * Checks a parsed game definition. `fileSize` (bytes) enables the file size
@@ -201,7 +308,7 @@ export function checkGame(def, { fileSize } = {}) {
   }
   const zones = checkCollection(hz.features, ["Point", "Polygon", "MultiPolygon"], "/hidingZones/features");
 
-  const LAYER_KEYS = ["name", "enabledFor", "data"];
+  const LAYER_KEYS = ["name", "enabledFor", "noOverlaps", "data"];
   const KINDS = ["matching", "measuring", "tentacle"];
   const layers = Array.isArray(def.features) ? def.features : [];
   if (def.features !== undefined && !Array.isArray(def.features)) err("/features", "must be an array");
@@ -211,8 +318,9 @@ export function checkGame(def, { fileSize } = {}) {
   const layerInfo = layers.map((layer, i) => {
     const p = `/features/${i}`;
     for (const key of Object.keys(layer ?? {})) {
-      if (!LAYER_KEYS.includes(key)) err(`${p}/${key}`, "unknown layer property (layers take only name, enabledFor, data)");
+      if (!LAYER_KEYS.includes(key)) err(`${p}/${key}`, "unknown layer property (layers take only name, enabledFor, noOverlaps, data)");
     }
+    if (layer?.noOverlaps !== undefined && typeof layer.noOverlaps !== "boolean") err(`${p}/noOverlaps`, "must be true or false");
     const name = typeof layer?.name === "string" ? layer.name : "";
     if (!name) err(`${p}/name`, "required non-empty string");
     else if (layerNames.has(name)) err(`${p}/name`, `duplicate layer name "${name}"; every layer needs its own name`);
@@ -231,6 +339,9 @@ export function checkGame(def, { fileSize } = {}) {
     if (kinds.includes("tentacle") && feats.length && !families.has("points")) {
       err(`${p}/enabledFor`, "tentacle needs a Point layer");
     }
+    if (layer?.noOverlaps === true && feats.length && family !== "polygons") {
+      warn(`${p}/noOverlaps`, "only region (Polygon) layers can be marked noOverlaps; it does nothing here", "no-overlaps-not-regions");
+    }
     const s = slug(name);
     if (name && !s) err(`${p}/name`, `"${name}" has no letters or digits to build a question ID from`);
     for (const kind of kinds) {
@@ -242,7 +353,7 @@ export function checkGame(def, { fileSize } = {}) {
       warn(`${p}/name`, `"${name}" and "${layerSlugs.get(s)}" share the slug "${s}", so a question kind enabled on both gets the same ID; give each layer a distinct name`, "shared-slug");
     }
     if (s && !layerSlugs.has(s)) layerSlugs.set(s, name);
-    return { name, kinds, feats, family, path: p };
+    return { name, kinds, feats, family, path: p, noOverlaps: layer?.noOverlaps === true };
   });
 
   // ── Quality (imports fine, plays badly) ────────────────────────────────────
@@ -355,7 +466,7 @@ export function checkGame(def, { fileSize } = {}) {
     }
 
     // Layers
-    for (const { name, kinds, feats, family, path } of layerInfo) {
+    for (const { name, kinds, feats, family, path, noOverlaps } of layerInfo) {
       const label = `${path} "${name}"`;
       if (ESCAPED_NAME.test(name)) warn(label, "layer name contains a CDATA wrapper or XML/HTML entity; decode it", "escaped-name");
       if (looksPlural(name)) {
@@ -382,9 +493,39 @@ export function checkGame(def, { fileSize } = {}) {
         const shown = [...repeatedIds].slice(0, 5).map((id) => `"${id}"`).join(", ");
         warn(label, `${repeatedIds.size} feature id(s) repeat within the layer (${shown}${repeatedIds.size > 5 ? ", ..." : ""}); feature ids must be unique per layer`, "duplicate-feature-id");
       }
-      const positions = countPositions(feats.map((f) => f.geometry.coordinates));
-      if (family !== "points" && positions > 20000) {
-        warn(label, `${positions} vertices; simplify (~10 m tolerance) to keep measuring and matching responsive`, "heavy-geometry");
+      // What vertices cost depends on the questions: measuring buffers every
+      // border or line, and matching on lines splits the map between them
+      // all, but matching on regions only clips the map to the seeker's one.
+      if (family !== "points") {
+        // What is heavy, and the coordinates whose spacing says whether
+        // simplifying would help.
+        const heavy = [];
+        const spaced = [];
+        const total = countPositions(feats.map((f) => f.geometry.coordinates));
+        if (total > VERTEX_BUDGET && (kinds.includes("measuring") || (family === "lines" && kinds.includes("matching")))) {
+          heavy.push(`${total} vertices, all used for ${kinds.includes("measuring") ? "measuring" : "matching"}`);
+          spaced.push(...feats.map((f) => f.geometry.coordinates));
+        }
+        if (family === "polygons" && kinds.includes("matching")) {
+          let largest = { n: 0, feature: null };
+          for (const f of feats) {
+            const n = countPositions(f.geometry.coordinates);
+            if (n > largest.n) largest = { n, feature: f };
+          }
+          if (largest.n > VERTEX_BUDGET) {
+            const regionName = largest.feature.properties?.name;
+            heavy.push(`region ${typeof regionName === "string" ? `"${regionName}"` : "(unnamed)"} alone has ${largest.n} vertices, used for matching`);
+            if (!spaced.length) spaced.push(largest.feature.geometry.coordinates);
+          }
+        }
+        if (heavy.length) {
+          const edge = meanEdge(spaced);
+          if (edge < DENSE_EDGE) {
+            warn(label, `${heavy.join("; ")}, about ${Math.round(edge)} m apart; simplify it with a topology-preserving simplifier at about 10 m tolerance (simplifying each feature on its own opens gaps and overlaps between neighbours)`, "heavy-geometry");
+          } else {
+            note(label, `${heavy.join("; ")}, but they are already about ${Math.round(edge)} m apart, so simplifying would remove little; expect these questions to take a while`, "heavy-geometry");
+          }
+        }
       }
       if (kinds.includes("matching") && feats.length < 2) {
         warn(label, "matching on a single feature always answers the same way; enable measuring only", "single-feature-matching");
@@ -427,9 +568,21 @@ export function checkGame(def, { fileSize } = {}) {
         if (none === pointZones.length) {
           warn(label, "no hiding zone lies in any of its regions, so every player gets the same answer (swapped coordinates?); for features nobody stands in, such as water, use a line or point layer", "zones-outside-all-regions");
         } else if (kinds.includes("matching")) {
-          if (many) warn(label, `${many} hiding zone centre(s) fall in more than one region; regions overlap (the first in file order wins)`, "overlapping-regions");
+          // A layer marked noOverlaps gets the stricter check below instead.
+          if (many && !noOverlaps) warn(label, `${many} hiding zone centre(s) fall in more than one region; regions overlap (the first in file order wins)`, "overlapping-regions");
           if (none) note(label, `${none} hiding zone centre(s) fall in no region; "outside every region" becomes its own answer`, "zones-outside-regions");
         }
+      }
+    }
+
+    // A layer marked noOverlaps is measured to as one border network, which
+    // is only right where no region reaches into another. A region reaching
+    // into another leaves corners or edges inside it, so look for those.
+    for (const { name, feats, family, path, noOverlaps } of layerInfo) {
+      if (!noOverlaps || family !== "polygons") continue;
+      const inside = cornersInsideOthers(feats);
+      if (inside.count) {
+        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) on its regions' borders lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
       }
     }
 
@@ -444,8 +597,13 @@ export function checkGame(def, { fileSize } = {}) {
 
   const questions = [];
   if (errors.length === 0) {
-    if (Array.isArray(def.radars)) questions.push({ kind: "radar", label: `radii ${def.radars.join(", ")}` });
-    else if (def.radars === true) questions.push({ kind: "radar", label: `${hz.radius ?? 400}` });
+    // Worded like the app's: any radius, with the declared radii as presets.
+    const radii = Array.isArray(def.radars) ? [...new Set(def.radars)] : def.radars === true ? [hz.radius ?? 400] : [];
+    if (radii.length) {
+      const unit = def.unit ?? hz.unit ?? "meters";
+      const presets = radii.map((r) => formatRadius(r, unit)).join(", ");
+      questions.push({ kind: "radar", label: radii.length > 1 ? `any radius (presets ${presets})` : `any radius (starts at ${presets})` });
+    }
     if (def.thermometer === true) questions.push({ kind: "thermometer", label: "" });
     for (const { name, kinds, family } of layerInfo) {
       for (const kind of kinds) {

@@ -68,6 +68,10 @@ const belgium = JSON.parse(
         "utf8",
     ),
 ) as GameDefinition;
+// Measured region by region, as layers not marked noOverlaps are; the
+// network path for marked layers has its own test (borderNetwork.test.ts),
+// with real buffers rather than Turf's, which run out of memory on it.
+for (const layer of belgium.features ?? []) delete layer.noOverlaps;
 
 // Hainaut along the French border, as reported: Belgium's play area follows
 // the border more closely than its provinces do, leaving slivers in neither.

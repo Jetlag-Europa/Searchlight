@@ -7,9 +7,24 @@ import type {
 
 import type * as BufferGeometry from "./bufferGeometry";
 import type { BufferRequest, DistanceRequest } from "./bufferGeometry";
-import type { ClipRequest, UnionRequest } from "./clipGeometry";
-import { calculateClip, calculateUnion } from "./clipGeometry";
+import type {
+    BoundaryTargetRequest,
+    ClipRequest,
+    UnionRequest,
+} from "./clipGeometry";
+import {
+    calculateBoundaryTarget,
+    calculateClip,
+    calculateUnion,
+} from "./clipGeometry";
 import { calculateLineVoronoi, type LineVoronoiRequest } from "./lineVoronoi";
+import {
+    findRegionOverlaps,
+    type RegionOverlaps,
+    type RegionOverlapsRequest,
+    removeRegionOverlaps,
+    type RemoveRegionOverlapsRequest,
+} from "./regionOverlaps";
 import {
     calculateFilterZoneIndexes,
     type FilterZoneRequest,
@@ -94,25 +109,43 @@ export function requestGeometry(
     options?: RequestOptions,
 ): Promise<Feature<MultiPolygon>>;
 export function requestGeometry(request: DistanceRequest): Promise<number>;
+export function requestGeometry(
+    request: BoundaryTargetRequest,
+): Promise<GeometryResult>;
 export function requestGeometry(request: ClipRequest): Promise<GeometryResult>;
 export function requestGeometry(request: UnionRequest): Promise<GeometryResult>;
 export function requestGeometry(
     request: LineVoronoiRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[][]>;
+export function requestGeometry(
+    request: RegionOverlapsRequest,
+): Promise<RegionOverlaps>;
+export function requestGeometry(
+    request: RemoveRegionOverlapsRequest,
+): Promise<Feature<Polygon | MultiPolygon>[]>;
 export async function requestGeometry(
     request:
+        | BoundaryTargetRequest
         | BufferRequest
         | ClipRequest
         | DistanceRequest
         | LineVoronoiRequest
+        | RegionOverlapsRequest
+        | RemoveRegionOverlapsRequest
         | UnionRequest,
     options?: RequestOptions,
 ): Promise<unknown> {
     if (typeof Worker === "undefined") {
         if (request.kind === "clip") return calculateClip(request);
         if (request.kind === "union") return calculateUnion(request);
+        if (request.kind === "boundaryTarget")
+            return calculateBoundaryTarget(request);
         if (request.kind === "lineVoronoi")
             return calculateLineVoronoi(request);
+        if (request.kind === "regionOverlaps")
+            return findRegionOverlaps(request);
+        if (request.kind === "removeRegionOverlaps")
+            return removeRegionOverlaps(request);
         const buffer = await loadInlineBuffer();
         if (request.kind === "distance")
             return buffer.calculateDistance(request);

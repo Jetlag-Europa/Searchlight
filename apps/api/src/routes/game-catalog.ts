@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { isServerMember, LISTING_NON_MEMBER_TTL_MS, userPassesDiscordRoleGate } from "../lib/permissions.js";
+import { getListingAccess, userPassesDiscordRoleGate } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { getDiscordRoleGate } from "../lib/game-access.js";
 import { fromDbDate } from "../lib/game-details.js";
@@ -118,9 +118,9 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const userId = user.discordId;
 
-      // Whether the user belongs to each server, cached as for the server list
-      // (a "not a member" for 10 minutes), so this rarely asks Discord; a
-      // server Discord can't answer for is left out.
+      // Whether the user belongs to each server, answered from the cache as
+      // for the server list, so this rarely asks Discord; a server Discord
+      // can't answer for is left out.
       const servers = await prisma.server.findMany({
         select: { id: true, name: true, inviteUrl: true },
       });
@@ -131,7 +131,7 @@ export async function gameCatalogRoutes(app: FastifyInstance) {
           let member = true;
           if (!VIRTUAL_SERVER_IDS.has(server.id)) {
             try {
-              member = await isServerMember(userId, server.id, req.log, LISTING_NON_MEMBER_TTL_MS);
+              member = (await getListingAccess(userId, server.id, false, req.log)).isMember;
             } catch (err) {
               req.log.warn({ serverId: server.id, err }, "[catalog] membership check failed; server skipped");
               unavailableServers.push(server.name);

@@ -9,6 +9,7 @@ import { OpenLocationCode } from "open-location-code";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
+import { usePasteText } from "@/components/PasteFallback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/useDebounce";
@@ -17,6 +18,7 @@ import {
     isLoading,
     setScopedLoading,
 } from "@/lib/context";
+import { splitPlusCode } from "@/lib/plusCode";
 import { cn } from "@/lib/utils";
 import { determineName, geocode, ICON_COLORS } from "@/maps/api";
 
@@ -41,7 +43,7 @@ import {
 import { Separator } from "./ui/separator";
 import { SidebarMenuItem } from "./ui/sidebar-l";
 
-const parseCoordinatesFromText = (
+export const parseCoordinatesFromText = (
     text: string,
 ): { lat: number | null; lng: number | null } => {
     // Format: decimal degrees (e.g., 37.7749, -122.4194 or 37,7749, -122,4194)
@@ -123,6 +125,19 @@ const LatLngEditForm = ({
     const $allowGooglePlusCodes = useStore(allowGooglePlusCodes);
     const googlePlusCodesRef = useRef<HTMLInputElement>(null);
 
+    // Pasting a whole coordinate pair (or a map link) into either number field
+    // sets both. Anything else, like a single number, pastes as usual.
+    const pasteCoordinates = (e: React.ClipboardEvent<HTMLInputElement>) => {
+        const { lat, lng } = parseCoordinatesFromText(
+            e.clipboardData.getData("text/plain"),
+        );
+        if (lat === null || lng === null) return;
+        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+        e.preventDefault();
+        onChange(lat, lng);
+        toast.success("Coordinates set", { autoClose: 1000 });
+    };
+
     const localResults: LocalLocation[] = localLocations
         ? debouncedValue.trim() === ""
             ? []
@@ -133,22 +148,26 @@ const LatLngEditForm = ({
 
     useEffect(() => {
         if (localLocations) return;
-        if (debouncedValue === "") {
-            setResults([]);
+        setError(false);
+        setResults([]);
+        if (debouncedValue.trim() === "") {
+            setLoading(false);
             return;
-        } else {
-            setLoading(true);
-            setResults([]);
-            geocode(debouncedValue, "en", false)
-                .then((x) => {
-                    setResults(x);
-                    setLoading(false);
-                })
-                .catch(() => {
-                    setError(true);
-                    setLoading(false);
-                });
         }
+        // Drop the answer for a query the player has already typed past.
+        const controller = new AbortController();
+        setLoading(true);
+        geocode(debouncedValue, "en", false, controller.signal)
+            .then((x) => {
+                if (!controller.signal.aborted) setResults(x);
+            })
+            .catch(() => {
+                if (!controller.signal.aborted) setError(true);
+            })
+            .finally(() => {
+                if (!controller.signal.aborted) setLoading(false);
+            });
+        return () => controller.abort();
     }, [debouncedValue, localLocations]);
 
     const _latlngLabels = results.map((r) => determineName(r));
@@ -246,6 +265,7 @@ const LatLngEditForm = ({
                     value={Math.abs(latitude)}
                     min={0}
                     max={90}
+                    onPaste={pasteCoordinates}
                     onChange={(e) => {
                         if (isNaN(parseFloat(e.target.value))) return;
                         onChange(
@@ -271,6 +291,7 @@ const LatLngEditForm = ({
                     value={Math.abs(longitude)}
                     min={0}
                     max={180}
+                    onPaste={pasteCoordinates}
                     onChange={(e) => {
                         if (isNaN(parseFloat(e.target.value))) return;
                         onChange(
@@ -313,7 +334,9 @@ const LatLngEditForm = ({
                                 const olc =
                                     new OpenLocationCode() as typeof OpenLocationCode;
 
-                                let codeBase = code.split(" ")[0];
+                                const { code: parsedCode, locality } =
+                                    splitPlusCode(code);
+                                let codeBase = parsedCode;
 
                                 if (!olc.isValid(codeBase)) {
                                     toast.error("Invalid Google Plus code");
@@ -321,21 +344,27 @@ const LatLngEditForm = ({
                                 }
 
                                 if (olc.isShort(codeBase)) {
-                                    const location = code.split(" ")[1];
+                                    if (locality === "") {
+                                        toast.error(
+                                            "Add a town after a short Plus code, e.g. Q9CM+3P Narita",
+                                        );
+                                        return;
+                                    }
 
                                     setLoading(true);
 
                                     const geo = await geocode(
-                                        location,
+                                        locality,
                                         "en",
                                         false,
-                                    );
+                                    )
+                                        .catch(() => [])
+                                        .finally(() => setLoading(false));
 
                                     if (geo.length === 0) {
                                         toast.error(
                                             "Could not resolve location for short code",
                                         );
-                                        setLoading(false);
                                         return;
                                     }
 
@@ -346,8 +375,6 @@ const LatLngEditForm = ({
                                         center[0],
                                         center[1],
                                     );
-
-                                    setLoading(false);
                                 }
 
                                 const coordinates = olc.decode(codeBase);
@@ -393,6 +420,7 @@ export const LatitudeLongitude = ({
     onResultSelect?: () => void;
 }) => {
     const $isLoading = useStore(isLoading);
+    const { readPaste, pasteDialog } = usePasteText();
 
     const color = colorName ? ICON_COLORS[colorName] : "transparent";
 
@@ -543,53 +571,32 @@ export const LatitudeLongitude = ({
                         </Button>
                         <Button
                             variant="outline"
-                            onClick={() => {
-                                if (!navigator || !navigator.clipboard) {
+                            onClick={async () => {
+                                // No pending toast or loading state here: when
+                                // the browser blocks the clipboard, this waits
+                                // on the user's paste field.
+                                const text = await readPaste({
+                                    title: "Paste coordinates",
+                                    placeholder:
+                                        "47.3769, 8.5417 or a Google Maps link",
+                                });
+                                if (text === null) return;
+
+                                const coords = parseCoordinatesFromText(text);
+                                if (
+                                    coords.lat === null ||
+                                    coords.lng === null
+                                ) {
                                     toast.error(
-                                        "Clipboard API not supported in your browser",
+                                        "No valid coordinates found in pasted text",
+                                        { autoClose: 1000 },
                                     );
                                     return;
                                 }
-
-                                setScopedLoading(
-                                    "latLngPicker:clipboard",
-                                    true,
-                                );
-
-                                toast.promise(
-                                    navigator.clipboard
-                                        .readText()
-                                        .then((text) => {
-                                            const coords =
-                                                parseCoordinatesFromText(text);
-                                            if (
-                                                coords.lat !== null &&
-                                                coords.lng !== null
-                                            ) {
-                                                onChange(
-                                                    coords.lat,
-                                                    coords.lng,
-                                                );
-                                                return;
-                                            }
-                                            throw new Error(
-                                                "Could not find coordinates in clipboard content",
-                                            );
-                                        })
-                                        .finally(() => {
-                                            setScopedLoading(
-                                                "latLngPicker:clipboard",
-                                                false,
-                                            );
-                                        }),
-                                    {
-                                        pending: "Reading from clipboard",
-                                        success:
-                                            "Coordinates set from clipboard",
-                                        error: "No valid coordinates found in clipboard",
-                                    },
-                                    { autoClose: 1000 },
-                                );
+                                onChange(coords.lat, coords.lng);
+                                toast.success("Coordinates set", {
+                                    autoClose: 1000,
+                                });
                             }}
                             disabled={disabled}
                             title="Paste coordinates from clipboard"
@@ -627,6 +634,7 @@ export const LatitudeLongitude = ({
                     </div>
                 </div>
             </SidebarMenuItem>
+            {pasteDialog}
             {children}
         </>
     );

@@ -1,0 +1,25 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { AuthGuard } from "@/components/AuthGuard";
+import { GameDesigner } from "@/components/GameDesigner";
+---
+
+<Layout>
+    <!--
+        Auth loading overlay — same pattern as /games.
+        AuthGuard removes it once /me responds 200, or while it retries an unreachable server.
+    -->
+    <div
+        id="auth-loading-overlay"
+        class="fixed inset-0 z-[9999] flex items-center justify-center bg-background"
+    >
+        <div
+            class="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent"
+        >
+        </div>
+    </div>
+
+    <AuthGuard client:only="react" />
+
+    <GameDesigner mode="import" client:only="react" />
+</Layout>

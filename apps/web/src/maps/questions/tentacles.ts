@@ -3,15 +3,22 @@ import type { BBox, Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode } from "@/lib/context";
-import { arcBuffer, safeUnion } from "@/maps/geo-utils";
-import { geoSpatialVoronoiSafe } from "@/maps/geo-utils";
+import {
+    arcBuffer,
+    cellOfSite,
+    geoSpatialVoronoiSafe,
+    safeUnion,
+} from "@/maps/geo-utils";
 import type { TentacleQuestion } from "@/maps/schema";
 
-import { determineTentacleGeometry, featuresMatch } from "./operators/tentacle";
+import {
+    determineTentacleGeometry,
+    featuresMatch,
+    getFeatureCoordinates,
+} from "./operators/tentacle";
 
-// A bbox covering the tentacle's POIs and its radius circle, used to clip the
-// planar-Voronoi fallback in geoSpatialVoronoiSafe (which kicks in only when the
-// spherical Voronoi is degenerate for tightly-clustered POIs).
+// A bbox covering the tentacle's POIs and its radius circle: geoSpatialVoronoiSafe
+// draws the cells finely within it, and clips its planar fallback to it.
 function tentacleVoronoiBbox(
     points: FeatureCollection<Point>,
     question: TentacleQuestion,
@@ -126,11 +133,13 @@ export const adjustPerTentacle = async (
 
     const voronoi = geoSpatialVoronoiSafe(points, tentacleVoronoiBbox(points, question));
 
-    const correctPolygon = voronoi.features.find((feature) => {
-        if (!question.location) return false;
-        const site = (feature.properties as { site?: Feature<Point> } | undefined)?.site ?? feature;
-        return featuresMatch(site, question.location);
-    });
+    const location = getFeatureCoordinates(question.location);
+    const correctPolygon =
+        voronoi.features.find((feature) => {
+            if (!question.location) return false;
+            const site = (feature.properties as { site?: Feature<Point> } | undefined)?.site ?? feature;
+            return featuresMatch(site, question.location);
+        }) ?? (location ? cellOfSite(voronoi.features, location) : undefined);
     if (!correctPolygon) {
         return mapData;
     }
@@ -169,9 +178,10 @@ export const hiderifyTentacles = async (question: TentacleQuestion) => {
 
     let correctLocation: any = null;
 
-    // Use the cell's own `site` rather than indexing into points — the planar
-    // fallback in geoSpatialVoronoiSafe may drop null cells, so cell order no
-    // longer lines up with the input points. Both Voronoi paths set properties.site.
+    // Use the cell's own `site` rather than indexing into points —
+    // geoSpatialVoronoiSafe returns one cell per distinct site, so repeated POIs
+    // put cell order out of line with the input points. Every path sets
+    // properties.site.
     const correctPolygon = voronoi.features.find((feature: any) => {
         const pointIn =
             turf.booleanPointInPolygon(hider, feature.geometry) || false;

@@ -22,8 +22,10 @@ vi.mock("../lib/permissions.js", async (importOriginal) => {
   const original = await importOriginal<typeof import("../lib/permissions.js")>();
   return {
     ...original,
-    isServerMember: async (...args: Parameters<typeof original.isServerMember>) =>
-      args[1].startsWith("test-catalog-") ? original.isServerMember(...args) : false,
+    getListingAccess: async (...args: Parameters<typeof original.getListingAccess>) =>
+      args[1].startsWith("test-catalog-")
+        ? original.getListingAccess(...args)
+        : { isMember: false, permissions: new Set<string>() },
     userPassesDiscordRoleGate: async (...args: Parameters<typeof original.userPassesDiscordRoleGate>) =>
       args[1].startsWith("test-catalog-") ? original.userPassesDiscordRoleGate(...args) : false,
   };
@@ -299,18 +301,20 @@ describe("game catalog", () => {
     expect((await catalog(OUTSIDER_ID)).find((g) => g.id === MANCHESTER)?.locked).toBe(false);
   });
 
-  test("trusts a cached non-member for 10 minutes, so loading the catalog rarely asks Discord", async () => {
-    await cacheMemberships(5 * 60 * 1000);
+  test("answers from the cache like the server list, refreshing an expired entry in the background", async () => {
+    await cacheMemberships(11 * 60 * 60 * 1000);
     await catalog(OUTSIDER_ID);
     expect(getGuildMember).not.toHaveBeenCalled();
 
-    await cacheMemberships(11 * 60 * 1000);
-    await catalog(OUTSIDER_ID);
+    await cacheMemberships(13 * 60 * 60 * 1000);
+    getGuildMember.mockResolvedValue({ roles: [] });
+    // Still the cached answer; Discord is asked behind it.
+    expect((await catalog(OUTSIDER_ID)).find((g) => g.id === MANCHESTER)).toBeUndefined();
     expect(getGuildMember).toHaveBeenCalledWith(SERVER_ID, OUTSIDER_ID, expect.anything());
   });
 
   test("leaves out the games of a server Discord can't answer for, and says so", async () => {
-    await cacheMemberships(61 * 60 * 1000);
+    await prisma.serverMembershipCache.deleteMany({ where: { userId: OTHER_ID } });
     getGuildMember.mockRejectedValue(new Error("Discord unavailable"));
     const res = await app.inject({ method: "GET", url: "/games/catalog", headers: as(OTHER_ID) });
     expect(res.json().unavailableServers).toEqual(expect.arrayContaining(["Catalog Server", "Other Server"]));

@@ -171,6 +171,9 @@ export const GameFeatureSchema = Type.Object(
   {
     name: Type.String({ minLength: 1 }),
     enabledFor: Type.Array(FeatureEnabledForSchema, { minItems: 1 }),
+    // Set by the importer's overlap fixer on a region layer whose regions
+    // don't overlap, letting the app measure to all their borders at once.
+    noOverlaps: Type.Optional(Type.Boolean()),
     data: GeoJsonFeatureCollectionSchema,
   },
   { additionalProperties: false },

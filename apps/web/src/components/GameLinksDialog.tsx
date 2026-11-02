@@ -1,6 +1,7 @@
 import type { Game, GameLinksResponse,GameLinkSummary } from "@searchlight/shared";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
+import { UncopiedLinkField, useCopyLink, withCreatedLinks } from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
     Dialog,
@@ -28,37 +29,27 @@ export function GameLinksDialog({ game }: { game: Game }) {
     const [links, setLinks] = useState<GameLinkSummary[] | null>(null);
     const [creating, setCreating] = useState(false);
     const [revokingId, setRevokingId] = useState<string | null>(null);
-    const [copiedId, setCopiedId] = useState<string | null>(null);
-    // A link the clipboard refused (e.g. Safari after the create request).
-    const [uncopiedUrl, setUncopiedUrl] = useState<string | null>(null);
+    const { copiedId, uncopiedUrl, setUncopiedUrl, copyLink: copy } = useCopyLink();
+    // Links created since the list started loading.
+    const createdLinkIds = useRef(new Set<string>());
     const [error, setError] = useState<string | null>(null);
 
     const linksUrl = `${API_BASE}/games/${encodeURIComponent(game.id)}/links`;
 
     const fetchLinks = useCallback(async () => {
         setError(null);
+        createdLinkIds.current.clear();
         try {
             const res = await fetch(linksUrl, { credentials: "include" });
             if (!res.ok) throw new Error(await errorMessage(res));
             const data: GameLinksResponse = await res.json();
-            setLinks(data.links);
+            setLinks((prev) => withCreatedLinks(data.links, prev ?? [], createdLinkIds.current));
         } catch (e: unknown) {
             setError(`Failed to load links: ${(e as Error).message}`);
         }
     }, [linksUrl]);
 
-    const copyLink = async (link: GameLinkSummary) => {
-        const url = gameLinkUrl(link.token);
-        try {
-            await navigator.clipboard.writeText(url);
-        } catch {
-            setUncopiedUrl(url);
-            return;
-        }
-        setUncopiedUrl(null);
-        setCopiedId(link.id);
-        setTimeout(() => setCopiedId((id) => (id === link.id ? null : id)), 2000);
-    };
+    const copyLink = (link: GameLinkSummary) => copy(link.id, gameLinkUrl(link.token));
 
     const handleCreate = async () => {
         setCreating(true);
@@ -67,6 +58,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
             const res = await fetch(linksUrl, { method: "POST", credentials: "include" });
             if (!res.ok) throw new Error(await errorMessage(res));
             const link: GameLinkSummary = await res.json();
+            createdLinkIds.current.add(link.id);
             setLinks((prev) => [link, ...(prev ?? [])]);
             await copyLink(link);
         } catch (e: unknown) {
@@ -87,7 +79,8 @@ export function GameLinksDialog({ game }: { game: Game }) {
             });
             if (!res.ok && res.status !== 404) throw new Error(await errorMessage(res));
             setLinks((prev) => (prev ?? []).filter((l) => l.id !== link.id));
-            if (uncopiedUrl === gameLinkUrl(link.token)) setUncopiedUrl(null);
+            const url = gameLinkUrl(link.token);
+            setUncopiedUrl((u) => (u === url ? null : u));
         } catch (e: unknown) {
             setError(`Failed to revoke link: ${(e as Error).message}`);
         } finally {
@@ -125,19 +118,7 @@ export function GameLinksDialog({ game }: { game: Game }) {
                         {creating ? "Creating…" : "Create link (copies it)"}
                     </Button>
 
-                    {uncopiedUrl && (
-                        <div className="space-y-1">
-                            <p className="text-xs text-muted-foreground">
-                                Couldn’t copy automatically. Copy the link here:
-                            </p>
-                            <input
-                                readOnly
-                                value={uncopiedUrl}
-                                onFocus={(e) => e.currentTarget.select()}
-                                className="w-full border border-input rounded-md px-3 py-1.5 text-xs font-mono bg-background"
-                            />
-                        </div>
-                    )}
+                    <UncopiedLinkField url={uncopiedUrl} />
 
                     {error && (
                         <p className="text-sm text-destructive p-3 bg-destructive/10 rounded-md">

@@ -18,7 +18,7 @@ import { formatEventDate, rulesLink } from "@/lib/eventDate";
 
 import { GameDetailsDialog } from "./GameDetailsDialog";
 import { GameLinksDialog } from "./GameLinksDialog";
-import { ImportGameDialog } from "./ImportGameDialog";
+import { GameSettingsDialog } from "./GameSettingsDialog";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 // Unlike the session picker's catalog, this page lists unlisted and archived
@@ -91,6 +91,9 @@ function GameCard({
     const canManage = ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
         permissions.includes(p),
     );
+    // Same check as the API; a settings edit needs a revision to build on.
+    const canEditSettings =
+        ["games.edit", "server.admin"].some((p) => permissions.includes(p)) && !!game.currentRevisionId;
 
     const patchGame = async (body: UpdateGameBody) => {
         setError(null);
@@ -133,7 +136,7 @@ function GameCard({
 
     const rules = rulesLink(game.rulesUrl);
     return (
-        <div className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
+        <div className="border border-border rounded-lg p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
                 <p className="text-sm font-medium flex flex-wrap items-center gap-2">
                     {game.name}
@@ -173,7 +176,7 @@ function GameCard({
                 {stats && <GameStatsLine stats={stats} />}
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
-            <div className="flex flex-wrap justify-end gap-2 shrink-0">
+            <div className="flex flex-wrap gap-2 sm:justify-end sm:shrink-0">
                 {canManage && <GameDetailsDialog game={game} onUpdated={onUpdated} />}
                 {canManage && (
                     <Button
@@ -206,6 +209,7 @@ function GameCard({
                     </Button>
                 )}
                 {canManage && <GameLinksDialog game={game} />}
+                {canEditSettings && <GameSettingsDialog game={game} onUpdated={onUpdated} />}
                 <Button
                     size="sm"
                     variant="outline"
@@ -317,16 +321,11 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
 
             {canImport && (
                 <div className="flex gap-2">
-                    <ImportGameDialog
-                        serverId={server.id}
-                        onImported={() => {
-                            fetch(gamesUrl(server.id), { credentials: "include" })
-                                .then((r) => (r.ok ? r.json() : null))
-                                .then((data: GamesResponse | null) => {
-                                    if (data) setGames(data.games);
-                                });
-                        }}
-                    />
+                    <Button asChild variant="outline" size="sm">
+                        <a href={`/games/import?server=${encodeURIComponent(server.id)}`}>
+                            Import JSON Game
+                        </a>
+                    </Button>
                 </div>
             )}
         </div>
@@ -335,7 +334,6 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
 
 export function GameManager() {
     const [servers, setServers] = useState<ServerWithPermissions[] | null>(null);
-    const [reloadCounter, setReloadCounter] = useState(0);
     const [error, setError] = useState<string | null>(null);
     const userId = useStore(verifiedUserId);
 
@@ -375,19 +373,13 @@ export function GameManager() {
                     </p>
                 </div>
                 {importableServers.length > 0 && (
-                    <ImportGameDialog
-                        servers={importableServers}
-                        onImported={() => setReloadCounter((c) => c + 1)}
-                        trigger={
-                            <Button className="font-semibold shadow-sm">
-                                + Import Game JSON
-                            </Button>
-                        }
-                    />
+                    <Button asChild className="font-semibold shadow-sm">
+                        <a href="/games/import">+ Import Game JSON</a>
+                    </Button>
                 )}
             </div>
             {adminServers.map((s) => (
-                <ServerSection key={`${s.id}-${reloadCounter}`} server={s} />
+                <ServerSection key={s.id} server={s} />
             ))}
         </div>
     );
