@@ -1,14 +1,21 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { beforeEach, describe, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 const local = new Map<string, string>();
 vi.stubGlobal("localStorage", {
     getItem: (k: string) => local.get(k) ?? null,
     setItem: (k: string, v: string) => void local.set(k, v),
     removeItem: (k: string) => void local.delete(k),
+    get length() {
+        return local.size;
+    },
+    key: (i: number) => Array.from(local.keys())[i] ?? null,
 });
+const mockFetch = vi.fn();
+vi.stubGlobal("fetch", mockFetch);
+vi.stubGlobal("window", new EventTarget());
 const deleted: string[] = [];
 vi.stubGlobal("caches", {
     keys: async () => ["searchlight-game-revisions-v1", "other-cache"],
@@ -19,7 +26,8 @@ vi.stubGlobal("caches", {
 });
 
 import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
-import { offlinePlayer } from "@/lib/authCheck";
+import { offlinePlayer, watchAuth } from "@/lib/authCheck";
+import { enqueueEvent, getPendingEvents } from "@/lib/eventQueue";
 import {
     endOfflineAccess,
     forgetAccount,
@@ -27,6 +35,7 @@ import {
     LOGIN_STARTED_KEY,
     OFFLINE_ACCESS_MS,
     offlineAccount,
+    playOfflineWhileUnreachable,
     rememberUser,
 } from "@/lib/offlineAccess";
 
@@ -193,5 +202,96 @@ describe("starting a login", () => {
             "join.astro": [1, 1],
             "play.astro": [1, 1],
         });
+    });
+});
+
+describe("a bad connection that outlasts the week", () => {
+    let stop = () => {};
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+        vi.spyOn(console, "warn").mockImplementation(() => {});
+        mockFetch.mockReset();
+        mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+    });
+
+    afterEach(() => {
+        stop();
+        vi.useRealTimers();
+        vi.restoreAllMocks();
+    });
+
+    // AuthGuard's handlers, as it wires them up.
+    function watch() {
+        const signedOut = vi.fn(() => void endOfflineAccess());
+        stop = watchAuth("/me", {
+            signedIn: vi.fn(),
+            signedOut,
+            unreachable: () => void playOfflineWhileUnreachable(),
+        });
+        return signedOut;
+    }
+
+    function edit(n: number) {
+        enqueueEvent({
+            sessionId: "s1",
+            type: "stroke.create",
+            payloadJson: { n },
+            clientUuid: `c${n}`,
+            clientCreatedAt: n,
+        });
+    }
+
+    test("doesn't end the offline play already going on this page", async () => {
+        rememberUser("u1", T0);
+        vi.setSystemTime(T0 + 7 * DAY - 60_000);
+        watch();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(offlineUserId.get()).toBe("u1");
+        edit(1);
+
+        // /me keeps failing, past the week…
+        vi.setSystemTime(T0 + 7 * DAY + 60_000);
+        await vi.advanceTimersByTimeAsync(60_000);
+        // …and with a login started in another tab.
+        local.set(LOGIN_STARTED_KEY, "1");
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(mockFetch.mock.calls.length).toBeGreaterThan(4);
+
+        expect(offlineUserId.get()).toBe("u1");
+        edit(2);
+        expect(getPendingEvents("s1").map((e) => e.payloadJson)).toEqual([
+            { n: 1 },
+            { n: 2 },
+        ]);
+        expect(local.has("taibled-pending-s1~u1")).toBe(true);
+        expect(local.get(STORED)).toBe("u1");
+        expect(deleted).toEqual([]);
+    });
+
+    test("a page that hasn't started it yet doesn't, past the week", async () => {
+        rememberUser("u1", T0);
+        vi.setSystemTime(T0 + 7 * DAY + 1);
+        watch();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(offlineUserId.get()).toBeNull();
+        await vi.waitFor(() =>
+            expect(deleted).toEqual(["searchlight-game-revisions-v1"]),
+        );
+    });
+
+    test("a 401 still ends it", async () => {
+        rememberUser("u1", T0);
+        vi.setSystemTime(T0 + DAY);
+        mockFetch.mockReset();
+        mockFetch
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+            .mockResolvedValueOnce(new Response(null, { status: 401 }));
+        const signedOut = watch();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(offlineUserId.get()).toBe("u1");
+        await vi.advanceTimersByTimeAsync(2_000);
+        expect(signedOut).toHaveBeenCalledTimes(1);
+        await vi.waitFor(() => expect(offlineUserId.get()).toBeNull());
     });
 });

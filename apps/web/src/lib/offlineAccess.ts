@@ -4,6 +4,7 @@ import {
     STORED_USER_KEY,
     verifiedUserId,
 } from "@/lib/activeSession";
+import { offlinePlayer } from "@/lib/authCheck";
 import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 
 // Offline play is for the account stored under STORED_USER_KEY. When its
@@ -63,6 +64,24 @@ export function offlineAccount(now = Date.now()): string | null {
     if (Math.abs(now - Number(verifiedAt)) < OFFLINE_ACCESS_MS) return stored;
     void endOfflineAccess();
     return null;
+}
+
+/**
+ * /me failed again: who plays on this page until it answers. The week and a
+ * login started (in another tab, say) decide whether this page starts
+ * playing offline, not when it stops: a player already doing so here keeps
+ * their board and their edits keep queuing as them, however long the
+ * connection stays bad. Ending it under them would leave a board that still
+ * takes edits but saves none. /me answering ends it: verified, the account
+ * plays online; a 401 logs out.
+ */
+export function playOfflineWhileUnreachable(now = Date.now()): string | null {
+    const player = offlinePlayer(
+        offlineUserId.get() ?? offlineAccount(now),
+        verifiedUserId.get(),
+    );
+    offlineUserId.set(player);
+    return player;
 }
 
 /**
