@@ -52,7 +52,10 @@ const entries: QuestionHistoryEntry[] = [
     },
 ];
 
-const render = (current: { id: "radius"; key: number; data: object }[]) => {
+const render = (
+    current: { id: "radius"; key: number; data: object }[],
+    readOnly = false,
+) => {
     const lines = historyLines(entries, { selfId: "u1" });
     const onRestore = vi.fn();
     const html = renderToStaticMarkup(
@@ -61,6 +64,7 @@ const render = (current: { id: "radius"; key: number; data: object }[]) => {
             current={current}
             compiled={null}
             disabled={false}
+            readOnly={readOnly}
             onRestore={onRestore}
         />,
     );
@@ -83,6 +87,13 @@ describe("the question history list", () => {
         // A question that won't parse says so instead of a button.
         expect(text).toMatch(/Can(&#x27;|')t be restored/);
         expect(html.match(/>Restore<\/button>/g)).toHaveLength(1);
+    });
+
+    it("offers a spectator no Restore, nor reasons why not", () => {
+        const { html } = render([], true);
+        expect(html).toContain("deleted Airport");
+        expect(html).not.toContain(">Restore</button>");
+        expect(html).not.toMatch(/restored|On the board/);
     });
 
     it("says On the board for a question that's back", () => {

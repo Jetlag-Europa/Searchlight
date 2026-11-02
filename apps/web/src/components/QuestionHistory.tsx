@@ -12,7 +12,11 @@ import {
 import { Button } from "@/components/ui/button";
 import type { CompiledGame } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
-import { activeSessionId, verifiedUserId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    sessionReadOnly,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { defaultUnit, isLoading, questions } from "@/lib/context";
 import {
     type HistoryLine,
@@ -53,6 +57,8 @@ export interface HistoryListProps {
     current: readonly { key: number }[];
     compiled: Pick<CompiledGame, "questionMap"> | null;
     disabled: boolean;
+    // A spectator can't change the board: no Restore at all.
+    readOnly?: boolean;
     onRestore: (line: HistoryLine, targets: RemovedQuestion[]) => void;
 }
 
@@ -62,11 +68,13 @@ export const HistoryList = ({
     current,
     compiled,
     disabled,
+    readOnly = false,
     onRestore,
 }: HistoryListProps) => {
     // Restore, or why not, as visible text: a disabled button's tooltip never
     // shows on a phone.
     const restoreControl = (line: HistoryLine, targets: RemovedQuestion[]) => {
+        if (readOnly) return null;
         const checks = targets.map((t) =>
             restorable(t, current, compiled, lines),
         );
@@ -154,6 +162,7 @@ export const QuestionHistory = () => {
     // Whether Restore is offered depends on these too (restoreBlocked).
     useStore(questionConflicts);
     useStore(questionDecisionsPossible);
+    const $readOnly = useStore(sessionReadOnly);
 
     const [history, setHistory] = useState<QuestionHistoryResponse | null>(
         null,
@@ -336,6 +345,7 @@ export const QuestionHistory = () => {
                 current={$questions}
                 compiled={compiled}
                 disabled={$isLoading}
+                readOnly={$readOnly}
                 onRestore={(line, targets) =>
                     restoreFromHistory(line, targets, lines)
                 }

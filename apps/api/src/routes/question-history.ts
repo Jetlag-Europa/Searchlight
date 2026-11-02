@@ -8,7 +8,7 @@ import {
 } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { forbidden, notFound } from "../lib/http-errors.js";
+import { resolveSessionAccess } from "../lib/session-access.js";
 
 type Query = { before?: number; after?: number; limit?: number };
 
@@ -21,21 +21,6 @@ const MAX_LIMIT = 200;
 // size is compressed, so the JSON is several times larger. An object so tests
 // can shrink it.
 export const pageByteBudget = { bytes: 1024 * 1024 };
-
-async function assertParticipant(sessionId: string, userId: string) {
-  const session = await prisma.gameSession.findUnique({
-    where: { id: sessionId },
-    select: { creatorId: true },
-  });
-  if (!session) throw notFound("Session not found");
-  if (session.creatorId === userId) return;
-  const participant = await prisma.sessionParticipant.findUnique({
-    where: { sessionId_userId: { sessionId, userId } },
-  });
-  if (!participant || participant.acceptedAt === null || participant.revokedAt !== null) {
-    throw forbidden();
-  }
-}
 
 interface ReplaceRow {
   sequence: number;
@@ -165,7 +150,8 @@ export async function questionHistoryRoutes(app: FastifyInstance) {
     async (req): Promise<QuestionHistoryResponse> => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      // Spectators may read it too: it holds no hider position.
+      await resolveSessionAccess(sessionId, user.discordId);
 
       const query = req.query as Query;
       if (query.before !== undefined && query.after !== undefined) {

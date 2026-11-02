@@ -5,6 +5,7 @@ import type {
 } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { activeSessionRole } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { historyLines } from "@/lib/historyLines";
 import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
@@ -480,6 +481,24 @@ describe("when Restore waits", () => {
         expect(restoreBlocked(0.5)).toBeNull();
         restoreFromHistory({ order: [0.5] }, [target]);
         expect(questions.get().map(latOf)).toEqual([50]);
+    });
+
+    it("restores nothing for a spectator", () => {
+        const deleted = radar(0.5);
+        const target = {
+            key: 0.5,
+            index: 0,
+            label: "Radius 1",
+            question: deleted,
+        };
+        setQuestionDecisionsPossible(true);
+        activeSessionRole.set("viewer");
+        try {
+            restoreFromHistory({ order: [0.5] }, [target]);
+            expect(questions.get()).toEqual([]);
+        } finally {
+            activeSessionRole.set(null);
+        }
     });
 });
 

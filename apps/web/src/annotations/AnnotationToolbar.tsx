@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
+import { sessionReadOnly } from "@/lib/activeSession";
 import { cn } from "@/lib/utils";
 
 const tapStyle = { touchAction: "manipulation" as const };
@@ -91,9 +92,11 @@ export function AnnotationToolbar() {
     const $detectPencil = useStore(detectPencilOnly);
     const $visible = useStore(penToolbarVisible);
     const $penEraser = useStore(penEraserActive);
+    const $readOnly = useStore(sessionReadOnly);
     const [confirmOpen, setConfirmOpen] = useState(false);
 
-    if (!$visible) return null;
+    // Spectators can't draw.
+    if (!$visible || $readOnly) return null;
 
     const setTool = (t: AnnotationTool) => toolStore.set(t);
     const setWidth = (w: StrokeWidthPreset) => widthPresetStore.set(w);

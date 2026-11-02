@@ -8,6 +8,7 @@ import prisma from "./lib/prisma.js";
 import { closeAllStreams } from "./lib/broadcaster.js";
 import { errorHandler } from "./lib/error-handler.js";
 import { rejectCrossOriginWrites } from "./lib/origin-check.js";
+import { registerCompression } from "./lib/compression.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -60,6 +61,8 @@ await app.register(fastifyCors, {
   origin: env.FRONTEND_ORIGIN,
   credentials: true,
 });
+
+await registerCompression(app);
 
 app.addHook("onRequest", rejectCrossOriginWrites);
 

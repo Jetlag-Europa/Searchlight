@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { registerCompression } from "../lib/compression.js";
 import { gameRoutes } from "./games.js";
 import { gameImportRoutes } from "./game-imports.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./game-links.js";
@@ -23,6 +24,7 @@ const GAMES = [LISTED_GAME_ID, UNLISTED_GAME_ID];
 async function buildTestApp() {
   const app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
   await app.register(fastifyCookie, { secret: process.env["SESSION_COOKIE_SECRET"]! });
+  await registerCompression(app);
   await app.register(gameRoutes, { prefix: "/games" });
   await app.register(gameImportRoutes, { prefix: "/games" });
   await app.register(gameLinkManagementRoutes, { prefix: "/games" });
@@ -263,6 +265,19 @@ describe("unlisted games and game links", () => {
       headers: as(MANAGER_ID),
     });
     expect(again.statusCode).toBe(404);
+  });
+
+  test("the link list, which holds tokens, is never compressed", async () => {
+    // Enough links for the list to pass the compression threshold.
+    for (let i = 0; i < 10; i++) await createLink(LISTED_GAME_ID);
+    const list = await app.inject({
+      method: "GET",
+      url: `/games/${LISTED_GAME_ID}/links`,
+      headers: { ...as(MANAGER_ID), "accept-encoding": "br, gzip" },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.rawPayload.length).toBeGreaterThan(1024);
+    expect(list.headers["content-encoding"]).toBeUndefined();
   });
 
   test("links are per game, and work for listed games too", async () => {

@@ -5,7 +5,7 @@ import {
     compiledGameAtom,
     filterSupportedQuestions,
 } from "@/game-definition/store";
-import { activeSessionId } from "@/lib/activeSession";
+import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import type { HistoryLine, RemovedQuestion } from "@/lib/historyLines";
 import {
@@ -262,6 +262,8 @@ export function restoreFromHistory(
     // Every line loaded, for what other questions were restored as.
     lines: Lines = [],
 ): void {
+    // A spectator's board isn't saved (as deleteQuestionsWithUndo).
+    if (sessionReadOnly.get()) return;
     const current = questions.get();
     const compiled = compiledGameAtom.get();
     const restored = targets.flatMap((target) => {

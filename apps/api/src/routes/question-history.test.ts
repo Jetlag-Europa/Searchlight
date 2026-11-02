@@ -193,6 +193,16 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     expect((await history("", USER2_ID)).statusCode).toBe(403);
   });
 
+  test("a spectator can read it too", async () => {
+    await prisma.sessionParticipant.create({
+      data: { sessionId: SESSION_ID, userId: USER2_ID, role: "viewer", acceptedAt: new Date() },
+    });
+    await save(USER1_ID, [radius(K1)]);
+    const res = await history("", USER2_ID);
+    expect(res.statusCode).toBe(200);
+    expect(res.json<QuestionHistoryResponse>().entries).toHaveLength(1);
+  });
+
   test("a participant gets the changes newest first, with names and times", async () => {
     await prisma.sessionParticipant.create({
       data: { sessionId: SESSION_ID, userId: USER2_ID, role: "member", acceptedAt: new Date() },

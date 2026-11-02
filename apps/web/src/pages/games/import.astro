@@ -1,7 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import { AuthGuard } from "@/components/AuthGuard";
-import { GameDesigner } from "@/components/GameDesigner";
+import { GameImporter } from "@/components/GameImporter";
 ---
 
 <Layout>
@@ -21,5 +21,5 @@ import { GameDesigner } from "@/components/GameDesigner";
 
     <AuthGuard client:only="react" />
 
-    <GameDesigner mode="import" client:only="react" />
+    <GameImporter client:only="react" />
 </Layout>

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { listedSessionsWhere } from "../lib/session-access.js";
 import { getListingAccess } from "../lib/permissions.js";
 import { requirePermission } from "../lib/require-permission.js";
 import { discord } from "../lib/discord-client.js";
@@ -44,17 +45,7 @@ export async function serverRoutes(app: FastifyInstance) {
         prisma.server.findMany({ orderBy: { name: "asc" } }),
         // The sessions GET /sessions lists: created, or shared and accepted.
         prisma.gameSession.findMany({
-          where: {
-            OR: [
-              { creatorId: user.discordId },
-              {
-                visibility: "shared",
-                participants: {
-                  some: { userId: user.discordId, acceptedAt: { not: null }, revokedAt: null },
-                },
-              },
-            ],
-          },
+          where: listedSessionsWhere(user.discordId),
           select: { serverId: true },
           distinct: ["serverId"],
         }),
