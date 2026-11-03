@@ -13,6 +13,25 @@ export const GOOGLE_MAPS_API_KEY = (import.meta.env
 
 export const googleMapsAvailable = GOOGLE_MAPS_API_KEY !== "";
 
+/** Google Maps Platform's free map loads a month (Maps JavaScript API). */
+export const FREE_MAP_LOADS_PER_MONTH = 10_000;
+
+const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
+
+/**
+ * Tells the API that this page created its Google map, which Google bills as
+ * a map load, for the counts on the admin page. Best effort: a lost report
+ * only makes the count a little low.
+ */
+export function reportGoogleMapLoad(sessionId: string): void {
+    fetch(`${API_BASE}/me/google-map-loads`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(sessionId ? { sessionId } : {}),
+    }).catch(() => {});
+}
+
 /**
  * Why Google's map can't be shown right now, if it can't. "offline" clears
  * when the browser is back online; the others last until a reload.

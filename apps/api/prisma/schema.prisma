@@ -39,6 +39,7 @@ model User {
   events                Event[]
   createdLinks          SessionLink[]          @relation("CreatedLinks")
   createdGameLinks      GameLink[]             @relation("CreatedGameLinks")
+  googleMapLoads        GoogleMapLoad[]
 }
 
 model AuthSession {
@@ -307,4 +308,20 @@ model Event {
 
   @@index([sessionId, serverReceivedAt])
   @@unique([sessionId, sequence])
+}
+
+// One per Google map the web app created (each is a billed Maps JavaScript
+// API map load), for the admin page's usage counts. Reported by the client,
+// so close to Google's count rather than exactly it.
+model GoogleMapLoad {
+  id        String   @id @default(cuid())
+  userId    String
+  // The session open at the time, if any. No relation: the count stays when
+  // the session is deleted.
+  sessionId String?
+  createdAt DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [userId], references: [discordId], onDelete: Cascade)
+
+  @@index([createdAt])
 }

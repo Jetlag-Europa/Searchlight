@@ -2,6 +2,7 @@
 import Layout from "@/layouts/Layout.astro";
 import { AuthGuard } from "@/components/AuthGuard";
 import { AdminPanel } from "@/components/AdminPanel";
+import { GoogleMapLoads } from "@/components/GoogleMapLoads";
 ---
 
 <Layout>
@@ -28,5 +29,6 @@ import { AdminPanel } from "@/components/AdminPanel";
             Only servers where you hold <code>server.admin</code> show the role management panel.
         </p>
         <AdminPanel client:only="react" />
+        <GoogleMapLoads client:only="react" />
     </main>
 </Layout>

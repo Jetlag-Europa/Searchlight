@@ -12,7 +12,7 @@ const PRIVILEGED_TTL_MS = 60 * 1000; // 1 minute
 
 const ALL_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
-function isAdmin(userId: string): boolean {
+export function isAdmin(userId: string): boolean {
   return env.ADMIN_DISCORD_IDS.split(",").some((id) => id.trim() === userId);
 }
 

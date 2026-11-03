@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { useMap } from "react-leaflet";
 import { toast } from "react-toastify";
 
+import { activeSessionId } from "@/lib/activeSession";
 import {
     googleMapType,
     hideGooglePlaces,
@@ -18,6 +19,7 @@ import {
     HIDE_PLACES_STYLES,
     loadGoogleMapsApi,
     printingWithoutGoogle,
+    reportGoogleMapLoad,
 } from "@/lib/googleMaps";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
@@ -57,6 +59,10 @@ function googleLayer(): L.GridLayer {
         className: "google-basemap",
     }) as L.GridLayer;
     const googleMutant = layer as any;
+    // GoogleMutant creates the map once, on the layer's first add.
+    googleMutant.once("spawned", () =>
+        reportGoogleMapLoad(activeSessionId.get()),
+    );
     applyLook = googleLook(
         {
             setMapType: (type) =>
