@@ -60,8 +60,8 @@ export interface QuestionHistoryResponse {
 // Synced, but a per-device fold: a save that only folds a card changes nothing.
 const DEVICE_FIELDS: readonly string[] = ["collapsed"];
 
-// Custom zones, points and tentacle places: large, and repeated in every save.
-const BULKY_FIELDS: readonly string[] = ["geo", "places"];
+/** Custom zones, points and tentacle places: large, and repeated in every save. */
+export const BULKY_QUESTION_FIELDS: readonly string[] = ["geo", "places"];
 
 /** A pin's coordinates, which go together: a pin moved along one axis still has both. */
 const PIN_FIELD_PAIRS: readonly (readonly [lat: string, lng: string])[] = [
@@ -84,9 +84,11 @@ const sameQuestionKey = (a: unknown, b: unknown): boolean =>
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-// Deep equality that ignores field order, treats a missing field as
-// undefined, and compares numbers with the same tolerance as keys.
-function sameJsonValue(a: unknown, b: unknown): boolean {
+/**
+ * Deep equality that ignores field order, treats a missing field as
+ * undefined, and compares numbers with the same tolerance as keys.
+ */
+export function sameJsonValue(a: unknown, b: unknown): boolean {
   if (typeof a === "number" && typeof b === "number") return sameNumber(a, b);
   if (Array.isArray(a) || Array.isArray(b)) {
     if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
@@ -106,7 +108,7 @@ function sameJsonValue(a: unknown, b: unknown): boolean {
 function stripBulkyData(data: unknown): Record<string, unknown> {
   if (!isRecord(data)) return {};
   const stripped: Record<string, unknown> = { ...data };
-  for (const field of BULKY_FIELDS) {
+  for (const field of BULKY_QUESTION_FIELDS) {
     if (stripped[field] !== undefined) stripped[field] = OMITTED;
   }
   return stripped;
@@ -172,13 +174,11 @@ export interface QuestionListDiff {
   prevOrder?: number[];
 }
 
-/** What changed from one saved question list to the next. */
-export function diffQuestionLists(prev: unknown, next: unknown): QuestionListDiff {
-  const before = listQuestions(prev);
-  const after = listQuestions(next);
-  // Exact keys first, then near ones for what's left, so a list holding two
-  // nearly equal keys still pairs each with its own. A key whose type changed
-  // isn't the same question.
+// Each question of `after` that was in `before`, with what it was there.
+// Exact keys first, then near ones for what's left, so a list holding two
+// nearly equal keys still pairs each with its own. A key whose type changed
+// isn't the same question.
+function pairQuestions(before: ListedQuestion[], after: ListedQuestion[]): Map<ListedQuestion, ListedQuestion> {
   const pairs = new Map<ListedQuestion, ListedQuestion>();
   const matched = new Set<ListedQuestion>();
   for (const same of [(a: number, b: number) => a === b, sameQuestionKey]) {
@@ -190,6 +190,20 @@ export function diffQuestionLists(prev: unknown, next: unknown): QuestionListDif
       matched.add(old);
     }
   }
+  return pairs;
+}
+
+/** The questions kept from one saved list to the next, as [before, after], paired as diffQuestionLists pairs them. */
+export function keptQuestions(prev: unknown, next: unknown): [Record<string, unknown>, Record<string, unknown>][] {
+  return [...pairQuestions(listQuestions(prev), listQuestions(next))].map(([after, before]) => [before.raw, after.raw]);
+}
+
+/** What changed from one saved question list to the next. */
+export function diffQuestionLists(prev: unknown, next: unknown): QuestionListDiff {
+  const before = listQuestions(prev);
+  const after = listQuestions(next);
+  const pairs = pairQuestions(before, after);
+  const matched = new Set(pairs.values());
 
   const changes: QuestionChange[] = [];
   // Positions in the previous list of the questions kept, in their new order.

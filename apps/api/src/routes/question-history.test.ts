@@ -7,7 +7,9 @@ import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import type { QuestionHistoryResponse } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { sessionContentRoutes } from "./session-content.js";
-import { pageByteBudget, questionHistoryRoutes } from "./question-history.js";
+import { pageByteBudget, pageStoredBudget, questionHistoryRoutes } from "./question-history.js";
+
+const BUDGETS = { read: pageByteBudget.bytes, stored: pageStoredBudget.bytes };
 
 // ── IDs scoped to this test suite ───────────────────────────────────────────
 const USER1_ID = "test-qhist-user1"; // creator
@@ -163,7 +165,8 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     await prisma.sessionQuestion.deleteMany({ where: { sessionId: SESSION_ID } });
     await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION_ID } });
     await prisma.gameSession.update({ where: { id: SESSION_ID }, data: { eventSequence: 0 } });
-    pageByteBudget.bytes = 1024 * 1024;
+    pageByteBudget.bytes = BUDGETS.read;
+    pageStoredBudget.bytes = BUDGETS.stored;
   });
 
   afterAll(async () => {
@@ -285,6 +288,40 @@ describe("GET /sessions/:sessionId/questions/history", () => {
 
     const second = await entries(`?before=${first.nextBefore}`);
     expect(second.entries[0].changes[0]).toMatchObject({ kind: "changed", fields: ["radius"] });
+  });
+
+  test("stops a page early once the saves are large as stored", async () => {
+    await save(USER1_ID, [radius(K1)]);
+    await save(USER1_ID, [radius(K1, { radius: 3 })]);
+    await save(USER1_ID, [radius(K1, { radius: 4 })]);
+    pageStoredBudget.bytes = 1;
+
+    const first = await entries();
+    expect(first.entries.map((e) => e.changes[0].fields)).toEqual([["radius"]]);
+    const second = await entries(`?before=${first.nextBefore}`);
+    expect(second.entries.map((e) => e.changes[0].fields)).toEqual([["radius"]]);
+    const third = await entries(`?before=${second.nextBefore}`);
+    expect(third.entries.map((e) => e.changes[0].kind)).toEqual(["added"]);
+    expect(third.nextBefore).toBeNull();
+  });
+
+  test("a removal reads the question at its place, whatever the entry holds", async () => {
+    const zone = { id: "matching", key: K2, data: { type: "custom-zone", geo: { type: "Point", coordinates: [4, 52] } } };
+    const entry = (payloadJson: unknown, ordinal: number, extra = {}) => ({
+      clientUuid: randomUUID(),
+      ordinal,
+      payloadJson,
+      ...extra,
+    });
+    // An entry stored with an "index" of its own.
+    await insertReplace(
+      USER1_ID,
+      JSON.stringify({ replacementId: "a", questions: [entry(radius(K1), 0), entry(zone, 1, { index: 7 })] }),
+    );
+    await save(USER1_ID, [radius(K1)]);
+
+    const [removal] = (await entries()).entries;
+    expect(removal.changes).toEqual([{ kind: "removed", key: K2, id: "matching", index: 1, typeIndex: 1, question: zone }]);
   });
 
   test("a kicked player's changes keep their name", async () => {
@@ -430,9 +467,100 @@ describe("GET /sessions/:sessionId/questions/history", () => {
 
     pageByteBudget.bytes = 1;
     expect((await entries(`?after=${start}`)).more).toBe(true);
+    pageByteBudget.bytes = BUDGETS.read;
+    pageStoredBudget.bytes = 1;
+    expect((await entries(`?after=${start}`)).more).toBe(true);
   });
 
   test("400 for before and after together", async () => {
     expect((await history("?before=5&after=2")).statusCode).toBe(400);
+  });
+
+  describe("with a large custom zone", () => {
+    // A matching question copied into a custom zone: the whole boundary, in
+    // every save. Coordinates with 17 digits, as computed ones have.
+    const boundary = Array.from({ length: 5000 }, (_, i) => {
+      const angle = (i / 5000) * 2 * Math.PI;
+      return [4.89 + 0.1 * Math.cos(angle) + i * 1e-9 + 1 / 3e7, 52.37 + 0.1 * Math.sin(angle) + 1 / 7e7];
+    });
+    const zoneWith = (ring: number[][], key = K2) => ({
+      id: "matching",
+      key,
+      data: {
+        type: "custom-zone",
+        same: true,
+        geo: {
+          type: "FeatureCollection",
+          features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } }],
+        },
+      },
+    });
+    const zone = zoneWith([...boundary, boundary[0]]);
+
+    test("doesn't shrink a page to a few saves", async () => {
+      for (let i = 0; i < 60; i++) {
+        await save(USER1_ID, [zone, radius(K1, { radius: i + 1 })]);
+      }
+      const body = await entries();
+      expect(body.entries).toHaveLength(60);
+      expect(body.nextBefore).toBeNull();
+      expect(body.entries[0].changes).toEqual([
+        expect.objectContaining({ kind: "changed", key: K1, fields: ["radius"] }),
+      ]);
+      // The add still shows the zone without its geometry.
+      expect(body.entries[59].changes.find((c) => c.key === K2)?.after).toMatchObject({
+        geo: { omitted: true },
+      });
+    });
+
+    test("reports an area change, and not a boundary read back one ulp off", async () => {
+      const moved = zoneWith([[4.5, 52.5], ...boundary.slice(1), [4.5, 52.5]]);
+      await save(USER1_ID, [zone, radius(K1)]);
+      await save(USER1_ID, [moved, radius(K1)]);
+      // The same area, every coordinate one ulp off: not a change.
+      const drifted = zoneWith(moved.data.geo.features[0].geometry.coordinates[0].map(([x, y]) => [nextUp(x), y]));
+      await save(USER1_ID, [drifted, radius(K1)]);
+      await save(USER1_ID, [drifted, radius(K1, { within: false })]);
+      // Key and boundary one ulp off in the same save: still the same zone.
+      const keyDrifted = zoneWith(
+        drifted.data.geo.features[0].geometry.coordinates[0].map(([x, y]) => [x, nextUp(y)]),
+        nextUp(K2),
+      );
+      await save(USER1_ID, [keyDrifted, radius(K1, { within: false })]);
+
+      const body = await entries();
+      expect(body.entries.map((e) => e.changes.map((c) => [c.kind, c.key, c.fields]))).toEqual([
+        [["changed", K1, ["within"]]],
+        [["changed", K2, ["geo"]]],
+        [
+          ["added", K2, undefined],
+          ["added", K1, undefined],
+        ],
+      ]);
+      expect(body.entries[1].changes[0]).toMatchObject({ before: { geo: { omitted: true } }, after: { geo: { omitted: true } } });
+    });
+
+    test("a removed zone carries its whole boundary, to put back", async () => {
+      await save(USER1_ID, [radius(K1), zone, radius(K3)]);
+      await save(USER1_ID, [radius(K1), zone, radius(K3, { within: false })]);
+      await save(USER1_ID, [radius(K1), radius(K3, { within: false })]);
+
+      const [removal] = (await entries()).entries;
+      expect(removal.changes).toEqual([
+        { kind: "removed", key: K2, id: "matching", index: 1, typeIndex: 1, question: zone },
+      ]);
+      expect(removal.order).toEqual([K1, K2, K3]);
+    });
+
+    test("after= with a dozen saves since answers them, not more", async () => {
+      // The whole lists would pass the byte budget after ten.
+      const start = await save(USER1_ID, [zone, radius(K1)]);
+      for (let i = 0; i < 12; i++) {
+        await save(USER1_ID, [zone, radius(K1, { radius: i + 3 })]);
+      }
+      const since = await entries(`?after=${start}`);
+      expect(since.more).toBeUndefined();
+      expect(since.entries).toHaveLength(12);
+    });
   });
 });

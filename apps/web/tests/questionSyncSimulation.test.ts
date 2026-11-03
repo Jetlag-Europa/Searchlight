@@ -614,8 +614,9 @@ interface RestoreCandidate {
 }
 
 // What the device's History offers to restore, read from its lines as the
-// UI does: deleted questions not on its board under their key or as what
-// they were restored as (isOnBoard), not held for a decision
+// UI does: deleted questions not back on its board, under their key, as what
+// they were restored as, or as a teammate's restore the lines don't know yet
+// (alreadyBackAs, as restorable() checks), not held for a decision
 // (restoreBlocked), and in owned mode its own.
 function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
     const board = c.g.context.questions.get() as Any[];
@@ -624,7 +625,8 @@ function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
     for (const line of lines) {
         for (const removed of line.removed ?? []) {
             if (
-                c.g.questionUndo.isOnBoard(removed, board, lines) ||
+                c.g.questionUndo.alreadyBackAs(removed, board, lines) !==
+                    undefined ||
                 (mode === "owned" && owner(removed.key) !== c.idx) ||
                 c.g.history.restoreBlocked(removed, { lines }) !== null
             )
@@ -761,7 +763,8 @@ async function applyUser(
         // As restoreFromHistory does, from the same pieces: it can't be
         // called itself, as its restorable() re-reads the deleted question
         // with the app's schema, which these bare test questions (a label,
-        // no pin) don't pass. A copy under a new key, here from the
+        // no pin) don't pass; restoreCandidates makes the same checks
+        // otherwise. A copy under a new key, here from the
         // restorer's range so owner() still tells whose it is. (Undo does
         // the same once the delete may have reached the server; before, it
         // puts the same key back: see the "undo" action.)

@@ -2,9 +2,11 @@ import type { QuestionHistoryEntry } from "@searchlight/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { HistoryList } from "@/components/QuestionHistory";
+import { HistoryList, QuestionHistory } from "@/components/QuestionHistory";
+import { activeSessionId } from "@/lib/activeSession";
 import { historyLines } from "@/lib/historyLines";
 import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
+import { loadedHistory } from "@/lib/questionHistory";
 import { questionSchema } from "@/maps/schema";
 
 const radar = (key: number, name?: string) =>
@@ -150,5 +152,48 @@ describe("the question history list", () => {
         const { html } = render([]);
         expect(html).toMatch(/>(Loading…|Offline)</);
         expect(html).not.toContain(">Restore</button>");
+    });
+});
+
+describe("the History opened again", () => {
+    const text = () =>
+        renderToStaticMarkup(<QuestionHistory />)
+            .replace(/<[^>]+>/g, " ")
+            .replace(/&#x27;/g, "'")
+            .replace(/\s+/g, " ");
+    const kept = (refreshFailed: boolean) =>
+        loadedHistory.set({
+            sessionId: "s1",
+            history: { entries, nextBefore: null, newest: 2 },
+            refreshFailed,
+        });
+
+    beforeEach(() => {
+        activeSessionId.set("s1");
+        setQuestionDecisionsPossible(true);
+    });
+    afterEach(() => {
+        activeSessionId.set("");
+        setQuestionDecisionsPossible(false);
+    });
+
+    it("shows what was loaded at once", () => {
+        kept(false);
+        expect(text()).toContain("Alex deleted Airport");
+        expect(text()).toContain("Restore");
+        expect(text()).not.toMatch(/Loading…|Couldn't refresh/);
+    });
+
+    it("says when it couldn't be brought up to date, keeping what it has", () => {
+        kept(true);
+        expect(text()).toContain("Couldn't refresh");
+        expect(text()).toContain("Alex deleted Airport");
+    });
+
+    it("loads afresh for another session", () => {
+        kept(false);
+        activeSessionId.set("s2");
+        expect(text()).toContain("Loading…");
+        expect(text()).not.toContain("Airport");
     });
 });

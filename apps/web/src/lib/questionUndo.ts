@@ -1,6 +1,6 @@
 import { activeSessionId } from "@/lib/activeSession";
 import type { HistoryLine, RemovedQuestion } from "@/lib/historyLines";
-import { sameQuestionKey } from "@/lib/questionMerge";
+import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
 import { newQuestionKey } from "@/maps/schema";
 
 // What a delete removed, for its Undo: the questions and the order of the list
@@ -170,6 +170,31 @@ export function onBoardAs(
         if (found) return found.key;
     }
     return undefined;
+}
+
+/**
+ * The key a deleted question is back on the board under, if it is: as
+ * onBoardAs says, or as a teammate's restore the History hasn't loaded yet.
+ * That is a question with its content that wasn't on the board when it was
+ * deleted (a twin that was is another question), and isn't known as another
+ * one's restore. Restoring again would make two. `parsed` is the deleted
+ * question as the app reads it, if it does: compared too.
+ */
+export function alreadyBackAs(
+    removed: Pick<RemovedQuestion, "key" | "restoredAs" | "question" | "order">,
+    board: readonly { key: number }[],
+    lines: Lines = [],
+    parsed: unknown = null,
+): number | undefined {
+    const now = onBoardAs(removed, board, lines);
+    if (now !== undefined || !removed.order) return now;
+    const claimed = [...removed.order, ...restoredKeys(lines)];
+    return board.find(
+        (q) =>
+            !claimed.some((key) => sameQuestionKey(key, q.key)) &&
+            (sameQuestionSubstance(q, removed.question) ||
+                (parsed !== null && sameQuestionSubstance(q, parsed))),
+    )?.key;
 }
 
 /**

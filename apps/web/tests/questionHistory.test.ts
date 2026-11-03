@@ -5,7 +5,11 @@ import type {
 } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { activeSessionRole } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    activeSessionRole,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { historyLines } from "@/lib/historyLines";
 import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
@@ -13,6 +17,10 @@ import {
     appendOlderPage,
     fetchQuestionHistory,
     formatHistoryTime,
+    historyOf,
+    loadedHistory,
+    loadNewerHistory,
+    loadNewestHistory,
     prependNewer,
     notRightNowReason,
     QuestionHistoryError,
@@ -121,6 +129,98 @@ describe("fetching the history", () => {
         const error = await fetchQuestionHistory("s1").catch((e) => e);
         expect(error).toBeInstanceOf(QuestionHistoryError);
         expect(error.status).toBe(404);
+    });
+});
+
+describe("the history kept while the History is hidden", () => {
+    const answer = (body: QuestionHistoryResponse) =>
+        new Response(JSON.stringify(body));
+    const asked = (fetchMock: ReturnType<typeof vi.fn>) =>
+        fetchMock.mock.calls.map(([url]) =>
+            String(url).replace(/^.*\/history/, ""),
+        );
+
+    beforeEach(() => activeSessionId.set("s1"));
+    afterEach(() => {
+        vi.unstubAllGlobals();
+        activeSessionId.set("");
+        verifiedUserId.set(null);
+    });
+
+    it("opened again, shows it and asks only for what came since", async () => {
+        const fetchMock = vi.fn(async (url: string) =>
+            answer(
+                url.includes("after=")
+                    ? page([22], null, 23)
+                    : page([20, 18], 9, 21),
+            ),
+        );
+        vi.stubGlobal("fetch", fetchMock);
+        expect(await loadNewestHistory("s1")).toBe(true);
+        // Hidden, then opened again: still there.
+        expect(sequences(historyOf("s1")!.history)).toEqual([20, 18]);
+        expect(await loadNewerHistory("s1")).toBe("added");
+        expect(asked(fetchMock)).toEqual(["", "?after=21"]);
+        const { history } = historyOf("s1")!;
+        expect(sequences(history)).toEqual([22, 20, 18]);
+        expect(history.nextBefore).toBe(9);
+        expect(history.newest).toBe(23);
+    });
+
+    it("keeps what it has when a refresh fails, and says so", async () => {
+        const fetchMock = vi
+            .fn()
+            .mockResolvedValueOnce(answer(page([20], null)))
+            .mockRejectedValueOnce(new TypeError("Failed to fetch"))
+            .mockResolvedValueOnce(answer(page([], null, null)));
+        vi.stubGlobal("fetch", fetchMock);
+        await loadNewestHistory("s1");
+        await expect(loadNewerHistory("s1")).rejects.toThrow("Failed to fetch");
+        expect(historyOf("s1")).toMatchObject({ refreshFailed: true });
+        expect(sequences(historyOf("s1")!.history)).toEqual([20]);
+        // Until a refresh works.
+        await loadNewerHistory("s1");
+        expect(historyOf("s1")).toMatchObject({ refreshFailed: false });
+    });
+
+    it("says to load the newest page when nothing is loaded or more came since", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockResolvedValueOnce(answer(page([20], null)))
+                .mockResolvedValueOnce(
+                    answer({ ...page([], null, null), more: true }),
+                ),
+        );
+        expect(await loadNewerHistory("s1")).toBe("more");
+        await loadNewestHistory("s1");
+        expect(await loadNewerHistory("s1")).toBe("more");
+        expect(sequences(historyOf("s1")!.history)).toEqual([20]);
+    });
+
+    it("forgets it for another session or account, and drops answers still on the way", async () => {
+        let reply = (_: Response) => {};
+        vi.stubGlobal(
+            "fetch",
+            vi
+                .fn()
+                .mockResolvedValueOnce(answer(page([20], null)))
+                .mockImplementation(
+                    () => new Promise<Response>((r) => (reply = r)),
+                ),
+        );
+        await loadNewestHistory("s1");
+        activeSessionId.set("s2");
+        expect(loadedHistory.get()).toBeNull();
+        expect(historyOf("s1")).toBeNull();
+
+        // Asked for under one account, answered under another.
+        const pending = loadNewestHistory("s2");
+        verifiedUserId.set("u9");
+        reply(answer(page([30], null)));
+        expect(await pending).toBe(false);
+        expect(loadedHistory.get()).toBeNull();
     });
 });
 

@@ -1,5 +1,4 @@
 import { useStore } from "@nanostores/react";
-import type { QuestionHistoryResponse } from "@searchlight/shared";
 import {
     type ReactNode,
     useCallback,
@@ -37,10 +36,12 @@ import {
     questionDecisionsPossible,
 } from "@/lib/questionConflicts";
 import {
-    appendOlderPage,
-    fetchQuestionHistory,
     formatHistoryTime,
-    prependNewer,
+    historyOf,
+    loadedHistory,
+    loadNewerHistory,
+    loadNewestHistory,
+    loadOlderHistory,
     QuestionHistoryError,
     restorable,
     restoreFromHistory,
@@ -54,8 +55,6 @@ const MAX_SAVE_WAITS = 8;
 // Older pages loaded on their own while the loaded ones show nothing, such as
 // a run of saves that only folded cards.
 const MAX_AUTO_OLDER = 5;
-
-type LoadState = "loading" | "ready" | "error" | "unavailable";
 
 const Note = ({ children }: { children: ReactNode }) => (
     <p className="px-4 py-2 text-sm text-muted-foreground">{children}</p>
@@ -181,21 +180,21 @@ export const QuestionHistory = () => {
     // For the note on changes not saved yet: re-read as the queue changes.
     useStore(pendingEventCount);
 
-    const [history, setHistory] = useState<QuestionHistoryResponse | null>(
+    const loaded = useStore(loadedHistory);
+    // Kept while the History is hidden (loadedHistory): shown at once when
+    // it opens again, and only brought up to date.
+    const shown = sessionId ? historyOf(sessionId, loaded) : null;
+    const history = shown?.history ?? null;
+    // The last refresh failed: what's shown may be behind.
+    const refreshFailed = shown?.refreshFailed ?? false;
+    // Why there's nothing to show: the first load failed, or the API can't
+    // tell.
+    const [problem, setProblem] = useState<"error" | "unavailable" | null>(
         null,
     );
-    const [state, setState] = useState<LoadState>("loading");
     const [olderState, setOlderState] = useState<"idle" | "loading" | "error">(
         "idle",
     );
-    // The last refresh failed: what's shown may be behind.
-    const [refreshFailed, setRefreshFailed] = useState(false);
-    // The loaded history, for the cursor of a refresh.
-    const historyRef = useRef(history);
-    historyRef.current = history;
-    // Bumped whenever the loaded history is replaced (another session, or
-    // the newest page loaded afresh): responses asked for before are dropped.
-    const generation = useRef(0);
     const unavailable = useRef(false);
     const autoOlder = useRef(0);
     const firstLoad = useRef(false);
@@ -205,90 +204,64 @@ export const QuestionHistory = () => {
         // separately), or a session that's gone: asking again won't help.
         if (error instanceof QuestionHistoryError && error.status === 404) {
             unavailable.current = true;
-            setState("unavailable");
+            setProblem("unavailable");
             return;
         }
-        // A failed refresh keeps what's shown.
-        setState((current) => (current === "ready" ? current : "error"));
+        // Shown only while there's no history: a failed refresh keeps it.
+        setProblem("error");
     }, []);
 
     const loadNewestPage = useCallback(async () => {
-        // Drops whatever an earlier session still has in flight.
-        const gen = ++generation.current;
-        if (!sessionId) setState("unavailable");
         if (!sessionId || unavailable.current) return;
         autoOlder.current = 0;
         setOlderState("idle");
-        firstLoad.current = !historyRef.current;
+        firstLoad.current = !historyOf(sessionId);
+        let current = true;
         try {
-            const page = await fetchQuestionHistory(sessionId);
-            if (gen !== generation.current) return;
-            setHistory(page);
-            setState("ready");
-            setRefreshFailed(false);
+            current = await loadNewestHistory(sessionId);
+            if (current) setProblem(null);
         } catch (error) {
-            if (gen === generation.current) fail(error);
+            fail(error);
         } finally {
-            if (gen === generation.current) firstLoad.current = false;
+            if (current) firstLoad.current = false;
         }
     }, [sessionId, fail]);
 
     // The saves since the newest one loaded, on top.
     const loadNewer = useCallback(async () => {
-        const loaded = historyRef.current;
         if (!sessionId || unavailable.current) return;
         // Still on its first page, which will include this change; after a
         // failed first load, try again.
-        if (!loaded) {
-            if (firstLoad.current) return;
-            return loadNewestPage();
-        }
-        const gen = generation.current;
+        if (!historyOf(sessionId) && firstLoad.current) return;
         try {
-            const page = await fetchQuestionHistory(sessionId, {
-                after: loaded.newest ?? 0,
-            });
-            if (gen !== generation.current) return;
-            // Too many to tell: start again from the newest page.
-            if (page.more) return loadNewestPage();
-            setHistory((current) =>
-                current ? prependNewer(current, page) : current,
-            );
-            setRefreshFailed(false);
+            // Nothing loaded, or too many to tell: start again from the
+            // newest page.
+            if ((await loadNewerHistory(sessionId)) === "more") {
+                return loadNewestPage();
+            }
         } catch (error) {
-            if (gen !== generation.current) return;
             fail(error);
-            setRefreshFailed(true);
         }
     }, [sessionId, fail, loadNewestPage]);
 
     const loadOlder = useCallback(async () => {
-        const before = historyRef.current?.nextBefore;
-        if (!sessionId || !before) return;
-        const gen = generation.current;
+        if (!sessionId || !historyOf(sessionId)?.history.nextBefore) return;
         setOlderState("loading");
         try {
-            const page = await fetchQuestionHistory(sessionId, { before });
-            if (gen !== generation.current) return;
-            // Only below the page it was asked for.
-            setHistory((loaded) =>
-                loaded?.nextBefore === before
-                    ? appendOlderPage(loaded, page)
-                    : loaded,
-            );
-            setOlderState("idle");
+            if (await loadOlderHistory(sessionId)) setOlderState("idle");
         } catch {
-            if (gen === generation.current) setOlderState("error");
+            setOlderState("error");
         }
     }, [sessionId]);
 
+    // On opening, and for another session or account: what was loaded
+    // before, brought up to date, or the newest page.
     useEffect(() => {
         unavailable.current = false;
-        historyRef.current = null;
-        setHistory(null);
-        setState("loading");
-        void loadNewestPage();
-    }, [loadNewestPage]);
+        setProblem(null);
+        if (sessionId && historyOf(sessionId)) void loadNewer();
+        else void loadNewestPage();
+    }, [sessionId, selfId, loadNewer, loadNewestPage]);
 
     // Keep it current while it's shown: once a change reaches the board, and
     // once this device's own question save has synced.
@@ -336,48 +309,53 @@ export const QuestionHistory = () => {
     );
 
     useEffect(() => {
-        if (state !== "ready" || olderState !== "idle") return;
-        if (lines.length > 0 || !history?.nextBefore) return;
+        if (!history || olderState !== "idle") return;
+        if (lines.length > 0 || !history.nextBefore) return;
         if (autoOlder.current >= MAX_AUTO_OLDER) return;
         autoOlder.current++;
         void loadOlder();
-    }, [state, olderState, lines.length, history, loadOlder]);
+    }, [olderState, lines.length, history, loadOlder]);
 
-    if (state === "loading") return <Note>Loading…</Note>;
-    if (state === "unavailable") {
-        return <Note>History isn&apos;t available for this session.</Note>;
-    }
-    if (state === "error") {
-        return (
-            <div className="flex flex-col items-start gap-2 px-4 py-2 text-sm">
-                <p className="text-muted-foreground">
-                    Couldn&apos;t load the history.
-                </p>
-                <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                        setState("loading");
-                        void loadNewestPage();
-                    }}
-                >
-                    Try again
-                </Button>
-            </div>
-        );
-    }
-
-    const hasOlder = !!history?.nextBefore;
     // Changes not saved yet aren't in the History until they are.
     const unsaved =
         !!sessionId && !$readOnly && hasPendingQuestionSave(sessionId);
+    const unsavedNote = unsaved && (
+        <p className="px-4 py-2 text-xs text-muted-foreground">
+            Your latest changes will show here once they&apos;re saved.
+        </p>
+    );
+
+    if (!sessionId || problem === "unavailable") {
+        return <Note>History isn&apos;t available for this session.</Note>;
+    }
+    if (!history && problem === "error") {
+        return (
+            <div className="flex flex-col pb-2">
+                {unsavedNote}
+                <div className="flex flex-col items-start gap-2 px-4 py-2 text-sm">
+                    <p className="text-muted-foreground">
+                        Couldn&apos;t load the history.
+                    </p>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                            setProblem(null);
+                            void loadNewestPage();
+                        }}
+                    >
+                        Try again
+                    </Button>
+                </div>
+            </div>
+        );
+    }
+    if (!history) return <Note>Loading…</Note>;
+
+    const hasOlder = !!history.nextBefore;
     return (
         <div className="flex flex-col pb-2">
-            {unsaved && (
-                <p className="px-4 py-2 text-xs text-muted-foreground">
-                    Your latest changes will show here once they&apos;re saved.
-                </p>
-            )}
+            {unsavedNote}
             {refreshFailed && (
                 <div className="flex items-center justify-between gap-2 px-4 py-1 text-xs text-muted-foreground">
                     <span>Couldn&apos;t refresh</span>

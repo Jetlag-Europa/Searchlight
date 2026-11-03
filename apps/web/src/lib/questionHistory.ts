@@ -1,26 +1,30 @@
 import type { QuestionHistoryResponse } from "@searchlight/shared";
+import { atom } from "nanostores";
 
 import type { CompiledGame } from "@/game-definition/compile";
 import {
     compiledGameAtom,
     filterSupportedQuestions,
 } from "@/game-definition/store";
-import { sessionReadOnly } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    sessionReadOnly,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import type { HistoryLine, RemovedQuestion } from "@/lib/historyLines";
 import {
     questionConflicts,
     questionDecisionsPossible,
 } from "@/lib/questionConflicts";
-import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
+import { sameQuestionKey } from "@/lib/questionMerge";
 import { boardLabel } from "@/lib/questionNames";
 import {
+    alreadyBackAs,
     asRestored,
     lineageKeys,
     type Lines,
-    onBoardAs,
     placeRestored,
-    restoredKeys,
 } from "@/lib/questionUndo";
 import { type Question, questionSchema } from "@/maps/schema";
 
@@ -86,6 +90,135 @@ export function appendOlderPage(
         nextBefore: older.nextBefore,
         newest: loaded.newest,
     };
+}
+
+// ── The history as loaded, kept while the History is hidden ──────────────
+
+/**
+ * The active session's history as loaded. Kept while the History is hidden
+ * (on the Questions tab, or the sheet closed), so that opened again it shows
+ * at once, offline too, and only asks for what came since. In memory only,
+ * and dropped for another session or account.
+ */
+export interface LoadedHistory {
+    sessionId: string;
+    history: QuestionHistoryResponse;
+    /** The last refresh failed: what's shown may be behind. */
+    refreshFailed: boolean;
+}
+
+export const loadedHistory = atom<LoadedHistory | null>(null);
+
+// Bumped whenever the loaded history is replaced (another session or
+// account, or the newest page loaded afresh): responses asked for before are
+// dropped. Here rather than in the History, as one can arrive while it's
+// hidden, and still counts.
+let generation = 0;
+
+const forgetHistory = () => {
+    generation++;
+    loadedHistory.set(null);
+};
+activeSessionId.listen(forgetHistory);
+verifiedUserId.listen(forgetHistory);
+
+/** The history loaded for this session, if any. */
+export const historyOf = (
+    sessionId: string,
+    loaded: LoadedHistory | null = loadedHistory.get(),
+): LoadedHistory | null => (loaded?.sessionId === sessionId ? loaded : null);
+
+const updateHistory = (
+    sessionId: string,
+    change: (loaded: LoadedHistory) => LoadedHistory,
+) => {
+    const loaded = historyOf(sessionId);
+    if (loaded) loadedHistory.set(change(loaded));
+};
+
+// The response to a request made while `gen` was current, or "stale" when
+// it no longer counts. Throws what the request threw, if it still counts.
+async function unlessStale<T>(
+    gen: number,
+    request: Promise<T>,
+): Promise<T | "stale"> {
+    try {
+        const response = await request;
+        return gen === generation ? response : "stale";
+    } catch (error) {
+        if (gen !== generation) return "stale";
+        throw error;
+    }
+}
+
+/**
+ * Loads the newest page afresh, without the older ones loaded. False when
+ * the answer came too late to count; throws when the request failed.
+ */
+export async function loadNewestHistory(sessionId: string): Promise<boolean> {
+    const gen = ++generation;
+    const history = await unlessStale(gen, fetchQuestionHistory(sessionId));
+    if (history === "stale") return false;
+    loadedHistory.set({ sessionId, history, refreshFailed: false });
+    return true;
+}
+
+/**
+ * Puts the saves since the newest one loaded on top. "more" when nothing
+ * is loaded, or more came since than one answer holds: load the newest page
+ * instead. A failed request is noted (refreshFailed) and thrown.
+ */
+export async function loadNewerHistory(
+    sessionId: string,
+): Promise<"added" | "more" | "stale"> {
+    const loaded = historyOf(sessionId);
+    if (!loaded) return "more";
+    let page: QuestionHistoryResponse | "stale";
+    try {
+        page = await unlessStale(
+            generation,
+            fetchQuestionHistory(sessionId, {
+                after: loaded.history.newest ?? 0,
+            }),
+        );
+    } catch (error) {
+        updateHistory(sessionId, (current) => ({
+            ...current,
+            refreshFailed: true,
+        }));
+        throw error;
+    }
+    if (page === "stale") return "stale";
+    if (page.more) return "more";
+    const newer = page;
+    updateHistory(sessionId, (current) => ({
+        ...current,
+        history: prependNewer(current.history, newer),
+        refreshFailed: false,
+    }));
+    return "added";
+}
+
+/**
+ * Puts the page before the oldest one loaded below it. False when there's
+ * none, or the answer came too late to count; throws when the request
+ * failed.
+ */
+export async function loadOlderHistory(sessionId: string): Promise<boolean> {
+    const before = historyOf(sessionId)?.history.nextBefore;
+    if (!before) return false;
+    const page = await unlessStale(
+        generation,
+        fetchQuestionHistory(sessionId, { before }),
+    );
+    if (page === "stale") return false;
+    // Only below the page it was asked for.
+    updateHistory(sessionId, (current) =>
+        current.history.nextBefore === before
+            ? { ...current, history: appendOlderPage(current.history, page) }
+            : current,
+    );
+    return true;
 }
 
 export type Restorable =
@@ -160,32 +293,12 @@ export function restorable(
     // Every line loaded, for what it was restored as since.
     lines: Lines = [],
 ): Restorable {
-    const now = onBoardAs(removed, current, lines);
-    if (now !== undefined) {
+    const question = parseRemoved(removed.question);
+    const back = alreadyBackAs(removed, current, lines, question);
+    if (back !== undefined) {
         // As the board calls it now: "Radius 2" may be another question
         // since the delete shifted the positions.
-        const label = boardLabel(current, now);
-        return {
-            status: "unavailable",
-            reason: label ? `On the board as ${label}` : "On the board",
-        };
-    }
-    const question = parseRemoved(removed.question);
-    // A teammate's restore the History hasn't loaded yet: a question with
-    // its content that wasn't on the board when it was deleted (a twin that
-    // was is another question), and isn't known as another one's restore.
-    // Restoring again would make two.
-    const claimed = [...(removed.order ?? []), ...restoredKeys(lines)];
-    const since = current.filter(
-        (q) => !claimed.some((key) => sameQuestionKey(key, q.key)),
-    );
-    const twin = since.find(
-        (q) =>
-            sameQuestionSubstance(q, removed.question) ||
-            (question !== null && sameQuestionSubstance(q, question)),
-    );
-    if (removed.order && twin) {
-        const label = boardLabel(current, twin.key);
+        const label = boardLabel(current, back);
         return {
             status: "unavailable",
             reason: label ? `On the board as ${label}` : "On the board",
@@ -234,7 +347,9 @@ export function restoreFromHistory(
     const restored = targets.flatMap((target) => {
         const check = restorable(target, current, compiled, lines);
         if (check.status !== "ok") {
-            if (onBoardAs(target, current, lines) !== undefined) alreadyBack++;
+            const question = parseRemoved(target.question);
+            if (alreadyBackAs(target, current, lines, question) !== undefined)
+                alreadyBack++;
             return [];
         }
         // A copy (asRestored): cards edit questions in place, and the parsed
