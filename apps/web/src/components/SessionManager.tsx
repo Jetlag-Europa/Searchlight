@@ -289,8 +289,9 @@ function SessionPickerOverlay({
                 credentials: "include",
             });
             // When the request itself fails it may still have gone through,
-            // so the id stays.
-            if (!res.ok) {
+            // so the id stays. A 404 is a delete that already happened: an
+            // earlier try whose reply was lost, or another tab.
+            if (!res.ok && res.status !== 404) {
                 deletedHere.delete(sessionId);
                 throw new Error(`${res.status}`);
             }
@@ -1112,10 +1113,7 @@ export function SessionManager() {
                 role: known?.role,
                 name: known?.name,
             });
-            if (
-                status === 404 ||
-                getCachedSession(sessionId)?.userId === authUserId
-            ) {
+            if (status === 404 || cached?.userId === authUserId) {
                 discardSessionData(sessionId, { allAccounts: status === 404 });
             }
             cancelPendingSaves(sessionId);

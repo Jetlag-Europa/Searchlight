@@ -373,4 +373,26 @@ test.describe("deleting a session with a mouse", () => {
         await expect.poll(() => sessionStatus(request, doomed.id)).toBe(404);
         await expectBodyTappable(page);
     });
+
+    // Its first try's reply was lost, or another tab got there first.
+    test("Delete of a session already gone takes it off the list", async ({
+        page,
+        request,
+    }) => {
+        const gone = await createSession(request, "Gone");
+        await testLogin(page);
+        await page.goto("/map/");
+        await showServer(page, gone.serverId);
+        const del = deleteButton(page, gone);
+        await expect(del).toBeAttached();
+        expect(
+            (await request.delete(`${API_BASE}/sessions/${gone.id}`)).ok(),
+        ).toBe(true);
+
+        await del.focus();
+        await page.keyboard.press("Enter");
+        await confirmDelete(page, deleteDialog(page, gone), "click");
+        await expect(del).toHaveCount(0);
+        await expect(picker(page).getByText(/Failed to delete/)).toHaveCount(0);
+    });
 });
