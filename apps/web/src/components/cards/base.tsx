@@ -88,10 +88,17 @@ export const QuestionCard = ({
 
     return (
         <>
-            <SidebarGroup className={cn(className, enabled === false && "opacity-50")}>
+            <SidebarGroup
+                className={cn(className, enabled === false && "opacity-50")}
+                // For showing the card after a Restore (showQuestionCard).
+                data-question-key={questionKey}
+            >
                 <div className="relative">
                     <button
                         onClick={toggleCollapse}
+                        // Focused by Show (after a Restore).
+                        data-question-card-header
+                        aria-label={isCollapsed ? "Unfold" : "Fold"}
                         className={cn(
                             "absolute top-2 left-2 text-white border rounded-md transition-all duration-500",
                             isCollapsed && "-rotate-90",
@@ -322,8 +329,8 @@ const QuestionJson = ({ questionKey }: { questionKey: number }) => {
 
 // Saves on blur, Enter or unmount (a marker's dialog can close mid-edit), not
 // per keystroke: every saved change re-renders the map and syncs the session.
-// Never disabled while loading: the name changes no answer, and the field
-// would lose focus whenever the map recalculates.
+// Never disabled while loading: the name changes no answer, and a disabled
+// field loses focus.
 const QuestionNameInput = ({
     name,
     onCommit,

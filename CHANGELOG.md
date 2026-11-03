@@ -11,6 +11,40 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Without a connection the map shows CARTO Voyager until it's back, and prints always use CARTO Voyager: Google's terms don't allow storing its map. Choosing a print size while Google Maps is shown switches the map first; choose the size again to print.
 - The instance's admins (`ADMIN_DISCORD_IDS`) see on `/admin` how many Google map loads each Discord user caused this month, and per day, against the 10,000 free a month. The app counts one when it creates its Google map, the same moment Google bills one.
 - **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key. The API has a new table for the load counts (migration `20261103120000_google_map_loads`) and routes `POST /me/google-map-loads` and `GET /admin/google-map-loads`.
+## First mode change after a reload is saved (2026-11-03)
+
+- After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.
+
+## Question history (2026-11-03)
+
+- A **Questions | History** toggle at the top of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A change that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question are shown as one.
+- A deleted question has a **Restore** button there, long after its Undo is gone. It puts the question back where it was, for everyone. A "Radius 2 is back" message then offers **Undo**, and **Show**, which opens the Questions list at that question. Spectators can read History but not restore.
+- The message after a delete now names the question ("Radius 2 deleted"). Its Undo still puts the question back as if never deleted while the delete hasn't reached the server; once it may have, Undo puts back a copy, which History shows as "restored".
+- History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
+
+## Smoother hiding-zone map on big games (2026-11-03)
+
+- With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
+- "No Overlap" merges the zones without freezing the page, and the map keeps what it showed until the new outline is ready. Turning Zone Labels on or off, or leaving a viewed zone, redraws the outline at once.
+- An answer or a teammate's update that rules out no zone no longer redraws the zones.
+
+## Deleting a session asks first (2026-11-03)
+
+- Deleting a session from the session list now opens a confirm that names the session and says it is deleted for everyone in it, with its questions and drawings. Before, two taps on the right end of a row deleted it on a phone, where the button couldn't be seen.
+- On a phone or other touch screen, each row's Delete and Leave are always shown and big enough to tap. With a mouse they still appear on hover, and now also on keyboard focus.
+- Teammates who had the session open are told it was deleted, instead of landing on the session list without a word.
+
+## Casual Games (2026-11-03)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
+## Question cards stay usable while the map calculates (2026-11-03)
+
+- While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves. Tapping a card's lock, hide or delete button, or **Add Question**, right after typing a question's name no longer does nothing.
+- Renaming or folding a question, locking or unlocking it outside planning mode, or a teammate's save that changes no answer no longer recalculates the map or the hiding zones, or moves your map back to the remaining area.
+- **Set to current location** now only greys out its own location while it waits for a GPS fix, not every card.
 
 ## Spectator links (2026-11-03)
 

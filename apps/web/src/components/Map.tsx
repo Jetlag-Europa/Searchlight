@@ -38,7 +38,6 @@ import {
     polyGeoJSON,
     questionFinishedMapData,
     questions,
-    setScopedLoading,
     thunderforestApiKey,
     triggerLocalRefresh,
 } from "@/lib/context";
@@ -68,6 +67,14 @@ import {
     requestGeometry,
     SupersededError,
 } from "@/maps/geo-utils/geometryClient";
+import {
+    answerInput,
+    type MapResult,
+    planningPreviewKey,
+    sameResult,
+    standingResult,
+    writeBackAnswers,
+} from "@/maps/mapResult";
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { GoogleBasemap } from "./GoogleBasemap";
@@ -284,8 +291,13 @@ export const Map = ({ className }: { className?: string }) => {
     const framedGameIdRef = useRef<string | null>(null);
     // The framed game is a saved view, not yet confirmed by its loaded game.
     const provisionalViewRef = useRef(false);
+    // What the map shows, to skip a refresh that would show the same.
+    const shownRef = useRef<(MapResult & { previews: L.GeoJSON[] }) | null>(
+        null,
+    );
 
     const clearQuestionLayers = (targetMap: L.Map) => {
+        shownRef.current = null;
         targetMap.eachLayer((layer) => {
             if (
                 ("questionKey" in layer && layer.questionKey != null) ||
@@ -354,12 +366,23 @@ export const Map = ({ className }: { className?: string }) => {
             }
             return;
         }
-        setScopedLoading("map", true);
         const finishCalculation = startCalculation("questions");
         try {
             // Question cards and markers mutate data in place, even when auto-save
             // is off. Take an immutable view before any awaited geometry work.
             const snapshot = structuredClone(sourceQuestions);
+            // Hider mode answers the questions: show its answers on the cards.
+            const before =
+                hider !== false
+                    ? snapshot.map(({ data }) => answerInput(data))
+                    : undefined;
+            const answerCards = () => {
+                if (
+                    before &&
+                    writeBackAnswers(sourceQuestions, snapshot, before)
+                )
+                    triggerLocalRefresh.set(Math.random());
+            };
 
             let mapGeoData = boundary ?? mapGeoJSON.get();
             if (!mapGeoData) {
@@ -386,22 +409,42 @@ export const Map = ({ className }: { className?: string }) => {
                 snapshot,
                 mapGeoData,
                 planning,
+                isCurrent,
             );
             if (!isCurrent()) return;
 
+            // A rename, a lock toggle or a teammate's list with the same
+            // answers leaves the regions and outlines as they are: keep the
+            // map, its zones and its view.
+            const inputs = [map, activeGameId, mapGeoData, compiled];
+            const shown = standingResult(shownRef.current, inputs, {
+                answered: perQuestionMapData.get(),
+                mask: questionFinishedMapData.get(),
+            });
+            const previewKey = planningPreviewKey(snapshot, planning);
+            if (shown && sameResult(shown, perQuestionRegions, previewKey)) {
+                answerCards();
+                hidingZoneScale.set(zoneScaleAfter(snapshot));
+                return;
+            }
+
             // Build the replacement off-map. Never clear the visible result
             // while awaiting geometry, or let an obsolete refresh publish layers.
-            const previews: L.GeoJSON[] = [];
-            for (const question of snapshot) {
-                const geometry = await determinePlanningPolygon(
-                    question,
-                    planning,
-                );
-                if (!isCurrent()) return;
-                if (!geometry) continue;
-                const layer = L.geoJSON(geometry);
-                Object.assign(layer, { questionKey: question.key });
-                previews.push(layer);
+            let previews: L.GeoJSON[] = [];
+            if (shown?.previewKey === previewKey) {
+                previews = shown.previews;
+            } else {
+                for (const question of snapshot) {
+                    const geometry = await determinePlanningPolygon(
+                        question,
+                        planning,
+                    );
+                    if (!isCurrent()) return;
+                    if (!geometry) continue;
+                    const layer = L.geoJSON(geometry);
+                    Object.assign(layer, { questionKey: question.key });
+                    previews.push(layer);
+                }
             }
 
             // Standalone regions already include the base boundary. Reuse them
@@ -449,15 +492,17 @@ export const Map = ({ className }: { className?: string }) => {
             for (const preview of previews) preview.addTo(map);
             elimination.addTo(map);
             renderedGameIdRef.current = activeGameId;
-            if (hider !== false) {
-                snapshot.forEach((question, index) => {
-                    sourceQuestions[index].data = question.data;
-                });
-                triggerLocalRefresh.set(Math.random());
-            }
+            answerCards();
             hidingZoneScale.set(zoneScaleAfter(snapshot));
             perQuestionMapData.set(perQuestionRegions);
             questionFinishedMapData.set(mapGeoData);
+            shownRef.current = {
+                inputs,
+                answered: perQuestionRegions,
+                mask: mapGeoData,
+                previewKey,
+                previews,
+            };
 
             if (autoZoom.get()) {
                 if (!remaining.features.length) return;
@@ -488,7 +533,6 @@ export const Map = ({ className }: { className?: string }) => {
                 toast.error("No solutions found / error occurred");
             }
         } finally {
-            setScopedLoading("map", false);
             finishCalculation();
         }
     };

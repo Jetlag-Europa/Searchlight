@@ -26,6 +26,7 @@ import {
     markEventFailed,
     markEventSent,
     markEventSynced,
+    noteQuestionListSent,
     type PendingEvent,
     type QuestionsBase,
     type QuestionsReplacePayload,
@@ -309,6 +310,8 @@ async function sendQuestions(
     const { sessionId } = event;
     let payload = event.payloadJson as QuestionsReplacePayload;
     const madeFrom = payload.merged?.base ?? payload.base;
+    // Before anything can fail: from here the list may land (for Undo).
+    noteQuestionListSent(event);
     if (!event.sent) {
         try {
             markEventSent(sessionId, event.localId);
