@@ -62,24 +62,45 @@ async function probe(
     }
     try {
         const content = await Promise.all([
-            read("/strokes"),
-            read("/questions"),
+            read("/strokes").then((answer) => usableList(answer, "strokes")),
+            read("/questions").then((answer) =>
+                usableList(answer, "questions"),
+            ),
         ]);
-        // The load reads them again: only whether they answer, with JSON
-        // (not a proxy's page), counts here.
-        for (const answer of content)
-            void answer.body?.cancel().catch(() => {});
-        const usable = content.every(
-            (answer) =>
-                answer.ok &&
-                Boolean(
-                    answer.headers
-                        .get("content-type")
-                        ?.includes("application/json"),
-                ),
-        );
-        return usable ? { kind: "ready", session } : RETRY;
+        if (content.includes("signedOut")) return { kind: "signedOut" };
+        return content.every((part) => part === "ok")
+            ? { kind: "ready", session }
+            : RETRY;
     } catch {
         return RETRY;
+    }
+}
+
+/**
+ * Whether a content answer is one the load can use: OK, and JSON whose
+ * `key` is a list of entries, as loadStrokesFromServer and fetchQuestions
+ * read it.
+ */
+async function usableList(
+    answer: Response,
+    key: "strokes" | "questions",
+): Promise<"ok" | "signedOut" | "retry"> {
+    if (answer.status === 401) return "signedOut";
+    if (!answer.ok) {
+        void answer.body?.cancel().catch(() => {});
+        return "retry";
+    }
+    try {
+        const data: unknown = await answer.json();
+        const list =
+            typeof data === "object" && data !== null
+                ? (data as Record<string, unknown>)[key]
+                : undefined;
+        return Array.isArray(list) &&
+            list.every((entry) => typeof entry === "object" && entry !== null)
+            ? "ok"
+            : "retry";
+    } catch {
+        return "retry";
     }
 }

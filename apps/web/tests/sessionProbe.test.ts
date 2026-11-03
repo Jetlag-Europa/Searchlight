@@ -69,6 +69,14 @@ describe("probeSession", () => {
         },
     );
 
+    test.each(["strokes", "questions"])(
+        "says the user is signed out when its %s answer 401",
+        async (part) => {
+            answer({ [`/${part}`]: () => new Response(null, { status: 401 }) });
+            expect(await probeSession(SID)).toEqual({ kind: "signedOut" });
+        },
+    );
+
     test("says the user is signed out on a 401", async () => {
         answer({ "": () => new Response(null, { status: 401 }) });
         expect(await probeSession(SID)).toEqual({ kind: "signedOut" });
@@ -102,6 +110,21 @@ describe("probeSession", () => {
                     status: 200,
                     headers: { "content-type": "text/html" },
                 }),
+        ],
+        [
+            "strokes",
+            "JSON cut short",
+            () =>
+                new Response('{"strokes":[{"clientUuid"', {
+                    status: 200,
+                    headers: { "content-type": "application/json" },
+                }),
+        ],
+        ["questions", "no list", () => Response.json({ questions: null })],
+        [
+            "strokes",
+            "a list with a gap",
+            () => Response.json({ strokes: [null] }),
         ],
     ])("retries when its %s answer with %s", async (part, _, res) => {
         answer({ [`/${part}`]: res });
