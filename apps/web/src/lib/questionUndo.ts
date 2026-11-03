@@ -1,5 +1,5 @@
 import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
-import { newQuestionKey } from "@/maps/schema";
+import { newQuestionKey, questionSchema } from "@/maps/schema";
 
 // What a delete removed, for its Undo: the questions and the order of the list
 // they were deleted from. Undo puts them back into the list as it is by then:
@@ -113,20 +113,23 @@ export function asRestored<T extends { key: number; data: object }>(
 /**
  * The question a deleted one is back on the board as, if it is: under its
  * key (Undo put it back), or a copy of it, edited since or not. Not one that
- * was on the board when it was deleted (`order`): that is another question.
+ * was itself on the board when it was deleted (`order`), nor a copy of such
+ * a one: that is another question.
  */
 export function backAs<T extends { key: number }>(
     removed: { key: number },
     board: readonly T[],
     order: readonly number[] = [],
 ): T | undefined {
+    const inOrder = (key: number) => order.some((k) => sameQuestionKey(k, key));
+    const comesBack = (q: T) => {
+        const lineage = [...restoredFrom(q), q.key];
+        const at = lineage.findIndex((k) => sameQuestionKey(k, removed.key));
+        return at !== -1 && !lineage.slice(at + 1).some(inOrder);
+    };
     return (
         board.find((q) => sameQuestionKey(q.key, removed.key)) ??
-        board.find(
-            (q) =>
-                isCopyOf(q, removed.key) &&
-                !order.some((key) => sameQuestionKey(key, q.key)),
-        )
+        board.find(comesBack)
     );
 }
 
@@ -144,7 +147,7 @@ export function placeRestored<T extends { key: number }>(
     const placed = order.map(
         (key) =>
             restored.find((r) => sameQuestionKey(r.from, key))?.question.key ??
-            backAs({ key }, current)?.key ??
+            backAs({ key }, current, order)?.key ??
             key,
     );
     return placeRemovedQuestions(current, placed, restored);
@@ -152,9 +155,10 @@ export function placeRestored<T extends { key: number }>(
 
 /**
  * `board` without the copies of the question with `key` that are as `was`,
- * the version it was deleted from: kept, the question itself is back, and
- * they would be a second version of it shaping the zone. A copy changed
- * since is someone's edit, and stays.
+ * the version it was deleted from (or as Restore re-read it, defaults filled
+ * in): kept, the question itself is back, and they would be a second
+ * version of it shaping the zone. A copy changed since is someone's edit,
+ * and stays.
  */
 export function withoutCopiesOf<T extends { key: number }>(
     board: readonly T[],
@@ -165,9 +169,13 @@ export function withoutCopiesOf<T extends { key: number }>(
         ...(q as object),
         data: { ...(q as { data?: object }).data, restoredFrom: undefined },
     });
+    const reread = questionSchema.safeParse(was);
+    const versions = [was, ...(reread.success ? [reread.data] : [])].map(
+        untagged,
+    );
     return board.filter(
         (q) =>
             !isCopyOf(q, key) ||
-            !sameQuestionSubstance(untagged(q), untagged(was)),
+            !versions.some((v) => sameQuestionSubstance(untagged(q), v)),
     );
 }

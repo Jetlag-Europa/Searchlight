@@ -48,7 +48,10 @@ describe("merging question lists", () => {
 
     test("is the server's list when nothing changed here", () => {
         const server = [q(3), q(1, "theirs")];
-        expect(mergeQuestionLists([q(1)], [q(1)], server)).toEqual(server);
+        expect(mergeQuestionLists([q(1)], [q(1)], server)).toEqual([
+            q(1, "theirs"),
+            q(3),
+        ]);
     });
 
     test("is our list when nothing changed there", () => {
@@ -281,26 +284,44 @@ describe("merging with conflicts held", () => {
 
 describe("where a merge puts their additions", () => {
     const curse = (key: number) => ({ id: "zone-size", key, data: { multiplier: 1.5 } });
+    const restored = (key: number, from: number) => radius(key, { restoredFrom: [from] });
     const keys = (list: { key: number }[]) => list.map((x) => x.key);
 
     test("keeps a question restored above a curse above it, past questions we removed", () => {
         // They restored 1 as 1001 at the top, above the ×1.5 curse 9. We
         // answered 3 meanwhile, from the list before.
-        const server = [radius(1001), curse(9), radius(2), radius(3)];
+        const server = [restored(1001, 1), curse(9), radius(2), radius(3)];
         const base = [curse(9), radius(2), radius(3)];
         const local = [curse(9), radius(2), radius(3, { within: false })];
         expect(keys(mergeQuestionListsWithConflicts(base, local, server).merged)).toEqual([1001, 9, 2, 3]);
-        // Below questions we removed, it goes below the nearest one we kept.
+        // Below questions we removed, it goes below those we kept.
         expect(
-            keys(mergeQuestionLists([radius(1), radius(2), curse(9)], [radius(1), curse(9)], [radius(1), radius(2), radius(7), curse(9)])),
+            keys(mergeQuestionLists([radius(1), radius(2), curse(9)], [radius(1), curse(9)], [radius(1), radius(2), restored(7, 4), curse(9)])),
         ).toEqual([1, 7, 9]);
     });
 
-    test("keeps one they added at the end last, below a curse we moved down", () => {
-        const base = [radius(1), curse(9), radius(2)];
-        const local = [radius(1), radius(2), curse(9)];
-        const server = [radius(1), curse(9), radius(2), radius(3)];
-        expect(keys(mergeQuestionLists(base, local, server))).toEqual([1, 2, 9, 3]);
+    test("keeps a restored question below a curse above it there, though we moved the curse", () => {
+        const base = [radius(1), curse(9), radius(2), radius(3)];
+        const local = [radius(1), radius(2), curse(9), radius(3)];
+        const server = [radius(1), curse(9), radius(2), restored(7, 4), radius(3)];
+        expect(keys(mergeQuestionLists(base, local, server))).toEqual([1, 2, 9, 7, 3]);
+    });
+
+    test("puts one they added last, as ever", () => {
+        // Even with a curse we moved: below it, as there.
+        const base = [radius(1), curse(9), radius(2), radius(3)];
+        const local = [radius(1), radius(2), curse(9), radius(3)];
+        expect(keys(mergeQuestionLists(base, local, [radius(1), curse(9), radius(2), radius(4), radius(3)]))).toEqual([1, 2, 9, 3, 4]);
+        expect(keys(mergeQuestionLists(base, local, [...base, radius(4)]))).toEqual([1, 2, 9, 3, 4]);
+    });
+
+    test("stays quick for long lists", () => {
+        const many = (from: number, make: (key: number) => ReturnType<typeof radius>) =>
+            Array.from({ length: 300 }, (_, i) => make(from + i));
+        const started = performance.now();
+        mergeQuestionLists([], many(1, radius), many(1001, radius));
+        mergeQuestionLists([], many(1, radius), many(1001, (key) => restored(key, key - 1000)));
+        expect(performance.now() - started).toBeLessThan(2000);
     });
 });
 

@@ -653,6 +653,34 @@ describe("what a deleted question became", () => {
         expect(restorable(deletedTwo, questions.get(), null).status).toBe("ok");
     });
 
+    it("tells a copy of another question on the board from one of this one", () => {
+        // b was a copy of a beside it, edited apart. a was deleted; then
+        // b, restored as d.
+        const a = radar(0.51, 1);
+        const b = asRestored(moved(a, 2), 0.52);
+        const d = asRestored(b, 0.53);
+        const lines = historyLines(
+            [
+                save([removedQ(a, 0)], [a.key, b.key]),
+                save([removedQ(b, 0)], [b.key]),
+            ],
+            {},
+        );
+        const [deletedA] = deletionsOf(lines, a.key);
+        const [deletedB] = deletionsOf(lines, b.key);
+        expect(restorable(deletedA, [d], null).status).toBe("ok");
+        expect(restorable(deletedB, [d], null)).toEqual({
+            status: "unavailable",
+            reason: "On the board as Radius 1",
+        });
+        // Its own ancestor beside it doesn't count against it.
+        const both = historyLines([save([removedQ(b, 1)], [a.key, b.key])], {});
+        expect(restorable(deletionsOf(both, b.key)[0], [a, d], null)).toEqual({
+            status: "unavailable",
+            reason: "On the board as Radius 2",
+        });
+    });
+
     it("keeps the order of questions restored one by one, below a copy restored again", () => {
         // b was a restore already; b and x deleted together.
         const [r, x, tail] = [radar(0.41, 1), radar(0.42, 2), radar(0.43, 3)];

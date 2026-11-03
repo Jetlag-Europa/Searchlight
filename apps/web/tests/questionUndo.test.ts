@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+    asRestored,
     deleteQuestions,
     placeRemovedQuestions,
     placeRestored,
     undoDeletion,
+    withoutCopiesOf,
 } from "@/lib/questionUndo";
+import { questionSchema } from "@/maps/schema";
 
 const q = (key: number, label = String(key)) => ({ key, label });
 const keys = (list: { key: number }[]) => list.map((x) => x.key);
@@ -144,6 +147,45 @@ describe("putting restored questions back", () => {
                 )!,
             ),
         ).toEqual([3, 7, 9]);
+    });
+
+    it("doesn't go below a copy that was another question on the board", () => {
+        // 4 was a copy of 1 beside it, edited apart; 1 went since.
+        const board = [plain(3), copy(4, [1])];
+        expect(
+            keys(
+                placeRestored(
+                    board,
+                    [1, 2, 3, 4],
+                    [{ from: 2, index: 1, question: plain(2) }],
+                )!,
+            ),
+        ).toEqual([2, 3, 4]);
+    });
+});
+
+describe("dropping copies of a question kept", () => {
+    it("drops one as Restore re-read it, defaults filled in", () => {
+        // Saved by an older build: no `enabled`.
+        const was = {
+            id: "radius",
+            key: 0.5,
+            data: {
+                lat: 1,
+                lng: 2,
+                radius: 5,
+                unit: "kilometers",
+                within: true,
+                color: "red",
+            },
+        };
+        const copy = asRestored(questionSchema.parse(was), 0.75);
+        const kept = { ...was, data: { ...was.data, within: false } };
+        expect(keys(withoutCopiesOf([kept, copy], 0.5, was))).toEqual([0.5]);
+        const moved = { ...copy, data: { ...copy.data, lat: 3 } };
+        expect(keys(withoutCopiesOf([kept, moved], 0.5, was))).toEqual([
+            0.5, 0.75,
+        ]);
     });
 });
 
