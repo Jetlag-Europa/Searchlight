@@ -44,7 +44,10 @@ import {
     sessionPickerOpen,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
-import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
+import {
+    deletedSessionNotice,
+    isApiNotFound,
+} from "@/lib/deletedSessionNotice";
 import { isSameDoubleTap } from "@/lib/doubleTap";
 import {
     applyPendingModes,
@@ -303,15 +306,7 @@ function SessionPickerOverlay({
             // When the request itself fails it may still have gone through,
             // so the id stays. The API's 404 is a delete that already
             // happened: an earlier try whose reply was lost, or another tab.
-            // A proxy's (the API being redeployed) isn't JSON.
-            const alreadyGone =
-                res.status === 404 &&
-                Boolean(
-                    res.headers
-                        .get("content-type")
-                        ?.includes("application/json"),
-                );
-            if (!res.ok && !alreadyGone) {
+            if (!res.ok && !isApiNotFound(res)) {
                 deletedHere.delete(sessionId);
                 throw new Error(`${res.status}`);
             }
@@ -572,6 +567,12 @@ function SessionPickerOverlay({
                                                         event.detail !== 0,
                                                     )
                                                 }
+                                                // A held key repeats its
+                                                // click: arm, not leave.
+                                                onKeyDown={(event) => {
+                                                    if (event.repeat)
+                                                        event.preventDefault();
+                                                }}
                                                 disabled={
                                                     leavingId === session.id
                                                 }
@@ -1151,7 +1152,16 @@ export function SessionManager() {
             if (activeSessionId.get() === sessionId) clearActiveSession();
             if (boardSessionRef.current === sessionId) boardSessionRef.current = null;
             setShowPicker(true);
-            if (notice) toast.warn(notice);
+            // A proxy's 404 while the API is redeployed lands here too: say
+            // it was deleted only once the API itself says so.
+            if (notice)
+                void fetch(`${API_BASE}/sessions/${sessionId}`, {
+                    credentials: "include",
+                })
+                    .then((res) => {
+                        if (isApiNotFound(res)) toast.warn(notice);
+                    })
+                    .catch(() => {});
         },
         [authUserId],
     );

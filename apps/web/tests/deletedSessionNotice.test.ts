@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
+import {
+    deletedSessionNotice,
+    isApiNotFound,
+} from "@/lib/deletedSessionNotice";
 
 describe("deletedSessionNotice", () => {
     it("names the open session that was deleted", () => {
@@ -100,5 +103,30 @@ describe("deletedSessionNotice", () => {
                 name: "Team B",
             }),
         ).toBe("The session “Team B” was deleted.");
+    });
+});
+
+describe("isApiNotFound", () => {
+    const reply = (status: number, contentType: string) =>
+        new Response(status === 404 ? "{}" : "", {
+            status,
+            headers: { "content-type": contentType },
+        });
+
+    it("takes the API's JSON 404 as the session being gone", () => {
+        expect(
+            isApiNotFound(reply(404, "application/json; charset=utf-8")),
+        ).toBe(true);
+    });
+
+    // While the API is redeployed, the proxy in front of it answers.
+    it("doesn't take a proxy's plain-text 404 for it", () => {
+        expect(isApiNotFound(reply(404, "text/plain; charset=utf-8"))).toBe(
+            false,
+        );
+    });
+
+    it("needs a 404", () => {
+        expect(isApiNotFound(reply(403, "application/json"))).toBe(false);
     });
 });

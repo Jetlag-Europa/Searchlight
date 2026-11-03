@@ -34,3 +34,14 @@ export function deletedSessionNotice({
         ? `${session} was deleted by its creator.`
         : `${session} was deleted.`;
 }
+
+/**
+ * Whether a response is the API's own 404, saying the session is gone. A
+ * proxy answers 404 in plain text while the API is down or redeployed.
+ */
+export function isApiNotFound(res: Response): boolean {
+    return (
+        res.status === 404 &&
+        Boolean(res.headers.get("content-type")?.includes("application/json"))
+    );
+}
