@@ -68,7 +68,7 @@ services:
       dockerfile: apps/web/Dockerfile
       args:
         # Baked into the static bundle. CI builds with the same default.
-        PUBLIC_API_BASE: ${PUBLIC_API_BASE:-https://api-searchlight.jetlageuropa.org}
+        PUBLIC_API_BASE: ${PUBLIC_API_BASE:-https://api.searchlight.jetlageuropa.org}
         PUBLIC_GOOGLE_MAPS_API_KEY: ${PUBLIC_GOOGLE_MAPS_API_KEY:-}
     restart: unless-stopped
     networks:

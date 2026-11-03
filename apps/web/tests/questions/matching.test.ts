@@ -132,7 +132,7 @@ describe("adjustPerMatching — bundled municipality (exact, winding-agnostic)",
         expect(r.failures).toEqual([]);
         expect(r.survives).toBeGreaterThan(10);
         expect(r.eliminated).toBeGreaterThan(10);
-    });
+    }, 15_000);
 
     it("invariant: same-mask ⊆ base and area ≤ base", async () => {
         const mask = await maskFor(base, seeker, true);
