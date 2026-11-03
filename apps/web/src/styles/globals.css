@@ -26,7 +26,18 @@ body {
 
 /* The close button takes the toast's right edge, full height and a finger
    wide, instead of a small X in the top corner: a toast's own button, such as
-   Undo, sat right next to it, so a tap on a phone hit the wrong one. */
+   Undo, sat right next to it, so a tap on a phone hit the wrong one. The gap
+   keeps it clear of the content; the auto margin keeps it at the edge when
+   the content is a short string. */
+.Toastify__toast {
+    column-gap: 8px;
+}
+
+/* Together with the gap, the icon's usual 10px from the text. */
+.Toastify__toast-icon {
+    margin-inline-end: 2px;
+}
+
 .Toastify__close-button {
     position: static;
     align-self: stretch;
@@ -36,7 +47,7 @@ body {
     justify-content: center;
     width: 44px;
     margin: calc(-1 * var(--toastify-toast-padding));
-    margin-left: 8px;
+    margin-left: auto;
 }
 
 .leaflet-container {
