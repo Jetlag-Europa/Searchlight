@@ -10,7 +10,7 @@ import { gameRoutes } from "./games.js";
 const USER_ID = "test-games-gate-user";
 const AUTH_SESSION_ID = "test-games-gate-auth";
 
-const HOME_GAMES_ID = "home-games";
+const CASUAL_GAMES_ID = "home-games";
 const EU_NONGATED_KEY = "__test-eu-nongated__";
 const EU_SERVER_ID = "1190673594649415730";
 const GATE_ROLE_ID = "1514353477231312966";
@@ -37,7 +37,7 @@ async function setEuRoles(roles: string[]) {
     });
 }
 
-describe("GET /games — Home Games per-game visibility gate", () => {
+describe("GET /games — Casual Games and per-game visibility gates", () => {
     let app: Awaited<ReturnType<typeof buildTestApp>>;
 
     beforeAll(async () => {
@@ -68,16 +68,17 @@ describe("GET /games — Home Games per-game visibility gate", () => {
         // Servers + games (race-safe via skipDuplicates for concurrent test suites).
         await prisma.server.createMany({
             data: [
-                { id: HOME_GAMES_ID, name: "Home Games" },
+                { id: CASUAL_GAMES_ID, name: "Casual Games" },
                 { id: EU_SERVER_ID, name: "JetLag EU" },
             ],
             skipDuplicates: true,
         });
         const rotterdam = await prisma.game.upsert({
             where: { gameKey: "exter-rotterdam-2026" },
-            update: { serverId: HOME_GAMES_ID },
+            update: { serverId: CASUAL_GAMES_ID, unlisted: true },
             create: {
-                serverId: HOME_GAMES_ID,
+                serverId: CASUAL_GAMES_ID,
+                unlisted: true,
                 name: "Exter Rotterdam 26",
                 gameKey: "exter-rotterdam-2026",
                 size: "medium",
@@ -89,7 +90,7 @@ describe("GET /games — Home Games per-game visibility gate", () => {
                 definition: {
                     id: "exter-rotterdam-2026",
                     name: "Exter Rotterdam 26",
-                    serverId: HOME_GAMES_ID,
+                    serverId: CASUAL_GAMES_ID,
                     visibility: {
                         kind: "discord-role",
                         guildId: EU_SERVER_ID,
@@ -104,7 +105,7 @@ describe("GET /games — Home Games per-game visibility gate", () => {
                 definition: {
                     id: "exter-rotterdam-2026",
                     name: "Exter Rotterdam 26",
-                    serverId: HOME_GAMES_ID,
+                    serverId: CASUAL_GAMES_ID,
                     visibility: {
                         kind: "discord-role",
                         guildId: EU_SERVER_ID,
@@ -163,32 +164,32 @@ describe("GET /games — Home Games per-game visibility gate", () => {
         expect(res.statusCode).toBe(401);
     });
 
-    test("EU member WITH the gate role sees the Rotterdam game", async () => {
+    test("Casual games aren't listed, even for holders of their gate role", async () => {
         await setEuRoles([GATE_ROLE_ID]);
 
         const res = await app.inject({
             method: "GET",
-            url: `/games?serverId=${HOME_GAMES_ID}`,
+            url: `/games?serverId=${CASUAL_GAMES_ID}`,
             headers: { cookie: signedCookie(app, AUTH_SESSION_ID) },
         });
 
+        // Casual Games has no guild to be a member of: 200, not 403…
         expect(res.statusCode).toBe(200);
+        // …but its games start from game links only.
         const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
-        expect(gameKeys).toContain("exter-rotterdam-2026");
+        expect(gameKeys).not.toContain("exter-rotterdam-2026");
     });
 
-    test("user WITHOUT the gate role can see Home Games but not the Rotterdam game", async () => {
-        await setEuRoles([]); // member of EU but lacks the role
+    test("someone else's Casual game isn't listed with includeUnlisted either", async () => {
+        await setEuRoles([GATE_ROLE_ID]);
 
         const res = await app.inject({
             method: "GET",
-            url: `/games?serverId=${HOME_GAMES_ID}`,
+            url: `/games?serverId=${CASUAL_GAMES_ID}&includeUnlisted=true`,
             headers: { cookie: signedCookie(app, AUTH_SESSION_ID) },
         });
 
-        // Server is still reachable (virtual server skips membership) — 200, not 403…
         expect(res.statusCode).toBe(200);
-        // …but the gated game is filtered out.
         const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
         expect(gameKeys).not.toContain("exter-rotterdam-2026");
     });
