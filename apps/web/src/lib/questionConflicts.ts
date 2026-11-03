@@ -18,6 +18,7 @@ import {
 import {
     activeSessionId,
     offlineUserId,
+    sessionReadOnly,
     verifiedUserId,
 } from "@/lib/activeSession";
 import { gameDefinitionReady, questions } from "@/lib/context";
@@ -252,7 +253,8 @@ function refresh(): void {
     }
     const sessionId = activeSessionId.get();
     let shown: QuestionConflict[] = [];
-    if (sessionId && typeof localStorage !== "undefined") {
+    // A spectator has nothing to decide: their edits are never saved.
+    if (sessionId && !sessionReadOnly.get() && typeof localStorage !== "undefined") {
         const game = boardGame();
         const board = questions.get();
         shown = readHeld(conflictsKey(sessionId))
@@ -282,6 +284,7 @@ const followSession = () => {
 activeSessionId.listen(followSession);
 verifiedUserId.listen(followSession);
 offlineUserId.listen(followSession);
+sessionReadOnly.listen(refresh);
 gameDefinitionReady.listen(refresh);
 compiledGameAtom.listen(refresh);
 

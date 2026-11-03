@@ -1,4 +1,7 @@
-import type { EventRecord } from "@searchlight/shared";
+import type {
+    EventRecord,
+    ParticipantRoleChangedEvent,
+} from "@searchlight/shared";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import {
@@ -10,6 +13,7 @@ import {
     compiledGameAtom,
     filterSupportedQuestions,
 } from "@/game-definition/store";
+import { isSessionReadOnly } from "@/lib/activeSession";
 import type { PresenceUser } from "@/lib/context";
 import {
     connectedUsers,
@@ -27,8 +31,14 @@ import {
     setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
-import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
-import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import {
+    resetHiderSaveSuppression,
+    suppressHiderSave,
+} from "@/lib/hiderSaveSuppress";
+import {
+    resetPlanningModeSaveSuppression,
+    suppressPlanningModeSave,
+} from "@/lib/planningModeSaveSuppress";
 import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
@@ -56,6 +66,9 @@ let replayAttempt = 0;
 let replayRetry: NodeJS.Timeout | undefined;
 let reconnectTimer: NodeJS.Timeout | undefined;
 let onSessionUnavailable: ((status: number) => void) | undefined;
+// The current session's stream has been open before: the next open is a
+// reconnect, after which live-only events may have been missed.
+let streamOpened = false;
 const MAX_BUFFERED_EVENTS = 500;
 
 // Failed replays and closed streams retry with a doubling, capped delay.
@@ -349,6 +362,8 @@ function handleServerEvent(
             hiderLat: number | null;
             hiderLng: number | null;
         };
+        // A spectator never sees the hider (the server sends it as null).
+        if (isSessionReadOnly(targetSessionId)) return;
         if (hasPendingHiderSave(targetSessionId)) {
             console.info(
                 "[searchlight:sse] hider.update ignored — local save pending for session",
@@ -360,12 +375,12 @@ function handleServerEvent(
             hiderLat,
             hiderLng,
         });
-        suppressNextHiderSave();
-        hiderMode.set(
+        const next =
             hiderLat != null && hiderLng != null
                 ? { latitude: hiderLat, longitude: hiderLng }
-                : false,
-        );
+                : false;
+        suppressHiderSave(next);
+        hiderMode.set(next);
     } else if (event.type === "planning.toggle") {
         const { planningModeEnabled: enabled } = event.payloadJson as {
             planningModeEnabled: boolean;
@@ -378,7 +393,7 @@ function handleServerEvent(
             return;
         }
         console.info("[searchlight:sse] applying planning.toggle", enabled);
-        suppressNextPlanningModeSave();
+        suppressPlanningModeSave(enabled);
         planningModeEnabled.set(enabled);
     } else if (event.type === "session.revision-upgraded") {
         console.info(
@@ -422,6 +437,43 @@ function handlePresenceEvent(type: string, payloadJson: unknown): void {
             connectedUsers.get().filter((u) => u.userId !== userId),
         );
     }
+}
+
+// Dispatched on window when the creator makes a participant of the streamed
+// session a member or a viewer. The board reloads if it's its own user.
+export const SESSION_ROLE_CHANGED_EVENT = "session-role-changed";
+export type SessionRoleChangedDetail =
+    ParticipantRoleChangedEvent["payloadJson"] & { sessionId: string };
+
+function handleRoleChangedEvent(sessionId: string, payloadJson: unknown): void {
+    const { userId, role } =
+        payloadJson as ParticipantRoleChangedEvent["payloadJson"];
+    console.info("[searchlight:sse] participant.role-changed:", userId, role);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+        new CustomEvent<SessionRoleChangedDetail>(SESSION_ROLE_CHANGED_EVENT, {
+            detail: { sessionId, userId, role },
+        }),
+    );
+}
+
+// Dispatched on window when the stream of a session reconnects. Live-only
+// events (a role change) sent while it was down are lost, so the board checks
+// the session again.
+export const SESSION_STREAM_RECONNECTED_EVENT = "session-stream-reconnected";
+export interface SessionStreamReconnectedDetail {
+    sessionId: string;
+}
+
+function streamReconnected(sessionId: string): void {
+    console.info("[searchlight:sse] stream reconnected for", sessionId);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+        new CustomEvent<SessionStreamReconnectedDetail>(
+            SESSION_STREAM_RECONNECTED_EVENT,
+            { detail: { sessionId } },
+        ),
+    );
 }
 
 function startReplay(sessionId: string, generation: number): void {
@@ -620,6 +672,9 @@ function openStream(sessionId: string, generation: number): void {
         // The server is reachable again: deliver edits that failed meanwhile,
         // which would otherwise keep blocking incoming updates.
         retryPendingEvents(sessionId);
+        const reconnected = streamOpened;
+        streamOpened = true;
+        if (reconnected) streamReconnected(sessionId);
     };
 
     source.onmessage = (e: MessageEvent) => {
@@ -644,6 +699,11 @@ function openStream(sessionId: string, generation: number): void {
             };
             if (parsed.type.startsWith("presence.")) {
                 handlePresenceEvent(parsed.type, parsed.payloadJson);
+                return;
+            }
+            // Live only: it has no sequence and isn't replayed.
+            if (parsed.type === "participant.role-changed") {
+                handleRoleChangedEvent(sessionId, parsed.payloadJson);
                 return;
             }
             const record = parsed as unknown as EventRecord;
@@ -717,6 +777,10 @@ export function stopSSE(): void {
     replayRetryDelay = RETRY_MIN_MS;
     reconnectDelay = RETRY_MIN_MS;
     onSessionUnavailable = undefined;
+    streamOpened = false;
+    // What the server set belongs to the stopped session's board.
+    resetHiderSaveSuppression();
+    resetPlanningModeSaveSuppression();
     replayAttempt++;
     liveEventBuffer = [];
     isGapFilling = false;
