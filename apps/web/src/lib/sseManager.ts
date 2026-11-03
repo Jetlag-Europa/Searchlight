@@ -29,7 +29,6 @@ import {
     getPendingEvents,
     markEventSynced,
     type QuestionsReplacePayload,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import {
@@ -132,13 +131,22 @@ function showServerQuestions(
         console.info("[searchlight:sse] questions.replace skipped — the board has it");
         return true;
     }
-    setBoardBase(sessionId, { sequence, questions: serverList });
-    // Questions held for a decision may be settled by it, or changed again.
-    reconcileQuestionConflicts(sessionId, serverList, sequence);
     const newQs = filterSupportedQuestions(
         serverList,
         compiledGameAtom.get(),
     ) as Questions;
+    // The board and its base together: a reload before the next event (a
+    // catch-up is followed by none) shows the list made from that base.
+    const cached = getCachedSession(sessionId);
+    if (cached) {
+        setCachedSession({
+            ...cached,
+            questions: newQs,
+            serverQuestions: { sequence, questions: serverList },
+        });
+    }
+    // Questions held for a decision may be settled by it, or changed again.
+    reconcileQuestionConflicts(sessionId, serverList, sequence);
     console.info(
         "[searchlight:sse] applying questions.replace",
         newQs.length,
