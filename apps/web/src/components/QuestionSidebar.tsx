@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import { SidebarCloseIcon } from "lucide-react";
+import { ArrowLeftIcon, HistoryIcon, SidebarCloseIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -22,7 +22,6 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { sessionReadOnly } from "@/lib/activeSession";
 import { sidebarContextL as SidebarContext } from "@/lib/context";
 import {
@@ -59,7 +58,7 @@ export const QuestionSidebar = () => {
     const $warningAlarm = useStore(warningAlarm);
     const $readOnly = useStore(sessionReadOnly);
     const [alarmActive, setAlarmActive] = useState(false);
-    // History is only fetched while its tab is shown.
+    // History is only fetched while it's shown.
     const tab = useStore(questionSidebarTab);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const cardToShow = useStore(questionCardToShow);
@@ -125,7 +124,9 @@ export const QuestionSidebar = () => {
         )}
         <Sidebar>
             <div className="flex items-center justify-between">
-                <h2 className="ml-4 mt-4 font-poppins text-2xl">Questions</h2>
+                <h2 className="ml-4 mt-4 font-poppins text-2xl">
+                    {tab === "history" ? "History" : "Questions"}
+                </h2>
                 <SidebarCloseIcon
                     className="mr-2 visible md:hidden"
                     onClick={() => {
@@ -133,23 +134,11 @@ export const QuestionSidebar = () => {
                     }}
                 />
             </div>
-            <ToggleGroup
-                type="single"
-                variant="outline"
-                size="sm"
+            <SidebarContent
+                ref={setContent}
                 // On a phone the session chips float over the sheet's top.
-                className="mt-6 grid grid-cols-2 gap-1 px-4 pt-2 md:mt-0"
-                value={tab}
-                onValueChange={(value: string) => {
-                    if (value === "questions" || value === "history") {
-                        questionSidebarTab.set(value);
-                    }
-                }}
+                className="mt-8 md:mt-0"
             >
-                <ToggleGroupItem value="questions">Questions</ToggleGroupItem>
-                <ToggleGroupItem value="history">History</ToggleGroupItem>
-            </ToggleGroup>
-            <SidebarContent ref={setContent}>
                 {tab === "history" && <QuestionHistory />}
                 {tab === "questions" && $questions.map((question) => {
                     switch (question.id) {
@@ -206,80 +195,106 @@ export const QuestionSidebar = () => {
                     }
                 })}
             </SidebarContent>
-            {/* A spectator can't add, delete or save questions. */}
-            {tab === "questions" && ($readOnly ? (
-                <SidebarGroup>
+            <SidebarGroup>
+                {/* A spectator can't add, delete or save questions. */}
+                {tab === "questions" && $readOnly && (
                     <p className="px-2 py-1 text-sm text-muted-foreground">
                         You&apos;re spectating: you can watch, but not change
                         the board.
                     </p>
-                </SidebarGroup>
-            ) : (
-                <SidebarGroup>
-                    <SidebarGroupContent>
-                        <SidebarMenu>
-                            <SidebarMenuItem>
-                                <AddQuestionDialog>
-                                    <SidebarMenuButton disabled={$isLoading}>
-                                        Add Question
-                                    </SidebarMenuButton>
-                                </AddQuestionDialog>
-                            </SidebarMenuItem>
-                            <SidebarMenuItem>
-                                <AlertDialog onOpenChange={(open) => open ? startAlarm() : stopAlarm()}>
-                                    <AlertDialogTrigger asChild>
-                                        <SidebarMenuButton
-                                            className="bg-red-600 hover:bg-red-700 transition-colors"
-                                            disabled={$isLoading}
-                                        >
-                                            Delete All Questions
+                )}
+                <SidebarGroupContent>
+                    <SidebarMenu>
+                        {tab === "questions" && !$readOnly && (
+                            <>
+                                <SidebarMenuItem>
+                                    <AddQuestionDialog>
+                                        <SidebarMenuButton disabled={$isLoading}>
+                                            Add Question
                                         </SidebarMenuButton>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent aria-describedby={undefined}>
-                                        <AlertDialogHeader>
-                                            <AlertDialogTitle>
-                                                Are you absolutely sure?
-                                            </AlertDialogTitle>
-                                            <AlertDialogDescription>
-                                                This will delete all questions for
-                                                everyone in the session. You can
-                                                undo it for a few seconds.
-                                            </AlertDialogDescription>
-                                        </AlertDialogHeader>
-                                        <AlertDialogFooter>
-                                            <AlertDialogCancel>
-                                                Cancel
-                                            </AlertDialogCancel>
-                                            <AlertDialogAction
-                                                onClick={() =>
-                                                    deleteQuestionsWithUndo(
-                                                        questions
-                                                            .get()
-                                                            .map((q) => q.key),
-                                                    )
-                                                }
+                                    </AddQuestionDialog>
+                                </SidebarMenuItem>
+                                <SidebarMenuItem>
+                                    <AlertDialog onOpenChange={(open) => open ? startAlarm() : stopAlarm()}>
+                                        <AlertDialogTrigger asChild>
+                                            <SidebarMenuButton
+                                                className="bg-red-600 hover:bg-red-700 transition-colors"
+                                                disabled={$isLoading}
                                             >
                                                 Delete All Questions
-                                            </AlertDialogAction>
-                                        </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                </AlertDialog>
-                            </SidebarMenuItem>
-                            {!$autoSave && (
-                                <SidebarMenuItem>
-                                    <SidebarMenuButton
-                                        className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"
-                                        onClick={save}
-                                        disabled={$isLoading}
-                                    >
-                                        Save
-                                    </SidebarMenuButton>
+                                            </SidebarMenuButton>
+                                        </AlertDialogTrigger>
+                                        <AlertDialogContent aria-describedby={undefined}>
+                                            <AlertDialogHeader>
+                                                <AlertDialogTitle>
+                                                    Are you absolutely sure?
+                                                </AlertDialogTitle>
+                                                <AlertDialogDescription>
+                                                    This will delete all questions for
+                                                    everyone in the session. You can
+                                                    undo it for a few seconds.
+                                                </AlertDialogDescription>
+                                            </AlertDialogHeader>
+                                            <AlertDialogFooter>
+                                                <AlertDialogCancel>
+                                                    Cancel
+                                                </AlertDialogCancel>
+                                                <AlertDialogAction
+                                                    onClick={() =>
+                                                        deleteQuestionsWithUndo(
+                                                            questions
+                                                                .get()
+                                                                .map((q) => q.key),
+                                                        )
+                                                    }
+                                                >
+                                                    Delete All Questions
+                                                </AlertDialogAction>
+                                            </AlertDialogFooter>
+                                        </AlertDialogContent>
+                                    </AlertDialog>
                                 </SidebarMenuItem>
-                            )}
-                        </SidebarMenu>
-                    </SidebarGroupContent>
-                </SidebarGroup>
-            ))}
+                                {!$autoSave && (
+                                    <SidebarMenuItem>
+                                        <SidebarMenuButton
+                                            className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"
+                                            onClick={save}
+                                            disabled={$isLoading}
+                                        >
+                                            Save
+                                        </SidebarMenuButton>
+                                    </SidebarMenuItem>
+                                )}
+                            </>
+                        )}
+                        {/* Last, so it stays put when switching views. */}
+                        <SidebarMenuItem>
+                            <SidebarMenuButton
+                                className="text-muted-foreground"
+                                onClick={() =>
+                                    questionSidebarTab.set(
+                                        tab === "history"
+                                            ? "questions"
+                                            : "history",
+                                    )
+                                }
+                            >
+                                {tab === "history" ? (
+                                    <>
+                                        <ArrowLeftIcon />
+                                        Back to questions
+                                    </>
+                                ) : (
+                                    <>
+                                        <HistoryIcon />
+                                        History
+                                    </>
+                                )}
+                            </SidebarMenuButton>
+                        </SidebarMenuItem>
+                    </SidebarMenu>
+                </SidebarGroupContent>
+            </SidebarGroup>
         </Sidebar>
         </>
     );
