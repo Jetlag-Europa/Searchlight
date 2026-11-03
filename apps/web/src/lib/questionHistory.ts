@@ -121,6 +121,9 @@ const forgetHistory = () => {
 };
 activeSessionId.listen(forgetHistory);
 verifiedUserId.listen(forgetHistory);
+// A spectator's history has no deleted questions in full, to restore: made
+// a player (or back), it's loaded again.
+sessionReadOnly.listen(forgetHistory);
 
 /** The history loaded for this session, if any. */
 export const historyOf = (

@@ -222,6 +222,23 @@ describe("the history kept while the History is hidden", () => {
         expect(await pending).toBe(false);
         expect(loadedHistory.get()).toBeNull();
     });
+
+    it("forgets it when a spectator is made a player", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn().mockResolvedValue(answer(page([20], null))),
+        );
+        activeSessionRole.set("viewer");
+        try {
+            // Loaded without the deleted questions in full, as a spectator.
+            await loadNewestHistory("s1");
+            expect(historyOf("s1")).not.toBeNull();
+            activeSessionRole.set("member");
+            expect(loadedHistory.get()).toBeNull();
+        } finally {
+            activeSessionRole.set(null);
+        }
+    });
 });
 
 type Radar = Extract<Question, { id: "radius" }>;

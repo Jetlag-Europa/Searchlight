@@ -269,14 +269,14 @@ export const QuestionHistory = () => {
         }
     }, [sessionId]);
 
-    // On opening, and for another session or account: what was loaded
-    // before, brought up to date, or the newest page.
+    // On opening, and for another session, account or role: what was
+    // loaded before, brought up to date, or the newest page.
     useEffect(() => {
         unavailable.current = false;
         setProblem(null);
         if (sessionId && historyOf(sessionId)) void loadNewer();
         else void loadNewestPage();
-    }, [sessionId, selfId, loadNewer, loadNewestPage]);
+    }, [sessionId, selfId, $readOnly, loadNewer, loadNewestPage]);
 
     // Keep it current while it's shown: once a change reaches the board, and
     // once this device's own question save has synced.
