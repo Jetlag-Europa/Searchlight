@@ -391,6 +391,8 @@ const LatLngEditForm = ({
     );
 };
 
+const LOCATION_KEPT = "Card locked, so its location was kept";
+
 export const LatitudeLongitude = ({
     latitude,
     longitude,
@@ -549,7 +551,7 @@ export const LatitudeLongitude = ({
                                                 disabledRef.current &&
                                                 !isLoading.get()
                                             )
-                                                return;
+                                                throw new Error(LOCATION_KEPT);
                                             onChange(
                                                 position.coords.latitude,
                                                 position.coords.longitude,
@@ -559,7 +561,13 @@ export const LatitudeLongitude = ({
                                     {
                                         pending: "Fetching location",
                                         success: "Location fetched",
-                                        error: "Could not fetch location",
+                                        error: {
+                                            render: ({ data }) =>
+                                                data instanceof Error &&
+                                                data.message === LOCATION_KEPT
+                                                    ? LOCATION_KEPT
+                                                    : "Could not fetch location",
+                                        },
                                     },
                                     { autoClose: 500 },
                                 );
