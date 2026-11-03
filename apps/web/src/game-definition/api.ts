@@ -63,14 +63,6 @@ export async function importGameDefinitionAPI(
   return res.json();
 }
 
-export async function fetchGameRevisionAPI(
-  gameId: string,
-  revision: number | string,
-  sessionId?: string,
-): Promise<GameDefinition> {
-  return (await fetchGameRevisionJSON(gameId, revision, sessionId)).definition;
-}
-
 /**
  * A game revision, and the JSON it came as (for keeping it as is). A download
  * that hangs fails in the end, so the next load starts a new one (loads of

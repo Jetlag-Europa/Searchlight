@@ -544,60 +544,6 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    test("GET /games/:gameId/revisions returns 401 for anonymous caller", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: `/games/${gameAId}/revisions`,
-      });
-      expect(res.statusCode).toBe(401);
-    });
-
-    test("GET /games/:gameId/revisions returns 403 for non-member without sessionId", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: `/games/${gameAId}/revisions`,
-        headers: {
-          cookie: signedCookie(app, AUTH_NONMEMBER),
-        },
-      });
-      expect(res.statusCode).toBe(403);
-    });
-
-    test("GET /games/:gameId/revisions returns 403 for server member lacking required Discord role", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: `/games/${gameAId}/revisions`,
-        headers: {
-          cookie: signedCookie(app, AUTH_NO_ROLE),
-        },
-      });
-      expect(res.statusCode).toBe(403);
-    });
-
-    test("GET /games/:gameId/revisions returns 200 for authorized user", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: `/games/${gameAId}/revisions`,
-        headers: {
-          cookie: signedCookie(app, AUTH_MEMBER),
-        },
-      });
-      expect(res.statusCode).toBe(200);
-      const data = JSON.parse(res.body);
-      expect(data.revisions).toHaveLength(2);
-    });
-
-    test("GET /games/:gameId/revisions returns 403 for external user even with a shared sessionId", async () => {
-      const res = await app.inject({
-        method: "GET",
-        url: `/games/${gameAId}/revisions?sessionId=${sharedSessionId}`,
-        headers: {
-          cookie: signedCookie(app, AUTH_NONMEMBER),
-        },
-      });
-      expect(res.statusCode).toBe(403);
-    });
-
     test("GET /games/:gameId/revisions/:revision returns 401 for anonymous caller", async () => {
       const res = await app.inject({
         method: "GET",

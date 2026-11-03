@@ -1,3 +1,4 @@
+import type { Event } from "@prisma/client";
 import type {
   EventRecord,
   PresenceEvent,
@@ -33,6 +34,21 @@ export function subscribe(sessionId: string, cb: Listener): () => void {
 
 export function broadcast(sessionId: string, event: AnySSEEvent): void {
   listeners.get(sessionId)?.forEach((cb) => cb(event));
+}
+
+// A saved event as clients receive it, on the stream and in catch-up.
+export function toEventRecord(e: Event): EventRecord {
+  return {
+    id: e.id,
+    sessionId: e.sessionId,
+    userId: e.userId,
+    sequence: e.sequence,
+    type: e.type,
+    payloadJson: e.payloadJson,
+    clientUuid: e.clientUuid,
+    clientCreatedAt: e.clientCreatedAt.toISOString(),
+    serverReceivedAt: e.serverReceivedAt.toISOString(),
+  };
 }
 
 export function getPresence(sessionId: string): PresenceUser[] {

@@ -71,5 +71,3 @@ export const CustomInitDialog: React.FC<Props> = ({
         </Dialog>
     );
 };
-
-export default CustomInitDialog;

@@ -5,7 +5,7 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, findGameByIdOrKey, isUnlisted } from "../lib/game-access.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
-import { broadcast, closeUserStreams, closeSessionStreams } from "../lib/broadcaster.js";
+import { broadcast, closeUserStreams, closeSessionStreams, toEventRecord } from "../lib/broadcaster.js";
 import {
   assertCanWrite,
   hiderPositionForRole,
@@ -459,18 +459,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       }
 
       if (upgradeResult.eventToBroadcast) {
-        const e = upgradeResult.eventToBroadcast;
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(upgradeResult.eventToBroadcast));
       }
 
       if (upgradeResult.status === "already-current") {
@@ -622,17 +611,7 @@ export async function sessionRoutes(app: FastifyInstance) {
       });
 
       for (const e of eventsToBroadcast) {
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       }
 
       return {

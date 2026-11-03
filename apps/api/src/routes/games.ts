@@ -342,11 +342,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const canEdit = perms.has("games.edit") || perms.has("server.admin");
       // A Casual game's creator edits it while they hold games.create there,
       // as for an import of it.
-      const ownCasualGame =
-        game.serverId === CASUAL_SERVER_ID &&
-        game.createdById !== null &&
-        game.createdById === user.discordId &&
-        perms.has("games.create");
+      const ownCasualGame = isOwnCasualGame(user.discordId, game) && perms.has("games.create");
       if (!canEdit && !ownCasualGame) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
       const name = body.name?.trim();
@@ -366,7 +362,6 @@ export async function gameRoutes(app: FastifyInstance) {
           size: body.size,
           actor: {
             userId: user.discordId,
-            type: "cookie",
             canCreateGames: (serverId) => ownCasualGame && serverId === game.serverId,
             canEditGames: (serverId) => canEdit && serverId === game.serverId,
           },

@@ -21,7 +21,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { sessionReadOnly } from "@/lib/activeSession";
 import { sidebarContextL as SidebarContext } from "@/lib/context";
