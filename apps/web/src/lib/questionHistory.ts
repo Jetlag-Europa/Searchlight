@@ -13,6 +13,7 @@ import {
     questionDecisionsPossible,
 } from "@/lib/questionConflicts";
 import { sameQuestionKey } from "@/lib/questionMerge";
+import { boardLabel } from "@/lib/questionNames";
 import { placeRemovedQuestions } from "@/lib/questionUndo";
 import { newQuestionKey, type Question, questionSchema } from "@/maps/schema";
 
@@ -119,8 +120,30 @@ export function restoreBlocked(
     if (held.some((c) => keys.some((key) => sameQuestionKey(c.key, key)))) {
         return "Needs a decision first";
     }
-    if (!decisionsPossible) return "Not right now";
+    if (!decisionsPossible) return notRightNowReason();
     return null;
+}
+
+/**
+ * Why Restore waits for the board: offline on a board not kept here, or
+ * a session still loading.
+ */
+export function notRightNowReason(
+    online: boolean | undefined = typeof navigator === "undefined"
+        ? undefined
+        : navigator.onLine,
+): string {
+    return online === false ? "Offline: try again when connected" : "Loading…";
+}
+
+/**
+ * The note atop the History while this device has question changes not
+ * saved yet: they aren't in the History until they are.
+ */
+export function unsavedChangesNote(pendingSave: boolean): string | null {
+    return pendingSave
+        ? "Your latest changes will show here once they're saved."
+        : null;
 }
 
 /**
@@ -190,7 +213,20 @@ export function isOnBoard(
     board: readonly { key: number }[],
     lines: Lines = [],
 ): boolean {
-    return lineageKeys(removed, lines).some((key) => holds(board, key));
+    return onBoardAs(removed, board, lines) !== undefined;
+}
+
+// The key it is on the board under now, if it is.
+function onBoardAs(
+    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
+    board: readonly { key: number }[],
+    lines: Lines,
+): number | undefined {
+    for (const key of lineageKeys(removed, lines)) {
+        const found = board.find((q) => sameQuestionKey(q.key, key));
+        if (found) return found.key;
+    }
+    return undefined;
 }
 
 /**
@@ -233,8 +269,18 @@ export function restorable(
     // Every line loaded, for what it was restored as since.
     lines: Lines = [],
 ): Restorable {
-    if (isOnBoard(removed, current, lines)) {
-        return { status: "unavailable", reason: "On the board" };
+    const now = onBoardAs(removed, current, lines);
+    if (now !== undefined) {
+        // As the board calls it now: "Radius 2" may be another question
+        // since the delete shifted the positions.
+        const label = boardLabel(
+            current as unknown as Parameters<typeof boardLabel>[0],
+            now,
+        );
+        return {
+            status: "unavailable",
+            reason: label ? `On the board as ${label}` : "On the board",
+        };
     }
     const question = parseRemoved(removed.question);
     if (!question) {
@@ -251,6 +297,12 @@ export function restorable(
     return { status: "ok", question };
 }
 
+/** What Restore did: the questions it put back, and how many were back already. */
+export interface Restored {
+    back: { label: string; key: number }[];
+    alreadyBack: number;
+}
+
 /**
  * Puts deleted questions back on the board where they were, under new keys
  * (asRestored). Goes through questions.set, so it saves and syncs like any
@@ -261,26 +313,36 @@ export function restoreFromHistory(
     targets: readonly RemovedQuestion[],
     // Every line loaded, for what other questions were restored as.
     lines: Lines = [],
-): void {
+): Restored {
     // A spectator's board isn't saved (as deleteQuestionsWithUndo).
-    if (sessionReadOnly.get()) return;
+    if (sessionReadOnly.get()) return { back: [], alreadyBack: 0 };
     const current = questions.get();
     const compiled = compiledGameAtom.get();
+    let alreadyBack = 0;
     const restored = targets.flatMap((target) => {
         const check = restorable(target, current, compiled, lines);
-        if (check.status !== "ok") return [];
+        if (check.status !== "ok") {
+            if (isOnBoard(target, current, lines)) alreadyBack++;
+            return [];
+        }
         // A copy (asRestored): cards edit questions in place, and the parsed
         // one stays cached for this line's next Restore.
         return [
             {
                 from: target.key,
                 index: target.index,
+                label: target.label,
                 question: asRestored(check.question),
             },
         ];
     });
     const next = placeRestored(current, line.order ?? [], restored, lines);
-    if (next) questions.set(next);
+    if (!next) return { back: [], alreadyBack };
+    questions.set(next);
+    return {
+        back: restored.map((r) => ({ label: r.label, key: r.question.key })),
+        alreadyBack,
+    };
 }
 
 /** "14:05", with the day ("3 Nov") when it isn't today. */

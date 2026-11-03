@@ -17,7 +17,16 @@ import {
     sessionReadOnly,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { defaultUnit, isLoading, questions } from "@/lib/context";
+import {
+    defaultUnit,
+    isLoading,
+    pendingEventCount,
+    questions,
+} from "@/lib/context";
+import {
+    showAlreadyOnBoard,
+    showRestoredToast,
+} from "@/lib/deleteQuestionsWithUndo";
 import {
     type HistoryLine,
     historyLines,
@@ -35,6 +44,7 @@ import {
     QuestionHistoryError,
     restorable,
     restoreFromHistory,
+    unsavedChangesNote,
 } from "@/lib/questionHistory";
 import { hasPendingQuestionSave } from "@/lib/sessionState";
 
@@ -80,10 +90,15 @@ export const HistoryList = ({
         );
         const unavailable = checks.find((c) => c.status === "unavailable");
         if (!checks.some((c) => c.status === "ok")) {
+            const reason =
+                unavailable?.status === "unavailable" ? unavailable.reason : "";
+            // Cut short on a phone ("On the board as" a long name).
             return (
-                <span className="shrink-0 text-xs leading-7 text-muted-foreground">
-                    {unavailable?.status === "unavailable" &&
-                        unavailable.reason}
+                <span
+                    className="max-w-[9rem] shrink-0 truncate text-right text-xs leading-7 text-muted-foreground"
+                    title={reason}
+                >
+                    {reason}
                 </span>
             );
         }
@@ -163,6 +178,8 @@ export const QuestionHistory = () => {
     useStore(questionConflicts);
     useStore(questionDecisionsPossible);
     const $readOnly = useStore(sessionReadOnly);
+    // For the note on changes not saved yet: re-read as the queue changes.
+    useStore(pendingEventCount);
 
     const [history, setHistory] = useState<QuestionHistoryResponse | null>(
         null,
@@ -171,6 +188,8 @@ export const QuestionHistory = () => {
     const [olderState, setOlderState] = useState<"idle" | "loading" | "error">(
         "idle",
     );
+    // The last refresh failed: what's shown may be behind.
+    const [refreshFailed, setRefreshFailed] = useState(false);
     // The loaded history, for the cursor of a refresh.
     const historyRef = useRef(history);
     historyRef.current = history;
@@ -206,6 +225,7 @@ export const QuestionHistory = () => {
             if (gen !== generation.current) return;
             setHistory(page);
             setState("ready");
+            setRefreshFailed(false);
         } catch (error) {
             if (gen === generation.current) fail(error);
         } finally {
@@ -234,8 +254,11 @@ export const QuestionHistory = () => {
             setHistory((current) =>
                 current ? prependNewer(current, page) : current,
             );
+            setRefreshFailed(false);
         } catch (error) {
-            if (gen === generation.current) fail(error);
+            if (gen !== generation.current) return;
+            fail(error);
+            setRefreshFailed(true);
         }
     }, [sessionId, fail, loadNewestPage]);
 
@@ -292,6 +315,21 @@ export const QuestionHistory = () => {
         };
     }, [sessionId, loadNewer]);
 
+    // And on coming back: online again, or the app shown again.
+    useEffect(() => {
+        if (!sessionId) return;
+        const refresh = () => void loadNewer();
+        const onVisible = () => {
+            if (document.visibilityState === "visible") refresh();
+        };
+        window.addEventListener("online", refresh);
+        document.addEventListener("visibilitychange", onVisible);
+        return () => {
+            window.removeEventListener("online", refresh);
+            document.removeEventListener("visibilitychange", onVisible);
+        };
+    }, [sessionId, loadNewer]);
+
     const lines = useMemo(
         () => historyLines(history?.entries ?? [], { selfId, unit }),
         [history, selfId, unit],
@@ -330,8 +368,30 @@ export const QuestionHistory = () => {
     }
 
     const hasOlder = !!history?.nextBefore;
+    const unsaved =
+        sessionId && !$readOnly
+            ? unsavedChangesNote(hasPendingQuestionSave(sessionId))
+            : null;
     return (
         <div className="flex flex-col pb-2">
+            {unsaved && (
+                <p className="px-4 py-2 text-xs text-muted-foreground">
+                    {unsaved}
+                </p>
+            )}
+            {refreshFailed && (
+                <div className="flex items-center justify-between gap-2 px-4 py-1 text-xs text-muted-foreground">
+                    <span>Couldn&apos;t refresh</span>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => void loadNewer()}
+                    >
+                        Try again
+                    </Button>
+                </div>
+            )}
             {lines.length === 0 &&
                 (!hasOlder ? (
                     <Note>No changes yet</Note>
@@ -346,9 +406,15 @@ export const QuestionHistory = () => {
                 compiled={compiled}
                 disabled={$isLoading}
                 readOnly={$readOnly}
-                onRestore={(line, targets) =>
-                    restoreFromHistory(line, targets, lines)
-                }
+                onRestore={(line, targets) => {
+                    const { back, alreadyBack } = restoreFromHistory(
+                        line,
+                        targets,
+                        lines,
+                    );
+                    if (back.length > 0) showRestoredToast(back);
+                    else if (alreadyBack > 0) showAlreadyOnBoard();
+                }}
             />
             {hasOlder && (
                 <div className="flex flex-col items-center gap-1 px-4 pt-2">

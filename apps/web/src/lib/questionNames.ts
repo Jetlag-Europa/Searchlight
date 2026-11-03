@@ -48,3 +48,22 @@ export const setQuestionName = (
     if (name) data.name = name;
     else delete data.name;
 };
+
+// What the board calls a question: its name, or "Radius 2" (empty when the
+// board doesn't hold it). Positions shift as questions come and go, so this
+// is the label as of `questions`.
+export const boardLabel = (
+    questions: readonly (Pick<Question, "id" | "key"> & {
+        data?: { name?: unknown };
+    })[],
+    questionKey: number,
+): string => {
+    const question = questions.find((q) => q.key === questionKey);
+    if (!question) return "";
+    const name = questionName(question.data ?? {});
+    if (name) return name;
+    // One from another build may be of a type this one doesn't know.
+    return TYPE_LABELS[question.id]
+        ? defaultQuestionLabel(questions, questionKey)
+        : "";
+};

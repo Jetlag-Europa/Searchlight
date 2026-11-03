@@ -12,7 +12,8 @@
 // what they're asked; every conflict asked must be real, and decisions
 // stand. The invariants are checked in checkStep and finalChecks. With
 // restores on, players also put deleted questions back from the History, as
-// its Restore does.
+// its Restore does; with undo on, they undo their latest delete within the
+// toast's seconds, as its Undo does.
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import {
@@ -56,6 +57,8 @@ interface Client {
     streamQueue: string[];
     timers: Timer[];
     now: number;
+    // The latest delete, which only can be undone, and when (device clock).
+    lastDelete: { pending: Any; at: number; step: number } | null;
 }
 const als = new AsyncLocalStorage<Client>();
 const fallbackStore = new Map<string, string>();
@@ -128,6 +131,10 @@ class MockES {
     }
 }
 vi.stubGlobal("EventSource", MockES);
+// Deletes go through deleteQuestionsWithUndo; its toast isn't drawn here.
+vi.mock("react-toastify", () => ({
+    toast: Object.assign(() => "toast", { dismiss: () => {} }),
+}));
 
 let timerIds = 1000;
 let timerOrder = 0;
@@ -299,6 +306,7 @@ function serve(c: Client, req: Req): { status: number; body: unknown } {
             serverReceivedAt: "2026-01-01T00:00:00.000Z",
         };
         server.events.push(record);
+        run.commitStep.set(server.seq, run.step);
         run.log.push(
             `    server: seq ${server.seq} ← ${c.userId} [${labelsOf(server.list.map((x) => x.payloadJson))}]`,
         );
@@ -356,6 +364,7 @@ async function loadGraph() {
         merge: "@/lib/questionMerge",
         store: "@/game-definition/store",
         history: "@/lib/questionHistory",
+        undo: "@/lib/deleteQuestionsWithUndo",
         lines: "@/lib/historyLines",
     };
     for (const [name, path] of Object.entries(names))
@@ -384,7 +393,8 @@ type Action =
               | "collapse"
               | "delete"
               | "resolve"
-              | "restore";
+              | "restore"
+              | "undo";
           pick: number;
           choice?: "mine" | "theirs";
       }
@@ -400,8 +410,10 @@ interface HistoryEntry {
     step: number;
     c: number;
     key: number;
-    kind: "add" | "edit" | "delete" | "resolve" | "restore";
+    kind: "add" | "edit" | "delete" | "resolve" | "restore" | "undo";
     label: string | null;
+    // An undo under the deleted key.
+    sameKey?: true;
 }
 
 const run = {
@@ -412,6 +424,22 @@ const run = {
     // Who restored each question and the label it came back with, by its
     // new key: the label was written before, maybe by the other player.
     restoredBy: new Map<number, { c: number; label: string | null }>(),
+    // The step at which each server sequence was saved.
+    commitStep: new Map<number, number>(),
+    // Undos put back under the deleted key: the delete never left the device.
+    sameKeyUndos: [] as Array<{
+        c: number;
+        key: number;
+        from: number;
+        to: number;
+    }>,
+    // Conflicts as recorded: who, when, which.
+    conflictLog: [] as Array<{
+        step: number;
+        c: number;
+        key: number;
+        kind: string;
+    }>,
     addCount: [0, 0],
     labelCount: 0,
     step: 0,
@@ -431,6 +459,8 @@ const run = {
 };
 let sidCounter = 0;
 const INITIAL = [1, 2, 3, 4];
+// How long a delete's Undo is offered (its toast), on the device clock.
+const UNDO_WINDOW_MS = 8000;
 
 // Runs fn as the client; never waits on a promise it returns (a timer's
 // async callback may wait on the network, which the driver controls).
@@ -463,6 +493,9 @@ async function setup() {
         history: [],
         labelAuthor: new Map(),
         restoredBy: new Map(),
+        commitStep: new Map(),
+        sameKeyUndos: [],
+        conflictLog: [],
         addCount: [0, 0],
         labelCount: 0,
         step: 0,
@@ -483,6 +516,7 @@ async function setup() {
         });
         for (const t of c.timers) timerOwner.delete(t.id);
         c.timers = [];
+        c.lastDelete = null;
         c.reqs = [];
         c.es = null;
         c.streamOpen = false;
@@ -666,6 +700,59 @@ async function applyUser(
         run.publishes++;
         return `resolve ${conflict.key} → ${choice} (${labelOf(chosen)})`;
     }
+    if (a.kind === "undo") {
+        const last = c.lastDelete;
+        if (!last || c.now - last.at > UNDO_WINDOW_MS) return null;
+        c.lastDelete = null;
+        let undone: Any = null;
+        await inClient(c, () => {
+            undone = c.g.undo.undoQuestionDeletion(
+                last.pending,
+                () => 1000 * (a.c + 1) + ++run.addCount[a.c],
+            );
+        });
+        if (!undone || undone.placed.length === 0) {
+            return `undo (already back: ${undone?.alreadyBack ?? 0})`;
+        }
+        const said: string[] = [];
+        for (const { from, key } of undone.placed as Any[]) {
+            const deleted = last.pending.deletion.removed.find(
+                (r: Any) => r.question.key === from,
+            );
+            const label = labelOf(deleted?.question);
+            // Checked under the key it's back under, like a restore.
+            run.history.push({
+                step: run.step,
+                c: a.c,
+                key,
+                kind: "undo",
+                label,
+                ...(key === from ? { sameKey: true as const } : {}),
+            });
+            run.restoredBy.set(key, { c: a.c, label });
+            // Asked about while the delete was still here (a merge met it),
+            // the Undo settles that: nothing left to decide.
+            if (
+                key === from &&
+                conflictsStored(c).some(
+                    (x: Any) => x.key === key && x.kind === "we-deleted",
+                )
+            )
+                run.violations.push(
+                    `U2 c${a.c} still asked about its undone delete of ${key}`,
+                );
+            if (key === from)
+                run.sameKeyUndos.push({
+                    c: a.c,
+                    key,
+                    from: last.step,
+                    to: run.step,
+                });
+            said.push(key === from ? `${key}` : `${from} as ${key}`);
+        }
+        run.publishes++;
+        return `undo ${said.join(", ")}`;
+    }
     if (a.kind === "restore") {
         const options = restoreCandidates(c, mode);
         if (options.length === 0) return null;
@@ -676,9 +763,9 @@ async function applyUser(
         // called itself, as its restorable() re-reads the deleted question
         // with the app's schema, which these bare test questions (a label,
         // no pin) don't pass. A copy under a new key, here from the
-        // restorer's range so owner() still tells whose it is. (Undo puts
-        // the same key back instead, so a list made before the delete can
-        // still merge it away when the delete's answer was lost.)
+        // restorer's range so owner() still tells whose it is. (Undo does
+        // the same once the delete may have reached the server; before, it
+        // puts the same key back: see the "undo" action.)
         const fresh = 1000 * (a.c + 1) + ++run.addCount[a.c];
         await inClient(c, () => {
             const next = c.g.history.placeRestored(
@@ -737,11 +824,10 @@ async function applyUser(
         });
         return `collapse ${key} (silent)`;
     }
-    // delete
+    // delete, as the cards do: undoable for a few seconds.
     await inClient(c, () => {
-        context.questions.set(
-            (context.questions.get() as Any[]).filter((q) => q !== target),
-        );
+        const pending = c.g.undo.deleteQuestionsWithUndo([key]);
+        c.lastDelete = pending ? { pending, at: c.now, step: run.step } : null;
     });
     run.history.push({
         step: run.step,
@@ -848,6 +934,7 @@ function enabled(
     userBudget: boolean,
     rng: () => number,
     withRestores = false,
+    withUndo = false,
 ): Action[] {
     const out: Array<[number, Action]> = [];
     for (const c of clients) {
@@ -876,6 +963,12 @@ function enabled(
             }
             // Only with restores on: another draw would change every
             // seeded run without them.
+            if (
+                withUndo &&
+                c.lastDelete &&
+                c.now - c.lastDelete.at <= UNDO_WINDOW_MS
+            )
+                out.push([1.5, { t: "user", c: i, kind: "undo", pick: 0 }]);
             if (withRestores && restoreCandidates(c, mode).length > 0)
                 out.push([
                     2,
@@ -955,6 +1048,12 @@ async function checkStep(mode: Mode) {
             if (run.conflictsSeen.has(id)) continue;
             run.conflictsSeen.set(id, conflict);
             run.conflictKeys.add(conflict.key);
+            run.conflictLog.push({
+                step: run.step,
+                c: c.idx,
+                key: conflict.key,
+                kind: conflict.kind,
+            });
             run.log.push(
                 `    !! c${c.idx} holds ${conflict.kind} ${conflict.key}: mine=${labelOf(conflict.mine)} theirs=${labelOf(conflict.theirs)} base=${labelOf(conflict.base)}`,
             );
@@ -1063,6 +1162,53 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                 `J2 c${c.idx} conflicts left after resolution rounds: ${conflictsStored(c).length}`,
             );
     }
+    // An Undo under the deleted key: the delete never left the device, so
+    // no list of its saved between the delete and the Undo lacks it, and it
+    // left no "we deleted it" to decide.
+    for (const u of run.sameKeyUndos) {
+        const userId = clients[u.c].userId;
+        // Until its next delete of the key, if any.
+        const until =
+            run.history.find(
+                (h) =>
+                    h.c === u.c &&
+                    h.key === u.key &&
+                    h.kind === "delete" &&
+                    h.step > u.to,
+            )?.step ?? Infinity;
+        let had = INITIAL.includes(u.key);
+        let leaked = false;
+        for (const e of server.events) {
+            const has = e.payloadJson.questions.some(
+                (x: Any) => x.payloadJson.key === u.key,
+            );
+            const at = run.commitStep.get(e.sequence) ?? 0;
+            if (
+                had &&
+                !has &&
+                e.userId === userId &&
+                at >= u.from &&
+                at < until
+            )
+                leaked = true;
+            had = has;
+        }
+        if (leaked)
+            v.push(
+                `U1 c${u.c} undid ${u.key} under its key, but its delete reached the server`,
+            );
+        if (
+            run.conflictLog.some(
+                (x) =>
+                    x.c === u.c &&
+                    x.key === u.key &&
+                    x.kind === "we-deleted" &&
+                    x.step > u.to &&
+                    x.step < until,
+            )
+        )
+            v.push(`U2 c${u.c}'s undone delete of ${u.key} was asked about`);
+    }
     // Per key, what each player did.
     const keys = new Set<number>([
         ...INITIAL,
@@ -1081,7 +1227,8 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                         (h) =>
                             h.kind === "add" ||
                             h.kind === "delete" ||
-                            h.kind === "restore",
+                            h.kind === "restore" ||
+                            h.kind === "undo",
                     )?.kind === "delete";
             const last = [...own]
                 .reverse()
@@ -1089,7 +1236,8 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                     (h) =>
                         h.kind === "edit" ||
                         h.kind === "add" ||
-                        h.kind === "restore",
+                        h.kind === "restore" ||
+                        h.kind === "undo",
                 );
             const expected = last?.label ?? `init-${key}`;
             if (deleted && now)
@@ -1111,7 +1259,27 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
             if (!now && !removedBySomeone)
                 v.push(`I2 ${key} lost; nobody deleted it`);
             if (!run.conflictKeys.has(key) && hs.length > 0) {
-                const last = hs.at(-1)!;
+                let last = hs.at(-1)!;
+                // Undone under its key, the delete never happened: the
+                // question is back as it was, so the other player's edit or
+                // delete of it merges in as over any question.
+                if (last.kind === "undo" && last.sameKey) {
+                    const undone = last;
+                    const theirs = hs
+                        .filter(
+                            (h) =>
+                                h.c !== undone.c &&
+                                (h.kind === "edit" || h.kind === "delete"),
+                        )
+                        .at(-1);
+                    if (
+                        theirs &&
+                        (theirs.kind === "delete"
+                            ? !now
+                            : labelOf(now) === theirs.label)
+                    )
+                        last = theirs;
+                }
                 if (last.kind === "delete" && now)
                     v.push(
                         `I3 ${key}: last op delete by c${last.c}, no conflict, but on server: ${labelOf(now)}`,
@@ -1183,11 +1351,18 @@ async function runSeed(
     mode: Mode,
     length: number,
     withRestores = false,
+    withUndo = false,
 ): Promise<string[]> {
     await setup();
     const rng = mulberry32(seed);
     for (let i = 0; i < length; i++) {
-        const [a] = enabled(mode, i < length * 0.85, rng, withRestores);
+        const [a] = enabled(
+            mode,
+            i < length * 0.85,
+            rng,
+            withRestores,
+            withUndo,
+        );
         if (!a) break;
         run.step++;
         const did = await applyAction(a, mode);
@@ -1262,6 +1437,7 @@ async function makeClients() {
             streamQueue: [],
             timers: [],
             now: 0,
+            lastDelete: null,
         };
         c.g = await loadGraph();
         await inClient(c, () => {
@@ -1306,10 +1482,11 @@ const failing = async (
     first: number,
     count: number,
     withRestores = false,
+    withUndo = false,
 ) => {
     const out: string[] = [];
     for (let seed = first; seed < first + count; seed++) {
-        const vs = await runSeed(seed, mode, length, withRestores);
+        const vs = await runSeed(seed, mode, length, withRestores, withUndo);
         if (vs.length) out.push(`seed ${seed}: ${vs.join(" | ")}`);
     }
     return out;
@@ -2227,6 +2404,103 @@ const TRACES: Array<{
             expectOnServer(2001, "init-1");
         },
     },
+    // Undo, as the delete toast's (withUndo only).
+    {
+        name: "owned: Undo after the delete's answer was lost puts back a copy that stays",
+        mode: "owned",
+        seed: 7,
+        actions: [
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: true },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/undo 1 as 1001/);
+            expectServer([1001, 2, 3, 4], { 1001: "init-1" });
+        },
+    },
+    {
+        name: "owned: Undo before the save puts the same key back, and the server never hears of the delete",
+        mode: "owned",
+        seed: 8,
+        actions: [
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/undo 1$/m);
+            expectServer([1, 2, 3, 4], { 1: "init-1" });
+            for (const e of server.events)
+                expect(
+                    e.payloadJson.questions.map((x: Any) => x.payloadJson.key),
+                ).toContain(1);
+        },
+    },
+    {
+        name: "shared: Undo after a teammate restored the question adds no second copy",
+        mode: "shared",
+        seed: 9,
+        actions: [
+            { t: "open", c: 0 },
+            { t: "open", c: 1 },
+            { t: "timer", c: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A deletes question 1, and it's saved.
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+            // B sees it, restores it, and that's saved.
+            { t: "sse", c: 1 },
+            { t: "user", c: 1, kind: "restore", pick: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A sees its own save and B's copy, then presses Undo.
+            { t: "sse", c: 0 },
+            { t: "sse", c: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/undo \(already back: 1\)/);
+            expectServer([2001, 2, 3, 4], { 2001: "init-1" });
+        },
+    },
+    {
+        name: "shared: Undo while the delete's save is being merged (409) puts back a copy that stays",
+        mode: "shared",
+        seed: 10,
+        actions: [
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            // B saves an edit first.
+            { t: "user", c: 1, kind: "edit", pick: 0.3 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A's delete meets it: 409, and A presses Undo meanwhile.
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/PUT base=3 .*→ 409/);
+            expect(run.log.join("\n")).toMatch(/undo 1 as 1001/);
+            expectServer([1001, 2, 3, 4], { 1001: "init-1", 2: "c1." });
+        },
+    },
     // Restores that went wrong while Restore put the deleted key back, kept
     // as regression tests now that it restores under a new key.
     {
@@ -2371,5 +2645,15 @@ describe("two players editing questions, at random", () => {
     test("both editing everything, restoring deleted ones: only real conflicts asked, restores stand", async () => {
         expect(await failing("shared", 60, 1, 300, true)).toEqual([]);
         expect(await failing("shared", 120, 1001, 100, true)).toEqual([]);
+    }, 60_000);
+
+    test("each editing their own questions, undoing and restoring deletes: nothing lost, back or asked", async () => {
+        expect(await failing("owned", 60, 1, 300, true, true)).toEqual([]);
+        expect(await failing("owned", 120, 1001, 100, true, true)).toEqual([]);
+    }, 60_000);
+
+    test("both editing everything, undoing and restoring deletes: only real conflicts asked, undos stand", async () => {
+        expect(await failing("shared", 60, 1, 300, true, true)).toEqual([]);
+        expect(await failing("shared", 120, 1001, 100, true, true)).toEqual([]);
     }, 60_000);
 });

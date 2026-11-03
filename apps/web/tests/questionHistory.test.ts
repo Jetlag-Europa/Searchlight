@@ -17,8 +17,10 @@ import {
     QuestionHistoryError,
     asRestored,
     restorable,
+    notRightNowReason,
     restoreBlocked,
     restoreFromHistory,
+    unsavedChangesNote,
 } from "@/lib/questionHistory";
 import { type Question, questionSchema } from "@/maps/schema";
 
@@ -152,7 +154,10 @@ describe("restoring from the history", () => {
                 [{ key: nextUp(0.5) }],
                 null,
             ),
-        ).toEqual({ status: "unavailable", reason: "On the board" });
+        ).toEqual({
+            status: "unavailable",
+            reason: "On the board",
+        });
         expect(
             restorable(
                 { key: 0.5, question: { id: "radius", key: 0.5, data: {} } },
@@ -218,7 +223,10 @@ describe("restoring from the history", () => {
                 [edited],
                 null,
             ),
-        ).toEqual({ status: "unavailable", reason: "On the board" });
+        ).toEqual({
+            status: "unavailable",
+            reason: "On the board as Radius 1",
+        });
         // A twin with the same content isn't it: the deleted one can go back.
         expect(
             restorable(
@@ -342,7 +350,7 @@ describe("what a deleted question became", () => {
         expect(deletedA.restoredAs).toEqual([b.key]);
         expect(restorable(deletedA, [c, y], null, lines)).toEqual({
             status: "unavailable",
-            reason: "On the board",
+            reason: "On the board as Radius 1",
         });
         // x goes back below c, which a became.
         questions.set([c, y]);
@@ -373,7 +381,7 @@ describe("what a deleted question became", () => {
         expect(restorable(older, [c], null).status).toBe("ok");
         expect(restorable(older, [c], null, lines)).toEqual({
             status: "unavailable",
-            reason: "On the board",
+            reason: "On the board as Radius 1",
         });
     });
 
@@ -454,7 +462,7 @@ describe("when Restore waits", () => {
             "Needs a decision first",
         );
         expect(restoreBlocked(0.5, [{ key: 0.25 }], true)).toBeNull();
-        expect(restoreBlocked(0.5, [], false)).toBe("Not right now");
+        expect(restoreBlocked(0.5, [], false)).toMatch(/^(Loading…|Offline)/);
         expect(restoreBlocked(0.5, [{ key: 0.5 }], false)).toBe(
             "Needs a decision first",
         );
@@ -472,7 +480,7 @@ describe("when Restore waits", () => {
         setQuestionDecisionsPossible(false);
         expect(restorable(target, [], null)).toEqual({
             status: "unavailable",
-            reason: "Not right now",
+            reason: notRightNowReason(),
         });
         restoreFromHistory({ order: [0.5] }, [target]);
         expect(questions.get()).toEqual([]);
@@ -499,6 +507,39 @@ describe("when Restore waits", () => {
         } finally {
             activeSessionRole.set(null);
         }
+    });
+});
+
+describe("what the History says", () => {
+    it("tells offline from loading when Restore waits", () => {
+        expect(notRightNowReason(false)).toBe(
+            "Offline: try again when connected",
+        );
+        expect(notRightNowReason(true)).toBe("Loading…");
+        expect(notRightNowReason(undefined)).toBe("Loading…");
+    });
+
+    it("notes changes of ours not saved yet", () => {
+        expect(unsavedChangesNote(true)).toBe(
+            "Your latest changes will show here once they're saved.",
+        );
+        expect(unsavedChangesNote(false)).toBeNull();
+    });
+
+    it("names a restored question as the board does now", () => {
+        // Radius 1 was deleted, so the copy of Radius 3 is Radius 2 now.
+        const [a, b] = [radar(0.11, 1), radar(0.13, 3)];
+        const copy = asRestored(b, 0.31);
+        expect(
+            restorable(
+                { key: b.key, question: b, restoredAs: [copy.key] },
+                [a, copy],
+                null,
+            ),
+        ).toEqual({
+            status: "unavailable",
+            reason: "On the board as Radius 2",
+        });
     });
 });
 

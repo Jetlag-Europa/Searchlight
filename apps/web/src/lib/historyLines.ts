@@ -12,6 +12,7 @@ import {
     questionDifferences,
     questionSummaryParts,
     questionTypeLabel,
+    summarizeQuestion,
 } from "@/lib/questionSummary";
 import { SPLIT_ANSWERS } from "@/maps/answerSplit";
 import type { Units } from "@/maps/schema";
@@ -138,6 +139,23 @@ const otherChanges = (
         if (sameQuestion(a[field], b[field])) a[field] = undefined;
     }
     return questionDifferences({ id, data: a }, { id, data: b }, { unit });
+};
+
+// What a deleted question asked and its answer, kept short: " (500 m,
+// Outside)". Nothing when it would only repeat its type.
+const SUMMARY_MAX = 40;
+const deletedSummary = (question: unknown, unit: Units): string => {
+    const summary = summarizeQuestion(question, { unit });
+    if (!summary || summary === questionTypeLabel(question)) return "";
+    const chars = Array.from(summary);
+    const short =
+        chars.length > SUMMARY_MAX
+            ? `${chars
+                  .slice(0, SUMMARY_MAX - 1)
+                  .join("")
+                  .trimEnd()}…`
+            : summary;
+    return ` (${short})`;
 };
 
 const joinParts = (parts: string[]): string =>
@@ -438,7 +456,7 @@ function addEntryLines(
     } else {
         for (const question of removed) {
             push({
-                text: `deleted ${question.label}`,
+                text: `deleted ${question.label}${deletedSummary(question.question, unit)}`,
                 removed: [question],
                 order: entry.order,
             });

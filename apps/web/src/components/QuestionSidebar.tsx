@@ -34,6 +34,7 @@ import {
     warningAlarm,
 } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
+import { questionSidebarTab } from "@/lib/questionSidebarTab";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
 import {
@@ -55,7 +56,7 @@ export const QuestionSidebar = () => {
     const $readOnly = useStore(sessionReadOnly);
     const [alarmActive, setAlarmActive] = useState(false);
     // History is only fetched while its tab is shown.
-    const [tab, setTab] = useState<"questions" | "history">("questions");
+    const tab = useStore(questionSidebarTab);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
     const startAlarm = () => {
@@ -100,7 +101,7 @@ export const QuestionSidebar = () => {
                 value={tab}
                 onValueChange={(value: string) => {
                     if (value === "questions" || value === "history") {
-                        setTab(value);
+                        questionSidebarTab.set(value);
                     }
                 }}
             >

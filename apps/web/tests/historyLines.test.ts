@@ -334,6 +334,26 @@ describe("question history lines", () => {
         ]);
     });
 
+    it("says what a deleted question asked, kept short", () => {
+        const deleted = (data: Record<string, unknown>) => ({
+            ...removed(K1),
+            question: { id: "radius", key: K1, data },
+        });
+        expect(
+            texts([
+                entry([
+                    deleted({
+                        lat: 1,
+                        lng: 2,
+                        radius: 500,
+                        unit: "meters",
+                        within: false,
+                    }),
+                ]),
+            ]),
+        ).toEqual(["Sam deleted Radius 1 (500 m, Outside)"]);
+    });
+
     it("says when only the order changed", () => {
         expect(texts([entry([], { reordered: true })])).toEqual([
             "Sam reordered the questions",
@@ -555,7 +575,7 @@ describe("question history lines", () => {
             {},
         );
         expect(lines.map((l) => l.text)).toEqual([
-            "deleted Zone Size 1",
+            "deleted Zone Size 1 (×1.5)",
             "added Zone Size 1",
             "added Zone Size 2",
         ]);

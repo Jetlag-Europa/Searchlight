@@ -88,7 +88,11 @@ export const QuestionCard = ({
 
     return (
         <>
-            <SidebarGroup className={cn(className, enabled === false && "opacity-50")}>
+            <SidebarGroup
+                className={cn(className, enabled === false && "opacity-50")}
+                // For showing the card after a Restore (showQuestionCard).
+                data-question-key={questionKey}
+            >
                 <div className="relative">
                     <button
                         onClick={toggleCollapse}
