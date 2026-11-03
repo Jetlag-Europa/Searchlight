@@ -39,6 +39,7 @@ import {
     setActiveSession,
     verifiedUserId,
 } from "@/lib/activeSession";
+import { createBackoffRetry } from "@/lib/backoffRetry";
 import {
     gameDefinitionReady,
     questions,
@@ -71,6 +72,7 @@ import {
 } from "@/lib/questionSaveSuppress";
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
+import { probeSession } from "@/lib/sessionProbe";
 import {
     becomeSpectator,
     cacheSessionRole,
@@ -113,6 +115,15 @@ const ROW_ACTION_HIDDEN_CLASS =
 // Sessions this tab asked the server to delete: their own stream's 404 later
 // isn't news, even when the delete's reply was lost.
 const deletedHere = new Set<string>();
+
+// Checks again, in the background, a session whose board shows what was kept
+// here because the server didn't answer for it. Another session starts from
+// the shortest delay.
+const sessionRecheck = createBackoffRetry();
+let recheckedSessionId: string | null = null;
+
+const SIGN_IN_EXPIRED =
+    "Your sign-in has expired. Reload the page to sign in again.";
 
 // How long a tapped Leave waits for its second tap.
 const LEAVE_CONFIRM_MS = 5_000;
@@ -939,6 +950,8 @@ export function SessionManager() {
         const board = document.getElementById("map-board");
         if (board) board.inert = showPicker;
         sessionPickerOpen.set(showPicker);
+        // Back on the board: a background recheck waited for the picker.
+        if (!showPicker) sessionRecheck.tryNow();
         if (!showPicker && restorePickerFocusRef.current) {
             restorePickerFocusRef.current = false;
             pickerOpenerRef.current?.focus();
@@ -1164,6 +1177,40 @@ export function SessionManager() {
         [authUserId],
     );
 
+    // The board shows what was kept of a session the server didn't answer
+    // for (a 5xx, no network, a route this API doesn't have): check it again
+    // quietly until the server answers, then load it, which sends the queued
+    // edits and opens the stream. Any other load stops it.
+    const keepCheckingSession = (id: string, generation: number) => {
+        const isCurrent = () =>
+            generation === sessionLoadGenerationRef.current &&
+            activeSessionId.get() === id;
+        // Not over the picker, which a load closes, nor during another load.
+        const busy = () => sessionPickerOpen.get() || isLoadingSession();
+        if (recheckedSessionId !== id) {
+            recheckedSessionId = id;
+            sessionRecheck.reset();
+        }
+        sessionRecheck.start(async () => {
+            if (!isCurrent()) return true;
+            if (busy()) return false;
+            const probe = await probeSession(id);
+            if (!isCurrent()) return true;
+            if (probe.kind === "unavailable") {
+                forgetSession(id, probe.status);
+                return true;
+            }
+            if (probe.kind === "signedOut") {
+                toast.error(SIGN_IN_EXPIRED, { toastId: "sign-in-expired" });
+                return true;
+            }
+            if (probe.kind === "retry" || busy()) return false;
+            console.info("[searchlight:session] server answered, loading", id);
+            void handleSessionSelected(probe.session);
+            return true;
+        });
+    };
+
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
         if (!authUserId) return;
@@ -1171,8 +1218,11 @@ export function SessionManager() {
         const isCurrent = () => generation === sessionLoadGenerationRef.current;
         const cleanup = () => {
             sessionLoadGenerationRef.current++;
+            sessionRecheck.stop();
             stopSSE();
         };
+        // Another account, or the server reachable again.
+        sessionRecheck.reset();
         startSyncManager();
         // /me answered after the board was played offline. Another account
         // doesn't get to see it (AuthGuard has dropped the session pointer).
@@ -1423,6 +1473,7 @@ export function SessionManager() {
                     startSSE(storedId, (status) =>
                         forgetSession(storedId, status),
                     );
+                    sessionRecheck.reset();
                 } catch (e) {
                     console.warn(
                         canPaintCache
@@ -1442,6 +1493,9 @@ export function SessionManager() {
                             },
                         );
                     }
+                    if (isCurrent() && canPaintCache) {
+                        keepCheckingSession(storedId, generation);
+                    }
                 } finally {
                     if (isCurrent()) {
                         loadingGenerationRef.current = null;
@@ -1457,7 +1511,10 @@ export function SessionManager() {
                 spectateIfCached();
                 const painted = paintCached();
                 setShowPicker(!painted);
-                if (painted) restoreKept();
+                if (painted) {
+                    restoreKept();
+                    keepCheckingSession(storedId, generation);
+                }
             })
             .finally(() => {
                 if (isCurrent()) setLoading(false);
@@ -1502,6 +1559,7 @@ export function SessionManager() {
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
             loadingGenerationRef.current = generation;
+            sessionRecheck.stop();
             stopSSE();
 
             // Queue the outgoing session's pending edits durably right away;
@@ -1556,6 +1614,8 @@ export function SessionManager() {
             setLoading(true);
 
             let sessionToActivate = selected;
+            // Shown as kept here, without the server's state.
+            let restoredFromCache = false;
 
             try {
                 // On explicit selection, flush pending events BEFORE authoritative load!
@@ -1631,6 +1691,7 @@ export function SessionManager() {
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),
                 );
+                sessionRecheck.reset();
             } catch (e: unknown) {
                 if (!isCurrent()) return;
                 console.warn(
@@ -1649,13 +1710,28 @@ export function SessionManager() {
                         filterSupportedQuestions(derived.questions, null),
                     );
                     paintedFromSnapshot(selected.id);
+                    restoredFromCache = true;
                 } else {
                     // No cache and no server — leave atoms empty, don't publish stale session content
                     boardSessionRef.current = null;
                     strokes.set([]);
                     questions.set([]);
                 }
-                if (switchingSession) {
+                if (restoredFromCache) {
+                    // The session is authorized, so its game may still come
+                    // from the copy kept here, as for a stored session. Its
+                    // modes are the server's when switching to it; on the
+                    // same session they stay as shown, as `selected` may be
+                    // older than an edit the flush just sent.
+                    if (switchingSession) showSessionModes(selected);
+                    await switchToGame(
+                        { id: selected.gameId },
+                        {
+                            revisionId: selected.gameRevisionId,
+                            sessionId: selected.id,
+                        },
+                    );
+                } else if (switchingSession) {
                     // The outgoing session's hider and planning mode aren't
                     // this session's.
                     if (hiderMode.get() !== false) {
@@ -1689,6 +1765,7 @@ export function SessionManager() {
             loadingGenerationRef.current = null;
             setShowPicker(false);
             setGameNotLoaded(!gameDefinitionReady.get());
+            if (restoredFromCache) keepCheckingSession(selected.id, generation);
         },
         [authUserId, forgetSession],
     );
@@ -1710,9 +1787,14 @@ export function SessionManager() {
         }
         const generation = ++sessionLoadGenerationRef.current;
         const isCurrent = () => generation === sessionLoadGenerationRef.current;
+        sessionRecheck.stop();
         const fail = (message: string, error: unknown) => {
             console.warn("[searchlight:session] retry failed:", error);
             toast.error(message);
+            // The board still shows what was kept of it.
+            if (boardSessionRef.current === id) {
+                keepCheckingSession(id, generation);
+            }
         };
         setLoading(true);
         let selected: GameSessionSummary;
@@ -1742,10 +1824,8 @@ export function SessionManager() {
                 return;
             }
             if (res.status === 401) {
-                fail(
-                    "Your sign-in has expired. Reload the page to sign in again.",
-                    res.status,
-                );
+                console.warn("[searchlight:session] retry failed:", res.status);
+                toast.error(SIGN_IN_EXPIRED, { toastId: "sign-in-expired" });
                 return;
             }
             if (!res.ok) {

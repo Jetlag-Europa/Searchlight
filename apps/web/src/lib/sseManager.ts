@@ -14,6 +14,7 @@ import {
     filterSupportedQuestions,
 } from "@/game-definition/store";
 import { isSessionReadOnly } from "@/lib/activeSession";
+import { RETRY_MAX_MS, RETRY_MIN_MS } from "@/lib/backoffRetry";
 import type { PresenceUser } from "@/lib/context";
 import {
     connectedUsers,
@@ -72,9 +73,8 @@ let onSessionUnavailable: ((status: number) => void) | undefined;
 let streamOpened = false;
 const MAX_BUFFERED_EVENTS = 500;
 
-// Failed replays and closed streams retry with a doubling, capped delay.
-const RETRY_MIN_MS = 3_000;
-const RETRY_MAX_MS = 30_000;
+// Failed replays and closed streams retry with a doubling, capped delay
+// (RETRY_MIN_MS, RETRY_MAX_MS).
 let replayRetryDelay = RETRY_MIN_MS;
 let reconnectDelay = RETRY_MIN_MS;
 
