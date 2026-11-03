@@ -1063,6 +1063,44 @@ describe("another tab of this browser opening the session", () => {
         expect(locks.request).toHaveBeenCalledOnce();
     });
 
+    it("keeps the board out of reach when taken over during a load", async () => {
+        const mapBoard = board();
+        server = { a: session("a") };
+        let finishLoad = () => {};
+        vi.mocked(loadSessionContent).mockImplementation(
+            (id) =>
+                new Promise((resolve) => {
+                    finishLoad = () =>
+                        resolve({
+                            strokes: [],
+                            questions: [],
+                            session: server[id],
+                            cursor: 0,
+                        });
+                }),
+        );
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+        expect(mapBoard.inert).toBe(true);
+
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(mapBoard.inert).toBe(true);
+        await act(async () => finishLoad());
+        await settle();
+        expect(mapBoard.inert).toBe(true);
+    });
+
+    it("keeps the board out of reach when taken over after a load", async () => {
+        const mapBoard = board();
+        server = { a: session("a") };
+        await reload("a");
+        expect(mapBoard.inert).toBe(false);
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(mapBoard.inert).toBe(true);
+    });
+
     it("stops a load still running here", async () => {
         server = { a: session("a") };
         let finishLoad = () => {};

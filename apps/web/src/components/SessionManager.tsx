@@ -1111,7 +1111,8 @@ export function SessionManager() {
     // Before focus returns to the board, below.
     useEffect(() => {
         const board = document.getElementById("map-board");
-        if (board) board.inert = showPicker || loading;
+        // OtherTabNotice keeps it inert while another tab edits the session.
+        if (board) board.inert = showPicker || loading || editingInOtherTab.get();
     }, [showPicker, loading]);
     useEffect(() => {
         sessionPickerOpen.set(showPicker);
