@@ -53,7 +53,7 @@ import { QuestionConflicts } from "@/components/QuestionConflicts";
     <!-- QuestionConflicts asks which version to keep when this player's edits met another's; its chip goes in the conflicts slot -->
     <QuestionConflicts client:only="react" />
 
-    <!-- The board; SessionManager makes it inert while the session picker is open -->
+    <!-- The board; SessionManager makes it inert while the session picker is open or a session loads -->
     <div id="map-board" class="contents">
         <SidebarProvider side="left" client:load>
             <SidebarProvider side="right" client:load defaultOpen={false}>

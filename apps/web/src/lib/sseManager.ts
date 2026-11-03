@@ -68,9 +68,6 @@ let replayAttempt = 0;
 let replayRetry: NodeJS.Timeout | undefined;
 let reconnectTimer: NodeJS.Timeout | undefined;
 let onSessionUnavailable: ((status: number) => void) | undefined;
-// The current session's stream has been open before: the next open is a
-// reconnect, after which live-only events may have been missed.
-let streamOpened = false;
 const MAX_BUFFERED_EVENTS = 500;
 
 // Failed replays and closed streams retry with a doubling, capped delay
@@ -482,9 +479,9 @@ function handleRoleChangedEvent(sessionId: string, payloadJson: unknown): void {
     );
 }
 
-// Dispatched on window when the stream of a session reconnects. Live-only
-// events (a role change) sent while it was down are lost, so the board checks
-// the session again.
+// Dispatched on window each time the stream of a session opens. Live-only
+// events (a role change) sent before it first opened, or while it was down,
+// are lost, so the board checks the session again.
 export const SESSION_STREAM_RECONNECTED_EVENT = "session-stream-reconnected";
 export interface SessionStreamReconnectedDetail {
     sessionId: string;
@@ -711,9 +708,7 @@ function openStream(sessionId: string, generation: number): void {
         // The server is reachable again: deliver edits that failed meanwhile,
         // which would otherwise keep blocking incoming updates.
         retryPendingEvents(sessionId);
-        const reconnected = streamOpened;
-        streamOpened = true;
-        if (reconnected) streamReconnected(sessionId);
+        streamReconnected(sessionId);
     };
 
     source.onmessage = (e: MessageEvent) => {
@@ -816,7 +811,6 @@ export function stopSSE(): void {
     replayRetryDelay = RETRY_MIN_MS;
     reconnectDelay = RETRY_MIN_MS;
     onSessionUnavailable = undefined;
-    streamOpened = false;
     // What the server set belongs to the stopped session's board.
     resetHiderSaveSuppression();
     resetPlanningModeSaveSuppression();

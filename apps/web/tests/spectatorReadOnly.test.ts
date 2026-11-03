@@ -360,7 +360,7 @@ describe("hider and planning updates from the server", () => {
 });
 
 describe("the stream reconnecting", () => {
-    test("is passed on to the board, but not the first open", () => {
+    test("is passed on to the board, the first open too", () => {
         const heard: SessionStreamReconnectedDetail[] = [];
         const listener = (event: Event) =>
             heard.push(
@@ -369,11 +369,11 @@ describe("the stream reconnecting", () => {
         window.addEventListener(SESSION_STREAM_RECONNECTED_EVENT, listener);
         startSSE(SID);
         MockEventSource.last?.onopen?.(new Event("open"));
-        expect(heard).toEqual([]);
+        expect(heard).toEqual([{ sessionId: SID }]);
 
         MockEventSource.last?.onopen?.(new Event("open"));
         window.removeEventListener(SESSION_STREAM_RECONNECTED_EVENT, listener);
-        expect(heard).toEqual([{ sessionId: SID }]);
+        expect(heard).toEqual([{ sessionId: SID }, { sessionId: SID }]);
     });
 });
 

@@ -2,7 +2,7 @@
 // the values a session load just showed, and gets over a load that fails.
 // Rendered with React into a minimal stand-in for the DOM (there is no DOM
 // library here); the server is a fake fetch, and the saves are spies.
-import type { GameSessionSummary } from "@searchlight/shared";
+import type { Game, GameSessionSummary } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => {
@@ -97,8 +97,8 @@ const env = vi.hoisted(() => {
         removeAttributeNS(_ns: string, name: string) {
             this.removeAttribute(name);
         }
-        addEventListener() {}
-        removeEventListener() {}
+        addEventListener(..._args: unknown[]) {}
+        removeEventListener(..._args: unknown[]) {}
         focus() {}
         blur() {}
         // Every element below, in document order.
@@ -116,6 +116,10 @@ const env = vi.hoisted(() => {
         activeElement: FakeNode | null = null;
         defaultView: unknown = null;
         visibilityState = "visible";
+        // The elements map.astro gives an id (see bannerSlot).
+        byId = new Map<string, FakeNode>();
+        // The document's own listeners (focus leaving a field) are real.
+        events = new EventTarget();
         constructor() {
             super(9, "#document", null);
             this.documentElement = this.createElement("html");
@@ -137,8 +141,19 @@ const env = vi.hoisted(() => {
             node.nodeValue = text;
             return node;
         }
-        getElementById() {
-            return null;
+        getElementById(id: string) {
+            return this.byId.get(id) ?? null;
+        }
+        addEventListener(...args: Parameters<EventTarget["addEventListener"]>) {
+            this.events.addEventListener(...args);
+        }
+        removeEventListener(
+            ...args: Parameters<EventTarget["removeEventListener"]>
+        ) {
+            this.events.removeEventListener(...args);
+        }
+        dispatchEvent(event: Event) {
+            return this.events.dispatchEvent(event);
         }
         // The picker's dialogs look for the map's modal container.
         querySelector() {
@@ -149,7 +164,13 @@ const env = vi.hoisted(() => {
     const window = Object.assign(new EventTarget(), {
         document,
         HTMLIFrameElement: class {},
-        location: { href: "http://localhost/map", origin: "http://localhost" },
+        location: {
+            href: "http://localhost/map",
+            origin: "http://localhost",
+            pathname: "/map",
+            search: "",
+            hash: "",
+        },
     });
     document.defaultView = window;
     const store = new Map<string, string>();
@@ -214,7 +235,7 @@ vi.mock("@/lib/sessionState", async (importOriginal) => ({
     saveQuestionsDebounced: vi.fn(),
 }));
 
-import { act, createElement } from "react";
+import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { toast } from "react-toastify";
 
@@ -234,18 +255,27 @@ import {
     planningModeEnabled,
     questions,
 } from "@/lib/context";
-import { setCachedSession } from "@/lib/eventQueue";
-import { switchToGame } from "@/lib/games";
-import { FLUSH_WAIT_MS, LOAD_TIMEOUT_MS } from "@/lib/loadDeadline";
-import { SESSION_STREAM_RECONNECTED_EVENT } from "@/lib/sseManager";
+import { getCachedSession, setCachedSession } from "@/lib/eventQueue";
+import { fetchGameCatalog, switchToGame } from "@/lib/games";
+import {
+    DETAILS_TIMEOUT_MS,
+    FLUSH_WAIT_MS,
+    LOAD_TIMEOUT_MS,
+} from "@/lib/loadDeadline";
 import {
     loadSessionContent,
     saveHiderModeToServer,
     savePlanningModeToServer,
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
+import {
+    SESSION_ROLE_CHANGED_EVENT,
+    SESSION_STREAM_RECONNECTED_EVENT,
+} from "@/lib/sseManager";
 import { flushPendingEvents } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
+
+import { plainTextNotFound, sessionNotFound } from "./apiResponses";
 
 const USER = "user-1";
 const session = (
@@ -276,7 +306,7 @@ const json = (body: unknown, status = 200) =>
         status,
         headers: { "Content-Type": "application/json" },
     });
-const fetchMock = vi.fn(async (input: string | URL) => {
+const defaultFetch = async (input: string | URL, _init?: RequestInit) => {
     const url = new URL(String(input));
     if (url.pathname === "/servers") {
         return json({
@@ -302,7 +332,8 @@ const fetchMock = vi.fn(async (input: string | URL) => {
     );
     if (content && server[content[1]]) return json({ [content[2]]: [] });
     return json({ error: "not found" }, 404);
-});
+};
+const fetchMock = vi.fn(defaultFetch);
 
 // Lets every pending request, timer-free promise chain and React update run.
 const settle = () =>
@@ -364,15 +395,40 @@ const click = async (matches: (text: string) => boolean) => {
     await settle();
 };
 
+// Calls a rendered element's React handler, as the browser's event would.
+const fire = async (node: unknown, handler: string, event: unknown) => {
+    const props = Object.entries(node as object).find(([key]) =>
+        key.startsWith("__reactProps$"),
+    )![1] as Record<string, (event: unknown) => void>;
+    await act(async () => {
+        props[handler](event);
+    });
+    await settle();
+};
+
+// What the page shows, and the buttons on it.
+const pageText = () => env.document.body.textContent;
+const buttons = () =>
+    [...env.document.body.walk()]
+        .filter((n) => n.nodeName === "BUTTON")
+        .map((n) => n.textContent);
+
 // Where map.astro puts the "game not loaded" banner.
 const bannerSlot = () => {
     const slot = env.document.createElement("div");
     env.document.body.appendChild(slot);
-    Object.assign(env.document, {
-        getElementById: (id: string) =>
-            id === "game-not-loaded-banner" ? slot : null,
-    });
+    env.document.byId.set("game-not-loaded-banner", slot);
     return slot;
+};
+
+// map.astro's board: the map, the question cards and the controls.
+const board = () => {
+    const element = env.document.createElement("div") as ReturnType<
+        typeof env.document.createElement
+    > & { inert?: boolean };
+    env.document.body.appendChild(element);
+    env.document.byId.set("map-board", element);
+    return element;
 };
 
 // The full-screen overlay a session load shows.
@@ -412,6 +468,7 @@ const serverSends = async (
 };
 
 beforeEach(() => {
+    fetchMock.mockImplementation(defaultFetch);
     env.store.clear();
     server = {};
     signedOut = false;
@@ -440,8 +497,8 @@ afterEach(async () => {
     hiderMode.set(false);
     planningModeEnabled.set(false);
     questions.set([]);
-    // Back to the fake document's own (see bannerSlot).
-    delete (env.document as { getElementById?: unknown }).getElementById;
+    env.document.byId.clear();
+    env.document.activeElement = env.document.body;
     vi.useRealTimers();
     vi.clearAllMocks();
     vi.restoreAllMocks();
@@ -803,15 +860,38 @@ describe("a session load that fails", () => {
         signedOut = true;
         fetchMock.mockClear();
         await wait(3000);
-        expect(error).toHaveBeenCalledExactlyOnceWith(
-            "Your sign-in has expired. Reload the page to sign in again.",
-            { toastId: "sign-in-expired" },
-        );
+        expect(error).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
+            toastId: "sign-in-expired",
+            autoClose: false,
+        });
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
         await wait(120_000);
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(error).toHaveBeenCalledTimes(1);
+    });
+
+    // The installed app has no reload button.
+    it("offers to sign in again when the sign-in has expired", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        signedOut = true;
+        const error = vi.spyOn(toast, "error");
+        await reload("a");
+        expect(error).toHaveBeenCalledTimes(1);
+
+        const container = env.document.createElement("div");
+        env.document.body.appendChild(container);
+        const toastRoot = createRoot(container as unknown as Element);
+        await act(async () =>
+            toastRoot.render(error.mock.calls[0][0] as ReactElement),
+        );
+        expect(container.textContent).toContain("Your sign-in has expired.");
+        expect(container.textContent).not.toContain("Reload");
+        await click((text) => text === "Sign in");
+        expect(window.location.href).toBe("/?returnTo=%2Fmap");
+        await act(async () => toastRoot.unmount());
+        window.location.href = "http://localhost/map";
     });
 
     it("goes live without a game that takes too long, and shows it once it lands", async () => {
@@ -983,6 +1063,44 @@ describe("another tab of this browser opening the session", () => {
         expect(locks.request).toHaveBeenCalledOnce();
     });
 
+    it("keeps the board out of reach when taken over during a load", async () => {
+        const mapBoard = board();
+        server = { a: session("a") };
+        let finishLoad = () => {};
+        vi.mocked(loadSessionContent).mockImplementation(
+            (id) =>
+                new Promise((resolve) => {
+                    finishLoad = () =>
+                        resolve({
+                            strokes: [],
+                            questions: [],
+                            session: server[id],
+                            cursor: 0,
+                        });
+                }),
+        );
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+        expect(mapBoard.inert).toBe(true);
+
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(mapBoard.inert).toBe(true);
+        await act(async () => finishLoad());
+        await settle();
+        expect(mapBoard.inert).toBe(true);
+    });
+
+    it("keeps the board out of reach when taken over after a load", async () => {
+        const mapBoard = board();
+        server = { a: session("a") };
+        await reload("a");
+        expect(mapBoard.inert).toBe(false);
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(mapBoard.inert).toBe(true);
+    });
+
     it("stops a load still running here", async () => {
         server = { a: session("a") };
         let finishLoad = () => {};
@@ -1009,5 +1127,468 @@ describe("another tab of this browser opening the session", () => {
         // No stream: the other tab has the session.
         expect(env.FakeEventSource.last).toBeNull();
         expect(env.document.body.textContent).toContain(notice);
+    });
+});
+
+describe("the session picker", () => {
+    const offline = async () => {
+        throw new TypeError("Failed to fetch");
+    };
+
+    it("offers Try again when the server can't be reached", async () => {
+        server = { a: session("a") };
+        fetchMock.mockImplementation(offline);
+        await reload("");
+        expect(pageText()).toContain("Failed to load servers");
+
+        fetchMock.mockImplementation(defaultFetch);
+        await click((text) => text === "Try again");
+        expect(pageText()).toContain("Session a");
+        expect(pageText()).not.toContain("Failed to load");
+    });
+
+    it("tries again once the device is back online", async () => {
+        server = { a: session("a") };
+        fetchMock.mockImplementation(offline);
+        await reload("");
+        expect(pageText()).toContain("Failed to load servers");
+
+        fetchMock.mockImplementation(defaultFetch);
+        await act(async () => window.dispatchEvent(new Event("online")));
+        await settle();
+        expect(pageText()).toContain("Session a");
+    });
+
+    it("tries the sessions again when only they failed", async () => {
+        server = { a: session("a") };
+        fetchMock.mockImplementation(async (input) =>
+            new URL(String(input)).pathname === "/sessions"
+                ? json({ error: "Bad Gateway" }, 502)
+                : defaultFetch(input),
+        );
+        await reload("");
+        expect(pageText()).toContain("Failed to load sessions");
+
+        fetchMock.mockImplementation(defaultFetch);
+        await click((text) => text === "Try again");
+        expect(pageText()).toContain("Session a");
+    });
+
+    it("gives up on a list that doesn't come, and offers Try again", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        server = { a: session("a") };
+        fetchMock.mockImplementation(
+            (_input, init) =>
+                new Promise((_, reject) =>
+                    init?.signal?.addEventListener("abort", () =>
+                        reject(init.signal!.reason),
+                    ),
+                ),
+        );
+        await reload("");
+        expect(pageText()).toContain("Loading servers");
+
+        await wait(DETAILS_TIMEOUT_MS);
+        expect(pageText()).not.toContain("Loading servers");
+        expect(buttons()).toContain("Try again");
+    });
+
+    it("gives up on a server recheck that doesn't come", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        server = { a: session("a") };
+        await reload("");
+        fetchMock.mockImplementation((input, init) =>
+            new URL(String(input)).search === "?recheck=true"
+                ? new Promise((_, reject) =>
+                      init?.signal?.addEventListener("abort", () =>
+                          reject(init.signal!.reason),
+                      ),
+                  )
+                : defaultFetch(input),
+        );
+        await click((text) => text === "Check again");
+        expect(buttons()).toContain("Checking…");
+
+        await wait(DETAILS_TIMEOUT_MS);
+        expect(buttons()).toContain("Check again");
+        expect(pageText()).toContain("Failed to load servers");
+    });
+
+    it("gives focus back to the board once it can take it", async () => {
+        const mapBoard = board();
+        server = { a: session("a") };
+        await reload("a");
+        await click((text) => text === "change");
+        expect(mapBoard.inert).toBe(true);
+        const opener = [...env.document.body.walk()].find(
+            (n) => n.nodeName === "BUTTON" && n.textContent === "change",
+        )!;
+        const focusedWhileInert: unknown[] = [];
+        opener.focus = () => void focusedWhileInert.push(mapBoard.inert);
+
+        await click((text) => text === "Back to board");
+        expect(focusedWhileInert).toEqual([false]);
+    });
+
+    it("shows the sessions when the game catalog is slow", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        server = { a: session("a") };
+        vi.mocked(fetchGameCatalog).mockImplementationOnce(
+            () =>
+                new Promise((resolve) =>
+                    setTimeout(() => resolve([]), DETAILS_TIMEOUT_MS + 5_000),
+                ),
+        );
+        // A body can't be read once its request is aborted.
+        fetchMock.mockImplementation(async (input, init) => {
+            const res = await defaultFetch(input);
+            if (new URL(String(input)).pathname !== "/sessions") return res;
+            const body = await res.text();
+            return {
+                ok: true,
+                status: 200,
+                json: async () => {
+                    if (init?.signal?.aborted) throw init.signal.reason;
+                    return JSON.parse(body);
+                },
+            } as Response;
+        });
+        await reload("");
+        await wait(DETAILS_TIMEOUT_MS + 5_000);
+        expect(pageText()).toContain("Session a");
+        expect(pageText()).not.toContain("Failed to load sessions");
+    });
+
+    it("says when the server's games didn't load, and loads them again", async () => {
+        server = { a: session("a") };
+        vi.mocked(fetchGameCatalog).mockRejectedValueOnce(
+            new Error("Failed to fetch"),
+        );
+        await reload("");
+        expect(pageText()).toContain("Session a");
+        expect(pageText()).toContain("Failed to load this server’s games");
+
+        vi.mocked(fetchGameCatalog).mockResolvedValueOnce([
+            { id: "game-1", name: "Game" } as Game,
+        ]);
+        await click((text) => text === "Try again");
+        await click((text) => text === "+ New session");
+        expect(pageText()).not.toContain("Failed to load");
+        expect(pageText()).not.toContain("No games available");
+    });
+
+    it("creates one session when Enter is pressed twice", async () => {
+        vi.mocked(fetchGameCatalog).mockResolvedValueOnce([
+            { id: "game-1", name: "Game" } as Game,
+        ]);
+        const creates: unknown[] = [];
+        fetchMock.mockImplementation(async (input, init) => {
+            if (init?.method !== "POST") return defaultFetch(input);
+            creates.push(init.body);
+            // Still on its way when Enter is pressed again.
+            return new Promise<never>(() => {});
+        });
+        await reload("");
+        await click((text) => text === "+ New session");
+        const field = () =>
+            [...env.document.body.walk()].find((n) => n.nodeName === "INPUT");
+        await fire(field(), "onChange", { target: { value: "Team B" } });
+
+        await fire(field(), "onKeyDown", { key: "Enter" });
+        await fire(field(), "onKeyDown", { key: "Enter" });
+        expect(creates).toEqual([
+            JSON.stringify({ gameId: "game-1", name: "Team B" }),
+        ]);
+    });
+});
+
+// The board shows the copy kept here, and the server answers again while
+// the player is busy with it.
+describe("a background reload", () => {
+    const fakeTimers = () =>
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+
+    it("waits while the player types, and loads once they leave the field", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
+        await reload("a");
+
+        // A question card's field, say.
+        env.document.activeElement = env.document.createElement("input");
+        await wait(3000);
+        await wait(120_000);
+        expect(loadSessionContent).toHaveBeenCalledTimes(1);
+        expect(overlayShown()).toBe(false);
+
+        env.document.activeElement = env.document.body;
+        await act(async () => {
+            env.document.dispatchEvent(new Event("focusout"));
+        });
+        await wait(0);
+        expect(loadSessionContent).toHaveBeenCalledTimes(2);
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+    });
+
+    it("isn't held up by a checkbox that has focus", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
+        await reload("a");
+
+        const checkbox = env.document.createElement("input");
+        Object.assign(checkbox, { type: "checkbox" });
+        env.document.activeElement = checkbox;
+        await wait(3000);
+        expect(loadSessionContent).toHaveBeenCalledTimes(2);
+    });
+
+    it("keeps the board out of reach while it loads", async () => {
+        fakeTimers();
+        const mapBoard = board();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
+        await reload("a");
+        expect(mapBoard.inert).toBe(false);
+
+        let answer: () => void = () => {};
+        vi.mocked(loadSessionContent).mockImplementationOnce(
+            async (id) =>
+                new Promise((resolve) => {
+                    answer = () =>
+                        resolve({
+                            strokes: [],
+                            questions: [],
+                            session: server[id],
+                            cursor: 0,
+                        });
+                }),
+        );
+        await wait(3000);
+        expect(overlayShown()).toBe(true);
+        expect(mapBoard.inert).toBe(true);
+
+        await act(async () => answer());
+        await settle();
+        expect(overlayShown()).toBe(false);
+        expect(mapBoard.inert).toBe(false);
+    });
+});
+
+// A link that answers small requests but not big ones (congested mobile
+// data): the board stays usable, not held under the overlay over and over.
+it("a background check that can't get the content leaves the board alone", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mapBoard = board();
+    server = { a: session("a") };
+    keep(session("a"));
+    vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
+    await reload("a");
+
+    const stalls = (signal?: AbortSignal | null) =>
+        new Promise<never>((_, reject) =>
+            signal?.addEventListener("abort", () => reject(signal.reason)),
+        );
+    fetchMock.mockImplementation((input, init) =>
+        /\/(strokes|questions)$/.test(new URL(String(input)).pathname)
+            ? stalls(init?.signal)
+            : defaultFetch(input),
+    );
+    vi.mocked(loadSessionContent).mockImplementation((_id, _user, signal) =>
+        stalls(signal),
+    );
+    let blockedSeconds = 0;
+    for (let second = 0; second < 300; second++) {
+        await wait(1000);
+        if (overlayShown() || mapBoard.inert) blockedSeconds++;
+    }
+    expect(blockedSeconds).toBe(0);
+});
+
+describe("a session deleted since the picker listed it", () => {
+    // The API's answers for session a, but `gone` says it was deleted.
+    const answers = (gone: string) => async (input: string | URL) => {
+        const path = new URL(String(input)).pathname;
+        if (path === `/sessions/a${gone}`) return sessionNotFound();
+        if (path === "/sessions/a/events/cursor") return json({ sequence: 0 });
+        if (path === "/sessions/a/strokes") return json({ strokes: [] });
+        if (path === "/sessions/a/questions") {
+            return json({ questions: [], sequence: 0 });
+        }
+        return defaultFetch(input);
+    };
+
+    beforeEach(async () => {
+        const actual =
+            await vi.importActual<typeof import("@/lib/sessionState")>(
+                "@/lib/sessionState",
+            );
+        vi.mocked(loadSessionContent).mockImplementation(
+            actual.loadSessionContent,
+        );
+    });
+
+    it.each([
+        ["its details", true, ""],
+        ["its drawings", true, "/strokes"],
+        ["its questions", true, "/questions"],
+        ["its details", false, ""],
+        ["its questions", false, "/questions"],
+    ])(
+        "says it was deleted when the API says %s are gone (kept here: %s)",
+        async (_, kept, gone) => {
+            server = { a: session("a"), b: session("b") };
+            if (kept) keep(session("a"));
+            await reload("");
+            fetchMock.mockImplementation(answers(gone));
+            const warn = vi.spyOn(toast, "warn");
+
+            await click((text) => text.includes("Session a"));
+            expect(warn).toHaveBeenCalledExactlyOnceWith(
+                "The session “Session a” was deleted from another tab or device.",
+            );
+            expect(activeSessionId.get()).toBe("");
+            expect(getCachedSession("a")).toBeNull();
+            expect(pageText()).toContain("Select a Session");
+            expect(env.FakeEventSource.last).toBeNull();
+        },
+    );
+
+    it("still shows the copy kept here on a 404 that isn't the API's", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        await reload("");
+        fetchMock.mockImplementation(async (input) =>
+            new URL(String(input)).pathname === "/sessions/a/strokes"
+                ? plainTextNotFound()
+                : answers("/none")(input),
+        );
+        const warn = vi.spyOn(toast, "warn");
+
+        await click((text) => text.includes("Session a"));
+        expect(activeSessionId.get()).toBe("a");
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "Couldn't load the latest from the server. Showing the copy saved on this device; it will keep trying.",
+            { toastId: "session-load" },
+        );
+    });
+
+    it("doesn't go back to the board it was switching from", async () => {
+        server = { a: session("a"), b: session("b") };
+        await reload("b");
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/b/stream",
+        );
+
+        fetchMock.mockImplementation(answers(""));
+        await click((text) => text === "change");
+        await click((text) => text.includes("Session a"));
+        expect(activeSessionId.get()).toBe("");
+        expect(pageText()).toContain("Select a Session");
+        expect(buttons()).not.toContain("Back to board");
+    });
+});
+
+describe("a role changed while the session loads", () => {
+    // The session's stream connects, as the server answers it.
+    const streamOpens = async () => {
+        await act(async () => env.FakeEventSource.last!.onopen!({}));
+        await settle();
+    };
+    const roleChanged = (role: string) =>
+        act(async () => {
+            window.dispatchEvent(
+                new CustomEvent(SESSION_ROLE_CHANGED_EVENT, {
+                    detail: { sessionId: "a", userId: USER, role },
+                }),
+            );
+        });
+
+    it("shows when it came after the load but before the stream opened", async () => {
+        server = { a: session("a", { role: "member" }) };
+        await reload("a");
+        expect(activeSessionRole.get()).toBe("member");
+
+        server.a = session("a", { role: "viewer" });
+        await streamOpens();
+        expect(activeSessionRole.get()).toBe("viewer");
+    });
+
+    it("ignores a role check the server answered before a later change", async () => {
+        server = { a: session("a", { role: "member" }) };
+        // The check once the stream opens (the second read of the details)
+        // is slow.
+        let answerCheck: (res: Response) => void = () => {};
+        let detailsReads = 0;
+        fetchMock.mockImplementation(async (input) => {
+            const isDetails = new URL(String(input)).pathname === "/sessions/a";
+            if (isDetails && ++detailsReads === 2) {
+                return new Promise<Response>((resolve) => (answerCheck = resolve));
+            }
+            return defaultFetch(input);
+        });
+        await reload("a");
+        await streamOpens();
+        expect(detailsReads).toBe(2);
+
+        // Made a spectator, then a player again, while it waits.
+        server.a = session("a", { role: "viewer" });
+        await roleChanged("viewer");
+        await settle();
+        server.a = session("a", { role: "member" });
+        await roleChanged("member");
+        await settle();
+        expect(activeSessionRole.get()).toBe("member");
+
+        const roles: unknown[] = [];
+        const stop = activeSessionRole.subscribe((role) => roles.push(role));
+        await act(async () =>
+            answerCheck(json(session("a", { role: "viewer" }))),
+        );
+        await settle();
+        stop();
+        expect(roles).not.toContain("viewer");
+    });
+
+    it("shows once the stream is open", async () => {
+        // The real reads, which keep the copy that must not keep the hider.
+        const actual =
+            await vi.importActual<typeof import("@/lib/sessionState")>(
+                "@/lib/sessionState",
+            );
+        vi.mocked(loadSessionContent).mockImplementation(
+            actual.loadSessionContent,
+        );
+        let landGame: () => void = () => {};
+        vi.mocked(switchToGame).mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    landGame = () => {
+                        gameDefinitionReady.set(true);
+                        resolve(true);
+                    };
+                }),
+        );
+        server = {
+            a: session("a", { role: "member", hiderLat: 51.92, hiderLng: 4.48 }),
+        };
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        // The creator makes them a spectator while the game downloads, or
+        // before the stream that would say so is open.
+        server.a = session("a", { role: "viewer" });
+        await act(async () => landGame());
+        await settle();
+        await streamOpens();
+        expect(activeSessionRole.get()).toBe("viewer");
+        expect(hiderMode.get()).toBe(false);
+        expect(getCachedSession("a")?.role).toBe("viewer");
+        expect(getCachedSession("a")?.session?.hiderLat).toBeNull();
     });
 });
