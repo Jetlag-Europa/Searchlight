@@ -18,7 +18,6 @@ import { compiledGameAtom } from "@/game-definition/store";
 import { startCalculation } from "@/lib/calculating";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
-    acquireScopedLoading,
     animateMapMovements,
     autoZoom,
     disabledStations,
@@ -32,7 +31,6 @@ import {
     perQuestionMapData,
     questionFinishedMapData,
     setDisabledStations,
-    setScopedLoading,
     showZoneNames,
     trainStations,
 } from "@/lib/context";
@@ -270,7 +268,6 @@ const ZoneSidebarContent = () => {
 
         if ($displayHidingZones && $questionFinishedMapData) {
             void zoneRefreshQueue.request(async (isCurrent) => {
-                setScopedLoading("zone", true);
                 const finishCalculation = startCalculation("zones");
                 try {
                     const circles = await initializeHidingZones(isCurrent);
@@ -289,7 +286,6 @@ const ZoneSidebarContent = () => {
                         { toastId: "hiding-zone-initialization-error" },
                     );
                 } finally {
-                    setScopedLoading("zone", false);
                     finishCalculation();
                 }
             });
@@ -318,7 +314,6 @@ const ZoneSidebarContent = () => {
             );
 
             if (hiderStation !== undefined) {
-                const releaseLoading = acquireScopedLoading("zone:selection");
                 void selectionTaskQueue.request(async (isCurrent) => {
                     try {
                         await selectionProcess(
@@ -335,14 +330,9 @@ const ZoneSidebarContent = () => {
                             "An error occurred during hiding zone selection",
                             { toastId: "hiding-zone-selection-error" },
                         );
-                    } finally {
-                        releaseLoading();
                     }
                 });
-                return () => {
-                    selectionTaskQueue.cancel();
-                    releaseLoading();
-                };
+                return () => selectionTaskQueue.cancel();
             } else {
                 toast.error("Invalid hiding zone selected", {
                     toastId: "hiding-zone-selection-error",
@@ -666,8 +656,10 @@ const ZoneSidebarContent = () => {
                                                                 );
                                                             }
 
+                                                            // Not the list at the tap: the zones
+                                                            // may have been recalculated since.
                                                             setStations([
-                                                                ...stations,
+                                                                ...trainStations.get(),
                                                             ]);
                                                         }, 100);
                                                     }}

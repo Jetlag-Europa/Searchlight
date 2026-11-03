@@ -2,7 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import { discord } from "./discord-client.js";
 import prisma from "./prisma.js";
 import { env } from "./env.js";
-import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
+import { VIRTUAL_SERVER_IDS, VIRTUAL_SERVER_PERMISSIONS } from "./virtual-servers.js";
 // Discord roles are cached per (user, server). Normal reads tolerate a stale
 // cache for up to DEFAULT_TTL_MS. Permission-gated requests (`privileged`) use
 // the much shorter PRIVILEGED_TTL_MS so role/permission changes take effect
@@ -12,7 +12,7 @@ const PRIVILEGED_TTL_MS = 60 * 1000; // 1 minute
 
 const ALL_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
 
-function isAdmin(userId: string): boolean {
+export function isAdmin(userId: string): boolean {
   return env.ADMIN_DISCORD_IDS.split(",").some((id) => id.trim() === userId);
 }
 
@@ -26,9 +26,56 @@ export async function getUserPermissions(
     return new Set(ALL_PERMISSIONS);
   }
   // Virtual servers have no Discord guild to look roles up in.
-  if (VIRTUAL_SERVER_IDS.has(serverId)) return new Set();
+  if (VIRTUAL_SERVER_IDS.has(serverId)) {
+    return virtualServerPermissions(
+      serverId,
+      (guildId) => getUserRoleIds(userId, guildId, privileged, logger),
+      logger,
+    );
+  }
 
   return permissionsForRoles(serverId, await getUserRoleIds(userId, serverId, privileged, logger));
+}
+
+/**
+ * A virtual server borrows the roles of its management guild (Casual Games:
+ * JetLag EU's), mapped through its own role permissions, of which only
+ * VIRTUAL_SERVER_PERMISSIONS count. Without a management guild, mappings or a
+ * way to read the roles, nobody holds anything there but global admins.
+ */
+async function virtualServerPermissions(
+  serverId: string,
+  rolesInGuild: (guildId: string) => Promise<string[]>,
+  logger?: FastifyBaseLogger,
+): Promise<Set<string>> {
+  const server = await prisma.server.findUnique({
+    where: { id: serverId },
+    select: {
+      managementGuildId: true,
+      rolePermissions: {
+        where: { permission: { in: VIRTUAL_SERVER_PERMISSIONS } },
+        select: { discordRoleId: true, permission: true },
+      },
+    },
+  });
+  const guildId = server?.managementGuildId;
+  if (!guildId || server.rolePermissions.length === 0) return new Set();
+  // Roles are cached per registered server: an unregistered guild has nowhere
+  // to cache them (the cache's foreign key).
+  if (!(await prisma.server.findUnique({ where: { id: guildId }, select: { id: true } }))) {
+    return new Set();
+  }
+
+  let roles: string[];
+  try {
+    roles = await rolesInGuild(guildId);
+  } catch (error) {
+    logger?.warn({ serverId, guildId, err: error }, "Could not read roles in a management guild");
+    return new Set();
+  }
+  return new Set(
+    server.rolePermissions.filter((rp) => roles.includes(rp.discordRoleId)).map((rp) => rp.permission),
+  );
 }
 
 async function permissionsForRoles(serverId: string, roleIds: string[]): Promise<Set<string>> {
@@ -66,7 +113,34 @@ export async function hasPermissionOnSomeServer(
     select: { serverId: true },
   });
 
-  for (const { serverId } of memberships) {
+  // Virtual servers grant permissions through their management guild's roles,
+  // so they are checked when that guild's membership is cached, likewise.
+  const virtualServers = await prisma.server.findMany({
+    where: {
+      id: { in: [...VIRTUAL_SERVER_IDS] },
+      managementGuildId: { not: null },
+      rolePermissions: { some: { permission: { in: permissions } } },
+    },
+    select: { id: true, managementGuildId: true },
+  });
+  const cachedGuilds = new Set(
+    (
+      await prisma.serverMembershipCache.findMany({
+        where: {
+          userId,
+          serverId: { in: virtualServers.map((server) => server.managementGuildId!) },
+          OR: [{ isMember: true }, { cachedAt: { lt: new Date(Date.now() - PRIVILEGED_TTL_MS) } }],
+        },
+        select: { serverId: true },
+      })
+    ).map((membership) => membership.serverId),
+  );
+
+  const serverIds = [
+    ...memberships.map((membership) => membership.serverId),
+    ...virtualServers.filter((server) => cachedGuilds.has(server.managementGuildId!)).map((server) => server.id),
+  ];
+  for (const serverId of serverIds) {
     try {
       const perms = await getUserPermissions(userId, serverId, true, logger);
       if (permissions.some((permission) => perms.has(permission))) return true;
@@ -204,7 +278,18 @@ export async function getListingAccess(
   logger?: FastifyBaseLogger,
 ): Promise<{ isMember: boolean; permissions: Set<string> }> {
   if (isAdmin(userId)) return { isMember: true, permissions: new Set(ALL_PERMISSIONS) };
-  if (VIRTUAL_SERVER_IDS.has(serverId)) return { isMember: true, permissions: new Set() };
+  // No guild to be a member of; permissions come from the management guild.
+  if (VIRTUAL_SERVER_IDS.has(serverId)) {
+    const permissions = await virtualServerPermissions(
+      serverId,
+      async (guildId) => {
+        const membership = await getListingMembership(userId, guildId, recheck, logger);
+        return membership.isMember ? membership.roles : [];
+      },
+      logger,
+    );
+    return { isMember: true, permissions };
+  }
 
   const { isMember, roles } = await getListingMembership(userId, serverId, recheck, logger);
   return { isMember, permissions: isMember ? await permissionsForRoles(serverId, roles) : new Set() };

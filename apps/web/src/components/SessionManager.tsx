@@ -1,9 +1,10 @@
 import { useStore } from "@nanostores/react";
-import type {
-    Game,
-    GameSessionSummary,
-    ServersResponse,
-    SessionsResponse,
+import {
+    CASUAL_SERVER_ID,
+    type Game,
+    type GameSessionSummary,
+    type ServersResponse,
+    type SessionsResponse,
 } from "@searchlight/shared";
 import { EyeIcon, Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -198,8 +199,8 @@ function SessionPickerOverlay({
                     }),
                     // A server is listed for non-members who have sessions
                     // there (from a game link or an invite link); its catalog is
-                    // closed to them.
-                    isMember
+                    // closed to them. Casual games are never in a catalog.
+                    isMember && serverId !== CASUAL_SERVER_ID
                         ? fetchGameCatalog(serverId).catch((err) => {
                               console.warn(
                                   "[searchlight:session] game catalog unavailable:",
@@ -230,6 +231,8 @@ function SessionPickerOverlay({
 
     const selectedIsMember =
         servers?.find((s) => s.id === selectedServerId)?.isMember ?? false;
+    // Casual only groups existing sessions: new ones start from game links.
+    const selectedIsCasual = selectedServerId === CASUAL_SERVER_ID;
 
     useEffect(() => {
         if (selectedServerId)
@@ -423,7 +426,7 @@ function SessionPickerOverlay({
                     <div className="mb-2">
                         {sessions.length === 0 ? (
                             <p className="text-sm text-muted-foreground italic mb-3">
-                                {selectedIsMember
+                                {selectedIsMember && !selectedIsCasual
                                     ? "No sessions yet. Create one below."
                                     : "No sessions on this server."}
                             </p>
@@ -531,7 +534,12 @@ function SessionPickerOverlay({
                             </div>
                         )}
 
-                        {!selectedIsMember ? (
+                        {selectedIsCasual ? (
+                            <p className="text-xs text-muted-foreground">
+                                Casual games start from a game link. Ask the
+                                game’s creator for one.
+                            </p>
+                        ) : !selectedIsMember ? (
                             <p className="text-xs text-muted-foreground">
                                 You aren’t in this Discord server, so you can
                                 only open sessions shared with you here.
