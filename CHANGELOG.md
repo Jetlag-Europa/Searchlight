@@ -4,6 +4,10 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## First mode change after a reload is saved (2026-11-03)
+
+- After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.
+
 ## Question history (2026-11-03)
 
 - A **Questions | History** toggle at the top of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A change that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question are shown as one.
