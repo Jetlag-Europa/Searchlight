@@ -454,6 +454,29 @@ export function ReplayPage() {
         };
     }, [map, zonesLeft]);
 
+    // The hider's zone, outlined from the start: where they hid, as the
+    // endgame found it.
+    const hiderZoneShown = endgame?.zone ?? null;
+    useEffect(() => {
+        if (!map || !hiderZoneShown) return;
+        // Above the board's shading, so it shows even where it's cut away.
+        if (!map.getPane("replayHiderZone"))
+            map.createPane("replayHiderZone").style.zIndex = "450";
+        const layer = L.geoJSON(hiderZoneShown, {
+            pane: "replayHiderZone",
+            interactive: false,
+            style: {
+                color: HIDER_COLOR,
+                weight: 3,
+                dashArray: "6 6",
+                fill: false,
+            },
+        }).addTo(map);
+        return () => {
+            layer.remove();
+        };
+    }, [map, hiderZoneShown]);
+
     // People shown, with their roles and names.
     const people = useMemo(() => {
         if (!data) return [];
@@ -832,6 +855,16 @@ export function ReplayPage() {
                                 hider{" "}
                                 <span style={{ color: SEEKER_COLOR }}>●</span>{" "}
                                 seeker
+                            </>
+                        )}
+                        {hiderZoneShown && (
+                            <>
+                                {" "}
+                                <span
+                                    className="inline-block h-2.5 w-2.5 rounded-full border-2 border-dashed align-middle"
+                                    style={{ borderColor: HIDER_COLOR }}
+                                />{" "}
+                                hider&apos;s zone
                             </>
                         )}
                     </span>
