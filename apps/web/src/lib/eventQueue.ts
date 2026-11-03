@@ -720,6 +720,40 @@ export function rebaseQueuedQuestions(
     if (changed) writePendingQueue(sessionId, rebased);
 }
 
+// When the newest question list sent to each session in this page was
+// made: a change made before then may be on the server, even if the list
+// was answered with an error or not at all, or was replaced in the queue
+// since. A list sent while offline counts too: the request is still made,
+// and can't be told from one that got through, so counting it is the safe
+// side. In memory: it is for Undo, which lasts no longer than the page.
+const questionListsSent = new Map<string, number>();
+
+/** A queued question list is being sent (see questionListSentSince). */
+export function noteQuestionListSent(event: PendingEvent): void {
+    const latest = questionListsSent.get(event.sessionId);
+    if (latest === undefined || event.createdAt > latest) {
+        questionListsSent.set(event.sessionId, event.createdAt);
+    }
+}
+
+/**
+ * Whether a question list made at `time` or later has been sent to the
+ * session: a change made at `time` may then be on the server. Sent from
+ * this page (offline too, see above), or by another tab of the account,
+ * which shares the queue and marks a list sent there. A list only queued,
+ * not sent, doesn't count. One sent by another tab and since answered has
+ * left the queue, so it isn't seen.
+ */
+export function questionListSentSince(sessionId: string, time: number): boolean {
+    if ((questionListsSent.get(sessionId) ?? -Infinity) >= time) return true;
+    return getPendingEvents(sessionId).some(
+        (event) =>
+            event.type === "questions.replace" &&
+            event.sent === true &&
+            event.createdAt >= time,
+    );
+}
+
 /** The queued event is being sent: it may land from now on. */
 export function markEventSent(sessionId: string, localId: string): void {
     const events = getPendingEvents(sessionId);

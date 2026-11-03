@@ -88,10 +88,17 @@ export const QuestionCard = ({
 
     return (
         <>
-            <SidebarGroup className={cn(className, enabled === false && "opacity-50")}>
+            <SidebarGroup
+                className={cn(className, enabled === false && "opacity-50")}
+                // For showing the card after a Restore (showQuestionCard).
+                data-question-key={questionKey}
+            >
                 <div className="relative">
                     <button
                         onClick={toggleCollapse}
+                        // Focused by Show (after a Restore).
+                        data-question-card-header
+                        aria-label={isCollapsed ? "Unfold" : "Fold"}
                         className={cn(
                             "absolute top-2 left-2 text-white border rounded-md transition-all duration-500",
                             isCollapsed && "-rotate-90",

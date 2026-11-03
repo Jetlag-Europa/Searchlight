@@ -85,6 +85,39 @@ export function hidingZoneLayer(
     }
 }
 
+const circlesByGame = new WeakMap<object, Map<number, StationCircle[]>>();
+
+/**
+ * {@link hidingZoneCircles}, kept per compiled game and scale so a zone stays
+ * the same object across recalculations. Callers must not mutate the result.
+ */
+function cachedHidingZoneCircles(
+    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    scale: number,
+): StationCircle[] {
+    let byScale = circlesByGame.get(compiled);
+    if (!byScale) {
+        byScale = new Map();
+        circlesByGame.set(compiled, byScale);
+    }
+    let circles = byScale.get(scale);
+    if (!circles) {
+        circles = hidingZoneCircles(compiled, scale);
+        byScale.set(scale, circles);
+    }
+    return circles;
+}
+
+/** Whether two zone lists hold the same zone objects, in any order. */
+export function sameZones(
+    a: readonly StationCircle[],
+    b: readonly StationCircle[],
+): boolean {
+    if (a.length !== b.length) return false;
+    const zones = new Set(a);
+    return b.every((zone) => zones.has(zone));
+}
+
 /** A question's still-possible region and the zone size it was asked at. */
 export interface AnsweredRegion {
     region: FeatureCollection<Polygon | MultiPolygon> | null | undefined;
@@ -102,7 +135,8 @@ export type FilterZones = (
  * question's region on its own (see DissapearingAct), with the zone sized as
  * it was when that question was asked: a curse that resizes the zones changes
  * only what later answers say. A missing region eliminates everywhere.
- * Returns undefined once `isCurrent` turns false.
+ * Returns undefined once `isCurrent` turns false. A zone is the same object
+ * every time for the same game and scale: don't mutate it.
  */
 export async function survivingHidingZones(
     compiled: Pick<CompiledGame, "definition" | "hidingZones">,
@@ -111,7 +145,9 @@ export async function survivingHidingZones(
     filterZones: FilterZones,
     isCurrent: () => boolean = () => true,
 ): Promise<StationCircle[] | undefined> {
-    const current = hidingZoneCircles(compiled, currentScale);
+    // The same zones as last time keep their objects, so the sidebar can
+    // tell nothing changed and skip redrawing them.
+    const current = cachedHidingZoneCircles(compiled, currentScale);
     const surviving = await survivingZoneIndexes(
         compiled,
         answered,

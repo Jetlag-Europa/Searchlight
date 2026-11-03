@@ -148,6 +148,10 @@ function cancelPendingSaves(sessionId: string): void {
     cancelPendingPlanningModeSave(sessionId);
 }
 
+// A loaded mode its save effect has already checked: the next change is the
+// player's.
+const NOT_LOADED = Symbol("not loaded");
+
 // ── Session picker overlay ────────────────────────────────────────────────────
 
 function SessionPickerOverlay({
@@ -980,10 +984,17 @@ export function SessionManager() {
         loadingGenerationRef.current === sessionLoadGenerationRef.current;
     // Prevents saving questions immediately after we just loaded them from the server.
     const suppressNextSaveRef = useRef(true);
-    // Start suppressed: always wait for the server load before allowing any hider saves.
-    const suppressNextHiderSaveRef = useRef(true);
-    // Start suppressed: always wait for the server load before allowing planning mode saves.
-    const suppressNextPlanningModeRef = useRef(true);
+    // The hider and planning mode a load last showed on the board (to start
+    // with, what it shows already). Each save effect skips a change to exactly
+    // that value, as the server or the queue already has it. Matching the
+    // value, not counting changes, means a load that changes nothing can't
+    // swallow the player's first change.
+    const loadedHiderModeRef = useRef<
+        ReturnType<typeof hiderMode.get> | typeof NOT_LOADED
+    >(hiderMode.get());
+    const loadedPlanningModeRef = useRef<boolean | typeof NOT_LOADED>(
+        planningModeEnabled.get(),
+    );
     // The account whose kept session the board shows while offline.
     const offlineBoardUserRef = useRef<string | null>(null);
     const offlineRef = useRef(offline);
@@ -1033,16 +1044,9 @@ export function SessionManager() {
                 (event) => event.status !== "synced",
             ),
         );
-        // Only suppress if the atom will actually change. If both old and new
-        // are false, nanostores won't fire and the ref would stay true forever,
-        // silently swallowing the next legit user-initiated hider save.
-        if (modes.hiderMode !== false || hiderMode.get() !== false) {
-            suppressNextHiderSaveRef.current = true;
-        }
+        loadedHiderModeRef.current = modes.hiderMode;
         hiderMode.set(modes.hiderMode);
-        if (planningModeEnabled.get() !== modes.planningModeEnabled) {
-            suppressNextPlanningModeRef.current = true;
-        }
+        loadedPlanningModeRef.current = modes.planningModeEnabled;
         planningModeEnabled.set(modes.planningModeEnabled);
     };
 
@@ -1079,8 +1083,10 @@ export function SessionManager() {
     // Debounce-save hider mode whenever it changes (while a session is active).
     useEffect(() => {
         if (!sessionId || !authUserId || savesBlocked()) return;
-        if (suppressNextHiderSaveRef.current) {
-            suppressNextHiderSaveRef.current = false;
+        // Consumed by the first run that may save: the next change is new.
+        const loaded = loadedHiderModeRef.current;
+        loadedHiderModeRef.current = NOT_LOADED;
+        if (currentHiderMode === loaded) {
             console.info("[searchlight:session] hider save suppressed by ref", {
                 sessionId,
                 hiderMode: currentHiderMode,
@@ -1111,8 +1117,10 @@ export function SessionManager() {
     // Debounce-save planning mode whenever it changes (while a session is active).
     useEffect(() => {
         if (!sessionId || !authUserId || savesBlocked()) return;
-        if (suppressNextPlanningModeRef.current) {
-            suppressNextPlanningModeRef.current = false;
+        // Consumed by the first run that may save, as for the hider.
+        const loaded = loadedPlanningModeRef.current;
+        loadedPlanningModeRef.current = NOT_LOADED;
+        if (currentPlanningMode === loaded) {
             console.info(
                 "[searchlight:session] planning mode save suppressed by ref",
                 { sessionId, planningModeEnabled: currentPlanningMode },
@@ -1653,14 +1661,10 @@ export function SessionManager() {
                 } else if (switchingSession) {
                     // The outgoing session's hider and planning mode aren't
                     // this session's.
-                    if (hiderMode.get() !== false) {
-                        suppressNextHiderSaveRef.current = true;
-                        hiderMode.set(false);
-                    }
-                    if (planningModeEnabled.get()) {
-                        suppressNextPlanningModeRef.current = true;
-                        planningModeEnabled.set(false);
-                    }
+                    loadedHiderModeRef.current = false;
+                    hiderMode.set(false);
+                    loadedPlanningModeRef.current = false;
+                    planningModeEnabled.set(false);
                 }
                 if (timedOut) warnTooSlow(restoredFromCache);
             } finally {
@@ -1676,12 +1680,11 @@ export function SessionManager() {
             cancelPendingQuestionSave();
             cancelPendingHiderSave();
             cancelPendingPlanningModeSave();
-            // Only suppress the sessionId-change hider effect if the session is
-            // actually changing — same-session re-selects don't fire the effect.
-            if (activeSessionId.get() !== selected.id) {
-                suppressNextHiderSaveRef.current = true;
-                suppressNextPlanningModeRef.current = true;
-            }
+            // The modes the board shows now are no change to save, when the
+            // session changing runs the save effects again or a failed load
+            // lets them save again.
+            loadedHiderModeRef.current = hiderMode.get();
+            loadedPlanningModeRef.current = planningModeEnabled.get();
             setActiveSession(sessionToActivate);
             loadingGenerationRef.current = null;
             setShowPicker(false);

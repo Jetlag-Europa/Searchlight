@@ -4,7 +4,13 @@ import type { Polygon } from "geojson";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { compileGameDefinition } from "@/game-definition/compile";
-import { hidingZoneCircles } from "@/maps/geo-utils";
+import {
+    hidingZoneCircles,
+    hidingZoneLayer,
+    sameZones,
+    survivingHidingZones,
+} from "@/maps/geo-utils";
+import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 const district: Polygon = {
     type: "Polygon",
@@ -148,4 +154,78 @@ it("frames the play area without explicit bounds", () => {
     expect(south).toBeLessThanOrEqual(49);
     expect(east).toBeGreaterThanOrEqual(11);
     expect(north).toBeGreaterThanOrEqual(51);
+});
+
+it("keeps the same zone objects across recalculations", async () => {
+    const compiled = compileGameDefinition(game);
+    const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
+
+    const first = await survivingHidingZones(compiled, [], 1, keepAll);
+    const again = await survivingHidingZones(compiled, [], 1, keepAll);
+    // A new list each time: trainStations sorts the list it's given in
+    // place, which would reorder the cache.
+    expect(again).not.toBe(first);
+    expect(again).toHaveLength(2);
+    again!.forEach((zone, i) => expect(zone).toBe(first![i]));
+    expect(sameZones([...first!].reverse(), again!)).toBe(true);
+
+    // Answered questions reuse them too.
+    const region = turf.featureCollection([turf.polygon(district.coordinates)]);
+    const answered = await survivingHidingZones(
+        compiled,
+        [{ region }],
+        1,
+        keepAll,
+    );
+    answered!.forEach((zone, i) => expect(zone).toBe(first![i]));
+
+    // An answer that rules out a zone changes the list, not the zones left.
+    const narrowed = await survivingHidingZones(
+        compiled,
+        [{ region }],
+        1,
+        () => [1],
+    );
+    expect(narrowed).toHaveLength(1);
+    expect(narrowed![0]).toBe(first![1]);
+    expect(sameZones(first!, narrowed!)).toBe(false);
+
+    // Another scale or game draws new zones.
+    const [resized] = (await survivingHidingZones(compiled, [], 2, keepAll))!;
+    expect(resized).not.toBe(first![0]);
+    const [recompiled] = (await survivingHidingZones(
+        compileGameDefinition(game),
+        [],
+        1,
+        keepAll,
+    ))!;
+    expect(recompiled).not.toBe(first![0]);
+    expect(recompiled).toEqual(first![0]);
+
+    // Callers that may edit them still get their own.
+    expect(hidingZoneCircles(compiled)[0]).not.toBe(first![0]);
+    expect(hidingZoneCircles(compiled)[0]).toEqual(first![0]);
+});
+
+it("compares zone lists by their objects, in any order", () => {
+    const [a, b] = hidingZoneCircles(compileGameDefinition(game));
+    const [c] = hidingZoneCircles(compileGameDefinition(game));
+
+    expect(sameZones([a, b], [b, a])).toBe(true);
+    expect(sameZones([], [])).toBe(true);
+    expect(sameZones([a, b], [a])).toBe(false);
+    expect(sameZones([a], [a, b])).toBe(false);
+    // An equal but new zone is a change.
+    expect(sameZones([a, b], [c, b])).toBe(false);
+});
+
+it("merges No Overlap in the worker into the outline it drew before", async () => {
+    const zones = hidingZoneCircles(compileGameDefinition(game));
+    const outline = await requestGeometry(
+        { kind: "union", regions: zones },
+        { supersede: "hiding-zone-outline" },
+    );
+    expect(outline?.geometry).toEqual(
+        hidingZoneLayer(zones, "no-overlap").features[0].geometry,
+    );
 });

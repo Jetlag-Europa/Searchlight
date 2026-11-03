@@ -4,6 +4,23 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## First mode change after a reload is saved (2026-11-03)
+
+- After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.
+
+## Question history (2026-11-03)
+
+- A **Questions | History** toggle at the top of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A change that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question are shown as one.
+- A deleted question has a **Restore** button there, long after its Undo is gone. It puts the question back where it was, for everyone. A "Radius 2 is back" message then offers **Undo**, and **Show**, which opens the Questions list at that question. Spectators can read History but not restore.
+- The message after a delete now names the question ("Radius 2 deleted"). Its Undo still puts the question back as if never deleted while the delete hasn't reached the server; once it may have, Undo puts back a copy, which History shows as "restored".
+- History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
+
+## Smoother hiding-zone map on big games (2026-11-03)
+
+- With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
+- "No Overlap" merges the zones without freezing the page, and the map keeps what it showed until the new outline is ready. Turning Zone Labels on or off, or leaving a viewed zone, redraws the outline at once.
+- An answer or a teammate's update that rules out no zone no longer redraws the zones.
+
 ## Deleting a session asks first (2026-11-03)
 
 - Deleting a session from the session list now opens a confirm that names the session and says it is deleted for everyone in it, with its questions and drawings. Before, two taps on the right end of a row deleted it on a phone, where the button couldn't be seen.
