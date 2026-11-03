@@ -103,6 +103,10 @@ export async function storeRevision(
     if (!cache) return;
     const key = revisionKey(gameId, revisionId);
     try {
+        // Indexed before the copy is written, so a store cleaning up in
+        // another tab never finds the copy without its index entry. (An entry
+        // whose copy didn't make it reads as not kept.)
+        touch(key);
         await cache.put(
             key,
             new Response(json, {
@@ -111,7 +115,6 @@ export async function storeRevision(
         );
         // Copies no longer in the index (pruned, or kept by an index that
         // was cleared) go too.
-        touch(key);
         const keys = await cache.keys();
         // Read after the keys: a copy stored or read meanwhile is in it.
         // With `key`, in case the index couldn't be written.

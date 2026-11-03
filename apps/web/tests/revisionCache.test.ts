@@ -198,6 +198,30 @@ describe("kept game revisions", () => {
         expect(await readStoredRevision("game", "r2")).toBeDefined();
     });
 
+    test("survive another tab's store, whose index it may see late", async () => {
+        // r2's copy is in the cache, but its tab hasn't gone on yet when
+        // r1's store (in another tab) cleans up.
+        const cache = await storage.open("searchlight-game-revisions-v1");
+        const put = cache.put.bind(cache);
+        let stored!: () => void;
+        let goOn!: () => void;
+        const inCache = new Promise<void>((r) => (stored = r));
+        const resumed = new Promise<void>((r) => (goOn = r));
+        vi.spyOn(cache, "put").mockImplementationOnce(async (...args) => {
+            await put(...args);
+            stored();
+            await resumed;
+        });
+        const other = storeRevision("game", "r2", json("two"));
+        await inCache;
+        await storeRevision("game", "r1", json("one"));
+        goOn();
+        await other;
+
+        expect(await readStoredRevision("game", "r1")).toBeDefined();
+        expect(await readStoredRevision("game", "r2")).toBeDefined();
+    });
+
     test("keep no more than that when the index can't be written", async () => {
         for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
             await storeRevision("game", `r${i}`, json(`${i}`));
