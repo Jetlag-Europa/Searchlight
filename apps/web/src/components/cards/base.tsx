@@ -96,6 +96,9 @@ export const QuestionCard = ({
                 <div className="relative">
                     <button
                         onClick={toggleCollapse}
+                        // Focused by Show (after a Restore).
+                        data-question-card-header
+                        aria-label={isCollapsed ? "Unfold" : "Fold"}
                         className={cn(
                             "absolute top-2 left-2 text-white border rounded-md transition-all duration-500",
                             isCollapsed && "-rotate-90",

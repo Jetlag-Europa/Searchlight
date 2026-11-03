@@ -44,7 +44,6 @@ import {
     QuestionHistoryError,
     restorable,
     restoreFromHistory,
-    unsavedChangesNote,
 } from "@/lib/questionHistory";
 import { hasPendingQuestionSave } from "@/lib/sessionState";
 
@@ -92,10 +91,11 @@ export const HistoryList = ({
         if (!checks.some((c) => c.status === "ok")) {
             const reason =
                 unavailable?.status === "unavailable" ? unavailable.reason : "";
-            // Cut short on a phone ("On the board as" a long name).
+            // Two lines at most, beside the change: "On the board as" a long
+            // name is cut short there, the rest is read whole.
             return (
                 <span
-                    className="max-w-[9rem] shrink-0 truncate text-right text-xs leading-7 text-muted-foreground"
+                    className="line-clamp-2 max-w-[7rem] shrink-0 break-words py-1 text-right text-xs leading-5 text-muted-foreground"
                     title={reason}
                 >
                     {reason}
@@ -368,15 +368,14 @@ export const QuestionHistory = () => {
     }
 
     const hasOlder = !!history?.nextBefore;
+    // Changes not saved yet aren't in the History until they are.
     const unsaved =
-        sessionId && !$readOnly
-            ? unsavedChangesNote(hasPendingQuestionSave(sessionId))
-            : null;
+        !!sessionId && !$readOnly && hasPendingQuestionSave(sessionId);
     return (
         <div className="flex flex-col pb-2">
             {unsaved && (
                 <p className="px-4 py-2 text-xs text-muted-foreground">
-                    {unsaved}
+                    Your latest changes will show here once they&apos;re saved.
                 </p>
             )}
             {refreshFailed && (
@@ -398,7 +397,7 @@ export const QuestionHistory = () => {
                 ) : olderState === "loading" ? (
                     <Note>Loading…</Note>
                 ) : (
-                    <Note>No changes in the latest saves.</Note>
+                    <Note>No question changes recently.</Note>
                 ))}
             <HistoryList
                 lines={lines}

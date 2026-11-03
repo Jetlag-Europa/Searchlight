@@ -1,4 +1,7 @@
+import { activeSessionId } from "@/lib/activeSession";
+import type { HistoryLine, RemovedQuestion } from "@/lib/historyLines";
 import { sameQuestionKey } from "@/lib/questionMerge";
+import { newQuestionKey } from "@/maps/schema";
 
 // What a delete removed, for its Undo: the questions and the order of the list
 // they were deleted from. Undo puts them back into the list as it is by then:
@@ -69,3 +72,120 @@ export const placeRemovedQuestions = <T extends { key: number }>(
     }
     return restored ? next : null;
 };
+
+// ── Putting deleted questions back as copies (Restore, and Undo once the
+// delete may have reached the server) ─────────────────────────────────────────
+
+/** The History's lines, for what each deleted question was restored as. */
+export type Lines = readonly Pick<HistoryLine, "removed">[];
+
+/**
+ * A deleted question as Restore puts it back: a copy under a new key, with
+ * everything else as it was. To every merge it is then a question added,
+ * not the deleted one coming back, which a list made before the delete
+ * would read as unchanged and delete again.
+ */
+export function asRestored<T extends { key: number }>(
+    question: T,
+    key: number = newQuestionKey(),
+): T {
+    return { ...structuredClone(question), key };
+}
+
+// Restores made here, old key to new, for the session they were made in:
+// the lines say so (restoredAs) only once the History has loaded the save.
+let restoredHere: { sessionId: string; pairs: [number, number][] } = {
+    sessionId: "",
+    pairs: [],
+};
+const pairsHere = () => {
+    const sessionId = activeSessionId.get();
+    if (restoredHere.sessionId !== sessionId) {
+        restoredHere = { sessionId, pairs: [] };
+    }
+    return restoredHere.pairs;
+};
+
+// The keys a deleted question has had: its own, what it was restored as,
+// what that was restored as once deleted in turn, and so on, by every line
+// loaded (its key may have been deleted more than once, put back by Undo)
+// and by the restores made here since.
+export function lineageKeys(
+    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
+    lines: Lines,
+): number[] {
+    const keys = [removed.key];
+    const add = (key: number) => {
+        if (!keys.some((k) => sameQuestionKey(k, key))) keys.push(key);
+    };
+    for (const key of removed.restoredAs ?? []) add(key);
+    // Grows as it goes, until no new key turns up.
+    for (let i = 0; i < keys.length; i++) {
+        for (const line of lines) {
+            for (const other of line.removed ?? []) {
+                if (!sameQuestionKey(other.key, keys[i])) continue;
+                for (const key of other.restoredAs ?? []) add(key);
+            }
+        }
+        for (const [from, to] of pairsHere()) {
+            if (sameQuestionKey(from, keys[i])) add(to);
+        }
+    }
+    return keys;
+}
+
+const holds = (board: readonly { key: number }[], key: number) =>
+    board.some((q) => sameQuestionKey(q.key, key));
+
+/**
+ * Whether a deleted question is on the board: under its key, or as the
+ * question it was restored as (edited since or not).
+ */
+export function isOnBoard(
+    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
+    board: readonly { key: number }[],
+    lines: Lines = [],
+): boolean {
+    return onBoardAs(removed, board, lines) !== undefined;
+}
+
+/** The key a deleted question is on the board under now, if it is. */
+export function onBoardAs(
+    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
+    board: readonly { key: number }[],
+    lines: Lines = [],
+): number | undefined {
+    for (const key of lineageKeys(removed, lines)) {
+        const found = board.find((q) => sameQuestionKey(q.key, key));
+        if (found) return found.key;
+    }
+    return undefined;
+}
+
+/**
+ * The board with restored questions put back where they were in `order`
+ * (as Undo does), or null when there's nothing to put back. Keys in `order`
+ * no longer on the board stand for what they were restored as, so questions
+ * restored one by one keep their order. Remembers what each was restored
+ * as, so the line says "On the board" before the History reloads.
+ */
+export function placeRestored<T extends { key: number }>(
+    current: readonly T[],
+    order: readonly number[],
+    restored: readonly { from: number; index: number; question: T }[],
+    lines: Lines = [],
+): T[] | null {
+    const placed = order.map((key) => {
+        const now = restored.find((r) => sameQuestionKey(r.from, key));
+        if (now) return now.question.key;
+        if (holds(current, key)) return key;
+        return (
+            lineageKeys({ key }, lines).find((k) => holds(current, k)) ?? key
+        );
+    });
+    const next = placeRemovedQuestions(current, placed, restored);
+    if (next) {
+        for (const r of restored) pairsHere().push([r.from, r.question.key]);
+    }
+    return next;
+}

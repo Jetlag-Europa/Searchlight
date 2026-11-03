@@ -148,7 +148,7 @@ describe("the question history list", () => {
     it("says why Restore waits while no decision can be taken", () => {
         setQuestionDecisionsPossible(false);
         const { html } = render([]);
-        expect(html).toMatch(/Loading…|Offline: try again when connected/);
+        expect(html).toMatch(/>(Loading…|Offline)</);
         expect(html).not.toContain(">Restore</button>");
     });
 });

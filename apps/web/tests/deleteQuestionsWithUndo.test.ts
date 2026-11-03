@@ -11,6 +11,8 @@ vi.stubGlobal("localStorage", {
     key: (i: number) => [...store.keys()][i] ?? null,
 });
 vi.stubGlobal("window", new EventTarget());
+// Lists sent are never answered: these tests read what was queued.
+vi.stubGlobal("fetch", () => new Promise(() => {}));
 
 // The toasts: the Undo ones are rendered by hand to read and press them.
 type Rendered = {
@@ -41,8 +43,12 @@ import {
     showRestoredToast,
     undoQuestionDeletion,
 } from "@/lib/deleteQuestionsWithUndo";
-import { noteQuestionListSent } from "@/lib/eventQueue";
-import { isOnBoard } from "@/lib/questionHistory";
+import { getPendingEvents, noteQuestionListSent } from "@/lib/eventQueue";
+import { isOnBoard } from "@/lib/questionUndo";
+import {
+    hasScheduledQuestionSave,
+    saveQuestionsDebounced,
+} from "@/lib/sessionState";
 import type { Questions } from "@/maps/schema";
 
 let sid = 0;
@@ -93,6 +99,25 @@ describe("undoing a delete", () => {
             alreadyBack: 0,
         });
         expect(keys()).toEqual([1, 2, 3]);
+    });
+
+    test("puts the undone board in place of the delete's list still waiting", () => {
+        board(q(1, "a"), q(2, "b"), q(3, "c"));
+        const sessionId = activeSessionId.get();
+        const pending = deleteQuestionsWithUndo([2])!;
+        // As the board's save does once it has redrawn without it.
+        saveQuestionsDebounced(sessionId, questions.get());
+        undoQuestionDeletion(pending);
+        // Not left to send the delete in a moment: queued with it back.
+        expect(hasScheduledQuestionSave(sessionId)).toBe(false);
+        const queued = getPendingEvents(sessionId).filter(
+            (event) => event.type === "questions.replace",
+        );
+        expect(queued).toHaveLength(1);
+        const sent = queued[0].payloadJson as {
+            questions: { payloadJson: { key: number } }[];
+        };
+        expect(sent.questions.map((x) => x.payloadJson.key)).toEqual([1, 2, 3]);
     });
 
     test("puts a copy back once a list made since may have landed", () => {
@@ -150,7 +175,9 @@ describe("undoing a delete", () => {
 describe("the toast after Restore", () => {
     test("says what's back, and its Undo takes exactly those copies", () => {
         board(q(1, "a"), q(0.5, "b"), q(3, "c"));
-        showRestoredToast([{ label: "Radius 2", key: 0.5 }]);
+        showRestoredToast([
+            { label: "Radius 2", key: 0.5, question: q(0.5, "b") },
+        ]);
         const { text, undo } = lastToast();
         expect(text).toBe("Radius 2 is back");
         const shown = toasts.length;
@@ -159,10 +186,30 @@ describe("the toast after Restore", () => {
         // No delete toast of its own.
         expect(toasts).toHaveLength(shown);
         showRestoredToast([
-            { label: "Radius 1", key: 1 },
-            { label: "Radius 2", key: 3 },
-            { label: "Radius 3", key: 9 },
+            { label: "Radius 1", key: 1, question: q(1, "a") },
+            { label: "Radius 2", key: 3, question: q(3, "c") },
+            { label: "Radius 3", key: 9, question: q(9, "d") },
         ]);
         expect(lastToast().text).toBe("3 questions are back");
+    });
+
+    test("its Undo leaves a copy changed since, and says so", () => {
+        board(q(1, "a"), q(0.5, "b"), q(0.75, "c"));
+        showRestoredToast([
+            { label: "Radius 2", key: 0.5, question: q(0.5, "b") },
+            { label: "Radius 3", key: 0.75, question: q(0.75, "c") },
+        ]);
+        const { undo } = lastToast();
+        // Moved by a teammate meanwhile; folding doesn't count.
+        board(
+            q(1, "a"),
+            q(0.5, "b", { collapsed: true }),
+            q(0.75, "c moved"),
+        );
+        undo!();
+        expect(keys()).toEqual([1, 0.75]);
+        expect(lastToast().text).toBe(
+            "Radius 2 was changed meanwhile, so it stays",
+        );
     });
 });

@@ -6,8 +6,9 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 ## Question history (2026-11-03)
 
-- A **Questions | History** toggle at the top of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A save that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question are shown as one.
-- A deleted question has a **Restore** button there, long after its Undo is gone. It puts the question back where it was, for everyone. Spectators can read History but not restore.
+- A **Questions | History** toggle at the top of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A change that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question are shown as one.
+- A deleted question has a **Restore** button there, long after its Undo is gone. It puts the question back where it was, for everyone. A "Radius 2 is back" message then offers **Undo**, and **Show**, which opens the Questions list at that question. Spectators can read History but not restore.
+- The message after a delete now names the question ("Radius 2 deleted"). Its Undo still puts the question back as if never deleted while the delete hasn't reached the server; once it may have, Undo puts back a copy, which History shows as "restored".
 - History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
 
 ## Spectator links (2026-11-03)

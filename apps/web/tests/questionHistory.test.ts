@@ -14,14 +14,13 @@ import {
     fetchQuestionHistory,
     formatHistoryTime,
     prependNewer,
-    QuestionHistoryError,
-    asRestored,
-    restorable,
     notRightNowReason,
+    QuestionHistoryError,
+    restorable,
     restoreBlocked,
     restoreFromHistory,
-    unsavedChangesNote,
 } from "@/lib/questionHistory";
+import { asRestored } from "@/lib/questionUndo";
 import { type Question, questionSchema } from "@/maps/schema";
 
 // The next double up: a key saved one ulp off by an older client.
@@ -175,7 +174,7 @@ describe("restoring from the history", () => {
             }),
         ).toEqual({
             status: "unavailable",
-            reason: "Can't be restored in this game",
+            reason: "Not in this game",
         });
     });
 
@@ -389,8 +388,7 @@ describe("what a deleted question became", () => {
         expect(
             restoreBlocked(
                 { key: 0.5, restoredAs: [0.6] },
-                [{ key: 0.6 }],
-                true,
+                { held: [{ key: 0.6 }], decisionsPossible: true },
             ),
         ).toBe("Needs a decision first");
         // Two steps on: 0.6 was deleted and restored as 0.7.
@@ -410,17 +408,13 @@ describe("what a deleted question became", () => {
         expect(
             restoreBlocked(
                 { key: 0.5, restoredAs: [0.6] },
-                [{ key: 0.7 }],
-                true,
-                lines,
+                { held: [{ key: 0.7 }], decisionsPossible: true, lines },
             ),
         ).toBe("Needs a decision first");
         expect(
             restoreBlocked(
                 { key: 0.5, restoredAs: [0.6] },
-                [{ key: 0.8 }],
-                true,
-                lines,
+                { held: [{ key: 0.8 }], decisionsPossible: true, lines },
             ),
         ).toBeNull();
     });
@@ -456,16 +450,16 @@ describe("when Restore waits", () => {
     });
 
     it("waits for a decision over that question, and for an editable board", () => {
-        expect(restoreBlocked(0.5, [], true)).toBeNull();
+        const blocked = (held: { key: number }[], decisionsPossible: boolean) =>
+            restoreBlocked(0.5, { held, decisionsPossible });
+        expect(blocked([], true)).toBeNull();
         // Held under a key saved one ulp off.
-        expect(restoreBlocked(0.5, [{ key: nextUp(0.5) }], true)).toBe(
+        expect(blocked([{ key: nextUp(0.5) }], true)).toBe(
             "Needs a decision first",
         );
-        expect(restoreBlocked(0.5, [{ key: 0.25 }], true)).toBeNull();
-        expect(restoreBlocked(0.5, [], false)).toMatch(/^(Loading…|Offline)/);
-        expect(restoreBlocked(0.5, [{ key: 0.5 }], false)).toBe(
-            "Needs a decision first",
-        );
+        expect(blocked([{ key: 0.25 }], true)).toBeNull();
+        expect(blocked([], false)).toMatch(/^(Loading…|Offline)$/);
+        expect(blocked([{ key: 0.5 }], false)).toBe("Needs a decision first");
     });
 
     it("says so instead of putting the question back", () => {
@@ -491,6 +485,16 @@ describe("when Restore waits", () => {
         expect(questions.get().map(latOf)).toEqual([50]);
     });
 
+    it("names what it put back as the board calls it now", () => {
+        setQuestionDecisionsPossible(true);
+        // Radius 2 when deleted; Radius 1 went too, so it's back as Radius 1.
+        const { back } = restoreFromHistory({ order: [0.25, 0.5] }, [
+            { key: 0.5, index: 1, label: "Radius 2", question: radar(0.5) },
+        ]);
+        expect(back.map((r) => r.label)).toEqual(["Radius 1"]);
+        expect(back[0].key).not.toBe(0.5);
+    });
+
     it("restores nothing for a spectator", () => {
         const deleted = radar(0.5);
         const target = {
@@ -512,18 +516,9 @@ describe("when Restore waits", () => {
 
 describe("what the History says", () => {
     it("tells offline from loading when Restore waits", () => {
-        expect(notRightNowReason(false)).toBe(
-            "Offline: try again when connected",
-        );
+        expect(notRightNowReason(false)).toBe("Offline");
         expect(notRightNowReason(true)).toBe("Loading…");
         expect(notRightNowReason(undefined)).toBe("Loading…");
-    });
-
-    it("notes changes of ours not saved yet", () => {
-        expect(unsavedChangesNote(true)).toBe(
-            "Your latest changes will show here once they're saved.",
-        );
-        expect(unsavedChangesNote(false)).toBeNull();
     });
 
     it("names a restored question as the board does now", () => {

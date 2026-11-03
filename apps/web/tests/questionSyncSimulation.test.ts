@@ -364,6 +364,7 @@ async function loadGraph() {
         merge: "@/lib/questionMerge",
         store: "@/game-definition/store",
         history: "@/lib/questionHistory",
+        questionUndo: "@/lib/questionUndo",
         undo: "@/lib/deleteQuestionsWithUndo",
         lines: "@/lib/historyLines",
     };
@@ -404,7 +405,10 @@ type Action =
     | { t: "fail"; c: number; pick: number }
     | { t: "sse"; c: number }
     | { t: "drop"; c: number }
-    | { t: "open"; c: number };
+    | { t: "open"; c: number }
+    // Real time passing, in a trace only: lists and deletes are told apart
+    // by when they were made (Date.now), which within a millisecond can't.
+    | { t: "pause"; c: number; ms: number };
 
 interface HistoryEntry {
     step: number;
@@ -620,14 +624,9 @@ function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
     for (const line of lines) {
         for (const removed of line.removed ?? []) {
             if (
-                c.g.history.isOnBoard(removed, board, lines) ||
+                c.g.questionUndo.isOnBoard(removed, board, lines) ||
                 (mode === "owned" && owner(removed.key) !== c.idx) ||
-                c.g.history.restoreBlocked(
-                    removed,
-                    undefined,
-                    undefined,
-                    lines,
-                ) !== null
+                c.g.history.restoreBlocked(removed, { lines }) !== null
             )
                 continue;
             out.push({
@@ -768,14 +767,14 @@ async function applyUser(
         // puts the same key back: see the "undo" action.)
         const fresh = 1000 * (a.c + 1) + ++run.addCount[a.c];
         await inClient(c, () => {
-            const next = c.g.history.placeRestored(
+            const next = c.g.questionUndo.placeRestored(
                 context.questions.get(),
                 order,
                 [
                     {
                         from: key,
                         index,
-                        question: c.g.history.asRestored(version, fresh),
+                        question: c.g.questionUndo.asRestored(version, fresh),
                     },
                 ],
                 lines,
@@ -917,6 +916,9 @@ async function applyAction(a: Action, mode: Mode): Promise<string | null> {
             await inClient(c, () => es.onerror?.({}));
             return `stream dropped`;
         }
+        case "pause":
+            await new Promise((r) => realSetTimeout(r, a.ms));
+            return null;
         case "open": {
             if (!c.es || c.es.readyState !== 0) return null;
             const es = c.es;
@@ -1262,13 +1264,34 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                 let last = hs.at(-1)!;
                 // Undone under its key, the delete never happened: the
                 // question is back as it was, so the other player's edit or
-                // delete of it merges in as over any question.
+                // delete of it merges in as over any question. Only one
+                // the player's version doesn't already include: made after
+                // the player's own last change of it before the delete (an
+                // earlier Undo under its key changed nothing).
                 if (last.kind === "undo" && last.sameKey) {
                     const undone = last;
+                    const deletedAt =
+                        run.sameKeyUndos.find(
+                            (u) =>
+                                u.c === undone.c &&
+                                u.key === key &&
+                                u.to === undone.step,
+                        )?.from ?? undone.step;
+                    const ownBefore =
+                        hs
+                            .filter(
+                                (h) =>
+                                    h.c === undone.c &&
+                                    h.step < deletedAt &&
+                                    h.kind !== "delete" &&
+                                    !h.sameKey,
+                            )
+                            .at(-1)?.step ?? -Infinity;
                     const theirs = hs
                         .filter(
                             (h) =>
                                 h.c !== undone.c &&
+                                h.step > ownBefore &&
                                 (h.kind === "edit" || h.kind === "delete"),
                         )
                         .at(-1);
@@ -1450,13 +1473,27 @@ async function makeClients() {
                 sync,
             } = c.g;
             sync.startSyncManager();
-            // SessionManager's save effect.
-            context.questions.listen((list: Any[]) => {
-                const sid = activeSession.activeSessionId.get();
-                if (!sid) return;
-                const edited = !suppress.isQuestionSaveSuppressed(list);
-                conflicts.trackBoardQuestions(sid, list, edited);
-                if (edited) sessionState.saveQuestionsDebounced(sid, list);
+            // SessionManager's save effect. React runs it once the board has
+            // redrawn: after whatever set the questions has returned, and
+            // once for the board as it is by then, however often it was set.
+            // A microtask comes after the handler, and before the next tap.
+            let effectQueued = false;
+            let drawn: Any[] | null = null;
+            context.questions.listen(() => {
+                if (effectQueued) return;
+                effectQueued = true;
+                queueMicrotask(() => {
+                    effectQueued = false;
+                    const list = context.questions.get() as Any[];
+                    // Its dependency unchanged: React doesn't run it.
+                    if (list === drawn) return;
+                    drawn = list;
+                    const sid = activeSession.activeSessionId.get();
+                    if (!sid) return;
+                    const edited = !suppress.isQuestionSaveSuppressed(list);
+                    conflicts.trackBoardQuestions(sid, list, edited);
+                    if (edited) sessionState.saveQuestionsDebounced(sid, list);
+                });
             });
             // SessionManager's onQuestionsSaved listener.
             sync.onQuestionsSaved((saved: Any) => {
@@ -2425,7 +2462,7 @@ const TRACES: Array<{
         },
     },
     {
-        name: "owned: Undo before the save puts the same key back, and the server never hears of the delete",
+        name: "owned: Undo within 500 ms of the delete puts the same key back, and the server never hears of the delete",
         mode: "owned",
         seed: 8,
         actions: [
@@ -2438,6 +2475,62 @@ const TRACES: Array<{
         check: () => {
             expect(run.log.join("\n")).toMatch(/undo 1$/m);
             expectServer([1, 2, 3, 4], { 1: "init-1" });
+            for (const e of server.events)
+                expect(
+                    e.payloadJson.questions.map((x: Any) => x.payloadJson.key),
+                ).toContain(1);
+        },
+    },
+    {
+        name: "owned: Undo while an earlier list is on its way and the delete's list waits behind it puts the same key back",
+        mode: "owned",
+        seed: 11,
+        actions: [
+            // A edits question 3, and that list goes out.
+            { t: "user", c: 0, kind: "edit", pick: 0.9 },
+            { t: "timer", c: 0 },
+            { t: "pause", c: 0, ms: 2 },
+            // A deletes question 1: its list is queued behind that one.
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "timer", c: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            // Only then is the first one answered.
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/undo 1$/m);
+            expectServer([1, 2, 3, 4], { 1: "init-1", 3: "c0." });
+            // The edit's list went first, and none since lacks question 1.
+            const first = server.events[0].payloadJson.questions;
+            expect(labelOf(first[2].payloadJson)).toMatch(/^c0\./);
+            for (const e of server.events)
+                expect(
+                    e.payloadJson.questions.map((x: Any) => x.payloadJson.key),
+                ).toContain(1);
+        },
+    },
+    {
+        name: "shared: Undo within 500 ms of the delete puts the same key back, and a teammate's edit it hadn't seen stays",
+        mode: "shared",
+        seed: 12,
+        actions: [
+            { t: "open", c: 0 },
+            { t: "open", c: 1 },
+            // B edits question 1, saved; A hasn't heard yet.
+            { t: "user", c: 1, kind: "edit", pick: 0 },
+            { t: "timer", c: 1 },
+            { t: "arrive", c: 1, pick: 0 },
+            { t: "respond", c: 1, pick: 0, lose: false },
+            // A deletes it, and takes that back at once.
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            { t: "arrive", c: 0, pick: 0 },
+            { t: "respond", c: 0, pick: 0, lose: false },
+        ],
+        check: () => {
+            expect(run.log.join("\n")).toMatch(/undo 1$/m);
+            expectOnServer(1, "c1.");
             for (const e of server.events)
                 expect(
                     e.payloadJson.questions.map((x: Any) => x.payloadJson.key),

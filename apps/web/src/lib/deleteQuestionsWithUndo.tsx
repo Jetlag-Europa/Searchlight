@@ -3,16 +3,23 @@ import { type Id, toast } from "react-toastify";
 import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { questionListSentSince } from "@/lib/eventQueue";
-import { asRestored, isOnBoard, placeRestored } from "@/lib/questionHistory";
 import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
 import { boardLabel } from "@/lib/questionNames";
 import { showQuestionCard } from "@/lib/questionSidebarTab";
 import {
+    asRestored,
     deleteQuestions,
+    isOnBoard,
+    placeRestored,
     type QuestionDeletion,
     undoDeletion,
 } from "@/lib/questionUndo";
-import { flushQuestionSave } from "@/lib/sessionState";
+import {
+    cancelPendingQuestionSave,
+    flushQuestionSave,
+    hasPendingQuestionSave,
+    saveQuestionsDebounced,
+} from "@/lib/sessionState";
 import type { Question } from "@/maps/schema";
 
 // Only the latest delete or restore can be undone: undoing an older one
@@ -32,10 +39,10 @@ function showUndoToast(
     let stopListening = () => {};
     const id = toast(
         ({ closeToast }) => (
-            <div className="flex w-full items-center justify-between gap-3">
-                <span className="min-w-0 break-words">{text}</span>
+            <div className="flex w-full items-center gap-2">
+                <span className="min-w-0 flex-1 break-words">{text}</span>
                 <button
-                    className="shrink-0 rounded-md border border-current px-3 py-1 text-sm font-semibold"
+                    className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
                     onClick={() => {
                         // The toast closes once its user only spectates the
                         // session, but may still be on screen as it does.
@@ -47,7 +54,7 @@ function showUndoToast(
                 </button>
                 {extra && (
                     <button
-                        className="shrink-0 rounded-md border border-current px-3 py-1 text-sm font-semibold"
+                        className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
                         onClick={() => {
                             extra.onClick();
                             closeToast();
@@ -137,13 +144,21 @@ export function undoQuestionDeletion(
             deletion.sessionId,
         );
         if (!next) return { placed: [], alreadyBack };
+        // The delete's own list may still be waiting: in the debounce, or
+        // queued behind a list on its way. Sent, it would take the delete
+        // to the server after all, so the undone board takes its place now.
+        // (SessionManager schedules the board's save only after it redraws,
+        // too late to replace it; that save is the same board again.)
+        const sessionId = deletion.sessionId;
+        const waiting = hasPendingQuestionSave(sessionId);
+        if (waiting) cancelPendingQuestionSave(sessionId);
         questions.set(next);
-        // Queued now, in place of a list made since the delete but not sent
-        // yet (another was on its way): sent after this, that list would
-        // take the delete to the server after all.
-        void flushQuestionSave(deletion.sessionId).catch((err) => {
-            console.warn("[undo] couldn't save the undone delete:", err);
-        });
+        if (waiting) {
+            saveQuestionsDebounced(sessionId, next);
+            void flushQuestionSave(sessionId).catch((err) => {
+                console.warn("[undo] couldn't save the undone delete:", err);
+            });
+        }
         return {
             placed: missing.map(({ question }) => ({
                 from: question.key,
@@ -210,26 +225,61 @@ export const deleteQuestionsWithUndo = (
 };
 
 /**
- * Says which questions Restore put back ("Radius 1 is back"): on a phone the
- * History covers the board. Its Undo takes back exactly those copies.
+ * Says which questions Restore put back ("Radius 2 is back"): on a phone the
+ * History covers the board. Its Undo takes back those copies, but not one
+ * changed since (by anyone): that stays, and the toast says so.
  */
 export function showRestoredToast(
-    restored: readonly { label: string; key: number }[],
+    restored: readonly { label: string; key: number; question: unknown }[],
 ): void {
     if (restored.length === 0) return;
     const sessionId = activeSessionId.get();
     showUndoToast(
         restored.length === 1
-            ? `${restored[0].label} is back`
+            ? `${restored[0].label || "The question"} is back`
             : `${restored.length} questions are back`,
         () => {
             if (activeSessionId.get() !== sessionId) return;
-            const current = questions.get();
-            const next = current.filter(
-                (q) => !restored.some((r) => sameQuestionKey(r.key, q.key)),
+            const { next, changed } = withoutRestored(
+                questions.get(),
+                restored,
             );
-            if (next.length !== current.length) questions.set(next);
+            if (next) questions.set(next);
+            if (changed.length > 0) {
+                toast(
+                    changed.length === 1
+                        ? `${changed[0]} was changed meanwhile, so it stays`
+                        : `${changed.length} questions were changed meanwhile, so they stay`,
+                    { autoClose: 4000 },
+                );
+            }
         },
         { label: "Show", onClick: () => showQuestionCard(restored[0].key) },
     );
+}
+
+/**
+ * The board without the copies Restore put back that are as it put them
+ * (null when none is), and the labels of those changed since, which stay
+ * (as that board calls them).
+ */
+export function withoutRestored<T extends { key: number }>(
+    board: readonly T[],
+    restored: readonly { key: number; question: unknown }[],
+): { next: T[] | null; changed: string[] } {
+    const stay: T[] = [];
+    const remove = new Set<T>();
+    for (const r of restored) {
+        const now = board.find((q) => sameQuestionKey(q.key, r.key));
+        if (!now) continue;
+        if (sameQuestionSubstance(now, r.question)) remove.add(now);
+        else stay.push(now);
+    }
+    const next = remove.size > 0 ? board.filter((q) => !remove.has(q)) : null;
+    return {
+        next,
+        changed: stay.map(
+            (q) => boardLabel(next ?? board, q.key) || "A question",
+        ),
+    };
 }

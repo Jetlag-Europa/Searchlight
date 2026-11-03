@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { SidebarCloseIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
     AlertDialog,
@@ -34,7 +34,11 @@ import {
     warningAlarm,
 } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
-import { questionSidebarTab } from "@/lib/questionSidebarTab";
+import { sameQuestionKey } from "@/lib/questionMerge";
+import {
+    questionCardToShow,
+    questionSidebarTab,
+} from "@/lib/questionSidebarTab";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
 import {
@@ -58,6 +62,43 @@ export const QuestionSidebar = () => {
     // History is only fetched while its tab is shown.
     const tab = useStore(questionSidebarTab);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const cardToShow = useStore(questionCardToShow);
+    const sidebar = useStore(SidebarContext);
+    // State, not a ref: a phone's sheet draws its content only once open,
+    // a moment after it says so, and the card is looked for again then.
+    const [content, setContent] = useState<HTMLDivElement | null>(null);
+
+    // Show (after a Restore): once the sidebar is open on the cards, scroll
+    // to the card and move focus to it. Not on the board any more (taken
+    // away meanwhile), there is nothing to show.
+    useEffect(() => {
+        if (cardToShow === null || tab !== "questions") return;
+        if (!$questions.some((q) => sameQuestionKey(q.key, cardToShow))) {
+            questionCardToShow.set(null);
+            return;
+        }
+        if (!(sidebar.isMobile ? sidebar.openMobile : sidebar.open)) return;
+        const card = Array.from(
+            content?.querySelectorAll<HTMLElement>("[data-question-key]") ??
+                [],
+        ).find((el) =>
+            sameQuestionKey(Number(el.dataset.questionKey), cardToShow),
+        );
+        if (!card) return;
+        questionCardToShow.set(null);
+        card.scrollIntoView({ block: "center", behavior: "smooth" });
+        card
+            .querySelector<HTMLElement>("[data-question-card-header]")
+            ?.focus({ preventScroll: true });
+    }, [
+        cardToShow,
+        tab,
+        $questions,
+        content,
+        sidebar.isMobile,
+        sidebar.open,
+        sidebar.openMobile,
+    ]);
 
     const startAlarm = () => {
         if (!$warningAlarm) return;
@@ -108,7 +149,7 @@ export const QuestionSidebar = () => {
                 <ToggleGroupItem value="questions">Questions</ToggleGroupItem>
                 <ToggleGroupItem value="history">History</ToggleGroupItem>
             </ToggleGroup>
-            <SidebarContent>
+            <SidebarContent ref={setContent}>
                 {tab === "history" && <QuestionHistory />}
                 {tab === "questions" && $questions.map((question) => {
                     switch (question.id) {
