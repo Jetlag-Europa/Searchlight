@@ -17,7 +17,7 @@ import {
     activeSessionId,
     sessionReadOnly,
 } from "@/lib/activeSession";
-import { CARTO_API_KEY } from "@/lib/basemap";
+import { CARTO_API_KEY, WORLD_BOUNDS } from "@/lib/basemap";
 import { bootstrapDefaults } from "@/lib/bootstrap";
 import { startCalculation } from "@/lib/calculating";
 import {
@@ -56,6 +56,7 @@ import {
 } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
+import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
@@ -88,10 +89,6 @@ const WORLD_CENTER: L.LatLngTuple = [20, 0];
 const worldZoom = (width: number) =>
     Math.max(2, Math.ceil(Math.log2(width / 256)));
 // Basemap tiles exist only within the world; outside it they answer 400.
-const WORLD_BOUNDS: L.LatLngBoundsExpression = [
-    [-90, -180],
-    [90, 180],
-];
 
 const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
     map.fitBounds(
@@ -112,6 +109,8 @@ const voyagerLayer = (maxZoom = 20) => (
         url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
         subdomains="abcd"
         maxZoom={maxZoom}
+        // Tiles that failed while the connection was gone come back with it.
+        eventHandlers={retryTilesWhenOnline as any}
         maxNativeZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
         minZoom={2}
         noWrap
@@ -179,10 +178,6 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     />
                 );
             break;
-
-        case "google":
-            // CARTO until Google's map has drawn, or if it never does.
-            return <GoogleBasemap>{voyagerLayer(21)}</GoogleBasemap>;
 
         case "osmcarto":
             return (
@@ -277,6 +272,10 @@ export const Map = ({ className }: { className?: string }) => {
         available: googleMapsAvailable,
         problem: $googleMapsProblem,
     });
+    // Chosen and offered: GoogleBasemap stays, with its CARTO stand-in, while
+    // Google can't show (offline, failing), so that CARTO isn't swapped for
+    // another CARTO layer, which goes empty while its tiles load.
+    const googleChosen = $chosenBasemap === "google" && googleMapsAvailable;
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
     const $planningMode = useStore(planningModeEnabled);
@@ -586,8 +585,15 @@ export const Map = ({ className }: { className?: string }) => {
             >
                 {/* A new layer per basemap: react-leaflet only updates a
                     layer's URL, not its zoom range or attribution. */}
-                <Fragment key={$baseTileLayer}>
-                    {getTileLayer($baseTileLayer, $thunderforestApiKey)}
+                <Fragment key={googleChosen ? "google" : $baseTileLayer}>
+                    {googleChosen ? (
+                        // CARTO until Google's map has drawn, or while it can't.
+                        <GoogleBasemap active={$baseTileLayer === "google"}>
+                            {voyagerLayer(21)}
+                        </GoogleBasemap>
+                    ) : (
+                        getTileLayer($baseTileLayer, $thunderforestApiKey)
+                    )}
                 </Fragment>
                 <DraggableMarkers />
                 <div className="leaflet-top leaflet-right">
@@ -611,7 +617,7 @@ export const Map = ({ className }: { className?: string }) => {
                 />
             </MapContainer>
         ),
-        [map, $baseTileLayer, $thunderforestApiKey],
+        [map, $baseTileLayer, googleChosen, $thunderforestApiKey],
     );
 
     // Questions come from the game: none can be added before it has loaded.

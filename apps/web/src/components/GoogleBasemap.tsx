@@ -5,6 +5,7 @@ import L from "leaflet";
 import { type ReactNode, useEffect, useState } from "react";
 import { useMap } from "react-leaflet";
 
+import { WORLD_BOUNDS } from "@/lib/basemap";
 import {
     googleMapType,
     hideGooglePlaces,
@@ -66,6 +67,9 @@ function googleLayer(): L.GridLayer {
         maxZoom: 21,
         minZoom: 2,
         noWrap: true,
+        // As CARTO's: no tiles past the world's edges, which Google, not
+        // wrapping, would never deliver.
+        bounds: WORLD_BOUNDS,
         // Google's own copyright comes with the map; this is ours, as on the
         // other basemaps.
         attribution: "Powered by Esri and Turf.js",
@@ -146,7 +150,14 @@ function redrawWhenLoaded(googleMutant: any) {
  * keeps doing so if Google never does: on a weak connection the loader, a
  * module or the tiles can take long or not come at all.
  */
-export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
+export const GoogleBasemap = ({
+    active,
+    children,
+}: {
+    // Whether Google can show now; if not (offline, failing), only CARTO.
+    active: boolean;
+    children: ReactNode;
+}) => {
     const map = useMap();
     const [drawn, setDrawn] = useState(false);
     const $googleMapType = useStore(googleMapType);
@@ -154,6 +165,7 @@ export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
     const $hideGooglePlaces = useStore(hideGooglePlaces);
 
     useEffect(() => {
+        if (!active) return;
         let mounted = true;
         let stopWaiting = () => {};
         googleStandingIn.set(true);
@@ -184,9 +196,12 @@ export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
             mounted = false;
             stopWaiting();
             googleStandingIn.set(false);
+            // CARTO is back in this commit (see below): wait for Google to
+            // draw again next time.
+            setDrawn(false);
             if (layer && map.hasLayer(layer)) map.removeLayer(layer);
         };
-    }, [map]);
+    }, [map, active]);
 
     // CARTO goes in this commit's cleanup, and Google shows in the same task,
     // so the browser never paints both or neither.
@@ -204,5 +219,5 @@ export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
         if (layer && map.hasLayer(layer)) applyLook?.(chosenLook());
     }, [map, $googleMapType, $showGoogleTransit, $hideGooglePlaces]);
 
-    return drawn ? null : children;
+    return active && drawn ? null : children;
 };

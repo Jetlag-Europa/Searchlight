@@ -290,6 +290,31 @@ describe("viewTilesShown", () => {
         expect(shown()).toBe(true);
     });
 
+    it("leaves out columns past the world's edge on a layer that doesn't wrap", () => {
+        // EPSG:3857 wraps longitudes, so Leaflet's _isValidTile accepts
+        // column 12 although the world at this zoom ends at 11; Google's
+        // layer (noWrap) never gets a tile there.
+        const { grid, tiles, loadOnScreen, shown } = fakeGrid(now);
+        Object.assign(grid, {
+            options: { noWrap: true },
+            _globalTileRange: { min: { x: 0, y: 0 }, max: { x: 11, y: 40 } },
+        });
+        loadOnScreen(now - TILE_FADE_MS);
+        delete tiles["12:20:15"];
+        delete tiles["12:21:15"];
+        expect(shown()).toBe(true);
+        // A layer that wraps would load it: still needed there.
+        (grid as any).options.noWrap = false;
+        expect(shown()).toBe(false);
+    });
+
+    it("waits while the map zooms", () => {
+        const { grid, loadOnScreen, shown } = fakeGrid(now);
+        loadOnScreen(now - TILE_FADE_MS);
+        (grid._map as any)._animatingZoom = true;
+        expect(shown()).toBe(false);
+    });
+
     it("isn't shown without a map or a tile zoom", () => {
         const { grid, loadOnScreen, shown } = fakeGrid(now);
         loadOnScreen(now - TILE_FADE_MS);

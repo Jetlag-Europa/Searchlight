@@ -105,8 +105,10 @@ export interface TileCoords {
 
 /** What viewTilesShown reads of a Leaflet GridLayer (private parts). */
 export interface TileGrid {
-    _map?: { getCenter(): unknown } | null;
+    _map?: { getCenter(): unknown; _animatingZoom?: boolean } | null;
     _tileZoom?: number;
+    options?: { noWrap?: boolean };
+    _globalTileRange?: { min: { x: number }; max: { x: number } };
     _tiles: Record<string, { loaded?: number }>;
     _getTiledPixelBounds(center: any): unknown;
     _pxBoundsToTileRange(bounds: any): {
@@ -129,13 +131,19 @@ export function viewTilesShown(
     now = Date.now(),
 ): boolean {
     const zoom = grid._tileZoom;
-    if (!grid._map || zoom === undefined) return false;
+    // Mid-zoom the tiles asked for are around the target, not the center yet.
+    if (!grid._map || zoom === undefined || grid._map._animatingZoom)
+        return false;
+    // Leaflet counts columns past the world's edge as valid (the projection
+    // wraps), but a layer that doesn't wrap never gets tiles there.
+    const world = grid.options?.noWrap ? grid._globalTileRange : undefined;
     const range = grid._pxBoundsToTileRange(
         grid._getTiledPixelBounds(grid._map.getCenter()),
     );
     let onScreen = 0;
     for (let y = range.min.y; y <= range.max.y; y++)
         for (let x = range.min.x; x <= range.max.x; x++) {
+            if (world && (x < world.min.x || x > world.max.x)) continue;
             const coords = tileCoords(x, y, zoom);
             if (!grid._isValidTile(coords)) continue;
             const loaded = grid._tiles[grid._tileCoordsToKey(coords)]?.loaded;
