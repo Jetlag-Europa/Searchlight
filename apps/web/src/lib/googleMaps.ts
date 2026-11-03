@@ -87,6 +87,9 @@ export function googleMapDrawn(): void {
 /** Set while CARTO stands in for a Google map that hasn't drawn yet. */
 export const googleStandingIn = atom(false);
 
+/** A module of Google's failed before its map drew: it may not draw. */
+export const googleModuleFailed = atom(false);
+
 /** The events of a Leaflet tile layer that whenDrawn listens to. */
 export interface TileEvents {
     on(type: "load" | "loading" | "tileload", fn: () => void): unknown;
@@ -213,11 +216,11 @@ if (typeof window !== "undefined") {
             // nothing of the API is defined, so a new loader can load it again.
             if (!(window as any).google?.maps?.importLibrary)
                 return loaderFailed();
-            // A module the loaded API fetches later. Before the map has drawn,
-            // it may be the one it needs to: say so, CARTO stays. After that,
-            // Google's map works without it.
-            if (!drawn && !googleMapsProblem.get())
-                googleMapsProblem.set("load-failed");
+            // A module the loaded API fetches later. Before the map has drawn
+            // it may be one it needs to (or only, say, its statistics): CARTO
+            // stands in until it draws either way, so only say so. After
+            // that, Google's map works without it.
+            if (!drawn) googleModuleFailed.set(true);
         },
         // Load errors don't bubble.
         true,

@@ -55,6 +55,7 @@ import {
     googleMapsAvailable,
     googleMapsProblem,
     googleMapTypeOf,
+    googleModuleFailed,
     googleStandingIn,
 } from "@/lib/googleMaps";
 import { cn } from "@/lib/utils";
@@ -92,6 +93,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $baseTileLayer = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
     const $googleStandingIn = useStore(googleStandingIn);
+    const $googleModuleFailed = useStore(googleModuleFailed);
     const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
     const $hideGooglePlaces = useStore(hideGooglePlaces);
@@ -413,9 +415,9 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                         !$googleMapsProblem &&
                                         $googleStandingIn && (
                                             <p className="text-xs text-gray-500 max-w-[280px] text-center">
-                                                Google Maps is still loading.
-                                                Showing CARTO Voyager until it
-                                                has drawn.
+                                                {$googleModuleFailed
+                                                    ? "Part of Google Maps couldn't load, so it may not draw. Showing CARTO Voyager; reload the page to try again."
+                                                    : "Google Maps is still loading. Showing CARTO Voyager until it has drawn."}
                                             </p>
                                         )}
                                     <div className="flex flex-col items-center gap-2">

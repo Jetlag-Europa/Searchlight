@@ -10,22 +10,33 @@ interface RetryLayer {
     _tileCoordsToKey(coords: any): string;
     _removeTile(key: string): void;
     _update(): void;
+    once(type: "remove", fn: () => void): unknown;
 }
 
-// The tiles that failed, per layer on the map.
+type TileEvent = { target: RetryLayer; coords: unknown };
+
+// The tiles that failed and haven't loaded since, per layer on the map.
 const failed = new Map<RetryLayer, Set<string>>();
+
+function forget({ target, coords }: TileEvent) {
+    failed.get(target)?.delete(target._tileCoordsToKey(coords));
+}
 
 /** Event handlers for a react-leaflet TileLayer (`eventHandlers`). */
 export const retryTilesWhenOnline = {
-    tileerror(event: { target: RetryLayer; coords: unknown }) {
-        const layer = event.target;
-        let keys = failed.get(layer);
-        if (!keys) failed.set(layer, (keys = new Set()));
-        keys.add(layer._tileCoordsToKey(event.coords));
+    tileerror({ target, coords }: TileEvent) {
+        let keys = failed.get(target);
+        if (!keys) {
+            failed.set(target, (keys = new Set()));
+            // Directly on the layer: react-leaflet takes its event handlers
+            // off before it removes the layer, so one there would never run.
+            target.once("remove", () => failed.delete(target));
+        }
+        keys.add(target._tileCoordsToKey(coords));
     },
-    remove(event: { target: RetryLayer }) {
-        failed.delete(event.target);
-    },
+    // Loaded after all (panned away and back), or dropped.
+    tileload: forget,
+    tileunload: forget,
 };
 
 /** Asks again for every failed tile still shown. */

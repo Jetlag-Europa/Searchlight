@@ -574,21 +574,24 @@ it("loads Google's quarterly release", async () => {
     expect(params.get("v")).toBe("quarterly");
 });
 
-it("falls back when a Google module fails before the map has drawn", async () => {
+it("notes a Google module failing before the map has drawn, without giving up on it", async () => {
     const { win } = stubBrowser(true);
-    const { googleMapsProblem, loadGoogleMapsApi } = await loadModule();
+    const { googleMapsProblem, googleModuleFailed, loadGoogleMapsApi } =
+        await loadModule();
     const load = loadGoogleMapsApi();
     arrive(win);
     await expect(load).resolves.toBeUndefined();
 
-    // The API loaded, but the module the map needs to draw didn't.
+    // The API loaded, but a module didn't: maybe one the map needs to draw,
+    // maybe not (stats). CARTO stands in either way; Google stays on.
     scriptFailed(win, MAP_MODULE);
-    expect(googleMapsProblem.get()).toBe("load-failed");
+    expect(googleModuleFailed.get()).toBe(true);
+    expect(googleMapsProblem.get()).toBeNull();
 });
 
 it("ignores a Google module failing once the map has drawn", async () => {
     const { win } = stubBrowser(true);
-    const { googleMapsProblem, loadGoogleMapsApi, googleMapDrawn } =
+    const { googleModuleFailed, loadGoogleMapsApi, googleMapDrawn } =
         await loadModule();
     const load = loadGoogleMapsApi();
     arrive(win);
@@ -596,7 +599,7 @@ it("ignores a Google module failing once the map has drawn", async () => {
     googleMapDrawn();
 
     scriptFailed(win, MAP_MODULE);
-    expect(googleMapsProblem.get()).toBeNull();
+    expect(googleModuleFailed.get()).toBe(false);
 });
 
 it("stops trying after Google rejects the key", async () => {

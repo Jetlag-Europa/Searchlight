@@ -206,11 +206,12 @@ export const GoogleBasemap = ({
     // CARTO goes in this commit's cleanup, and Google shows in the same task,
     // so the browser never paints both or neither.
     useEffect(() => {
-        if (!drawn || !layer) return;
+        // Not if Google was switched off in the same moment (offline).
+        if (!drawn || !active || !layer) return;
         showGoogle(layer, true);
         googleStandingIn.set(false);
         googleMapDrawn();
-    }, [drawn]);
+    }, [drawn, active]);
 
     // Only while the layer is on the map: Google draws nothing for a map
     // that isn't on the page, and the load above applies the settings when it
