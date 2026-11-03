@@ -95,10 +95,10 @@ async function assertGameDefinitionAccess({
   // nothing else (not the export, the current revision or other revisions).
   session?: { id: string | undefined; revisionId: string };
 }): Promise<void> {
-  // 2. Cookie session auth
+  // Cookie session auth
   const { user } = await resolveSession(req);
 
-  // 3. Shared session access check: the sessions GET /sessions lists for the
+  // Shared session access check: the sessions GET /sessions lists for the
   // user, viewers' included
   if (session?.id) {
     const pinned = await prisma.gameSession.findFirst({
@@ -116,7 +116,7 @@ async function assertGameDefinitionAccess({
     }
   }
 
-  // 4. Server membership and Discord role visibility checks
+  // Server membership and Discord role visibility checks
   await assertGameAccess(user.discordId, game, revisionIds, req.log);
 }
 
