@@ -314,6 +314,11 @@ test.describe("deleting a session on a phone", () => {
         const box = await leave.boundingBox();
         expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
 
+        // An armed Leave gives up after a few seconds.
+        await leave.tap();
+        await expect(leave).toHaveCount(0);
+        await expect(leave).toHaveText("Leave", { timeout: 10_000 });
+
         await leave.tap();
         const confirm = picker(page).getByRole("button", {
             name: `Confirm leaving session “${session.name}”`,
@@ -367,11 +372,44 @@ test.describe("deleting a session with a mouse", () => {
         await expect(del).toBeFocused();
         expect(await sessionStatus(request, doomed.id)).toBe(200);
 
-        await del.click();
-        await confirmDelete(page, dialog, "click");
+        // A key press can't be half of a double tap: no wait needed.
+        await del.focus();
+        await page.keyboard.press("Enter");
+        await expect(dialog).toBeVisible();
+        await page.keyboard.press("Tab");
+        await page.keyboard.press("Enter");
         await expect(del).toHaveCount(0);
         await expect.poll(() => sessionStatus(request, doomed.id)).toBe(404);
         await expectBodyTappable(page);
+    });
+
+    // While the API is redeployed, the proxy answers 404 in plain text.
+    test("a proxy's 404 doesn't count as deleted", async ({
+        page,
+        request,
+    }) => {
+        const kept = await createSession(request, "Kept");
+        await testLogin(page);
+        await page.goto("/map/");
+        await showServer(page, kept.serverId);
+        await page.route(`${API_BASE}/sessions/${kept.id}`, (route) =>
+            route.request().method() === "DELETE"
+                ? route.fulfill({
+                      status: 404,
+                      contentType: "text/plain",
+                      body: "404 page not found",
+                  })
+                : route.fallback(),
+        );
+
+        const del = deleteButton(page, kept);
+        await del.click();
+        await confirmDelete(page, deleteDialog(page, kept), "click");
+        await expect(
+            picker(page).getByText("Failed to delete session: 404"),
+        ).toBeVisible();
+        await expect(del).toBeVisible();
+        expect(await sessionStatus(request, kept.id)).toBe(200);
     });
 
     // Its first try's reply was lost, or another tab got there first.

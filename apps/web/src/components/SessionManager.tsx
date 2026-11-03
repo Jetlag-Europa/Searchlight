@@ -112,6 +112,9 @@ const ROW_ACTION_HIDDEN_CLASS =
 // isn't news, even when the delete's reply was lost.
 const deletedHere = new Set<string>();
 
+// How long a tapped Leave waits for its second tap.
+const LEAVE_CONFIRM_MS = 5_000;
+
 // Edits still waiting to be queued can never be delivered either, and would
 // put the session's queue back after it was discarded.
 function cancelPendingSaves(sessionId: string): void {
@@ -158,6 +161,15 @@ function SessionPickerOverlay({
     // quick double tap mustn't also confirm.
     const leaveArmedAtRef = useRef<number | null>(null);
     const deleteOpenedAtRef = useRef<number | null>(null);
+    // An armed Leave doesn't wait for the next tap, however much later.
+    useEffect(() => {
+        if (!confirmLeaveId) return;
+        const timer = setTimeout(
+            () => setConfirmLeaveId(null),
+            LEAVE_CONFIRM_MS,
+        );
+        return () => clearTimeout(timer);
+    }, [confirmLeaveId]);
     const loadSessionsReqRef = useRef(0);
     const titleId = useId();
     // The confirm renders in here: the board, where dialogs usually go, is
@@ -289,9 +301,17 @@ function SessionPickerOverlay({
                 credentials: "include",
             });
             // When the request itself fails it may still have gone through,
-            // so the id stays. A 404 is a delete that already happened: an
-            // earlier try whose reply was lost, or another tab.
-            if (!res.ok && res.status !== 404) {
+            // so the id stays. The API's 404 is a delete that already
+            // happened: an earlier try whose reply was lost, or another tab.
+            // A proxy's (the API being redeployed) isn't JSON.
+            const alreadyGone =
+                res.status === 404 &&
+                Boolean(
+                    res.headers
+                        .get("content-type")
+                        ?.includes("application/json"),
+                );
+            if (!res.ok && !alreadyGone) {
                 deletedHere.delete(sessionId);
                 throw new Error(`${res.status}`);
             }
@@ -308,13 +328,19 @@ function SessionPickerOverlay({
         }
     };
 
-    const handleLeaveSession = async (sessionId: string) => {
+    // `byPointer`: a click from a tap or a mouse (a key press can't be the
+    // second half of a double tap).
+    const handleLeaveSession = async (
+        sessionId: string,
+        byPointer: boolean,
+    ) => {
         if (confirmLeaveId !== sessionId) {
             leaveArmedAtRef.current = Date.now();
             setConfirmLeaveId(sessionId);
             return;
         }
-        if (isSameDoubleTap(leaveArmedAtRef.current, Date.now())) return;
+        if (byPointer && isSameDoubleTap(leaveArmedAtRef.current, Date.now()))
+            return;
         setLeavingId(sessionId);
         setConfirmLeaveId(null);
         try {
@@ -540,9 +566,10 @@ function SessionPickerOverlay({
                                         {session.role !== "creator" && (
                                             <button
                                                 type="button"
-                                                onClick={() =>
+                                                onClick={(event) =>
                                                     handleLeaveSession(
                                                         session.id,
+                                                        event.detail !== 0,
                                                     )
                                                 }
                                                 disabled={
@@ -706,8 +733,10 @@ function SessionPickerOverlay({
                         <AlertDialogAction
                             onClick={(event) => {
                                 // It can open under the second click of a
-                                // double click on the row's Delete.
+                                // double click on the row's Delete (a key
+                                // press has no detail and can't be that).
                                 if (
+                                    event.detail !== 0 &&
                                     isSameDoubleTap(
                                         deleteOpenedAtRef.current,
                                         Date.now(),
@@ -1110,7 +1139,9 @@ export function SessionManager() {
                 status,
                 activeSessionId: activeSessionId.get(),
                 deletedHere: deletedHere.has(sessionId),
-                role: known?.role,
+                role:
+                    known?.role ??
+                    (cached?.userId === authUserId ? cached.role : undefined),
                 name: known?.name,
             });
             if (status === 404 || cached?.userId === authUserId) {
