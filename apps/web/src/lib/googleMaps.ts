@@ -125,3 +125,27 @@ export function loadGoogleMapsApi(): Promise<void> {
     });
     return apiLoad;
 }
+
+/** The part of GoogleMutant that puts Google's own layers on its map. */
+export interface GoogleSublayers {
+    addGoogleLayer(name: string): unknown;
+    removeGoogleLayer(name: string): unknown;
+}
+
+/**
+ * Shows or hides Google's transit lines on the layer's map. They are drawn
+ * on that same map, so switching them costs no map load. GoogleMutant only
+ * applies the change once its map exists, so this remembers what it asked for
+ * rather than asking twice. `redraw` runs after each change: Google bakes the
+ * lines into its tiles, and the tiles already copied onto the map are old.
+ */
+export function transitLines(layer: GoogleSublayers, redraw: () => void) {
+    let shown = false;
+    return (show: boolean) => {
+        if (show === shown) return;
+        shown = show;
+        if (show) layer.addGoogleLayer("TransitLayer");
+        else layer.removeGoogleLayer("TransitLayer");
+        redraw();
+    };
+}

@@ -15,6 +15,7 @@ export interface UserPreferences {
   defaultUnit?: string;
   customInitPreference?: string;
   baseTileLayer?: string;
+  showGoogleTransit?: boolean;
   thunderforestApiKey?: string;
   animateMapMovements?: boolean;
   autoSave?: boolean;

@@ -1,20 +1,28 @@
 import "leaflet.gridlayer.googlemutant";
 
+import { useStore } from "@nanostores/react";
 import L from "leaflet";
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
 import { toast } from "react-toastify";
 
-import { loadGoogleMapsApi, printingWithoutGoogle } from "@/lib/googleMaps";
+import { showGoogleTransit } from "@/lib/context";
+import {
+    loadGoogleMapsApi,
+    printingWithoutGoogle,
+    transitLines,
+} from "@/lib/googleMaps";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
 // first time the layer is added and keeps it when the layer is removed, and
 // each new map is a billed map load. So switching basemaps, sessions or going
 // offline and back reuses this one instead of loading another.
 let layer: L.GridLayer | null = null;
+let setTransitLines: ((show: boolean) => void) | null = null;
 
 function googleLayer(): L.GridLayer {
-    layer ??= (L.gridLayer as any).googleMutant({
+    if (layer) return layer;
+    layer = (L.gridLayer as any).googleMutant({
         type: "roadmap",
         maxZoom: 21,
         minZoom: 2,
@@ -25,6 +33,10 @@ function googleLayer(): L.GridLayer {
         // Hidden when the browser prints the page (globals.css).
         className: "google-basemap",
     }) as L.GridLayer;
+    const googleMutant = layer as any;
+    setTransitLines = transitLines(googleMutant, () =>
+        redrawWhenLoaded(googleMutant),
+    );
     return layer;
 }
 
@@ -42,6 +54,30 @@ function keepGoogleAttribution(googleMutant: any) {
             googleMutant,
         );
     }
+}
+
+/**
+ * Replaces the tiles on the map once Google has drawn its new ones, after a
+ * change to what Google's map shows. GoogleMutant copies Google's tile images
+ * and keeps the last hundred to reuse; those show the map as it was, so they
+ * go. Until Google is done, the old tiles stay rather than blank ones.
+ */
+let pendingRedraw: { remove(): void } | null = null;
+
+function redrawWhenLoaded(googleMutant: any) {
+    googleMutant.whenReady(() => {
+        googleMutant._lru.clear();
+        // One redraw for any number of quick changes.
+        pendingRedraw?.remove();
+        pendingRedraw = (window as any).google.maps.event.addListenerOnce(
+            googleMutant._mutant,
+            "tilesloaded",
+            () => {
+                pendingRedraw = null;
+                googleMutant.redraw();
+            },
+        );
+    });
 }
 
 // How long CARTO stays in for a print the user hasn't started yet, and for
@@ -87,6 +123,7 @@ function printWithCarto(map: L.Map) {
 /** Google Maps' own map as the basemap, with its logo and copyright. */
 export const GoogleBasemap = () => {
     const map = useMap();
+    const $showGoogleTransit = useStore(showGoogleTransit);
 
     useEffect(() => {
         let mounted = true;
@@ -99,6 +136,7 @@ export const GoogleBasemap = () => {
                 if (!mounted) return;
                 googleLayer().addTo(map);
                 keepGoogleAttribution(layer);
+                setTransitLines?.(showGoogleTransit.get());
             })
             // googleMapsProblem now says why, and the map falls back to CARTO.
             .catch(() => {});
@@ -108,6 +146,13 @@ export const GoogleBasemap = () => {
             if (layer && map.hasLayer(layer)) map.removeLayer(layer);
         };
     }, [map]);
+
+    // Only while the layer is on the map: Google draws nothing for a map
+    // that isn't on the page, and the load above applies the setting when it
+    // adds the layer.
+    useEffect(() => {
+        if (layer && map.hasLayer(layer)) setTransitLines?.($showGoogleTransit);
+    }, [map, $showGoogleTransit]);
 
     return null;
 };

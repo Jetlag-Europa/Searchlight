@@ -41,6 +41,7 @@ import {
     permanentOverlay,
     planningModeEnabled,
     save,
+    showGoogleTransit,
     showZoneNames,
     thunderforestApiKey,
     trainStations,
@@ -82,6 +83,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
+    const $showGoogleTransit = useStore(showGoogleTransit);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $autoLockQuestions = useStore(autoLockQuestions);
     const $followMe = useStore(followMe);
@@ -277,6 +279,26 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             baseTileLayer.set(v as any)
                                         }
                                     />
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable && (
+                                            <div className="flex flex-row items-center gap-2">
+                                                <label
+                                                    htmlFor="showGoogleTransit"
+                                                    className="text-sm font-medium"
+                                                >
+                                                    Show transit lines
+                                                </label>
+                                                <Checkbox
+                                                    id="showGoogleTransit"
+                                                    checked={$showGoogleTransit}
+                                                    onCheckedChange={() =>
+                                                        showGoogleTransit.set(
+                                                            !$showGoogleTransit,
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+                                        )}
                                     {$baseTileLayer === "google" &&
                                         googleMapsAvailable &&
                                         $googleMapsProblem && (

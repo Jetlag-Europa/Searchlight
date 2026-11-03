@@ -315,6 +315,15 @@ export const baseTileLayer = persistentAtom<
     | "osmcarto"
     | "google"
 >("baseTileLayer", "voyager");
+// Google's transit lines over the Google Maps basemap.
+export const showGoogleTransit = persistentAtom<boolean>(
+    "showGoogleTransit",
+    false,
+    {
+        encode: JSON.stringify,
+        decode: JSON.parse,
+    },
+);
 export const thunderforestApiKey = persistentAtom<string>(
     "thunderforestApiKey",
     "",

@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { effectiveBasemap } from "@/lib/googleMaps";
+import { effectiveBasemap, transitLines } from "@/lib/googleMaps";
 
 const ok = { available: true, problem: null, printing: false } as const;
 
@@ -29,6 +29,31 @@ it("leaves the other basemaps alone", () => {
                 printing: true,
             }),
         ).toBe(chosen);
+});
+
+it("switches Google's transit lines only when the setting changes", () => {
+    const calls: string[] = [];
+    const setTransit = transitLines(
+        {
+            addGoogleLayer: (name) => calls.push(`add ${name}`),
+            removeGoogleLayer: (name) => calls.push(`remove ${name}`),
+        },
+        () => calls.push("redraw"),
+    );
+    setTransit(false); // off already
+    setTransit(true);
+    setTransit(true); // a second TransitLayer would draw the lines twice
+    setTransit(false);
+    setTransit(false);
+    setTransit(true);
+    expect(calls).toEqual([
+        "add TransitLayer",
+        "redraw",
+        "remove TransitLayer",
+        "redraw",
+        "add TransitLayer",
+        "redraw",
+    ]);
 });
 
 /** A browser with no network: a window, a navigator and a script loader. */
