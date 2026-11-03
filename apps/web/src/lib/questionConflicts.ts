@@ -48,6 +48,7 @@ import {
     sameQuestionSubstance,
 } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
+import { withoutCopiesOf } from "@/lib/questionUndo";
 import type { QuestionsSaved } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -759,14 +760,18 @@ function resolve(
         );
         // Folded or locked here stays so; one the board lacks goes after
         // its neighbour on that side, else after the other side's.
+        const kept = choice === "mine" ? conflict.mine : conflict.theirs;
         board = placeVersion(
             board,
             conflict.key,
-            choice === "mine" ? conflict.mine : conflict.theirs,
+            kept,
             choice === "mine"
                 ? [conflict.mineAfterKey, conflict.theirsAfterKey]
                 : [conflict.theirsAfterKey, conflict.mineAfterKey],
         );
+        // Kept, it is back: a copy Restore or Undo put back meanwhile would
+        // be a second version of it.
+        if (kept) board = withoutCopiesOf(board, conflict.key, conflict.base);
     }
     refresh();
 

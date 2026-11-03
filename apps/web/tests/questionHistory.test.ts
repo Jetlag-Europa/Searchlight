@@ -1,7 +1,8 @@
-import type {
-    QuestionChange,
-    QuestionHistoryEntry,
-    QuestionHistoryResponse,
+import {
+    diffQuestionLists,
+    type QuestionChange,
+    type QuestionHistoryEntry,
+    type QuestionHistoryResponse,
 } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -308,7 +309,10 @@ describe("restoring from the history", () => {
         expect(board[2].key).toBe(c.key);
         // The same question, but not the deleted one's key.
         expect(board[1].key).not.toBe(b.key);
-        expect({ ...board[1], key: b.key }).toEqual(b);
+        expect({ ...board[1], key: b.key }).toEqual({
+            ...b,
+            data: { ...b.data, restoredFrom: b.key },
+        });
         // Clicked again before the History reloads: it's there now.
         restoreFromHistory({ order: [a.key, b.key, c.key] }, [
             { key: b.key, index: 1, label: "Radius 2", question: b },
@@ -331,14 +335,11 @@ describe("restoring from the history", () => {
     it("says On the board for the question it was restored as, edited or not", () => {
         const deleted = radar(0.5);
         const copy = asRestored(deleted, 0.125);
-        // Answered and moved since: still the restored one.
+        // Answered and moved since (by a teammate, the History not loaded
+        // yet): still the restored one.
         const edited = { ...copy, data: { ...copy.data, lat: 51 } };
         expect(
-            restorable(
-                { key: 0.5, question: deleted, restoredAs: [0.125] },
-                [edited],
-                null,
-            ),
+            restorable({ key: 0.5, question: deleted }, [edited], null),
         ).toEqual({
             status: "unavailable",
             reason: "On the board as Radius 1",
@@ -347,7 +348,7 @@ describe("restoring from the history", () => {
         expect(
             restorable(
                 { key: 0.5, question: deleted },
-                [asRestored(deleted, 0.375)],
+                [{ ...structuredClone(deleted), key: 0.375 }],
                 null,
             ).status,
         ).toBe("ok");
@@ -366,16 +367,12 @@ describe("restoring from the history", () => {
         restoreFromHistory({ order }, [target(a, 1)]);
         restoreFromHistory({ order }, [target(b, 2)]);
         expect(questions.get().map(latOf)).toEqual([1, 2, 3, 4]);
-        // As the History tells it once reloaded, with nothing restored here.
+        // One restored by a teammate.
         const [p, q, r, z] = [5, 6, 7, 8].map((lat) => radar(lat / 16, lat));
-        const qCopy = asRestored(q, 0.9);
-        questions.set([p, qCopy, z]);
-        const removed = [{ ...target(q, 1), restoredAs: [0.9] }, target(r, 2)];
-        restoreFromHistory(
-            { order: [p.key, q.key, r.key, z.key] },
-            [removed[1]],
-            [{ removed }],
-        );
+        questions.set([p, asRestored(q, 0.9), z]);
+        restoreFromHistory({ order: [p.key, q.key, r.key, z.key] }, [
+            target(r, 2),
+        ]);
         expect(questions.get().map(latOf)).toEqual([5, 6, 7, 8]);
     });
 
@@ -385,6 +382,80 @@ describe("restoring from the history", () => {
         expect(copy.key).toBe(0.75);
         expect(copy.data).not.toBe(deleted.data);
         expect(asRestored(deleted).key).not.toBe(0.5);
+        // It says what it was restored from: the first question, for a
+        // copy of a copy.
+        expect(copy.data.restoredFrom).toBe(0.5);
+        expect(asRestored(copy, 0.875).data.restoredFrom).toBe(0.5);
+        // Kept when the History reads the copy back.
+        expect(questionSchema.parse(copy).data.restoredFrom).toBe(0.5);
+    });
+
+    it("takes a different custom zone at the same pin for another question", () => {
+        const zone = (key: number, x: number) =>
+            questionSchema.parse({
+                id: "matching",
+                key,
+                data: {
+                    lat: 52,
+                    lng: 4,
+                    color: "blue",
+                    type: "custom-zone",
+                    geo: {
+                        type: "FeatureCollection",
+                        features: [
+                            {
+                                type: "Feature",
+                                properties: {},
+                                geometry: {
+                                    type: "Point",
+                                    coordinates: [x, 52],
+                                },
+                            },
+                        ],
+                    },
+                },
+            });
+        const [deleted, other] = [zone(0.1, 4), zone(0.2, 8)];
+        const lines = historyLines(
+            [
+                save(diffQuestionLists([], [deleted]).changes),
+                save(diffQuestionLists([deleted], []).changes, [deleted.key]),
+                save(diffQuestionLists([], [other]).changes),
+            ],
+            {},
+        );
+        expect(lines[0].text).toBe("added Matching 1");
+        const [removal] = deletionsOf(lines, deleted.key);
+        expect(restorable(removal, [other], null).status).toBe("ok");
+    });
+
+    it("knows a copy edited before its first save as restored, and doesn't make another", () => {
+        // Restored offline, and the radius changed before it was sent.
+        const deleted = radar(0.1);
+        const copy = asRestored(deleted, 0.2);
+        copy.data.radius = 3;
+        const lines = historyLines(
+            [
+                save(diffQuestionLists([], [deleted]).changes),
+                save(diffQuestionLists([deleted], []).changes, [deleted.key]),
+                save(diffQuestionLists([], [copy]).changes),
+            ],
+            {},
+        );
+        expect(lines[0].text).toBe("restored Radius 1");
+        const [removal] = deletionsOf(lines, deleted.key);
+        expect(restorable(removal, [copy], null)).toEqual({
+            status: "unavailable",
+            reason: "On the board as Radius 1",
+        });
+        questions.set([copy]);
+        expect(restoreFromHistory({ order: [deleted.key] }, [removal])).toEqual(
+            {
+                back: [],
+                alreadyBack: 1,
+            },
+        );
+        expect(questions.get()).toEqual([copy]);
     });
 });
 
@@ -462,16 +533,18 @@ describe("what a deleted question became", () => {
             {},
         );
         const [deletedA] = deletionsOf(lines, a.key);
+        const [deletedB] = deletionsOf(lines, b.key);
         const [deletedX] = deletionsOf(lines, x.key);
-        expect(deletedA.restoredAs).toEqual([b.key]);
-        expect(restorable(deletedA, [c, y], null, lines)).toEqual({
-            status: "unavailable",
-            reason: "On the board as Radius 1",
-        });
+        for (const deleted of [deletedA, deletedB]) {
+            expect(restorable(deleted, [c, y], null)).toEqual({
+                status: "unavailable",
+                reason: "On the board as Radius 1",
+            });
+        }
         // x goes back below c, which a became.
         questions.set([c, y]);
         const line = lines.find((l) => l.removed?.includes(deletedX))!;
-        restoreFromHistory(line, [deletedX], lines);
+        restoreFromHistory(line, [deletedX]);
         expect(questions.get().map(latOf)).toEqual([4, 2, 3]);
     });
 
@@ -490,53 +563,40 @@ describe("what a deleted question became", () => {
             ],
             {},
         );
-        const [older, newer] = deletionsOf(lines, a.key);
-        expect(older.restoredAs).toBeUndefined();
-        expect(newer.restoredAs).toEqual([c.key]);
-        // Only the other lines tell.
-        expect(restorable(older, [c], null).status).toBe("ok");
-        expect(restorable(older, [c], null, lines)).toEqual({
-            status: "unavailable",
-            reason: "On the board as Radius 1",
-        });
+        // Undo's same key and Restore's copy both read as restored.
+        expect(lines.map((l) => l.text.split(" ")[0])).toEqual([
+            "restored",
+            "deleted",
+            "moved",
+            "restored",
+            "deleted",
+        ]);
+        for (const deleted of deletionsOf(lines, a.key)) {
+            expect(restorable(deleted, [c], null)).toEqual({
+                status: "unavailable",
+                reason: "On the board as Radius 1",
+            });
+        }
     });
 
     it("waits for a decision held over what it was restored as", () => {
-        expect(
-            restoreBlocked(
-                { key: 0.5, restoredAs: [0.6] },
-                { held: [{ key: 0.6 }], decisionsPossible: true },
-            ),
-        ).toBe("Needs a decision first");
-        // Two steps on: 0.6 was deleted and restored as 0.7.
-        const lines = [
-            {
-                removed: [
-                    {
-                        key: 0.6,
-                        index: 0,
-                        label: "Radius 1",
-                        question: null,
-                        restoredAs: [0.7],
-                    },
-                ],
-            },
-        ];
-        expect(
-            restoreBlocked(
-                { key: 0.5, restoredAs: [0.6] },
-                { held: [{ key: 0.7 }], decisionsPossible: true, lines },
-            ),
-        ).toBe("Needs a decision first");
-        expect(
-            restoreBlocked(
-                { key: 0.5, restoredAs: [0.6] },
-                { held: [{ key: 0.8 }], decisionsPossible: true, lines },
-            ),
-        ).toBeNull();
+        const deleted = radar(0.5);
+        const copy = asRestored(deleted, 0.6);
+        const removal = { key: 0.5, question: deleted };
+        const held = (conflict: { key: number; base: unknown }) =>
+            restoreBlocked(removal, {
+                held: [conflict],
+                decisionsPossible: true,
+            });
+        expect(held({ key: 0.6, base: copy })).toBe("Needs a decision first");
+        // Two steps on: the copy was deleted and restored again.
+        expect(held({ key: 0.7, base: asRestored(copy, 0.7) })).toBe(
+            "Needs a decision first",
+        );
+        expect(held({ key: 0.8, base: radar(0.8) })).toBeNull();
     });
 
-    it("takes a question added as the restore of one deleted question at most", () => {
+    it("tells apart two questions alike, each restored on its own", () => {
         // Two identical questions, deleted one after the other.
         const p = radar(0.61, 6);
         // Parsed once: a random default would tell them apart.
@@ -553,18 +613,33 @@ describe("what a deleted question became", () => {
         expect(lines[0].text).toBe("restored Radius 1");
         const [first] = deletionsOf(lines, p.key);
         const [second] = deletionsOf(lines, q.key);
-        // The newest one.
-        expect(second.restoredAs).toEqual([copy.key]);
-        expect(first.restoredAs).toBeUndefined();
-        expect(restorable(first, [copy], null, lines).status).toBe("ok");
+        expect(restorable(first, [copy], null).status).toBe("unavailable");
+        expect(restorable(second, [copy], null).status).toBe("ok");
+    });
+
+    it("still offers one deleted beside another copy of the same question", () => {
+        // Restored twice at once by two players: one copy is deleted.
+        const a = radar(0.31, 3);
+        const [one, two] = [asRestored(a, 0.32), asRestored(a, 0.33)];
+        const lines = historyLines(
+            [save([removedQ(two, 1)], [one.key, two.key])],
+            {},
+        );
+        const [removal] = deletionsOf(lines, two.key);
+        expect(restorable(removal, [one], null).status).toBe("ok");
+        // Restored, it says what the first was restored from.
+        questions.set([one]);
+        restoreFromHistory(lines[0], [removal]);
+        expect(questions.get().map((x) => x.data.restoredFrom)).toEqual([
+            a.key,
+            a.key,
+        ]);
     });
 });
 
 describe("a teammate's restore the History hasn't loaded yet", () => {
-    it("counts a new question with the deleted one's content as back", () => {
+    it("counts a copy of the deleted one as back, and not a twin", () => {
         const deleted = radar(0.5, 51);
-        // New questions get a random colour: twins are copies.
-        const twin = { ...structuredClone(deleted), key: 0.25 };
         const removed = {
             key: 0.5,
             index: 1,
@@ -572,13 +647,16 @@ describe("a teammate's restore the History hasn't loaded yet", () => {
             question: deleted,
             order: [0.25, 0.5],
         };
-        // The twin was on the board when it was deleted: another question.
-        expect(restorable(removed, [twin], null)).not.toMatchObject({
+        // A question with the same content isn't it.
+        const twin = { ...structuredClone(deleted), key: 0.25 };
+        const added = { ...structuredClone(deleted), key: 0.125 };
+        expect(restorable(removed, [twin, added], null)).not.toMatchObject({
             reason: expect.stringMatching(/^On the board/),
         });
-        // A copy that appeared since is the teammate's restore.
-        const copy = { ...structuredClone(deleted), key: 0.75 };
-        expect(restorable(removed, [twin, copy], null)).toEqual({
+        // A teammate's restore is, as soon as it reaches the board.
+        expect(
+            restorable(removed, [twin, asRestored(deleted, 0.75)], null),
+        ).toEqual({
             status: "unavailable",
             reason: "On the board as Radius 2",
         });
@@ -668,11 +746,7 @@ describe("what the History says", () => {
         const [a, b] = [radar(0.11, 1), radar(0.13, 3)];
         const copy = asRestored(b, 0.31);
         expect(
-            restorable(
-                { key: b.key, question: b, restoredAs: [copy.key] },
-                [a, copy],
-                null,
-            ),
+            restorable({ key: b.key, question: b }, [a, copy], null),
         ).toEqual({
             status: "unavailable",
             reason: "On the board as Radius 2",

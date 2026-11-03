@@ -3,14 +3,18 @@ import { type Id, toast } from "react-toastify";
 import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { questionListSentSince } from "@/lib/eventQueue";
-import { questionDecisionsPossible } from "@/lib/questionConflicts";
+import {
+    questionConflicts,
+    questionDecisionsPossible,
+    resolveQuestionConflict,
+} from "@/lib/questionConflicts";
 import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
 import { boardLabel } from "@/lib/questionNames";
 import { showQuestionCard } from "@/lib/questionSidebarTab";
 import {
     asRestored,
+    backAs,
     deleteQuestions,
-    isOnBoard,
     placeRestored,
     type QuestionDeletion,
     undoDeletion,
@@ -104,9 +108,10 @@ export interface UndoneDeletion {
 
 /**
  * Puts a delete's questions back where they were, or null in another
- * session or for a spectator. One already back (under its key, as what it
- * was restored as here, or as a teammate's restore of it) isn't put back
- * again.
+ * session or for a spectator. One already back (under its key, or as a
+ * copy: a teammate's restore of it) isn't put back again. One a teammate
+ * edited meanwhile, held for a decision ("we deleted it"), comes back as
+ * they left it: Undo takes the delete back, as Keep theirs does.
  *
  * While no question list made since the delete has been sent, it is undone
  * outright: the questions go back under their keys, and the server never
@@ -120,22 +125,22 @@ export function undoQuestionDeletion(
 ): UndoneDeletion | null {
     if (sessionReadOnly.get()) return null;
     if (activeSessionId.get() !== deletion.sessionId) return null;
+    // Held as "we deleted it": their version stands, and goes on the board.
+    for (const { key, mine } of questionConflicts.get()) {
+        if (
+            mine === null &&
+            deletion.removed.some(({ question }) =>
+                sameQuestionKey(question.key, key),
+            )
+        ) {
+            resolveQuestionConflict(deletion.sessionId, key, "theirs");
+        }
+    }
     const current = questions.get();
-    // Questions on the board that weren't there when it was deleted: a
-    // teammate's restore of it, within the seconds Undo lasts. Not a twin
-    // that was there all along.
-    const since = current.filter(
-        (q) => !deletion.order.some((key) => sameQuestionKey(key, q.key)),
+    const missing = deletion.removed.filter(
+        ({ question }) =>
+            !backAs({ key: question.key, question }, current, deletion.order),
     );
-    const missing = deletion.removed.filter(({ question }) => {
-        // Back under its key, or as what it was restored as here.
-        if (isOnBoard({ key: question.key }, current)) return false;
-        const twin = since.findIndex((q) => sameQuestionSubstance(q, question));
-        if (twin === -1) return true;
-        // Each one stands for one deleted question.
-        since.splice(twin, 1);
-        return false;
-    });
     const alreadyBack = deletion.removed.length - missing.length;
     if (missing.length === 0) return { placed: [], alreadyBack };
     if (!questionListSentSince(deletion.sessionId, deletedAt)) {

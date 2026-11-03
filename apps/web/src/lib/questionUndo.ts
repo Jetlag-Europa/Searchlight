@@ -1,5 +1,3 @@
-import { activeSessionId } from "@/lib/activeSession";
-import type { HistoryLine, RemovedQuestion } from "@/lib/historyLines";
 import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
 import { newQuestionKey } from "@/maps/schema";
 
@@ -76,151 +74,104 @@ export const placeRemovedQuestions = <T extends { key: number }>(
 // ── Putting deleted questions back as copies (Restore, and Undo once the
 // delete may have reached the server) ─────────────────────────────────────────
 
-/** The History's lines, for what each deleted question was restored as. */
-export type Lines = readonly Pick<HistoryLine, "removed">[];
+const restoredFrom = (question: unknown): number | undefined => {
+    const from = (question as { data?: { restoredFrom?: unknown } } | null)
+        ?.data?.restoredFrom;
+    return typeof from === "number" ? from : undefined;
+};
+
+/**
+ * The key of the question `question` (under `key`) is a copy of, or its
+ * own: the first one, for a copy of a copy.
+ */
+export const originalKey = (question: unknown, key: number): number =>
+    restoredFrom(question) ?? key;
 
 /**
  * A deleted question as Restore puts it back: a copy under a new key, with
  * everything else as it was. To every merge it is then a question added,
  * not the deleted one coming back, which a list made before the delete
- * would read as unchanged and delete again.
+ * would read as unchanged and delete again. It says what it is a copy of
+ * (restoredFrom), so every device can tell the deleted one is back.
  */
-export function asRestored<T extends { key: number }>(
+export function asRestored<T extends { key: number; data: object }>(
     question: T,
     key: number = newQuestionKey(),
 ): T {
-    return { ...structuredClone(question), key };
-}
-
-// Restores made here, old key to new, for the session they were made in:
-// the lines say so (restoredAs) only once the History has loaded the save.
-let restoredHere: { sessionId: string; pairs: [number, number][] } = {
-    sessionId: "",
-    pairs: [],
-};
-const pairsHere = () => {
-    const sessionId = activeSessionId.get();
-    if (restoredHere.sessionId !== sessionId) {
-        restoredHere = { sessionId, pairs: [] };
-    }
-    return restoredHere.pairs;
-};
-
-// The keys a deleted question has had: its own, what it was restored as,
-// what that was restored as once deleted in turn, and so on, by every line
-// loaded (its key may have been deleted more than once, put back by Undo)
-// and by the restores made here since.
-export function lineageKeys(
-    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
-    lines: Lines,
-): number[] {
-    const keys = [removed.key];
-    const add = (key: number) => {
-        if (!keys.some((k) => sameQuestionKey(k, key))) keys.push(key);
+    const copy = structuredClone(question);
+    return {
+        ...copy,
+        key,
+        data: {
+            ...copy.data,
+            restoredFrom: originalKey(question, question.key),
+        },
     };
-    for (const key of removed.restoredAs ?? []) add(key);
-    // Grows as it goes, until no new key turns up.
-    for (let i = 0; i < keys.length; i++) {
-        for (const line of lines) {
-            for (const other of line.removed ?? []) {
-                if (!sameQuestionKey(other.key, keys[i])) continue;
-                for (const key of other.restoredAs ?? []) add(key);
-            }
-        }
-        for (const [from, to] of pairsHere()) {
-            if (sameQuestionKey(from, keys[i])) add(to);
-        }
-    }
-    return keys;
-}
-
-/** Every key some deleted question is known to have been restored as. */
-export function restoredKeys(lines: Lines): number[] {
-    return [
-        ...lines.flatMap((line) =>
-            (line.removed ?? []).flatMap((r) => r.restoredAs ?? []),
-        ),
-        ...pairsHere().map(([, to]) => to),
-    ];
-}
-
-const holds = (board: readonly { key: number }[], key: number) =>
-    board.some((q) => sameQuestionKey(q.key, key));
-
-/**
- * Whether a deleted question is on the board: under its key, or as the
- * question it was restored as (edited since or not).
- */
-export function isOnBoard(
-    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
-    board: readonly { key: number }[],
-    lines: Lines = [],
-): boolean {
-    return onBoardAs(removed, board, lines) !== undefined;
-}
-
-/** The key a deleted question is on the board under now, if it is. */
-export function onBoardAs(
-    removed: Pick<RemovedQuestion, "key" | "restoredAs">,
-    board: readonly { key: number }[],
-    lines: Lines = [],
-): number | undefined {
-    for (const key of lineageKeys(removed, lines)) {
-        const found = board.find((q) => sameQuestionKey(q.key, key));
-        if (found) return found.key;
-    }
-    return undefined;
 }
 
 /**
- * The key a deleted question is back on the board under, if it is: as
- * onBoardAs says, or as a teammate's restore the History hasn't loaded yet.
- * That is a question with its content that wasn't on the board when it was
- * deleted (a twin that was is another question), and isn't known as another
- * one's restore. Restoring again would make two. `parsed` is the deleted
- * question as the app reads it, if it does: compared too.
+ * The question a deleted one is back on the board as, if it is: under its
+ * key (Undo put it back), or a copy of the same question, edited since or
+ * not. Not one that was on the board when it was deleted (`order`): two
+ * copies put back at once are two questions.
  */
-export function alreadyBackAs(
-    removed: Pick<RemovedQuestion, "key" | "restoredAs" | "question" | "order">,
-    board: readonly { key: number }[],
-    lines: Lines = [],
-    parsed: unknown = null,
-): number | undefined {
-    const now = onBoardAs(removed, board, lines);
-    if (now !== undefined || !removed.order) return now;
-    const claimed = [...removed.order, ...restoredKeys(lines)];
+export function backAs<T extends { key: number }>(
+    removed: { key: number; question?: unknown },
+    board: readonly T[],
+    order: readonly number[] = [],
+): T | undefined {
+    const original = originalKey(removed.question, removed.key);
     return board.find(
         (q) =>
-            !claimed.some((key) => sameQuestionKey(key, q.key)) &&
-            (sameQuestionSubstance(q, removed.question) ||
-                (parsed !== null && sameQuestionSubstance(q, parsed))),
-    )?.key;
+            sameQuestionKey(q.key, removed.key) ||
+            (sameQuestionKey(originalKey(q, q.key), original) &&
+                !order.some((key) => sameQuestionKey(key, q.key))),
+    );
 }
 
 /**
  * The board with restored questions put back where they were in `order`
- * (as Undo does), or null when there's nothing to put back. Keys in `order`
- * no longer on the board stand for what they were restored as, so questions
- * restored one by one keep their order. Remembers what each was restored
- * as, so the line says "On the board" before the History reloads.
+ * (as Undo does), or null when there's nothing to put back. A key in
+ * `order` no longer on the board stands for a copy of it there, so
+ * questions restored one by one keep their order.
  */
 export function placeRestored<T extends { key: number }>(
     current: readonly T[],
     order: readonly number[],
     restored: readonly { from: number; index: number; question: T }[],
-    lines: Lines = [],
 ): T[] | null {
-    const placed = order.map((key) => {
-        const now = restored.find((r) => sameQuestionKey(r.from, key));
-        if (now) return now.question.key;
-        if (holds(current, key)) return key;
+    const placed = order.map(
+        (key) =>
+            restored.find((r) => sameQuestionKey(r.from, key))?.question.key ??
+            backAs({ key }, current)?.key ??
+            key,
+    );
+    return placeRemovedQuestions(current, placed, restored);
+}
+
+/**
+ * `board` without the copies of the question with `key` as Restore or Undo
+ * put them back from `was`, unchanged since: kept, the question itself is
+ * back, and they would be a second version of it shaping the zone. A copy
+ * changed since is someone's edit, and stays.
+ */
+export function withoutCopiesOf<T extends { key: number }>(
+    board: readonly T[],
+    key: number,
+    was: unknown,
+): T[] {
+    const original = originalKey(was, key);
+    const untagged = (q: unknown) => ({
+        ...(q as object),
+        data: { ...(q as { data?: object }).data, restoredFrom: undefined },
+    });
+    return board.filter((q) => {
+        const from = restoredFrom(q);
         return (
-            lineageKeys({ key }, lines).find((k) => holds(current, k)) ?? key
+            from === undefined ||
+            sameQuestionKey(q.key, key) ||
+            !sameQuestionKey(from, original) ||
+            !sameQuestionSubstance(untagged(q), untagged(was))
         );
     });
-    const next = placeRemovedQuestions(current, placed, restored);
-    if (next) {
-        for (const r of restored) pairsHere().push([r.from, r.question.key]);
-    }
-    return next;
 }

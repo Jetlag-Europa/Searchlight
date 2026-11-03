@@ -2046,3 +2046,52 @@ describe("our own versions that may be on the server", () => {
         expect(labels(payload.own ?? [])).toEqual(["2:small"]);
     });
 });
+
+describe("a decision over a question restored meanwhile", () => {
+    // Restore's copy of `of`, under `key`: it says what it was restored from.
+    const copyOf = (of: Q, key: number, data: Record<string, unknown> = {}) =>
+        ({
+            ...of,
+            key,
+            data: { ...of.data, restoredFrom: of.key, ...data },
+        }) as Q;
+    const original = q(0.2, "same", { within: true });
+    const answered = q(0.2, "same", { within: false });
+
+    test("keeping our edit of it drops the copy as it was restored", async () => {
+        snapshot([q(0.1), original], 4);
+        const server = fakeServer(4, [q(0.1), original]);
+        // Deleted, then restored as a copy, while we answered it offline.
+        server.other([q(0.1), copyOf(original, 0.9)]);
+        await edit([q(0.1), answered]);
+        expect(held()).toMatchObject([{ key: 0.2, kind: "they-deleted" }]);
+        resolveQuestionConflict(SID, 0.2, "mine");
+        await saveBoard();
+        // One version of it shapes the zone, not two.
+        expect(server.list).toEqual([q(0.1), answered]);
+    });
+
+    test("keeps a copy edited since, beside it", async () => {
+        snapshot([q(0.1), original], 4);
+        const server = fakeServer(4, [q(0.1), original]);
+        const moved = copyOf(original, 0.9, { lat: 51 });
+        server.other([q(0.1), moved]);
+        await edit([q(0.1), answered]);
+        resolveQuestionConflict(SID, 0.2, "mine");
+        await saveBoard();
+        expect(server.list).toEqual([q(0.1), answered, moved]);
+    });
+
+    test("keeping their edit of one we deleted drops our Undo's copy", async () => {
+        snapshot([q(0.1), original], 4);
+        const server = fakeServer(4, [q(0.1), original]);
+        server.other([q(0.1), answered]);
+        // We deleted it and Undo put it back as a copy, before our save's
+        // answer said a teammate had answered it.
+        await edit([q(0.1), copyOf(original, 0.9)]);
+        expect(held()).toMatchObject([{ key: 0.2, kind: "we-deleted" }]);
+        resolveQuestionConflict(SID, 0.2, "theirs");
+        await saveBoard();
+        expect(server.list).toEqual([q(0.1), answered]);
+    });
+});

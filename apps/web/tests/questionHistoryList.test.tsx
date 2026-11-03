@@ -122,7 +122,7 @@ describe("the question history list", () => {
                     id: "radius",
                     index: 0,
                     typeIndex: 1,
-                    after: deleted.data,
+                    after: { ...deleted.data, restoredFrom: 0.5 },
                 },
             ],
         };
@@ -132,7 +132,7 @@ describe("the question history list", () => {
         const moved = {
             ...deleted,
             key: 0.875,
-            data: { ...deleted.data, lat: 51 },
+            data: { ...deleted.data, lat: 51, restoredFrom: 0.5 },
         };
         const html = renderToStaticMarkup(
             <HistoryList

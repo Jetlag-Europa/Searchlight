@@ -100,6 +100,8 @@ export const addQuestion = (question: DeepPartial<Question>) => {
         }
     }
     const parsed = questionSchema.parse(candidate);
+    // A new question, though pasted from a restored one, restores nothing.
+    delete parsed.data.restoredFrom;
     if (!isQuestionSupported(parsed, compiled)) {
         throw new Error("This question is not part of the active game");
     }

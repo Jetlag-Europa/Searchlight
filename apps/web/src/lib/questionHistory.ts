@@ -20,10 +20,9 @@ import {
 import { sameQuestionKey } from "@/lib/questionMerge";
 import { boardLabel } from "@/lib/questionNames";
 import {
-    alreadyBackAs,
     asRestored,
-    lineageKeys,
-    type Lines,
+    backAs,
+    originalKey,
     placeRestored,
 } from "@/lib/questionUndo";
 import { type Question, questionSchema } from "@/maps/schema";
@@ -243,29 +242,33 @@ const parseRemoved = (question: unknown): Question | null => {
 
 /**
  * Why a deleted question can't be put back just now, or null. Not while the
- * player still has to decide about it, under its key or as what it was
- * restored as: Restore would decide for them. Nor while no decision can be
- * taken (the board is loading another session, or offline on a board not
- * kept): what Restore put there wouldn't be saved.
+ * player still has to decide about it, or about a copy of it: Restore would
+ * decide for them. Nor while no decision can be taken (the board is loading
+ * another session, or offline on a board not kept): what Restore put there
+ * wouldn't be saved.
  */
 export function restoreBlocked(
-    removed: number | Pick<RemovedQuestion, "key" | "restoredAs">,
+    removed: number | Pick<RemovedQuestion, "key" | "question">,
     {
         held = questionConflicts.get(),
         decisionsPossible = questionDecisionsPossible.get(),
-        lines = [],
     }: {
-        held?: readonly { key: number }[];
+        held?: readonly { key: number; base?: unknown }[];
         decisionsPossible?: boolean;
-        // Every line loaded, for what it was restored as since.
-        lines?: Lines;
     } = {},
 ): string | null {
-    const keys = lineageKeys(
-        typeof removed === "number" ? { key: removed } : removed,
-        lines,
-    );
-    if (held.some((c) => keys.some((key) => sameQuestionKey(c.key, key)))) {
+    const { key, question } =
+        typeof removed === "number"
+            ? { key: removed, question: null }
+            : removed;
+    const original = originalKey(question, key);
+    if (
+        held.some(
+            (c) =>
+                sameQuestionKey(c.key, key) ||
+                sameQuestionKey(originalKey(c.base, c.key), original),
+        )
+    ) {
         return "Needs a decision first";
     }
     if (!decisionsPossible) return notRightNowReason();
@@ -290,23 +293,21 @@ export function notRightNowReason(
  * client, or one the game no longer has, isn't put back broken.
  */
 export function restorable(
-    removed: Pick<RemovedQuestion, "key" | "question" | "restoredAs" | "order">,
+    removed: Pick<RemovedQuestion, "key" | "question" | "order">,
     current: readonly { key: number }[],
     compiled: Pick<CompiledGame, "questionMap"> | null,
-    // Every line loaded, for what it was restored as since.
-    lines: Lines = [],
 ): Restorable {
-    const question = parseRemoved(removed.question);
-    const back = alreadyBackAs(removed, current, lines, question);
-    if (back !== undefined) {
+    const back = backAs(removed, current, removed.order);
+    if (back) {
         // As the board calls it now: "Radius 2" may be another question
         // since the delete shifted the positions.
-        const label = boardLabel(current, back);
+        const label = boardLabel(current, back.key);
         return {
             status: "unavailable",
             reason: label ? `On the board as ${label}` : "On the board",
         };
     }
+    const question = parseRemoved(removed.question);
     if (!question) {
         return { status: "unavailable", reason: "Can't be restored" };
     }
@@ -316,7 +317,7 @@ export function restorable(
             reason: "Not in this game",
         };
     }
-    const blocked = restoreBlocked(removed, { lines });
+    const blocked = restoreBlocked(removed);
     if (blocked) return { status: "unavailable", reason: blocked };
     return { status: "ok", question };
 }
@@ -339,8 +340,6 @@ export interface Restored {
 export function restoreFromHistory(
     line: Pick<HistoryLine, "order">,
     targets: readonly RemovedQuestion[],
-    // Every line loaded, for what other questions were restored as.
-    lines: Lines = [],
 ): Restored {
     // A spectator's board isn't saved (as deleteQuestionsWithUndo).
     if (sessionReadOnly.get()) return { back: [], alreadyBack: 0 };
@@ -348,11 +347,9 @@ export function restoreFromHistory(
     const compiled = compiledGameAtom.get();
     let alreadyBack = 0;
     const restored = targets.flatMap((target) => {
-        const check = restorable(target, current, compiled, lines);
+        const check = restorable(target, current, compiled);
         if (check.status !== "ok") {
-            const question = parseRemoved(target.question);
-            if (alreadyBackAs(target, current, lines, question) !== undefined)
-                alreadyBack++;
+            if (backAs(target, current, target.order)) alreadyBack++;
             return [];
         }
         // A copy (asRestored): cards edit questions in place, and the parsed
@@ -365,7 +362,7 @@ export function restoreFromHistory(
             },
         ];
     });
-    const next = placeRestored(current, line.order ?? [], restored, lines);
+    const next = placeRestored(current, line.order ?? [], restored);
     if (!next) return { back: [], alreadyBack };
     questions.set(next);
     return {
