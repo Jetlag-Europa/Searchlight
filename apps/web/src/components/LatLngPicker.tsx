@@ -391,6 +391,8 @@ const LatLngEditForm = ({
     );
 };
 
+const LOCATION_KEPT = "Card locked, so its location was kept";
+
 export const LatitudeLongitude = ({
     latitude,
     longitude,
@@ -424,6 +426,10 @@ export const LatitudeLongitude = ({
     // also disables it while another card prefills, which locks nothing.
     const disabledRef = useRef(disabled);
     disabledRef.current = disabled;
+    // A teammate's save while the fix is pending gives the card new question
+    // data, which only the latest onChange writes to.
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     const color = colorName ? ICON_COLORS[colorName] : "transparent";
 
@@ -549,8 +555,8 @@ export const LatitudeLongitude = ({
                                                 disabledRef.current &&
                                                 !isLoading.get()
                                             )
-                                                return;
-                                            onChange(
+                                                throw new Error(LOCATION_KEPT);
+                                            onChangeRef.current(
                                                 position.coords.latitude,
                                                 position.coords.longitude,
                                             );
@@ -559,7 +565,13 @@ export const LatitudeLongitude = ({
                                     {
                                         pending: "Fetching location",
                                         success: "Location fetched",
-                                        error: "Could not fetch location",
+                                        error: {
+                                            render: ({ data }) =>
+                                                data instanceof Error &&
+                                                data.message === LOCATION_KEPT
+                                                    ? LOCATION_KEPT
+                                                    : "Could not fetch location",
+                                        },
                                     },
                                     { autoClose: 500 },
                                 );

@@ -6,11 +6,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import { compileGameDefinition } from "@/game-definition/compile";
 import {
     hidingZoneCircles,
-    hidingZoneLayer,
     sameZones,
     survivingHidingZones,
 } from "@/maps/geo-utils";
-import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 const district: Polygon = {
     type: "Polygon",
@@ -207,6 +205,19 @@ it("keeps the same zone objects across recalculations", async () => {
     expect(hidingZoneCircles(compiled)[0]).toEqual(first![0]);
 });
 
+it("keeps only the latest scale's zones", async () => {
+    // Every multiplier typed into a zone size change is a new scale, and
+    // each scale is a full set of zones: keep one set, not one per scale.
+    const compiled = compileGameDefinition(game);
+    const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
+
+    const [first] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
+    await survivingHidingZones(compiled, [], 1.5, keepAll);
+    const [back] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
+    expect(back).not.toBe(first);
+    expect(back).toEqual(first);
+});
+
 it("compares zone lists by their objects, in any order", () => {
     const [a, b] = hidingZoneCircles(compileGameDefinition(game));
     const [c] = hidingZoneCircles(compileGameDefinition(game));
@@ -217,15 +228,4 @@ it("compares zone lists by their objects, in any order", () => {
     expect(sameZones([a], [a, b])).toBe(false);
     // An equal but new zone is a change.
     expect(sameZones([a, b], [c, b])).toBe(false);
-});
-
-it("merges No Overlap in the worker into the outline it drew before", async () => {
-    const zones = hidingZoneCircles(compileGameDefinition(game));
-    const outline = await requestGeometry(
-        { kind: "union", regions: zones },
-        { supersede: "hiding-zone-outline" },
-    );
-    expect(outline?.geometry).toEqual(
-        hidingZoneLayer(zones, "no-overlap").features[0].geometry,
-    );
 });

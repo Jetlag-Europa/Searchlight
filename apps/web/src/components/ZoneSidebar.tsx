@@ -365,8 +365,11 @@ const ZoneSidebarContent = () => {
                 });
                 return () => selectionTaskQueue.cancel();
             } else {
-                toast.error("Invalid hiding zone selected", {
-                    toastId: "hiding-zone-selection-error",
+                // An answer ruled it out. Leave it, so the zones still
+                // possible replace its mask, drawn before that answer.
+                setHidingZoneModeStationID("");
+                toast.info("The zone you were viewing has been ruled out", {
+                    toastId: "hiding-zone-ruled-out",
                 });
             }
         }
@@ -437,7 +440,7 @@ const ZoneSidebarContent = () => {
                 );
             } catch (error) {
                 console.error("Error drawing hiding zones:", error);
-                // A throw before showGeoJSON would leave the old zones up.
+                // A throw while drawing would leave part of the zones up.
                 removeHidingZones();
                 toast.error("The hiding zones couldn't be drawn", {
                     toastId: "hiding-zone-display-error",

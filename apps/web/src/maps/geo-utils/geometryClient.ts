@@ -54,16 +54,18 @@ export class SupersededError extends Error {
     }
 }
 
-// Server-side and geometry test runtimes have no browser Worker API, so they
-// buffer on this thread. ArcGIS loads on demand there: browsers use the worker
-// and shouldn't download it with the page.
+// The unit tests run in Node, which has no Worker, so they do the geometry on
+// this thread. Every browser has a Worker: their build leaves this path out,
+// with the ArcGIS code it would load.
+const onThisThread =
+    import.meta.env.MODE === "test" && typeof Worker === "undefined";
 let inlineBuffer: Promise<typeof BufferGeometry> | undefined;
 function loadInlineBuffer(): Promise<typeof BufferGeometry> {
     inlineBuffer ??= import("./bufferGeometry");
     return inlineBuffer;
 }
 // Start loading now so the first buffer doesn't wait for it.
-if (typeof Worker === "undefined") loadInlineBuffer().catch(() => {});
+if (onThisThread) loadInlineBuffer().catch(() => {});
 
 let worker: Worker | undefined;
 let nextId = 0;
@@ -138,7 +140,7 @@ export async function requestGeometry(
         | UnionRequest,
     options?: RequestOptions,
 ): Promise<unknown> {
-    if (typeof Worker === "undefined") {
+    if (onThisThread) {
         if (request.kind === "clip") return calculateClip(request);
         if (request.kind === "union") return calculateUnion(request);
         if (request.kind === "boundaryTarget")
@@ -177,7 +179,7 @@ export async function filterZoneIndexes(
     circles: Feature<Polygon | MultiPolygon>[],
     regions: FeatureCollection<Polygon | MultiPolygon>[],
 ): Promise<number[]> {
-    if (typeof Worker === "undefined") {
+    if (onThisThread) {
         return calculateFilterZoneIndexes(circles, regions);
     }
     const activeWorker = getWorker();

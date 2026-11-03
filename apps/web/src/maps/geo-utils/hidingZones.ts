@@ -10,8 +10,6 @@ import type {
 import type { CompiledGame } from "@/game-definition/compile";
 import type { StationCircle, StationPlace } from "@/maps/api";
 
-import { safeUnion } from "./operators";
-
 const isUnit = (unit: unknown): unit is DistanceUnit =>
     unit === "meters" || unit === "kilometers" || unit === "miles";
 
@@ -62,10 +60,10 @@ export type ZoneDisplayStyle =
     | "no-display";
 
 /**
- * The layer the zone sidebar draws for the zones still in play: each zone,
- * each zone's station, or the zones merged into one shape ("no-overlap").
- * With no zones (not worked out yet, all ruled out, or all disabled by hand)
- * there is nothing to draw, in every style.
+ * The layer the zone sidebar draws for the zones still in play: each zone or
+ * each zone's station. The worker merges two or more zones for "no-overlap";
+ * one zone is its own outline. With no zones (not worked out yet, all ruled
+ * out, or all disabled by hand) there is nothing to draw, in every style.
  */
 export function hidingZoneLayer(
     zones: StationCircle[],
@@ -73,38 +71,30 @@ export function hidingZoneLayer(
 ): FeatureCollection {
     if (style === "no-display" || zones.length === 0)
         return turf.featureCollection([]);
-    switch (style) {
-        case "no-overlap":
-            return turf.featureCollection([
-                safeUnion(turf.featureCollection(zones)),
-            ]);
-        case "stations":
-            return turf.featureCollection(zones.map((zone) => zone.properties));
-        default:
-            return turf.featureCollection(zones);
-    }
+    if (style === "stations")
+        return turf.featureCollection(zones.map((zone) => zone.properties));
+    return turf.featureCollection(zones);
 }
 
-const circlesByGame = new WeakMap<object, Map<number, StationCircle[]>>();
+const circlesByGame = new WeakMap<
+    object,
+    { scale: number; circles: StationCircle[] }
+>();
 
 /**
- * {@link hidingZoneCircles}, kept per compiled game and scale so a zone stays
- * the same object across recalculations. Callers must not mutate the result.
+ * {@link hidingZoneCircles}, kept per compiled game for the latest scale so a
+ * zone stays the same object across recalculations. Only one scale is kept:
+ * each multiplier typed into a zone size change is another full set of
+ * zones. Callers must not mutate the result.
  */
 function cachedHidingZoneCircles(
     compiled: Pick<CompiledGame, "definition" | "hidingZones">,
     scale: number,
 ): StationCircle[] {
-    let byScale = circlesByGame.get(compiled);
-    if (!byScale) {
-        byScale = new Map();
-        circlesByGame.set(compiled, byScale);
-    }
-    let circles = byScale.get(scale);
-    if (!circles) {
-        circles = hidingZoneCircles(compiled, scale);
-        byScale.set(scale, circles);
-    }
+    const cached = circlesByGame.get(compiled);
+    if (cached?.scale === scale) return cached.circles;
+    const circles = hidingZoneCircles(compiled, scale);
+    circlesByGame.set(compiled, { scale, circles });
     return circles;
 }
 
