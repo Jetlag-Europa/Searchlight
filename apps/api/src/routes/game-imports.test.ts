@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import Fastify, { type FastifyInstance } from "fastify";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 
 vi.mock("../lib/discord-client.js", () => ({
   discord: {
@@ -10,6 +11,7 @@ import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
 import { discord } from "../lib/discord-client.js";
+import { registerCompression } from "../lib/compression.js";
 import { gameImportRoutes } from "./game-imports.js";
 import { sessionRoutes } from "./sessions.js";
 import { linkRoutes } from "./links.js";
@@ -39,12 +41,13 @@ const GAME_A_KEY = "test-game-imports-a";
 const GAME_NO_DEF_KEY = "test-game-imports-nodef";
 const GAME_UNICODE_KEY = "test-game-imports-東京";
 const GAME_OWNER_KEY = "test-game-imports-owner";
+const GAME_LARGE_KEY = "test-game-imports-large";
 // Shaped like a generated id; used as one game's id and another game's key.
 const CUID_LIKE = "ctestgameimportsshadow001";
 
 const FIXTURE_USERS = [USER_MEMBER, USER_NO_ROLE, USER_NONMEMBER, USER_CREATOR];
 const FIXTURE_AUTHS = [AUTH_MEMBER, AUTH_NO_ROLE, AUTH_NONMEMBER, AUTH_CREATOR];
-const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, CUID_LIKE];
+const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, GAME_LARGE_KEY, CUID_LIKE];
 const FIXTURE_SERVERS = [TEST_SERVER_A, TEST_SERVER_B];
 
 async function buildTestApp(): Promise<FastifyInstance> {
@@ -52,6 +55,7 @@ async function buildTestApp(): Promise<FastifyInstance> {
   await app.register(fastifyCookie, {
     secret: process.env["SESSION_COOKIE_SECRET"] ?? "test-secret-at-least-32-chars-long",
   });
+  await registerCompression(app);
   await app.register(gameImportRoutes, { prefix: "/games" });
   await app.register(sessionRoutes, { prefix: "/sessions" });
   await app.register(linkRoutes, { prefix: "/links" });
@@ -427,14 +431,14 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.json().errors[0].code).toBe("SERVER_NOT_FOUND");
     });
 
-    test("returns 403 for a non-admin importing to a virtual server, without a Discord call", async () => {
+    test("returns 403 for a user without a Casual Games role importing there, without looking up its id", async () => {
       await prisma.server.createMany({
-        data: [{ id: "home-games", name: "Home Games" }],
+        data: [{ id: "home-games", name: "Casual Games" }],
         skipDuplicates: true,
       });
       const getGuildMember = discord.getGuildMember as unknown as ReturnType<typeof vi.fn>;
       getGuildMember.mockClear();
-      // The virtual server's id is no Discord guild id, so a lookup would fail.
+      // Its roles come from its management guild, if it has role mappings.
       getGuildMember.mockRejectedValueOnce(new Error("Discord guild lookup failed: 400"));
 
       const res = await app.inject({
@@ -444,7 +448,8 @@ describe("Game Definition Access & Revision Security", () => {
         payload: importableDefinition("home-games"),
       });
       expect(res.statusCode).toBe(403);
-      expect(getGuildMember).not.toHaveBeenCalled();
+      // The virtual server's id is no Discord guild id.
+      expect(getGuildMember).not.toHaveBeenCalledWith("home-games", expect.anything(), expect.anything());
       getGuildMember.mockReset();
       getGuildMember.mockResolvedValue(null);
     });
@@ -776,6 +781,72 @@ describe("Game Definition Access & Revision Security", () => {
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().name).toBe("Owner");
+    });
+  });
+
+  describe("Compressed revisions", () => {
+    let gameId: string;
+    let revisionId: string;
+    const checksum = "test-large-checksum";
+    // Well over the 1 KB compression threshold.
+    const definition = {
+      id: GAME_LARGE_KEY,
+      name: "Large Game",
+      serverId: TEST_SERVER_A,
+      stations: Array.from({ length: 200 }, (_, i) => ({ id: `station-${i}`, name: `Station ${i}` })),
+    };
+
+    beforeAll(async () => {
+      const game = await prisma.game.create({
+        data: { gameKey: GAME_LARGE_KEY, serverId: TEST_SERVER_A, name: "Large Game", size: "medium" },
+      });
+      const rev = await prisma.gameRevision.create({
+        data: { gameId: game.id, revision: 1, checksum, definition },
+      });
+      await prisma.game.update({ where: { id: game.id }, data: { currentRevisionId: rev.id } });
+      gameId = game.id;
+      revisionId = rev.id;
+    });
+
+    const get = (url: string, headers: Record<string, string> = {}) =>
+      app.inject({ method: "GET", url, headers: { cookie: signedCookie(app, AUTH_MEMBER), ...headers } });
+    const revisionUrls = () => [`/games/revisions/${revisionId}`, `/games/${gameId}/revisions/1`];
+
+    test("revisions are sent with brotli or gzip when accepted, with the same ETag and body", async () => {
+      for (const url of revisionUrls()) {
+        const plain = await get(url);
+        expect(plain.statusCode, url).toBe(200);
+        expect(plain.headers["content-encoding"], url).toBeUndefined();
+        expect(plain.headers.etag, url).toBe(`"${checksum}"`);
+        expect(plain.json(), url).toEqual(definition);
+
+        const br = await get(url, { "accept-encoding": "br, gzip" });
+        expect(br.statusCode, url).toBe(200);
+        expect(br.headers["content-encoding"], url).toBe("br");
+        expect(br.headers.vary, url).toContain("accept-encoding");
+        expect(br.headers.etag, url).toBe(`"${checksum}"`);
+        expect(brotliDecompressSync(br.rawPayload).toString(), url).toBe(plain.body);
+
+        const gzip = await get(url, { "accept-encoding": "gzip" });
+        expect(gzip.headers["content-encoding"], url).toBe("gzip");
+        expect(gunzipSync(gzip.rawPayload).toString(), url).toBe(plain.body);
+      }
+    });
+
+    test("a compressed revision revalidates, also with the weak ETag a proxy makes of it", async () => {
+      for (const url of revisionUrls()) {
+        const res = await get(url, { "accept-encoding": "br, gzip", "if-none-match": `W/"${checksum}"` });
+        expect(res.statusCode, url).toBe(304);
+        expect(res.rawPayload.length, url).toBe(0);
+      }
+    });
+
+    test("the export is compressed and still an attachment", async () => {
+      const res = await get(`/games/${gameId}/export`, { "accept-encoding": "br" });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers["content-encoding"]).toBe("br");
+      expect(res.headers["content-disposition"]).toContain(`${GAME_LARGE_KEY}.game.json`);
+      expect(JSON.parse(brotliDecompressSync(res.rawPayload).toString())).toEqual(definition);
     });
   });
 

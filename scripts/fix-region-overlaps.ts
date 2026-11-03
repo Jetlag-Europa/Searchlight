@@ -1,7 +1,10 @@
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { GameDefinition } from "../packages/shared/src/index.js";
+import {
+  formatGameDefinitionJson,
+  type GameDefinition,
+} from "../packages/shared/src/index.js";
 // The import page's overlap fixer, so files fixed here match fixes made there.
 import {
   findRegionOverlaps,
@@ -63,10 +66,7 @@ async function main() {
       );
     });
     if (!changed) continue;
-    await writeFile(
-      file,
-      `${JSON.stringify({ ...definition, features }, null, 2)}\n`,
-    );
+    await writeFile(file, formatGameDefinitionJson({ ...definition, features }));
   }
   if (failures) process.exit(1);
 }

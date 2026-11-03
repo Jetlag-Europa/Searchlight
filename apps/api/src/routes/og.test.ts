@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import Fastify from "fastify";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { registerCompression } from "../lib/compression.js";
 import { gameMapPng, gameMapSvg } from "../lib/og-map.js";
 import { ogRoutes } from "./og.js";
 
@@ -82,6 +83,7 @@ describe("link previews", () => {
   beforeAll(async () => {
     await cleanup();
     app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
+    await registerCompression(app);
     await app.register(ogRoutes, { prefix: "/og" });
     await app.ready();
 
@@ -154,10 +156,15 @@ describe("link previews", () => {
     expect(meta(res.body, "og:url")).toBe("http://localhost/play?token=%22%3E%3Cscript%3E");
   });
 
-  test("the map is a 1200×630 PNG", async () => {
-    const res = await app.inject({ method: "GET", url: `/og/game-links/${TOKEN}/map.png?v=${revisionId}` });
+  test("the map is a 1200×630 PNG, never recompressed", async () => {
+    const res = await app.inject({
+      method: "GET",
+      url: `/og/game-links/${TOKEN}/map.png?v=${revisionId}`,
+      headers: { "accept-encoding": "br" },
+    });
     expect(res.statusCode).toBe(200);
     expect(res.headers["content-type"]).toBe("image/png");
+    expect(res.headers["content-encoding"]).toBeUndefined();
     expect(res.headers["cache-control"]).toBe("public, max-age=3600");
     const png = res.rawPayload;
     expect(png.subarray(1, 4).toString()).toBe("PNG");

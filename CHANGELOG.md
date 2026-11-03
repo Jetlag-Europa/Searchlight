@@ -4,11 +4,34 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
-## Smoother hiding-zone map on big games (2026-11-02)
+## Smoother hiding-zone map on big games (2026-11-03)
 
 - With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
 - "No Overlap" merges the zones without freezing the page. The map keeps the previous outline until the new one is ready.
 - An answer or a teammate's update that rules out no zone no longer redraws the zones.
+
+## Casual Games (2026-11-03)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
+## Question cards stay usable while the map calculates (2026-11-03)
+
+- While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves. Tapping a card's lock, hide or delete button, or **Add Question**, right after typing a question's name no longer does nothing.
+- Renaming or folding a question, locking or unlocking it outside planning mode, or a teammate's save that changes no answer no longer recalculates the map or the hiding zones, or moves your map back to the remaining area.
+- **Set to current location** now only greys out its own location while it waits for a GPS fix, not every card.
+
+## Spectator links (2026-11-03)
+
+- A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
+- Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator") or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
+- Spectators show as "Spectating" on the map and in the session list, and don't count as players in a game's stats.
+
+## One page for checking and importing games (2026-11-02)
+
+- `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
+- The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
 
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 

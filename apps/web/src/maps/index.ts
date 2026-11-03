@@ -477,6 +477,19 @@ export async function standaloneRegion(
     return region;
 }
 
+// A question's region depends on its type and answer data, not on its name,
+// colours, collapsed or lock state (JSON drops the undefined keys). Hider mode
+// answers questions before they get here, so its answers are part of the data.
+export const regionData = (question: Question) => ({
+    ...question.data,
+    name: undefined,
+    collapsed: undefined,
+    drag: undefined,
+    color: undefined,
+    colorA: undefined,
+    colorB: undefined,
+});
+
 /**
  * Compute each enabled question's standalone "still-possible" region by applying
  * that question — and only that question — to the full base game boundary.
@@ -512,6 +525,7 @@ export async function computePerQuestionRegions(
     questions: Questions,
     baseMapGeoData: any,
     planningModeEnabled: boolean,
+    isCurrent: () => boolean = () => true,
 ): Promise<{ question: Question; region: any; zoneScale: number }[]> {
     const regions: { question: Question; region: any; zoneScale: number }[] =
         [];
@@ -530,15 +544,11 @@ export async function computePerQuestionRegions(
         if (isZoneSizeChange(question)) continue;
         if (planningModeEnabled && question.data.drag) continue;
 
-        // A card's name and collapsed state change no region (JSON drops the
-        // undefined keys).
-        const key = JSON.stringify([
-            question.id,
-            { ...question.data, name: undefined, collapsed: undefined },
-        ]);
+        const key = JSON.stringify([question.id, regionData(question)]);
         const region =
             cache.get(key) ??
             (await standaloneRegion(question, baseMapGeoData));
+        if (!isCurrent()) return regions;
         used.set(key, region);
 
         regions.push({
@@ -548,7 +558,9 @@ export async function computePerQuestionRegions(
         });
     }
 
-    if (regionCache?.regions === cache) regionCache.regions = used;
+    // An obsolete run finishing first must not prune the newer run's regions.
+    if (regionCache?.regions === cache && isCurrent())
+        regionCache.regions = used;
     return regions;
 }
 

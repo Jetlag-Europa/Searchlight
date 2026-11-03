@@ -5,6 +5,7 @@ import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     askedVariants,
     firstUnasked,
@@ -48,6 +49,9 @@ const playerCustomData = (family: string): Record<string, unknown> =>
         ? { locationType: "custom", places: [] }
         : { type: family === "matching" ? "custom-points" : "custom-measure" };
 export const addQuestion = (question: DeepPartial<Question>) => {
+    if (sessionReadOnly.get()) {
+        throw new Error("Spectators can't add questions");
+    }
     // Every question belongs to a game: none can be added until its
     // definition has loaded.
     const compiled = compiledGameAtom.get();
@@ -254,6 +258,12 @@ export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
     decode: JSON.parse,
 });
 
+/**
+ * Greys out editing while work that writes into a question after an await
+ * runs (custom-zone and tentacle prefill). Map and zone calculations don't
+ * set it: they work on a snapshot and the newest edit wins. Their progress
+ * is lib/calculating.ts.
+ */
 export const isLoading = atom<boolean>(false);
 const loadingScopeCounts = new Map<string | symbol, number>();
 
@@ -290,16 +300,6 @@ export function resetScopedLoading(scope?: string | symbol): void {
         total += count;
     }
     isLoading.set(total > 0);
-}
-/** Release one operation exactly once, including when its view unmounts. */
-export function acquireScopedLoading(scope: string | symbol): () => void {
-    setScopedLoading(scope, true);
-    let released = false;
-    return () => {
-        if (released) return;
-        released = true;
-        setScopedLoading(scope, false);
-    };
 }
 
 export const baseTileLayer = persistentAtom<

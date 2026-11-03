@@ -18,10 +18,33 @@ body {
     height: 100%;
 }
 
-/* A modal (the sidebar on phones) turns off pointer events outside it; toasts
-   such as the Undo after a delete stay clickable. */
 .Toastify__toast {
+    /* A modal (the sidebar on phones) turns off pointer events outside it;
+       toasts such as the Undo after a delete stay clickable. */
     pointer-events: auto;
+    /* Keeps the close button below clear of the content. */
+    column-gap: 8px;
+}
+
+/* Together with the gap, the icon's usual 10px from the text. */
+.Toastify__toast-icon {
+    margin-inline-end: 2px;
+}
+
+/* The close button takes the toast's end edge, full height and a finger
+   wide, instead of a small X in the top corner: a toast's own button, such as
+   Undo, sat right next to it, so a tap on a phone hit the wrong one. The auto
+   margin keeps it at the edge when the content is a short string. */
+.Toastify__close-button {
+    position: static;
+    align-self: stretch;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    margin: calc(-1 * var(--toastify-toast-padding));
+    margin-inline-start: auto;
 }
 
 .leaflet-container {
