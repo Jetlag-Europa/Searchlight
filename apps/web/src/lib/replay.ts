@@ -1,5 +1,5 @@
 import * as turf from "@turf/turf";
-import type { BBox, Feature, MultiPolygon, Polygon } from "geojson";
+import type { BBox, Feature, MultiPolygon, Point, Polygon } from "geojson";
 import { atom } from "nanostores";
 
 import type { Question, Questions } from "@/maps/schema";
@@ -316,19 +316,27 @@ export function mainZone<T extends Feature<Polygon | MultiPolygon>>(
 /**
  * When someone arrived in `zone` to stay, between `from` and `to`: the start
  * of their first stay of at least STAY_MS, or of a stay their reports end in.
+ * Within `marginKm` of the zone counts as in it.
  */
 export function arrivedAt(
     positions: LoggedPosition[],
     zone: Feature<Polygon | MultiPolygon>,
     from: number,
     to: number,
+    marginKm = 0,
 ): number | null {
+    const inside = (point: Feature<Point>) =>
+        marginKm > 0
+            ? turf.pointToPolygonDistance(point, zone, {
+                  units: "kilometers",
+              }) <= marginKm
+            : turf.booleanPointInPolygon(point, zone);
     let since: number | null = null;
     let outSince: number | null = null;
     for (const [t, lat, lng] of positions) {
         if (t < from) continue;
         if (t > to) break;
-        if (turf.booleanPointInPolygon(turf.point([lng, lat]), zone)) {
+        if (inside(turf.point([lng, lat]))) {
             // Out too long since leaving: a new stay.
             if (since === null || (outSince !== null && t - outSince >= DIP_MS))
                 since = t;
@@ -347,19 +355,23 @@ export function arrivedAt(
  * arrives in the hider's zone (the one the hider spent the game in), or
  * earlier with a question asked as they got there: shortly before, with its
  * pin near the zone. Without positions to tell, the first clear of the board
- * marks it.
+ * marks it. `marginKm` widens the zone for arriving, for seekers' positions
+ * that are only where they asked from (seekers ask as they get there).
  */
 export function findEndgame<T extends Feature<Polygon | MultiPolygon>>(
     replay: Replay,
     zones: T[],
     hider: LoggedPosition[] | null,
     seekers: LoggedPosition[][],
+    marginKm = 0,
 ): Endgame<T> | null {
     const from = replay.questions[0]?.askedAt ?? replay.start;
     const zone = hider ? mainZone(zones, hider, from, replay.end) : null;
     if (zone) {
         const arrivals = seekers
-            .map((positions) => arrivedAt(positions, zone, from, replay.end))
+            .map((positions) =>
+                arrivedAt(positions, zone, from, replay.end, marginKm),
+            )
             .filter((at): at is number => at !== null);
         if (arrivals.length > 0) {
             const arrived = Math.min(...arrivals);

@@ -59,6 +59,9 @@ const MARGIN_MS = 5 * 60_000;
 // hider (the API sends positions this far), and to show after they did.
 const FIND_WINDOW_MS = 30 * 60_000;
 const AFTER_FOUND_MS = 60_000;
+// Without live locations, a question asked this close to the hider's zone
+// means the seekers have got there.
+const ASKED_NEAR_KM = 0.5;
 // Playback pauses this long on each question asked or answered, so its
 // planning outline, then its cutout, can be seen.
 const HOLD_MS = 2_000;
@@ -284,6 +287,7 @@ export function ReplayPage() {
                     [replay.end, lat, lng, null],
                 ],
                 [askedFrom(replay)],
+                ASKED_NEAR_KM,
             );
         }
         return findEndgame(
