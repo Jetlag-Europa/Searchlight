@@ -91,6 +91,18 @@ it("changes map type and places on the same map, one redraw per change", () => {
     expect(calls).toEqual(["type terrain", "styles 0", "redraw"]);
 });
 
+it("doesn't redraw for lines or places on Satellite, where Google shows none", () => {
+    const { calls, apply } = fakeLook({ ...roadmap, type: "satellite" });
+    apply({ type: "satellite", transit: true, hidePlaces: true });
+    expect(calls).toEqual([
+        `styles ${HIDE_PLACES_STYLES.length}`,
+        "add TransitLayer",
+    ]);
+    calls.length = 0;
+    apply({ type: "hybrid", transit: true, hidePlaces: true });
+    expect(calls).toEqual(["type hybrid", "redraw"]);
+});
+
 it("reads an unknown stored map type as Roadmap", () => {
     expect(googleMapTypeOf("satellite")).toBe("satellite");
     expect(googleMapTypeOf("terrain")).toBe("terrain");
@@ -100,10 +112,13 @@ it("reads an unknown stored map type as Roadmap", () => {
     expect(googleMapTypeOf(undefined)).toBe("roadmap");
 });
 
-/** Just enough of a Leaflet layer's events for whenDrawn. */
+/** Just enough of a Leaflet tile layer for whenDrawn: events and a view. */
 function fakeTileLayer() {
     const listeners = new Map<string, Set<() => void>>();
-    return {
+    const layer = {
+        // Whether every tile of the current view has loaded.
+        ready: false,
+        redrawing: false,
         on(type: string, fn: () => void) {
             if (!listeners.has(type)) listeners.set(type, new Set());
             listeners.get(type)!.add(fn);
@@ -117,66 +132,103 @@ function fakeTileLayer() {
         listening: () =>
             [...listeners.values()].reduce((n, set) => n + set.size, 0),
     };
+    const drawn = vi.fn();
+    const stop = whenDrawn(
+        layer,
+        () => layer.ready,
+        () => layer.redrawing,
+        drawn,
+    );
+    return { layer, drawn, stop };
 }
 
 describe("whenDrawn", () => {
     afterEach(() => vi.useRealTimers());
 
-    it("counts a layer drawn once its tiles have loaded and faded in", () => {
+    it("counts the layer drawn once its view has loaded and faded in", () => {
         vi.useFakeTimers();
-        const layer = fakeTileLayer();
-        const drawn = vi.fn();
-        whenDrawn(layer, () => false, drawn);
+        const { layer, drawn } = fakeTileLayer();
         layer.fire("loading");
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        expect(drawn).not.toHaveBeenCalled();
+        layer.ready = true;
         layer.fire("load");
         vi.advanceTimersByTime(TILE_FADE_MS - 1);
         expect(drawn).not.toHaveBeenCalled();
         vi.advanceTimersByTime(1);
         expect(drawn).toHaveBeenCalledTimes(1);
         expect(layer.listening()).toBe(0);
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        expect(drawn).toHaveBeenCalledTimes(1);
     });
 
     it("waits again when the view changes before the tiles have faded in", () => {
         vi.useFakeTimers();
-        const layer = fakeTileLayer();
-        const drawn = vi.fn();
-        whenDrawn(layer, () => false, drawn);
+        const { layer, drawn } = fakeTileLayer();
+        layer.ready = true;
         layer.fire("load");
         vi.advanceTimersByTime(100);
-        layer.fire("loading"); // e.g. the game's view is fitted
+        layer.ready = false; // e.g. the game's view is fitted
+        layer.fire("loading");
         vi.advanceTimersByTime(TILE_FADE_MS * 4);
         expect(drawn).not.toHaveBeenCalled();
-        layer.fire("load");
+        layer.ready = true;
+        layer.fire("tileload");
         vi.advanceTimersByTime(TILE_FADE_MS);
         expect(drawn).toHaveBeenCalledTimes(1);
     });
 
     it("waits for the tiles of a pending redraw", () => {
         vi.useFakeTimers();
-        const layer = fakeTileLayer();
-        const drawn = vi.fn();
-        let redrawing = true;
-        whenDrawn(layer, () => redrawing, drawn);
-        layer.fire("load"); // tiles from before the transit lines
+        const { layer, drawn } = fakeTileLayer();
+        layer.ready = true;
+        layer.redrawing = true; // tiles from before the transit lines
+        layer.fire("load");
         vi.advanceTimersByTime(TILE_FADE_MS * 4);
         expect(drawn).not.toHaveBeenCalled();
-        redrawing = false;
+        layer.redrawing = false;
         layer.fire("loading");
         layer.fire("load");
         vi.advanceTimersByTime(TILE_FADE_MS);
         expect(drawn).toHaveBeenCalledTimes(1);
     });
 
+    it("waits for a redraw that starts while the tiles fade in", () => {
+        vi.useFakeTimers();
+        const { layer, drawn } = fakeTileLayer();
+        layer.ready = true;
+        layer.fire("load");
+        vi.advanceTimersByTime(100);
+        layer.redrawing = true; // e.g. the server's preferences arrive
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        expect(drawn).not.toHaveBeenCalled();
+        layer.redrawing = false;
+        layer.fire("load");
+        vi.advanceTimersByTime(TILE_FADE_MS);
+        expect(drawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("notices a loaded view without a load event", () => {
+        // A tile of an earlier view that never arrives keeps Leaflet from
+        // firing "load"; it is dropped without an event.
+        vi.useFakeTimers();
+        const { layer, drawn } = fakeTileLayer();
+        layer.fire("loading");
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        layer.ready = true;
+        vi.advanceTimersByTime(TILE_FADE_MS * 3);
+        expect(drawn).toHaveBeenCalledTimes(1);
+    });
+
     it("stops waiting when told to", () => {
         vi.useFakeTimers();
-        const layer = fakeTileLayer();
-        const drawn = vi.fn();
-        const stop = whenDrawn(layer, () => false, drawn);
+        const { layer, drawn, stop } = fakeTileLayer();
+        layer.ready = true;
         layer.fire("load");
         stop();
-        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        vi.advanceTimersByTime(TILE_FADE_MS * 8);
         layer.fire("load");
-        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        vi.advanceTimersByTime(TILE_FADE_MS * 8);
         expect(drawn).not.toHaveBeenCalled();
         expect(layer.listening()).toBe(0);
     });
@@ -379,7 +431,11 @@ it("starts a new loader once Google's main script has failed", async () => {
     const { googleMapsProblem, loadGoogleMapsApi } = await loadModule();
 
     const first = loadGoogleMapsApi();
-    // The loader ran, but the main script it added failed: no timeout wait.
+    // The loader ran, defining what it does before the main script...
+    (win as any).google = {
+        maps: { __gjsload__() {}, Load() {}, modules: {} },
+    };
+    // ...but the main script it added failed: no timeout wait.
     const failed = new Event("error");
     Object.defineProperty(failed, "target", {
         value: {

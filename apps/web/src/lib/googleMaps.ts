@@ -89,42 +89,51 @@ export const googleStandingIn = atom(false);
 
 /** The events of a Leaflet tile layer that whenDrawn listens to. */
 export interface TileEvents {
-    on(type: "load" | "loading", fn: () => void): unknown;
-    off(type: "load" | "loading", fn: () => void): unknown;
+    on(type: "load" | "loading" | "tileload", fn: () => void): unknown;
+    off(type: "load" | "loading" | "tileload", fn: () => void): unknown;
 }
 
 // Leaflet fades each tile in over 200 ms once it has loaded; a frame to spare.
 export const TILE_FADE_MS = 250;
 
 /**
- * Calls `drawn` once the layer shows every tile in view: Leaflet's "load",
- * then its fade-in. A view change meanwhile ("loading") puts it off until the
- * next "load", and so does a redraw of Google's tiles that is still to come
- * (`redrawing`): the tiles on the map would be replaced. Returns a function
- * that stops waiting.
+ * Calls `drawn` once the layer shows its whole current view: every tile of
+ * it loaded (`viewReady`) and faded in, with no redraw of Google's tiles still
+ * to come (`redrawing`), which would replace them. Checked when tiles load or
+ * a view starts loading, and every TILE_FADE_MS besides: Leaflet's own "load"
+ * can stay away for good when a tile of an earlier view never arrives.
+ * Returns a function that stops waiting.
  */
 export function whenDrawn(
     layer: TileEvents,
+    viewReady: () => boolean,
     redrawing: () => boolean,
     drawn: () => void,
 ): () => void {
+    const shows = () => viewReady() && !redrawing();
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const onLoading = () => clearTimeout(timer);
-    const onLoad = () => {
-        clearTimeout(timer);
-        if (redrawing()) return;
-        timer = setTimeout(() => {
-            stop();
-            drawn();
-        }, TILE_FADE_MS);
+    const check = () => {
+        if (!shows()) {
+            clearTimeout(timer);
+            timer = undefined;
+        } else
+            timer ??= setTimeout(() => {
+                timer = undefined;
+                // Still so after the fade: a view change or redraw meanwhile
+                // starts the wait over.
+                if (!shows()) return;
+                stop();
+                drawn();
+            }, TILE_FADE_MS);
     };
+    const poll = setInterval(check, TILE_FADE_MS);
+    const events = ["load", "loading", "tileload"] as const;
     const stop = () => {
         clearTimeout(timer);
-        layer.off("load", onLoad);
-        layer.off("loading", onLoading);
+        clearInterval(poll);
+        for (const type of events) layer.off(type, check);
     };
-    layer.on("load", onLoad);
-    layer.on("loading", onLoading);
+    for (const type of events) layer.on(type, check);
     return stop;
 }
 
@@ -295,18 +304,21 @@ export function googleLook(
     let current = { ...initial };
     return (look: GoogleLook) => {
         let changed = false;
+        // Satellite is the bare photo: Google draws no lines or places on it,
+        // so changing those doesn't change its tiles.
+        const drawsLook = look.type !== "satellite";
         if (look.type !== current.type) {
             controls.setMapType(look.type);
             changed = true;
         }
         if (look.hidePlaces !== current.hidePlaces) {
             controls.setStyles(look.hidePlaces ? HIDE_PLACES_STYLES : []);
-            changed = true;
+            changed ||= drawsLook;
         }
         if (look.transit !== current.transit) {
             if (look.transit) controls.addGoogleLayer("TransitLayer");
             else controls.removeGoogleLayer("TransitLayer");
-            changed = true;
+            changed ||= drawsLook;
         }
         current = { ...look };
         if (changed) redraw();

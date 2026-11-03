@@ -139,6 +139,14 @@ function redrawWhenLoaded(googleMutant: any) {
     });
 }
 
+/** Whether every tile Leaflet shows for the current view has loaded. */
+function currentViewLoaded(gridLayer: any): boolean {
+    const current = Object.values(gridLayer._tiles ?? {}).filter(
+        (tile: any) => tile.current,
+    );
+    return current.length > 0 && current.every((tile: any) => tile.loaded);
+}
+
 /**
  * Google Maps' own map as the basemap, with its logo and copyright. Until
  * Google has drawn the map's tiles it shows `children` (CARTO) instead, and
@@ -167,6 +175,7 @@ export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
                 applyLook?.(chosenLook());
                 stopWaiting = whenDrawn(
                     googleMutant,
+                    () => currentViewLoaded(googleMutant),
                     () => pendingRedraw !== null,
                     () => setDrawn(true),
                 );
