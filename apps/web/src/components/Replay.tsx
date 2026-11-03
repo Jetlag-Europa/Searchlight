@@ -23,6 +23,7 @@ import {
     condenseReplay,
     type Endgame,
     findEndgame,
+    foundAt,
     guessRoles,
     type LoggedPosition,
     positionAt,
@@ -45,6 +46,10 @@ import { type Question, type Questions, questionSchema } from "@/maps/schema";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 const SPEEDS = [30, 60, 120, 300];
 const MARGIN_MS = 5 * 60_000;
+// After the last question, how long to look for the seekers meeting the
+// hider (the API sends positions this far), and to show after they did.
+const FIND_WINDOW_MS = 30 * 60_000;
+const AFTER_FOUND_MS = 60_000;
 // Playback pauses this long on each question asked or answered, so its
 // planning outline, then its cutout, can be seen.
 const HOLD_MS = 2_000;
@@ -145,11 +150,15 @@ function parseSnapshots(snapshots: ReplayResponse["snapshots"]) {
 
 type Mark = {
     at: number;
-    kind: "asked" | "answered" | "endgame";
+    kind: "asked" | "answered" | "endgame" | "found";
     key?: number;
 };
 
-function marksOf(replay: Replay, endgame: Endgame<unknown> | null): Mark[] {
+function marksOf(
+    replay: Replay,
+    endgame: Endgame<unknown> | null,
+    found: number | null,
+): Mark[] {
     return [
         ...replay.questions.flatMap((q) => [
             { at: q.askedAt, kind: "asked" as const, key: q.question.key },
@@ -160,6 +169,7 @@ function marksOf(replay: Replay, endgame: Endgame<unknown> | null): Mark[] {
             },
         ]),
         ...(endgame ? [{ at: endgame.at, kind: "endgame" as const }] : []),
+        ...(found !== null ? [{ at: found, kind: "found" as const }] : []),
     ].sort((a, b) => a.at - b.at);
 }
 
@@ -259,13 +269,32 @@ export function ReplayPage() {
             pinned.filter((p) => p !== hider).map((p) => p.positions),
         );
     }, [replay, $compiled, data, hiderId]);
+    // When a seeker walked up to the hider after the last question; the
+    // replay runs on until shortly after.
+    const found = useMemo(() => {
+        if (!replay || !data) return null;
+        const pinned = data.people.filter((p) => p.pinned);
+        const hider = pinned.find((p) => p.id === hiderId);
+        if (!hider) return null;
+        return foundAt(
+            hider.positions,
+            pinned.filter((p) => p !== hider).map((p) => p.positions),
+            replay.end,
+            replay.end + FIND_WINDOW_MS,
+        );
+    }, [replay, data, hiderId]);
     const marks = useMemo(
-        () => (replay ? marksOf(replay, endgame) : []),
-        [replay, endgame],
+        () => (replay ? marksOf(replay, endgame, found) : []),
+        [replay, endgame, found],
     );
 
     const start = replay ? replay.start - MARGIN_MS : 0;
-    const end = replay ? replay.end + MARGIN_MS : 0;
+    const end = replay
+        ? Math.max(
+              replay.end + MARGIN_MS,
+              found === null ? 0 : found + AFTER_FOUND_MS,
+          )
+        : 0;
 
     // Playback: advance with the clock, holding on each question asked or
     // answered on the way.
@@ -632,11 +661,13 @@ export function ReplayPage() {
                         <span
                             key={i}
                             title={
-                                m.kind === "endgame"
-                                    ? endgame?.by === "arrival"
-                                        ? "Endgame: the seekers reached the hider's zone"
-                                        : "Endgame: the board was cleared"
-                                    : `${m.kind === "asked" ? "Asked" : "Answered"}: ${questionTitle(all, all.find((q) => q.key === m.key)!)}`
+                                m.kind === "found"
+                                    ? "Found: a seeker reached the hider"
+                                    : m.kind === "endgame"
+                                      ? endgame?.by === "arrival"
+                                          ? "Endgame: the seekers reached the hider's zone"
+                                          : "Endgame: the board was cleared"
+                                      : `${m.kind === "asked" ? "Asked" : "Answered"}: ${questionTitle(all, all.find((q) => q.key === m.key)!)}`
                             }
                             className={cn(
                                 "absolute bottom-0 -translate-x-1/2",
@@ -644,6 +675,7 @@ export function ReplayPage() {
                                 m.kind === "answered" &&
                                     "h-3 w-0.5 bg-green-500",
                                 m.kind === "endgame" && "h-5 w-1 bg-red-600",
+                                m.kind === "found" && "h-5 w-1 bg-violet-600",
                             )}
                             style={{ left: pct(m.at) }}
                         />
@@ -654,6 +686,14 @@ export function ReplayPage() {
                             style={{ left: pct(endgame.at) }}
                         >
                             Endgame
+                        </span>
+                    )}
+                    {found !== null && (
+                        <span
+                            className="absolute top-0 pr-1.5 -translate-x-full text-[10px] leading-none text-violet-500"
+                            style={{ left: pct(found) }}
+                        >
+                            Found
                         </span>
                     )}
                 </div>

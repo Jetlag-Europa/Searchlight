@@ -452,3 +452,36 @@ export function guessRoles(
         roles.set(id, id === hider.id ? "hider" : "seeker");
     return roles;
 }
+
+// A seeker this close to the hider has found them.
+const FOUND_M = 30;
+
+/**
+ * When a seeker first came within FOUND_M of the hider, between `from` and
+ * `to`, at the reports of either; null if none did.
+ */
+export function foundAt(
+    hider: LoggedPosition[],
+    seekers: LoggedPosition[][],
+    from: number,
+    to: number,
+): number | null {
+    let first: number | null = null;
+    for (const seeker of seekers) {
+        const times = [...hider, ...seeker]
+            .map(([t]) => t)
+            .filter(
+                (t) => t >= from && t <= to && (first === null || t < first),
+            )
+            .sort((a, b) => a - b);
+        for (const t of times) {
+            const a = positionAt(hider, t);
+            const b = positionAt(seeker, t);
+            if (a && b && km(a.lat, a.lng, b.lat, b.lng) * 1000 <= FOUND_M) {
+                first = t;
+                break;
+            }
+        }
+    }
+    return first;
+}
