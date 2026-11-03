@@ -370,7 +370,9 @@ describe("question history lines", () => {
                 entry([{ ...added(K1), after: data }]),
                 entry([{ ...withoutQuestion, before: data }]),
                 // Put back by a player: a copy under a new key.
-                entry([{ ...added(K2), after: data }]),
+                entry([
+                    { ...added(K2), after: { ...data, restoredFrom: [K1] } },
+                ]),
             ],
             {},
         );
@@ -379,10 +381,7 @@ describe("question history lines", () => {
             "deleted Airport (2\u00a0km, Inside)",
             "added Airport",
         ]);
-        expect(lines[1].removed?.[0]).toMatchObject({
-            question: undefined,
-            restoredAs: [K2],
-        });
+        expect(lines[1].removed?.[0].question).toBeUndefined();
     });
 
     it("says when only the order changed", () => {
@@ -610,57 +609,52 @@ describe("question history lines", () => {
             "added Zone Size 1",
             "added Zone Size 2",
         ]);
-        expect(lines[0].removed?.[0].restoredAs).toBeUndefined();
     });
 
-    it("says restored for a deleted question put back under a new key", () => {
-        const radar = (key: number, data: Record<string, unknown>) => ({
+    it("says restored for a copy Restore put back under a new key, and only for that", () => {
+        const zone = (key: number, data: Record<string, unknown>) => ({
             ...added(key),
+            id: "matching",
             after: { ...data, geo: { omitted: true } },
         });
-        const deleted = (key: number, data: Record<string, unknown>) => ({
-            ...removed(key),
-            question: { id: "radius", key, data: { ...data, geo: [1, 2] } },
-        });
+        const deleted = {
+            ...removed(K1),
+            id: "matching",
+            question: {
+                id: "matching",
+                key: K1,
+                data: { lat: 1, lng: 2, geo: [1, 2] },
+            },
+        };
         expect(
             texts([
-                entry([deleted(K1, { lat: 1, lng: 2 })]),
-                // Folded and locked differently, the same question.
-                entry([
-                    radar(K2, { lat: 1, lng: 2, drag: false, collapsed: true }),
-                ]),
-                entry([radar(K3, { lat: 1, lng: 3 })]),
+                entry([deleted]),
+                // Another zone at the same pin: its area, left out of the
+                // history, may well differ. Not a restore.
+                entry([zone(K2, { lat: 1, lng: 2 })]),
+                // Restore's copy says what it was restored from.
+                entry([zone(K3, { lat: 1, lng: 2, restoredFrom: [K1] })]),
             ]),
         ).toEqual([
-            "Sam added Radius 1",
-            "Sam restored Radius 1",
-            "Sam deleted Radius 1",
+            "Sam restored Matching 1",
+            "Sam added Matching 1",
+            "Sam deleted Matching 1",
         ]);
-        // The deleted one knows what it was restored as.
-        expect(
-            historyLines(
-                [
-                    entry([deleted(K1, { lat: 1, lng: 2 })]),
-                    entry([radar(K2, { lat: 1, lng: 2 })]),
-                ],
-                {},
-            )[1].removed?.[0].restoredAs,
-        ).toEqual([K2]);
         // Three at once, each under a new key.
-        const all = [
-            { ...deleted(K1, { lat: 1 }), index: 0 },
-            { ...deleted(K2, { lat: 2 }), index: 1, typeIndex: 2 },
-            { ...deleted(K3, { lat: 3 }), index: 2, typeIndex: 3 },
-        ];
+        const all = [K1, K2, K3].map((key, index) => ({
+            ...removed(key, index + 1),
+            index,
+        }));
         expect(
             historyLines(
                 [
                     entry(all),
-                    entry([
-                        radar(0.11, { lat: 1 }),
-                        { ...radar(0.22, { lat: 2 }), typeIndex: 2 },
-                        { ...radar(0.33, { lat: 3 }), typeIndex: 3 },
-                    ]),
+                    entry(
+                        [0.11, 0.22, 0.33].map((key, index) => ({
+                            ...added(key, index + 1),
+                            after: { restoredFrom: [[K1, K2, K3][index]] },
+                        })),
+                    ),
                 ],
                 {},
             ).map((l) => l.text),

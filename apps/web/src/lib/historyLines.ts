@@ -1,10 +1,6 @@
 import type { QuestionChange, QuestionHistoryEntry } from "@searchlight/shared";
 
-import {
-    sameQuestion,
-    sameQuestionKey,
-    sameQuestionSubstance,
-} from "@/lib/questionMerge";
+import { sameQuestion, sameQuestionKey } from "@/lib/questionMerge";
 import { questionName } from "@/lib/questionNames";
 import {
     PIN_FIELDS,
@@ -23,11 +19,6 @@ export interface RemovedQuestion {
     index: number;
     label: string;
     question: unknown;
-    /**
-     * Keys it was restored as later in the history: an added question with
-     * its key, or the same content (Restore puts it back under a new key).
-     */
-    restoredAs?: number[];
     /** Keys of the list it was deleted from. */
     order?: number[];
 }
@@ -82,29 +73,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 // Areas and places are left out of the history's changes: both sides read
 // { omitted: true }, so whether they changed can't be told from them.
 const isOmitted = (value: unknown) => isRecord(value) && value.omitted === true;
-
-// A question as the history's changes give it, to tell one restored under a
-// new key: areas and places left out, as in an added question's `after`.
-interface Content {
-    id: string;
-    data: Record<string, unknown>;
-}
-const BULKY_FIELDS = ["geo", "places"];
-const contentOf = (id: string, data: unknown): Content => {
-    const fields = isRecord(data) ? { ...data } : {};
-    for (const field of BULKY_FIELDS) {
-        if (fields[field] !== undefined) fields[field] = { omitted: true };
-    }
-    return { id, data: fields };
-};
-
-// A question deleted earlier in the history, for "restored".
-interface Deleted {
-    removed: RemovedQuestion;
-    content: Content;
-    // Taken as restored by a question added since.
-    matched?: true;
-}
 
 // "moved Radius 1 (150 m)", "moved Thermometer 1 (end 111 m)".
 const movedPhrase = (
@@ -372,7 +340,8 @@ function addEntryLines(
     who: string,
     labels: Labels,
     unit: Units,
-    deleted: Deleted[],
+    // Keys of the questions deleted earlier in the history.
+    deleted: number[],
 ) {
     let part = 0;
     const push = (
@@ -389,31 +358,15 @@ function addEntryLines(
             who,
             ...line,
         });
-    // Put back under its key, or restored under a new one (the content it
-    // was deleted with). Only questions deleted before count: a twin that
-    // was never deleted isn't a restore. Each added question is the restore
-    // of one at most, and each deleted one is restored once: the newest not
-    // taken yet, by key first. Restored under a new key, it learns the key.
-    const wasDeleted = (c: QuestionChange) => {
-        const open = deleted.filter((d) => !d.matched).reverse();
-        const content = contentOf(c.id, c.after);
-        const found =
-            open.find((d) => sameQuestionKey(d.removed.key, c.key)) ??
-            open.find((d) => sameQuestionSubstance(d.content, content));
-        if (!found) return false;
-        found.matched = true;
-        if (!sameQuestionKey(found.removed.key, c.key)) {
-            found.removed.restoredAs = [
-                ...(found.removed.restoredAs ?? []),
-                c.key,
-            ];
-        }
-        return true;
-    };
+    // Restore's copy says what it was restored from; Undo may put one back
+    // under the key it was deleted with.
+    const isRestore = (c: QuestionChange) =>
+        c.after?.restoredFrom !== undefined ||
+        deleted.some((key) => sameQuestionKey(key, c.key));
 
     const added = entry.changes.filter((c) => c.kind === "added");
     if (added.length >= GROUP_AT) {
-        const restored = added.map(wasDeleted).every(Boolean);
+        const restored = added.every(isRestore);
         push({
             text: `${restored ? "restored" : "added"} ${pluralQuestions(added.length)}`,
             items: added.map((c) => ({ label: labels.label(c) })),
@@ -421,7 +374,7 @@ function addEntryLines(
     } else {
         for (const c of added) {
             push({
-                text: `${wasDeleted(c) ? "restored" : "added"} ${labels.label(c)}`,
+                text: `${isRestore(c) ? "restored" : "added"} ${labels.label(c)}`,
             });
         }
     }
@@ -444,10 +397,6 @@ function addEntryLines(
     }
 
     const removedChanges = entry.changes.filter((c) => c.kind === "removed");
-    // What it was: in full, or for a spectator (who can't restore it) its
-    // data without the bulky fields.
-    const wasData = (c: QuestionChange) =>
-        isRecord(c.question) ? c.question.data : c.before;
     const removed = removedChanges.map(
         (c): RemovedQuestion => ({
             key: c.key,
@@ -475,12 +424,7 @@ function addEntryLines(
             });
         });
     }
-    removedChanges.forEach((c, i) =>
-        deleted.push({
-            removed: removed[i],
-            content: contentOf(c.id, wasData(c)),
-        }),
-    );
+    deleted.push(...removedChanges.map((c) => c.key));
 
     if (entry.reordered) push({ text: "reordered the questions" });
 }
@@ -492,7 +436,7 @@ export function historyLines(
 ): HistoryLine[] {
     const labels = labeller();
     const unit = options.unit ?? "kilometers";
-    const deleted: Deleted[] = [];
+    const deleted: number[] = [];
     const lines: DraftLine[] = [];
     for (const entry of [...entries].sort((a, b) => a.sequence - b.sequence)) {
         const who =

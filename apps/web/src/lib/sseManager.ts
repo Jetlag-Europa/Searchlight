@@ -49,6 +49,7 @@ import {
 } from "@/lib/sessionState";
 import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import {
+    notifyQuestionsSaved,
     onQuestionsSaved,
     questionsSavedByEcho,
     retryPendingEvents,
@@ -375,6 +376,14 @@ function handleServerEvent(
                         questions: serverList,
                     });
                 }
+                // Saved, though its answer may never come.
+                notifyQuestionsSaved({
+                    sessionId: targetSessionId,
+                    local,
+                    saved: serverList,
+                    madeFrom: payload.base,
+                    sequence: eventSeq,
+                });
             }
         } else if (!showServerQuestions(targetSessionId, serverList, eventSeq)) {
             return;

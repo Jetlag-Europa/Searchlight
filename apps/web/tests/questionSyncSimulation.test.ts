@@ -628,13 +628,11 @@ interface RestoreCandidate {
     version: Any;
     order: number[];
     index: number;
-    lines: Any[];
 }
 
 // What the device's History offers to restore, read from its lines as the
-// UI does: deleted questions not back on its board, under their key, as what
-// they were restored as, or as a teammate's restore the lines don't know yet
-// (alreadyBackAs, as restorable() checks), not held for a decision
+// UI does: deleted questions not back on its board, under their key or as a
+// copy (backAs, as restorable() checks), not held for a decision
 // (restoreBlocked), and in owned mode its own.
 function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
     const board = c.g.context.questions.get() as Any[];
@@ -643,10 +641,9 @@ function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
     for (const line of lines) {
         for (const removed of line.removed ?? []) {
             if (
-                c.g.questionUndo.alreadyBackAs(removed, board, lines) !==
-                    undefined ||
+                c.g.questionUndo.backAs(removed, board, removed.order) ||
                 (mode === "owned" && owner(removed.key) !== c.idx) ||
-                c.g.history.restoreBlocked(removed, { lines }) !== null
+                c.g.history.restoreBlocked(removed) !== null
             )
                 continue;
             out.push({
@@ -654,7 +651,6 @@ function restoreCandidates(c: Client, mode: Mode): RestoreCandidate[] {
                 version: removed.question,
                 order: line.order ?? [],
                 index: removed.index,
-                lines,
             });
         }
     }
@@ -698,6 +694,7 @@ async function applyUser(
         const conflict = held[Math.floor(a.pick * held.length)];
         const choice = a.choice ?? "mine";
         const chosen = conflict[choice];
+        const before = (context.questions.get() as Any[]).map(keyOf);
         await inClient(c, () =>
             conflicts.resolveQuestionConflict(sid, conflict.key, choice),
         );
@@ -708,6 +705,19 @@ async function applyUser(
             kind: "resolve",
             label: labelOf(chosen),
         });
+        // Kept, the question is back: an unchanged copy of it that Restore
+        // or Undo put back meanwhile goes, deleted by the decision.
+        const after = (context.questions.get() as Any[]).map(keyOf);
+        for (const key of before) {
+            if (key === conflict.key || after.includes(key)) continue;
+            run.history.push({
+                step: run.step,
+                c: a.c,
+                key,
+                kind: "delete",
+                label: null,
+            });
+        }
         run.resolutions.push({
             step: run.step,
             c: a.c,
@@ -775,7 +785,7 @@ async function applyUser(
     if (a.kind === "restore") {
         const options = restoreCandidates(c, mode);
         if (options.length === 0) return null;
-        const { key, version, order, index, lines } =
+        const { key, version, order, index } =
             options[Math.floor(a.pick * options.length)];
         const label = labelOf(version);
         // As restoreFromHistory does, from the same pieces: it can't be
@@ -798,7 +808,6 @@ async function applyUser(
                         question: c.g.questionUndo.asRestored(version, fresh),
                     },
                 ],
-                lines,
             );
             if (next) context.questions.set(next);
         });
@@ -1288,7 +1297,9 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                 // delete of it merges in as over any question. Only one
                 // the player's version doesn't already include: made after
                 // the player's own last change of it before the delete (an
-                // earlier Undo under its key changed nothing).
+                // earlier Undo under its key changed nothing). Their own
+                // Undo under its key takes their delete back: their version
+                // stands.
                 if (last.kind === "undo" && last.sameKey) {
                     const undone = last;
                     const deletedAt =
@@ -1313,7 +1324,9 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                             (h) =>
                                 h.c !== undone.c &&
                                 h.step > ownBefore &&
-                                (h.kind === "edit" || h.kind === "delete"),
+                                (h.kind === "edit" ||
+                                    h.kind === "delete" ||
+                                    (h.kind === "undo" && h.sameKey)),
                         )
                         .at(-1);
                     if (
@@ -2659,7 +2672,15 @@ const TRACES: Array<{
             { t: "arrive", c: 0, pick: 0 },
             { t: "respond", c: 0, pick: 0, lose: false },
         ],
-        check: () => expectOnServer(1001, "init-1"),
+        // B's decision keeps one version of it: B's edit (A's unchanged
+        // copy goes), or the delete with A's copy.
+        check: () =>
+            expect(
+                server.list
+                    .map((x) => keyOf(x.payloadJson))
+                    .filter((key) => key === 1 || key === 1001),
+                run.log.join("\n"),
+            ).toHaveLength(1),
     },
     {
         name: "owned: the other player's list from before a delete leaves the restored question (seed 48)",
@@ -2707,6 +2728,22 @@ const TRACES: Array<{
             expectOnServer(2001, "c0.1");
         },
     },
+    {
+        // Seed 1048 of a run with request timeouts (PR #114) came down to
+        // this: both players delete a question and undo it under its key,
+        // and the first had edited it.
+        name: "shared: two Undos under the key keep the edit made before the first delete",
+        mode: "shared",
+        seed: 1048,
+        actions: [
+            { t: "user", c: 0, kind: "edit", pick: 0 },
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            { t: "user", c: 1, kind: "delete", pick: 0 },
+            { t: "user", c: 1, kind: "undo", pick: 0 },
+        ],
+        check: () => expectOnServer(1, "c0."),
+    },
 ];
 
 describe("two players editing questions, at random", () => {
@@ -2738,6 +2775,68 @@ describe("two players editing questions, at random", () => {
             );
             expect(vs, run.log.join("\n")).toEqual([]);
             trace.check?.();
+        });
+    }
+
+    // A deletes question 1 while B answers it, and B's save lands first:
+    // A's save is asked about it ("we deleted it"). A then taps Undo.
+    const deleteMeetsEdit: Action[] = [
+        { t: "user", c: 0, kind: "delete", pick: 0 },
+        { t: "timer", c: 0 },
+        { t: "user", c: 1, kind: "edit", pick: 0 },
+        { t: "timer", c: 1 },
+        { t: "arrive", c: 1, pick: 0 },
+        { t: "respond", c: 1, pick: 0, lose: false },
+        { t: "arrive", c: 0, pick: 0 },
+        { t: "respond", c: 0, pick: 0, lose: false },
+    ];
+    async function deleteMeetsEditThenUndo(shown: boolean) {
+        await setup();
+        for (const a of deleteMeetsEdit) {
+            run.step++;
+            const did = await applyAction(a, "shared");
+            if (did)
+                run.log.push(`${String(run.step).padStart(3)} c${a.c}: ${did}`);
+        }
+        if (shown) await quiesce("shared");
+        run.step++;
+        const did = await applyAction(
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            "shared",
+        );
+        run.log.push(`${String(run.step).padStart(3)} c0: ${did}`);
+        return did;
+    }
+
+    test("shared: Undo of a delete held for a decision keeps their edit, with nothing left to decide", async () => {
+        expect(await deleteMeetsEditThenUndo(true)).toBe(
+            "undo (already back: 1)",
+        );
+        expect(conflictsStored(clients[0]), run.log.join("\n")).toEqual([]);
+        const vs = await settleAndCheck("shared", mulberry32(1));
+        expect(vs, run.log.join("\n")).toEqual([]);
+        expectServer([1, 2, 3, 4], { 1: "c1." });
+    });
+
+    // Undo before the merge's answer says what happened: a copy goes back,
+    // and the player is asked once. Either answer leaves one version of it.
+    for (const [choice, keys, label] of [
+        ["theirs", [1, 2, 3, 4], "c1."],
+        ["mine", [1001, 2, 3, 4], "init-1"],
+    ] as const) {
+        test(`shared: Undo before a delete's decision arrives, then Keep ${choice}: one version of it`, async () => {
+            expect(await deleteMeetsEditThenUndo(false)).toBe("undo 1 as 1001");
+            await quiesce("shared");
+            expect(conflictsStored(clients[0])).toMatchObject([
+                { key: 1, kind: "we-deleted" },
+            ]);
+            run.step++;
+            run.log.push(
+                `${String(run.step).padStart(3)} c0: ${await applyAction({ t: "user", c: 0, kind: "resolve", pick: 0, choice }, "shared")}`,
+            );
+            const vs = await settleAndCheck("shared", mulberry32(2));
+            expect(vs, run.log.join("\n")).toEqual([]);
+            expectServer([...keys], { [keys[0]]: label });
         });
     }
 

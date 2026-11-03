@@ -47,11 +47,10 @@ import {
     restoreFromHistory,
 } from "@/lib/questionHistory";
 import { hasPendingQuestionSave } from "@/lib/sessionState";
+import { onQuestionsSaved } from "@/lib/syncManager";
 
-// Long enough for a burst of edits, and for an own save to reach the server.
+// Long enough for a burst of edits.
 const REFRESH_DELAY_MS = 1500;
-// How many times a refresh waits for this device's own question save.
-const MAX_SAVE_WAITS = 8;
 // How long a save may wait before the History says it isn't in there yet:
 // each of the player's own saves waits a moment.
 const UNSAVED_NOTE_DELAY_MS = 3000;
@@ -88,9 +87,7 @@ export const HistoryList = ({
     // shows on a phone.
     const restoreControl = (line: HistoryLine, targets: RemovedQuestion[]) => {
         if (readOnly) return null;
-        const checks = targets.map((t) =>
-            restorable(t, current, compiled, lines),
-        );
+        const checks = targets.map((t) => restorable(t, current, compiled));
         const unavailable = checks.find((c) => c.status === "unavailable");
         if (!checks.some((c) => c.status === "ok")) {
             let reason =
@@ -279,27 +276,22 @@ export const QuestionHistory = () => {
     }, [sessionId, selfId, $readOnly, loadNewer, loadNewestPage]);
 
     // Keep it current while it's shown: once a change reaches the board, and
-    // once this device's own question save has synced.
+    // once a question save of this device's is in, however long it took.
     useEffect(() => {
         if (!sessionId) return;
         let timer: ReturnType<typeof setTimeout> | undefined;
-        let waits = 0;
         const refresh = () => {
-            if (hasPendingQuestionSave(sessionId) && waits < MAX_SAVE_WAITS) {
-                waits++;
-                timer = setTimeout(refresh, REFRESH_DELAY_MS);
-                return;
-            }
-            void loadNewer();
-        };
-        const stop = questions.listen(() => {
             clearTimeout(timer);
-            waits = 0;
-            timer = setTimeout(refresh, REFRESH_DELAY_MS);
+            timer = setTimeout(() => void loadNewer(), REFRESH_DELAY_MS);
+        };
+        const stopBoard = questions.listen(refresh);
+        const stopSaves = onQuestionsSaved((saved) => {
+            if (saved.sessionId === sessionId) refresh();
         });
         return () => {
             clearTimeout(timer);
-            stop();
+            stopBoard();
+            stopSaves();
         };
     }, [sessionId, loadNewer]);
 
@@ -428,7 +420,6 @@ export const QuestionHistory = () => {
                     const { back, alreadyBack } = restoreFromHistory(
                         line,
                         targets,
-                        lines,
                     );
                     if (back.length > 0) showRestoredToast(back);
                     else if (alreadyBack > 0) showAlreadyOnBoard();

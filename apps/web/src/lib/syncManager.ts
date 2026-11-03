@@ -644,7 +644,8 @@ export function latestSavedQuestionsSequence(sessionId: string): number | undefi
     return answered.get(sessionId);
 }
 
-function notifyQuestionsSaved(saved: QuestionsSaved): void {
+/** Tell those listening (onQuestionsSaved) that a question list was saved. */
+export function notifyQuestionsSaved(saved: QuestionsSaved): void {
     for (const listener of questionsSavedListeners) listener(saved);
 }
 

@@ -44,8 +44,11 @@ import {
     undoQuestionDeletion,
 } from "@/lib/deleteQuestionsWithUndo";
 import { getPendingEvents, noteQuestionListSent } from "@/lib/eventQueue";
-import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
-import { isOnBoard } from "@/lib/questionUndo";
+import {
+    questionConflicts,
+    recordQuestionConflicts,
+    setQuestionDecisionsPossible,
+} from "@/lib/questionConflicts";
 import {
     hasScheduledQuestionSave,
     saveQuestionsDebounced,
@@ -132,8 +135,8 @@ describe("undoing a delete", () => {
         expect(undone.placed).toEqual([{ from: 2, key: 0.5 }]);
         expect(keys()).toEqual([1, 0.5, 3]);
         expect(labels()).toEqual(["a", "b", "c"]);
-        // History's line for the delete knows it's back.
-        expect(isOnBoard({ key: 2 }, questions.get())).toBe(true);
+        // Every History knows it's back: it says what it was restored from.
+        expect(questions.get()[1].data).toMatchObject({ restoredFrom: [2] });
     });
 
     test("puts all of a Delete All back in order, as copies", () => {
@@ -150,11 +153,54 @@ describe("undoing a delete", () => {
         board(q(1, "a"), q(2, "b"));
         const pending = deleteQuestionsWithUndo([2])!;
         sendList(pending.deletedAt);
-        // Their copy arrives, folded on their side.
-        board(q(1, "a"), q(0.7, "b", { collapsed: true }));
+        // Their copy arrives, edited on their side.
+        board(q(1, "a"), q(0.7, "b moved", { restoredFrom: [2] }));
         lastToast().undo!();
         expect(keys()).toEqual([1, 0.7]);
         expect(lastToast().text).toBe("Already on the board");
+    });
+
+    test("still puts one back when a question like it was added meanwhile", () => {
+        board(q(1, "a"), q(2, "b"));
+        const pending = deleteQuestionsWithUndo([2])!;
+        sendList(pending.deletedAt);
+        // A teammate's new question, not a restore of it.
+        board(q(1, "a"), q(0.7, "b"));
+        undoQuestionDeletion(pending, () => 0.5);
+        expect(keys()).toEqual([1, 0.5, 0.7]);
+    });
+
+    test("takes back a delete held for a decision: the teammate's edit stands", () => {
+        board(q(1, "a"), q(2, "b"), q(3, "c"));
+        const sessionId = activeSessionId.get();
+        setQuestionDecisionsPossible(true);
+        const pending = deleteQuestionsWithUndo([2])!;
+        sendList(pending.deletedAt);
+        // The delete met a teammate's edit of it: held, theirs kept on the
+        // server, not shown here yet.
+        recordQuestionConflicts(
+            sessionId,
+            [
+                {
+                    key: 2,
+                    kind: "we-deleted",
+                    mine: null,
+                    theirs: q(2, "b edited") as unknown as Questions[number],
+                    base: q(2, "b") as unknown as Questions[number],
+                    theirsAfterKey: 1,
+                },
+            ],
+            { baseSequence: 1, theirsSequence: 2 },
+        );
+        expect(questionConflicts.get()).toHaveLength(1);
+        const shown = toasts.length;
+        lastToast().undo!();
+        // It's back because of the Undo: no "Already on the board".
+        expect(toasts).toHaveLength(shown);
+        // Not a stale copy beside it, nor a decision about a delete taken back.
+        expect(labels()).toEqual(["a", "b edited", "c"]);
+        expect(keys()).toEqual([1, 2, 3]);
+        expect(questionConflicts.get()).toEqual([]);
     });
 
     test("still puts one back that has a twin which was never deleted", () => {
