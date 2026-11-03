@@ -370,7 +370,9 @@ describe("question history lines", () => {
                 entry([{ ...added(K1), after: data }]),
                 entry([{ ...withoutQuestion, before: data }]),
                 // Put back by a player: a copy under a new key.
-                entry([{ ...added(K2), after: { ...data, restoredFrom: K1 } }]),
+                entry([
+                    { ...added(K2), after: { ...data, restoredFrom: [K1] } },
+                ]),
             ],
             {},
         );
@@ -631,7 +633,7 @@ describe("question history lines", () => {
                 // history, may well differ. Not a restore.
                 entry([zone(K2, { lat: 1, lng: 2 })]),
                 // Restore's copy says what it was restored from.
-                entry([zone(K3, { lat: 1, lng: 2, restoredFrom: K1 })]),
+                entry([zone(K3, { lat: 1, lng: 2, restoredFrom: [K1] })]),
             ]),
         ).toEqual([
             "Sam restored Matching 1",
@@ -650,7 +652,7 @@ describe("question history lines", () => {
                     entry(
                         [0.11, 0.22, 0.33].map((key, index) => ({
                             ...added(key, index + 1),
-                            after: { restoredFrom: [K1, K2, K3][index] },
+                            after: { restoredFrom: [[K1, K2, K3][index]] },
                         })),
                     ),
                 ],

@@ -61,6 +61,7 @@ import {
     setCachedSession,
     getCachedSession,
 } from "@/lib/eventQueue";
+import { onQuestionsSaved, type QuestionsSaved } from "@/lib/syncManager";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 
@@ -368,6 +369,35 @@ describe("handleServerEvent — questions.replace", () => {
         );
         expect(questions.get()).toEqual([theirs]);
         expect(getPendingEvents(SID)).toEqual([]);
+    });
+
+    test("says our list was saved when only its echo comes, as its answer would", () => {
+        const ours = { id: "radius", key: 1, data: {} };
+        questions.set([ours] as unknown as Questions);
+        const local = enqueueEvent({
+            sessionId: SID,
+            type: "questions.replace",
+            payloadJson: {
+                replacementId: "r-echoed",
+                questions: [{ clientUuid: "q-ours", ordinal: 0, payloadJson: ours }],
+            },
+            clientUuid: "questions-replace-r-echoed",
+            clientCreatedAt: Date.now(),
+        });
+        const saved: QuestionsSaved[] = [];
+        const stop = onQuestionsSaved((s) => saved.push(s));
+        startSSE(SID);
+        simulateMessage(
+            makeEvent("questions.replace", local.payloadJson, {
+                clientUuid: local.clientUuid,
+                sequence: 1,
+            }),
+        );
+        stop();
+        // The History refreshes on it.
+        expect(saved).toMatchObject([
+            { sessionId: SID, sequence: 1, saved: [ours] },
+        ]);
     });
 
     test("does not re-apply our own echo over a newer local edit", () => {

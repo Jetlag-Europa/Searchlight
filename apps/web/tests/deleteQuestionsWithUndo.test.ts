@@ -136,7 +136,7 @@ describe("undoing a delete", () => {
         expect(keys()).toEqual([1, 0.5, 3]);
         expect(labels()).toEqual(["a", "b", "c"]);
         // Every History knows it's back: it says what it was restored from.
-        expect(questions.get()[1].data).toMatchObject({ restoredFrom: 2 });
+        expect(questions.get()[1].data).toMatchObject({ restoredFrom: [2] });
     });
 
     test("puts all of a Delete All back in order, as copies", () => {
@@ -154,7 +154,7 @@ describe("undoing a delete", () => {
         const pending = deleteQuestionsWithUndo([2])!;
         sendList(pending.deletedAt);
         // Their copy arrives, edited on their side.
-        board(q(1, "a"), q(0.7, "b moved", { restoredFrom: 2 }));
+        board(q(1, "a"), q(0.7, "b moved", { restoredFrom: [2] }));
         lastToast().undo!();
         expect(keys()).toEqual([1, 0.7]);
         expect(lastToast().text).toBe("Already on the board");

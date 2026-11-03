@@ -138,8 +138,7 @@ export function undoQuestionDeletion(
     }
     const current = questions.get();
     const missing = deletion.removed.filter(
-        ({ question }) =>
-            !backAs({ key: question.key, question }, current, deletion.order),
+        ({ question }) => !backAs(question, current, deletion.order),
     );
     const alreadyBack = deletion.removed.length - missing.length;
     if (missing.length === 0) return { placed: [], alreadyBack };

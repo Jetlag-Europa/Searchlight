@@ -311,7 +311,7 @@ describe("restoring from the history", () => {
         expect(board[1].key).not.toBe(b.key);
         expect({ ...board[1], key: b.key }).toEqual({
             ...b,
-            data: { ...b.data, restoredFrom: b.key },
+            data: { ...b.data, restoredFrom: [b.key] },
         });
         // Clicked again before the History reloads: it's there now.
         restoreFromHistory({ order: [a.key, b.key, c.key] }, [
@@ -382,12 +382,11 @@ describe("restoring from the history", () => {
         expect(copy.key).toBe(0.75);
         expect(copy.data).not.toBe(deleted.data);
         expect(asRestored(deleted).key).not.toBe(0.5);
-        // It says what it was restored from: the first question, for a
-        // copy of a copy.
-        expect(copy.data.restoredFrom).toBe(0.5);
-        expect(asRestored(copy, 0.875).data.restoredFrom).toBe(0.5);
+        // It says what it was restored from, and a copy of a copy both.
+        expect(copy.data.restoredFrom).toEqual([0.5]);
+        expect(asRestored(copy, 0.875).data.restoredFrom).toEqual([0.5, 0.75]);
         // Kept when the History reads the copy back.
-        expect(questionSchema.parse(copy).data.restoredFrom).toBe(0.5);
+        expect(questionSchema.parse(copy).data.restoredFrom).toEqual([0.5]);
     });
 
     it("takes a different custom zone at the same pin for another question", () => {
@@ -627,13 +626,47 @@ describe("what a deleted question became", () => {
         );
         const [removal] = deletionsOf(lines, two.key);
         expect(restorable(removal, [one], null).status).toBe("ok");
-        // Restored, it says what the first was restored from.
+        // Restored, it says what it was restored from.
         questions.set([one]);
         restoreFromHistory(lines[0], [removal]);
         expect(questions.get().map((x) => x.data.restoredFrom)).toEqual([
-            a.key,
-            a.key,
+            [a.key],
+            [a.key, two.key],
         ]);
+    });
+
+    it("still offers one of two copies deleted together once the other is back", () => {
+        const a = radar(0.31, 3);
+        const one = asRestored(moved(a, 4), 0.32);
+        const two = asRestored(moved(a, 5), 0.33);
+        const lines = historyLines(
+            [save([removedQ(one, 0), removedQ(two, 1)], [one.key, two.key])],
+            {},
+        );
+        const [deletedOne] = deletionsOf(lines, one.key);
+        const [deletedTwo] = deletionsOf(lines, two.key);
+        questions.set([]);
+        restoreFromHistory(lines[0], [deletedOne]);
+        expect(restorable(deletedOne, questions.get(), null).status).toBe(
+            "unavailable",
+        );
+        expect(restorable(deletedTwo, questions.get(), null).status).toBe("ok");
+    });
+
+    it("keeps the order of questions restored one by one, below a copy restored again", () => {
+        // b was a restore already; b and x deleted together.
+        const [r, x, tail] = [radar(0.41, 1), radar(0.42, 2), radar(0.43, 3)];
+        const b = asRestored(r, 0.44);
+        const lines = historyLines(
+            [save([removedQ(b, 0), removedQ(x, 1)], [b.key, x.key, tail.key])],
+            {},
+        );
+        const [deletedB] = deletionsOf(lines, b.key);
+        const [deletedX] = deletionsOf(lines, x.key);
+        questions.set([tail]);
+        restoreFromHistory(lines[0], [deletedB]);
+        restoreFromHistory(lines[0], [deletedX]);
+        expect(questions.get().map(latOf)).toEqual([1, 2, 3]);
     });
 });
 

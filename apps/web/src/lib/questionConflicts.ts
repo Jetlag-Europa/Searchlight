@@ -769,9 +769,11 @@ function resolve(
                 ? [conflict.mineAfterKey, conflict.theirsAfterKey]
                 : [conflict.theirsAfterKey, conflict.mineAfterKey],
         );
-        // Kept, it is back: a copy Restore or Undo put back meanwhile would
-        // be a second version of it.
-        if (kept) board = withoutCopiesOf(board, conflict.key, conflict.base);
+        // Deleted on one side and kept, it is back: a copy Restore or Undo
+        // put back meanwhile would be a second version of it.
+        if (kept && conflict.kind !== "both-changed") {
+            board = withoutCopiesOf(board, conflict.key, conflict.base);
+        }
     }
     refresh();
 

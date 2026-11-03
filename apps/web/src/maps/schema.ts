@@ -45,10 +45,10 @@ const questionNameSchema = z
     .optional()
     .catch(undefined);
 
-// The key of the question Restore (or Undo) put this one back as a copy of,
-// under a new key: the first one, for a copy of a copy. Every device can
-// then tell the deleted question is back. Dropped if malformed.
-const restoredFromSchema = z.number().optional().catch(undefined);
+// The keys of the questions Restore (or Undo) put this one back as a copy
+// of, under a new key, oldest first (a copy of a copy has two). Every device
+// can then tell the deleted question is back. Dropped if malformed.
+const restoredFromSchema = z.array(z.number()).optional().catch(undefined);
 
 const thermometerQuestionSchema = z
     .object({

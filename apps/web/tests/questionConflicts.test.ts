@@ -2053,7 +2053,7 @@ describe("a decision over a question restored meanwhile", () => {
         ({
             ...of,
             key,
-            data: { ...of.data, restoredFrom: of.key, ...data },
+            data: { ...of.data, restoredFrom: [of.key], ...data },
         }) as Q;
     const original = q(0.2, "same", { within: true });
     const answered = q(0.2, "same", { within: false });
@@ -2080,6 +2080,21 @@ describe("a decision over a question restored meanwhile", () => {
         resolveQuestionConflict(SID, 0.2, "mine");
         await saveBoard();
         expect(server.list).toEqual([q(0.1), answered, moved]);
+    });
+
+    test("leaves another copy of the same question alone", async () => {
+        // Two copies of one question: restored twice at once.
+        const [one, two] = [copyOf(original, 0.8), copyOf(original, 0.9)];
+        snapshot([q(0.1), one, two], 4);
+        const server = fakeServer(4, [q(0.1), one, two]);
+        const theirs = copyOf(original, 0.8, { within: false });
+        const mine = copyOf(original, 0.8, { label: "renamed" });
+        server.other([q(0.1), theirs, two]);
+        await edit([q(0.1), mine, two]);
+        expect(held()).toMatchObject([{ key: 0.8, kind: "both-changed" }]);
+        resolveQuestionConflict(SID, 0.8, "mine");
+        await saveBoard();
+        expect(server.list).toEqual([q(0.1), mine, two]);
     });
 
     test("keeping their edit of one we deleted drops our Undo's copy", async () => {

@@ -22,7 +22,7 @@ import { boardLabel } from "@/lib/questionNames";
 import {
     asRestored,
     backAs,
-    originalKey,
+    isCopyOf,
     placeRestored,
 } from "@/lib/questionUndo";
 import { type Question, questionSchema } from "@/maps/schema";
@@ -261,12 +261,12 @@ export function restoreBlocked(
         typeof removed === "number"
             ? { key: removed, question: null }
             : removed;
-    const original = originalKey(question, key);
     if (
         held.some(
             (c) =>
                 sameQuestionKey(c.key, key) ||
-                sameQuestionKey(originalKey(c.base, c.key), original),
+                isCopyOf(c.base, key) ||
+                isCopyOf(question, c.key),
         )
     ) {
         return "Needs a decision first";

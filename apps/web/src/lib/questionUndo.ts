@@ -74,18 +74,19 @@ export const placeRemovedQuestions = <T extends { key: number }>(
 // ── Putting deleted questions back as copies (Restore, and Undo once the
 // delete may have reached the server) ─────────────────────────────────────────
 
-const restoredFrom = (question: unknown): number | undefined => {
+// The keys of the questions `question` is a copy of, oldest first: what it
+// was restored from, what that was restored from, and so on.
+const restoredFrom = (question: unknown): number[] => {
     const from = (question as { data?: { restoredFrom?: unknown } } | null)
         ?.data?.restoredFrom;
-    return typeof from === "number" ? from : undefined;
+    return Array.isArray(from)
+        ? from.filter((key): key is number => typeof key === "number")
+        : [];
 };
 
-/**
- * The key of the question `question` (under `key`) is a copy of, or its
- * own: the first one, for a copy of a copy.
- */
-export const originalKey = (question: unknown, key: number): number =>
-    restoredFrom(question) ?? key;
+/** Whether `question` is a copy of the one with `key`, or of a copy of it. */
+export const isCopyOf = (question: unknown, key: number): boolean =>
+    restoredFrom(question).some((from) => sameQuestionKey(from, key));
 
 /**
  * A deleted question as Restore puts it back: a copy under a new key, with
@@ -104,27 +105,25 @@ export function asRestored<T extends { key: number; data: object }>(
         key,
         data: {
             ...copy.data,
-            restoredFrom: originalKey(question, question.key),
+            restoredFrom: [...restoredFrom(question), question.key],
         },
     };
 }
 
 /**
  * The question a deleted one is back on the board as, if it is: under its
- * key (Undo put it back), or a copy of the same question, edited since or
- * not. Not one that was on the board when it was deleted (`order`): two
- * copies put back at once are two questions.
+ * key (Undo put it back), or a copy of it, edited since or not. Not one that
+ * was on the board when it was deleted (`order`): that is another question.
  */
 export function backAs<T extends { key: number }>(
-    removed: { key: number; question?: unknown },
+    removed: { key: number },
     board: readonly T[],
     order: readonly number[] = [],
 ): T | undefined {
-    const original = originalKey(removed.question, removed.key);
     return board.find(
         (q) =>
             sameQuestionKey(q.key, removed.key) ||
-            (sameQuestionKey(originalKey(q, q.key), original) &&
+            (isCopyOf(q, removed.key) &&
                 !order.some((key) => sameQuestionKey(key, q.key))),
     );
 }
@@ -150,28 +149,23 @@ export function placeRestored<T extends { key: number }>(
 }
 
 /**
- * `board` without the copies of the question with `key` as Restore or Undo
- * put them back from `was`, unchanged since: kept, the question itself is
- * back, and they would be a second version of it shaping the zone. A copy
- * changed since is someone's edit, and stays.
+ * `board` without the copies of the question with `key` that are as `was`,
+ * the version it was deleted from: kept, the question itself is back, and
+ * they would be a second version of it shaping the zone. A copy changed
+ * since is someone's edit, and stays.
  */
 export function withoutCopiesOf<T extends { key: number }>(
     board: readonly T[],
     key: number,
     was: unknown,
 ): T[] {
-    const original = originalKey(was, key);
     const untagged = (q: unknown) => ({
         ...(q as object),
         data: { ...(q as { data?: object }).data, restoredFrom: undefined },
     });
-    return board.filter((q) => {
-        const from = restoredFrom(q);
-        return (
-            from === undefined ||
-            sameQuestionKey(q.key, key) ||
-            !sameQuestionKey(from, original) ||
-            !sameQuestionSubstance(untagged(q), untagged(was))
-        );
-    });
+    return board.filter(
+        (q) =>
+            !isCopyOf(q, key) ||
+            !sameQuestionSubstance(untagged(q), untagged(was)),
+    );
 }
