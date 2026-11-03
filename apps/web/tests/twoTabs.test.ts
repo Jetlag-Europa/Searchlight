@@ -28,9 +28,15 @@ const storage = {
 };
 
 // Web Locks as the tabs of one browser share them: a request that steals
-// takes the lock from its holder, whose request then rejects.
+// takes the lock from its holder, whose request then rejects (with
+// `deferred`, only once deliver() is called: the holder's tab may be busy).
 class FakeLocks {
     held = new Map<string, (err: unknown) => void>();
+    deferred = false;
+    undelivered: Array<() => void> = [];
+    deliver() {
+        for (const notify of this.undelivered.splice(0)) notify();
+    }
     request(
         name: string,
         options: { steal?: boolean },
@@ -39,7 +45,10 @@ class FakeLocks {
         return new Promise((resolve, reject) => {
             const holder = this.held.get(name);
             if (holder && !options.steal) throw new Error("only steal is faked");
-            holder?.(new DOMException("The lock was stolen", "AbortError"));
+            const stolen = () =>
+                holder?.(new DOMException("The lock was stolen", "AbortError"));
+            if (this.deferred) this.undelivered.push(stolen);
+            else stolen();
             this.held.set(name, reject);
             void Promise.resolve(callback()).then((value) => {
                 if (this.held.get(name) === reject) this.held.delete(name);
@@ -176,8 +185,9 @@ async function fakeFetch(url: string, init?: RequestInit): Promise<Response> {
 const tabs: any[] = [];
 // A tab opening the session, as SessionManager loads it: it takes the
 // session over, sends what's queued, shows the server's state with the
-// edits still queued on top (offline: the kept copy), then streams.
-async function openTab(name: string) {
+// edits still queued on top (offline: the kept copy), then streams. Started
+// offline, it shows the kept copy right away, and doesn't stream.
+async function openTab(name: string, { offlineStart = false } = {}) {
     vi.resetModules();
     const active = await import("@/lib/activeSession");
     const queue = await import("@/lib/eventQueue");
@@ -204,6 +214,12 @@ async function openTab(name: string) {
     tabLock.editSessionHere(SID, () => {
         t.takenOver = true;
     });
+    if (offlineStart) {
+        ctx.questions.set(queue.applyUnsyncedEvents(SID, queue.getCachedSession(SID)!).questions);
+        queue.boardPaintedFromSnapshot(SID);
+        tabs.push(t);
+        return t;
+    }
     sync.startSyncManager();
     await sync.flushPendingEvents(SID).catch(() => {});
     let board: any[];
@@ -423,6 +439,27 @@ test("offline: A queues Q1, then B opens the session from the kept copy and adds
     deliver();
     await tick();
     expect(serverKeys()).toEqual([1, 2]);
+});
+
+test("offline: A's edit still in its debounce is queued as A's window loses focus, before B opens", async () => {
+    const locks = navigator.locks as unknown as FakeLocks;
+    const a = await openTab("A");
+    const stopFlushing = a.state.flushSavesOnPageExit();
+    server.online = false;
+    locks.deferred = true;
+    a.ctx.questions.set([q(1)]);
+    a.state.saveQuestionsDebounced(SID, [q(1)]);
+    // The player goes to another window and opens the session there; A
+    // hears of it only after B shows its board.
+    window.dispatchEvent(new Event("blur"));
+    const b = await openTab("B", { offlineStart: true });
+    locks.deliver();
+    await tick();
+    expect(a.readOnly()).toBe(true);
+    expect(b.board()).toEqual([1]);
+    await edit(b, [...b.ctx.questions.get(), q(2)]);
+    expect(queuedKeys(b)).toEqual([[1, 2]]);
+    stopFlushing();
 });
 
 test("Use here: a read-only tab opened again takes the session back", async () => {

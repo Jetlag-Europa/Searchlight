@@ -53,7 +53,11 @@ import { toast } from "react-toastify";
 import { addStroke, strokes } from "@/annotations/hooks/useAnnotationStore";
 import { clearStrokeTombstones } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
-import { activeSessionId, verifiedUserId } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    editingInOtherTab,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { getPendingEvents, setCachedSession } from "@/lib/eventQueue";
 import {
@@ -78,11 +82,13 @@ function bigList(tag: string, chars: number): Questions {
     ] as unknown as Questions;
 }
 
+// The toast's own close, as Retry calls it.
+const closeToast = vi.fn();
+
 // The Retry button of the toast shown, if it has one.
 function retryButton(): (() => void) | undefined {
     const content = vi.mocked(toast.error).mock.lastCall?.[0];
     if (typeof content !== "function") return undefined;
-    const closeToast = vi.fn();
     const find = (node: ReactNode): (() => void) | undefined => {
         if (!node || typeof node !== "object") return undefined;
         if (Array.isArray(node)) {
@@ -107,6 +113,7 @@ function retryButton(): (() => void) | undefined {
 beforeEach(() => {
     store.clear();
     capacity = Infinity;
+    closeToast.mockClear();
     mockFetch.mockReset();
     mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
     vi.useFakeTimers();
@@ -188,17 +195,35 @@ describe("an edit the queue has no room for", () => {
         const retry = retryButton();
         expect(retry).toBeTypeOf("function");
 
-        // Still full: it says so again, and keeps the edit.
+        // Still full: the toast stays, and so does the edit.
         retry!();
+        expect(closeToast).not.toHaveBeenCalled();
         expect(getPendingEvents(SID)).toHaveLength(0);
         expect(hasScheduledQuestionSave(SID)).toBe(true);
 
         capacity = Infinity;
         retry!();
+        expect(closeToast).toHaveBeenCalledOnce();
         const queued = getPendingEvents(SID);
         expect(queued).toHaveLength(1);
         expect(queued[0].payloadJson).toMatchObject({ base: { sequence: 5 } });
         expect(hasScheduledQuestionSave(SID)).toBe(false);
+    });
+
+    test("waits on Retry in a tab another one took the session over from", () => {
+        nearlyFull();
+        const edited = bigList("edited", 300_000);
+        questions.set(edited);
+        saveQuestionsDebounced(SID, edited);
+        vi.advanceTimersByTime(600);
+        editingInOtherTab.set(true);
+        capacity = Infinity;
+        retryButton()!();
+        // Not taken as saved: nothing was queued.
+        expect(closeToast).not.toHaveBeenCalled();
+        expect(getPendingEvents(SID)).toHaveLength(0);
+        expect(hasScheduledQuestionSave(SID)).toBe(true);
+        editingInOtherTab.set(false);
     });
 
     test("is replaced by the next edit, which is queued once there's room", () => {

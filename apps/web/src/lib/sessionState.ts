@@ -10,6 +10,7 @@ import {
 import {
     activeSessionId,
     activeSessionRole,
+    editingInOtherTab,
     isSessionReadOnly,
     offlineUserId,
     verifiedUserId,
@@ -63,8 +64,15 @@ function queueEdit(event: Parameters<typeof enqueueEvent>[0]): PendingEvent {
     try {
         queued = enqueueEvent(event);
     } catch (err) {
+        // Retry is done once nothing waits to be queued. A board that can't
+        // save it (another tab took the session over) keeps waiting.
         sayStorageFull(() => {
-            if (sessionId === activeSessionId.get()) flushSessionSaves(sessionId);
+            if (sessionId !== activeSessionId.get()) return true;
+            if (isSessionReadOnly(sessionId)) return false;
+            flushSessionSaves(sessionId);
+            return ![questionSaves, hiderSaves, planningSaves].some((state) =>
+                state.pending.has(sessionId),
+            );
         });
         throw err;
     }
@@ -448,25 +456,32 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
  * Debounced edits live only in memory until their timer fires, so flush them
  * whenever the page may be going away. Mobile browsers often skip
  * beforeunload, and a hidden tab can be frozen or discarded without another
- * event. Returns a function that removes the listeners.
+ * event. A window losing focus may be followed by another tab of this
+ * browser taking the session over (see editSessionHere), which shows only
+ * what was queued. Returns a function that removes the listeners.
  */
 export function flushSavesOnPageExit(): () => void {
-    const flush = () => {
+    // keepalive only when the page may be going away.
+    const flush = (keepalive: boolean) => {
         const id = activeSessionId.get();
         // Edits made offline too: the page is often closed before it's back.
         if (!id || !(verifiedUserId.get() ?? offlineUserId.get())) return;
-        console.info("[sessionState] page may be closing — flushing saves for", id);
-        flushSessionSaves(id, true);
+        console.info("[sessionState] flushing saves for", id);
+        flushSessionSaves(id, keepalive);
     };
+    const flushOnExit = () => flush(true);
     const flushIfHidden = () => {
-        if (document.visibilityState === "hidden") flush();
+        if (document.visibilityState === "hidden") flush(true);
     };
-    window.addEventListener("beforeunload", flush);
-    window.addEventListener("pagehide", flush);
+    const flushOnBlur = () => flush(false);
+    window.addEventListener("beforeunload", flushOnExit);
+    window.addEventListener("pagehide", flushOnExit);
+    window.addEventListener("blur", flushOnBlur);
     document.addEventListener("visibilitychange", flushIfHidden);
     return () => {
-        window.removeEventListener("beforeunload", flush);
-        window.removeEventListener("pagehide", flush);
+        window.removeEventListener("beforeunload", flushOnExit);
+        window.removeEventListener("pagehide", flushOnExit);
+        window.removeEventListener("blur", flushOnBlur);
         document.removeEventListener("visibilitychange", flushIfHidden);
     };
 }
@@ -542,6 +557,8 @@ export async function loadSessionContent(
         loadedList = await fetchQuestions(sessionId, signal);
     }
     const loadedQuestions = loadedList.questions;
+    // Taken over meanwhile: the copy is the other tab's, and older than its.
+    if (editingInOtherTab.get()) throw new Error("another tab took the session over");
     setCachedSession({
         sessionId,
         userId,

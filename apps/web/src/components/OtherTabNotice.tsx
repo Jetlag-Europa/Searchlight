@@ -15,10 +15,12 @@ export function OtherTabNotice() {
     const shown = useStore(editingInOtherTab);
     const titleId = useId();
     const buttonRef = useRef<HTMLButtonElement>(null);
-    // The board's controls are out of reach, as under the picker.
+    // The board's controls are out of reach, as under the picker. A map in
+    // full screen would hide this notice.
     useEffect(() => {
         const board = document.getElementById("map-board");
         if (!shown || !board) return;
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
         board.inert = true;
         buttonRef.current?.focus();
         return () => {
@@ -27,16 +29,18 @@ export function OtherTabNotice() {
     }, [shown]);
     if (!shown) return null;
     return (
-        <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/60 p-4">
+        // Taps land here even while a sheet or dialog underneath (the
+        // question sidebar on a phone) turns pointer events off on the body.
+        <div className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/60 p-4">
             <div
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
                 className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl"
             >
-                <h1 id={titleId} className="text-base font-semibold">
+                <h2 id={titleId} className="text-base font-semibold">
                     This session is open in another tab
-                </h1>
+                </h2>
                 <p className="mt-1 mb-4 text-sm text-muted-foreground">
                     It can be changed in one tab at a time.
                 </p>

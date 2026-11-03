@@ -921,6 +921,25 @@ describe("another tab of this browser opening the session", () => {
         expect(pageReload).toHaveBeenCalledOnce();
     });
 
+    it("doesn't take the session back when the server answers again", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        await reload("a", { offline: true });
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+
+        // /me answers in this background tab.
+        await act(async () => {
+            verifiedUserId.set(USER);
+            offlineUserId.set(null);
+        });
+        await settle();
+        expect(locks.request).toHaveBeenCalledOnce();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(isSessionReadOnly("a")).toBe(true);
+        expect(env.FakeEventSource.last).toBeNull();
+    });
+
     it("stops a load still running here", async () => {
         server = { a: session("a") };
         let finishLoad = () => {};

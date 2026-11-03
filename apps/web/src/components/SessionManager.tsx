@@ -1288,7 +1288,8 @@ export function SessionManager() {
 
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
-        if (!authUserId) return;
+        // Taken over by another tab: only Use here (a reload) takes it back.
+        if (!authUserId || editingInOtherTab.get()) return;
         const generation = ++sessionLoadGenerationRef.current;
         const isCurrent = () => generation === sessionLoadGenerationRef.current;
         const cleanup = () => {
@@ -1739,7 +1740,9 @@ export function SessionManager() {
     // state shows (false also when another load took over).
     const loadSession = useCallback(
         async (selected: GameSessionSummary): Promise<boolean> => {
-            if (!authUserId) return false;
+            // Taken over by another tab: a check or retry started before
+            // doesn't take it back (Use here does).
+            if (!authUserId || editingInOtherTab.get()) return false;
             // What the picker passes on unchecked (a list entry, a session
             // just created) must be one, or the board is left on no session.
             if (!isSessionSummary(selected, selected?.id ?? "")) {

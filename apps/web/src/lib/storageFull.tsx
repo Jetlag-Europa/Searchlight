@@ -2,16 +2,13 @@ import { toast } from "react-toastify";
 
 const TEXT = "This device's storage is full, so your last change wasn't saved.";
 
-// Set by every failure: a Retry that fails again leaves its toast up.
-let failedAgain = false;
-
 /**
  * An edit couldn't be queued on this device: its storage is full even after
  * dropping the copies kept of other sessions (see writePendingQueue). Says
- * so until the player closes it, or `retry` (queuing it again) works.
+ * so; with `retry`, which queues it again and returns whether that's done,
+ * until it is: meanwhile the edit holds the board (see queueEdit).
  */
-export function sayStorageFull(retry?: () => void): void {
-    failedAgain = true;
+export function sayStorageFull(retry?: () => boolean): void {
     if (!retry) {
         toast.error(TEXT, { toastId: "storage-full", autoClose: false });
         return;
@@ -23,15 +20,18 @@ export function sayStorageFull(retry?: () => void): void {
                 <button
                     className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
                     onClick={() => {
-                        failedAgain = false;
-                        retry();
-                        if (!failedAgain) closeToast();
+                        if (retry()) closeToast();
                     }}
                 >
                     Retry
                 </button>
             </div>
         ),
-        { toastId: "storage-full-retry", autoClose: false, closeOnClick: false },
+        {
+            toastId: "storage-full-retry",
+            autoClose: false,
+            closeButton: false,
+            closeOnClick: false,
+        },
     );
 }
