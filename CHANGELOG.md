@@ -7,7 +7,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Google Maps as a basemap (2026-11-03)
 
 - Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
-- With Google Maps chosen, **Show transit lines** below it adds Google's public transport map (train, metro and tram lines in the operators' colours, and stops) on top of the same map, so the footpaths stay visible. The setting is saved with your other options.
+- With Google Maps chosen, **Google Maps view** picks Roadmap, Satellite, Hybrid (the photo with streets and names) or Terrain. **Show transit lines** adds Google's public transport map (train, metro and tram lines in the operators' colours, and stops), and **Hide shops and places** takes the pins of shops, restaurants, schools, sights and other places off the map, so the paths stand out; stops, street names and park names stay. Neither applies to Satellite, which is the photo alone. All of them are drawn by the same Google map, at no extra cost, and are saved with your other options.
 - Without a connection the map shows CARTO Voyager until it's back, and prints always use CARTO Voyager: Google's terms don't allow storing its map. Choosing a print size while Google Maps is shown switches the map first; choose the size again to print.
 - **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key.
 

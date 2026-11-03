@@ -315,7 +315,17 @@ export const baseTileLayer = persistentAtom<
     | "osmcarto"
     | "google"
 >("baseTileLayer", "voyager");
-// Google's transit lines over the Google Maps basemap.
+// What the Google Maps basemap shows: its map type (a GoogleMapType; read it
+// with googleMapTypeOf), transit lines on top, and places hidden.
+export const googleMapType = persistentAtom<string>("googleMapType", "roadmap");
+export const hideGooglePlaces = persistentAtom<boolean>(
+    "hideGooglePlaces",
+    false,
+    {
+        encode: JSON.stringify,
+        decode: JSON.parse,
+    },
+);
 export const showGoogleTransit = persistentAtom<boolean>(
     "showGoogleTransit",
     false,

@@ -126,26 +126,84 @@ export function loadGoogleMapsApi(): Promise<void> {
     return apiLoad;
 }
 
-/** The part of GoogleMutant that puts Google's own layers on its map. */
-export interface GoogleSublayers {
+/** Google's map types, drawn by the same map: switching costs nothing. */
+export const GOOGLE_MAP_TYPES = {
+    roadmap: "Roadmap",
+    satellite: "Satellite",
+    hybrid: "Hybrid",
+    terrain: "Terrain",
+} as const;
+export type GoogleMapType = keyof typeof GOOGLE_MAP_TYPES;
+
+/** A stored map type, or Roadmap for one this version doesn't know. */
+export function googleMapTypeOf(value: unknown): GoogleMapType {
+    return typeof value === "string" && Object.hasOwn(GOOGLE_MAP_TYPES, value)
+        ? (value as GoogleMapType)
+        : "roadmap";
+}
+
+/**
+ * Hides Google's pins for shops, restaurants, sights and other places, with
+ * their names, so the paths stand out. Parks keep their names: hiding spots
+ * are often described by them.
+ */
+export const HIDE_PLACES_STYLES = [
+    {
+        featureType: "poi",
+        elementType: "labels",
+        stylers: [{ visibility: "off" }],
+    },
+    {
+        featureType: "poi.park",
+        elementType: "labels.text",
+        stylers: [{ visibility: "on" }],
+    },
+];
+
+/** What Google's map shows. */
+export interface GoogleLook {
+    type: GoogleMapType;
+    transit: boolean;
+    hidePlaces: boolean;
+}
+
+/** What changes what Google's map shows (GoogleMutant, in GoogleBasemap). */
+export interface GoogleLookControls {
+    setMapType(type: GoogleMapType): void;
+    setStyles(styles: object[]): void;
     addGoogleLayer(name: string): unknown;
     removeGoogleLayer(name: string): unknown;
 }
 
 /**
- * Shows or hides Google's transit lines on the layer's map. They are drawn
- * on that same map, so switching them costs no map load. GoogleMutant only
- * applies the change once its map exists, so this remembers what it asked for
- * rather than asking twice. `redraw` runs after each change: Google bakes the
- * lines into its tiles, and the tiles already copied onto the map are old.
+ * Applies a look to Google's map, starting from the one it was created with.
+ * Only what changed is sent, so the transit layer is never added twice. Map
+ * type, styles and transit lines all apply to that same map, so none of them
+ * costs a map load. `redraw` runs once after each change: Google draws all
+ * of them into its tiles, and the tiles already copied onto the map are old.
  */
-export function transitLines(layer: GoogleSublayers, redraw: () => void) {
-    let shown = false;
-    return (show: boolean) => {
-        if (show === shown) return;
-        shown = show;
-        if (show) layer.addGoogleLayer("TransitLayer");
-        else layer.removeGoogleLayer("TransitLayer");
-        redraw();
+export function googleLook(
+    controls: GoogleLookControls,
+    redraw: () => void,
+    initial: GoogleLook,
+) {
+    let current = { ...initial };
+    return (look: GoogleLook) => {
+        let changed = false;
+        if (look.type !== current.type) {
+            controls.setMapType(look.type);
+            changed = true;
+        }
+        if (look.hidePlaces !== current.hidePlaces) {
+            controls.setStyles(look.hidePlaces ? HIDE_PLACES_STYLES : []);
+            changed = true;
+        }
+        if (look.transit !== current.transit) {
+            if (look.transit) controls.addGoogleLayer("TransitLayer");
+            else controls.removeGoogleLayer("TransitLayer");
+            changed = true;
+        }
+        current = { ...look };
+        if (changed) redraw();
     };
 }

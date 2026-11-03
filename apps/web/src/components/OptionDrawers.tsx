@@ -36,6 +36,8 @@ import {
     displayHidingZones,
     displayHidingZonesStyle,
     followMe,
+    googleMapType,
+    hideGooglePlaces,
     hiderMode,
     hidingZoneFocusedStationID,
     permanentOverlay,
@@ -48,7 +50,12 @@ import {
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
-import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
+import {
+    GOOGLE_MAP_TYPES,
+    googleMapsAvailable,
+    googleMapsProblem,
+    googleMapTypeOf,
+} from "@/lib/googleMaps";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -83,7 +90,11 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
+    const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
+    const $hideGooglePlaces = useStore(hideGooglePlaces);
+    // Google draws no lines or pins on the bare satellite photo.
+    const googlePhotoOnly = googleMapTypeOf($googleMapType) === "satellite";
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $autoLockQuestions = useStore(autoLockQuestions);
     const $followMe = useStore(followMe);
@@ -281,23 +292,79 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                     />
                                     {$baseTileLayer === "google" &&
                                         googleMapsAvailable && (
-                                            <div className="flex flex-row items-center gap-2">
-                                                <label
-                                                    htmlFor="showGoogleTransit"
-                                                    className="text-sm font-medium"
-                                                >
-                                                    Show transit lines
-                                                </label>
-                                                <Checkbox
-                                                    id="showGoogleTransit"
-                                                    checked={$showGoogleTransit}
-                                                    onCheckedChange={() =>
-                                                        showGoogleTransit.set(
-                                                            !$showGoogleTransit,
-                                                        )
+                                            <>
+                                                <Label>Google Maps view</Label>
+                                                <Select
+                                                    trigger="Google Maps view"
+                                                    options={GOOGLE_MAP_TYPES}
+                                                    value={googleMapTypeOf(
+                                                        $googleMapType,
+                                                    )}
+                                                    onValueChange={(v) =>
+                                                        googleMapType.set(v)
                                                     }
                                                 />
-                                            </div>
+                                                <div className="flex flex-row items-center gap-2">
+                                                    <label
+                                                        htmlFor="showGoogleTransit"
+                                                        className={cn(
+                                                            "text-sm font-medium",
+                                                            googlePhotoOnly &&
+                                                                "opacity-50",
+                                                        )}
+                                                    >
+                                                        Show transit lines
+                                                    </label>
+                                                    <Checkbox
+                                                        id="showGoogleTransit"
+                                                        disabled={
+                                                            googlePhotoOnly
+                                                        }
+                                                        checked={
+                                                            $showGoogleTransit
+                                                        }
+                                                        onCheckedChange={() =>
+                                                            showGoogleTransit.set(
+                                                                !$showGoogleTransit,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="flex flex-row items-center gap-2">
+                                                    <label
+                                                        htmlFor="hideGooglePlaces"
+                                                        className={cn(
+                                                            "text-sm font-medium",
+                                                            googlePhotoOnly &&
+                                                                "opacity-50",
+                                                        )}
+                                                    >
+                                                        Hide shops and places
+                                                    </label>
+                                                    <Checkbox
+                                                        id="hideGooglePlaces"
+                                                        disabled={
+                                                            googlePhotoOnly
+                                                        }
+                                                        checked={
+                                                            $hideGooglePlaces
+                                                        }
+                                                        onCheckedChange={() =>
+                                                            hideGooglePlaces.set(
+                                                                !$hideGooglePlaces,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                {googlePhotoOnly && (
+                                                    <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                        Satellite is the photo
+                                                        alone. Hybrid adds
+                                                        streets, names and
+                                                        transit lines to it.
+                                                    </p>
+                                                )}
+                                            </>
                                         )}
                                     {$baseTileLayer === "google" &&
                                         googleMapsAvailable &&

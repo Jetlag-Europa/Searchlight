@@ -1,6 +1,12 @@
 import { afterEach, expect, it, vi } from "vitest";
 
-import { effectiveBasemap, transitLines } from "@/lib/googleMaps";
+import {
+    effectiveBasemap,
+    type GoogleLook,
+    googleLook,
+    googleMapTypeOf,
+    HIDE_PLACES_STYLES,
+} from "@/lib/googleMaps";
 
 const ok = { available: true, problem: null, printing: false } as const;
 
@@ -31,21 +37,36 @@ it("leaves the other basemaps alone", () => {
         ).toBe(chosen);
 });
 
-it("switches Google's transit lines only when the setting changes", () => {
+/** googleLook against a fake GoogleMutant that logs what it's asked. */
+function fakeLook(initial: GoogleLook) {
     const calls: string[] = [];
-    const setTransit = transitLines(
+    const apply = googleLook(
         {
+            setMapType: (type) => calls.push(`type ${type}`),
+            setStyles: (styles) => calls.push(`styles ${styles.length}`),
             addGoogleLayer: (name) => calls.push(`add ${name}`),
             removeGoogleLayer: (name) => calls.push(`remove ${name}`),
         },
         () => calls.push("redraw"),
+        initial,
     );
-    setTransit(false); // off already
-    setTransit(true);
-    setTransit(true); // a second TransitLayer would draw the lines twice
-    setTransit(false);
-    setTransit(false);
-    setTransit(true);
+    return { calls, apply };
+}
+
+const roadmap: GoogleLook = {
+    type: "roadmap",
+    transit: false,
+    hidePlaces: false,
+};
+
+it("switches Google's transit lines only when the setting changes", () => {
+    const { calls, apply } = fakeLook(roadmap);
+    apply(roadmap); // as created: nothing to do
+    apply({ ...roadmap, transit: true });
+    apply({ ...roadmap, transit: true }); // a second TransitLayer would draw the lines twice
+    apply(roadmap);
+    apply(roadmap);
+    apply({ ...roadmap, transit: true });
     expect(calls).toEqual([
         "add TransitLayer",
         "redraw",
@@ -54,6 +75,30 @@ it("switches Google's transit lines only when the setting changes", () => {
         "add TransitLayer",
         "redraw",
     ]);
+});
+
+it("changes map type and places on the same map, one redraw per change", () => {
+    const { calls, apply } = fakeLook({ ...roadmap, type: "hybrid" });
+    apply({ ...roadmap, type: "hybrid" });
+    expect(calls).toEqual([]); // created as hybrid already
+    apply({ type: "satellite", transit: true, hidePlaces: true });
+    expect(calls).toEqual([
+        "type satellite",
+        `styles ${HIDE_PLACES_STYLES.length}`,
+        "add TransitLayer",
+        "redraw",
+    ]);
+    calls.length = 0;
+    apply({ type: "terrain", transit: true, hidePlaces: false });
+    expect(calls).toEqual(["type terrain", "styles 0", "redraw"]);
+});
+
+it("reads an unknown stored map type as Roadmap", () => {
+    expect(googleMapTypeOf("satellite")).toBe("satellite");
+    expect(googleMapTypeOf("terrain")).toBe("terrain");
+    expect(googleMapTypeOf("moon")).toBe("roadmap");
+    expect(googleMapTypeOf("toString")).toBe("roadmap");
+    expect(googleMapTypeOf(undefined)).toBe("roadmap");
 });
 
 /** A browser with no network: a window, a navigator and a script loader. */

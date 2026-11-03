@@ -6,11 +6,18 @@ import { useEffect } from "react";
 import { useMap } from "react-leaflet";
 import { toast } from "react-toastify";
 
-import { showGoogleTransit } from "@/lib/context";
 import {
+    googleMapType,
+    hideGooglePlaces,
+    showGoogleTransit,
+} from "@/lib/context";
+import {
+    type GoogleLook,
+    googleLook,
+    googleMapTypeOf,
+    HIDE_PLACES_STYLES,
     loadGoogleMapsApi,
     printingWithoutGoogle,
-    transitLines,
 } from "@/lib/googleMaps";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
@@ -18,12 +25,28 @@ import {
 // each new map is a billed map load. So switching basemaps, sessions or going
 // offline and back reuses this one instead of loading another.
 let layer: L.GridLayer | null = null;
-let setTransitLines: ((show: boolean) => void) | null = null;
+let applyLook: ((look: GoogleLook) => void) | null = null;
+
+// GoogleMutant's own default. Google's map stops short of it where it has no
+// closer imagery, and GoogleMutant then enlarges the closest tiles it has.
+const MAX_NATIVE_ZOOM = 21;
+
+function chosenLook(): GoogleLook {
+    return {
+        type: googleMapTypeOf(googleMapType.get()),
+        transit: showGoogleTransit.get(),
+        hidePlaces: hideGooglePlaces.get(),
+    };
+}
 
 function googleLayer(): L.GridLayer {
     if (layer) return layer;
+    // Created as chosen, so the first tiles are the right ones. Transit lines
+    // come with the first applyLook.
+    const initial = { ...chosenLook(), transit: false };
     layer = (L.gridLayer as any).googleMutant({
-        type: "roadmap",
+        type: initial.type,
+        styles: initial.hidePlaces ? HIDE_PLACES_STYLES : [],
         maxZoom: 21,
         minZoom: 2,
         noWrap: true,
@@ -34,8 +57,24 @@ function googleLayer(): L.GridLayer {
         className: "google-basemap",
     }) as L.GridLayer;
     const googleMutant = layer as any;
-    setTransitLines = transitLines(googleMutant, () =>
-        redrawWhenLoaded(googleMutant),
+    applyLook = googleLook(
+        {
+            setMapType: (type) =>
+                googleMutant.whenReady(() => {
+                    googleMutant.options.type = type;
+                    // The new type may have closer tiles than the last one.
+                    googleMutant.options.maxNativeZoom = MAX_NATIVE_ZOOM;
+                    googleMutant._mutant.setMapTypeId(type);
+                }),
+            setStyles: (styles) =>
+                googleMutant.whenReady(() =>
+                    googleMutant._mutant.setOptions({ styles }),
+                ),
+            addGoogleLayer: (name) => googleMutant.addGoogleLayer(name),
+            removeGoogleLayer: (name) => googleMutant.removeGoogleLayer(name),
+        },
+        () => redrawWhenLoaded(googleMutant),
+        initial,
     );
     return layer;
 }
@@ -58,7 +97,7 @@ function keepGoogleAttribution(googleMutant: any) {
 
 /**
  * Replaces the tiles on the map once Google has drawn its new ones, after a
- * change to what Google's map shows. GoogleMutant copies Google's tile images
+ * change to what Google's map shows (GoogleLook). GoogleMutant copies Google's tile images
  * and keeps the last hundred to reuse; those show the map as it was, so they
  * go. Until Google is done, the old tiles stay rather than blank ones.
  */
@@ -123,7 +162,9 @@ function printWithCarto(map: L.Map) {
 /** Google Maps' own map as the basemap, with its logo and copyright. */
 export const GoogleBasemap = () => {
     const map = useMap();
+    const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
+    const $hideGooglePlaces = useStore(hideGooglePlaces);
 
     useEffect(() => {
         let mounted = true;
@@ -136,7 +177,7 @@ export const GoogleBasemap = () => {
                 if (!mounted) return;
                 googleLayer().addTo(map);
                 keepGoogleAttribution(layer);
-                setTransitLines?.(showGoogleTransit.get());
+                applyLook?.(chosenLook());
             })
             // googleMapsProblem now says why, and the map falls back to CARTO.
             .catch(() => {});
@@ -148,11 +189,11 @@ export const GoogleBasemap = () => {
     }, [map]);
 
     // Only while the layer is on the map: Google draws nothing for a map
-    // that isn't on the page, and the load above applies the setting when it
+    // that isn't on the page, and the load above applies the settings when it
     // adds the layer.
     useEffect(() => {
-        if (layer && map.hasLayer(layer)) setTransitLines?.($showGoogleTransit);
-    }, [map, $showGoogleTransit]);
+        if (layer && map.hasLayer(layer)) applyLook?.(chosenLook());
+    }, [map, $googleMapType, $showGoogleTransit, $hideGooglePlaces]);
 
     return null;
 };
