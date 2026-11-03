@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 import { editingInOtherTab } from "@/lib/activeSession";
@@ -20,17 +21,21 @@ export function OtherTabNotice() {
     useEffect(() => {
         const board = document.getElementById("map-board");
         if (!shown || !board) return;
-        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+        const focus = () => buttonRef.current?.focus();
+        if (document.fullscreenElement) {
+            void document.exitFullscreen().catch(() => {}).then(focus);
+        }
         board.inert = true;
-        buttonRef.current?.focus();
+        focus();
         return () => {
             board.inert = sessionPickerOpen.get();
         };
     }, [shown]);
     if (!shown) return null;
-    return (
-        // Taps land here even while a sheet or dialog underneath (the
-        // question sidebar on a phone) turns pointer events off on the body.
+    // On the body, and taking taps: a sheet or dialog open underneath (the
+    // question sidebar on a phone) hides the rest of the page from screen
+    // readers and turns pointer events off on the body.
+    return createPortal(
         <div className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/60 p-4">
             <div
                 role="dialog"
@@ -52,6 +57,7 @@ export function OtherTabNotice() {
                     Use here
                 </Button>
             </div>
-        </div>
+        </div>,
+        document.body,
     );
 }
