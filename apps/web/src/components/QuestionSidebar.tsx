@@ -1,6 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { SidebarCloseIcon } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
     AlertDialog,
@@ -22,6 +22,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { sessionReadOnly } from "@/lib/activeSession";
 import { sidebarContextL as SidebarContext } from "@/lib/context";
 import {
@@ -33,6 +34,11 @@ import {
     warningAlarm,
 } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
+import { sameQuestionKey } from "@/lib/questionMerge";
+import {
+    questionCardToShow,
+    questionSidebarTab,
+} from "@/lib/questionSidebarTab";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
 import {
@@ -43,6 +49,7 @@ import {
     ThermometerQuestionComponent,
     ZoneSizeComponent,
 } from "./QuestionCards";
+import { QuestionHistory } from "./QuestionHistory";
 
 export const QuestionSidebar = () => {
     useStore(triggerLocalRefresh);
@@ -52,7 +59,46 @@ export const QuestionSidebar = () => {
     const $warningAlarm = useStore(warningAlarm);
     const $readOnly = useStore(sessionReadOnly);
     const [alarmActive, setAlarmActive] = useState(false);
+    // History is only fetched while its tab is shown.
+    const tab = useStore(questionSidebarTab);
     const audioRef = useRef<HTMLAudioElement | null>(null);
+    const cardToShow = useStore(questionCardToShow);
+    const sidebar = useStore(SidebarContext);
+    // State, not a ref: a phone's sheet draws its content only once open,
+    // a moment after it says so, and the card is looked for again then.
+    const [content, setContent] = useState<HTMLDivElement | null>(null);
+
+    // Show (after a Restore): once the sidebar is open on the cards, scroll
+    // to the card and move focus to it. Not on the board any more (taken
+    // away meanwhile), there is nothing to show.
+    useEffect(() => {
+        if (cardToShow === null || tab !== "questions") return;
+        if (!$questions.some((q) => sameQuestionKey(q.key, cardToShow))) {
+            questionCardToShow.set(null);
+            return;
+        }
+        if (!(sidebar.isMobile ? sidebar.openMobile : sidebar.open)) return;
+        const card = Array.from(
+            content?.querySelectorAll<HTMLElement>("[data-question-key]") ??
+                [],
+        ).find((el) =>
+            sameQuestionKey(Number(el.dataset.questionKey), cardToShow),
+        );
+        if (!card) return;
+        questionCardToShow.set(null);
+        card.scrollIntoView({ block: "center", behavior: "smooth" });
+        card
+            .querySelector<HTMLElement>("[data-question-card-header]")
+            ?.focus({ preventScroll: true });
+    }, [
+        cardToShow,
+        tab,
+        $questions,
+        content,
+        sidebar.isMobile,
+        sidebar.open,
+        sidebar.openMobile,
+    ]);
 
     const startAlarm = () => {
         if (!$warningAlarm) return;
@@ -87,8 +133,25 @@ export const QuestionSidebar = () => {
                     }}
                 />
             </div>
-            <SidebarContent>
-                {$questions.map((question) => {
+            <ToggleGroup
+                type="single"
+                variant="outline"
+                size="sm"
+                // On a phone the session chips float over the sheet's top.
+                className="mt-6 grid grid-cols-2 gap-1 px-4 pt-2 md:mt-0"
+                value={tab}
+                onValueChange={(value: string) => {
+                    if (value === "questions" || value === "history") {
+                        questionSidebarTab.set(value);
+                    }
+                }}
+            >
+                <ToggleGroupItem value="questions">Questions</ToggleGroupItem>
+                <ToggleGroupItem value="history">History</ToggleGroupItem>
+            </ToggleGroup>
+            <SidebarContent ref={setContent}>
+                {tab === "history" && <QuestionHistory />}
+                {tab === "questions" && $questions.map((question) => {
                     switch (question.id) {
                         case "radius":
                             return (
@@ -144,7 +207,7 @@ export const QuestionSidebar = () => {
                 })}
             </SidebarContent>
             {/* A spectator can't add, delete or save questions. */}
-            {$readOnly ? (
+            {tab === "questions" && ($readOnly ? (
                 <SidebarGroup>
                     <p className="px-2 py-1 text-sm text-muted-foreground">
                         You&apos;re spectating: you can watch, but not change
@@ -216,7 +279,7 @@ export const QuestionSidebar = () => {
                         </SidebarMenu>
                     </SidebarGroupContent>
                 </SidebarGroup>
-            )}
+            ))}
         </Sidebar>
         </>
     );

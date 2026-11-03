@@ -252,7 +252,12 @@ const same = (a: unknown, b: unknown): boolean => sameQuestion(a, b);
 // Which fields say what. Device fields (folded, locked) and the key aren't
 // part of what a question asks, so they're never a difference.
 const IGNORED = new Set(["collapsed", "drag"]);
-const PIN_FIELDS: [string, string, string][] = [
+/** Each pin's coordinate fields, and what to call it. */
+export const PIN_FIELDS: readonly (readonly [
+    lat: string,
+    lng: string,
+    pin: string,
+])[] = [
     ["lat", "lng", "pin"],
     ["latA", "lngA", "start"],
     ["latB", "lngB", "end"],
@@ -300,6 +305,26 @@ function moved(
 }
 
 /**
+ * Each pin that moved between two versions ("pin", or a thermometer's
+ * "start" and "end") and how far ("300 m"), or null when that can't be told.
+ */
+export function pinMoves(
+    a: unknown,
+    b: unknown,
+    options: SummaryOptions = {},
+): { pin: string; distance: string | null }[] {
+    const da = dataOf(a);
+    const db = dataOf(b);
+    const unit = options.unit ?? "kilometers";
+    const out: { pin: string; distance: string | null }[] = [];
+    for (const [lat, lng, pin] of PIN_FIELDS) {
+        const distance = moved(da, db, lat, lng, unit);
+        if (distance !== undefined) out.push({ pin, distance });
+    }
+    return out;
+}
+
+/**
  * What differs between two versions of a question, in a few words each:
  * "pin moved 300 m", "answer", "radius". Empty when they ask the same and
  * answer the same.
@@ -313,17 +338,16 @@ export function questionDifferences(
         if (!same(typeId(a), typeId(b))) return ["type"];
         const da = dataOf(a);
         const db = dataOf(b);
-        const unit = options.unit ?? "kilometers";
         const out: string[] = [];
         const add = (what: string) => {
             if (!out.includes(what)) out.push(what);
         };
         const handled = new Set<string>(IGNORED);
-        for (const [lat, lng, what] of PIN_FIELDS) {
-            handled.add(lat).add(lng);
-            const distance = moved(da, db, lat, lng, unit);
-            if (distance === null) add(`${what} moved`);
-            else if (distance !== undefined) add(`${what} moved ${distance}`);
+        for (const [lat, lng] of PIN_FIELDS) handled.add(lat).add(lng);
+        for (const { pin, distance } of pinMoves(a, b, options)) {
+            add(
+                distance === null ? `${pin} moved` : `${pin} moved ${distance}`,
+            );
         }
         const fields = new Set([...Object.keys(da), ...Object.keys(db)]);
         for (const field of fields) {
