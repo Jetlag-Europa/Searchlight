@@ -11,6 +11,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Without a connection the map shows CARTO Voyager until it's back, and prints always use CARTO Voyager: Google's terms don't allow storing its map. Choosing a print size while Google Maps is shown switches the map first; choose the size again to print.
 - The instance's admins (`ADMIN_DISCORD_IDS`) see on `/admin` how many Google map loads each Discord user caused this month, and per day, against the 10,000 free a month. The app counts one when it creates its Google map, the same moment Google bills one.
 - **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key. The API has a new table for the load counts (migration `20261103120000_google_map_loads`) and routes `POST /me/google-map-loads` and `GET /admin/google-map-loads`.
+
 ## First mode change after a reload is saved (2026-11-03)
 
 - After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.
