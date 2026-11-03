@@ -36,14 +36,27 @@ export interface Replay {
     end: number;
 }
 
+// An answer takes minutes; a lock much later (a team locking everything at
+// once) doesn't mean the question waited that long.
+const MAX_ANSWER_MS = 20 * 60_000;
+
 // Questions without pins (zone size) have no lock: they count as locked.
 const unlocked = (question: Question): boolean =>
     "drag" in question.data && question.data.drag;
+
+// The question as answered: everything but its lock.
+const answerOf = (question: Question): string =>
+    JSON.stringify(question.data, (key, value) =>
+        key === "drag" ? undefined : value,
+    );
 
 interface Track {
     question: Question;
     askedAt: number;
     answeredAt: number | null;
+    // When its answer (or pin) last changed, and that answer.
+    changedAt: number;
+    answer: string;
     // How it left the board: individually (a mistake or a replaced draft) or
     // in a clear; null while it is still there.
     removed: "deleted" | "cleared" | null;
@@ -52,8 +65,10 @@ interface Track {
 /**
  * Keeps the questions that were answered: locked the last time they were seen,
  * and either still on the board at the end or removed in a clear. Questions
- * deleted on their own, or never locked, are noise. Questions cleared away
- * still count: clearing the board doesn't unask them.
+ * deleted on their own are noise, and so are drafts (unlocked) a clear took
+ * away. Questions cleared away still count: clearing the board doesn't unask
+ * them. Some teams never lock their questions, so an unlocked question still
+ * on the board at the end counts too, answered when it last changed.
  */
 export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
     const tracks = new Map<number, Track>();
@@ -73,11 +88,18 @@ export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
                     question,
                     askedAt: at,
                     answeredAt: null,
+                    changedAt: at,
+                    answer: answerOf(question),
                     removed: null,
                 };
                 tracks.set(question.key, track);
             }
             track.question = question;
+            const answer = answerOf(question);
+            if (answer !== track.answer) {
+                track.answer = answer;
+                track.changedAt = at;
+            }
             track.removed = null;
             if (!unlocked(question) && track.answeredAt === null)
                 track.answeredAt = at;
@@ -102,16 +124,15 @@ export function condenseReplay(snapshots: ReplaySnapshot[]): Replay {
 
     const asked: ReplayQuestion[] = [];
     for (const track of tracks.values()) {
-        if (
-            track.removed === "deleted" ||
-            unlocked(track.question) ||
-            track.answeredAt === null
-        )
-            continue;
+        if (track.removed === "deleted") continue;
+        if (unlocked(track.question) && track.removed === "cleared") continue;
+        const answeredAt = unlocked(track.question)
+            ? (track.answeredAt ?? track.changedAt)
+            : track.answeredAt!;
         asked.push({
             question: track.question,
             askedAt: track.askedAt,
-            answeredAt: track.answeredAt,
+            answeredAt: Math.min(answeredAt, track.askedAt + MAX_ANSWER_MS),
         });
     }
     asked.sort((a, b) => a.askedAt - b.askedAt);
@@ -236,6 +257,17 @@ export function questionPins(question: Question): [number, number][] {
     if (typeof d.lat === "number" && typeof d.lng === "number")
         return [[d.lat, d.lng]];
     return [];
+}
+
+/**
+ * Where the seekers asked each question from (its last pin: a thermometer's
+ * end), as positions, for finding the endgame without live locations.
+ */
+export function askedFrom(replay: Replay): LoggedPosition[] {
+    return replay.questions.flatMap((q) => {
+        const pin = questionPins(q.question).at(-1);
+        return pin ? [[q.askedAt, pin[0], pin[1], null] as LoggedPosition] : [];
+    });
 }
 
 // A seeker has arrived in the hider's zone once they've stayed this long,
