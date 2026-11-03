@@ -47,6 +47,17 @@ export async function replayRoutes(app: FastifyInstance) {
         stored.sort((a, b) => a.ordinal - b.ordinal);
         return { at: e.serverReceivedAt.getTime(), questions: stored.map((q) => q.payloadJson) };
       });
+      // Moments a game's log recorded (the endgame, the hider found), for
+      // sessions copied in from a log rather than played here.
+      const marks: { endgame: number | null; found: number | null } = { endgame: null, found: null };
+      for (const e of await prisma.event.findMany({
+        where: { sessionId, type: "replay.mark" },
+        orderBy: { sequence: "asc" },
+        select: { serverReceivedAt: true, payloadJson: true },
+      })) {
+        const kind = (e.payloadJson as { kind?: unknown }).kind;
+        if (kind === "endgame" || kind === "found") marks[kind] ??= e.serverReceivedAt.getTime();
+      }
 
       const perms = await getUserPermissions(user.discordId, session.serverId, true, req.log);
       const server = await prisma.server.findUnique({
@@ -106,6 +117,7 @@ export async function replayRoutes(app: FastifyInstance) {
           gameRevisionId: session.gameRevisionId,
         },
         snapshots,
+        marks,
         canSeeLocations,
         people,
         // The session's hider location (hider mode), for finding the endgame

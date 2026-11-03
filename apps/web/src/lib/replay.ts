@@ -287,8 +287,8 @@ export interface Endgame<T> {
     // The hider's zone; null if the hider's positions don't show it.
     zone: T | null;
     // What showed it: the seekers' positions, or (without those) the board
-    // being cleared.
-    by: "arrival" | "clear";
+    // being cleared, or the game's log.
+    by: "arrival" | "clear" | "log";
 }
 
 /**
