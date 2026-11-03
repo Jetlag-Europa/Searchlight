@@ -2097,6 +2097,20 @@ describe("a decision over a question restored meanwhile", () => {
         expect(server.list).toEqual([q(0.1), mine, two]);
     });
 
+    test("keeps a copy that was on the board beside it already", async () => {
+        // A copy of it, alike, below a curse: another question by now.
+        const curse = q(0.5, "curse");
+        const beside = copyOf(original, 0.9);
+        snapshot([original, curse, beside], 4);
+        const server = fakeServer(4, [original, curse, beside]);
+        server.other([answered, curse, beside]);
+        await edit([curse, beside]);
+        expect(held()).toMatchObject([{ key: 0.2, kind: "we-deleted" }]);
+        resolveQuestionConflict(SID, 0.2, "theirs");
+        await saveBoard();
+        expect(server.list).toEqual([answered, curse, beside]);
+    });
+
     test("keeping their edit of one we deleted drops our Undo's copy", async () => {
         snapshot([q(0.1), original], 4);
         const server = fakeServer(4, [q(0.1), original]);

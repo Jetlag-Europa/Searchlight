@@ -48,7 +48,7 @@ import {
     sameQuestionSubstance,
 } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
-import { withoutCopiesOf } from "@/lib/questionUndo";
+import { isCopyOf, withoutCopiesOf } from "@/lib/questionUndo";
 import type { QuestionsSaved } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -91,6 +91,9 @@ export interface QuestionConflict {
     author?: QuestionConflictAuthor | null;
     // `theirs` changed again after it was first held.
     changedAgain?: boolean;
+    // Keys of copies of it (Restore's) in the list both sides started from:
+    // other questions, not ones put back since.
+    baseCopies?: number[];
     detectedAt: number;
 }
 
@@ -344,6 +347,12 @@ export function recordQuestionConflicts(
             theirsSequence,
             detectedAt,
         };
+        const baseCopies = madeFrom
+            ? baseQuestions(madeFrom)
+                  .filter((q) => isCopyOf(q, found.key))
+                  .map((q) => q.key)
+            : [];
+        if (baseCopies.length > 0) record.baseCopies = baseCopies;
         if (
             before &&
             (before.changedAgain ||
@@ -772,7 +781,12 @@ function resolve(
         // Deleted on one side and kept, it is back: a copy Restore or Undo
         // put back meanwhile would be a second version of it.
         if (kept && conflict.kind !== "both-changed") {
-            board = withoutCopiesOf(board, conflict.key, conflict.base);
+            board = withoutCopiesOf(
+                board,
+                conflict.key,
+                conflict.base,
+                conflict.baseCopies,
+            );
         }
     }
     refresh();

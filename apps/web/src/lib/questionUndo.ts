@@ -110,6 +110,23 @@ export function asRestored<T extends { key: number; data: object }>(
     };
 }
 
+// Whether `q` is the question with `key` or a copy of it, and not one of
+// another question in `beside` (on the board beside it) or a copy of that.
+function standsFor(
+    q: { key: number },
+    key: number,
+    beside: readonly number[],
+): boolean {
+    const lineage = [...restoredFrom(q), q.key];
+    const at = lineage.findIndex((k) => sameQuestionKey(k, key));
+    return (
+        at !== -1 &&
+        !lineage
+            .slice(at + 1)
+            .some((k) => beside.some((other) => sameQuestionKey(other, k)))
+    );
+}
+
 /**
  * The question a deleted one is back on the board as, if it is: under its
  * key (Undo put it back), or a copy of it, edited since or not. Not one that
@@ -121,15 +138,9 @@ export function backAs<T extends { key: number }>(
     board: readonly T[],
     order: readonly number[] = [],
 ): T | undefined {
-    const inOrder = (key: number) => order.some((k) => sameQuestionKey(k, key));
-    const comesBack = (q: T) => {
-        const lineage = [...restoredFrom(q), q.key];
-        const at = lineage.findIndex((k) => sameQuestionKey(k, removed.key));
-        return at !== -1 && !lineage.slice(at + 1).some(inOrder);
-    };
     return (
         board.find((q) => sameQuestionKey(q.key, removed.key)) ??
-        board.find(comesBack)
+        board.find((q) => standsFor(q, removed.key, order))
     );
 }
 
@@ -158,12 +169,13 @@ export function placeRestored<T extends { key: number }>(
  * the version it was deleted from (or as Restore re-read it, defaults filled
  * in): kept, the question itself is back, and they would be a second
  * version of it shaping the zone. A copy changed since is someone's edit,
- * and stays.
+ * and stays, as do those in `beside`, on the board beside it before.
  */
 export function withoutCopiesOf<T extends { key: number }>(
     board: readonly T[],
     key: number,
     was: unknown,
+    beside: readonly number[] = [],
 ): T[] {
     const untagged = (q: unknown) => ({
         ...(q as object),
@@ -175,7 +187,8 @@ export function withoutCopiesOf<T extends { key: number }>(
     );
     return board.filter(
         (q) =>
-            !isCopyOf(q, key) ||
+            sameQuestionKey(q.key, key) ||
+            !standsFor(q, key, beside) ||
             !versions.some((v) => sameQuestionSubstance(untagged(q), v)),
     );
 }
