@@ -157,6 +157,9 @@ function SessionInviteDrawer({
             }
             markActiveSessionShared(session.id);
             const data: CreateLinkResponse = await res.json();
+            // The board moved to another session meanwhile: this link isn't
+            // the one to copy now.
+            if (activeSessionData.get()?.id !== session.id) return;
             // Listed right away, so its "Copied!" shows for the full 2 s.
             createdLinkIds.current.add(data.id);
             setLinks((prev) => [

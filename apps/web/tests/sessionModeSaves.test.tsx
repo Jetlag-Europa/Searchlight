@@ -267,6 +267,7 @@ import {
     savePlanningModeToServer,
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
+import { SESSION_ROLE_CHANGED_EVENT } from "@/lib/sseManager";
 import { flushPendingEvents } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -1009,6 +1010,43 @@ describe("the session picker", () => {
         expect(buttons()).toContain("Try again");
     });
 
+    it("gives up on a server recheck that doesn't come", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        server = { a: session("a") };
+        await reload("");
+        fetchMock.mockImplementation((input, init) =>
+            new URL(String(input)).search === "?recheck=true"
+                ? new Promise((_, reject) =>
+                      init?.signal?.addEventListener("abort", () =>
+                          reject(init.signal!.reason),
+                      ),
+                  )
+                : defaultFetch(input),
+        );
+        await click((text) => text === "Check again");
+        expect(buttons()).toContain("Checking…");
+
+        await wait(DETAILS_TIMEOUT_MS);
+        expect(buttons()).toContain("Check again");
+        expect(pageText()).toContain("Failed to load servers");
+    });
+
+    it("gives focus back to the board once it can take it", async () => {
+        const mapBoard = board();
+        server = { a: session("a") };
+        await reload("a");
+        await click((text) => text === "change");
+        expect(mapBoard.inert).toBe(true);
+        const opener = [...env.document.body.walk()].find(
+            (n) => n.nodeName === "BUTTON" && n.textContent === "change",
+        )!;
+        const focusedWhileInert: unknown[] = [];
+        opener.focus = () => void focusedWhileInert.push(mapBoard.inert);
+
+        await click((text) => text === "Back to board");
+        expect(focusedWhileInert).toEqual([false]);
+    });
+
     it("creates one session when Enter is pressed twice", async () => {
         vi.mocked(fetchGameCatalog).mockResolvedValueOnce([
             { id: "game-1", name: "Game" } as Game,
@@ -1216,6 +1254,49 @@ describe("a session deleted since the picker listed it", () => {
 });
 
 describe("a role changed while the session loads", () => {
+    const roleChanged = (role: string) =>
+        act(async () => {
+            window.dispatchEvent(
+                new CustomEvent(SESSION_ROLE_CHANGED_EVENT, {
+                    detail: { sessionId: "a", userId: USER, role },
+                }),
+            );
+        });
+
+    it("ignores a role check the server answered before a later change", async () => {
+        server = { a: session("a", { role: "member" }) };
+        // The check after the load (the second read of the details) is slow.
+        let answerCheck: (res: Response) => void = () => {};
+        let detailsReads = 0;
+        fetchMock.mockImplementation(async (input) => {
+            const isDetails = new URL(String(input)).pathname === "/sessions/a";
+            if (isDetails && ++detailsReads === 2) {
+                return new Promise<Response>((resolve) => (answerCheck = resolve));
+            }
+            return defaultFetch(input);
+        });
+        await reload("a");
+        expect(detailsReads).toBe(2);
+
+        // Made a spectator, then a player again, while it waits.
+        server.a = session("a", { role: "viewer" });
+        await roleChanged("viewer");
+        await settle();
+        server.a = session("a", { role: "member" });
+        await roleChanged("member");
+        await settle();
+        expect(activeSessionRole.get()).toBe("member");
+
+        const roles: unknown[] = [];
+        const stop = activeSessionRole.subscribe((role) => roles.push(role));
+        await act(async () =>
+            answerCheck(json(session("a", { role: "viewer" }))),
+        );
+        await settle();
+        stop();
+        expect(roles).not.toContain("viewer");
+    });
+
     it("shows once the load is done", async () => {
         // The real reads, which keep the copy that must not keep the hider.
         const actual =

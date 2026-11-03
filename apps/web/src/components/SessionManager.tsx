@@ -330,7 +330,11 @@ function SessionPickerOverlay({
     // Discord again on request, for someone who just joined one.
     const recheckServers = () => {
         setRecheckingServers(true);
-        fetch(`${API_BASE}/servers?recheck=true`, { credentials: "include" })
+        const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+        fetch(`${API_BASE}/servers?recheck=true`, {
+            credentials: "include",
+            signal: deadline.signal,
+        })
             .then(async (res) => {
                 if (!res.ok) throw new Error(`${res.status}`);
                 const data: ServersResponse = await res.json();
@@ -342,7 +346,10 @@ function SessionPickerOverlay({
             .catch((e: Error) =>
                 setError(`Failed to load servers: ${e.message}`),
             )
-            .finally(() => setRecheckingServers(false));
+            .finally(() => {
+                deadline.clear();
+                setRecheckingServers(false);
+            });
     };
 
     const loadSessionsForServer = useCallback(
@@ -1081,7 +1088,13 @@ export function SessionManager() {
         setShowPicker(false);
     }, []);
     // The board behind the picker is inert, and so is the user chip (it reads
-    // sessionPickerOpen). Focus returns once they aren't.
+    // sessionPickerOpen). Nor is the board played on while a load replaces
+    // it: what was typed meanwhile would be replaced too, and not saved.
+    // Before focus returns to the board, below.
+    useEffect(() => {
+        const board = document.getElementById("map-board");
+        if (board) board.inert = showPicker || loading;
+    }, [showPicker, loading]);
     useEffect(() => {
         sessionPickerOpen.set(showPicker);
         // Back on the board: a background recheck waited for the picker.
@@ -1095,12 +1108,6 @@ export function SessionManager() {
             pickerOpenerRef.current = null;
         }
     }, [showPicker]);
-    // Nor is the board played on while a load replaces it: what was typed
-    // meanwhile would be replaced too, and not saved.
-    useEffect(() => {
-        const board = document.getElementById("map-board");
-        if (board) board.inert = showPicker || loading;
-    }, [showPicker, loading]);
     // Back from a field a background check waited for. Once the field's
     // own handlers have put what was typed on the board, to be saved.
     useEffect(() => {
@@ -1975,7 +1982,11 @@ export function SessionManager() {
     // Check the active session again: reload it if this user's role in it
     // changed, and with `forgetIfGone`, forget it if it's gone.
     const checkSession = async (id: string, forgetIfGone: boolean) => {
+        // A load started meanwhile reads the session itself, and an answer
+        // from before it (a role changed back since) mustn't undo it.
+        const generation = sessionLoadGenerationRef.current;
         const details = await fetchSessionDetails(id);
+        if (generation !== sessionLoadGenerationRef.current) return;
         if (activeSessionId.get() !== id) return;
         if (details.kind === "unavailable" && forgetIfGone) {
             forgetSession(id, details.status);
