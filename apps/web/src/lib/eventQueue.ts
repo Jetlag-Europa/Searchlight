@@ -4,7 +4,7 @@ import type {
     SessionVisibility,
 } from "@searchlight/shared";
 
-import type { StrokeFeature } from "@/annotations/types";
+import { isStrokeLike, type StrokeFeature } from "@/annotations/types";
 import {
     isSessionReadOnly,
     offlineUserId,
@@ -216,7 +216,8 @@ export function isQuestionsBase(value: unknown): value is QuestionsBase {
     );
 }
 
-function isSessionSummary(
+// The details of the session asked for, as the server sends them.
+export function isSessionSummary(
     value: unknown,
     sessionId: string,
 ): value is GameSessionSummary {
@@ -527,7 +528,9 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
             session: isSessionSummary(parsed.session, sessionId)
                 ? parsed.session
                 : undefined,
-            strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
+            strokes: Array.isArray(parsed.strokes)
+                ? parsed.strokes.filter(isStrokeLike)
+                : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
             lastSyncedAt:
                 typeof parsed.lastSyncedAt === "number"
@@ -849,7 +852,8 @@ export function applyPendingEventsToState(
     let { strokes, questions } = base;
     for (const event of events) {
         if (event.type === "stroke.create") {
-            const stroke = event.payloadJson as StrokeFeature;
+            const stroke = event.payloadJson;
+            if (!isStrokeLike(stroke)) continue;
             if (
                 !strokes.find(
                     (s) =>
@@ -860,7 +864,10 @@ export function applyPendingEventsToState(
                 strokes = [...strokes, stroke];
             }
         } else if (event.type === "stroke.delete") {
-            const { clientUuid } = event.payloadJson as { clientUuid: string };
+            const clientUuid = (
+                event.payloadJson as { clientUuid?: unknown } | null
+            )?.clientUuid;
+            if (typeof clientUuid !== "string") continue;
             strokes = strokes.filter(
                 (s) => s.properties.clientUuid !== clientUuid,
             );

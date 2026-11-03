@@ -12,6 +12,13 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - The instance's admins (`ADMIN_DISCORD_IDS`) see on `/admin` how many Google map loads each Discord user caused this month, and per day, against the 10,000 free a month. The app counts one when it creates its Google map, the same moment Google bills one.
 - **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key. The API has a new table for the load counts (migration `20261103120000_google_map_loads`) and routes `POST /me/google-map-loads` and `GET /admin/google-map-loads`.
 
+## A session that can't load keeps your edits and recovers by itself (2026-11-03)
+
+- A session is only forgotten, with the edits not yet sent from this device, when the server says it was deleted or you lost access to it. Any other error, such as a server update in progress, no longer drops you on the session list.
+- When a session can't be loaded, the board shows the copy saved on this device and says so. Once the server answers again, the board reloads by itself and sends your edits, without reloading the page.
+- Loading a session no longer hangs behind the spinner: after at most a minute the board shows the saved copy and keeps trying. A game still downloading by then shows once it arrives, with the "game not loaded" banner until it does.
+- After a reload that couldn't reach the server, the first question you added is now saved.
+
 ## First mode change after a reload is saved (2026-11-03)
 
 - After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.

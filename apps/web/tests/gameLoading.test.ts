@@ -208,6 +208,31 @@ describe("game loading concurrency", () => {
         expect(gameDefinitionReady.get()).toBe(false);
     });
 
+    // A session load starts the game before it activates the session.
+    it("applies a switch to the session it was for once that one is active", async () => {
+        activeSessionId.set("session-zero");
+        const request = deferred<Response>();
+        vi.spyOn(globalThis, "fetch").mockReturnValue(request.promise);
+        const loaded = switchToGame(game, pinned);
+        setActiveSession(pinnedSession);
+        request.resolve(response(500));
+
+        expect(await loaded).toBe(true);
+        expect(appliedRadius()).toBe(500);
+    });
+
+    it("does not apply a switch once another session is active", async () => {
+        activeSessionId.set("session-zero");
+        const request = deferred<Response>();
+        vi.spyOn(globalThis, "fetch").mockReturnValue(request.promise);
+        const loaded = switchToGame(game, pinned);
+        activeSessionId.set("session-three");
+        request.resolve(response(500));
+
+        expect(await loaded).toBe(false);
+        expect(compiledGameAtom.get()).toBeNull();
+    });
+
     it("isolates session access for the same pinned revision, including fulfilled cache entries", async () => {
         const firstRequest = deferred<Response>();
         const secondRequest = deferred<Response>();

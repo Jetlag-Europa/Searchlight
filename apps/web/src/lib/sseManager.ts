@@ -8,12 +8,13 @@ import {
     isStrokeTombstoned,
     recordStrokeTombstone,
 } from "@/annotations/storage/serverStore";
-import type { StrokeFeature } from "@/annotations/types";
+import { isStrokeLike } from "@/annotations/types";
 import {
     compiledGameAtom,
     filterSupportedQuestions,
 } from "@/game-definition/store";
 import { isSessionReadOnly } from "@/lib/activeSession";
+import { RETRY_MAX_MS, RETRY_MIN_MS } from "@/lib/backoffRetry";
 import type { PresenceUser } from "@/lib/context";
 import {
     connectedUsers,
@@ -47,6 +48,7 @@ import {
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
 } from "@/lib/sessionState";
+import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import {
     onQuestionsSaved,
     questionsSavedByEcho,
@@ -71,15 +73,10 @@ let onSessionUnavailable: ((status: number) => void) | undefined;
 let streamOpened = false;
 const MAX_BUFFERED_EVENTS = 500;
 
-// Failed replays and closed streams retry with a doubling, capped delay.
-const RETRY_MIN_MS = 3_000;
-const RETRY_MAX_MS = 30_000;
+// Failed replays and closed streams retry with a doubling, capped delay
+// (RETRY_MIN_MS, RETRY_MAX_MS).
 let replayRetryDelay = RETRY_MIN_MS;
 let reconnectDelay = RETRY_MIN_MS;
-
-function isUnavailableStatus(status: number): boolean {
-    return status === 403 || status === 404;
-}
 
 // The session was deleted or this user lost access: retrying cannot help.
 function sessionUnavailable(sessionId: string, status: number): void {
@@ -263,8 +260,15 @@ function handleServerEvent(
     });
 
     if (event.type === "stroke.create") {
-        const stroke = event.payloadJson as StrokeFeature;
-        const clientUuid = stroke.properties?.clientUuid;
+        const stroke = event.payloadJson;
+        if (!isStrokeLike(stroke)) {
+            console.warn(
+                "[searchlight:sse] skipping a malformed stroke:",
+                stroke,
+            );
+            return;
+        }
+        const clientUuid = stroke.properties.clientUuid;
         if (clientUuid) {
             if (isStrokeTombstoned(clientUuid)) {
                 console.info(
@@ -502,11 +506,15 @@ async function gapFill(
             const url = `${API_BASE}/sessions/${sessionId}/events?after=${after}&limit=50`;
             const res = await fetch(url, { credentials: "include" });
             if (!isCurrent()) return;
-            if (isUnavailableStatus(res.status)) {
-                unavailableStatus = res.status;
-                break;
+            if (!res.ok) {
+                const unavailable = await sessionUnavailableStatus(res);
+                if (!isCurrent()) return;
+                if (unavailable !== null) {
+                    unavailableStatus = unavailable;
+                    break;
+                }
+                throw new Error(`Gap fill failed: ${res.status}`);
             }
-            if (!res.ok) throw new Error(`Gap fill failed: ${res.status}`);
             const data = (await res.json()) as {
                 events: EventRecord[];
                 nextAfter: number | null;
@@ -589,7 +597,8 @@ function drainBufferedEvents(sessionId: string, generation: number): void {
 
 /**
  * Stream live events for `sessionId`. `onUnavailable` is called, after the
- * stream has stopped, once the server answers 403 or 404 for the session.
+ * stream has stopped, once the server answers 403 or 404 for the session
+ * (see sessionUnavailableStatus).
  */
 export function startSSE(
     sessionId: string,
@@ -637,8 +646,11 @@ function scheduleReconnect(sessionId: string, generation: number): void {
             console.warn("[searchlight:sse] reconnect check failed:", err);
         }
         if (!isCurrent()) return;
-        if (res && isUnavailableStatus(res.status)) {
-            sessionUnavailable(sessionId, res.status);
+        const unavailable =
+            res && !res.ok ? await sessionUnavailableStatus(res) : null;
+        if (!isCurrent()) return;
+        if (unavailable !== null) {
+            sessionUnavailable(sessionId, unavailable);
         } else if (res?.ok) {
             openStream(sessionId, generation);
         } else {
