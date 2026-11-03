@@ -347,11 +347,14 @@ export function recordQuestionConflicts(
             theirsSequence,
             detectedAt,
         };
-        const baseCopies = madeFrom
-            ? baseQuestions(madeFrom)
-                  .filter((q) => isCopyOf(q, found.key))
-                  .map((q) => q.key)
-            : [];
+        // As when first held: a later base may have a copy put back since.
+        const baseCopies = before
+            ? (before.baseCopies ?? [])
+            : madeFrom
+              ? baseQuestions(madeFrom)
+                    .filter((q) => isCopyOf(q, found.key))
+                    .map((q) => q.key)
+              : [];
         if (baseCopies.length > 0) record.baseCopies = baseCopies;
         if (
             before &&

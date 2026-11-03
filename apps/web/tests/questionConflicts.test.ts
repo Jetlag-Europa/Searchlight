@@ -59,6 +59,7 @@ import {
     questionConflictArrivals,
     questionConflicts,
     reconcileQuestionConflicts,
+    recordQuestionConflicts,
     resolveAllQuestionConflicts,
     resolveQuestionConflict,
     setQuestionDecisionsPossible,
@@ -2109,6 +2110,38 @@ describe("a decision over a question restored meanwhile", () => {
         resolveQuestionConflict(SID, 0.2, "theirs");
         await saveBoard();
         expect(server.list).toEqual([answered, curse, beside]);
+    });
+
+    test("keeps to the copies there when it was first held", () => {
+        snapshot([q(0.1), original], 4);
+        const held = (theirs: Q, sequence: number, base: Q[]) =>
+            recordQuestionConflicts(
+                SID,
+                [
+                    {
+                        key: 0.2,
+                        kind: "we-deleted",
+                        mine: null,
+                        theirs,
+                        base: original,
+                        theirsAfterKey: 0.1,
+                    },
+                ],
+                {
+                    baseSequence: 4,
+                    theirsSequence: sequence,
+                    madeFrom: { sequence: 4, questions: base },
+                },
+            );
+        held(answered, 5, [q(0.1), original]);
+        // Asked about anew from a base that has our Undo's copy since.
+        held(q(0.2, "same", { within: false, radius: 9 }), 6, [
+            q(0.1),
+            original,
+            copyOf(original, 0.9),
+        ]);
+        expect(stored()).toHaveLength(1);
+        expect(stored()[0].baseCopies ?? []).toEqual([]);
     });
 
     test("keeping their edit of one we deleted drops our Undo's copy", async () => {

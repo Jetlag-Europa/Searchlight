@@ -39,6 +39,9 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
             type: presetTypeHint || data.type || "custom",
             data: safeClone(data),
         };
+        // What it was restored from is this question's alone (an older
+        // build applying a shared preset would copy it).
+        delete toSave.data.restoredFrom;
         const p = saveCustomPreset(toSave);
         toast.success(`Saved preset "${p.name}"`);
     };
