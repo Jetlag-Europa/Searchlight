@@ -193,7 +193,10 @@ describe("undoing a delete", () => {
             { baseSequence: 1, theirsSequence: 2 },
         );
         expect(questionConflicts.get()).toHaveLength(1);
+        const shown = toasts.length;
         lastToast().undo!();
+        // It's back because of the Undo: no "Already on the board".
+        expect(toasts).toHaveLength(shown);
         // Not a stale copy beside it, nor a decision about a delete taken back.
         expect(labels()).toEqual(["a", "b edited", "c"]);
         expect(keys()).toEqual([1, 2, 3]);

@@ -125,6 +125,7 @@ export function undoQuestionDeletion(
 ): UndoneDeletion | null {
     if (sessionReadOnly.get()) return null;
     if (activeSessionId.get() !== deletion.sessionId) return null;
+    const before = questions.get();
     // Held as "we deleted it": their version stands, and goes on the board.
     for (const { key, mine } of questionConflicts.get()) {
         if (
@@ -140,7 +141,10 @@ export function undoQuestionDeletion(
     const missing = deletion.removed.filter(
         ({ question }) => !backAs(question, current, deletion.order),
     );
-    const alreadyBack = deletion.removed.length - missing.length;
+    // Back before this Undo: one it put back as theirs isn't.
+    const alreadyBack = deletion.removed.filter(({ question }) =>
+        backAs(question, before, deletion.order),
+    ).length;
     if (missing.length === 0) return { placed: [], alreadyBack };
     if (!questionListSentSince(deletion.sessionId, deletedAt)) {
         const next = undoDeletion(

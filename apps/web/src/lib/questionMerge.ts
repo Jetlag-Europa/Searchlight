@@ -302,18 +302,16 @@ function mergeLists<Q>(
             // Changed there to a version of ours that may have been saved
             // (its answer never came): our removal of it since stands.
             if (was !== undefined && ours(question)) return;
-            // One they added goes last. One they brought back (restored, or
-            // kept though we removed it) goes below every question above it
-            // there that is still in the list (else at the top), as Restore
-            // puts it: a zone-size curse applies to the questions below it.
-            let at = merged.length;
-            if (was !== undefined || Array.isArray(dataOf(question).restoredFrom)) {
-                const above = new Set(serverIds.slice(0, index));
-                at = 0;
-                mergedIds.forEach((m, i) => {
-                    if (above.has(m)) at = i + 1;
-                });
-            }
+            // Below every question above it there that is still in the list
+            // (else at the top), then below ours added there: a zone-size
+            // curse applies to the questions below it, so one restored above
+            // a curse, or added below one, stays so even if we moved it.
+            const above = new Set(serverIds.slice(0, index));
+            let at = 0;
+            mergedIds.forEach((m, i) => {
+                if (above.has(m)) at = i + 1;
+            });
+            while (at < mergedIds.length && !serverIndex.has(mergedIds[at])) at++;
             merged.splice(at, 0, question);
             mergedIds.splice(at, 0, id);
             if (was !== undefined && holds(question, question)) {
@@ -332,8 +330,8 @@ function mergeLists<Q>(
  * removed that they changed in substance is kept with their change, and one
  * they removed that we changed in substance is kept with ours; a change to
  * how it's shown (folded, locked) alone doesn't keep it. Our order comes
- * first, then their additions in theirs; one they brought back (restored,
- * or kept though we removed it) goes below the questions above it there.
+ * first; a question only they have goes below the questions above it there
+ * (and below ours added there).
  */
 export function mergeQuestionLists<Q>(
     base: readonly Q[],

@@ -48,10 +48,7 @@ describe("merging question lists", () => {
 
     test("is the server's list when nothing changed here", () => {
         const server = [q(3), q(1, "theirs")];
-        expect(mergeQuestionLists([q(1)], [q(1)], server)).toEqual([
-            q(1, "theirs"),
-            q(3),
-        ]);
+        expect(mergeQuestionLists([q(1)], [q(1)], server)).toEqual(server);
     });
 
     test("is our list when nothing changed there", () => {
@@ -307,12 +304,18 @@ describe("where a merge puts their additions", () => {
         expect(keys(mergeQuestionLists(base, local, server))).toEqual([1, 2, 9, 7, 3]);
     });
 
-    test("puts one they added last, as ever", () => {
-        // Even with a curse we moved: below it, as there.
+    test("keeps one they added below the curses above it there, and above those below it", () => {
+        // We moved the curse down meanwhile: still below it.
         const base = [radius(1), curse(9), radius(2), radius(3)];
         const local = [radius(1), radius(2), curse(9), radius(3)];
-        expect(keys(mergeQuestionLists(base, local, [radius(1), curse(9), radius(2), radius(4), radius(3)]))).toEqual([1, 2, 9, 3, 4]);
+        expect(keys(mergeQuestionLists(base, local, [radius(1), curse(9), radius(2), radius(4), radius(3)]))).toEqual([1, 2, 9, 4, 3]);
         expect(keys(mergeQuestionLists(base, local, [...base, radius(4)]))).toEqual([1, 2, 9, 3, 4]);
+        // We moved it to the bottom: still below it.
+        expect(
+            keys(mergeQuestionLists([radius(1), curse(9), radius(2), radius(5)], [radius(1), radius(2), radius(5), curse(9)], [radius(1), curse(9), radius(2), radius(4), radius(5)])),
+        ).toEqual([1, 2, 5, 9, 4]);
+        // Added above a curse there: above it here, below ours added.
+        expect(keys(mergeQuestionLists([radius(1), curse(9)], [radius(1), curse(9), radius(2)], [radius(1), radius(7), curse(9)]))).toEqual([1, 7, 9, 2]);
     });
 
     test("stays quick for long lists", () => {
