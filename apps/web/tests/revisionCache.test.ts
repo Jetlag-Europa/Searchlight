@@ -165,6 +165,29 @@ describe("kept game revisions", () => {
         await clearStoredRevisions();
     });
 
+    test("survive another store finishing while one cleans up", async () => {
+        // r1's cleanup lists the cache's keys while r2's store finishes.
+        const cache = await storage.open("searchlight-game-revisions-v1");
+        const keys = cache.keys.bind(cache);
+        let listing!: () => void;
+        let finishListing!: () => void;
+        const listed = new Promise<void>((r) => (listing = r));
+        const finished = new Promise<void>((r) => (finishListing = r));
+        vi.spyOn(cache, "keys").mockImplementationOnce(async () => {
+            listing();
+            await finished;
+            return keys();
+        });
+        const first = storeRevision("game", "r1", json("one"));
+        await listed;
+        await storeRevision("game", "r2", json("two"));
+        finishListing();
+        await first;
+
+        expect(await readStoredRevision("game", "r1")).toBeDefined();
+        expect(await readStoredRevision("game", "r2")).toBeDefined();
+    });
+
     test("survive a full disk as a no-op", async () => {
         const cache = await storage.open("searchlight-game-revisions-v1");
         vi.spyOn(cache, "put").mockRejectedValue(
@@ -219,6 +242,24 @@ describe("loading a session's game revision", () => {
         await vi.waitFor(async () =>
             expect((await readStoredRevision("game", "r1"))?.name).toBe("fixed"),
         );
+    });
+
+    test("doesn't keep a download that finishes after another account logged in", async () => {
+        let respond!: (response: Response) => void;
+        vi.spyOn(globalThis, "fetch").mockImplementation(
+            () => new Promise<Response>((r) => (respond = r)),
+        );
+        const load = loadGameDefinition("game", "r1", "s1");
+        await vi.waitFor(() => expect(respond).toBeDefined());
+        // u1 logs out (in another tab, say), and u2 logs in.
+        local.delete("taibled-authed-user");
+        await clearStoredRevisions();
+        local.set("taibled-authed-user", "u2");
+        respond(new Response(json("u1's game")));
+        await load;
+
+        await new Promise((r) => setTimeout(r, 0));
+        expect(entries()).toHaveLength(0);
     });
 
     test("never keeps an error", async () => {

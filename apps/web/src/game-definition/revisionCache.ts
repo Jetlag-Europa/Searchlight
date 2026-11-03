@@ -93,8 +93,12 @@ export async function storeRevision(
     gameId: string,
     revisionId: string,
     json: string,
+    // The account stored when the load started: if another one logged in
+    // meanwhile, its copy isn't theirs to keep.
+    owner = readStorage("localStorage", STORED_USER_KEY),
 ): Promise<void> {
-    if (!readStorage("localStorage", STORED_USER_KEY)) return;
+    if (!owner || readStorage("localStorage", STORED_USER_KEY) !== owner)
+        return;
     const cache = await openCache();
     if (!cache) return;
     const key = revisionKey(gameId, revisionId);
@@ -108,9 +112,11 @@ export async function storeRevision(
         // Copies no longer in the index (pruned, or kept by an index that
         // was cleared) go too.
         const dropped = new Set(touch(key));
+        const keys = await cache.keys();
+        // Read after the keys: a store that finished meanwhile is in both.
         const index = new Set(readIndex());
         await Promise.all(
-            (await cache.keys())
+            keys
                 .filter(
                     (request) =>
                         request.url !== key &&
