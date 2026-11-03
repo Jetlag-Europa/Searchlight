@@ -10,6 +10,12 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - On a phone or other touch screen, each row's Delete and Leave are always shown and big enough to tap. With a mouse they still appear on hover, and now also on keyboard focus.
 - Teammates who had the session open are told it was deleted, instead of landing on the session list without a word.
 
+## Casual Games (2026-11-03)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
 ## Question cards stay usable while the map calculates (2026-11-03)
 
 - While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves. Tapping a card's lock, hide or delete button, or **Add Question**, right after typing a question's name no longer does nothing.
