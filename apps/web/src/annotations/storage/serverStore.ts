@@ -5,7 +5,9 @@ import {
     enqueueEvent,
     getPendingEvents,
     markEventSynced,
+    type PendingEvent,
 } from "@/lib/eventQueue";
+import { sayStorageFull } from "@/lib/storageFull";
 import {
     assertMaySend,
     assertStrokeDeleted,
@@ -32,11 +34,20 @@ export function clearStrokeTombstones(): void {
 }
 
 function refreshSyncCounts(sessionId: string): void {
-    const count = getPendingEvents(sessionId).filter(
-        (e) => e.status === "pending" || e.status === "failed",
-    ).length;
+    const count = getPendingEvents(sessionId).length;
     pendingEventCount.set(count);
     if (count === 0) syncStatus.set("synced");
+}
+
+// Storage too full to queue a stroke's edit: said, and the board shows it
+// until a reload.
+function queueStrokeEdit(event: Parameters<typeof enqueueEvent>[0]): PendingEvent {
+    try {
+        return enqueueEvent(event);
+    } catch (err) {
+        sayStorageFull();
+        throw err;
+    }
 }
 
 export async function loadStrokesFromServer(
@@ -73,7 +84,7 @@ export async function saveStrokeToServer(
         return;
     }
 
-    const event = enqueueEvent({
+    const event = queueStrokeEdit({
         sessionId,
         type: "stroke.create",
         payloadJson: stroke,
@@ -122,7 +133,7 @@ export async function deleteStrokeFromServer(
     if (isSessionReadOnly(sessionId)) return;
     recordStrokeTombstone(clientUuid);
 
-    const event = enqueueEvent({
+    const event = queueStrokeEdit({
         sessionId,
         type: "stroke.delete",
         payloadJson: { clientUuid },

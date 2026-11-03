@@ -7,6 +7,9 @@
 // queued. From the 2026-11-03 release audit (SYNC-01, SYNC-03).
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
+// Each tab imports its modules again, under a document with no DOM.
+vi.mock("react-toastify", () => ({ toast: { error: vi.fn(), dismiss: vi.fn() } }));
+
 const SID = "s1";
 const store = new Map<string, string>();
 const storage = {
