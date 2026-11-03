@@ -11,15 +11,31 @@ const MIN_UPDATE_CHECK_GAP = 10 * 60 * 1000;
 const UPDATE_TOAST_ID = "service-worker-update";
 
 let registration: ServiceWorkerRegistration | undefined;
-let reloadsOnTakeOver = false;
 
 // A new build waits until the player chooses to reload, so a game is never
-// reloaded under them. Reloading activates it, and every open page that
-// offered it reloads into it: the old build's files leave the cache and the
-// server, so pages left on it couldn't load the rest of it.
+// reloaded under them. When a worker takes over from the one this page
+// loaded with (an update accepted here or in another tab, or a rollback
+// that activates at once), the page reloads, once: the old build's files
+// leave the cache and the server. The first install takes over a page that
+// had no worker without reloading it; an update it offers later does.
+let reloadsOnTakeOver = Boolean(navigator.serviceWorker?.controller);
+let reloading = false;
+navigator.serviceWorker?.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    if (!reloadsOnTakeOver) {
+        reloadsOnTakeOver = true;
+        return;
+    }
+    reloading = true;
+    window.location.reload();
+});
+
 const updateServiceWorker = registerSW({
     immediate: true,
     onNeedRefresh: showUpdateToast,
+    // The listener above reloads. registerSW's own would reload on every
+    // takeover, over and over in a second Chromium tab.
+    onNeedReload() {},
     onRegisteredSW(_url, registered) {
         registration = registered;
         if (registered) checkForUpdates(registered);
@@ -27,18 +43,8 @@ const updateServiceWorker = registerSW({
 });
 
 function showUpdateToast() {
-    // registerSW reloads only a page that had a service worker when it
-    // loaded, not one opened before the first install. Only a waiting update
-    // offers this, so the first install, which takes over open pages too,
-    // never reloads one.
-    if (!reloadsOnTakeOver) {
-        reloadsOnTakeOver = true;
-        navigator.serviceWorker.addEventListener(
-            "controllerchange",
-            () => window.location.reload(),
-            { once: true },
-        );
-    }
+    // A page opened without a worker reloads into the update it offers.
+    reloadsOnTakeOver = true;
     toast(
         () => (
             <div className="flex w-full items-center justify-between gap-3">

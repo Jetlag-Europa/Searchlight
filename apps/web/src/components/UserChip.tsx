@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import type { User } from "@searchlight/shared";
+import { toast } from "react-toastify";
 
 import { clearActiveSession } from "@/lib/activeSession";
 import { sessionPickerOpen } from "@/lib/context";
@@ -18,26 +19,32 @@ export function UserChip({ user, apiBase }: Props) {
 
     async function handleLogout() {
         try {
-            await fetch(`${apiBase}/auth/logout`, {
+            const res = await fetch(`${apiBase}/auth/logout`, {
                 method: "POST",
                 credentials: "include",
                 headers: { "X-CSRF": "1" },
             });
+            if (!res.ok) throw new Error(`${res.status}`);
         } catch (err) {
+            // Only the API can end the login: until it has, the login cookie
+            // still works, and leaving now would look logged out without
+            // being so.
             console.warn("[searchlight] logout request failed:", err);
-        } finally {
-            // Whatever the server answered, this browser forgets the account:
-            // nobody plays this browser's kept sessions while offline. Their
-            // snapshots and unsent edits stay, each in its owner's queue, for
-            // that account alone, after logging back in.
-            clearActiveSession();
-            forgetGameViews();
-            await forgetAccount();
-            console.info(
-                "[searchlight] logged out — active session, user and kept games cleared",
-            );
-            window.location.href = "/";
+            toast.error("Couldn't log out. Check your connection and try again.", {
+                toastId: "logout-failed",
+            });
+            return;
         }
+        // This browser forgets the account: nobody plays its kept sessions
+        // while offline. Their snapshots and unsent edits stay, each in its
+        // owner's queue, for that account alone, after logging back in.
+        clearActiveSession();
+        forgetGameViews();
+        await forgetAccount();
+        console.info(
+            "[searchlight] logged out — active session, user and kept games cleared",
+        );
+        window.location.href = "/";
     }
 
     return (
