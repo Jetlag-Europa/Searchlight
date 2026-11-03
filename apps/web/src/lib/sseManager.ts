@@ -195,10 +195,17 @@ async function runCatchUp(): Promise<void> {
             return { res, data };
         });
         if (!current()) return;
-        // Gone or refused: the stream finds that out itself.
         if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
-            stopCatchUp();
-            return;
+            // Gone or refused: the stream finds that out itself. A 403 or
+            // 404 that isn't the API's (a proxy's) may pass next time.
+            const notTheApis =
+                (res.status === 403 || res.status === 404) &&
+                (await sessionUnavailableStatus(res)) === null;
+            if (!current()) return;
+            if (!notTheApis) {
+                stopCatchUp();
+                return;
+            }
         }
         if (!data) throw new Error(`questions: ${res.status}`);
         stopCatchUp();

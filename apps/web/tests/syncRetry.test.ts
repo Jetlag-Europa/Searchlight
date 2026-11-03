@@ -483,6 +483,56 @@ describe("a request that never answers", () => {
         expect(getPendingEvents(SID)[0].status).toBe("failed");
     });
 
+    test("sends a saved list whose answer is cut off again, for the sequence it was saved at", async () => {
+        const list = [{ id: "radius", key: 1, data: {} }] as unknown as Questions;
+        mockFetch
+            .mockImplementationOnce(bodyHangs(200))
+            .mockResolvedValue(Response.json({ sequence: 1, duplicate: true }));
+        const save = saveQuestionsToServer(SID, list);
+        save.catch(() => {});
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+        await expect(save).rejects.toThrow();
+        // Not taken as saved without its sequence: still queued.
+        expect(getPendingEvents(SID)).toHaveLength(1);
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(body(1).replacementId).toBe(body(0).replacementId);
+        expect(getPendingEvents(SID)).toEqual([]);
+    });
+
+    test("gives each request of a merged save its own time", async () => {
+        setCachedSession({
+            sessionId: SID,
+            strokes: [],
+            questions: [] as unknown as Questions,
+            serverQuestions: { sequence: 3, questions: [] as unknown as Questions },
+            lastSyncedAt: 0,
+            lastSequence: 3,
+        });
+        // Each answer takes 40 seconds: refused, the server's list, saved.
+        const slow = (res: () => Response) => (_url: string, init?: RequestInit) =>
+            new Promise<Response>((resolve, reject) => {
+                const timer = setTimeout(() => resolve(res()), 40_000);
+                init?.signal?.addEventListener("abort", () => {
+                    clearTimeout(timer);
+                    reject(init.signal!.reason);
+                });
+            });
+        mockFetch
+            .mockImplementationOnce(
+                slow(() => Response.json({ code: "QUESTIONS_CHANGED" }, { status: 409 })),
+            )
+            .mockImplementationOnce(slow(() => Response.json({ sequence: 4, questions: [] })))
+            .mockImplementationOnce(slow(() => Response.json({ sequence: 5 })));
+        const save = saveQuestionsToServer(SID, [
+            { id: "radius", key: 1, data: {} },
+        ] as unknown as Questions);
+        await vi.advanceTimersByTimeAsync(120_000);
+        await save;
+        expect(mockFetch).toHaveBeenCalledTimes(3);
+        expect(getPendingEvents(SID)).toEqual([]);
+    });
+
     test("doesn't hold up erasing a stroke whose drawing never answered", async () => {
         const stroke = {
             type: "Feature",

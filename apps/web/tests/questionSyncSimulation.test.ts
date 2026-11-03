@@ -137,6 +137,17 @@ vi.stubGlobal("EventSource", MockES);
 vi.mock("react-toastify", () => ({
     toast: Object.assign(() => "toast", { dismiss: () => {} }),
 }));
+// A request waits here as long as the run makes it, while timers jump far
+// ahead: its timeout (REQUEST_TIMEOUT_MS in syncManager) would cut off most
+// requests. Timeouts are tested on their own (syncRetry, sseManager).
+vi.mock("@/lib/loadDeadline", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/loadDeadline")>()),
+    startLoadDeadline: () => ({
+        signal: new AbortController().signal,
+        race: <T,>(work: Promise<T>) => work,
+        clear: () => {},
+    }),
+}));
 
 let timerIds = 1000;
 let timerOrder = 0;

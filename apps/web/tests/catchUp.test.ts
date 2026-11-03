@@ -123,3 +123,22 @@ test("gives up on a read that never answers, and reads again", async () => {
     expect(reads).toBe(2);
     expect(questions.get()).toEqual([q(1), q(2)]);
 });
+
+test("reads again after a proxy's 403", async () => {
+    vi.useFakeTimers();
+    const event = lostAnswer();
+    let reads = 0;
+    mockFetch.mockImplementation(async (_url: string, init?: RequestInit) => {
+        if (init?.method === "PUT") return duplicate();
+        if (++reads > 1) return serverList();
+        return new Response("<html>Access denied</html>", {
+            status: 403,
+            headers: { "content-type": "text/html" },
+        });
+    });
+    startSSE(SID);
+    await sendPendingEvent(event);
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(reads).toBe(2);
+    expect(questions.get()).toEqual([q(1), q(2)]);
+});
