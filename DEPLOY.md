@@ -200,9 +200,16 @@ offered. The key ships to every browser, so in
 
 Google bills a map load each time the page creates its map, not per tile: a
 player costs about one per app start, whatever they zoom or pan, and only once
-they show Google's map. 10,000 loads a month are free. Google's terms don't
-allow caching its map, so offline the app uses CARTO Voyager, and a page
-printed from the browser leaves Google's map out.
+they choose Google's map (even if it never draws on a bad connection). 10,000 loads a month are free; Google Cloud shows the
+loads per day under the API's metrics. Google's terms don't allow caching its
+map, so offline the app uses CARTO Voyager, and a page printed from the
+browser leaves Google's map out. The terms also require telling users that
+the app includes Google Maps and linking Google's terms and privacy policy;
+Options does that under the basemap picker. Which terms apply depends on the
+billing account's country: outside the EEA they restrict using Google's map
+"with or near" non-Google maps. The app never shows both, but it does show
+CARTO Voyager by itself: while Google's map loads (Google's layer is on the
+map then, hidden), offline, and when Google can't load.
 
 ## Cloudflare Tunnel
 

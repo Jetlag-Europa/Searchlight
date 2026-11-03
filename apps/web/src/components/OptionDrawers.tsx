@@ -55,6 +55,8 @@ import {
     googleMapsAvailable,
     googleMapsProblem,
     googleMapTypeOf,
+    googleModuleFailed,
+    googleStandingIn,
 } from "@/lib/googleMaps";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
@@ -90,6 +92,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
+    const $googleStandingIn = useStore(googleStandingIn);
+    const $googleModuleFailed = useStore(googleModuleFailed);
     const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
     const $hideGooglePlaces = useStore(hideGooglePlaces);
@@ -290,6 +294,33 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             baseTileLayer.set(v as any)
                                         }
                                     />
+                                    {/* Google Maps Platform Terms 3.2.2(a). */}
+                                    {googleMapsAvailable && (
+                                        <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                            Searchlight includes Google Maps
+                                            features and content. Their use is
+                                            subject to the{" "}
+                                            <a
+                                                href="https://maps.google.com/help/terms_maps/"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-500 cursor-pointer"
+                                            >
+                                                Google Maps/Google Earth
+                                                Additional Terms of Service
+                                            </a>{" "}
+                                            and the{" "}
+                                            <a
+                                                href="https://policies.google.com/privacy"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-500 cursor-pointer"
+                                            >
+                                                Google Privacy Policy
+                                            </a>
+                                            .
+                                        </p>
+                                    )}
                                     {$baseTileLayer === "google" &&
                                         googleMapsAvailable && (
                                             <>
@@ -375,8 +406,18 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                     ? "Google Maps needs a connection. Showing CARTO Voyager until you're back online."
                                                     : $googleMapsProblem ===
                                                         "load-failed"
-                                                      ? "Google Maps couldn't load. Showing CARTO Voyager; it's tried again when the connection comes back."
+                                                      ? "Google Maps couldn't load. Showing CARTO Voyager; reload the page to try again."
                                                       : "Google Maps refused this site's key. Showing CARTO Voyager."}
+                                            </p>
+                                        )}
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable &&
+                                        !$googleMapsProblem &&
+                                        $googleStandingIn && (
+                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                {$googleModuleFailed
+                                                    ? "Part of Google Maps couldn't load, so it may not draw. Showing CARTO Voyager; reload the page to try again."
+                                                    : "Google Maps is still loading. Showing CARTO Voyager until it has drawn."}
                                             </p>
                                         )}
                                     <div className="flex flex-col items-center gap-2">

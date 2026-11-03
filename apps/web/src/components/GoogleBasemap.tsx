@@ -2,10 +2,10 @@ import "leaflet.gridlayer.googlemutant";
 
 import { useStore } from "@nanostores/react";
 import L from "leaflet";
-import { useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useMap } from "react-leaflet";
 
-import { activeSessionId } from "@/lib/activeSession";
+import { WORLD_BOUNDS } from "@/lib/basemap";
 import {
     googleMapType,
     hideGooglePlaces,
@@ -14,10 +14,13 @@ import {
 import {
     type GoogleLook,
     googleLook,
+    googleMapDrawn,
     googleMapTypeOf,
+    googleStandingIn,
     HIDE_PLACES_STYLES,
     loadGoogleMapsApi,
-    reportGoogleMapLoad,
+    viewTilesShown,
+    whenDrawn,
 } from "@/lib/googleMaps";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
@@ -26,6 +29,20 @@ import {
 // offline and back reuses this one instead of loading another.
 let layer: L.GridLayer | null = null;
 let applyLook: ((look: GoogleLook) => void) | null = null;
+// Whether the layer, Google's logo and its copyright are shown. They're hidden
+// while CARTO stands in, so the two maps never show together.
+let shown = false;
+
+/** Shows or hides Google's map, logo and copyright. */
+function showGoogle(googleMutant: any, show: boolean) {
+    shown = show;
+    googleMutant.setOpacity(show ? 1 : 0);
+    for (const container of [
+        googleMutant._logoContainer,
+        googleMutant._attributionContainer,
+    ])
+        if (container) container.style.display = show ? "" : "none";
+}
 
 // GoogleMutant's own default. Google's map stops short of it where it has no
 // closer imagery, and GoogleMutant then enlarges the closest tiles it has.
@@ -50,6 +67,9 @@ function googleLayer(): L.GridLayer {
         maxZoom: 21,
         minZoom: 2,
         noWrap: true,
+        // As CARTO's: no tiles past the world's edges, which Google, not
+        // wrapping, would never deliver.
+        bounds: WORLD_BOUNDS,
         // Google's own copyright comes with the map; this is ours, as on the
         // other basemaps.
         attribution: "Powered by Esri and Turf.js",
@@ -57,9 +77,10 @@ function googleLayer(): L.GridLayer {
         className: "google-basemap",
     }) as L.GridLayer;
     const googleMutant = layer as any;
-    // GoogleMutant creates the map once, on the layer's first add.
-    googleMutant.once("spawned", () =>
-        reportGoogleMapLoad(activeSessionId.get()),
+    // GoogleMutant moves the logo and copyright in once Google has drawn them
+    // (after this listener, hence the microtask): hide them if it isn't shown.
+    googleMutant.on("controls_ready", () =>
+        queueMicrotask(() => showGoogle(googleMutant, shown)),
     );
     applyLook = googleLook(
         {
@@ -123,29 +144,74 @@ function redrawWhenLoaded(googleMutant: any) {
     });
 }
 
-/** Google Maps' own map as the basemap, with its logo and copyright. */
-export const GoogleBasemap = () => {
+/**
+ * Google Maps' own map as the basemap, with its logo and copyright. Until
+ * Google has drawn the map's tiles it shows `children` (CARTO) instead, and
+ * keeps doing so if Google never does: on a weak connection the loader, a
+ * module or the tiles can take long or not come at all.
+ */
+export const GoogleBasemap = ({
+    active,
+    children,
+}: {
+    // Whether Google can show now; if not (offline, failing), only CARTO.
+    active: boolean;
+    children: ReactNode;
+}) => {
     const map = useMap();
+    const [drawn, setDrawn] = useState(false);
     const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
     const $hideGooglePlaces = useStore(hideGooglePlaces);
 
     useEffect(() => {
+        if (!active) return;
         let mounted = true;
+        let stopWaiting = () => {};
+        googleStandingIn.set(true);
         loadGoogleMapsApi()
             .then(() => {
                 if (!mounted) return;
-                googleLayer().addTo(map);
-                keepGoogleAttribution(layer);
+                const googleMutant = googleLayer() as any;
+                showGoogle(googleMutant, false);
+                // Before the layer is added: a look changed while it was off
+                // the map clears the tiles GoogleMutant kept, rather than
+                // drawing them first.
                 applyLook?.(chosenLook());
+                stopWaiting = whenDrawn(
+                    googleMutant,
+                    () =>
+                        viewTilesShown(googleMutant, (x, y, z) =>
+                            Object.assign(L.point(x, y), { z }),
+                        ),
+                    () => pendingRedraw !== null,
+                    () => setDrawn(true),
+                );
+                googleMutant.addTo(map);
+                keepGoogleAttribution(googleMutant);
             })
             // googleMapsProblem now says why, and the map falls back to CARTO.
             .catch(() => {});
         return () => {
             mounted = false;
+            stopWaiting();
+            googleStandingIn.set(false);
+            // CARTO is back in this commit (see below): wait for Google to
+            // draw again next time.
+            setDrawn(false);
             if (layer && map.hasLayer(layer)) map.removeLayer(layer);
         };
-    }, [map]);
+    }, [map, active]);
+
+    // CARTO goes in this commit's cleanup, and Google shows in the same task,
+    // so the browser never paints both or neither.
+    useEffect(() => {
+        // Not if Google was switched off in the same moment (offline).
+        if (!drawn || !active || !layer) return;
+        showGoogle(layer, true);
+        googleStandingIn.set(false);
+        googleMapDrawn();
+    }, [drawn, active]);
 
     // Only while the layer is on the map: Google draws nothing for a map
     // that isn't on the page, and the load above applies the settings when it
@@ -154,5 +220,5 @@ export const GoogleBasemap = () => {
         if (layer && map.hasLayer(layer)) applyLook?.(chosenLook());
     }, [map, $googleMapType, $showGoogleTransit, $hideGooglePlaces]);
 
-    return null;
+    return active && drawn ? null : children;
 };

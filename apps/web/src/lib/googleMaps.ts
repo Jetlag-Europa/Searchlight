@@ -13,28 +13,10 @@ export const GOOGLE_MAPS_API_KEY = (import.meta.env
 
 export const googleMapsAvailable = GOOGLE_MAPS_API_KEY !== "";
 
-/** Google Maps Platform's free map loads a month (Maps JavaScript API). */
-export const FREE_MAP_LOADS_PER_MONTH = 10_000;
-
-const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-/**
- * Tells the API that this page created its Google map, which Google bills as
- * a map load, for the counts on the admin page. Best effort: a lost report
- * only makes the count a little low.
- */
-export function reportGoogleMapLoad(sessionId: string): void {
-    fetch(`${API_BASE}/me/google-map-loads`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sessionId ? { sessionId } : {}),
-    }).catch(() => {});
-}
-
 /**
  * Why Google's map can't be shown right now, if it can't. "offline" clears
- * when the browser is back online; the others last until a reload.
+ * when the browser is back online, and "load-failed" is tried again then;
+ * "auth-failed" lasts until a reload.
  */
 export type GoogleMapsProblem = "offline" | "load-failed" | "auth-failed";
 export const googleMapsProblem = atom<GoogleMapsProblem | null>(
@@ -92,23 +74,155 @@ function loaderFailed(): void {
     failLoader = null;
 }
 
+// Whether this page's Google map has drawn its tiles once. Until it has, the
+// map shows CARTO (GoogleBasemap.tsx), and a failing Google module means it
+// won't draw at all.
+let drawn = false;
+
+/** Google's map has drawn its first tiles. */
+export function googleMapDrawn(): void {
+    drawn = true;
+    // Whatever module failed, the map didn't need it.
+    googleModuleFailed.set(false);
+}
+
+/** Set while CARTO stands in for a Google map that hasn't drawn yet. */
+export const googleStandingIn = atom(false);
+
+/** A module of Google's failed before its map drew: it may not draw. */
+export const googleModuleFailed = atom(false);
+
+/** The events of a Leaflet tile layer that whenDrawn listens to. */
+export interface TileEvents {
+    on(type: "load" | "loading" | "tileload", fn: () => void): unknown;
+    off(type: "load" | "loading" | "tileload", fn: () => void): unknown;
+}
+
+// Leaflet fades each tile in over 200 ms once it has loaded; a frame to spare.
+export const TILE_FADE_MS = 250;
+
+/** A tile's position, as Leaflet's GridLayer methods take it. */
+export interface TileCoords {
+    x: number;
+    y: number;
+    z: number;
+}
+
+/** What viewTilesShown reads of a Leaflet GridLayer (private parts). */
+export interface TileGrid {
+    _map?: { getCenter(): unknown; _animatingZoom?: boolean } | null;
+    _tileZoom?: number;
+    options?: { noWrap?: boolean };
+    _globalTileRange?: { min: { x: number }; max: { x: number } };
+    _tiles: Record<string, { loaded?: number }>;
+    _getTiledPixelBounds(center: any): unknown;
+    _pxBoundsToTileRange(bounds: any): {
+        min: { x: number; y: number };
+        max: { x: number; y: number };
+    };
+    _isValidTile(coords: any): boolean;
+    _tileCoordsToKey(coords: any): string;
+}
+
+/**
+ * Whether every tile on screen has loaded and faded in. The tiles on screen
+ * are worked out as Leaflet's GridLayer does when it requests them, not read
+ * from its `current` flag: that also covers tiles up to two beyond the
+ * screen, which Google may never deliver once they're off it.
+ */
+export function viewTilesShown(
+    grid: TileGrid,
+    tileCoords: (x: number, y: number, z: number) => TileCoords,
+    now = Date.now(),
+): boolean {
+    const zoom = grid._tileZoom;
+    // Mid-zoom the tiles asked for are around the target, not the center yet.
+    if (!grid._map || zoom === undefined || grid._map._animatingZoom)
+        return false;
+    // Leaflet counts columns past the world's edge as valid (the projection
+    // wraps), but a layer that doesn't wrap never gets tiles there.
+    const world = grid.options?.noWrap ? grid._globalTileRange : undefined;
+    const range = grid._pxBoundsToTileRange(
+        grid._getTiledPixelBounds(grid._map.getCenter()),
+    );
+    let onScreen = 0;
+    for (let y = range.min.y; y <= range.max.y; y++)
+        for (let x = range.min.x; x <= range.max.x; x++) {
+            if (world && (x < world.min.x || x > world.max.x)) continue;
+            const coords = tileCoords(x, y, zoom);
+            if (!grid._isValidTile(coords)) continue;
+            const loaded = grid._tiles[grid._tileCoordsToKey(coords)]?.loaded;
+            if (loaded === undefined || now - loaded < TILE_FADE_MS)
+                return false;
+            onScreen++;
+        }
+    return onScreen > 0;
+}
+
+/**
+ * Calls `drawn` once the layer shows its whole current view: every tile of
+ * it loaded (`viewReady`) and faded in, with no redraw of Google's tiles still
+ * to come (`redrawing`), which would replace them. Checked when tiles load or
+ * a view starts loading, and every TILE_FADE_MS besides: Leaflet's own "load"
+ * can stay away for good when a tile of an earlier view never arrives.
+ * Returns a function that stops waiting.
+ */
+export function whenDrawn(
+    layer: TileEvents,
+    viewReady: () => boolean,
+    redrawing: () => boolean,
+    drawn: () => void,
+): () => void {
+    const shows = () => viewReady() && !redrawing();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const check = () => {
+        if (!shows()) {
+            clearTimeout(timer);
+            timer = undefined;
+        } else
+            timer ??= setTimeout(() => {
+                timer = undefined;
+                // Still so after the fade: a view change or redraw meanwhile
+                // starts the wait over.
+                if (!shows()) return;
+                stop();
+                drawn();
+            }, TILE_FADE_MS);
+    };
+    const poll = setInterval(check, TILE_FADE_MS);
+    const events = ["load", "loading", "tileload"] as const;
+    const stop = () => {
+        clearTimeout(timer);
+        clearInterval(poll);
+        for (const type of events) layer.off(type, check);
+    };
+    for (const type of events) layer.on(type, check);
+    return stop;
+}
+
 if (typeof window !== "undefined") {
-    // The loader adds Google's main script, which can fail on its own on a
-    // bad connection. The loader then never calls back, and nothing of the
-    // API is defined, so a new loader can load it again.
     window.addEventListener(
         "error",
         (event) => {
             const target = event.target as HTMLScriptElement | null;
             if (
-                target?.tagName === "SCRIPT" &&
-                target.src.startsWith(
+                target?.tagName !== "SCRIPT" ||
+                !target.src.startsWith(
                     "https://maps.googleapis.com/maps-api-v3/",
                 )
-            ) {
-                target.remove();
-                loaderFailed();
-            }
+            )
+                return;
+            target.remove();
+            // The loader adds Google's main script, which can fail on its own
+            // on a bad connection. The loader then never calls back, and
+            // nothing of the API is defined, so a new loader can load it again.
+            if (!(window as any).google?.maps?.importLibrary)
+                return loaderFailed();
+            // A module the loaded API fetches later. Before the map has drawn
+            // it may be one it needs to (or only, say, its statistics): CARTO
+            // stands in until it draws either way, so only say so. After
+            // that, Google's map works without it.
+            if (!drawn) googleModuleFailed.set(true);
         },
         // Load errors don't bubble.
         true,
@@ -128,7 +242,10 @@ function loadBootstrap(): Promise<void> {
             "https://maps.googleapis.com/maps/api/js?" +
             new URLSearchParams({
                 key: GOOGLE_MAPS_API_KEY,
-                v: "weekly",
+                // GoogleMutant relies on Google's internals (tile URLs, where
+                // the logo sits): the quarterly release changes them least
+                // often.
+                v: "quarterly",
                 loading: "async",
                 callback: "__searchlightGoogleMapsReady",
             });
@@ -250,18 +367,21 @@ export function googleLook(
     let current = { ...initial };
     return (look: GoogleLook) => {
         let changed = false;
+        // Satellite is the bare photo: Google draws no lines or places on it,
+        // so changing those doesn't change its tiles.
+        const drawsLook = look.type !== "satellite";
         if (look.type !== current.type) {
             controls.setMapType(look.type);
             changed = true;
         }
         if (look.hidePlaces !== current.hidePlaces) {
             controls.setStyles(look.hidePlaces ? HIDE_PLACES_STYLES : []);
-            changed = true;
+            changed ||= drawsLook;
         }
         if (look.transit !== current.transit) {
             if (look.transit) controls.addGoogleLayer("TransitLayer");
             else controls.removeGoogleLayer("TransitLayer");
-            changed = true;
+            changed ||= drawsLook;
         }
         current = { ...look };
         if (changed) redraw();
