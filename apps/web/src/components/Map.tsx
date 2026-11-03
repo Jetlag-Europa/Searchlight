@@ -49,6 +49,11 @@ import {
     rememberGameView,
     savedGameView,
 } from "@/lib/gameView";
+import {
+    effectiveBasemap,
+    googleMapsAvailable,
+    googleMapsProblem,
+} from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
 import { installTestHook } from "@/lib/testHook";
@@ -71,6 +76,7 @@ import {
 } from "@/maps/mapResult";
 
 import { DraggableMarkers } from "./DraggableMarkers";
+import { GoogleBasemap } from "./GoogleBasemap";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
 import { MapPrint } from "./MapPrint";
 import { PolygonDraw } from "./PolygonDraw";
@@ -155,6 +161,9 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
                     />
                 );
             break;
+
+        case "google":
+            return <GoogleBasemap />;
 
         case "osmcarto":
             return (
@@ -254,7 +263,12 @@ const ADD_QUESTION_MENU_ITEMS = [
 
 export const Map = ({ className }: { className?: string }) => {
     const $questions = useStore(questions);
-    const $baseTileLayer = useStore(baseTileLayer);
+    const $chosenBasemap = useStore(baseTileLayer);
+    const $googleMapsProblem = useStore(googleMapsProblem);
+    const $baseTileLayer = effectiveBasemap($chosenBasemap, {
+        available: googleMapsAvailable,
+        problem: $googleMapsProblem,
+    });
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
     const $planningMode = useStore(planningModeEnabled);

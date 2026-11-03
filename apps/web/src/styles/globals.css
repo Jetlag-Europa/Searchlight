@@ -198,3 +198,24 @@ div.leaflet-control-attribution.leaflet-control {
 .zone-labels-hidden .zone-name-label {
     display: none !important;
 }
+
+/* Google's logo, which GoogleMutant moves into the bottom-left corner. Its
+   wrapper has no size, so the logo sat at the map's bottom edge, under the
+   scale bar; Google's terms want it uncovered. It gets its own box below. */
+.leaflet-bottom.leaflet-left > div:not(.leaflet-control) {
+    position: relative;
+    clear: both;
+    float: left;
+    width: 66px;
+    height: 26px;
+    margin: 0 0 5px 10px;
+}
+
+/* Google's terms don't allow keeping its map outside the API, so a page the
+   browser prints (Ctrl+P, Share → Print) leaves it out. Not visibility:
+   GoogleMutant marks each tile it copies visible, which would win. */
+@media print {
+    .google-basemap {
+        display: none !important;
+    }
+}
