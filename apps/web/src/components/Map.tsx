@@ -53,7 +53,6 @@ import {
     effectiveBasemap,
     googleMapsAvailable,
     googleMapsProblem,
-    printingWithoutGoogle,
 } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
@@ -266,11 +265,9 @@ export const Map = ({ className }: { className?: string }) => {
     const $questions = useStore(questions);
     const $chosenBasemap = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
-    const $printingWithoutGoogle = useStore(printingWithoutGoogle);
     const $baseTileLayer = effectiveBasemap($chosenBasemap, {
         available: googleMapsAvailable,
         problem: $googleMapsProblem,
-        printing: $printingWithoutGoogle,
     });
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);

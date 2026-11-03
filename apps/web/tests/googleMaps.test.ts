@@ -8,9 +8,9 @@ import {
     HIDE_PLACES_STYLES,
 } from "@/lib/googleMaps";
 
-const ok = { available: true, problem: null, printing: false } as const;
+const ok = { available: true, problem: null } as const;
 
-it("draws Google only when it is available, loads and isn't printed", () => {
+it("draws Google only when it is available and loads", () => {
     expect(effectiveBasemap("google", ok)).toBe("google");
     expect(effectiveBasemap("google", { ...ok, available: false })).toBe(
         "voyager",
@@ -21,9 +21,6 @@ it("draws Google only when it is available, loads and isn't printed", () => {
     expect(effectiveBasemap("google", { ...ok, problem: "auth-failed" })).toBe(
         "voyager",
     );
-    expect(effectiveBasemap("google", { ...ok, printing: true })).toBe(
-        "voyager",
-    );
 });
 
 it("leaves the other basemaps alone", () => {
@@ -32,7 +29,6 @@ it("leaves the other basemaps alone", () => {
             effectiveBasemap(chosen, {
                 available: false,
                 problem: "offline",
-                printing: true,
             }),
         ).toBe(chosen);
 });

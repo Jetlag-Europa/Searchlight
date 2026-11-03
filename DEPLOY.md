@@ -112,7 +112,8 @@ offered. The key ships to every browser, so in
 Google bills a map load each time the page creates its map, not per tile: a
 player costs about one per app start, whatever they zoom or pan, and only once
 they show Google's map. 10,000 loads a month are free. Google's terms don't
-allow caching its map, so offline and in prints the app uses CARTO Voyager.
+allow caching its map, so offline the app uses CARTO Voyager, and a page
+printed from the browser leaves Google's map out.
 
 ## Cloudflare Tunnel
 

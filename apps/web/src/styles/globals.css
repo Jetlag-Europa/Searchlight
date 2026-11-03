@@ -212,8 +212,7 @@ div.leaflet-control-attribution.leaflet-control {
 }
 
 /* Google's terms don't allow keeping its map outside the API, so a page the
-   browser prints (Ctrl+P, Share → Print) leaves it out. The app's own print
-   button switches to CARTO instead (GoogleBasemap.tsx). */
+   browser prints (Ctrl+P, Share → Print) leaves it out. */
 @media print {
     .google-basemap {
         visibility: hidden;

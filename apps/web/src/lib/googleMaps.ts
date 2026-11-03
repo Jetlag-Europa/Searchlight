@@ -43,27 +43,19 @@ export const googleMapsProblem = atom<GoogleMapsProblem | null>(
         : null,
 );
 
-/**
- * Set while the map is printed. Google's terms don't allow storing its map
- * outside the API, so prints use CARTO.
- */
-export const printingWithoutGoogle = atom(false);
-
 /** The basemap to draw for the chosen one: CARTO whenever Google can't be. */
 export function effectiveBasemap<T extends string>(
     chosen: T,
     {
         available,
         problem,
-        printing,
     }: {
         available: boolean;
         problem: GoogleMapsProblem | null;
-        printing: boolean;
     },
 ): T | "voyager" {
     if (chosen !== "google") return chosen;
-    return available && !problem && !printing ? chosen : "voyager";
+    return available && !problem ? chosen : "voyager";
 }
 
 if (typeof window !== "undefined") {

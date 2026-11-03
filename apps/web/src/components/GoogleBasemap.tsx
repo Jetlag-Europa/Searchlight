@@ -4,7 +4,6 @@ import { useStore } from "@nanostores/react";
 import L from "leaflet";
 import { useEffect } from "react";
 import { useMap } from "react-leaflet";
-import { toast } from "react-toastify";
 
 import { activeSessionId } from "@/lib/activeSession";
 import {
@@ -18,7 +17,6 @@ import {
     googleMapTypeOf,
     HIDE_PLACES_STYLES,
     loadGoogleMapsApi,
-    printingWithoutGoogle,
     reportGoogleMapLoad,
 } from "@/lib/googleMaps";
 
@@ -125,46 +123,6 @@ function redrawWhenLoaded(googleMutant: any) {
     });
 }
 
-// How long CARTO stays in for a print the user hasn't started yet, and for
-// one that started but never reported back (easyPrint only reports success).
-const PRINT_WAIT_MS = 60_000;
-const PRINT_RUN_MS = 5 * 60_000;
-
-/**
- * Google's terms don't allow keeping its map outside the API, and a print
- * is an image of the map. So choosing a print size switches the map to CARTO
- * first; the user picks the size again once it's drawn. Google comes back
- * when the print is done, or after a minute without one.
- */
-function printWithCarto(map: L.Map) {
-    return (event: MouseEvent) => {
-        const target = event.target as Element | null;
-        if (!target?.closest(".leaflet-control-easyPrint .easyPrintSizeMode"))
-            return;
-        event.stopPropagation();
-        event.preventDefault();
-        let timer = setTimeout(() => restore(), PRINT_WAIT_MS);
-        const started = () => {
-            clearTimeout(timer);
-            timer = setTimeout(() => restore(), PRINT_RUN_MS);
-        };
-        const restore = () => {
-            clearTimeout(timer);
-            map.off("easyPrint-start", started);
-            map.off("easyPrint-finished", restore);
-            printingWithoutGoogle.set(false);
-        };
-        map.on("easyPrint-start", started);
-        map.on("easyPrint-finished", restore);
-        printingWithoutGoogle.set(true);
-        toast.info(
-            "Google Maps can't be printed, so the print uses CARTO Voyager. Choose the size again to print.",
-            // Not top-right, where it would cover the print button.
-            { position: "top-center" },
-        );
-    };
-}
-
 /** Google Maps' own map as the basemap, with its logo and copyright. */
 export const GoogleBasemap = () => {
     const map = useMap();
@@ -174,10 +132,6 @@ export const GoogleBasemap = () => {
 
     useEffect(() => {
         let mounted = true;
-        // On the map's container: the print control may be added after this.
-        const onClick = printWithCarto(map) as EventListener;
-        const container = map.getContainer();
-        container.addEventListener("click", onClick, { capture: true });
         loadGoogleMapsApi()
             .then(() => {
                 if (!mounted) return;
@@ -189,7 +143,6 @@ export const GoogleBasemap = () => {
             .catch(() => {});
         return () => {
             mounted = false;
-            container.removeEventListener("click", onClick, { capture: true });
             if (layer && map.hasLayer(layer)) map.removeLayer(layer);
         };
     }, [map]);
