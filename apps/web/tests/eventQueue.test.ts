@@ -3,7 +3,6 @@ import {
     applyPendingEventsToState,
     applyPendingModes,
     applyUnsyncedEvents,
-    clearCachedSession,
     discardSessionData,
     enqueueEvent,
     evictOldCachedSessions,
@@ -11,7 +10,6 @@ import {
     markEventFailed,
     markEventSynced,
     getPendingEvents,
-    resetFailedEvents,
     setCachedSession,
     type PendingEvent,
 } from "@/lib/eventQueue";
@@ -118,32 +116,12 @@ describe("markEventSynced", () => {
     });
 });
 
-// ── markEventFailed / resetFailedEvents ──────────────────────────────────────
-describe("markEventFailed / resetFailedEvents", () => {
+// ── markEventFailed ──────────────────────────────────────────────────────────
+describe("markEventFailed", () => {
     test("sets status to failed", () => {
         const e = enqueueEvent(baseEvent({ clientUuid: "f1" }));
         markEventFailed(SID, e.localId);
         expect(getPendingEvents(SID)[0].status).toBe("failed");
-    });
-
-    test("resetFailedEvents sets all failed back to pending", () => {
-        const e1 = enqueueEvent(baseEvent({ clientUuid: "f2" }));
-        const e2 = enqueueEvent(baseEvent({ clientUuid: "f3" }));
-        markEventFailed(SID, e1.localId);
-        markEventFailed(SID, e2.localId);
-        resetFailedEvents(SID);
-        const events = getPendingEvents(SID);
-        expect(events.every((e) => e.status === "pending")).toBe(true);
-    });
-
-    test("resetFailedEvents leaves pending events untouched", () => {
-        const e1 = enqueueEvent(baseEvent({ clientUuid: "r1" }));
-        enqueueEvent(baseEvent({ clientUuid: "r2" })); // stays pending
-        markEventFailed(SID, e1.localId);
-        resetFailedEvents(SID);
-        expect(getPendingEvents(SID).every((e) => e.status === "pending")).toBe(
-            true,
-        );
     });
 });
 
@@ -289,22 +267,6 @@ describe("setCachedSession / getCachedSession", () => {
         const pending = getPendingEvents("session-0");
         expect(pending).toHaveLength(1);
         expect(pending[0].clientUuid).toBe("pending-preserve");
-    });
-});
-
-describe("clearCachedSession", () => {
-    test("removes cache while preserving pending queue", () => {
-        setCachedSession({
-            sessionId: SID,
-            strokes: [],
-            questions: [] as unknown as Questions,
-            lastSyncedAt: 0,
-            lastSequence: 0,
-        });
-        enqueueEvent(baseEvent({ clientUuid: "clr" }));
-        clearCachedSession(SID);
-        expect(getCachedSession(SID)).toBeNull();
-        expect(getPendingEvents(SID)).toHaveLength(1);
     });
 });
 
@@ -595,7 +557,7 @@ describe("applyPendingEventsToState", () => {
 });
 
 describe("applyUnsyncedEvents", () => {
-    test("replays pending and failed edits but not acknowledged ones", () => {
+    test("replays pending and failed edits", () => {
         enqueueEvent(
             baseEvent({ payloadJson: stroke("pending"), clientUuid: "a" }),
         );
@@ -603,24 +565,6 @@ describe("applyUnsyncedEvents", () => {
             baseEvent({ payloadJson: stroke("failed"), clientUuid: "b" }),
         );
         markEventFailed(SID, failed.localId);
-        const synced = enqueueEvent(
-            baseEvent({
-                type: "stroke.delete",
-                payloadJson: { clientUuid: "server" },
-                clientUuid: "c",
-            }),
-        );
-        // A stale "synced" entry from an older queue must not be replayed.
-        store.set(
-            `taibled-pending-${SID}`,
-            JSON.stringify(
-                getPendingEvents(SID).map((event) =>
-                    event.localId === synced.localId
-                        ? { ...event, status: "synced" }
-                        : event,
-                ),
-            ),
-        );
 
         const result = applyUnsyncedEvents(SID, {
             strokes: [stroke("server")],

@@ -41,11 +41,20 @@ export function plainTextNotFound(): Response {
     });
 }
 
+/** A proxy's or firewall's block page, which only reaches the app on a same-origin setup. */
+export function htmlForbidden(): Response {
+    return new Response("<html><body>Access denied</body></html>", {
+        status: 403,
+        headers: { "content-type": "text/html" },
+    });
+}
+
 /**
- * 404s that say nothing about the session: one for a route the running API
- * doesn't have (an older or newer build), and a proxy's.
+ * 403s and 404s that say nothing about the session: a 404 for a route the
+ * running API doesn't have (an older or newer build), and a proxy's.
  */
 export const notTheSession: Array<[string, () => Response]> = [
     ["a route-not-found 404", () => routeNotFound()],
     ["a plain-text 404", () => plainTextNotFound()],
+    ["an HTML 403", () => htmlForbidden()],
 ];

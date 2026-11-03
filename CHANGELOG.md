@@ -12,6 +12,12 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - In Invite, **Make spectator** asks for a second tap, as their edits not yet sent are lost. The drawer no longer shows the previous session's links after switching sessions.
 - "Your sign-in has expired" has a **Sign in** button, as the installed app has no reload.
 
+## A session is changed in one tab at a time (2026-11-03)
+
+- With a session open in two tabs or windows of one browser (or in Chrome and the installed app on Android), the two could undo each other's question changes. Now the tab that opened the session last changes it; the other shows "This session is open in another tab" and, with **Use here**, takes it back. The iPhone Home Screen app counts as its own device, as before.
+- A save on a connection that died without saying so no longer holds up every later save for minutes: it is tried again after 45 seconds.
+- When the device's storage is too full to keep an edit, a message now says the change wasn't saved, with **Retry**, instead of losing it without a word.
+
 ## Google Maps as a basemap (2026-11-03)
 
 - Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
@@ -67,6 +73,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
 - Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator") or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
 - Spectators show as "Spectating" on the map and in the session list, and don't count as players in a game's stats.
+- **Upgrading:** an API from before this one fails on sessions with a spectator and turns spectator links into invites. Going back to one takes the steps in DEPLOY.md → Roll back.
 
 ## One page for checking and importing games (2026-11-02)
 
@@ -112,7 +119,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - A game or invite link opened without a connection now says Searchlight can't be reached, and tries again once the connection is back, instead of calling the link invalid.
 - The coloured question markers come with the app instead of from GitHub and cdnjs.
 - On iPhone and iPad, an app added to the Home Screen keeps its own cookies, so you may have to log in once more inside it.
-- **Upgrading:** players keep running the web version they have until they click **Reload**, so after an update some browsers still run the previous one for a while: keep the API working with the previous web version. Saving questions stays compatible: a save without the new `baseSequence` replaces the list as before. The web image's nginx now serves the app's manifest as `application/manifest+json` and compresses the WASM file; a web app hosted on Cloudflare gets `no-cache` for `/sw.js` and the manifest from `public/_headers`. Players' browsers download the whole app (about 6.7 MB before compression) on their first visit after the update.
+- **Upgrading:** players keep running the web version they have until they click **Reload**, so after an update some browsers still run the previous one for a while: keep the API working with the previous web version. Saving questions stays compatible: a save without the new `baseSequence` replaces the list as before. The web image's nginx now serves the app's manifest as `application/manifest+json` and compresses the WASM file; a web app hosted on Cloudflare gets `no-cache` for `/sw.js` and the manifest from `public/_headers`. Players' browsers download the whole app (about 7.5 MB, 2.6 MB compressed) on their first visit after the update. Browsers keep the app's service worker from then on, so going back to a web version from before this one takes the steps in DEPLOY.md → Roll back: deployed as it is, an older web build answers every page with the home page.
 
 ## Game link previews (2026-10-21)
 

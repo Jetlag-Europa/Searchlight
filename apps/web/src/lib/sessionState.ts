@@ -10,6 +10,7 @@ import {
 import {
     activeSessionId,
     activeSessionRole,
+    editingInOtherTab,
     isSessionReadOnly,
     offlineUserId,
     verifiedUserId,
@@ -36,6 +37,7 @@ import {
 } from "@/lib/eventQueue";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readError } from "@/lib/sessionUnavailable";
+import { sayStorageFull } from "@/lib/storageFull";
 import {
     latestSavedQuestionsSequence,
     sendPendingEvent,
@@ -46,11 +48,42 @@ import type { Questions } from "@/maps/schema";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 function refreshSyncCounts(sessionId: string): void {
-    const count = getPendingEvents(sessionId).filter(
-        (e) => e.status === "pending" || e.status === "failed",
-    ).length;
+    const count = getPendingEvents(sessionId).length;
     pendingEventCount.set(count);
     if (count === 0) syncStatus.set("synced");
+}
+
+/**
+ * Queue an edit durably. Storage too full for it even after dropping the
+ * copies kept of other sessions (see writePendingQueue) throws: the player
+ * is told, and a debounced edit waits in memory (see debounceSave) for
+ * Retry, the next edit or the page closing to queue it.
+ */
+// Retry on the storage-full toast, which may have been shown for another
+// session: only the active one can have an edit waiting (a load cancels the
+// others'). Done once none waits; a board that can't save it (another tab
+// took the session over) keeps it waiting.
+function retryUnqueuedEdits(): boolean {
+    const id = activeSessionId.get();
+    const waiting = () =>
+        [questionSaves, hiderSaves, planningSaves].some((state) => state.pending.has(id));
+    if (!id || !waiting()) return true;
+    if (isSessionReadOnly(id)) return false;
+    flushSessionSaves(id);
+    return !waiting();
+}
+
+function queueEdit(event: Parameters<typeof enqueueEvent>[0]): PendingEvent {
+    const { sessionId } = event;
+    let queued: PendingEvent;
+    try {
+        queued = enqueueEvent(event);
+    } catch (err) {
+        sayStorageFull(retryUnqueuedEdits);
+        throw err;
+    }
+    refreshSyncCounts(sessionId);
+    return queued;
 }
 
 // ── Questions ────────────────────────────────────────────────────────────────
@@ -82,14 +115,9 @@ async function fetchQuestions(
     };
 }
 
-export async function loadQuestionsFromServer(
-    sessionId: string,
-): Promise<Questions> {
-    return (await fetchQuestions(sessionId)).questions;
-}
-
 interface SaveState {
     timers: Map<string, ReturnType<typeof setTimeout>>;
+    // The edit not queued yet: in its debounce, or with no room to be.
     pending: Map<string, () => PendingEvent>;
     dispatches: Map<string, Promise<void>>;
 }
@@ -155,7 +183,16 @@ function debounceSave(
     state.timers.set(
         sessionId,
         setTimeout(() => {
-            dispatchSave(state, createEvent()).catch((err) => {
+            state.timers.delete(sessionId);
+            let event: PendingEvent;
+            try {
+                event = createEvent();
+            } catch (err) {
+                // Still pending, said by queueEdit.
+                console.warn("[sessionState] couldn't queue the edit:", err);
+                return;
+            }
+            dispatchSave(state, event).catch((err) => {
                 console.warn("[sessionState] failed to save:", err);
             });
         }, delay),
@@ -167,13 +204,11 @@ function hasPendingSave(
     type: PendingEvent["type"],
     sessionId?: string,
 ): boolean {
-    if (!sessionId) return state.timers.size > 0 || state.dispatches.size > 0;
+    if (!sessionId) return state.pending.size > 0 || state.dispatches.size > 0;
     return (
-        state.timers.has(sessionId) ||
+        state.pending.has(sessionId) ||
         state.dispatches.has(sessionId) ||
-        getPendingEvents(sessionId).some(
-            (event) => event.type === type && event.status !== "synced",
-        )
+        getPendingEvents(sessionId).some((event) => event.type === type)
     );
 }
 
@@ -181,7 +216,7 @@ function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
     const replacementId = randomUUID();
     // What the board's questions were made from.
     const base = questionsBase(sessionId);
-    const event = enqueueEvent({
+    return queueEdit({
         sessionId,
         type: "questions.replace",
         payloadJson: {
@@ -196,8 +231,6 @@ function queueQuestions(sessionId: string, qs: Questions): PendingEvent {
         clientUuid: `questions-replace-${replacementId}`,
         clientCreatedAt: Date.now(),
     });
-    refreshSyncCounts(sessionId);
-    return event;
 }
 
 export async function saveQuestionsToServer(
@@ -211,9 +244,12 @@ export function hasPendingQuestionSave(sessionId?: string): boolean {
     return hasPendingSave(questionSaves, "questions.replace", sessionId);
 }
 
-/** An edit is waiting in the debounce and hasn't been queued yet. */
+/**
+ * An edit hasn't been queued yet: it waits in the debounce, or for room in
+ * storage (see queueEdit). The board shows it, so lists from elsewhere wait.
+ */
 export function hasScheduledQuestionSave(sessionId: string): boolean {
-    return questionSaves.timers.has(sessionId);
+    return questionSaves.pending.has(sessionId);
 }
 
 export function cancelPendingQuestionSave(sessionId?: string): void {
@@ -244,7 +280,7 @@ export function saveQuestionsDebounced(sessionId: string, qs: Questions): void {
 type HiderModeValue = false | { latitude: number; longitude: number };
 
 function queueHiderMode(sessionId: string, mode: HiderModeValue): PendingEvent {
-    const event = enqueueEvent({
+    return queueEdit({
         sessionId,
         type: "hider.update",
         payloadJson:
@@ -254,8 +290,6 @@ function queueHiderMode(sessionId: string, mode: HiderModeValue): PendingEvent {
         clientUuid: `hider-update-${randomUUID()}`,
         clientCreatedAt: Date.now(),
     });
-    refreshSyncCounts(sessionId);
-    return event;
 }
 
 export function hasPendingHiderSave(sessionId?: string): boolean {
@@ -295,15 +329,13 @@ export function flushHiderSave(
 // ── Planning mode ─────────────────────────────────────────────────────────────
 
 function queuePlanningMode(sessionId: string, enabled: boolean): PendingEvent {
-    const event = enqueueEvent({
+    return queueEdit({
         sessionId,
         type: "planning.toggle",
         payloadJson: { planningModeEnabled: enabled },
         clientUuid: `planning-toggle-${randomUUID()}`,
         clientCreatedAt: Date.now(),
     });
-    refreshSyncCounts(sessionId);
-    return event;
 }
 
 export function hasPendingPlanningModeSave(sessionId?: string): boolean {
@@ -430,25 +462,32 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
  * Debounced edits live only in memory until their timer fires, so flush them
  * whenever the page may be going away. Mobile browsers often skip
  * beforeunload, and a hidden tab can be frozen or discarded without another
- * event. Returns a function that removes the listeners.
+ * event. A window losing focus may be followed by another tab of this
+ * browser taking the session over (see editSessionHere), which shows only
+ * what was queued. Returns a function that removes the listeners.
  */
 export function flushSavesOnPageExit(): () => void {
-    const flush = () => {
+    // keepalive only when the page may be going away.
+    const flush = (keepalive: boolean) => {
         const id = activeSessionId.get();
         // Edits made offline too: the page is often closed before it's back.
         if (!id || !(verifiedUserId.get() ?? offlineUserId.get())) return;
-        console.info("[sessionState] page may be closing — flushing saves for", id);
-        flushSessionSaves(id, true);
+        console.info("[sessionState] flushing saves for", id);
+        flushSessionSaves(id, keepalive);
     };
+    const flushOnExit = () => flush(true);
     const flushIfHidden = () => {
-        if (document.visibilityState === "hidden") flush();
+        if (document.visibilityState === "hidden") flush(true);
     };
-    window.addEventListener("beforeunload", flush);
-    window.addEventListener("pagehide", flush);
+    const flushOnBlur = () => flush(false);
+    window.addEventListener("beforeunload", flushOnExit);
+    window.addEventListener("pagehide", flushOnExit);
+    window.addEventListener("blur", flushOnBlur);
     document.addEventListener("visibilitychange", flushIfHidden);
     return () => {
-        window.removeEventListener("beforeunload", flush);
-        window.removeEventListener("pagehide", flush);
+        window.removeEventListener("beforeunload", flushOnExit);
+        window.removeEventListener("pagehide", flushOnExit);
+        window.removeEventListener("blur", flushOnBlur);
         document.removeEventListener("visibilitychange", flushIfHidden);
     };
 }
@@ -525,6 +564,8 @@ export async function loadSessionContent(
         loadedList = await fetchQuestions(sessionId, signal);
     }
     const loadedQuestions = loadedList.questions;
+    // Taken over meanwhile: the copy is the other tab's, and older than its.
+    if (editingInOtherTab.get()) throw new Error("another tab took the session over");
     setCachedSession({
         sessionId,
         userId,

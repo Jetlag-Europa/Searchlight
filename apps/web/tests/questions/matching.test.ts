@@ -77,7 +77,8 @@ async function maskFor(
     )) as Feature<Polygon> | null;
 }
 
-describe("adjustPerMatching — bundled municipality (exact, winding-agnostic)", () => {
+// Each grid check takes about 2 s on its own; give a busy runner room.
+describe("adjustPerMatching — bundled municipality (exact, winding-agnostic)", { timeout: 15_000 }, () => {
     // A box over central South Limburg straddling several municipalities.
     const base = turf.bboxPolygon([5.62, 50.8, 5.82, 50.92]) as Feature<Polygon>;
     const seeker: [number, number] = [5.69, 50.86]; // Maastricht

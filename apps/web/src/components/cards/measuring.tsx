@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
 import { askedHints } from "@/lib/askedQuestions";

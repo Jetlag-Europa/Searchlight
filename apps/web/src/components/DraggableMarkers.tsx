@@ -29,7 +29,7 @@ import {
     ThermometerQuestionComponent,
 } from "./QuestionCards";
 import { Button } from "./ui/button";
-import { SidebarMenu } from "./ui/sidebar-l";
+import { SidebarMenu } from "./ui/sidebar";
 
 let isDragging = false;
 

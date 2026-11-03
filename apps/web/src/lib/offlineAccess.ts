@@ -18,26 +18,12 @@ export const VERIFIED_AT_KEY = "taibled-authed-user-verified";
 // as the login cookie may well have lapsed by then.
 export const OFFLINE_ACCESS_MS = 7 * 24 * 60 * 60 * 1000;
 // Set by the login links (inline scripts in index, play and join.astro, so
-// the name is written out there too) as a login starts, to the time it
-// started. Whoever logs in may be someone else, so the stored account
-// mustn't play offline until /me says who it is: if that first check fails,
-// the new player would get the last one's board, and their edits would queue
-// as that account.
+// the name is written out there too) as a login starts. Whoever logs in may
+// be someone else, so the stored account mustn't play offline until /me says
+// who it is: if that first check fails, the new player would get the last
+// one's board, and their edits would queue as that account. /me verifying
+// an account, or logging out, clears it.
 export const LOGIN_STARTED_KEY = "taibled-login-started";
-// How long after it started a login counts. A Discord login is done well
-// within it; one cancelled or failed (the API down for a deploy, say) is
-// forgotten after it, rather than ending the stored account's offline play,
-// and deleting its kept games, whenever /me next fails. A mark without a
-// time, from an older build, has expired.
-export const LOGIN_STARTED_MS = 15 * 60 * 1000;
-
-function loginStarted(now: number): boolean {
-    const startedAt = readStorage("localStorage", LOGIN_STARTED_KEY);
-    if (startedAt === null) return false;
-    if (Math.abs(now - Number(startedAt)) < LOGIN_STARTED_MS) return true;
-    removeStorage("localStorage", LOGIN_STARTED_KEY);
-    return false;
-}
 
 /** The account this browser played as last, to compare a new login with. */
 export function lastUser(): string | null {
@@ -58,8 +44,7 @@ export function rememberUser(userId: string, now = Date.now()): void {
 
 /**
  * The stored account, if it may still play offline: /me verified it less
- * than OFFLINE_ACCESS_MS ago, and no login started since (in the last
- * LOGIN_STARTED_MS). Otherwise its
+ * than OFFLINE_ACCESS_MS ago, and no login started since. Otherwise its
  * offline access ends as with a 401. An account stored by an older build,
  * which kept no time, counts as verified now: its player may be mid-game on
  * a bad connection, and the clock starts here.
@@ -67,7 +52,7 @@ export function rememberUser(userId: string, now = Date.now()): void {
 export function offlineAccount(now = Date.now()): string | null {
     const stored = readStorage("localStorage", STORED_USER_KEY);
     if (!stored) return null;
-    if (loginStarted(now)) {
+    if (readStorage("localStorage", LOGIN_STARTED_KEY) !== null) {
         void endOfflineAccess();
         return null;
     }

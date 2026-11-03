@@ -16,7 +16,7 @@ On every push to `main`, the "Docker images" workflow builds both for
 `linux/amd64` and `linux/arm64` and pushes them to
 `ghcr.io/jetlag-europa/searchlight-{api,web}`, tagged `sha-<7-char commit>` and
 `latest`. Publishing a release also tags its images with the version, such as
-`2.0.0` and `2.0` (see `docs/releases/README.md`). Its web image is built for `https://api-searchlight.jetlageuropa.org`;
+`2.0.0` and `2.0` (see `docs/releases/README.md`). Its web image is built for `https://api.searchlight.jetlageuropa.org`;
 for any other API URL, build the images on the server.
 
 ## Compose files
@@ -26,7 +26,7 @@ adds the way in:
 
 | Overlay | Use |
 | --- | --- |
-| `docker-compose.cloudflared.yml` | Web and API behind a Cloudflare Tunnel, nothing published on the host. Production. |
+| `docker-compose.cloudflared.yml` | Web and API behind a Cloudflare Tunnel, nothing published on the host. |
 | `docker-compose.backend.yml` | API and Postgres only, API on a host port (`API_BIND`, `API_PORT`). The web app is hosted elsewhere, e.g. [on Cloudflare](#web-app-on-cloudflare). |
 | `docker-compose.test.yml` | The e2e test stack ([`docs/TESTING.md`](docs/TESTING.md)). |
 
@@ -89,10 +89,99 @@ every update. Keep API changes working with it.
   version, such as `2.0` (its latest fixes) or `2.0.0` (exactly that release),
   then pull and `up -d`. Published releases are listed on
   [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases).
-- **Roll back** or pin a commit: set `SEARCHLIGHT_IMAGE_TAG=sha-<7-char commit>`
-  in `.env`, then pull and `up -d`. Remove it to follow `latest` again.
+- **Pin a commit:** set `SEARCHLIGHT_IMAGE_TAG=sha-<7-char commit>` in `.env`,
+  then pull and `up -d`. Remove it to follow `latest` again.
+- Either one, to an older version than the server ran, is a rollback: read
+  [Roll back](#roll-back) first.
 - **Another API hostname:** change `PUBLIC_API_BASE` in `.env` and deploy with
   `--build` (or change the build arg in `.github/workflows/docker-images.yml`).
+
+## Roll back
+
+Going back to an older version works like any update, except across two
+changes that older versions can't handle.
+
+**The installable app** (`e29c68aa6`, #81; releases up to 2.0.0 are older). Once a browser has opened a version with it, it keeps that version's
+service worker (`/sw.js`) whatever the server sends later. An older web build
+has a `/sw.js` too, which its own pages never register; served to those
+browsers, it takes over at once, answers every page (`/play?token=…`,
+`/join?token=…`, `/map/`, `/games/`, `/admin/`) with the home page, even
+online, and leaves open pages on files that are gone. Removing `/sw.js`
+doesn't help either: a browser keeps a worker it can't update.
+
+- Never deploy an older web build as it is, or pin its image, on a site that
+  has served the installable app.
+- Deploy the older source with `selfDestroying: true` added as the first
+  option inside `AstroPWA({ ... })` in `apps/web/astro.config.mjs` instead.
+  Its `/sw.js` removes the worker and its caches and reloads open pages into
+  the older version, which then loads from the network. A tab opened with a
+  forced reload (Ctrl+Shift+R on a computer) isn't under the worker, so it
+  keeps running the newer version until it is reloaded.
+- Keep serving that `/sw.js` for as long as the older version runs: a phone
+  that was offline or asleep picks it up at its next update check. Going
+  forward again is an ordinary update.
+
+**Spectator links** (`8d65fff46`, #85). Migrations stay applied when you go
+back: don't restore a backup to undo them, as that loses everything played
+since. Older APIs ignore the newer tables and columns, but not the `viewer`
+participant role. An older API fails with a 500 on every session that has a
+spectator, for all its players, and redeems a spectator link as an invite, so
+the spectator becomes a member who can edit and see the hider. So before
+starting an API from before #85:
+
+1. Stop the newer API. Nothing may write while you do this: a spectator
+   joining in between would bring a viewer back.
+2. Run, in one transaction:
+
+   ```sql
+   BEGIN;
+   UPDATE "SessionLink" SET "revokedAt" = now()
+   WHERE "linkType" = 'view' AND "revokedAt" IS NULL;
+   DELETE FROM "SessionParticipant" WHERE role = 'viewer';
+   COMMIT;
+   ```
+
+   Spectators lose access and their links stop working. Players and their
+   sessions keep everything. Leave the `viewer` enum value alone.
+3. Start the older API.
+
+### Going back to before the installable app, with these compose files
+
+Prepare the images before releasing, so a rollback doesn't wait for a build.
+Use the commit you would go back to, and the API URL of this server:
+
+```bash
+git worktree add --detach ../searchlight-rollback <commit>
+sed -i 's/^\( *\)AstroPWA({$/&\n\1    selfDestroying: true,/' \
+  ../searchlight-rollback/apps/web/astro.config.mjs
+grep -A1 'AstroPWA({' ../searchlight-rollback/apps/web/astro.config.mjs  # shows the new line
+docker build -f ../searchlight-rollback/apps/api/Dockerfile \
+  -t ghcr.io/jetlag-europa/searchlight-api:rollback ../searchlight-rollback
+docker build -f ../searchlight-rollback/apps/web/Dockerfile \
+  --build-arg PUBLIC_API_BASE=https://<API host> \
+  -t ghcr.io/jetlag-europa/searchlight-web:rollback ../searchlight-rollback
+```
+
+To roll back:
+
+```bash
+docker compose stop api
+infra/backup.sh
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
+BEGIN;
+UPDATE "SessionLink" SET "revokedAt" = now()
+WHERE "linkType" = 'view' AND "revokedAt" IS NULL;
+DELETE FROM "SessionParticipant" WHERE role = 'viewer';
+COMMIT;
+SQL
+# Set SEARCHLIGHT_IMAGE_TAG=rollback in .env (and don't `docker compose pull` while it's set)
+docker compose up -d
+curl -fsS https://<web host>/sw.js | grep -c registration.unregister   # 1: the self-destroying worker
+```
+
+Then, in a browser that used the newer version, open the app online: an open
+page reloads into the older version, and game, invite and session links open
+their own pages again.
 
 ## Google Maps basemap
 
@@ -193,16 +282,17 @@ log in again and role mappings changed in the admin UI are lost.
 | | |
 | --- | --- |
 | Web | <https://searchlight.jetlageuropa.org> |
-| API | <https://api-searchlight.jetlageuropa.org> (`/health`) |
-| Clone | `/srv/WriteMap/TaibledFork` |
-| Overlay | `docker-compose.cloudflared.yml`, tunnel config in `/srv/WriteMap/cloudflared` |
-| Compose project | `writemap` (volume `writemap_postgres_data`) |
-| Backups | `/srv/WriteMap/backups`, nightly cron logging to `/var/log/writemap-backup.log` |
+| API | <https://api.searchlight.jetlageuropa.org> (`/health`) |
 
-The `taibled` database and user, the `writemap` project name and the
-`TaibledFork` path predate the Searchlight name. They stay as they are.
+Production runs the head of the `prod` branch: a release moves `prod` to a
+commit on `main`. Its server builds the images from that commit itself and
+isn't run with these compose files, so `SEARCHLIGHT_IMAGE_TAG` doesn't apply
+to it. [Roll back](#roll-back) applies to it all the same.
+
+The compose files' `taibled` database and user predate the Searchlight name.
+They stay as they are.
 
 Each environment's `DISCORD_REDIRECT_URI` must be registered in the Discord
 application (OAuth2 → Redirects):
-`https://api-searchlight.jetlageuropa.org/auth/discord/callback` for
+`https://api.searchlight.jetlageuropa.org/auth/discord/callback` for
 production, `http://localhost:3000/auth/discord/callback` for development.

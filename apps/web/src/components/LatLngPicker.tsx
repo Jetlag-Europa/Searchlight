@@ -37,7 +37,7 @@ import {
     DialogTrigger,
 } from "./ui/dialog";
 import { Separator } from "./ui/separator";
-import { SidebarMenuItem } from "./ui/sidebar-l";
+import { SidebarMenuItem } from "./ui/sidebar";
 
 export const parseCoordinatesFromText = (
     text: string,

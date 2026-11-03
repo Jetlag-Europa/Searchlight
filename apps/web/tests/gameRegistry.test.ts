@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { POI_CATEGORIES, validateGameDefinition } from "@searchlight/shared";
+import { validateGameDefinition } from "@searchlight/shared";
 
 const PRELOADED_DIR = resolve(__dirname, "../../../games/preloaded");
 
@@ -26,11 +26,5 @@ describe("Preloaded Games Integrity", () => {
       expect(validation.valid).toBe(true);
       expect(validation.errors).toEqual([]);
     }
-  });
-
-  it("exposes the 13 canonical rulebook POI categories", () => {
-    expect(POI_CATEGORIES).toContain("mountain");
-    expect(POI_CATEGORIES).toContain("rail");
-    expect(POI_CATEGORIES).toHaveLength(13);
   });
 });

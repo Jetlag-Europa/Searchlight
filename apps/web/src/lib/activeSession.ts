@@ -33,9 +33,16 @@ export const sessionReadOnly = computed(
     (role) => role === "viewer",
 );
 
+// Another tab or window of this browser took the active session over (see
+// tabLock): this board shows it, but saves and sends nothing for it.
+export const editingInOtherTab = atom(false);
+
 /** Edits to `sessionId` must not be made, queued or sent from this board. */
 export function isSessionReadOnly(sessionId: string): boolean {
-    return sessionReadOnly.get() && sessionId === activeSessionId.get();
+    return (
+        (sessionReadOnly.get() || editingInOtherTab.get()) &&
+        sessionId === activeSessionId.get()
+    );
 }
 
 // Set only after /me verifies the current cookie. Persisted identity hints
