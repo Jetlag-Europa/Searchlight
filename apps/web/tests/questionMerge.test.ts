@@ -295,6 +295,13 @@ describe("where a merge puts their additions", () => {
             keys(mergeQuestionLists([radius(1), radius(2), curse(9)], [radius(1), curse(9)], [radius(1), radius(2), radius(7), curse(9)])),
         ).toEqual([1, 7, 9]);
     });
+
+    test("keeps one they added at the end last, below a curse we moved down", () => {
+        const base = [radius(1), curse(9), radius(2)];
+        const local = [radius(1), radius(2), curse(9)];
+        const server = [radius(1), curse(9), radius(2), radius(3)];
+        expect(keys(mergeQuestionLists(base, local, server))).toEqual([1, 2, 9, 3]);
+    });
 });
 
 describe("placing a question", () => {

@@ -120,11 +120,13 @@ export function backAs<T extends { key: number }>(
     board: readonly T[],
     order: readonly number[] = [],
 ): T | undefined {
-    return board.find(
-        (q) =>
-            sameQuestionKey(q.key, removed.key) ||
-            (isCopyOf(q, removed.key) &&
-                !order.some((key) => sameQuestionKey(key, q.key))),
+    return (
+        board.find((q) => sameQuestionKey(q.key, removed.key)) ??
+        board.find(
+            (q) =>
+                isCopyOf(q, removed.key) &&
+                !order.some((key) => sameQuestionKey(key, q.key)),
+        )
     );
 }
 

@@ -300,20 +300,25 @@ function mergeLists<Q>(
             // Changed there to a version of ours that may have been saved
             // (its answer never came): our removal of it since stands.
             if (was !== undefined && ours(question)) return;
-            // Below the nearest question above it there that is still in
-            // the list (else at the top), as Restore and Undo place one: a
-            // zone-size curse applies to the questions below it. After ours
-            // added there too.
-            let at = 0;
-            for (let i = index - 1; i >= 0; i--) {
-                const id = idOf(server[i]);
-                const above = merged.findIndex((q) => idOf(q) === id);
-                if (above !== -1) {
-                    at = above + 1;
-                    break;
+            // Among the questions there, below the nearest one above it
+            // still in the list (else at the top), as Restore and Undo place
+            // one: a zone-size curse applies to the questions below it. One
+            // after all of those there (as a question added) goes last.
+            const indexInMerged = (q: Q) => {
+                const id = idOf(q);
+                return merged.findIndex((m) => idOf(m) === id);
+            };
+            let at = merged.length;
+            if (server.slice(index + 1).some((q) => indexInMerged(q) !== -1)) {
+                at = 0;
+                for (let i = index - 1; i >= 0; i--) {
+                    const above = indexInMerged(server[i]);
+                    if (above !== -1) {
+                        at = above + 1;
+                        break;
+                    }
                 }
             }
-            while (at < merged.length && !serverIndex.has(idOf(merged[at]))) at++;
             merged.splice(at, 0, question);
             if (was !== undefined && holds(question, question)) {
                 conflict("we-deleted", was, null, { question, index });
@@ -331,7 +336,8 @@ function mergeLists<Q>(
  * removed that they changed in substance is kept with their change, and one
  * they removed that we changed in substance is kept with ours; a change to
  * how it's shown (folded, locked) alone doesn't keep it. Our order comes
- * first; each question only they have goes below the one above it there.
+ * first; each question only they have goes below the one above it there,
+ * or last if it is last there.
  */
 export function mergeQuestionLists<Q>(
     base: readonly Q[],

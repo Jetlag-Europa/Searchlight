@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     deleteQuestions,
     placeRemovedQuestions,
+    placeRestored,
     undoDeletion,
 } from "@/lib/questionUndo";
 
@@ -109,6 +110,40 @@ describe("undoing a question delete", () => {
         );
         expect(undoDeletion(remaining, deletion, "s2")).toBeNull();
         expect(undoDeletion(remaining, deletion, "")).toBeNull();
+    });
+});
+
+describe("putting restored questions back", () => {
+    const copy = (key: number, of: number[]) => ({
+        key,
+        data: { restoredFrom: of },
+    });
+    const plain = (key: number) => ({ key, data: {} });
+
+    it("goes below the question above it, not below a copy of that one", () => {
+        const board = [copy(5, [1]), plain(9), plain(1)];
+        expect(
+            keys(
+                placeRestored(
+                    board,
+                    [1, 7],
+                    [{ from: 7, index: 1, question: plain(7) }],
+                )!,
+            ),
+        ).toEqual([5, 9, 1, 7]);
+    });
+
+    it("goes below a copy of the question above it, a copy of a copy too", () => {
+        const board = [copy(3, [1, 2]), plain(9)];
+        expect(
+            keys(
+                placeRestored(
+                    board,
+                    [2, 7, 9],
+                    [{ from: 7, index: 1, question: plain(7) }],
+                )!,
+            ),
+        ).toEqual([3, 7, 9]);
     });
 });
 
