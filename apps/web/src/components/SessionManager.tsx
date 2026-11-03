@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
+import { OtherTabNotice } from "@/components/OtherTabNotice";
 import { StatusChip } from "@/components/StatusChip";
 import {
     AlertDialog,
@@ -34,6 +35,7 @@ import {
     activeSessionId,
     activeSessionRole,
     clearActiveSession,
+    editingInOtherTab,
     offlineUserId,
     sessionReadOnly,
     setActiveSession,
@@ -108,6 +110,7 @@ import {
     onQuestionsSaved,
     startSyncManager,
 } from "@/lib/syncManager";
+import { editSessionHere } from "@/lib/tabLock";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -1058,12 +1061,7 @@ export function SessionManager() {
     // A session's hider and planning mode, with this account's edits to them
     // that haven't synced yet.
     const showSessionModes = (session: GameSessionSummary) => {
-        const modes = applyPendingModes(
-            session,
-            getPendingEvents(session.id).filter(
-                (event) => event.status !== "synced",
-            ),
-        );
+        const modes = applyPendingModes(session, getPendingEvents(session.id));
         loadedHiderModeRef.current = modes.hiderMode;
         hiderMode.set(modes.hiderMode);
         loadedPlanningModeRef.current = modes.planningModeEnabled;
@@ -1180,6 +1178,14 @@ export function SessionManager() {
     // Flush pending question, hider & planning saves when the page may close.
     useEffect(() => flushSavesOnPageExit(), []);
 
+    // Another tab took the session over (see editSessionHere): nothing more
+    // loads or checks here, until the player takes it back.
+    const stopEditingHere = () => {
+        sessionLoadGenerationRef.current++;
+        sessionRecheck.stop();
+        setLoading(false);
+    };
+
     // The session was deleted (404) or this user can no longer open it (403):
     // drop the pointer and the local queue/cache, which can never sync. A 403
     // can also follow a user switch, so keep another account's local edits.
@@ -1282,7 +1288,8 @@ export function SessionManager() {
 
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
-        if (!authUserId) return;
+        // Taken over by another tab: only Use here (a reload) takes it back.
+        if (!authUserId || editingInOtherTab.get()) return;
         const generation = ++sessionLoadGenerationRef.current;
         const isCurrent = () => generation === sessionLoadGenerationRef.current;
         const cleanup = () => {
@@ -1357,6 +1364,7 @@ export function SessionManager() {
             if (!offline) setShowPicker(true);
             return cleanup;
         }
+        editSessionHere(storedId, stopEditingHere);
 
         // The cached owner must match the account played as, and the session
         // must be authorized before private content becomes visible. Without
@@ -1480,7 +1488,8 @@ export function SessionManager() {
     // until then the modes can still be another session's.
     useEffect(() => {
         if (offline || !authUserId || !session || !gameReady || loading) return;
-        if (session.id !== sessionId) return;
+        // Not from a board another tab took over: that one keeps it.
+        if (session.id !== sessionId || editingInOtherTab.get()) return;
         const cached = getCachedSession(session.id);
         if (!cached || cached.userId !== authUserId) return;
         // A spectator's copy never has the hider.
@@ -1515,6 +1524,7 @@ export function SessionManager() {
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
             loadingGenerationRef.current = generation;
+            editSessionHere(selected.id, stopEditingHere);
             sessionRecheck.stop();
             stopSSE();
 
@@ -1730,7 +1740,9 @@ export function SessionManager() {
     // state shows (false also when another load took over).
     const loadSession = useCallback(
         async (selected: GameSessionSummary): Promise<boolean> => {
-            if (!authUserId) return false;
+            // Taken over by another tab: a check or retry started before
+            // doesn't take it back (Use here does).
+            if (!authUserId || editingInOtherTab.get()) return false;
             // What the picker passes on unchecked (a list entry, a session
             // just created) must be one, or the board is left on no session.
             if (!isSessionSummary(selected, selected?.id ?? "")) {
@@ -1773,6 +1785,8 @@ export function SessionManager() {
     // Load the session again, its game included. Fetching the session first
     // also covers an offline restore, which never got the session's details.
     const retryGameLoad = async () => {
+        // Taken over by another tab: Use here (a reload) loads it.
+        if (editingInOtherTab.get()) return;
         const id = activeSessionId.get();
         // As now: the effects that call this don't run again when it changes.
         if (offlineRef.current) {
@@ -1843,7 +1857,9 @@ export function SessionManager() {
     // changed, and with `forgetIfGone`, forget it if it's gone.
     const checkSession = async (id: string, forgetIfGone: boolean) => {
         const details = await fetchSessionDetails(id);
-        if (activeSessionId.get() !== id) return;
+        // Taken over meanwhile: the other tab checks it now, and its queue
+        // isn't this tab's to drop.
+        if (activeSessionId.get() !== id || editingInOtherTab.get()) return;
         if (details.kind === "unavailable" && forgetIfGone) {
             forgetSession(id, details.status);
             return;
@@ -1862,8 +1878,13 @@ export function SessionManager() {
                     return;
                 }
                 // Only on a board that shows the session (one that shows
-                // nothing would read as removing everything).
-                if (isLoadingSession() || boardSessionRef.current !== saved.sessionId) {
+                // nothing would read as removing everything) and edits it
+                // (the tab that took it over shows it).
+                if (
+                    isLoadingSession() ||
+                    editingInOtherTab.get() ||
+                    boardSessionRef.current !== saved.sessionId
+                ) {
                     return;
                 }
                 showMergedSave(saved, {
@@ -1992,6 +2013,7 @@ export function SessionManager() {
                     inert={showPicker}
                 />
             )}
+            <OtherTabNotice />
         </>
     );
 }

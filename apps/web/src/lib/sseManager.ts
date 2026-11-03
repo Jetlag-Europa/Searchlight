@@ -29,7 +29,6 @@ import {
     getPendingEvents,
     markEventSynced,
     type QuestionsReplacePayload,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import {
@@ -53,6 +52,7 @@ import {
     onQuestionsSaved,
     questionsSavedByEcho,
     retryPendingEvents,
+    withTimeout,
 } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -115,7 +115,7 @@ function showServerQuestions(
     sequence: number,
 ): boolean {
     const unsynced = getPendingEvents(sessionId).filter(
-        (e) => e.type === "questions.replace" && e.status !== "synced",
+        (e) => e.type === "questions.replace",
     );
     if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
         console.info(
@@ -131,13 +131,22 @@ function showServerQuestions(
         console.info("[searchlight:sse] questions.replace skipped — the board has it");
         return true;
     }
-    setBoardBase(sessionId, { sequence, questions: serverList });
-    // Questions held for a decision may be settled by it, or changed again.
-    reconcileQuestionConflicts(sessionId, serverList, sequence);
     const newQs = filterSupportedQuestions(
         serverList,
         compiledGameAtom.get(),
     ) as Questions;
+    // The board and its base together: a reload before the next event (a
+    // catch-up is followed by none) shows the list made from that base.
+    const cached = getCachedSession(sessionId);
+    if (cached) {
+        setCachedSession({
+            ...cached,
+            questions: newQs,
+            serverQuestions: { sequence, questions: serverList },
+        });
+    }
+    // Questions held for a decision may be settled by it, or changed again.
+    reconcileQuestionConflicts(sessionId, serverList, sequence);
     console.info(
         "[searchlight:sse] applying questions.replace",
         newQs.length,
@@ -172,21 +181,33 @@ async function runCatchUp(): Promise<void> {
         job.generation === currentGeneration &&
         job.sessionId === currentSessionId;
     try {
-        const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
-            credentials: "include",
+        const { res, data } = await withTimeout(async (signal) => {
+            const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
+                credentials: "include",
+                signal,
+            });
+            const data = res.ok
+                ? ((await res.json()) as {
+                      questions: Array<{ payloadJson: Questions[number] }>;
+                      sequence?: unknown;
+                  })
+                : undefined;
+            return { res, data };
         });
         if (!current()) return;
-        // Gone or refused: the stream finds that out itself.
         if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
-            stopCatchUp();
-            return;
+            // Gone or refused: the stream finds that out itself. A 403 or
+            // 404 that isn't the API's (a proxy's) may pass next time.
+            const notTheApis =
+                (res.status === 403 || res.status === 404) &&
+                (await sessionUnavailableStatus(res)) === null;
+            if (!current()) return;
+            if (!notTheApis) {
+                stopCatchUp();
+                return;
+            }
         }
-        if (!res.ok) throw new Error(`questions: ${res.status}`);
-        const data = (await res.json()) as {
-            questions: Array<{ payloadJson: Questions[number] }>;
-            sequence?: unknown;
-        };
-        if (!current()) return;
+        if (!data) throw new Error(`questions: ${res.status}`);
         stopCatchUp();
         if (typeof data.sequence !== "number") return;
         // Skipped with an edit of ours still to be saved: its merge brings
@@ -328,7 +349,7 @@ function handleServerEvent(
         );
     } else if (event.type === "questions.replace") {
         const unsynced = getPendingEvents(targetSessionId).filter(
-            (e) => e.type === "questions.replace" && e.status !== "synced",
+            (e) => e.type === "questions.replace",
         );
         // Our own replace can echo back before its PUT is acknowledged. The
         // echo proves it committed at this sequence, so replaces from other
@@ -504,9 +525,18 @@ async function gapFill(
         let after = lastAppliedSequence;
         while (isCurrent()) {
             const url = `${API_BASE}/sessions/${sessionId}/events?after=${after}&limit=50`;
-            const res = await fetch(url, { credentials: "include" });
+            const { res, data } = await withTimeout(async (signal) => {
+                const res = await fetch(url, { credentials: "include", signal });
+                const data = res.ok
+                    ? ((await res.json()) as {
+                          events: EventRecord[];
+                          nextAfter: number | null;
+                      })
+                    : undefined;
+                return { res, data };
+            });
             if (!isCurrent()) return;
-            if (!res.ok) {
+            if (!data) {
                 const unavailable = await sessionUnavailableStatus(res);
                 if (!isCurrent()) return;
                 if (unavailable !== null) {
@@ -515,11 +545,6 @@ async function gapFill(
                 }
                 throw new Error(`Gap fill failed: ${res.status}`);
             }
-            const data = (await res.json()) as {
-                events: EventRecord[];
-                nextAfter: number | null;
-            };
-            if (!isCurrent()) return;
             if (!Array.isArray(data.events))
                 throw new Error("Invalid event page");
             for (const event of data.events) {
@@ -638,9 +663,11 @@ function scheduleReconnect(sessionId: string, generation: number): void {
         if (!isCurrent()) return;
         let res: Response | undefined;
         try {
-            res = await fetch(
-                `${API_BASE}/sessions/${sessionId}/events/cursor`,
-                { credentials: "include" },
+            res = await withTimeout((signal) =>
+                fetch(`${API_BASE}/sessions/${sessionId}/events/cursor`, {
+                    credentials: "include",
+                    signal,
+                }),
             );
         } catch (err) {
             console.warn("[searchlight:sse] reconnect check failed:", err);

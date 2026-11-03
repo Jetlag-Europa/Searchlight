@@ -45,8 +45,40 @@ describe("sessionUnavailableStatus", () => {
         ).toBeNull();
     });
 
-    it("takes a 403 as lost access", async () => {
+    it("takes the API's 403 as lost access", async () => {
         expect(await sessionUnavailableStatus(forbidden())).toBe(403);
+        expect(
+            await sessionUnavailableStatus(
+                Response.json(
+                    {
+                        statusCode: 403,
+                        error: "Forbidden",
+                        message: "Spectators can't change this session",
+                    },
+                    { status: 403 },
+                ),
+            ),
+        ).toBe(403);
+    });
+
+    // A proxy's or firewall's block page, on a same-origin setup: the
+    // session may still be there (audit SYNC-04).
+    it.each([
+        [
+            "an HTML 403",
+            () =>
+                new Response("<html>Access denied</html>", {
+                    status: 403,
+                    headers: { "content-type": "text/html" },
+                }),
+        ],
+        ["an empty 403", () => new Response(null, { status: 403 })],
+        [
+            "a JSON 403 that isn't the API's",
+            () => Response.json({ error: "blocked" }, { status: 403 }),
+        ],
+    ])("doesn't take %s", async (_, answer) => {
+        expect(await sessionUnavailableStatus(answer())).toBeNull();
     });
 
     it("needs a 403 or 404", async () => {

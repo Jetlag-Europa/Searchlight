@@ -222,7 +222,9 @@ import { SessionManager } from "@/components/SessionManager";
 import {
     activeSessionData,
     activeSessionId,
+    activeSessionRole,
     clearActiveSession,
+    isSessionReadOnly,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -235,6 +237,7 @@ import {
 import { setCachedSession } from "@/lib/eventQueue";
 import { switchToGame } from "@/lib/games";
 import { FLUSH_WAIT_MS, LOAD_TIMEOUT_MS } from "@/lib/loadDeadline";
+import { SESSION_STREAM_RECONNECTED_EVENT } from "@/lib/sseManager";
 import {
     loadSessionContent,
     saveHiderModeToServer,
@@ -866,5 +869,145 @@ describe("a session load that fails", () => {
             "Couldn't load the latest from the server. Try again in a moment.",
             { toastId: "session-load" },
         );
+    });
+});
+
+describe("another tab of this browser opening the session", () => {
+    // Web Locks as two tabs share them: another tab opening the session
+    // steals the lock, and this tab's request rejects.
+    let stealFromHere: (() => void) | undefined;
+    const locks = {
+        request: vi.fn(
+            (_name: string, _options: unknown, callback: () => unknown) =>
+                new Promise((resolve, reject) => {
+                    stealFromHere = () =>
+                        reject(new DOMException("stolen", "AbortError"));
+                    void Promise.resolve(callback()).then(resolve);
+                }),
+        ),
+    };
+    const otherTabOpens = async () => {
+        await act(async () => stealFromHere?.());
+        await settle();
+    };
+    const pageReload = vi.fn();
+    const notice = "This session is open in another tab";
+
+    beforeEach(() => {
+        stealFromHere = undefined;
+        vi.stubGlobal("navigator", { onLine: true, locks });
+        Object.assign(window.location, { reload: pageReload });
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("leaves this board read-only, saying so, until Use here", async () => {
+        server = { a: session("a") };
+        await reload("a");
+        expect(locks.request).toHaveBeenCalledWith(
+            "searchlight-session:a",
+            { steal: true },
+            expect.any(Function),
+        );
+        const stream = env.FakeEventSource.last!;
+        expect(env.document.body.textContent).not.toContain(notice);
+
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(stream.readyState).toBe(2);
+        expect(isSessionReadOnly("a")).toBe(true);
+
+        // Use here reloads the page, which takes the session back.
+        await click((text) => text === "Use here");
+        expect(pageReload).toHaveBeenCalledOnce();
+    });
+
+    it("doesn't take the session back when the server answers again", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        await reload("a", { offline: true });
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+
+        // /me answers in this background tab.
+        await act(async () => {
+            verifiedUserId.set(USER);
+            offlineUserId.set(null);
+        });
+        await settle();
+        expect(locks.request).toHaveBeenCalledOnce();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(isSessionReadOnly("a")).toBe(true);
+        expect(env.FakeEventSource.last).toBeNull();
+    });
+
+    it("leaves the queue alone when a role check started before answers after", async () => {
+        server = { a: session("a", { role: "member" }) };
+        await reload("a");
+        // The stream reconnects: the board checks the role, slowly.
+        let answer = () => {};
+        fetchMock.mockImplementationOnce(
+            (input: string | URL) =>
+                new Promise((resolve) => {
+                    answer = () =>
+                        resolve(json(session(new URL(String(input)).pathname.split("/")[2], { role: "viewer" })));
+                }),
+        );
+        await act(async () =>
+            window.dispatchEvent(
+                new CustomEvent(SESSION_STREAM_RECONNECTED_EVENT, {
+                    detail: { sessionId: "a" },
+                }),
+            ),
+        );
+        await otherTabOpens();
+        // The other tab has queued an edit; this one's old check answers.
+        const queued = JSON.stringify([
+            {
+                localId: "other-tab-edit",
+                sessionId: "a",
+                type: "planning.toggle",
+                payloadJson: { planningModeEnabled: true },
+                clientUuid: "planning-other-tab",
+                clientCreatedAt: 0,
+                status: "pending",
+                createdAt: 0,
+            },
+        ]);
+        env.store.set(`taibled-pending-a~${USER}`, queued);
+        await act(async () => answer());
+        await settle();
+        expect(env.store.get(`taibled-pending-a~${USER}`)).toBe(queued);
+        expect(activeSessionRole.get()).not.toBe("viewer");
+        expect(locks.request).toHaveBeenCalledOnce();
+    });
+
+    it("stops a load still running here", async () => {
+        server = { a: session("a") };
+        let finishLoad = () => {};
+        vi.mocked(loadSessionContent).mockImplementation(
+            (id) =>
+                new Promise((resolve) => {
+                    finishLoad = () =>
+                        resolve({
+                            strokes: [],
+                            questions: [],
+                            session: server[id],
+                            cursor: 0,
+                        });
+                }),
+        );
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        await otherTabOpens();
+        expect(overlayShown()).toBe(false);
+        expect(env.document.body.textContent).toContain(notice);
+        await act(async () => finishLoad());
+        await settle();
+        // No stream: the other tab has the session.
+        expect(env.FakeEventSource.last).toBeNull();
+        expect(env.document.body.textContent).toContain(notice);
     });
 });

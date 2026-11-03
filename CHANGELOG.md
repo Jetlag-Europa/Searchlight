@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## A session is changed in one tab at a time (2026-11-03)
+
+- With a session open in two tabs or windows of one browser (or in Chrome and the installed app on Android), the two could undo each other's question changes. Now the tab that opened the session last changes it; the other shows "This session is open in another tab" and, with **Use here**, takes it back. The iPhone Home Screen app counts as its own device, as before.
+- A save on a connection that died without saying so no longer holds up every later save for minutes: it is tried again after 45 seconds.
+- When the device's storage is too full to keep an edit, a message now says the change wasn't saved, with **Retry**, instead of losing it without a word.
+
 ## Google Maps as a basemap (2026-11-03)
 
 - Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
