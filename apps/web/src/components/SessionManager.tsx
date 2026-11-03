@@ -12,6 +12,7 @@ import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
+import { OtherTabNotice } from "@/components/OtherTabNotice";
 import { StatusChip } from "@/components/StatusChip";
 import {
     AlertDialog,
@@ -34,6 +35,7 @@ import {
     activeSessionId,
     activeSessionRole,
     clearActiveSession,
+    editingInOtherTab,
     offlineUserId,
     sessionReadOnly,
     setActiveSession,
@@ -108,6 +110,7 @@ import {
     onQuestionsSaved,
     startSyncManager,
 } from "@/lib/syncManager";
+import { editSessionHere } from "@/lib/tabLock";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
@@ -1058,12 +1061,7 @@ export function SessionManager() {
     // A session's hider and planning mode, with this account's edits to them
     // that haven't synced yet.
     const showSessionModes = (session: GameSessionSummary) => {
-        const modes = applyPendingModes(
-            session,
-            getPendingEvents(session.id).filter(
-                (event) => event.status !== "synced",
-            ),
-        );
+        const modes = applyPendingModes(session, getPendingEvents(session.id));
         loadedHiderModeRef.current = modes.hiderMode;
         hiderMode.set(modes.hiderMode);
         loadedPlanningModeRef.current = modes.planningModeEnabled;
@@ -1179,6 +1177,14 @@ export function SessionManager() {
 
     // Flush pending question, hider & planning saves when the page may close.
     useEffect(() => flushSavesOnPageExit(), []);
+
+    // Another tab took the session over (see editSessionHere): nothing more
+    // loads or checks here, until the player takes it back.
+    const stopEditingHere = () => {
+        sessionLoadGenerationRef.current++;
+        sessionRecheck.stop();
+        setLoading(false);
+    };
 
     // The session was deleted (404) or this user can no longer open it (403):
     // drop the pointer and the local queue/cache, which can never sync. A 403
@@ -1357,6 +1363,7 @@ export function SessionManager() {
             if (!offline) setShowPicker(true);
             return cleanup;
         }
+        editSessionHere(storedId, stopEditingHere);
 
         // The cached owner must match the account played as, and the session
         // must be authorized before private content becomes visible. Without
@@ -1480,7 +1487,8 @@ export function SessionManager() {
     // until then the modes can still be another session's.
     useEffect(() => {
         if (offline || !authUserId || !session || !gameReady || loading) return;
-        if (session.id !== sessionId) return;
+        // Not from a board another tab took over: that one keeps it.
+        if (session.id !== sessionId || editingInOtherTab.get()) return;
         const cached = getCachedSession(session.id);
         if (!cached || cached.userId !== authUserId) return;
         // A spectator's copy never has the hider.
@@ -1515,6 +1523,7 @@ export function SessionManager() {
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
             loadingGenerationRef.current = generation;
+            editSessionHere(selected.id, stopEditingHere);
             sessionRecheck.stop();
             stopSSE();
 
@@ -1862,8 +1871,13 @@ export function SessionManager() {
                     return;
                 }
                 // Only on a board that shows the session (one that shows
-                // nothing would read as removing everything).
-                if (isLoadingSession() || boardSessionRef.current !== saved.sessionId) {
+                // nothing would read as removing everything) and edits it
+                // (the tab that took it over shows it).
+                if (
+                    isLoadingSession() ||
+                    editingInOtherTab.get() ||
+                    boardSessionRef.current !== saved.sessionId
+                ) {
                     return;
                 }
                 showMergedSave(saved, {
@@ -1992,6 +2006,7 @@ export function SessionManager() {
                     inert={showPicker}
                 />
             )}
+            <OtherTabNotice />
         </>
     );
 }

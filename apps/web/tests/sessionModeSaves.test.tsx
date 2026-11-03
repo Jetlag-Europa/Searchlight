@@ -223,6 +223,7 @@ import {
     activeSessionData,
     activeSessionId,
     clearActiveSession,
+    isSessionReadOnly,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -866,5 +867,85 @@ describe("a session load that fails", () => {
             "Couldn't load the latest from the server. Try again in a moment.",
             { toastId: "session-load" },
         );
+    });
+});
+
+describe("another tab of this browser opening the session", () => {
+    // Web Locks as two tabs share them: another tab opening the session
+    // steals the lock, and this tab's request rejects.
+    let stealFromHere: (() => void) | undefined;
+    const locks = {
+        request: vi.fn(
+            (_name: string, _options: unknown, callback: () => unknown) =>
+                new Promise((resolve, reject) => {
+                    stealFromHere = () =>
+                        reject(new DOMException("stolen", "AbortError"));
+                    void Promise.resolve(callback()).then(resolve);
+                }),
+        ),
+    };
+    const otherTabOpens = async () => {
+        await act(async () => stealFromHere?.());
+        await settle();
+    };
+    const pageReload = vi.fn();
+    const notice = "This session is open in another tab";
+
+    beforeEach(() => {
+        stealFromHere = undefined;
+        vi.stubGlobal("navigator", { onLine: true, locks });
+        Object.assign(window.location, { reload: pageReload });
+    });
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("leaves this board read-only, saying so, until Use here", async () => {
+        server = { a: session("a") };
+        await reload("a");
+        expect(locks.request).toHaveBeenCalledWith(
+            "searchlight-session:a",
+            { steal: true },
+            expect.any(Function),
+        );
+        const stream = env.FakeEventSource.last!;
+        expect(env.document.body.textContent).not.toContain(notice);
+
+        await otherTabOpens();
+        expect(env.document.body.textContent).toContain(notice);
+        expect(stream.readyState).toBe(2);
+        expect(isSessionReadOnly("a")).toBe(true);
+
+        // Use here reloads the page, which takes the session back.
+        await click((text) => text === "Use here");
+        expect(pageReload).toHaveBeenCalledOnce();
+    });
+
+    it("stops a load still running here", async () => {
+        server = { a: session("a") };
+        let finishLoad = () => {};
+        vi.mocked(loadSessionContent).mockImplementation(
+            (id) =>
+                new Promise((resolve) => {
+                    finishLoad = () =>
+                        resolve({
+                            strokes: [],
+                            questions: [],
+                            session: server[id],
+                            cursor: 0,
+                        });
+                }),
+        );
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        await otherTabOpens();
+        expect(overlayShown()).toBe(false);
+        expect(env.document.body.textContent).toContain(notice);
+        await act(async () => finishLoad());
+        await settle();
+        // No stream: the other tab has the session.
+        expect(env.FakeEventSource.last).toBeNull();
+        expect(env.document.body.textContent).toContain(notice);
     });
 });
