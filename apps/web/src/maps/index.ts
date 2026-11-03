@@ -497,8 +497,8 @@ export const regionData = (question: Question) => ({
  * This is the basis for the per-question (dodge-aware) hiding-zone survival test:
  * a hider may move within their zone, so a zone is valid as long as it overlaps
  * EACH question's region independently. Folding all questions into a single
- * intersected area (as {@link applyQuestionsToMapGeoData} does) incorrectly
- * requires one point to satisfy every question at once. See [[DissapearingAct]].
+ * intersected area would wrongly require one point to satisfy every question at
+ * once. See [[DissapearingAct]].
  */
 // Standalone regions keyed by question content. Valid only while every other
 // input to the evaluators is unchanged; those atoms are replaced, never mutated,
@@ -562,41 +562,4 @@ export async function computePerQuestionRegions(
     if (regionCache?.regions === cache && isCurrent())
         regionCache.regions = used;
     return regions;
-}
-
-export async function applyQuestionsToMapGeoData(
-    questions: Questions,
-    mapGeoData: any,
-    planningModeEnabled: boolean,
-    planningModeCallback?: (
-        polygon: FeatureCollection | Feature,
-        question: any,
-    ) => void,
-): Promise<any> {
-    for (const question of questions) {
-        if (question.data.enabled === false) continue;
-        if (isZoneSizeChange(question)) continue;
-        if (planningModeCallback) {
-            const planningPolygon = await determinePlanningPolygon(
-                question,
-                planningModeEnabled,
-            );
-            if (planningPolygon) {
-                planningModeCallback(planningPolygon, question);
-            }
-        }
-        if (planningModeEnabled && question.data.drag) {
-            continue;
-        }
-
-        mapGeoData = await adjustMapGeoDataForQuestion(question, mapGeoData);
-
-        if (!mapGeoData || mapGeoData.type !== "FeatureCollection") {
-            mapGeoData = {
-                type: "FeatureCollection",
-                features: mapGeoData ? [mapGeoData] : [],
-            };
-        }
-    }
-    return mapGeoData;
 }

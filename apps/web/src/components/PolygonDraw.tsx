@@ -34,7 +34,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-} from "./ui/sidebar-l";
+} from "./ui/sidebar";
 
 const swapCoordinates = (geojson: any) => {
     return JSON.parse(JSON.stringify(geojson), (key, value) => {
@@ -116,68 +116,13 @@ const TentacleMarker = ({
     );
 };
 
-const MatchingPointMarker = ({
+// A custom matching or measuring point.
+const PointMarker = ({
     point,
 }: {
-    point: CustomMatchingQuestion["geo"][number];
-}) => {
-    const $autoSave = useStore(autoSave);
-    const [open, setOpen] = useState(false);
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <Marker
-                position={[
-                    point.geometry.coordinates[1],
-                    point.geometry.coordinates[0],
-                ]}
-                // @ts-expect-error This is passed to options, so it is not typed
-                isDialog={true}
-                eventHandlers={{
-                    click: () => {
-                        setOpen(true);
-                    },
-                }}
-            />
-            <DialogContent aria-describedby={undefined}>
-                <div className="flex flex-col gap-2">
-                    <SidebarMenu>
-                        <LatitudeLongitude
-                            latitude={point.geometry.coordinates[1]}
-                            longitude={point.geometry.coordinates[0]}
-                            inlineEdit
-                            onChange={(lat, lng) => {
-                                if (lat) {
-                                    point.geometry.coordinates[1] = lat;
-                                }
-                                if (lng) {
-                                    point.geometry.coordinates[0] = lng;
-                                }
-
-                                questionModified();
-                            }}
-                        />
-                        {!$autoSave && (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton
-                                    className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500 mt-2"
-                                    onClick={save}
-                                >
-                                    Save
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        )}
-                    </SidebarMenu>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-};
-
-const MeasuringPointMarker = ({
-    point,
-}: {
-    point: CustomMeasuringQuestion["geo"]["features"][number];
+    point:
+        | CustomMatchingQuestion["geo"][number]
+        | CustomMeasuringQuestion["geo"]["features"][number];
 }) => {
     const $autoSave = useStore(autoSave);
     const [open, setOpen] = useState(false);
@@ -398,7 +343,7 @@ export const PolygonDraw = () => {
                 question.data.type === "custom-points" &&
                 ((question.data as CustomMatchingQuestion).geo ?? []).map(
                     (x: any) => (
-                        <MatchingPointMarker
+                        <PointMarker
                             key={x.geometry.coordinates.join(",")}
                             point={x}
                         />
@@ -411,7 +356,7 @@ export const PolygonDraw = () => {
                     .flatten(measuringGeo)
                     .features.filter((x: any) => turf.getType(x) === "Point")
                     .map((x: any) => (
-                        <MeasuringPointMarker
+                        <PointMarker
                             key={x.geometry.coordinates.join(",")}
                             point={x}
                         />

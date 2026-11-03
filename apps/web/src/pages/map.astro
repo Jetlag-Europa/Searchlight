@@ -1,14 +1,7 @@
 ---
 import Layout from "@/layouts/Layout.astro";
 import { Map } from "@/components/Map";
-import {
-    SidebarProvider as SidebarProviderL,
-    SidebarTrigger as SidebarTriggerL,
-} from "@/components/ui/sidebar-l";
-import {
-    SidebarProvider as SidebarProviderR,
-    SidebarTrigger as SidebarTriggerR,
-} from "@/components/ui/sidebar-r";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { QuestionSidebar } from "@/components/QuestionSidebar";
 import { ZoneSidebar } from "@/components/ZoneSidebar";
 import { OptionDrawers } from "@/components/OptionDrawers";
@@ -62,8 +55,8 @@ import { QuestionConflicts } from "@/components/QuestionConflicts";
 
     <!-- The board; SessionManager makes it inert while the session picker is open -->
     <div id="map-board" class="contents">
-        <SidebarProviderL client:load>
-            <SidebarProviderR client:load defaultOpen={false}>
+        <SidebarProvider side="left" client:load>
+            <SidebarProvider side="right" client:load defaultOpen={false}>
                 <QuestionSidebar client:only />
                 <main class="flex h-svh min-w-0 flex-col flex-grow group">
                     <div
@@ -74,12 +67,12 @@ import { QuestionConflicts } from "@/components/QuestionConflicts";
                             <div
                                 class="absolute top-[72px] md:top-2 left-2 z-[1030] group-[.fullscreen]:hidden"
                             >
-                                <SidebarTriggerL client:load />
+                                <SidebarTrigger side="left" client:load />
                             </div>
                             <div
                                 class="absolute top-[72px] md:top-2 right-2 z-[1030] group-[.fullscreen]:hidden"
                             >
-                                <SidebarTriggerR client:load />
+                                <SidebarTrigger side="right" client:load />
                             </div>
                             <!--
                                 The status chips, stacked in the map's corner so
@@ -123,7 +116,7 @@ import { QuestionConflicts } from "@/components/QuestionConflicts";
                     <SessionUpgradeBanner client:only="react" />
                 </main>
                 <ZoneSidebar client:only />
-            </SidebarProviderR>
-        </SidebarProviderL>
+            </SidebarProvider>
+        </SidebarProvider>
     </div>
 </Layout>

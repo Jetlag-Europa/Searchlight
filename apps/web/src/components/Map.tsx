@@ -78,7 +78,6 @@ import {
 import { DraggableMarkers } from "./DraggableMarkers";
 import { GoogleBasemap } from "./GoogleBasemap";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
-import { MapPrint } from "./MapPrint";
 import { PolygonDraw } from "./PolygonDraw";
 
 // Before a game has loaded, the map shows the world, or the game it showed
@@ -589,18 +588,6 @@ export const Map = ({ className }: { className?: string }) => {
                 </div>
                 <PolygonDraw />
                 <ScaleControl position="bottomleft" />
-                <MapPrint
-                    position="topright"
-                    sizeModes={["Current", "A4Portrait", "A4Landscape"]}
-                    hideControlContainer={false}
-                    hideClasses={[
-                        "leaflet-full-screen-specific-name",
-                        "leaflet-top",
-                        "leaflet-control-easyPrint",
-                        "leaflet-draw",
-                    ]}
-                    title="Print"
-                />
             </MapContainer>
         ),
         [map, $baseTileLayer, $thunderforestApiKey],
