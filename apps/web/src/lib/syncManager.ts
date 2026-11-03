@@ -527,7 +527,7 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let retryDelay = RETRY_MIN_MS;
 
 function hasUnsyncedEvents(sessionId: string): boolean {
-    return getPendingEvents(sessionId).some((event) => event.status !== "synced");
+    return getPendingEvents(sessionId).length > 0;
 }
 
 /**
@@ -585,9 +585,7 @@ export function retryPendingEvents(sessionId: string): void {
 }
 
 function refreshSyncCounts(sessionId: string): void {
-    const remaining = getPendingEvents(sessionId).filter(
-        (event) => event.status !== "synced",
-    ).length;
+    const remaining = getPendingEvents(sessionId).length;
     pendingEventCount.set(remaining);
     if (remaining === 0) {
         syncStatus.set("synced");
@@ -747,10 +745,7 @@ export function sendPendingEvent(
 
 export async function flushPendingEvents(sessionId: string): Promise<void> {
     if (isSessionReadOnly(sessionId)) return;
-    const pending = getPendingEvents(sessionId).filter(
-        (event) => event.status !== "synced",
-    );
-    for (const event of pending) {
+    for (const event of getPendingEvents(sessionId)) {
         try {
             await sendPendingEvent(event);
         } catch (err) {

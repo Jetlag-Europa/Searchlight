@@ -115,7 +115,7 @@ function showServerQuestions(
     sequence: number,
 ): boolean {
     const unsynced = getPendingEvents(sessionId).filter(
-        (e) => e.type === "questions.replace" && e.status !== "synced",
+        (e) => e.type === "questions.replace",
     );
     if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
         console.info(
@@ -342,7 +342,7 @@ function handleServerEvent(
         );
     } else if (event.type === "questions.replace") {
         const unsynced = getPendingEvents(targetSessionId).filter(
-            (e) => e.type === "questions.replace" && e.status !== "synced",
+            (e) => e.type === "questions.replace",
         );
         // Our own replace can echo back before its PUT is acknowledged. The
         // echo proves it committed at this sequence, so replaces from other

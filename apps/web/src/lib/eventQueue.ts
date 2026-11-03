@@ -43,7 +43,8 @@ export interface PendingEvent {
     payloadJson: unknown;
     clientUuid: string;
     clientCreatedAt: number;
-    status: "pending" | "synced" | "failed";
+    // A synced event leaves the queue (see markEventSynced).
+    status: "pending" | "failed";
     createdAt: number;
     // A question list once sent: it may be on the server even without an
     // answer (see QuestionsReplacePayload.own).
@@ -349,9 +350,7 @@ export function evictOldCachedSessions(
                             (protectedSessionId
                                 ? cacheKey(protectedSessionId)
                                 : undefined) ||
-                        getPendingEvents(key.slice(CACHE_PREFIX.length)).some(
-                            (event) => event.status !== "synced",
-                        ),
+                        getPendingEvents(key.slice(CACHE_PREFIX.length)).length > 0,
                 });
             } catch {
                 cacheEntries.push({ key, lastSyncedAt: 0, hasPending: true });
@@ -501,13 +500,6 @@ export function markEventFailed(sessionId: string, localId: string): void {
     savePendingEvents(sessionId, events);
 }
 
-export function resetFailedEvents(sessionId: string): void {
-    const events = getPendingEvents(sessionId).map((e) =>
-        e.status === "failed" ? { ...e, status: "pending" as const } : e,
-    );
-    savePendingEvents(sessionId, events);
-}
-
 export function getCachedSession(sessionId: string): CachedSessionState | null {
     try {
         const raw = localStorage.getItem(cacheKey(sessionId));
@@ -572,8 +564,7 @@ function sameBase(a: QuestionsBase | undefined, b: QuestionsBase): boolean {
 
 function latestQueuedQuestions(sessionId: string): PendingEvent | undefined {
     return getPendingEvents(sessionId).findLast(
-        (event) =>
-            event.type === "questions.replace" && event.status !== "synced",
+        (event) => event.type === "questions.replace",
     );
 }
 
@@ -706,7 +697,6 @@ export function rebaseQueuedQuestions(
         const payload = event.payloadJson as Partial<QuestionsReplacePayload>;
         if (
             event.type !== "questions.replace" ||
-            event.status === "synced" ||
             event.localId === exceptLocalId ||
             !isQuestionsBase(payload?.base) ||
             !sameBase(payload.base, from)
@@ -776,11 +766,6 @@ export function updateQueuedPayload(
     events[index] = { ...events[index], payloadJson };
     writePendingQueue(sessionId, events);
     return true;
-}
-
-export function clearCachedSession(sessionId: string): void {
-    localStorage.removeItem(cacheKey(sessionId));
-    // Do NOT remove pendingKey(sessionId) — avoid losing pending queue on cache eviction
 }
 
 // Drop the edits waiting to be sent to a session, and the questions held for
@@ -940,8 +925,5 @@ export function applyUnsyncedEvents(
     sessionId: string,
     base: { strokes: StrokeFeature[]; questions: Questions },
 ): { strokes: StrokeFeature[]; questions: Questions } {
-    return applyPendingEventsToState(
-        base,
-        getPendingEvents(sessionId).filter((event) => event.status !== "synced"),
-    );
+    return applyPendingEventsToState(base, getPendingEvents(sessionId));
 }

@@ -570,9 +570,7 @@ function conflictsStored(c: Client): Any[] {
 }
 function unsynced(c: Client): Any[] {
     const raw = c.store.get(`taibled-pending-${server.sid}~${c.userId}`);
-    return raw
-        ? (JSON.parse(raw) as Any[]).filter((e) => e.status !== "synced")
-        : [];
+    return raw ? (JSON.parse(raw) as Any[]) : [];
 }
 
 function newLabel(c: number) {
