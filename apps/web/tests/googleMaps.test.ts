@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
     effectiveBasemap,
@@ -6,6 +6,8 @@ import {
     googleLook,
     googleMapTypeOf,
     HIDE_PLACES_STYLES,
+    TILE_FADE_MS,
+    whenDrawn,
 } from "@/lib/googleMaps";
 
 const ok = { available: true, problem: null } as const;
@@ -96,6 +98,88 @@ it("reads an unknown stored map type as Roadmap", () => {
     expect(googleMapTypeOf("toString")).toBe("roadmap");
     expect(googleMapTypeOf("hasOwnProperty")).toBe("roadmap");
     expect(googleMapTypeOf(undefined)).toBe("roadmap");
+});
+
+/** Just enough of a Leaflet layer's events for whenDrawn. */
+function fakeTileLayer() {
+    const listeners = new Map<string, Set<() => void>>();
+    return {
+        on(type: string, fn: () => void) {
+            if (!listeners.has(type)) listeners.set(type, new Set());
+            listeners.get(type)!.add(fn);
+        },
+        off(type: string, fn: () => void) {
+            listeners.get(type)?.delete(fn);
+        },
+        fire(type: string) {
+            for (const fn of [...(listeners.get(type) ?? [])]) fn();
+        },
+        listening: () =>
+            [...listeners.values()].reduce((n, set) => n + set.size, 0),
+    };
+}
+
+describe("whenDrawn", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("counts a layer drawn once its tiles have loaded and faded in", () => {
+        vi.useFakeTimers();
+        const layer = fakeTileLayer();
+        const drawn = vi.fn();
+        whenDrawn(layer, () => false, drawn);
+        layer.fire("loading");
+        layer.fire("load");
+        vi.advanceTimersByTime(TILE_FADE_MS - 1);
+        expect(drawn).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(1);
+        expect(drawn).toHaveBeenCalledTimes(1);
+        expect(layer.listening()).toBe(0);
+    });
+
+    it("waits again when the view changes before the tiles have faded in", () => {
+        vi.useFakeTimers();
+        const layer = fakeTileLayer();
+        const drawn = vi.fn();
+        whenDrawn(layer, () => false, drawn);
+        layer.fire("load");
+        vi.advanceTimersByTime(100);
+        layer.fire("loading"); // e.g. the game's view is fitted
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        expect(drawn).not.toHaveBeenCalled();
+        layer.fire("load");
+        vi.advanceTimersByTime(TILE_FADE_MS);
+        expect(drawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("waits for the tiles of a pending redraw", () => {
+        vi.useFakeTimers();
+        const layer = fakeTileLayer();
+        const drawn = vi.fn();
+        let redrawing = true;
+        whenDrawn(layer, () => redrawing, drawn);
+        layer.fire("load"); // tiles from before the transit lines
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        expect(drawn).not.toHaveBeenCalled();
+        redrawing = false;
+        layer.fire("loading");
+        layer.fire("load");
+        vi.advanceTimersByTime(TILE_FADE_MS);
+        expect(drawn).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops waiting when told to", () => {
+        vi.useFakeTimers();
+        const layer = fakeTileLayer();
+        const drawn = vi.fn();
+        const stop = whenDrawn(layer, () => false, drawn);
+        layer.fire("load");
+        stop();
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        layer.fire("load");
+        vi.advanceTimersByTime(TILE_FADE_MS * 4);
+        expect(drawn).not.toHaveBeenCalled();
+        expect(layer.listening()).toBe(0);
+    });
 });
 
 /** A browser with no network: a window, a navigator and a script loader. */

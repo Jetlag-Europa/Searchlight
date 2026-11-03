@@ -15,8 +15,10 @@ import {
     googleLook,
     googleMapDrawn,
     googleMapTypeOf,
+    googleStandingIn,
     HIDE_PLACES_STYLES,
     loadGoogleMapsApi,
+    whenDrawn,
 } from "@/lib/googleMaps";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
@@ -137,9 +139,6 @@ function redrawWhenLoaded(googleMutant: any) {
     });
 }
 
-// Leaflet's tile fade-in (200 ms), with a frame to spare.
-const TILE_FADE_MS = 250;
-
 /**
  * Google Maps' own map as the basemap, with its logo and copyright. Until
  * Google has drawn the map's tiles it shows `children` (CARTO) instead, and
@@ -155,28 +154,31 @@ export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
 
     useEffect(() => {
         let mounted = true;
-        // Leaflet fires "load" once every tile in view has loaded, then fades
-        // each one in over 200 ms. Swap after that, or the map shows through.
-        let fadeTimer: ReturnType<typeof setTimeout> | undefined;
-        const onLoad = () => {
-            fadeTimer = setTimeout(() => setDrawn(true), TILE_FADE_MS);
-        };
+        let stopWaiting = () => {};
+        googleStandingIn.set(true);
         loadGoogleMapsApi()
             .then(() => {
                 if (!mounted) return;
                 const googleMutant = googleLayer() as any;
                 showGoogle(googleMutant, false);
-                googleMutant.once("load", onLoad);
+                // Before the layer is added: a look changed while it was off
+                // the map clears the tiles GoogleMutant kept, rather than
+                // drawing them first.
+                applyLook?.(chosenLook());
+                stopWaiting = whenDrawn(
+                    googleMutant,
+                    () => pendingRedraw !== null,
+                    () => setDrawn(true),
+                );
                 googleMutant.addTo(map);
                 keepGoogleAttribution(googleMutant);
-                applyLook?.(chosenLook());
             })
             // googleMapsProblem now says why, and the map falls back to CARTO.
             .catch(() => {});
         return () => {
             mounted = false;
-            clearTimeout(fadeTimer);
-            layer?.off("load", onLoad);
+            stopWaiting();
+            googleStandingIn.set(false);
             if (layer && map.hasLayer(layer)) map.removeLayer(layer);
         };
     }, [map]);
@@ -186,6 +188,7 @@ export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
     useEffect(() => {
         if (!drawn || !layer) return;
         showGoogle(layer, true);
+        googleStandingIn.set(false);
         googleMapDrawn();
     }, [drawn]);
 

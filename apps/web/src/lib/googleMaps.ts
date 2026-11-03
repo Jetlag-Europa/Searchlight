@@ -15,7 +15,8 @@ export const googleMapsAvailable = GOOGLE_MAPS_API_KEY !== "";
 
 /**
  * Why Google's map can't be shown right now, if it can't. "offline" clears
- * when the browser is back online; the others last until a reload.
+ * when the browser is back online, and "load-failed" is tried again then;
+ * "auth-failed" lasts until a reload.
  */
 export type GoogleMapsProblem = "offline" | "load-failed" | "auth-failed";
 export const googleMapsProblem = atom<GoogleMapsProblem | null>(
@@ -81,6 +82,50 @@ let drawn = false;
 /** Google's map has drawn its first tiles. */
 export function googleMapDrawn(): void {
     drawn = true;
+}
+
+/** Set while CARTO stands in for a Google map that hasn't drawn yet. */
+export const googleStandingIn = atom(false);
+
+/** The events of a Leaflet tile layer that whenDrawn listens to. */
+export interface TileEvents {
+    on(type: "load" | "loading", fn: () => void): unknown;
+    off(type: "load" | "loading", fn: () => void): unknown;
+}
+
+// Leaflet fades each tile in over 200 ms once it has loaded; a frame to spare.
+export const TILE_FADE_MS = 250;
+
+/**
+ * Calls `drawn` once the layer shows every tile in view: Leaflet's "load",
+ * then its fade-in. A view change meanwhile ("loading") puts it off until the
+ * next "load", and so does a redraw of Google's tiles that is still to come
+ * (`redrawing`): the tiles on the map would be replaced. Returns a function
+ * that stops waiting.
+ */
+export function whenDrawn(
+    layer: TileEvents,
+    redrawing: () => boolean,
+    drawn: () => void,
+): () => void {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onLoading = () => clearTimeout(timer);
+    const onLoad = () => {
+        clearTimeout(timer);
+        if (redrawing()) return;
+        timer = setTimeout(() => {
+            stop();
+            drawn();
+        }, TILE_FADE_MS);
+    };
+    const stop = () => {
+        clearTimeout(timer);
+        layer.off("load", onLoad);
+        layer.off("loading", onLoading);
+    };
+    layer.on("load", onLoad);
+    layer.on("loading", onLoading);
+    return stop;
 }
 
 if (typeof window !== "undefined") {

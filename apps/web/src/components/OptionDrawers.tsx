@@ -55,6 +55,7 @@ import {
     googleMapsAvailable,
     googleMapsProblem,
     googleMapTypeOf,
+    googleStandingIn,
 } from "@/lib/googleMaps";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
@@ -90,6 +91,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
+    const $googleStandingIn = useStore(googleStandingIn);
     const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
     const $hideGooglePlaces = useStore(hideGooglePlaces);
@@ -302,8 +304,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                 rel="noopener noreferrer"
                                                 className="text-blue-500 cursor-pointer"
                                             >
-                                                Google Maps Additional Terms of
-                                                Service
+                                                Google Maps/Google Earth
+                                                Additional Terms of Service
                                             </a>{" "}
                                             and the{" "}
                                             <a
@@ -404,6 +406,16 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                         "load-failed"
                                                       ? "Google Maps couldn't load. Showing CARTO Voyager; reload the page to try again."
                                                       : "Google Maps refused this site's key. Showing CARTO Voyager."}
+                                            </p>
+                                        )}
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable &&
+                                        !$googleMapsProblem &&
+                                        $googleStandingIn && (
+                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                Google Maps is still loading.
+                                                Showing CARTO Voyager until it
+                                                has drawn.
                                             </p>
                                         )}
                                     <div className="flex flex-col items-center gap-2">
