@@ -82,6 +82,8 @@ let drawn = false;
 /** Google's map has drawn its first tiles. */
 export function googleMapDrawn(): void {
     drawn = true;
+    // Whatever module failed, the map didn't need it.
+    googleModuleFailed.set(false);
 }
 
 /** Set while CARTO stands in for a Google map that hasn't drawn yet. */

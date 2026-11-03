@@ -589,6 +589,18 @@ it("notes a Google module failing before the map has drawn, without giving up on
     expect(googleMapsProblem.get()).toBeNull();
 });
 
+it("drops the module note once Google's map has drawn after all", async () => {
+    const { win } = stubBrowser(true);
+    const { googleModuleFailed, loadGoogleMapsApi, googleMapDrawn } =
+        await loadModule();
+    const load = loadGoogleMapsApi();
+    arrive(win);
+    await load;
+    scriptFailed(win, MAP_MODULE); // a module it didn't need
+    googleMapDrawn();
+    expect(googleModuleFailed.get()).toBe(false);
+});
+
 it("ignores a Google module failing once the map has drawn", async () => {
     const { win } = stubBrowser(true);
     const { googleModuleFailed, loadGoogleMapsApi, googleMapDrawn } =
