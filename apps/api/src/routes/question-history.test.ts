@@ -206,6 +206,33 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     expect(res.json<QuestionHistoryResponse>().entries).toHaveLength(1);
   });
 
+  test("a deleted question in full for a player, only what it was for a spectator", async () => {
+    await prisma.sessionParticipant.createMany({
+      data: [
+        { sessionId: SESSION_ID, userId: USER2_ID, role: "viewer", acceptedAt: new Date() },
+        { sessionId: SESSION_ID, userId: USER3_ID, role: "member", acceptedAt: new Date() },
+      ],
+    });
+    const zone = { id: "matching", key: K2, data: { type: "custom-zone", name: "Park", geo: { type: "Point", coordinates: [4, 52] } } };
+    await save(USER1_ID, [radius(K1), zone]);
+    await save(USER1_ID, [radius(K1)]);
+
+    const removal = async (userId: string) => {
+      const res = await history("", userId);
+      expect(res.statusCode).toBe(200);
+      return res.json<QuestionHistoryResponse>().entries[0].changes[0];
+    };
+    expect(await removal(USER3_ID)).toEqual({ kind: "removed", key: K2, id: "matching", index: 1, typeIndex: 1, question: zone });
+    expect(await removal(USER2_ID)).toEqual({
+      kind: "removed",
+      key: K2,
+      id: "matching",
+      index: 1,
+      typeIndex: 1,
+      before: { type: "custom-zone", name: "Park", geo: { omitted: true } },
+    });
+  });
+
   test("a participant gets the changes newest first, with names and times", async () => {
     await prisma.sessionParticipant.create({
       data: { sessionId: SESSION_ID, userId: USER2_ID, role: "member", acceptedAt: new Date() },
@@ -538,6 +565,26 @@ describe("GET /sessions/:sessionId/questions/history", () => {
         ],
       ]);
       expect(body.entries[1].changes[0]).toMatchObject({ before: { geo: { omitted: true } }, after: { geo: { omitted: true } } });
+    });
+
+    test("doesn't add up drift over saves into an area change", async () => {
+      const at = (x: number) => zoneWith([[x, 52.5], ...boundary.slice(1), [x, 52.5]]);
+      const x = 4.890000000000001;
+      await save(USER1_ID, [at(x), radius(K1)]);
+      // Each save one ulp further off: three ulps in all, more than the diff
+      // allows between the first and the last.
+      await save(USER1_ID, [at(nextUp(x)), radius(K1)]);
+      await save(USER1_ID, [at(nextUp(nextUp(x))), radius(K1)]);
+      await save(USER1_ID, [at(nextUp(nextUp(nextUp(x)))), radius(K1, { within: false })]);
+
+      const body = await entries();
+      expect(body.entries.map((e) => e.changes.map((c) => [c.kind, c.key, c.fields]))).toEqual([
+        [["changed", K1, ["within"]]],
+        [
+          ["added", K2, undefined],
+          ["added", K1, undefined],
+        ],
+      ]);
     });
 
     test("a removed zone carries its whole boundary, to put back", async () => {

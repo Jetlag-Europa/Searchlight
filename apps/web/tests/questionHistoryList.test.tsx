@@ -147,6 +147,38 @@ describe("the question history list", () => {
         expect(html).not.toContain(">Restore</button>");
     });
 
+    it("says plain On the board for several deleted together that are all back", () => {
+        const deletion: QuestionHistoryEntry = {
+            sequence: 3,
+            userId: "u2",
+            displayName: "Alex",
+            at: "2026-11-02T14:05:00.000Z",
+            changes: [0.25, 0.5, 0.75].map((key, index) => ({
+                kind: "removed" as const,
+                key,
+                id: "radius",
+                index,
+                typeIndex: index + 1,
+                question: radar(key),
+            })),
+            order: [0.25, 0.5, 0.75],
+        };
+        const lines = historyLines([deletion], { selfId: "u1" });
+        const html = renderToStaticMarkup(
+            <HistoryList
+                lines={lines}
+                current={[0.25, 0.5, 0.75].map((key) => radar(key))}
+                compiled={null}
+                disabled={false}
+                onRestore={vi.fn()}
+            />,
+        );
+        expect(lines[0].text).toBe("deleted 3 questions");
+        // The line's: all of them. Each question's own says where it is.
+        expect(html.match(/title="On the board"/g)).toHaveLength(1);
+        expect(html).toContain('title="On the board as Radius 2"');
+    });
+
     it("says why Restore waits while no decision can be taken", () => {
         setQuestionDecisionsPossible(false);
         const { html } = render([]);

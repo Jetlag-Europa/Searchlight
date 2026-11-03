@@ -26,7 +26,10 @@ export interface QuestionChange {
    */
   before?: Record<string, unknown>;
   after?: Record<string, unknown>;
-  /** Removed only: the full question, so it can be put back. */
+  /**
+   * Removed only: the full question, so it can be put back. A spectator, who
+   * can't, gets only `before` instead: its data, `geo` and `places` omitted.
+   */
   question?: unknown;
 }
 
@@ -104,8 +107,8 @@ export function sameJsonValue(a: unknown, b: unknown): boolean {
   return a === b;
 }
 
-// A question's data with `geo` and `places` replaced by `{ omitted: true }`.
-function stripBulkyData(data: unknown): Record<string, unknown> {
+/** A question's data with `geo` and `places` replaced by `{ omitted: true }`. */
+export function stripBulkyData(data: unknown): Record<string, unknown> {
   if (!isRecord(data)) return {};
   const stripped: Record<string, unknown> = { ...data };
   for (const field of BULKY_QUESTION_FIELDS) {

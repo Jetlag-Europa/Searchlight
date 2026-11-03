@@ -144,10 +144,14 @@ const otherChanges = (
 };
 
 // What a deleted question asked and its answer, kept short: " (500 m,
-// Outside)". Nothing when it would only repeat its type.
+// Outside)". Nothing when it would only repeat its type. A number keeps its
+// unit on its line: "500" at the end of one and "m" on the next misreads.
 const SUMMARY_MAX = 40;
 const deletedSummary = (question: unknown, unit: Units): string => {
-    const summary = summarizeQuestion(question, { unit });
+    const summary = summarizeQuestion(question, { unit }).replace(
+        /(\d) (?=\p{L})/gu,
+        "$1\u00a0",
+    );
     if (!summary || summary === questionTypeLabel(question)) return "";
     const chars = Array.from(summary);
     const short =
@@ -440,6 +444,10 @@ function addEntryLines(
     }
 
     const removedChanges = entry.changes.filter((c) => c.kind === "removed");
+    // What it was: in full, or for a spectator (who can't restore it) its
+    // data without the bulky fields.
+    const wasData = (c: QuestionChange) =>
+        isRecord(c.question) ? c.question.data : c.before;
     const removed = removedChanges.map(
         (c): RemovedQuestion => ({
             key: c.key,
@@ -457,21 +465,20 @@ function addEntryLines(
             order: entry.order,
         });
     } else {
-        for (const question of removed) {
+        removed.forEach((question, i) => {
+            const c = removedChanges[i];
+            const was = question.question ?? { id: c.id, data: c.before };
             push({
-                text: `deleted ${question.label}${deletedSummary(question.question, unit)}`,
+                text: `deleted ${question.label}${deletedSummary(was, unit)}`,
                 removed: [question],
                 order: entry.order,
             });
-        }
+        });
     }
     removedChanges.forEach((c, i) =>
         deleted.push({
             removed: removed[i],
-            content: contentOf(
-                c.id,
-                isRecord(c.question) ? c.question.data : undefined,
-            ),
+            content: contentOf(c.id, wasData(c)),
         }),
     );
 

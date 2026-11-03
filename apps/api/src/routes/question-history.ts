@@ -6,6 +6,7 @@ import {
   diffQuestionLists,
   keptQuestions,
   sameJsonValue,
+  stripBulkyData,
   type QuestionHistoryEntry,
   type QuestionHistoryResponse,
 } from "@searchlight/shared";
@@ -174,6 +175,8 @@ async function settleFingerprints(
     return parsed.get(fingerprint);
   };
   // Same ones end up under one fingerprint, also along a chain of saves.
+  // Each is compared with the one saved before it, as the diff does: drift
+  // that adds up over several saves is no change at any of them.
   const same = new Map<string, string>();
   const settled = (fingerprint: string): string => {
     const next = same.get(fingerprint);
@@ -182,7 +185,8 @@ async function settleFingerprints(
   for (const [before, after] of pairs) {
     const a = settled(before);
     const b = settled(after);
-    if (a !== b && full.get(a) != null && full.get(b) != null && sameJsonValue(value(a), value(b))) same.set(b, a);
+    if (a === b || full.get(before) == null || full.get(after) == null) continue;
+    if (sameJsonValue(value(before), value(after))) same.set(b, a);
   }
   if (same.size === 0) return;
   for (const question of lists.flat()) {
@@ -266,6 +270,8 @@ async function historyEntries(
   saves: ReplaceRow[],
   read: Lists,
   baseline: ReplaceRow | undefined,
+  // Whether the reader can put deleted questions back.
+  canRestore: boolean,
 ): Promise<QuestionHistoryEntry[]> {
   const origins = new WeakMap<object, Origin>();
   const listOf = (save: ReplaceRow) => questionsOf(read.get(save.sequence) ?? null, save.sequence, origins);
@@ -298,8 +304,16 @@ async function historyEntries(
   });
 
   // A deleted question goes back whole, so it's read in full from the last
-  // save that had it. One that can't be read isn't offered at all.
+  // save that had it. One that can't be read isn't offered at all. A
+  // spectator can't restore: what it was is enough to name it.
   const removed = entries.flatMap((e) => e.changes).filter((c) => c.kind === "removed");
+  if (!canRestore) {
+    for (const change of removed) {
+      change.before = stripBulkyData(isRecord(change.question) ? change.question.data : undefined);
+      delete change.question;
+    }
+    return entries.reverse();
+  }
   const located = removed.flatMap((change) => {
     const origin = isRecord(change.question) ? origins.get(change.question) : undefined;
     if (!origin) delete change.question;
@@ -345,7 +359,8 @@ export async function questionHistoryRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
       // Spectators may read it too: it holds no hider position.
-      await resolveSessionAccess(sessionId, user.discordId);
+      const { role } = await resolveSessionAccess(sessionId, user.discordId);
+      const canRestore = role !== "viewer";
 
       const query = req.query as Query;
       if (query.before !== undefined && query.after !== undefined) {
@@ -365,7 +380,7 @@ export async function questionHistoryRoutes(app: FastifyInstance) {
           return { entries: [], nextBefore: null, newest: null, more: true };
         }
         return {
-          entries: await historyEntries(sessionId, rows, lists, baseline),
+          entries: await historyEntries(sessionId, rows, lists, baseline, canRestore),
           nextBefore: null,
           newest: rows[rows.length - 1].sequence,
         };
@@ -381,7 +396,7 @@ export async function questionHistoryRoutes(app: FastifyInstance) {
       const page = rows.slice(0, withinBudget(rows.slice(0, fit), readSize(lists), pageByteBudget.bytes));
       const baseline = rows[page.length];
       return {
-        entries: await historyEntries(sessionId, [...page].reverse(), lists, baseline),
+        entries: await historyEntries(sessionId, [...page].reverse(), lists, baseline, canRestore),
         nextBefore: baseline && page.length > 0 ? page[page.length - 1].sequence : null,
         newest: rows[0]?.sequence ?? null,
       };

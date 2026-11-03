@@ -52,6 +52,11 @@ import { hasPendingQuestionSave } from "@/lib/sessionState";
 const REFRESH_DELAY_MS = 1500;
 // How many times a refresh waits for this device's own question save.
 const MAX_SAVE_WAITS = 8;
+// How long a save may wait before the History says it isn't in there yet:
+// each of the player's own saves waits a moment.
+const UNSAVED_NOTE_DELAY_MS = 3000;
+// The start of what restorable() says of a question that's back.
+const ON_THE_BOARD = "On the board";
 // Older pages loaded on their own while the loaded ones show nothing, such as
 // a run of saves that only folded cards.
 const MAX_AUTO_OLDER = 5;
@@ -88,8 +93,18 @@ export const HistoryList = ({
         );
         const unavailable = checks.find((c) => c.status === "unavailable");
         if (!checks.some((c) => c.status === "ok")) {
-            const reason =
+            let reason =
                 unavailable?.status === "unavailable" ? unavailable.reason : "";
+            // Several back: one's label ("On the board as Radius 1") would
+            // read as where all of them are.
+            const back = checks.filter(
+                (c) =>
+                    c.status === "unavailable" &&
+                    c.reason.startsWith(ON_THE_BOARD),
+            );
+            if (back.length > 1 && reason.startsWith(ON_THE_BOARD)) {
+                reason = ON_THE_BOARD;
+            }
             // Two lines at most, beside the change: "On the board as" a long
             // name is cut short there, the rest is read whole.
             return (
@@ -303,6 +318,34 @@ export const QuestionHistory = () => {
         };
     }, [sessionId, loadNewer]);
 
+    const [online, setOnline] = useState(
+        () => typeof navigator === "undefined" || navigator.onLine,
+    );
+    useEffect(() => {
+        const update = () => setOnline(navigator.onLine);
+        update();
+        window.addEventListener("online", update);
+        window.addEventListener("offline", update);
+        return () => {
+            window.removeEventListener("online", update);
+            window.removeEventListener("offline", update);
+        };
+    }, []);
+    // Changes not saved yet aren't in the History until they are. Said
+    // offline, or once a save has waited a while, not for every save.
+    const pending =
+        !!sessionId && !$readOnly && hasPendingQuestionSave(sessionId);
+    const [slowSave, setSlowSave] = useState(false);
+    useEffect(() => {
+        setSlowSave(false);
+        if (!pending) return;
+        const timer = setTimeout(
+            () => setSlowSave(true),
+            UNSAVED_NOTE_DELAY_MS,
+        );
+        return () => clearTimeout(timer);
+    }, [pending]);
+
     const lines = useMemo(
         () => historyLines(history?.entries ?? [], { selfId, unit }),
         [history, selfId, unit],
@@ -316,9 +359,7 @@ export const QuestionHistory = () => {
         void loadOlder();
     }, [olderState, lines.length, history, loadOlder]);
 
-    // Changes not saved yet aren't in the History until they are.
-    const unsaved =
-        !!sessionId && !$readOnly && hasPendingQuestionSave(sessionId);
+    const unsaved = pending && (!online || slowSave);
     const unsavedNote = unsaved && (
         <p className="px-4 py-2 text-xs text-muted-foreground">
             Your latest changes will show here once they&apos;re saved.

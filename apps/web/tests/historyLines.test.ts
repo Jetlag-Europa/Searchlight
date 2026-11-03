@@ -352,7 +352,37 @@ describe("question history lines", () => {
                     }),
                 ]),
             ]),
-        ).toEqual(["Sam deleted Radius 1 (500 m, Outside)"]);
+        ).toEqual(["Sam deleted Radius 1 (500\u00a0m, Outside)"]);
+    });
+
+    it("names a deleted question for a spectator, who gets only what it was", () => {
+        const data = {
+            name: "Airport",
+            lat: 1,
+            lng: 2,
+            radius: 2,
+            unit: "kilometers",
+            within: true,
+        };
+        const { question: _, ...withoutQuestion } = removed(K1);
+        const lines = historyLines(
+            [
+                entry([{ ...added(K1), after: data }]),
+                entry([{ ...withoutQuestion, before: data }]),
+                // Put back by a player: a copy under a new key.
+                entry([{ ...added(K2), after: data }]),
+            ],
+            {},
+        );
+        expect(lines.map((line) => line.text)).toEqual([
+            "restored Airport",
+            "deleted Airport (2\u00a0km, Inside)",
+            "added Airport",
+        ]);
+        expect(lines[1].removed?.[0]).toMatchObject({
+            question: undefined,
+            restoredAs: [K2],
+        });
     });
 
     it("says when only the order changed", () => {
