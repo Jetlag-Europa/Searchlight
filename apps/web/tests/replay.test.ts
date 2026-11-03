@@ -6,6 +6,7 @@ import {
     boardAt,
     condenseReplay,
     findEndgame,
+    foundAt,
     guessRoles,
     hiderZone,
     type LoggedPosition,
@@ -360,5 +361,26 @@ describe("findEndgame", () => {
             zone: { properties: { id: "hider" } },
         });
         expect(findEndgame(replay, zones, null, [])?.zone).toBeNull();
+    });
+});
+
+describe("foundAt", () => {
+    // ~111 m per 0.001° of latitude.
+    const hider = track([0, [52.0, 4.0]], [60, [52.0, 4.0]]);
+    const seeker = track(
+        [0, [52.01, 4.0]],
+        [10, [52.001, 4.0]],
+        [14, [52.0001, 4.0]],
+    );
+
+    it("finds when a seeker reached the hider", () => {
+        expect(foundAt(hider, [seeker], 0, Infinity)).toBe(14 * MIN);
+    });
+
+    it("finds nothing outside the window, or without a meeting", () => {
+        expect(foundAt(hider, [seeker], 0, 12 * MIN)).toBeNull();
+        expect(
+            foundAt(hider, [track([0, [52.01, 4.0]])], 0, Infinity),
+        ).toBeNull();
     });
 });
