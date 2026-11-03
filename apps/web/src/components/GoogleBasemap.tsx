@@ -78,6 +78,8 @@ function printWithCarto(map: L.Map) {
         printingWithoutGoogle.set(true);
         toast.info(
             "Google Maps can't be printed, so the print uses CARTO Voyager. Choose the size again to print.",
+            // Not top-right, where it would cover the print button.
+            { position: "top-center" },
         );
     };
 }
