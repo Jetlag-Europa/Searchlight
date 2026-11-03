@@ -15,6 +15,8 @@ enum Visibility {
 enum ParticipantRole {
   creator
   member
+  // Follows the session live but can't change it or see the hider.
+  viewer
 }
 
 model User {
@@ -230,7 +232,7 @@ model SessionLink {
   token       String    @unique
   sessionId   String
   createdById String
-  linkType    String    // "join" | "fork"
+  linkType    String    // "join" | "view" | "fork"
   revokedAt   DateTime?
   createdAt   DateTime  @default(now())
 

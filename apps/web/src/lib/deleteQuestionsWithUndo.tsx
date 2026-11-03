@@ -1,6 +1,6 @@
 import { type Id, toast } from "react-toastify";
 
-import { activeSessionId } from "@/lib/activeSession";
+import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { deleteQuestions, undoDeletion } from "@/lib/questionUndo";
 
@@ -11,6 +11,7 @@ let undoToastId: Id | null = null;
 // Deletes the questions, then offers to put them back for a few seconds. Both
 // go through questions.set, so they save and sync like any edit.
 export const deleteQuestionsWithUndo = (keys: Iterable<number>) => {
+    if (sessionReadOnly.get()) return;
     const { remaining, deletion } = deleteQuestions(
         questions.get(),
         new Set(keys),
@@ -33,6 +34,12 @@ export const deleteQuestionsWithUndo = (keys: Iterable<number>) => {
                 <button
                     className="rounded-md border border-current px-3 py-1 text-sm font-semibold"
                     onClick={() => {
+                        // The toast closes once its user only spectates the
+                        // session, but may still be on screen as it does.
+                        if (sessionReadOnly.get()) {
+                            closeToast();
+                            return;
+                        }
                         const next = undoDeletion(
                             questions.get(),
                             deletion,
@@ -59,6 +66,14 @@ export const deleteQuestionsWithUndo = (keys: Iterable<number>) => {
         },
     );
     undoToastId = id;
-    // Undo only applies to the session the questions were deleted from.
-    stopListening = activeSessionId.listen(() => toast.dismiss(id));
+    // Undo only applies to the session the questions were deleted from, and
+    // not once its user only spectates it.
+    const stopSessionListener = activeSessionId.listen(() => toast.dismiss(id));
+    const stopReadOnlyListener = sessionReadOnly.listen((readOnly) => {
+        if (readOnly) toast.dismiss(id);
+    });
+    stopListening = () => {
+        stopSessionListener();
+        stopReadOnlyListener();
+    };
 };

@@ -1,26 +1,39 @@
-import type { GameSessionSummary } from "@searchlight/shared";
+import type { GameSessionSummary, SessionRole } from "@searchlight/shared";
 
+import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { loadStrokesFromServer } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
 import {
+    compiledGameAtom,
+    filterSupportedQuestions,
+} from "@/game-definition/store";
+import {
     activeSessionId,
+    activeSessionRole,
+    isSessionReadOnly,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
 import {
+    gameDefinitionReady,
     hiderMode,
     pendingEventCount,
     planningModeEnabled,
+    questions,
     syncStatus,
 } from "@/lib/context";
 import {
+    type CachedSessionState,
+    discardPendingEvents,
     enqueueEvent,
+    getCachedSession,
     getPendingEvents,
     type PendingEvent,
     questionsBase,
     queuedQuestionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
+import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
     latestSavedQuestionsSequence,
     sendPendingEvent,
@@ -127,6 +140,8 @@ function debounceSave(
     delay: number,
 ): void {
     cancelSave(state, sessionId);
+    // A spectator's edits are never saved.
+    if (isSessionReadOnly(sessionId)) return;
     // Keep rapid gameplay edits cheap. Persist the final snapshot when the
     // debounce fires (or unload flushes), before waiting for any network work.
     state.pending.set(sessionId, createEvent);
@@ -318,6 +333,78 @@ export function flushPlanningModeSave(
     });
 }
 
+// ── Read-only sessions ───────────────────────────────────────────────────────
+
+/**
+ * Forget every edit to a session this browser hasn't sent yet, debounced or
+ * queued, for a user who only spectates it now: they can never be delivered.
+ */
+export function discardSessionEdits(sessionId: string): void {
+    cancelSave(questionSaves, sessionId);
+    cancelSave(hiderSaves, sessionId);
+    cancelSave(planningSaves, sessionId);
+    discardPendingEvents(sessionId);
+    if (sessionId === activeSessionId.get()) pendingEventCount.set(0);
+}
+
+// The cached copy's role, kept in step with the server's: an offline start
+// shows the board for the role the user has now, and doesn't drop a player's
+// unsent edits for a role they no longer have.
+export function cacheSessionRole(sessionId: string, role: SessionRole): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached || !isOwnCopy(cached)) return;
+    const next = cachedForRole(cached, role);
+    if (JSON.stringify(next) !== JSON.stringify(cached)) setCachedSession(next);
+}
+
+// Whether the cached copy is this account's: another account on the same
+// browser may have a different role in the session, and edits of its own.
+function isOwnCopy(cached: CachedSessionState): boolean {
+    const account = verifiedUserId.get() ?? offlineUserId.get();
+    return account !== null && cached.userId === account;
+}
+
+// The cached copy for a user with `role`. The session details kept for an
+// offline restore carry the role too, and a spectator's no hider position.
+function cachedForRole(
+    cached: CachedSessionState,
+    role: SessionRole,
+): CachedSessionState {
+    if (!cached.session) return { ...cached, role };
+    const session: GameSessionSummary = { ...cached.session, role };
+    if (role === "viewer") {
+        session.hiderLat = null;
+        session.hiderLng = null;
+    }
+    return { ...cached, role, session };
+}
+
+/**
+ * This user only spectates `sessionId` now. Takes effect right away, before
+ * the session loads again: its unsent edits are dropped, the cached copy
+ * says so (an offline start shows it read-only), and the active board shows
+ * that copy instead of the dropped edits until the server's state arrives.
+ */
+export function becomeSpectator(sessionId: string): void {
+    const active = sessionId === activeSessionId.get();
+    if (active) activeSessionRole.set("viewer");
+    discardSessionEdits(sessionId);
+    const cached = getCachedSession(sessionId);
+    // Another account's copy is neither changed nor shown.
+    if (!cached || !isOwnCopy(cached)) return;
+    setCachedSession(cachedForRole(cached, "viewer"));
+    if (!active) return;
+    strokes.set(cached.strokes);
+    questions.set(
+        suppressQuestionSave(
+            filterSupportedQuestions(
+                cached.questions,
+                gameDefinitionReady.get() ? compiledGameAtom.get() : null,
+            ),
+        ),
+    );
+}
+
 // ── Flushing ─────────────────────────────────────────────────────────────────
 
 /**
@@ -417,6 +504,7 @@ export async function loadSessionContent(
     setCachedSession({
         sessionId,
         userId,
+        role: session.role,
         session,
         strokes: loadedStrokes,
         questions: loadedQuestions,

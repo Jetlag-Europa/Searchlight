@@ -4,11 +4,22 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
-## Deleting a session asks first (2026-11-02)
+## Deleting a session asks first (2026-11-03)
 
 - Deleting a session from the session list now opens a confirm that names the session and says it is deleted for everyone in it, with its questions and drawings. Before, two taps on the right end of a row deleted it on a phone, where the button couldn't be seen.
 - On a phone or other touch screen, each row's Delete and Leave are always shown and big enough to tap. With a mouse they still appear on hover, and now also on keyboard focus.
 - Teammates who had the session open are told it was deleted, instead of landing on the session list without a word.
+
+## Spectator links (2026-11-03)
+
+- A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
+- Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator") or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
+- Spectators show as "Spectating" on the map and in the session list, and don't count as players in a game's stats.
+
+## One page for checking and importing games (2026-11-02)
+
+- `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
+- The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
 
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 

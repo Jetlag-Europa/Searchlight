@@ -22,6 +22,7 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from "@/components/ui/sidebar-l";
+import { sessionReadOnly } from "@/lib/activeSession";
 import { sidebarContextL as SidebarContext } from "@/lib/context";
 import {
     autoSave,
@@ -49,6 +50,7 @@ export const QuestionSidebar = () => {
     const $autoSave = useStore(autoSave);
     const $isLoading = useStore(isLoading);
     const $warningAlarm = useStore(warningAlarm);
+    const $readOnly = useStore(sessionReadOnly);
     const [alarmActive, setAlarmActive] = useState(false);
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -141,70 +143,80 @@ export const QuestionSidebar = () => {
                     }
                 })}
             </SidebarContent>
-            <SidebarGroup>
-                <SidebarGroupContent>
-                    <SidebarMenu>
-                        <SidebarMenuItem>
-                            <AddQuestionDialog>
-                                <SidebarMenuButton disabled={$isLoading}>
-                                    Add Question
-                                </SidebarMenuButton>
-                            </AddQuestionDialog>
-                        </SidebarMenuItem>
-                        <SidebarMenuItem>
-                            <AlertDialog onOpenChange={(open) => open ? startAlarm() : stopAlarm()}>
-                                <AlertDialogTrigger asChild>
-                                    <SidebarMenuButton
-                                        className="bg-red-600 hover:bg-red-700 transition-colors"
-                                        disabled={$isLoading}
-                                    >
-                                        Delete All Questions
+            {/* A spectator can't add, delete or save questions. */}
+            {$readOnly ? (
+                <SidebarGroup>
+                    <p className="px-2 py-1 text-sm text-muted-foreground">
+                        You&apos;re spectating: you can watch, but not change
+                        the board.
+                    </p>
+                </SidebarGroup>
+            ) : (
+                <SidebarGroup>
+                    <SidebarGroupContent>
+                        <SidebarMenu>
+                            <SidebarMenuItem>
+                                <AddQuestionDialog>
+                                    <SidebarMenuButton disabled={$isLoading}>
+                                        Add Question
                                     </SidebarMenuButton>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent aria-describedby={undefined}>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                            Are you absolutely sure?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will delete all questions for
-                                            everyone in the session. You can
-                                            undo it for a few seconds.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                            Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={() =>
-                                                deleteQuestionsWithUndo(
-                                                    questions
-                                                        .get()
-                                                        .map((q) => q.key),
-                                                )
-                                            }
+                                </AddQuestionDialog>
+                            </SidebarMenuItem>
+                            <SidebarMenuItem>
+                                <AlertDialog onOpenChange={(open) => open ? startAlarm() : stopAlarm()}>
+                                    <AlertDialogTrigger asChild>
+                                        <SidebarMenuButton
+                                            className="bg-red-600 hover:bg-red-700 transition-colors"
+                                            disabled={$isLoading}
                                         >
                                             Delete All Questions
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
-                        </SidebarMenuItem>
-                        {!$autoSave && (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton
-                                    className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"
-                                    onClick={save}
-                                    disabled={$isLoading}
-                                >
-                                    Save
-                                </SidebarMenuButton>
+                                        </SidebarMenuButton>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent aria-describedby={undefined}>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>
+                                                Are you absolutely sure?
+                                            </AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will delete all questions for
+                                                everyone in the session. You can
+                                                undo it for a few seconds.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>
+                                                Cancel
+                                            </AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={() =>
+                                                    deleteQuestionsWithUndo(
+                                                        questions
+                                                            .get()
+                                                            .map((q) => q.key),
+                                                    )
+                                                }
+                                            >
+                                                Delete All Questions
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
                             </SidebarMenuItem>
-                        )}
-                    </SidebarMenu>
-                </SidebarGroupContent>
-            </SidebarGroup>
+                            {!$autoSave && (
+                                <SidebarMenuItem>
+                                    <SidebarMenuButton
+                                        className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"
+                                        onClick={save}
+                                        disabled={$isLoading}
+                                    >
+                                        Save
+                                    </SidebarMenuButton>
+                                </SidebarMenuItem>
+                            )}
+                        </SidebarMenu>
+                    </SidebarGroupContent>
+                </SidebarGroup>
+            )}
         </Sidebar>
         </>
     );
