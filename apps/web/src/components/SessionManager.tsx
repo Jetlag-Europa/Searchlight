@@ -59,7 +59,11 @@ import {
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
-import { startLoadDeadline } from "@/lib/loadDeadline";
+import {
+    DETAILS_TIMEOUT_MS,
+    FLUSH_WAIT_MS,
+    startLoadDeadline,
+} from "@/lib/loadDeadline";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import {
     reconcileQuestionConflicts,
@@ -73,7 +77,7 @@ import {
 } from "@/lib/questionSaveSuppress";
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
-import { probeSession } from "@/lib/sessionProbe";
+import { fetchSessionDetails, probeSession } from "@/lib/sessionProbe";
 import {
     becomeSpectator,
     cacheSessionRole,
@@ -123,18 +127,26 @@ const deletedHere = new Set<string>();
 const sessionRecheck = createBackoffRetry();
 let recheckedSessionId: string | null = null;
 
-const SIGN_IN_EXPIRED =
-    "Your sign-in has expired. Reload the page to sign in again.";
+function saySignInExpired(): void {
+    toast.error("Your sign-in has expired. Reload the page to sign in again.", {
+        toastId: "sign-in-expired",
+    });
+}
 
-// A session load ran out of time (see startLoadDeadline): say what the board
-// shows instead.
-function warnTooSlow(showingKeptCopy: boolean): void {
-    toast.warn(
-        showingKeptCopy
-            ? "The server is taking too long. Showing the copy saved on this device; it will keep trying."
-            : "The server is taking too long. Try again in a moment.",
-        { toastId: "load-too-slow" },
-    );
+// How a session load ended, one toast at a time.
+const LOAD_TOAST_ID = "session-load";
+const LOAD_FAILED = "Something went wrong loading this session. Try again.";
+
+// The server didn't give a session load what it needed, or took too long
+// (see startLoadDeadline): say so, and what the board shows instead.
+function sayLoadFellBack(timedOut: boolean, showingKeptCopy: boolean): void {
+    const problem = timedOut
+        ? "The server is taking too long."
+        : "Couldn't load the latest from the server.";
+    const instead = showingKeptCopy
+        ? "Showing the copy saved on this device; it will keep trying."
+        : "Try again in a moment.";
+    toast.warn(`${problem} ${instead}`, { toastId: LOAD_TOAST_ID });
 }
 
 // How long a tapped Leave waits for its second tap.
@@ -1165,6 +1177,8 @@ export function SessionManager() {
     // can also follow a user switch, so keep another account's local edits.
     const forgetSession = useCallback(
         (sessionId: string, status: number) => {
+            // What a failed load said is moot now.
+            toast.dismiss(LOAD_TOAST_ID);
             // Named before the cache that may hold the name is discarded; a
             // cache left by another account on this device isn't ours to name.
             const active = activeSessionData.get();
@@ -1221,12 +1235,12 @@ export function SessionManager() {
                 return true;
             }
             if (probe.kind === "signedOut") {
-                toast.error(SIGN_IN_EXPIRED, { toastId: "sign-in-expired" });
+                saySignInExpired();
                 return true;
             }
             if (probe.kind === "retry" || busy()) return false;
             console.info("[searchlight:session] server answered, loading", id);
-            void handleSessionSelected(probe.session);
+            void loadSession(probe.session);
             return true;
         });
     };
@@ -1298,27 +1312,29 @@ export function SessionManager() {
         if (pendingLinkSession) {
             removeStorage("localStorage", "taibled-pending-link-session");
             setLoading(true);
-            const deadline = startLoadDeadline();
-            fetch(`${API_BASE}/sessions/${pendingLinkSession}`, {
-                credentials: "include",
-                signal: deadline.signal,
-            })
-                .then(async (res) => {
-                    if (!res.ok) throw new Error(`${res.status}`);
-                    const selected: GameSessionSummary = await res.json();
+            const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+            void fetchSessionDetails(pendingLinkSession, deadline.signal).then(
+                async (details) => {
                     deadline.clear();
                     if (!isCurrent()) return;
                     setLoading(false);
-                    await handleSessionSelected(selected);
-                })
-                .catch(() => {
-                    deadline.clear();
-                    if (isCurrent()) {
-                        setLoading(false);
-                        setShowPicker(true);
-                        if (deadline.signal.aborted) warnTooSlow(false);
+                    if (details.kind === "ready") {
+                        await loadSession(details.session);
+                        return;
                     }
-                });
+                    setShowPicker(true);
+                    if (details.kind === "signedOut") {
+                        saySignInExpired();
+                    } else if (deadline.signal.aborted) {
+                        sayLoadFellBack(true, false);
+                    } else {
+                        toast.error(
+                            "Couldn't open that session. Pick it from the list.",
+                            { toastId: LOAD_TOAST_ID },
+                        );
+                    }
+                },
+            );
             return cleanup;
         }
 
@@ -1340,7 +1356,7 @@ export function SessionManager() {
         const canPaintCache = Boolean(cached && cached.userId === authUserId);
         // Without its game: restoreKept loads the one the copy names.
         const paintCached = () => {
-            if (!canPaintCache || !paintKeptCopy(storedId)) return false;
+            if (!paintKeptCopy(storedId)) return false;
             gameDefinitionReady.set(false);
             setActiveGameDefinition(null);
             return true;
@@ -1402,55 +1418,46 @@ export function SessionManager() {
             "[searchlight:session] validating stored session",
             storedId,
         );
-        const deadline = startLoadDeadline();
-        fetch(`${API_BASE}/sessions/${storedId}`, {
-            credentials: "include",
-            signal: deadline.signal,
-        })
-            .then(async (res) => {
-                if (!isCurrent()) return;
-                const unavailable = res.ok
-                    ? null
-                    : await sessionUnavailableStatus(res);
-                if (!isCurrent()) return;
-                if (unavailable !== null) {
-                    console.warn(
-                        "[searchlight:session] stored session unavailable (" +
-                            unavailable +
-                            "), showing picker",
-                    );
-                    forgetSession(storedId, unavailable);
-                    return;
-                }
-                // Anything else (502, 503, 429, a route this API doesn't
-                // have…) is handled like being offline.
-                if (!res.ok)
-                    throw new Error(`session fetch failed: ${res.status}`);
-                const data: GameSessionSummary = await res.json();
+        const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+        void fetchSessionDetails(storedId, deadline.signal).then(
+            async (details) => {
                 deadline.clear();
                 if (!isCurrent()) return;
-                // Loaded like a selection: its edits sent, then the server's
-                // state, else the copy kept here (see selectSession).
-                await handleSessionSelected(data);
-            })
-            .catch((e) => {
-                if (!isCurrent()) return;
-                console.warn("[searchlight:session] session fetch error:", e);
-                // Keep the pointer even without a cache to show, so the next
-                // load can restore the session once the server is back.
+                if (details.kind === "ready") {
+                    // Loaded like a selection: its edits sent, then the
+                    // server's state, else the copy kept here.
+                    await loadSession(details.session);
+                    return;
+                }
+                setLoading(false);
+                if (details.kind === "unavailable") {
+                    console.warn(
+                        "[searchlight:session] stored session unavailable (" +
+                            details.status +
+                            "), showing picker",
+                    );
+                    forgetSession(storedId, details.status);
+                    return;
+                }
+                // Anything else is handled like being offline. The pointer
+                // stays even without a copy to show, so the next load can
+                // restore the session once the server is back.
+                console.warn(
+                    "[searchlight:session] stored session didn't load:",
+                    details.kind,
+                );
                 spectateIfCached();
                 const painted = paintCached();
                 setShowPicker(!painted);
-                if (painted) {
-                    restoreKept();
-                    keepCheckingSession(storedId, generation);
+                if (painted) restoreKept();
+                if (details.kind === "signedOut") {
+                    saySignInExpired();
+                    return;
                 }
-                if (deadline.signal.aborted) warnTooSlow(painted);
-            })
-            .finally(() => {
-                deadline.clear();
-                if (isCurrent()) setLoading(false);
-            });
+                if (painted) keepCheckingSession(storedId, generation);
+                sayLoadFellBack(deadline.signal.aborted, painted);
+            },
+        );
 
         return cleanup;
     }, [authUserId, offline]);
@@ -1484,12 +1491,14 @@ export function SessionManager() {
         currentPlanningMode,
     ]);
 
-    // Load a session: returns whether its server state loaded (see
-    // handleSessionSelected).
-    const selectSession = useCallback(
-        async (selected: GameSessionSummary): Promise<boolean> => {
-            if (!authUserId) return false;
-            const generation = ++sessionLoadGenerationRef.current;
+    // One session load, as `generation` (see loadSession): returns whether the
+    // server's state shows, its stream open.
+    const runSessionLoad = useCallback(
+        async (
+            selected: GameSessionSummary,
+            generation: number,
+            userId: string,
+        ): Promise<boolean> => {
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
             loadingGenerationRef.current = generation;
@@ -1535,25 +1544,28 @@ export function SessionManager() {
             setLoading(true);
 
             let sessionToActivate = selected;
-            // Its modes show already: a kept board's, or the session's own.
+            // The board shows this session's modes already. Unlike
+            // !switchingSession, not on mount: the session's id was kept, but
+            // its details (and modes) haven't been shown yet.
             const modesShown = activeSessionData.get()?.id === selected.id;
-            // The server's state shows, its stream open.
             let live = false;
-            // Shown as kept here, without the server's state.
-            let restoredFromCache = false;
             // Everything the load waits on the server for.
             const deadline = startLoadDeadline();
 
             try {
-                // On explicit selection, flush pending events BEFORE authoritative load!
-                await deadline.race(
-                    flushPendingEvents(selected.id).catch((err) => {
+                // The server gets the edits queued here before its state is
+                // read, so that state has them. Not for long: edits still
+                // being sent then show on top of it, and send on.
+                const flushWait = startLoadDeadline(FLUSH_WAIT_MS);
+                await flushWait
+                    .race(flushPendingEvents(selected.id))
+                    .catch((err) => {
                         console.info(
-                            "[searchlight:session] flush pending failed (offline?):",
+                            "[searchlight:session] edits not all sent, reading the server's state anyway:",
                             err,
                         );
-                    }),
-                );
+                    });
+                flushWait.clear();
                 if (!isCurrent()) return false;
                 const {
                     questions: loadedQuestions,
@@ -1563,7 +1575,7 @@ export function SessionManager() {
                     questionsSequence,
                 } = await loadSessionContent(
                     selected.id,
-                    authUserId,
+                    userId,
                     deadline.signal,
                 );
                 if (!isCurrent()) return false;
@@ -1617,7 +1629,7 @@ export function SessionManager() {
                 if (cachedState && definitionReady) {
                     setCachedSession({
                         ...cachedState,
-                        userId: authUserId,
+                        userId,
                         visibility: refreshedSession.visibility,
                         questions: visibleQuestions,
                     });
@@ -1634,48 +1646,48 @@ export function SessionManager() {
                     "[searchlight:session] failed to load session content:",
                     e,
                 );
-                restoredFromCache = paintKeptCopy(selected.id);
-                if (!restoredFromCache) {
+                const restoredFromCache = paintKeptCopy(selected.id);
+                if (restoredFromCache) {
+                    // The session is authorized, so its game may still come
+                    // from the copy kept here: waited for while the load has
+                    // time left, else the banner shows until it has loaded.
+                    // Its modes stay as shown, if they are: `selected` may be
+                    // older than an edit the flush just sent.
+                    if (!modesShown) showSessionModes(selected);
+                    const keptGame = switchToGame(
+                        { id: selected.gameId },
+                        {
+                            revisionId: selected.gameRevisionId,
+                            sessionId: selected.id,
+                        },
+                    );
+                    if (!timedOut) {
+                        await deadline.race(keptGame).catch(() => false);
+                    }
+                } else {
                     // No cache and no server — leave atoms empty, don't publish stale session content
                     boardSessionRef.current = null;
                     strokes.set([]);
                     questions.set([]);
+                    if (switchingSession) {
+                        // The outgoing session's hider and planning mode
+                        // aren't this session's.
+                        loadedHiderModeRef.current = false;
+                        hiderMode.set(false);
+                        loadedPlanningModeRef.current = false;
+                        planningModeEnabled.set(false);
+                    }
                 }
-                if (restoredFromCache) {
-                    // The session is authorized, so its game may still come
-                    // from the copy kept here (else the banner says so). Its
-                    // modes stay as shown, if they are: `selected` may be
-                    // older than an edit the flush just sent.
-                    if (!modesShown) showSessionModes(selected);
-                    await deadline
-                        .race(
-                            switchToGame(
-                                { id: selected.gameId },
-                                {
-                                    revisionId: selected.gameRevisionId,
-                                    sessionId: selected.id,
-                                },
-                            ),
-                        )
-                        .catch(() => false);
-                } else if (switchingSession) {
-                    // The outgoing session's hider and planning mode aren't
-                    // this session's.
-                    loadedHiderModeRef.current = false;
-                    hiderMode.set(false);
-                    loadedPlanningModeRef.current = false;
-                    planningModeEnabled.set(false);
-                }
-                if (timedOut) warnTooSlow(restoredFromCache);
+                sayLoadFellBack(timedOut, restoredFromCache);
             } finally {
                 deadline.clear();
-                if (isCurrent()) setLoading(false);
             }
             if (!isCurrent()) return false;
 
-            // Suppress save effects that fire when sessionId changes — state was just
-            // loaded from the server so there's nothing new to write back.
-            suppressNextSaveRef.current = true;
+            // Another session runs the question save effect again: what the
+            // board shows now is no edit. (The same session doesn't, and the
+            // flag would swallow the player's next edit.)
+            if (switchingSession) suppressNextSaveRef.current = true;
             // Nothing set during the load may be saved, into either session.
             cancelPendingQuestionSave();
             cancelPendingHiderSave();
@@ -1686,46 +1698,42 @@ export function SessionManager() {
             loadedHiderModeRef.current = hiderMode.get();
             loadedPlanningModeRef.current = planningModeEnabled.get();
             setActiveSession(sessionToActivate);
+            // Released together with the session it was loading: the save
+            // effects that run for it may save again.
             loadingGenerationRef.current = null;
             setShowPicker(false);
-            setGameNotLoaded(!gameDefinitionReady.get());
             return live;
         },
-        [authUserId, forgetSession],
+        [forgetSession],
     );
 
-    // Every session load goes through here. However it ends, its generation
-    // is released (saves and the background recheck wait while it's set) and
-    // the overlay goes. A board left showing the copy kept here is checked
-    // again until the server answers.
-    const handleSessionSelected = useCallback(
-        async (selected: GameSessionSummary) => {
-            const before = sessionLoadGenerationRef.current;
-            const load = selectSession(selected);
-            // selectSession starts its generation right away, if any.
-            const generation = sessionLoadGenerationRef.current;
-            if (generation === before) return;
+    // Every session load goes through here, and ends here however it ends:
+    // its generation is released (saves and the background recheck wait while
+    // it's set), the overlay goes, and a board left showing the copy kept here
+    // is checked again until the server answers. Returns whether the server's
+    // state shows (false also when another load took over).
+    const loadSession = useCallback(
+        async (selected: GameSessionSummary): Promise<boolean> => {
+            if (!authUserId) return false;
+            const generation = ++sessionLoadGenerationRef.current;
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
             let live = false;
             try {
-                live = await load;
+                live = await runSessionLoad(selected, generation, authUserId);
             } catch (err) {
                 console.warn("[searchlight:session] load failed:", err);
                 if (isCurrent()) {
-                    toast.error(
-                        "Something went wrong loading this session. Try again.",
-                        { toastId: "session-load-failed" },
-                    );
-                    setGameNotLoaded(!gameDefinitionReady.get());
+                    toast.error(LOAD_FAILED, { toastId: LOAD_TOAST_ID });
                 }
             } finally {
                 if (loadingGenerationRef.current === generation) {
                     loadingGenerationRef.current = null;
                 }
-                if (isCurrent()) setLoading(false);
             }
-            if (!isCurrent()) return;
+            if (!isCurrent()) return false;
+            setLoading(false);
+            setGameNotLoaded(!gameDefinitionReady.get());
             if (live) {
                 sessionRecheck.reset();
             } else if (
@@ -1734,15 +1742,17 @@ export function SessionManager() {
             ) {
                 keepCheckingSession(selected.id, generation);
             }
+            return live;
         },
-        [selectSession],
+        [authUserId, runSessionLoad],
     );
 
     // Load the session again, its game included. Fetching the session first
     // also covers an offline restore, which never got the session's details.
     const retryGameLoad = async () => {
         const id = activeSessionId.get();
-        if (offline) {
+        // As now: the effects that call this don't run again when it changes.
+        if (offlineRef.current) {
             // The session loads again once /me answers.
             toast.error(
                 "Couldn't reach the server. Check your connection and try again.",
@@ -1756,81 +1766,37 @@ export function SessionManager() {
         const generation = ++sessionLoadGenerationRef.current;
         const isCurrent = () => generation === sessionLoadGenerationRef.current;
         sessionRecheck.stop();
-        const fail = (message: string, error: unknown) => {
-            console.warn("[searchlight:session] retry failed:", error);
-            toast.error(message);
-            // The board still shows what was kept of it.
-            if (boardSessionRef.current === id) {
-                keepCheckingSession(id, generation);
-            }
-        };
         setLoading(true);
-        const deadline = startLoadDeadline();
-        let selected: GameSessionSummary;
-        try {
-            let res: Response;
-            try {
-                res = await fetch(`${API_BASE}/sessions/${id}`, {
-                    credentials: "include",
-                    signal: deadline.signal,
-                });
-            } catch (e) {
-                // fetch rejects only when the request couldn't be sent, or
-                // took too long.
-                if (isCurrent()) {
-                    fail(
-                        deadline.signal.aborted
-                            ? "The server is taking too long. Try again in a moment."
-                            : "Couldn't reach the server. Check your connection and try again.",
-                        e,
-                    );
-                }
-                return;
-            }
-            if (!isCurrent()) return;
-            const unavailable = res.ok
-                ? null
-                : await sessionUnavailableStatus(res);
-            if (!isCurrent()) return;
-            if (unavailable !== null) {
-                forgetSession(id, unavailable);
-                return;
-            }
-            if (res.status === 401) {
-                console.warn("[searchlight:session] retry failed:", res.status);
-                toast.error(SIGN_IN_EXPIRED, { toastId: "sign-in-expired" });
-                return;
-            }
-            if (!res.ok) {
-                fail(
-                    `The server couldn't load this session (error ${res.status}). Try again later.`,
-                    res.status,
-                );
-                return;
-            }
-            try {
-                selected = await res.json();
-            } catch (e) {
-                if (isCurrent()) {
-                    fail(
-                        "The server's response couldn't be read. Try again later.",
-                        e,
-                    );
-                }
-                return;
-            }
-        } finally {
-            deadline.clear();
-            if (isCurrent()) setLoading(false);
-        }
+        const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+        const details = await fetchSessionDetails(id, deadline.signal);
+        deadline.clear();
         if (!isCurrent()) return;
-        await handleSessionSelected(selected);
-        // handleSessionSelected starts the next load generation.
+        setLoading(false);
+        if (details.kind === "unavailable") {
+            forgetSession(id, details.status);
+            return;
+        }
+        if (details.kind === "signedOut") {
+            console.warn("[searchlight:session] retry failed: signed out");
+            saySignInExpired();
+            return;
+        }
+        if (details.kind === "retry") {
+            console.warn("[searchlight:session] retry failed");
+            // The board still shows what was kept of it.
+            const showingKeptCopy = boardSessionRef.current === id;
+            sayLoadFellBack(deadline.signal.aborted, showingKeptCopy);
+            if (showingKeptCopy) keepCheckingSession(id, generation);
+            return;
+        }
+        // A load that didn't get the server's state says so itself.
         if (
-            sessionLoadGenerationRef.current === generation + 1 &&
+            (await loadSession(details.session)) &&
             !gameDefinitionReady.get()
         ) {
-            toast.error("The game still couldn't be loaded. Try again later.");
+            toast.error("The game still couldn't be loaded. Try again later.", {
+                toastId: LOAD_TOAST_ID,
+            });
         }
     };
 
@@ -1847,32 +1813,20 @@ export function SessionManager() {
             "on the server, reloading",
         );
         if (fresh.role === "viewer") becomeSpectator(fresh.id);
-        void handleSessionSelected(fresh);
+        void loadSession(fresh);
     };
 
     // Check the active session again: reload it if this user's role in it
     // changed, and with `forgetIfGone`, forget it if it's gone.
     const checkSession = async (id: string, forgetIfGone: boolean) => {
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${id}`, {
-                credentials: "include",
-            });
-            if (activeSessionId.get() !== id) return;
-            if (forgetIfGone && !res.ok) {
-                const unavailable = await sessionUnavailableStatus(res);
-                if (activeSessionId.get() !== id) return;
-                if (unavailable !== null) {
-                    forgetSession(id, unavailable);
-                    return;
-                }
-            }
-            if (!res.ok) return;
-            const fresh: GameSessionSummary = await res.json();
-            if (isLoadingSession()) return;
-            applyServerRole(fresh);
-        } catch (err) {
-            console.warn("[searchlight:session] session check failed:", err);
+        const details = await fetchSessionDetails(id);
+        if (activeSessionId.get() !== id) return;
+        if (details.kind === "unavailable" && forgetIfGone) {
+            forgetSession(id, details.status);
+            return;
         }
+        if (details.kind !== "ready" || isLoadingSession()) return;
+        applyServerRole(details.session);
     };
 
     // A question list saved here was merged with changes made elsewhere:
@@ -1907,7 +1861,7 @@ export function SessionManager() {
                 reload: () => void retryGameLoad(),
                 confirmUnavailable: (id) => void checkSession(id, true),
             }),
-        [forgetSession, handleSessionSelected],
+        [forgetSession, loadSession],
     );
 
     // Whatever role the server gives, the cached copy keeps too, even when
@@ -1943,7 +1897,7 @@ export function SessionManager() {
                 SESSION_STREAM_RECONNECTED_EVENT,
                 onReconnected,
             );
-    }, [forgetSession, handleSessionSelected]);
+    }, [forgetSession, loadSession]);
 
     // The creator made this user a player or a spectator of the active
     // session: load it again with the new role. Becoming a spectator applies
@@ -1968,7 +1922,7 @@ export function SessionManager() {
                 SESSION_ROLE_CHANGED_EVENT,
                 onRoleChanged,
             );
-    }, [authUserId, forgetSession, handleSessionSelected]);
+    }, [authUserId, forgetSession, loadSession]);
 
     // map.astro places the slot beside the revision banner.
     const bannerSlot = document.getElementById("game-not-loaded-banner");
@@ -1988,7 +1942,7 @@ export function SessionManager() {
             )}
             {showPicker && !offline && (
                 <SessionPickerOverlay
-                    onSessionSelected={handleSessionSelected}
+                    onSessionSelected={loadSession}
                     onClose={
                         // Only back to a board the session has shown.
                         sessionId && (session || gameNotLoaded)

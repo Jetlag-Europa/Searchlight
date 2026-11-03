@@ -68,11 +68,14 @@ async function fetchQuestions(
             clientUuid: string;
             ordinal: number;
             payloadJson: unknown;
-        }>;
+        } | null>;
         sequence?: unknown;
     };
     return {
-        questions: data.questions.map((q) => q.payloadJson) as unknown as Questions,
+        // An entry that isn't one can't be read, as for strokes.
+        questions: data.questions.flatMap((q) =>
+            q && typeof q === "object" ? [q.payloadJson] : [],
+        ) as unknown as Questions,
         sequence: typeof data.sequence === "number" ? data.sequence : undefined,
     };
 }

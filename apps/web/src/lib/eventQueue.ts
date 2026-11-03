@@ -216,7 +216,8 @@ export function isQuestionsBase(value: unknown): value is QuestionsBase {
     );
 }
 
-function isSessionSummary(
+// The details of the session asked for, as the server sends them.
+export function isSessionSummary(
     value: unknown,
     sessionId: string,
 ): value is GameSessionSummary {
@@ -848,9 +849,7 @@ export function applyPendingEventsToState(
     base: { strokes: StrokeFeature[]; questions: Questions },
     events: PendingEvent[],
 ): { strokes: StrokeFeature[]; questions: Questions } {
-    let { questions } = base;
-    // Malformed ones can't be shown or matched (see isStrokeLike).
-    let strokes = base.strokes.filter(isStrokeLike);
+    let { strokes, questions } = base;
     for (const event of events) {
         if (event.type === "stroke.create") {
             const stroke = event.payloadJson;

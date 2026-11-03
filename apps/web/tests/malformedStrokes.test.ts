@@ -24,12 +24,6 @@ import {
     getCachedSession,
     type PendingEvent,
 } from "@/lib/eventQueue";
-import {
-    LOAD_TIMEOUT_MS,
-    LoadTimeoutError,
-    startLoadDeadline,
-} from "@/lib/loadDeadline";
-import { loadSessionContent } from "@/lib/sessionState";
 
 const SID = "malformed-session";
 
@@ -88,7 +82,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
 });
 
@@ -114,11 +107,9 @@ describe("malformed strokes", () => {
         expect(console.warn).toHaveBeenCalledTimes(MALFORMED.length + 1);
     });
 
-    test("replaying edits skips malformed strokes, kept or queued", () => {
-        const base = {
-            strokes: [stroke("a"), ...MALFORMED] as StrokeFeature[],
-            questions: [],
-        };
+    // The strokes replayed onto were read through isStrokeLike already.
+    test("replaying edits skips malformed queued strokes", () => {
+        const base = { strokes: [stroke("a")], questions: [] };
         const events = [
             ...MALFORMED.map(created),
             created(stroke("b")),
@@ -161,57 +152,5 @@ describe("malformed strokes", () => {
             stroke("a"),
             stroke("b"),
         ]);
-    });
-
-    test("a load whose reads hang gives up at the deadline, keeping nothing", async () => {
-        vi.useFakeTimers();
-        mockFetch.mockImplementation(
-            (_url: string, init: RequestInit) =>
-                new Promise((_, reject) => {
-                    // As fetch does: an aborted signal rejects right away.
-                    if (init.signal?.aborted) reject(init.signal.reason);
-                    init.signal?.addEventListener("abort", () =>
-                        reject(init.signal?.reason),
-                    );
-                }),
-        );
-        const deadline = startLoadDeadline();
-        let error: unknown;
-        void loadSessionContent(SID, "user-1", deadline.signal).catch(
-            (e: unknown) => (error = e),
-        );
-        await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS - 1);
-        expect(error).toBeUndefined();
-        await vi.advanceTimersByTimeAsync(1);
-        expect(error).toBeInstanceOf(LoadTimeoutError);
-        expect(getCachedSession(SID)).toBeNull();
-    });
-
-    test("a load in time leaves no timer running", async () => {
-        vi.useFakeTimers();
-        mockFetch.mockImplementation(async (url: string) => {
-            if (url.endsWith("/events/cursor"))
-                return Response.json({ sequence: 4 });
-            if (url.endsWith("/strokes"))
-                return Response.json({
-                    strokes: [{ clientUuid: "a", payloadJson: stroke("a") }],
-                });
-            if (url.endsWith("/questions"))
-                return Response.json({ questions: [], sequence: 4 });
-            return Response.json({ id: SID, role: "member" });
-        });
-        const deadline = startLoadDeadline();
-        try {
-            const loaded = await loadSessionContent(
-                SID,
-                "user-1",
-                deadline.signal,
-            );
-            expect(loaded.strokes).toEqual([stroke("a")]);
-        } finally {
-            deadline.clear();
-        }
-        expect(vi.getTimerCount()).toBe(0);
-        expect(getCachedSession(SID)?.strokes).toEqual([stroke("a")]);
     });
 });

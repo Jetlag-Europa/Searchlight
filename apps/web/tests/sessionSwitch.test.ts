@@ -20,6 +20,11 @@ import {
     applyPendingEventsToState,
 } from "@/lib/eventQueue";
 
+import {
+    LOAD_TIMEOUT_MS,
+    LoadTimeoutError,
+    startLoadDeadline,
+} from "@/lib/loadDeadline";
 import { flushPendingEvents } from "@/lib/syncManager";
 
 import { routeNotFound } from "./apiResponses";
@@ -354,5 +359,41 @@ describe("page exit flush", () => {
         document.dispatchEvent(new Event("visibilitychange"));
         expect(getPendingEvents(sessionId)).toHaveLength(2);
         expect(hasPendingQuestionSave(sessionId)).toBe(true);
+    });
+});
+
+describe("a session load's deadline", () => {
+    it("stops the reads, so nothing is kept", async () => {
+        vi.useFakeTimers();
+        try {
+            vi.stubGlobal(
+                "fetch",
+                vi.fn(
+                    (_url: string, init: RequestInit) =>
+                        new Promise((_, reject) => {
+                            // As fetch does: an aborted signal rejects at once.
+                            if (init.signal?.aborted)
+                                reject(init.signal.reason);
+                            init.signal?.addEventListener("abort", () =>
+                                reject(init.signal?.reason),
+                            );
+                        }),
+                ),
+            );
+            const deadline = startLoadDeadline();
+            let error: unknown;
+            void loadSessionContent(
+                "slow-session",
+                "verified-user",
+                deadline.signal,
+            ).catch((e: unknown) => (error = e));
+            await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS - 1);
+            expect(error).toBeUndefined();
+            await vi.advanceTimersByTimeAsync(1);
+            expect(error).toBeInstanceOf(LoadTimeoutError);
+            expect(getCachedSession("slow-session")).toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 });

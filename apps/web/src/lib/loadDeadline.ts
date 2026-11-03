@@ -1,6 +1,10 @@
 // How long a session load may wait on the server (its edits sent, its state
 // read, its game loaded) before the board shows the copy kept here instead.
 export const LOAD_TIMEOUT_MS = 60_000;
+// How long a load waits for the session's details before it starts, and for
+// its queued edits to be sent before it reads the server's state anyway.
+export const DETAILS_TIMEOUT_MS = 15_000;
+export const FLUSH_WAIT_MS = 10_000;
 
 /** A session load ran out of time (see startLoadDeadline). */
 export class LoadTimeoutError extends Error {

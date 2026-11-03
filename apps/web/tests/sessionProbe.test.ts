@@ -1,7 +1,11 @@
 import type { GameSessionSummary } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
-import { PROBE_TIMEOUT_MS, probeSession } from "@/lib/sessionProbe";
+import {
+    fetchSessionDetails,
+    PROBE_TIMEOUT_MS,
+    probeSession,
+} from "@/lib/sessionProbe";
 
 import {
     forbidden,
@@ -151,23 +155,20 @@ describe("probeSession", () => {
         ],
         ["questions", "no list", () => Response.json({ questions: null })],
         ["strokes", "no list", () => Response.json({ strokes: {} })],
-        [
-            "questions",
-            "a list with a gap",
-            () => Response.json({ questions: [null] }),
-        ],
     ])("retries when its %s answer with %s", async (part, _, res) => {
         answer({ [`/${part}`]: res });
         expect(await probeSession(SID)).toEqual({ kind: "retry" });
     });
 
-    // The load skips them (see loadStrokesFromServer): retrying wouldn't help.
-    test("is ready when some strokes are malformed", async () => {
+    // The load skips them (see loadStrokesFromServer and fetchQuestions):
+    // retrying wouldn't help.
+    test("is ready when some entries are malformed", async () => {
         answer({
             "/strokes": () =>
                 Response.json({
                     strokes: [null, { payloadJson: "x" }, { payloadJson: {} }],
                 }),
+            "/questions": () => Response.json({ questions: [null, 3] }),
         });
         expect(await probeSession(SID)).toEqual({ kind: "ready", session });
     });
@@ -198,5 +199,34 @@ describe("probeSession", () => {
             expect(result).toEqual({ kind: "retry" });
             expect(vi.getTimerCount()).toBe(0);
         });
+    });
+});
+
+describe("fetchSessionDetails", () => {
+    beforeEach(() => {
+        mockFetch.mockReset();
+    });
+
+    // A load reads the content itself.
+    test("reads only the session's details", async () => {
+        answer({});
+        expect(await fetchSessionDetails(SID)).toEqual({
+            kind: "ready",
+            session,
+        });
+        expect(mockFetch).toHaveBeenCalledExactlyOnceWith(BASE, {
+            credentials: "include",
+            signal: undefined,
+        });
+    });
+
+    test("says why there are none", async () => {
+        answer({ "": sessionNotFound });
+        expect(await fetchSessionDetails(SID)).toEqual({
+            kind: "unavailable",
+            status: 404,
+        });
+        answer({ "": () => Response.json(null) });
+        expect(await fetchSessionDetails(SID)).toEqual({ kind: "retry" });
     });
 });
