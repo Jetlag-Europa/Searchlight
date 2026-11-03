@@ -426,6 +426,10 @@ export const LatitudeLongitude = ({
     // also disables it while another card prefills, which locks nothing.
     const disabledRef = useRef(disabled);
     disabledRef.current = disabled;
+    // A teammate's save while the fix is pending gives the card new question
+    // data, which only the latest onChange writes to.
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     const color = colorName ? ICON_COLORS[colorName] : "transparent";
 
@@ -552,7 +556,7 @@ export const LatitudeLongitude = ({
                                                 !isLoading.get()
                                             )
                                                 throw new Error(LOCATION_KEPT);
-                                            onChange(
+                                            onChangeRef.current(
                                                 position.coords.latitude,
                                                 position.coords.longitude,
                                             );
