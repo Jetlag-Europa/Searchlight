@@ -1,6 +1,7 @@
 import { useStore } from "@nanostores/react";
 import type {
     CreateLinkResponse,
+    GameSessionSummary,
     SessionLinksResponse,
     SessionLinkSummary,
     SessionRole,
@@ -22,6 +23,7 @@ import {
     DrawerTrigger,
 } from "@/components/ui/drawer";
 import { activeSessionData } from "@/lib/activeSession";
+import { isSameDoubleTap } from "@/lib/doubleTap";
 import { SESSION_ROLE_CHANGED_EVENT } from "@/lib/sseManager";
 import { cn } from "@/lib/utils";
 
@@ -37,6 +39,9 @@ interface SessionParticipant {
     displayName: string;
     role: SessionRole;
 }
+
+// How long a tapped "Make spectator" waits for its second tap.
+const DEMOTE_CONFIRM_MS = 5_000;
 
 const ROLE_LABELS: Record<SessionRole, string> = {
     creator: "Creator",
@@ -59,8 +64,21 @@ function markActiveSessionShared(sessionId: string) {
 
 export function InviteDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
     const session = useStore(activeSessionData);
-    const isCreator = session?.role === "creator";
+    if (session?.role !== "creator") return null;
+    // One per session: another session's links and people never show, or
+    // get copied, revoked or changed, under this one, however late they load.
+    return <SessionInviteDrawer key={session.id} session={session} className={className} onOpen={onOpen} />;
+}
 
+function SessionInviteDrawer({
+    session,
+    className,
+    onOpen,
+}: {
+    session: GameSessionSummary;
+    className?: string;
+    onOpen?: () => void;
+}) {
     const [open, setOpen] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
 
@@ -74,9 +92,17 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
 
     const [participants, setParticipants] = useState<SessionParticipant[]>([]);
     const [changingRoleOf, setChangingRoleOf] = useState<string | null>(null);
+    // Making someone a spectator drops their edits not sent yet, so it asks
+    // again, as Leave does: the player whose "Make spectator" was tapped.
+    const [confirmDemoteOf, setConfirmDemoteOf] = useState<string | null>(null);
+    const demoteArmedAtRef = useRef<number | null>(null);
+    useEffect(() => {
+        if (!confirmDemoteOf) return;
+        const timer = setTimeout(() => setConfirmDemoteOf(null), DEMOTE_CONFIRM_MS);
+        return () => clearTimeout(timer);
+    }, [confirmDemoteOf]);
 
     const fetchLinks = useCallback(async () => {
-        if (!session || !isCreator) return;
         setLoadingLinks(true);
         createdLinkIds.current.clear();
         try {
@@ -92,26 +118,20 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         } finally {
             setLoadingLinks(false);
         }
-    }, [session, isCreator]);
+    }, [session]);
 
     const fetchParticipants = useCallback(async () => {
-        if (!session || !isCreator) return;
         try {
             const res = await fetch(`${API_BASE}/sessions/${session.id}`, {
                 credentials: "include",
             });
             if (!res.ok) return;
             const data = await res.json() as { participants?: SessionParticipant[] };
-            // The board may have switched sessions meanwhile.
-            if (activeSessionData.get()?.id !== session.id) return;
             setParticipants(data.participants ?? []);
         } catch {
             // non-critical
         }
-    }, [session, isCreator]);
-
-    // Another session's people must not show, or be changed, under this one.
-    useEffect(() => setParticipants([]), [session?.id]);
+    }, [session]);
 
     // Roles change from here or from another of the creator's tabs.
     useEffect(() => {
@@ -122,7 +142,6 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     }, [open, fetchParticipants]);
 
     const handleCreateLink = async (linkType: InviteLinkType) => {
-        if (!session) return;
         setCreatingLinkType(linkType);
         setSendError(null);
         try {
@@ -158,7 +177,6 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
     };
 
     const handleRevokeLink = async (linkId: string, token: string) => {
-        if (!session) return;
         setRevokingLinkId(linkId);
         setSendError(null);
         try {
@@ -183,7 +201,6 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
 
     // Their open boards reload with the new role (participant.role-changed).
     const handleChangeRole = async (userId: string, role: Exclude<SessionRole, "creator">) => {
-        if (!session) return;
         setChangingRoleOf(userId);
         setSendError(null);
         try {
@@ -210,6 +227,25 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
         }
     };
 
+    // `byPointer`: a tap or a click (a key press can't be the second half of
+    // a double tap).
+    const handleRoleButton = (
+        userId: string,
+        role: Exclude<SessionRole, "creator">,
+        byPointer: boolean,
+    ) => {
+        if (role === "viewer") {
+            if (confirmDemoteOf !== userId) {
+                demoteArmedAtRef.current = Date.now();
+                setConfirmDemoteOf(userId);
+                return;
+            }
+            if (byPointer && isSameDoubleTap(demoteArmedAtRef.current, Date.now())) return;
+            setConfirmDemoteOf(null);
+        }
+        void handleChangeRole(userId, role);
+    };
+
     // ── Drawer open/close ─────────────────────────────────────────────────────
     const handleOpenChange = (v: boolean) => {
         setOpen(v);
@@ -220,10 +256,9 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             fetchParticipants();
         } else {
             setSendError(null);
+            setConfirmDemoteOf(null);
         }
     };
-
-    if (!isCreator) return null;
 
     const linkSection = (linkType: InviteLinkType) => {
         const sectionLinks = links.filter((l) => l.linkType === linkType);
@@ -316,7 +351,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
             <DrawerContent aria-describedby={undefined}>
                 <DrawerHeader>
                     <DrawerTitle>
-                        Invite to <span className="text-muted-foreground font-normal">{session?.name}</span>
+                        Invite to <span className="text-muted-foreground font-normal">{session.name}</span>
                     </DrawerTitle>
                 </DrawerHeader>
 
@@ -333,6 +368,7 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">In this session</p>
                             {others.map((p) => {
                                 const nextRole = p.role === "viewer" ? "member" : "viewer";
+                                const confirming = confirmDemoteOf === p.userId;
                                 return (
                                     <div
                                         key={p.userId}
@@ -340,20 +376,38 @@ export function InviteDrawer({ className, onOpen }: { className?: string; onOpen
                                     >
                                         <div className="min-w-0">
                                             <p className="text-sm truncate">{p.displayName}</p>
-                                            <p className="text-xs text-muted-foreground">{ROLE_LABELS[p.role]}</p>
+                                            {confirming ? (
+                                                <p className="text-xs text-destructive">
+                                                    Edits they haven’t sent yet are lost
+                                                </p>
+                                            ) : (
+                                                <p className="text-xs text-muted-foreground">{ROLE_LABELS[p.role]}</p>
+                                            )}
                                         </div>
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="text-xs shrink-0"
+                                            className={cn(
+                                                "text-xs shrink-0",
+                                                confirming && "text-destructive border-destructive hover:bg-destructive/10",
+                                            )}
                                             disabled={changingRoleOf === p.userId}
-                                            onClick={() => handleChangeRole(p.userId, nextRole)}
+                                            onClick={(event) =>
+                                                handleRoleButton(p.userId, nextRole, event.detail !== 0)
+                                            }
+                                            // A held key repeats its click: arm, not confirm.
+                                            onKeyDown={(event) => {
+                                                if (event.repeat) event.preventDefault();
+                                            }}
+                                            title={confirming ? "Tap again to confirm" : undefined}
                                         >
                                             {changingRoleOf === p.userId
                                                 ? "…"
-                                                : nextRole === "viewer"
-                                                  ? "Make spectator"
-                                                  : "Let them edit"}
+                                                : confirming
+                                                  ? "Confirm?"
+                                                  : nextRole === "viewer"
+                                                    ? "Make spectator"
+                                                    : "Let them edit"}
                                         </Button>
                                     </div>
                                 );

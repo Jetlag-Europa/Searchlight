@@ -1,7 +1,11 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import type { StrokeFeature } from "@/annotations/types";
 import { loadSessionContent } from "@/lib/sessionState";
+import { SessionUnavailableError } from "@/lib/sessionUnavailable";
+
+import { forbidden, plainTextNotFound, sessionNotFound } from "./apiResponses";
 
 const activeStroke: StrokeFeature = {
     type: "Feature",
@@ -68,4 +72,64 @@ it("loading another session cannot replace the active annotations before the cal
     const loaded = await loadSessionContent("old-session", "verified-user");
     expect(loaded.strokes).toEqual([oldStroke]);
     expect(strokes.get()).toEqual([activeStroke]);
+});
+
+// Each read can be the first to find the session gone: the load forgets it
+// whichever does (SessionManager), but not on a 404 that isn't the API's.
+describe("a session gone when it loads", () => {
+    const answers =
+        (gone: string, res: () => Response) => async (url: string) => {
+            const path = new URL(url).pathname;
+            if (path === `/sessions/s1${gone}`) return res();
+            if (path.endsWith("/strokes")) return Response.json({ strokes: [] });
+            if (path.endsWith("/questions")) {
+                return Response.json({ questions: [], sequence: 0 });
+            }
+            if (path.endsWith("/events/cursor")) {
+                return Response.json({ sequence: 0 });
+            }
+            return Response.json({
+                id: "s1",
+                name: "S",
+                gameId: "game-1",
+                gameRevisionId: "revision-1",
+            });
+        };
+    const storage = () =>
+        vi.stubGlobal("localStorage", {
+            getItem: () => null,
+            setItem: () => {},
+            removeItem: () => {},
+        });
+
+    it.each(["", "/strokes", "/questions"])(
+        "says so when the API answers %s with its 404 or 403",
+        async (gone) => {
+            storage();
+            for (const [status, res] of [
+                [404, sessionNotFound],
+                [403, forbidden],
+            ] as const) {
+                vi.stubGlobal("fetch", vi.fn(answers(gone, res)));
+                const error = await loadSessionContent("s1", "u1").catch(
+                    (e: unknown) => e,
+                );
+                expect(error).toBeInstanceOf(SessionUnavailableError);
+                expect((error as SessionUnavailableError).status).toBe(status);
+            }
+        },
+    );
+
+    it.each(["", "/strokes", "/questions"])(
+        "doesn't on another 404 for %s",
+        async (gone) => {
+            storage();
+            vi.stubGlobal("fetch", vi.fn(answers(gone, plainTextNotFound)));
+            const error = await loadSessionContent("s1", "u1").catch(
+                (e: unknown) => e,
+            );
+            expect(error).toBeInstanceOf(Error);
+            expect(error).not.toBeInstanceOf(SessionUnavailableError);
+        },
+    );
 });

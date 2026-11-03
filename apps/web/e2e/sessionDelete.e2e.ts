@@ -1,129 +1,29 @@
-import {
-    devices,
-    type APIRequestContext,
-    type Locator,
-    type Page,
-} from "@playwright/test";
+import { type Locator, type Page } from "@playwright/test";
 
 import { DOUBLE_TAP_MS } from "../src/lib/doubleTap";
+import { API_BASE, expect, test, testLogin } from "./fixtures";
 import {
-    API_BASE,
-    expect,
-    test,
-    TEST_SESSION_ID,
-    TEST_USER_ID,
-    testLogin,
-} from "./fixtures";
+    createSession,
+    desktop,
+    join,
+    openBoard,
+    OTHER_USER_ID,
+    phone,
+    picker,
+    sessionStatus,
+    showServer,
+    type Throwaway,
+    useThrowawaySessions,
+} from "./sessions";
 
 /**
  * Deleting and leaving sessions in the session picker: Delete asks first,
  * Delete and Leave can be seen and tapped on a phone, and a teammate who has
- * the session open is told it was deleted.
- *
- * Every session here is a throwaway created through the API by the test
- * user (so it needs to be allowed to start the seeded session's game, e.g. as
- * an admin). The seeded e2e-session is only read, for its game.
+ * the session open, or opens it from a list made before, is told it was
+ * deleted. Every session here is a throwaway (see sessions.ts).
  */
 
-const OTHER_USER_ID = "e2e-other";
-
-// defaultBrowserType can't be set in a describe group (it forces a new
-// worker), and the project picks the browser anyway.
-const { defaultBrowserType: _phoneBrowser, ...phone } = devices["Pixel 7"];
-const { defaultBrowserType: _desktopBrowser, ...desktop } =
-    devices["Desktop Chrome"];
-
-interface Throwaway {
-    id: string;
-    name: string;
-    serverId: string;
-}
-
-// Sessions to delete after each test, whatever happened to them.
-let created: string[] = [];
-
-test.beforeEach(async ({ request }) => {
-    created = [];
-    // `request` is the creator's API client, with its own cookie jar.
-    const res = await request.post(`${API_BASE}/auth/test-login`, {
-        data: { discordId: TEST_USER_ID },
-    });
-    expect(res.ok(), `test-login failed: ${res.status()}`).toBeTruthy();
-});
-
-test.afterEach(async ({ request }) => {
-    for (const id of created) {
-        await request.delete(`${API_BASE}/sessions/${id}`);
-    }
-});
-
-async function createSession(
-    request: APIRequestContext,
-    label: string,
-): Promise<Throwaway> {
-    const seeded = await request.get(`${API_BASE}/sessions/${TEST_SESSION_ID}`);
-    expect(seeded.ok(), `seeded session: ${seeded.status()}`).toBeTruthy();
-    const { gameId } = (await seeded.json()) as { gameId: string };
-    const name = `${label} ${Date.now().toString(36)}${Math.random()
-        .toString(36)
-        .slice(2, 6)}`;
-    const res = await request.post(`${API_BASE}/sessions`, {
-        data: { gameId, name },
-    });
-    expect(
-        res.status(),
-        `creating a session failed (${res.status()}); the test user must be able to start the seeded game`,
-    ).toBe(201);
-    const session = (await res.json()) as Throwaway;
-    created.push(session.id);
-    return session;
-}
-
-/** Makes `page`'s user a member of the session, through a join link. */
-async function join(
-    request: APIRequestContext,
-    page: Page,
-    sessionId: string,
-): Promise<void> {
-    const link = await request.post(`${API_BASE}/sessions/${sessionId}/links`, {
-        data: { linkType: "join" },
-    });
-    expect(link.status(), "join link").toBe(201);
-    const { token } = (await link.json()) as { token: string };
-    const redeem = await page.request.post(`${API_BASE}/links/${token}/redeem`);
-    expect(redeem.ok(), `redeem: ${redeem.status()}`).toBeTruthy();
-}
-
-async function sessionStatus(
-    request: APIRequestContext,
-    sessionId: string,
-): Promise<number> {
-    return (await request.get(`${API_BASE}/sessions/${sessionId}`)).status();
-}
-
-/** Loads the board with `sessionId` open, as /join leaves it. */
-async function openBoard(page: Page, session: Throwaway): Promise<void> {
-    await page.addInitScript((id) => {
-        localStorage.setItem("taibled-pending-link-session", id);
-    }, session.id);
-    // Trailing slash: the static build canonicalises /map → /map/.
-    await page.goto("/map/");
-    await expect(page.getByText(session.name, { exact: true })).toBeVisible({
-        timeout: 30_000,
-    });
-}
-
-function picker(page: Page) {
-    return page.getByRole("dialog", { name: "Select a Session" });
-}
-
-/** Waits for the picker's servers, and shows the session's one. */
-async function showServer(page: Page, serverId: string): Promise<void> {
-    await expect(picker(page)).toBeVisible({ timeout: 30_000 });
-    await expect(picker(page).getByText("Loading servers…")).toBeHidden();
-    const select = picker(page).locator("select");
-    if ((await select.count()) > 0) await select.first().selectOption(serverId);
-}
+useThrowawaySessions();
 
 function deleteButton(page: Page, session: Throwaway) {
     return picker(page).getByRole("button", {
@@ -298,6 +198,35 @@ test.describe("deleting a session on a phone", () => {
         } finally {
             await teammateContext.close();
         }
+    });
+
+    test("a session deleted after the list was shown says so when opened", async ({
+        page,
+        request,
+    }) => {
+        const doomed = await createSession(request, "Listed");
+        await testLogin(page);
+        await page.goto("/map/");
+        await showServer(page, doomed.serverId);
+        const row = picker(page).getByRole("button", {
+            name: new RegExp(`^${doomed.name}`),
+        });
+        await expect(row).toBeVisible();
+
+        // Deleted from another device while this list is up.
+        expect((await request.delete(`${API_BASE}/sessions/${doomed.id}`)).ok()).toBe(true);
+        await row.tap();
+        await expect(
+            page.getByText(
+                `The session “${doomed.name}” was deleted from another tab or device.`,
+            ),
+        ).toBeVisible({ timeout: 30_000 });
+        await expect(picker(page)).toBeVisible();
+        await expect(
+            picker(page).getByText(doomed.name, { exact: true }),
+        ).toHaveCount(0);
+        await expect(page.getByText(/copy saved on this device|Try again in a moment/)).toHaveCount(0);
+        await expectBodyTappable(page);
     });
 
     test("Leave is shown and still asks twice", async ({ page, request }) => {

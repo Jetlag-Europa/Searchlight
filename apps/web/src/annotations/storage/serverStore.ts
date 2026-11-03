@@ -6,6 +6,7 @@ import {
     getPendingEvents,
     markEventSynced,
 } from "@/lib/eventQueue";
+import { readError } from "@/lib/sessionUnavailable";
 import {
     assertMaySend,
     assertStrokeDeleted,
@@ -46,7 +47,7 @@ export async function loadStrokesFromServer(
         credentials: "include",
         signal,
     });
-    if (!res.ok) throw new Error(`Failed to load strokes: ${res.status}`);
+    if (!res.ok) throw await readError(res, "strokes");
     const data = (await res.json()) as { strokes: unknown[] };
     const loaded: StrokeFeature[] = [];
     for (const entry of data.strokes) {

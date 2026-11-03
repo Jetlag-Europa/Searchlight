@@ -42,10 +42,11 @@ import {
 import { createBackoffRetry } from "@/lib/backoffRetry";
 import {
     gameDefinitionReady,
+    hiderMode,
+    planningModeEnabled,
     questions,
     sessionPickerOpen,
 } from "@/lib/context";
-import { hiderMode, planningModeEnabled } from "@/lib/context";
 import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
 import { isSameDoubleTap } from "@/lib/doubleTap";
 import {
@@ -65,6 +66,7 @@ import {
     FLUSH_WAIT_MS,
     startLoadDeadline,
 } from "@/lib/loadDeadline";
+import { endOfflineAccess } from "@/lib/offlineAccess";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import {
     reconcileQuestionConflicts,
@@ -78,7 +80,7 @@ import {
 } from "@/lib/questionSaveSuppress";
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
-import { fetchSessionDetails, probeSession } from "@/lib/sessionProbe";
+import { fetchSessionDetails } from "@/lib/sessionProbe";
 import {
     becomeSpectator,
     cacheSessionRole,
@@ -94,7 +96,10 @@ import {
     savePlanningModeToServer,
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
-import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
+import {
+    SessionUnavailableError,
+    sessionUnavailableStatus,
+} from "@/lib/sessionUnavailable";
 import {
     SESSION_ROLE_CHANGED_EVENT,
     SESSION_STREAM_RECONNECTED_EVENT,
@@ -129,11 +134,56 @@ const sessionRecheck = createBackoffRetry();
 let recheckedSessionId: string | null = null;
 // A check was put off while the picker was open: closing it tries then.
 let recheckWaitedForPicker = false;
+// Or while the player typed in a field: leaving it tries then.
+let recheckWaitedForTyping = false;
+
+// Fields that take a tap, not typing.
+const NOT_TYPED_IN = new Set([
+    "button",
+    "checkbox",
+    "color",
+    "file",
+    "hidden",
+    "image",
+    "radio",
+    "range",
+    "reset",
+    "submit",
+]);
+
+// The player is typing in a field (a question's name or radius, say): a load
+// now would replace the board, and what they typed with it.
+function typingInField(): boolean {
+    const field = document.activeElement as HTMLInputElement | null;
+    if (!field) return false;
+    if (field.tagName === "TEXTAREA" || field.isContentEditable) return true;
+    return field.tagName === "INPUT" && !NOT_TYPED_IN.has(field.type);
+}
+
+// As AuthGuard does when /me says the sign-in is gone. Not "reload the
+// page": the installed app has no reload button.
+function signInAgain(): void {
+    const { pathname, search, hash } = window.location;
+    void endOfflineAccess().finally(() => {
+        window.location.href = `/?returnTo=${encodeURIComponent(
+            pathname + search + hash,
+        )}`;
+    });
+}
 
 function saySignInExpired(): void {
-    toast.error("Your sign-in has expired. Reload the page to sign in again.", {
-        toastId: "sign-in-expired",
-    });
+    toast.error(
+        <div className="flex w-full items-center gap-2">
+            <span className="min-w-0 flex-1">Your sign-in has expired.</span>
+            <button
+                className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
+                onClick={signInAgain}
+            >
+                Sign in
+            </button>
+        </div>,
+        { toastId: "sign-in-expired" },
+    );
 }
 
 // How a session load ended, one toast at a time.
@@ -156,8 +206,9 @@ function sayLoadFellBack(timedOut: boolean, showingKeptCopy: boolean): void {
 const LEAVE_CONFIRM_MS = 5_000;
 
 // Edits still waiting to be queued can never be delivered either, and would
-// put the session's queue back after it was discarded.
-function cancelPendingSaves(sessionId: string): void {
+// put the session's queue back after it was discarded. Every session's
+// without an id.
+function cancelPendingSaves(sessionId?: string): void {
     cancelPendingQuestionSave(sessionId);
     cancelPendingHiderSave(sessionId);
     cancelPendingPlanningModeSave(sessionId);
@@ -241,30 +292,39 @@ function SessionPickerOverlay({
         return () => window.removeEventListener("keydown", closeOnEscape);
     }, [close]);
 
-    useEffect(() => {
-        let active = true;
-        fetch(`${API_BASE}/servers`, { credentials: "include" })
-            .then(async (res) => {
-                if (!active) return;
-                if (!res.ok) throw new Error(`${res.status}`);
-                const data: ServersResponse = await res.json();
-                if (!active) return;
-                setServers(data.servers);
-                if (data.servers.length === 1) {
-                    setSelectedServerId(data.servers[0].id);
-                }
-            })
-            .catch((e: Error) => {
-                if (!active) return;
-                setError(`Failed to load servers: ${e.message}`);
-            })
-            .finally(() => {
-                if (active) setLoadingServers(false);
+    // A list that doesn't come in time failed, and can be tried again.
+    const loadServersReqRef = useRef(0);
+    const loadServers = useCallback(async () => {
+        const reqId = ++loadServersReqRef.current;
+        setLoadingServers(true);
+        setError(null);
+        const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+        try {
+            const res = await fetch(`${API_BASE}/servers`, {
+                credentials: "include",
+                signal: deadline.signal,
             });
-        return () => {
-            active = false;
-        };
+            if (!res.ok) throw new Error(`${res.status}`);
+            const data: ServersResponse = await res.json();
+            if (reqId !== loadServersReqRef.current) return;
+            setServers(data.servers);
+            if (data.servers.length === 1) {
+                setSelectedServerId(data.servers[0].id);
+            }
+        } catch (e: unknown) {
+            if (reqId !== loadServersReqRef.current) return;
+            setError(`Failed to load servers: ${(e as Error).message}`);
+        } finally {
+            deadline.clear();
+            if (reqId === loadServersReqRef.current) setLoadingServers(false);
+        }
     }, []);
+    useEffect(() => {
+        void loadServers();
+        return () => {
+            loadServersReqRef.current++;
+        };
+    }, [loadServers]);
 
     // The server list remembers for hours that you aren't in a server, so ask
     // Discord again on request, for someone who just joined one.
@@ -291,22 +351,26 @@ function SessionPickerOverlay({
             setLoadingSessions(true);
             setSessions(null);
             setError(null);
+            const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
             try {
                 const [sessRes, games] = await Promise.all([
                     fetch(`${API_BASE}/sessions?serverId=${serverId}`, {
                         credentials: "include",
+                        signal: deadline.signal,
                     }),
                     // A server is listed for non-members who have sessions
                     // there (from a game link or an invite link); its catalog is
                     // closed to them. Casual games are never in a catalog.
                     isMember && serverId !== CASUAL_SERVER_ID
-                        ? fetchGameCatalog(serverId).catch((err) => {
-                              console.warn(
-                                  "[searchlight:session] game catalog unavailable:",
-                                  err,
-                              );
-                              return [] as Game[];
-                          })
+                        ? deadline
+                              .race(fetchGameCatalog(serverId))
+                              .catch((err) => {
+                                  console.warn(
+                                      "[searchlight:session] game catalog unavailable:",
+                                      err,
+                                  );
+                                  return [] as Game[];
+                              })
                         : Promise.resolve([] as Game[]),
                 ]);
                 if (reqId !== loadSessionsReqRef.current) return;
@@ -320,6 +384,7 @@ function SessionPickerOverlay({
                 if (reqId !== loadSessionsReqRef.current) return;
                 setError(`Failed to load sessions: ${(e as Error).message}`);
             } finally {
+                deadline.clear();
                 if (reqId === loadSessionsReqRef.current) {
                     setLoadingSessions(false);
                 }
@@ -337,6 +402,27 @@ function SessionPickerOverlay({
         if (selectedServerId)
             loadSessionsForServer(selectedServerId, selectedIsMember);
     }, [selectedServerId, selectedIsMember, loadSessionsForServer]);
+
+    // A list that failed to load leaves nothing to pick from: Try again, or
+    // coming back online, loads it again (the installed app has no reload).
+    const listFailed =
+        Boolean(error) &&
+        (!servers || (Boolean(selectedServerId) && sessions === null));
+    const retryList = useCallback(() => {
+        if (!servers || !selectedServerId) void loadServers();
+        else void loadSessionsForServer(selectedServerId, selectedIsMember);
+    }, [
+        servers,
+        selectedServerId,
+        selectedIsMember,
+        loadServers,
+        loadSessionsForServer,
+    ]);
+    useEffect(() => {
+        if (!listFailed) return;
+        window.addEventListener("online", retryList);
+        return () => window.removeEventListener("online", retryList);
+    }, [listFailed, retryList]);
 
     const handleDeleteSession = async (sessionId: string) => {
         setDeletingId(sessionId);
@@ -402,7 +488,9 @@ function SessionPickerOverlay({
     };
 
     const handleCreateSession = async () => {
-        if (!newSessionName.trim() || !newSessionGameId) return;
+        // Enter pressed again while it's created mustn't make another.
+        if (creatingSession || !newSessionName.trim() || !newSessionGameId)
+            return;
         setCreatingSession(true);
         setError(null);
         try {
@@ -442,13 +530,15 @@ function SessionPickerOverlay({
             ref={setOverlay}
             className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm"
         >
+            {/* Scrolls on a small or sideways phone, where it's taller than
+                the screen. */}
             <div
                 ref={dialogRef}
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
                 tabIndex={-1}
-                className="w-full max-w-md mx-4 bg-card border border-border rounded-xl shadow-xl p-6 outline-none"
+                className="w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto mx-4 bg-card border border-border rounded-xl shadow-xl p-6 outline-none"
             >
                 <div className="flex items-start justify-between gap-2 mb-1">
                     <h1 id={titleId} className="text-xl font-bold">
@@ -484,9 +574,21 @@ function SessionPickerOverlay({
                 </p>
 
                 {error && (
-                    <p className="text-sm text-destructive mb-4 p-3 bg-destructive/10 rounded-md">
-                        {error}
-                    </p>
+                    <div className="flex items-center justify-between gap-3 text-sm text-destructive mb-4 p-3 bg-destructive/10 rounded-md">
+                        <p className="min-w-0 [overflow-wrap:anywhere]">
+                            {error}
+                        </p>
+                        {listFailed && (
+                            <Button
+                                size="sm"
+                                variant="outline"
+                                className="shrink-0"
+                                onClick={retryList}
+                            >
+                                Try again
+                            </Button>
+                        )}
+                    </div>
                 )}
 
                 {loadingServers && (
@@ -867,7 +969,10 @@ function SessionChip({
                 inert={inert}
             >
                 <span
-                    className="font-medium truncate max-w-[140px]"
+                    // Shorter beside the badge, to fit a 360 px phone.
+                    className={`font-medium truncate ${
+                        readOnly ? "max-w-[96px]" : "max-w-[140px]"
+                    }`}
                     title={session.name}
                 >
                     {session.name}
@@ -978,8 +1083,6 @@ export function SessionManager() {
     // The board behind the picker is inert, and so is the user chip (it reads
     // sessionPickerOpen). Focus returns once they aren't.
     useEffect(() => {
-        const board = document.getElementById("map-board");
-        if (board) board.inert = showPicker;
         sessionPickerOpen.set(showPicker);
         // Back on the board: a background recheck waited for the picker.
         if (!showPicker && recheckWaitedForPicker) {
@@ -992,6 +1095,23 @@ export function SessionManager() {
             pickerOpenerRef.current = null;
         }
     }, [showPicker]);
+    // Nor is the board played on while a load replaces it: what was typed
+    // meanwhile would be replaced too, and not saved.
+    useEffect(() => {
+        const board = document.getElementById("map-board");
+        if (board) board.inert = showPicker || loading;
+    }, [showPicker, loading]);
+    // Back from a field a background check waited for. Once the field's
+    // own handlers have put what was typed on the board, to be saved.
+    useEffect(() => {
+        const onFocusOut = () => {
+            if (!recheckWaitedForTyping) return;
+            recheckWaitedForTyping = false;
+            setTimeout(() => sessionRecheck.tryNow());
+        };
+        document.addEventListener("focusout", onFocusOut);
+        return () => document.removeEventListener("focusout", onFocusOut);
+    }, []);
     const sessionLoadGenerationRef = useRef(0);
     // Generation of the session load that is still replacing content, if any.
     // Save effects bail while it is current: the atoms can already hold the
@@ -1043,17 +1163,6 @@ export function SessionManager() {
         );
     useEffect(refreshQuestionDecisions);
     useEffect(() => () => setQuestionDecisionsPossible(false), []);
-
-    // A board painted from the snapshot shows the latest list still queued,
-    // if any: its base is that list's (see boardPaintedFromSnapshot). An
-    // edit made on the reopened board before that list is sent replaces it
-    // in the queue; if it was sent and landed without its answer coming,
-    // its versions count as possibly ours in the next merge (see
-    // QuestionsReplacePayload.own), so a question of ours the edit removes
-    // again stays removed. Nothing is sent again to find out (that was
-    // tried and broke the live flow: a live board shows the list as first
-    // made, not as merged).
-    const paintedFromSnapshot = (id: string) => boardPaintedFromSnapshot(id);
 
     // A session's hider and planning mode, with this account's edits to them
     // that haven't synced yet.
@@ -1183,8 +1292,10 @@ export function SessionManager() {
     // The session was deleted (404) or this user can no longer open it (403):
     // drop the pointer and the local queue/cache, which can never sync. A 403
     // can also follow a user switch, so keep another account's local edits.
+    // `opening`: the session as a load that found out was opening it, which
+    // is news like the active session's.
     const forgetSession = useCallback(
-        (sessionId: string, status: number) => {
+        (sessionId: string, status: number, opening?: GameSessionSummary) => {
             // What a failed load said is moot now.
             toast.dismiss(LOAD_TOAST_ID);
             // Named before the cache that may hold the name is discarded; a
@@ -1192,15 +1303,16 @@ export function SessionManager() {
             const active = activeSessionData.get();
             const cached = getCachedSession(sessionId);
             const known =
-                active?.id === sessionId
+                opening ??
+                (active?.id === sessionId
                     ? active
                     : cached?.userId === authUserId
                       ? cached.session
-                      : undefined;
+                      : undefined);
             const notice = deletedSessionNotice({
                 sessionId,
                 status,
-                activeSessionId: activeSessionId.get(),
+                activeSessionId: opening ? sessionId : activeSessionId.get(),
                 deletedHere: deletedHere.has(sessionId),
                 role:
                     known?.role ??
@@ -1220,18 +1332,27 @@ export function SessionManager() {
     );
 
     // The board shows what was kept of a session the server didn't answer
-    // for (a 5xx, no network, a route this API doesn't have): check it again
-    // quietly until the server answers, then load it, which sends the queued
-    // edits and opens the stream. Any other load stops it.
+    // for (a 5xx, no network, a route this API doesn't have): check its
+    // details again quietly until the server answers, then load it, which
+    // sends the queued edits, reads the rest and opens the stream. A load
+    // that fails again shows the kept copy again and checks on. Any other
+    // load stops it.
     const keepCheckingSession = (id: string, generation: number) => {
         const isCurrent = () =>
             generation === sessionLoadGenerationRef.current &&
             activeSessionId.get() === id;
-        // Not over the picker, which a load closes, nor during another load.
+        // Not over the picker, which a load closes, nor under someone
+        // typing, nor during another load.
         const busy = () => {
-            if (!sessionPickerOpen.get()) return isLoadingSession();
-            recheckWaitedForPicker = true;
-            return true;
+            if (sessionPickerOpen.get()) {
+                recheckWaitedForPicker = true;
+                return true;
+            }
+            if (typingInField()) {
+                recheckWaitedForTyping = true;
+                return true;
+            }
+            return isLoadingSession();
         };
         if (recheckedSessionId !== id) {
             recheckedSessionId = id;
@@ -1240,19 +1361,21 @@ export function SessionManager() {
         sessionRecheck.start(async () => {
             if (!isCurrent()) return true;
             if (busy()) return false;
-            const probe = await probeSession(id);
+            const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+            const details = await fetchSessionDetails(id, deadline.signal);
+            deadline.clear();
             if (!isCurrent()) return true;
-            if (probe.kind === "unavailable") {
-                forgetSession(id, probe.status);
+            if (details.kind === "unavailable") {
+                forgetSession(id, details.status);
                 return true;
             }
-            if (probe.kind === "signedOut") {
+            if (details.kind === "signedOut") {
                 saySignInExpired();
                 return true;
             }
-            if (probe.kind === "retry" || busy()) return false;
+            if (details.kind === "retry" || busy()) return false;
             console.info("[searchlight:session] server answered, loading", id);
-            void loadSession(probe.session);
+            void loadSession(details.session);
             return true;
         });
     };
@@ -1276,7 +1399,7 @@ export function SessionManager() {
         strokes.set(derived.strokes);
         // The game hasn't loaded: show only what it may support.
         questions.set(filterSupportedQuestions(derived.questions, null));
-        paintedFromSnapshot(id);
+        boardPaintedFromSnapshot(id);
         return true;
     };
 
@@ -1302,9 +1425,7 @@ export function SessionManager() {
         if (offlineBoardUser === authUserId && activeSessionId.get()) {
             flushSessionSaves(activeSessionId.get());
         } else {
-            cancelPendingQuestionSave();
-            cancelPendingHiderSave();
-            cancelPendingPlanningModeSave();
+            cancelPendingSaves();
             if (offlineBoardUser) {
                 leaveGame();
                 boardSessionRef.current = null;
@@ -1657,6 +1778,14 @@ export function SessionManager() {
                 boardIsKeptCopyRef.current = false;
             } catch (e: unknown) {
                 if (!isCurrent()) return false;
+                // Deleted, or closed to this user, since it was listed or
+                // checked: forgotten before it shows, and so is the board it
+                // was replacing.
+                if (e instanceof SessionUnavailableError) {
+                    if (switchingSession) clearActiveSession();
+                    forgetSession(selected.id, e.status, selected);
+                    return false;
+                }
                 const timedOut = deadline.signal.aborted;
                 console.warn(
                     "[searchlight:session] failed to load session content:",
@@ -1705,9 +1834,7 @@ export function SessionManager() {
             // flag would swallow the player's next edit.)
             if (switchingSession) suppressNextSaveRef.current = true;
             // Nothing set during the load may be saved, into either session.
-            cancelPendingQuestionSave();
-            cancelPendingHiderSave();
-            cancelPendingPlanningModeSave();
+            cancelPendingSaves();
             // The modes the board shows now are no change to save, when the
             // session changing runs the save effects again or a failed load
             // lets them save again.
@@ -1756,9 +1883,15 @@ export function SessionManager() {
             }
             if (!isCurrent()) return false;
             setLoading(false);
-            setGameNotLoaded(!gameDefinitionReady.get());
+            // A session forgotten as it loaded has no game to miss.
+            setGameNotLoaded(
+                Boolean(activeSessionId.get()) && !gameDefinitionReady.get(),
+            );
             if (live) {
                 sessionRecheck.reset();
+                // A role change made before the stream opened (while the
+                // game downloaded, say) wasn't sent on it.
+                void checkSession(selected.id, false);
             } else if (
                 boardSessionRef.current === selected.id &&
                 activeSessionId.get() === selected.id

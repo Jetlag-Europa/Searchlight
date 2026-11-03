@@ -35,6 +35,7 @@ import {
     setCachedSession,
 } from "@/lib/eventQueue";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
+import { readError } from "@/lib/sessionUnavailable";
 import {
     latestSavedQuestionsSequence,
     sendPendingEvent,
@@ -63,7 +64,7 @@ async function fetchQuestions(
         credentials: "include",
         signal,
     });
-    if (!res.ok) throw new Error(`Failed to load questions: ${res.status}`);
+    if (!res.ok) throw await readError(res, "questions");
     const data = (await res.json()) as {
         questions: Array<{
             clientUuid: string;
@@ -470,7 +471,8 @@ export async function fetchServerCursor(
 
 /**
  * Read the session's state from the server and keep it as this browser's
- * copy. Aborting `signal` stops the reads, so nothing is kept.
+ * copy. Aborting `signal` stops the reads, so nothing is kept. Any of the
+ * reads can find out the session is gone (a SessionUnavailableError).
  */
 export async function loadSessionContent(
     sessionId: string,
@@ -501,7 +503,7 @@ export async function loadSessionContent(
             credentials: "include",
             signal,
         }).then(async (res) => {
-            if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
+            if (!res.ok) throw await readError(res, "session");
             const details: unknown = await res.json();
             // Kept and activated: anything else would leave the board on no
             // session.

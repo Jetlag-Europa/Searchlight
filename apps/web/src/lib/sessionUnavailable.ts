@@ -1,6 +1,25 @@
 // The API's message when there is no such session (resolveSessionAccess).
 export const SESSION_NOT_FOUND = "Session not found";
 
+/** The API said the session is gone, or closed to this user. */
+export class SessionUnavailableError extends Error {
+    constructor(readonly status: 403 | 404) {
+        super(`Session unavailable (${status})`);
+        this.name = "SessionUnavailableError";
+    }
+}
+
+/**
+ * Why a read of the session failed: a SessionUnavailableError when the API
+ * says the session is gone or closed (see sessionUnavailableStatus).
+ */
+export async function readError(res: Response, what: string): Promise<Error> {
+    const status = await sessionUnavailableStatus(res);
+    return status === null
+        ? new Error(`Failed to load ${what}: ${res.status}`)
+        : new SessionUnavailableError(status);
+}
+
 // A 404 whose body never ends mustn't hold up the retries waiting on it.
 const BODY_TIMEOUT_MS = 5_000;
 

@@ -74,30 +74,48 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
 
     // The page opens without a connection (the service worker keeps it), so
     // a failed request means the server can't be reached, not that the link
-    // is invalid: say so, and try again once the device is back online.
-    let loadingLink = false;
+    // is invalid: say so, and try again once the device is back online. A
+    // request on a connection that went away can hang for minutes: each one
+    // gives up after DEADLINE_MS, as if it had failed.
+    const DEADLINE_MS = 15000;
+    function deadline() {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), DEADLINE_MS);
+        return {
+            signal: controller.signal,
+            abort: () => controller.abort(),
+            clear: () => clearTimeout(timer),
+        };
+    }
+    // The load going, if any: a newer one replaces it.
+    let attempt = null;
     function hideEl(id) { $(id).classList.add("hidden"); $(id).classList.remove("flex"); }
-    function showUnreachable() { loadingLink = false; $("loading").classList.add("hidden"); showEl("unreachable"); }
+    function showUnreachable() { $("loading").classList.add("hidden"); showEl("unreachable"); }
     function load() {
-        if (loadingLink) return;
-        loadingLink = true;
+        attempt?.abort();
+        const current = (attempt = deadline());
         hideEl("unreachable");
         $("loading").classList.remove("hidden");
         Promise.all([
-            fetch(`${apiBase}/game-links/${encodeURIComponent(token)}`).then((r) => {
+            fetch(`${apiBase}/game-links/${encodeURIComponent(token)}`, { signal: current.signal }).then((r) => {
                 if (r.status === 404) return { valid: false };
                 if (!r.ok) throw new Error(`${r.status}`);
                 return r.json();
             }),
-            fetch(`${apiBase}/me`, { credentials: "include" }).then((r) => r.ok ? r.json() : null),
+            fetch(`${apiBase}/me`, { credentials: "include", signal: current.signal }).then((r) => r.ok ? r.json() : null),
         ]).then(([linkInfo, me]) => {
-            loadingLink = false;
-            show(linkInfo, me);
-        }, showUnreachable);
+            if (attempt === current) show(linkInfo, me);
+        }, () => {
+            if (attempt === current) showUnreachable();
+        }).finally(() => {
+            current.clear();
+            if (attempt === current) attempt = null;
+        });
     }
     $("retry-btn").addEventListener("click", load);
+    // Back online: try again, rather than wait on a request that may hang.
     window.addEventListener("online", () => {
-        if (!$("unreachable").classList.contains("hidden")) load();
+        if (attempt || !$("unreachable").classList.contains("hidden")) load();
     });
 
     if (!token) {
@@ -157,12 +175,14 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
 
             $("start-btn").disabled = true;
             $("start-label").textContent = "…";
+            const request = deadline();
             try {
                 const res = await fetch(`${apiBase}/game-links/${encodeURIComponent(token)}/sessions`, {
                     method: "POST",
                     credentials: "include",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name, visibility: "private" }),
+                    signal: request.signal,
                 });
                 if (res.status === 404) { showInvalid(); return; }
                 if (res.status === 401) { logIn(); return; }
@@ -174,9 +194,13 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 localStorage.setItem("taibled-pending-link-session", id);
                 window.location.href = "/map";
             } catch (err) {
-                showError(`Couldn't start the session: ${err.message}`);
+                showError(request.signal.aborted
+                    ? "Searchlight is taking too long to answer. Try again."
+                    : `Couldn't start the session: ${err.message}`);
                 $("start-btn").disabled = false;
                 $("start-label").textContent = startLabel;
+            } finally {
+                request.clear();
             }
         });
     }
