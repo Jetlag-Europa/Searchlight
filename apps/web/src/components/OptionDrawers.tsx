@@ -70,7 +70,7 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-} from "./ui/sidebar-l";
+} from "./ui/sidebar";
 import { UnitSelect } from "./UnitSelect";
 
 export const OptionDrawers = ({ className }: { className?: string }) => {

@@ -32,7 +32,7 @@ import {
     SidebarGroupLabel,
     SidebarMenu,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { sessionReadOnly } from "@/lib/activeSession";
 import { isLoading, questions } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";

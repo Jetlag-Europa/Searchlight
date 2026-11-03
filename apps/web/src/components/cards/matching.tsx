@@ -2,7 +2,7 @@ import { useStore } from "@nanostores/react";
 import * as React from "react";
 import { toast } from "react-toastify";
 
-import CustomInitDialog from "@/components/CustomInitDialog";
+import { CustomInitDialog } from "@/components/CustomInitDialog";
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import PresetsDialog from "@/components/PresetsDialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/select";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
 import { askedHints } from "@/lib/askedQuestions";

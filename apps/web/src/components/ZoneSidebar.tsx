@@ -14,7 +14,7 @@ import {
     SidebarGroupContent,
     SidebarMenu,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-r";
+} from "@/components/ui/sidebar";
 import { compiledGameAtom } from "@/game-definition/store";
 import { startCalculation } from "@/lib/calculating";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
@@ -70,7 +70,7 @@ import {
 } from "./ui/command";
 import { Label } from "./ui/label";
 import { ScrollToTop } from "./ui/scroll-to-top";
-import { MENU_ITEM_CLASSNAME } from "./ui/sidebar-l";
+import { MENU_ITEM_CLASSNAME } from "./ui/sidebar";
 
 let buttonJustClicked = false;
 
