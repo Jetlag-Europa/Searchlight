@@ -85,26 +85,25 @@ export function hidingZoneLayer(
     }
 }
 
-const circlesByGame = new WeakMap<object, Map<number, StationCircle[]>>();
+const circlesByGame = new WeakMap<
+    object,
+    { scale: number; circles: StationCircle[] }
+>();
 
 /**
- * {@link hidingZoneCircles}, kept per compiled game and scale so a zone stays
- * the same object across recalculations. Callers must not mutate the result.
+ * {@link hidingZoneCircles}, kept per compiled game for the latest scale so a
+ * zone stays the same object across recalculations. Only one scale is kept:
+ * each multiplier typed into a zone size change is another full set of
+ * zones. Callers must not mutate the result.
  */
 function cachedHidingZoneCircles(
     compiled: Pick<CompiledGame, "definition" | "hidingZones">,
     scale: number,
 ): StationCircle[] {
-    let byScale = circlesByGame.get(compiled);
-    if (!byScale) {
-        byScale = new Map();
-        circlesByGame.set(compiled, byScale);
-    }
-    let circles = byScale.get(scale);
-    if (!circles) {
-        circles = hidingZoneCircles(compiled, scale);
-        byScale.set(scale, circles);
-    }
+    const cached = circlesByGame.get(compiled);
+    if (cached?.scale === scale) return cached.circles;
+    const circles = hidingZoneCircles(compiled, scale);
+    circlesByGame.set(compiled, { scale, circles });
     return circles;
 }
 

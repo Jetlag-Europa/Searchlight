@@ -207,6 +207,19 @@ it("keeps the same zone objects across recalculations", async () => {
     expect(hidingZoneCircles(compiled)[0]).toEqual(first![0]);
 });
 
+it("keeps only the latest scale's zones", async () => {
+    // Every multiplier typed into a zone size change is a new scale, and
+    // each scale is a full set of zones: keep one set, not one per scale.
+    const compiled = compileGameDefinition(game);
+    const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
+
+    const [first] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
+    await survivingHidingZones(compiled, [], 1.5, keepAll);
+    const [back] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
+    expect(back).not.toBe(first);
+    expect(back).toEqual(first);
+});
+
 it("compares zone lists by their objects, in any order", () => {
     const [a, b] = hidingZoneCircles(compileGameDefinition(game));
     const [c] = hidingZoneCircles(compileGameDefinition(game));
