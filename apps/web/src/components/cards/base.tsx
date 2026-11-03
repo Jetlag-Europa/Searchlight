@@ -329,8 +329,8 @@ const QuestionJson = ({ questionKey }: { questionKey: number }) => {
 
 // Saves on blur, Enter or unmount (a marker's dialog can close mid-edit), not
 // per keystroke: every saved change re-renders the map and syncs the session.
-// Never disabled while loading: the name changes no answer, and the field
-// would lose focus whenever the map recalculates.
+// Never disabled while loading: the name changes no answer, and a disabled
+// field loses focus.
 const QuestionNameInput = ({
     name,
     onCommit,

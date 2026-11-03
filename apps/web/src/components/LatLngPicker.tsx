@@ -13,11 +13,7 @@ import { usePasteText } from "@/components/PasteFallback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/useDebounce";
-import {
-    allowGooglePlusCodes,
-    isLoading,
-    setScopedLoading,
-} from "@/lib/context";
+import { allowGooglePlusCodes, isLoading } from "@/lib/context";
 import { splitPlusCode } from "@/lib/plusCode";
 import { cn } from "@/lib/utils";
 import { determineName, geocode, ICON_COLORS } from "@/maps/api";
@@ -421,6 +417,13 @@ export const LatitudeLongitude = ({
 }) => {
     const $isLoading = useStore(isLoading);
     const { readPaste, pasteDialog } = usePasteText();
+    // Only this location waits for its GPS fix: the fix writes nowhere else.
+    const [locating, setLocating] = useState(false);
+    const blocked = disabled || locating;
+    // Locking the card while its fix is pending keeps the location. The card
+    // also disables it while another card prefills, which locks nothing.
+    const disabledRef = useRef(disabled);
+    disabledRef.current = disabled;
 
     const color = colorName ? ICON_COLORS[colorName] : "transparent";
 
@@ -432,14 +435,14 @@ export const LatitudeLongitude = ({
                 }}
                 className={cn(
                     "p-2 rounded-md space-y-1 mt-2",
-                    $isLoading && "brightness-50",
+                    ($isLoading || locating) && "brightness-50",
                 )}
             >
                 {!inlineEdit && (
                     <div
                         className={cn(
                             "flex justify-between items-center",
-                            $isLoading && "opacity-50",
+                            ($isLoading || locating) && "opacity-50",
                         )}
                         style={{
                             color: colorName === "gold" ? "black" : undefined,
@@ -475,7 +478,7 @@ export const LatitudeLongitude = ({
                                 latitude={latitude}
                                 longitude={longitude}
                                 onChange={onChange}
-                                disabled={disabled}
+                                disabled={blocked}
                                 localLocations={localLocations}
                                 onResultSelect={onResultSelect}
                             />
@@ -484,7 +487,7 @@ export const LatitudeLongitude = ({
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button
-                                    disabled={disabled}
+                                    disabled={blocked}
                                     variant="outline"
                                     title="Edit coordinates"
                                 >
@@ -501,7 +504,7 @@ export const LatitudeLongitude = ({
                                     latitude={latitude}
                                     longitude={longitude}
                                     onChange={onChange}
-                                    disabled={disabled}
+                                    disabled={blocked}
                                     localLocations={localLocations}
                                     onResultSelect={onResultSelect}
                                 />
@@ -526,10 +529,7 @@ export const LatitudeLongitude = ({
                                 if (!navigator || !navigator.geolocation)
                                     return alert("Geolocation not supported");
 
-                                setScopedLoading(
-                                    "latLngPicker:geolocation",
-                                    true,
-                                );
+                                setLocating(true);
 
                                 toast.promise(
                                     new Promise<GeolocationPosition>(
@@ -545,17 +545,17 @@ export const LatitudeLongitude = ({
                                         },
                                     )
                                         .then((position) => {
+                                            if (
+                                                disabledRef.current &&
+                                                !isLoading.get()
+                                            )
+                                                return;
                                             onChange(
                                                 position.coords.latitude,
                                                 position.coords.longitude,
                                             );
                                         })
-                                        .finally(() => {
-                                            setScopedLoading(
-                                                "latLngPicker:geolocation",
-                                                false,
-                                            );
-                                        }),
+                                        .finally(() => setLocating(false)),
                                     {
                                         pending: "Fetching location",
                                         success: "Location fetched",
@@ -564,7 +564,7 @@ export const LatitudeLongitude = ({
                                     { autoClose: 500 },
                                 );
                             }}
-                            disabled={disabled}
+                            disabled={blocked}
                             title="Set to current location"
                         >
                             <LocateIcon />
@@ -598,7 +598,7 @@ export const LatitudeLongitude = ({
                                     autoClose: 1000,
                                 });
                             }}
-                            disabled={disabled}
+                            disabled={blocked}
                             title="Paste coordinates from clipboard"
                         >
                             <ClipboardPasteIcon />

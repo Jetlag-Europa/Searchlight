@@ -2,11 +2,11 @@ import { useStore } from "@nanostores/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { compiledGameAtom } from "@/game-definition/store";
+import { resultsPending } from "@/lib/calculating";
 import {
     disabledStations,
     gameDefinitionReady,
     hiderMode,
-    isLoading,
     mapGeoJSON,
     perQuestionMapData,
     planningModeEnabled,
@@ -39,7 +39,7 @@ export const AnswerSplitPreview = ({
     const $questions = useStore(questions);
     const compiled = useStore(compiledGameAtom);
     const ready = useStore(gameDefinitionReady);
-    const $isLoading = useStore(isLoading);
+    const $resultsPending = useStore(resultsPending);
     const $perQuestionMapData = useStore(perQuestionMapData);
     const $disabledStations = useStore(disabledStations);
     const $polyGeoJSON = useStore(polyGeoJSON);
@@ -103,9 +103,9 @@ export const AnswerSplitPreview = ({
         split.basis.every((value, index) => value === basis[index]);
 
     useEffect(() => {
-        // While the map applies the questions, the zones still possible may
-        // be about to change: count once it is done.
-        if (!shown || $isLoading || current) return;
+        // While the map and its zones apply the questions, the zones still
+        // possible may be about to change: count once they are done.
+        if (!shown || $resultsPending || current) return;
         // Wait for a dragged marker or a typed radius to settle.
         const timer = setTimeout(() => {
             void task.request(async (isCurrent) => {
@@ -156,14 +156,14 @@ export const AnswerSplitPreview = ({
         compiled,
         boundary,
         shown,
-        $isLoading,
+        $resultsPending,
         current,
     ]);
 
     if (!shown || (current && !split.answers)) return null;
     return (
         <div className="px-2 text-sm text-muted-foreground">
-            {current && !$isLoading ? (
+            {current && !$resultsPending ? (
                 split.answers!.map(({ label, zones }) => (
                     <p key={label}>
                         {label} →{" "}

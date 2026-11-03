@@ -7,7 +7,6 @@ import type {
 } from "geojson";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-    acquireScopedLoading,
     isLoading,
     resetScopedLoading,
     setScopedLoading,
@@ -58,16 +57,6 @@ describe("scoped loading ownership", () => {
         setScopedLoading(oldCard, false);
         expect(isLoading.get()).toBe(true);
         setScopedLoading(replacement, false);
-        expect(isLoading.get()).toBe(false);
-    });
-
-    it("releases canceled selection work without unlocking its replacement", () => {
-        const obsolete = acquireScopedLoading("zone:selection");
-        const current = acquireScopedLoading("zone:selection");
-        obsolete();
-        obsolete();
-        expect(isLoading.get()).toBe(true);
-        current();
         expect(isLoading.get()).toBe(false);
     });
 });

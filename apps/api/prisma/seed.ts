@@ -1,16 +1,20 @@
 import { PrismaClient } from "@prisma/client";
+import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import { pathToFileURL } from "node:url";
 
-const SERVERS = [
+const JETLAG_EU_ID = "1190673594649415730";
+
+const SERVERS: { id: string; name: string; managementGuildId?: string }[] = [
   { id: "1059625399979606166", name: "JetLag UK" },
-  { id: "1190673594649415730", name: "JetLag EU" },
+  { id: JETLAG_EU_ID, name: "JetLag EU" },
   { id: "1369664929975767120", name: "JetLag BNL" },
   { id: "1333139120507064350", name: "JetLag DE" },
   { id: "1458858559952523305", name: "JetLag CH" },
   { id: "1376560872029290708", name: "JetLag Nordics" },
-  // Virtual server — no real Discord guild. Visible to everyone; per-game
-  // access is governed by definition visibility gates (see VIRTUAL_SERVER_IDS).
-  { id: "home-games", name: "Home Games" },
+  // Virtual server, no Discord guild of its own (see VIRTUAL_SERVER_IDS). Its
+  // games are unlisted and each is its creator's; who may create them comes
+  // from JetLag EU's roles, mapped to games.create on it on /admin.
+  { id: CASUAL_SERVER_ID, name: "Casual Games", managementGuildId: JETLAG_EU_ID },
 ];
 
 const ROLE_PERMISSIONS = [
@@ -42,8 +46,8 @@ export async function seedServers(
 
     await prisma.server.upsert({
       where: { id: server.id },
-      update: { name: server.name },
-      create: { id: server.id, name: server.name },
+      update: { name: server.name, managementGuildId: server.managementGuildId ?? null },
+      create: server,
     });
     console.log(`Upserted server: ${server.name} (${server.id})`);
 

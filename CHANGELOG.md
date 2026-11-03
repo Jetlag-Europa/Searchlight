@@ -11,6 +11,18 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - The message after a delete now names the question ("Radius 2 deleted"). Its Undo still puts the question back as if never deleted while the delete hasn't reached the server; once it may have, Undo puts back a copy, which History shows as "restored".
 - History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
 
+## Casual Games (2026-11-03)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
+## Question cards stay usable while the map calculates (2026-11-03)
+
+- While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves. Tapping a card's lock, hide or delete button, or **Add Question**, right after typing a question's name no longer does nothing.
+- Renaming or folding a question, locking or unlocking it outside planning mode, or a teammate's save that changes no answer no longer recalculates the map or the hiding zones, or moves your map back to the remaining area.
+- **Set to current location** now only greys out its own location while it waits for a GPS fix, not every card.
+
 ## Spectator links (2026-11-03)
 
 - A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
