@@ -28,6 +28,7 @@ import {
     enqueueEvent,
     getCachedSession,
     getPendingEvents,
+    isSessionSummary,
     type PendingEvent,
     questionsBase,
     queuedQuestionsBase,
@@ -501,7 +502,13 @@ export async function loadSessionContent(
             signal,
         }).then(async (res) => {
             if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
-            return (await res.json()) as GameSessionSummary;
+            const details: unknown = await res.json();
+            // Kept and activated: anything else would leave the board on no
+            // session.
+            if (!isSessionSummary(details, sessionId)) {
+                throw new Error("Failed to load session: unreadable details");
+            }
+            return details;
         }),
     ]);
 

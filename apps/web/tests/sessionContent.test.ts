@@ -51,7 +51,14 @@ it("loading another session cannot replace the active annotations before the cal
                                       },
                                   ],
                               }
-                            : { questions: [] },
+                            : url.endsWith("/sessions/old-session")
+                              ? {
+                                    id: "old-session",
+                                    name: "Old",
+                                    gameId: "game-1",
+                                    gameRevisionId: "revision-1",
+                                }
+                              : { questions: [] },
                     ),
                     { status: 200 },
                 ),

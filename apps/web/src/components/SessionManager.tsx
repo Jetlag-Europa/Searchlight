@@ -55,6 +55,7 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
+    isSessionSummary,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
@@ -126,6 +127,8 @@ const deletedHere = new Set<string>();
 // the shortest delay.
 const sessionRecheck = createBackoffRetry();
 let recheckedSessionId: string | null = null;
+// A check was put off while the picker was open: closing it tries then.
+let recheckWaitedForPicker = false;
 
 function saySignInExpired(): void {
     toast.error("Your sign-in has expired. Reload the page to sign in again.", {
@@ -979,7 +982,10 @@ export function SessionManager() {
         if (board) board.inert = showPicker;
         sessionPickerOpen.set(showPicker);
         // Back on the board: a background recheck waited for the picker.
-        if (!showPicker) sessionRecheck.tryNow();
+        if (!showPicker && recheckWaitedForPicker) {
+            recheckWaitedForPicker = false;
+            sessionRecheck.tryNow();
+        }
         if (!showPicker && restorePickerFocusRef.current) {
             restorePickerFocusRef.current = false;
             pickerOpenerRef.current?.focus();
@@ -1015,6 +1021,8 @@ export function SessionManager() {
     // from what was kept, or loaded. Null while it shows none (nothing was
     // kept and the load failed, or another account's board was cleared).
     const boardSessionRef = useRef<string | null>(null);
+    // That board is the copy kept here, not (yet) the server's state.
+    const boardIsKeptCopyRef = useRef(false);
     // Offline, only a board painted from what was kept may be saved: saving
     // the empty board of a session that wasn't would wipe it on reconnect.
     // Likewise a board that shows nothing of the active session.
@@ -1220,7 +1228,11 @@ export function SessionManager() {
             generation === sessionLoadGenerationRef.current &&
             activeSessionId.get() === id;
         // Not over the picker, which a load closes, nor during another load.
-        const busy = () => sessionPickerOpen.get() || isLoadingSession();
+        const busy = () => {
+            if (!sessionPickerOpen.get()) return isLoadingSession();
+            recheckWaitedForPicker = true;
+            return true;
+        };
         if (recheckedSessionId !== id) {
             recheckedSessionId = id;
             sessionRecheck.reset();
@@ -1260,6 +1272,7 @@ export function SessionManager() {
         }
         suppressNextSaveRef.current = true;
         boardSessionRef.current = id;
+        boardIsKeptCopyRef.current = true;
         strokes.set(derived.strokes);
         // The game hasn't loaded: show only what it may support.
         questions.set(filterSupportedQuestions(derived.questions, null));
@@ -1591,15 +1604,17 @@ export function SessionManager() {
                     "[searchlight:session] applying game",
                     refreshedSession.gameName,
                 );
-                const definitionReady = await deadline.race(
-                    switchToGame(
-                        { id: refreshedSession.gameId },
-                        {
-                            revisionId: refreshedSession.gameRevisionId,
-                            sessionId: refreshedSession.id,
-                        },
-                    ),
-                );
+                const game = { id: refreshedSession.gameId };
+                const gameOptions = {
+                    revisionId: refreshedSession.gameRevisionId,
+                    sessionId: refreshedSession.id,
+                };
+                // A game still downloading by the deadline doesn't hold up
+                // the server's state: the board goes live without it (the
+                // banner says so), and the game shows once it lands.
+                const definitionReady = await deadline
+                    .race(switchToGame(game, gameOptions))
+                    .catch(() => false);
                 if (!isCurrent()) return false;
                 if (refreshedSession.role === "viewer") {
                     discardSessionEdits(selected.id);
@@ -1639,6 +1654,7 @@ export function SessionManager() {
                     forgetSession(selected.id, status),
                 );
                 live = true;
+                boardIsKeptCopyRef.current = false;
             } catch (e: unknown) {
                 if (!isCurrent()) return false;
                 const timedOut = deadline.signal.aborted;
@@ -1715,6 +1731,13 @@ export function SessionManager() {
     const loadSession = useCallback(
         async (selected: GameSessionSummary): Promise<boolean> => {
             if (!authUserId) return false;
+            // What the picker passes on unchecked (a list entry, a session
+            // just created) must be one, or the board is left on no session.
+            if (!isSessionSummary(selected, selected?.id ?? "")) {
+                console.warn("[searchlight:session] not a session:", selected);
+                toast.error(LOAD_FAILED, { toastId: LOAD_TOAST_ID });
+                return false;
+            }
             const generation = ++sessionLoadGenerationRef.current;
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
@@ -1783,8 +1806,8 @@ export function SessionManager() {
         }
         if (details.kind === "retry") {
             console.warn("[searchlight:session] retry failed");
-            // The board still shows what was kept of it.
-            const showingKeptCopy = boardSessionRef.current === id;
+            const showingKeptCopy =
+                boardSessionRef.current === id && boardIsKeptCopyRef.current;
             sayLoadFellBack(deadline.signal.aborted, showingKeptCopy);
             if (showingKeptCopy) keepCheckingSession(id, generation);
             return;

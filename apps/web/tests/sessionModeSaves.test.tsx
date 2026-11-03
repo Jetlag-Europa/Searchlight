@@ -226,7 +226,12 @@ import {
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { hiderMode, planningModeEnabled, questions } from "@/lib/context";
+import {
+    gameDefinitionReady,
+    hiderMode,
+    planningModeEnabled,
+    questions,
+} from "@/lib/context";
 import { setCachedSession } from "@/lib/eventQueue";
 import { switchToGame } from "@/lib/games";
 import { FLUSH_WAIT_MS, LOAD_TIMEOUT_MS } from "@/lib/loadDeadline";
@@ -356,6 +361,17 @@ const click = async (matches: (text: string) => boolean) => {
     await settle();
 };
 
+// Where map.astro puts the "game not loaded" banner.
+const bannerSlot = () => {
+    const slot = env.document.createElement("div");
+    env.document.body.appendChild(slot);
+    Object.assign(env.document, {
+        getElementById: (id: string) =>
+            id === "game-not-loaded-banner" ? slot : null,
+    });
+    return slot;
+};
+
 // The full-screen overlay a session load shows.
 const overlayShown = () =>
     [...env.document.body.walk()].some((n) =>
@@ -421,6 +437,8 @@ afterEach(async () => {
     hiderMode.set(false);
     planningModeEnabled.set(false);
     questions.set([]);
+    // Back to the fake document's own (see bannerSlot).
+    delete (env.document as { getElementById?: unknown }).getElementById;
     vi.useRealTimers();
     vi.clearAllMocks();
     vi.restoreAllMocks();
@@ -791,5 +809,62 @@ describe("a session load that fails", () => {
         await wait(120_000);
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(error).toHaveBeenCalledTimes(1);
+    });
+
+    it("goes live without a game that takes too long, and shows it once it lands", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        let landGame: () => void = () => {};
+        vi.mocked(switchToGame).mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    landGame = () => {
+                        gameDefinitionReady.set(true);
+                        resolve(true);
+                    };
+                }),
+        );
+        const slot = bannerSlot();
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        await wait(LOAD_TIMEOUT_MS);
+        expect(overlayShown()).toBe(false);
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+        expect(slot.textContent).toContain("Game not loaded");
+        expect(warn).not.toHaveBeenCalled();
+        // Live: nothing to check again.
+        fetchMock.mockClear();
+        await wait(30_000);
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        await act(async () => landGame());
+        await settle();
+        expect(slot.textContent).toBe("");
+    });
+
+    it("doesn't say a live board shows the copy kept here when Retry fails", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(switchToGame).mockImplementationOnce(async () => false);
+        const slot = bannerSlot();
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+        expect(slot.textContent).toContain("Game not loaded");
+
+        // The server answers nothing it can use now.
+        server = {};
+        await click((text) => text === "Retry");
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "Couldn't load the latest from the server. Try again in a moment.",
+            { toastId: "session-load" },
+        );
     });
 });

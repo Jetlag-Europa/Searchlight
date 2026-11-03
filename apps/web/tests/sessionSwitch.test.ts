@@ -229,6 +229,9 @@ describe("session switch & sync edge cases", () => {
                     callOrder.push("session");
                     return Response.json({
                         id: "test-cursor-session",
+                        name: "Cursor",
+                        gameId: "game-1",
+                        gameRevisionId: "revision-1",
                         hiderLat: 1,
                         hiderLng: 2,
                         planningModeEnabled: true,
@@ -257,6 +260,9 @@ describe("session switch & sync edge cases", () => {
         const sessionId = "metadata-recovery";
         const server = {
             id: sessionId,
+            name: "Metadata",
+            gameId: "game-1",
+            gameRevisionId: "revision-1",
             hiderLat: null as number | null,
             hiderLng: null as number | null,
             planningModeEnabled: false,
@@ -395,5 +401,26 @@ describe("a session load's deadline", () => {
         } finally {
             vi.useRealTimers();
         }
+    });
+});
+
+describe("the session's details a load reads", () => {
+    it("fails the load, keeping nothing, when they aren't the session's", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string) => {
+                if (url.endsWith("/events/cursor"))
+                    return Response.json({ sequence: 3 });
+                if (url.endsWith("/strokes"))
+                    return Response.json({ strokes: [] });
+                if (url.endsWith("/questions"))
+                    return Response.json({ questions: [], sequence: 3 });
+                return Response.json({});
+            }),
+        );
+        await expect(
+            loadSessionContent("odd-session", "verified-user"),
+        ).rejects.toThrow("unreadable details");
+        expect(getCachedSession("odd-session")).toBeNull();
     });
 });
