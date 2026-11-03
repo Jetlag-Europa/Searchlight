@@ -310,6 +310,13 @@ describe("arrivedAt", () => {
         expect(arrivedAt(seeker, zone, 0, Infinity)).toBe(20 * MIN);
     });
 
+    it("counts reports near the zone with a margin", () => {
+        // ~0.6 km from the centre: ~0.1 km outside the zone.
+        const seeker = track([0, outside], [10, [52.0055, 4.0]]);
+        expect(arrivedAt(seeker, zone, 0, Infinity)).toBeNull();
+        expect(arrivedAt(seeker, zone, 0, Infinity, 0.5)).toBe(10 * MIN);
+    });
+
     it("counts a stay the reports end in, but nothing before `from`", () => {
         expect(arrivedAt(track([5, inZone]), zone, 0, Infinity)).toBe(5 * MIN);
         expect(
