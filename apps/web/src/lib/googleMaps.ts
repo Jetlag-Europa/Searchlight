@@ -96,6 +96,56 @@ export interface TileEvents {
 // Leaflet fades each tile in over 200 ms once it has loaded; a frame to spare.
 export const TILE_FADE_MS = 250;
 
+/** A tile's position, as Leaflet's GridLayer methods take it. */
+export interface TileCoords {
+    x: number;
+    y: number;
+    z: number;
+}
+
+/** What viewTilesShown reads of a Leaflet GridLayer (private parts). */
+export interface TileGrid {
+    _map?: { getCenter(): unknown } | null;
+    _tileZoom?: number;
+    _tiles: Record<string, { loaded?: number }>;
+    _getTiledPixelBounds(center: any): unknown;
+    _pxBoundsToTileRange(bounds: any): {
+        min: { x: number; y: number };
+        max: { x: number; y: number };
+    };
+    _isValidTile(coords: any): boolean;
+    _tileCoordsToKey(coords: any): string;
+}
+
+/**
+ * Whether every tile on screen has loaded and faded in. The tiles on screen
+ * are worked out as Leaflet's GridLayer does when it requests them, not read
+ * from its `current` flag: that also covers tiles up to two beyond the
+ * screen, which Google may never deliver once they're off it.
+ */
+export function viewTilesShown(
+    grid: TileGrid,
+    tileCoords: (x: number, y: number, z: number) => TileCoords,
+    now = Date.now(),
+): boolean {
+    const zoom = grid._tileZoom;
+    if (!grid._map || zoom === undefined) return false;
+    const range = grid._pxBoundsToTileRange(
+        grid._getTiledPixelBounds(grid._map.getCenter()),
+    );
+    let onScreen = 0;
+    for (let y = range.min.y; y <= range.max.y; y++)
+        for (let x = range.min.x; x <= range.max.x; x++) {
+            const coords = tileCoords(x, y, zoom);
+            if (!grid._isValidTile(coords)) continue;
+            const loaded = grid._tiles[grid._tileCoordsToKey(coords)]?.loaded;
+            if (loaded === undefined || now - loaded < TILE_FADE_MS)
+                return false;
+            onScreen++;
+        }
+    return onScreen > 0;
+}
+
 /**
  * Calls `drawn` once the layer shows its whole current view: every tile of
  * it loaded (`viewReady`) and faded in, with no redraw of Google's tiles still

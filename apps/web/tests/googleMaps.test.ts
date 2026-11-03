@@ -7,6 +7,7 @@ import {
     googleMapTypeOf,
     HIDE_PLACES_STYLES,
     TILE_FADE_MS,
+    viewTilesShown,
     whenDrawn,
 } from "@/lib/googleMaps";
 
@@ -231,6 +232,72 @@ describe("whenDrawn", () => {
         vi.advanceTimersByTime(TILE_FADE_MS * 8);
         expect(drawn).not.toHaveBeenCalled();
         expect(layer.listening()).toBe(0);
+    });
+});
+
+/**
+ * A Leaflet GridLayer as far as viewTilesShown reads it, at zoom 15 with
+ * tiles x 10-12, y 20-21 on screen. Leaflet keeps marking tiles up to two
+ * beyond the screen `current`, which these stand-ins mimic.
+ */
+function fakeGrid(now: number) {
+    const tiles: Record<string, { current: boolean; loaded?: number }> = {};
+    const grid = {
+        _map: { getCenter: () => "center" },
+        _tileZoom: 15,
+        _tiles: tiles,
+        _getTiledPixelBounds: (center: unknown) => ({ center }),
+        _pxBoundsToTileRange: () => ({
+            min: { x: 10, y: 20 },
+            max: { x: 12, y: 21 },
+        }),
+        _isValidTile: (c: { x: number; y: number; z: number }) => c.y >= 0,
+        _tileCoordsToKey: (c: { x: number; y: number; z: number }) =>
+            `${c.x}:${c.y}:${c.z}`,
+    };
+    const loadOnScreen = (at: number) => {
+        for (let x = 10; x <= 12; x++)
+            for (let y = 20; y <= 21; y++)
+                tiles[`${x}:${y}:15`] = { current: true, loaded: at };
+    };
+    const shown = () => viewTilesShown(grid, (x, y, z) => ({ x, y, z }), now);
+    return { grid, tiles, loadOnScreen, shown };
+}
+
+describe("viewTilesShown", () => {
+    const now = 1_000_000;
+
+    it("needs every tile on screen loaded and faded in", () => {
+        const { tiles, loadOnScreen, shown } = fakeGrid(now);
+        expect(shown()).toBe(false); // none yet
+        loadOnScreen(now - TILE_FADE_MS);
+        expect(shown()).toBe(true);
+        tiles["11:21:15"] = { current: true }; // one still loading
+        expect(shown()).toBe(false);
+        tiles["11:21:15"] = { current: true, loaded: now - 50 }; // fading in
+        expect(shown()).toBe(false);
+        delete tiles["11:21:15"]; // not even requested yet (mid-drag)
+        expect(shown()).toBe(false);
+    });
+
+    it("ignores a tile just off screen that never arrived", () => {
+        // A short pan left this tile in Leaflet's buffer, still `current`,
+        // and off screen Google never delivers it.
+        const { tiles, loadOnScreen, shown } = fakeGrid(now);
+        loadOnScreen(now - TILE_FADE_MS);
+        tiles["13:21:15"] = { current: true };
+        tiles["9:20:15"] = { current: true };
+        expect(shown()).toBe(true);
+    });
+
+    it("isn't shown without a map or a tile zoom", () => {
+        const { grid, loadOnScreen, shown } = fakeGrid(now);
+        loadOnScreen(now - TILE_FADE_MS);
+        (grid as any)._tileZoom = undefined;
+        expect(shown()).toBe(false);
+        (grid as any)._tileZoom = 15;
+        (grid as any)._map = null;
+        expect(shown()).toBe(false);
     });
 });
 

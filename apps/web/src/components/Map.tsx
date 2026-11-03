@@ -102,13 +102,17 @@ const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
         { animate: false },
     );
 
-/** CARTO Voyager: the default basemap, and Google's stand-in. */
-const voyagerLayer = () => (
+/**
+ * CARTO Voyager: the default basemap, and Google's stand-in. As that, it goes
+ * to zoom 21 with Google's hidden layer, enlarging its own closest tiles.
+ */
+const voyagerLayer = (maxZoom = 20) => (
     <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>; Powered by Esri and Turf.js'
         url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
         subdomains="abcd"
-        maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
+        maxZoom={maxZoom}
+        maxNativeZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
         minZoom={2}
         noWrap
         crossOrigin
@@ -178,7 +182,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
 
         case "google":
             // CARTO until Google's map has drawn, or if it never does.
-            return <GoogleBasemap>{voyagerLayer()}</GoogleBasemap>;
+            return <GoogleBasemap>{voyagerLayer(21)}</GoogleBasemap>;
 
         case "osmcarto":
             return (
