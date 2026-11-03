@@ -8,7 +8,7 @@ import {
     isStrokeTombstoned,
     recordStrokeTombstone,
 } from "@/annotations/storage/serverStore";
-import type { StrokeFeature } from "@/annotations/types";
+import { isStrokeLike } from "@/annotations/types";
 import {
     compiledGameAtom,
     filterSupportedQuestions,
@@ -260,8 +260,15 @@ function handleServerEvent(
     });
 
     if (event.type === "stroke.create") {
-        const stroke = event.payloadJson as StrokeFeature;
-        const clientUuid = stroke.properties?.clientUuid;
+        const stroke = event.payloadJson;
+        if (!isStrokeLike(stroke)) {
+            console.warn(
+                "[searchlight:sse] skipping a malformed stroke:",
+                stroke,
+            );
+            return;
+        }
+        const clientUuid = stroke.properties.clientUuid;
         if (clientUuid) {
             if (isStrokeTombstoned(clientUuid)) {
                 console.info(

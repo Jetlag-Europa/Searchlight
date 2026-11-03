@@ -56,9 +56,11 @@ function refreshSyncCounts(sessionId: string): void {
 // The list, and the sequence it is as of (an API from before sends none).
 async function fetchQuestions(
     sessionId: string,
+    signal?: AbortSignal,
 ): Promise<{ questions: Questions; sequence?: number }> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
+        signal,
     });
     if (!res.ok) throw new Error(`Failed to load questions: ${res.status}`);
     const data = (await res.json()) as {
@@ -447,9 +449,13 @@ export function flushSavesOnPageExit(): () => void {
 }
 // ── Session load ─────────────────────────────────────────────────────────────
 
-export async function fetchServerCursor(sessionId: string): Promise<number> {
+export async function fetchServerCursor(
+    sessionId: string,
+    signal?: AbortSignal,
+): Promise<number> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/events/cursor`, {
         credentials: "include",
+        signal,
     });
     if (!res.ok) throw new Error(`Failed to fetch cursor: ${res.status}`);
     const data = (await res.json()) as { sequence?: number };
@@ -458,9 +464,14 @@ export async function fetchServerCursor(sessionId: string): Promise<number> {
     return data.sequence;
 }
 
+/**
+ * Read the session's state from the server and keep it as this browser's
+ * copy. Aborting `signal` stops the reads, so nothing is kept.
+ */
 export async function loadSessionContent(
     sessionId: string,
     userId: string,
+    signal?: AbortSignal,
 ): Promise<{
     strokes: StrokeFeature[];
     session: GameSessionSummary;
@@ -471,7 +482,7 @@ export async function loadSessionContent(
 }> {
     let serverCursor = 0;
     try {
-        serverCursor = await fetchServerCursor(sessionId);
+        serverCursor = await fetchServerCursor(sessionId, signal);
     } catch (err) {
         console.warn(
             "[sessionState] failed to fetch server cursor, defaulting to 0:",
@@ -480,10 +491,11 @@ export async function loadSessionContent(
     }
 
     const [loadedStrokes, loaded, session] = await Promise.all([
-        loadStrokesFromServer(sessionId),
-        fetchQuestions(sessionId),
+        loadStrokesFromServer(sessionId, signal),
+        fetchQuestions(sessionId, signal),
         fetch(`${API_BASE}/sessions/${sessionId}`, {
             credentials: "include",
+            signal,
         }).then(async (res) => {
             if (!res.ok) throw new Error(`Failed to load session: ${res.status}`);
             return (await res.json()) as GameSessionSummary;
@@ -498,7 +510,7 @@ export async function loadSessionContent(
         const saved = latestSavedQuestionsSequence(sessionId);
         const at = loadedList.sequence ?? serverCursor;
         if (saved === undefined || saved <= at) break;
-        loadedList = await fetchQuestions(sessionId);
+        loadedList = await fetchQuestions(sessionId, signal);
     }
     const loadedQuestions = loadedList.questions;
     setCachedSession({

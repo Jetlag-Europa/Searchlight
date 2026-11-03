@@ -59,6 +59,7 @@ import {
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
+import { startLoadDeadline } from "@/lib/loadDeadline";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import {
     reconcileQuestionConflicts,
@@ -124,6 +125,17 @@ let recheckedSessionId: string | null = null;
 
 const SIGN_IN_EXPIRED =
     "Your sign-in has expired. Reload the page to sign in again.";
+
+// A session load ran out of time (see startLoadDeadline): say what the board
+// shows instead.
+function warnTooSlow(showingKeptCopy: boolean): void {
+    toast.warn(
+        showingKeptCopy
+            ? "The server is taking too long. Showing the copy saved on this device; it will keep trying."
+            : "The server is taking too long. Try again in a moment.",
+        { toastId: "load-too-slow" },
+    );
+}
 
 // How long a tapped Leave waits for its second tap.
 const LEAVE_CONFIRM_MS = 5_000;
@@ -1211,6 +1223,28 @@ export function SessionManager() {
         });
     };
 
+    // Show what this browser kept of a session, with the edits not yet synced,
+    // as kept now (a queued list may have been saved meanwhile). False when it
+    // kept nothing of this account's, or nothing it can read.
+    const paintKeptCopy = (id: string): boolean => {
+        const kept = getCachedSession(id);
+        if (!kept || kept.userId !== authUserId) return false;
+        let derived: ReturnType<typeof applyUnsyncedEvents>;
+        try {
+            derived = applyUnsyncedEvents(id, kept);
+        } catch (err) {
+            console.warn("[searchlight:session] kept copy unreadable:", err);
+            return false;
+        }
+        suppressNextSaveRef.current = true;
+        boardSessionRef.current = id;
+        strokes.set(derived.strokes);
+        // The game hasn't loaded: show only what it may support.
+        questions.set(filterSupportedQuestions(derived.questions, null));
+        paintedFromSnapshot(id);
+        return true;
+    };
+
     // On mount: start sync manager and restore or show picker
     useEffect(() => {
         if (!authUserId) return;
@@ -1256,20 +1290,25 @@ export function SessionManager() {
         if (pendingLinkSession) {
             removeStorage("localStorage", "taibled-pending-link-session");
             setLoading(true);
+            const deadline = startLoadDeadline();
             fetch(`${API_BASE}/sessions/${pendingLinkSession}`, {
                 credentials: "include",
+                signal: deadline.signal,
             })
                 .then(async (res) => {
                     if (!res.ok) throw new Error(`${res.status}`);
                     const selected: GameSessionSummary = await res.json();
+                    deadline.clear();
                     if (!isCurrent()) return;
                     setLoading(false);
                     await handleSessionSelected(selected);
                 })
                 .catch(() => {
+                    deadline.clear();
                     if (isCurrent()) {
                         setLoading(false);
                         setShowPicker(true);
+                        if (deadline.signal.aborted) warnTooSlow(false);
                     }
                 });
             return cleanup;
@@ -1291,24 +1330,11 @@ export function SessionManager() {
         // out forgets that account and the kept games.
         const cached = getCachedSession(storedId);
         const canPaintCache = Boolean(cached && cached.userId === authUserId);
-        // The loading overlay stays up over the painted cache until the
-        // reconcile below finishes: it replaces the board, so an edit made
-        // in between could not be kept (and must not be saved over fresher
-        // server state).
-        // As kept when painted: a queued list may have been saved since the
-        // load started.
+        // Without its game: restoreKept loads the one the copy names.
         const paintCached = () => {
-            const kept = getCachedSession(storedId);
-            if (!canPaintCache || !kept || kept.userId !== authUserId) return false;
-            const derived = applyUnsyncedEvents(storedId, kept);
-            boardSessionRef.current = storedId;
+            if (!canPaintCache || !paintKeptCopy(storedId)) return false;
             gameDefinitionReady.set(false);
             setActiveGameDefinition(null);
-            suppressNextSaveRef.current = true;
-            strokes.set(derived.strokes);
-            // The game hasn't loaded: show only what it may support.
-            questions.set(filterSupportedQuestions(derived.questions, null));
-            paintedFromSnapshot(storedId);
             return true;
         };
         // Then, still without the server: the session's details, its hider
@@ -1368,7 +1394,11 @@ export function SessionManager() {
             "[searchlight:session] validating stored session",
             storedId,
         );
-        fetch(`${API_BASE}/sessions/${storedId}`, { credentials: "include" })
+        const deadline = startLoadDeadline();
+        fetch(`${API_BASE}/sessions/${storedId}`, {
+            credentials: "include",
+            signal: deadline.signal,
+        })
             .then(async (res) => {
                 if (!isCurrent()) return;
                 const unavailable = res.ok
@@ -1389,119 +1419,11 @@ export function SessionManager() {
                 if (!res.ok)
                     throw new Error(`session fetch failed: ${res.status}`);
                 const data: GameSessionSummary = await res.json();
+                deadline.clear();
                 if (!isCurrent()) return;
-                // A spectator's edits from before can't be sent or shown.
-                if (data.role === "viewer") discardSessionEdits(storedId);
-                // The cached snapshot may be stale: nothing shown before the
-                // server reconcile may be saved over fresher questions.
-                loadingGenerationRef.current = generation;
-                paintCached();
-                // storedId === data.id always here (we fetched by storedId), so
-                // activeSessionId won't change — no suppress needed for sessionId effect.
-                setActiveSession(data);
-                setShowPicker(false);
-
-                // Always reconcile from server: flush pending first so server has the
-                // latest state, then load authoritative content. On cache hit this runs
-                // in the background (user already sees painted state); on cache miss this
-                // is the first paint. Errors are swallowed so cached state is preserved
-                try {
-                    await flushPendingEvents(storedId);
-                    if (!isCurrent()) return;
-                    const {
-                        questions: serverQs,
-                        strokes: serverStrokes,
-                        session: refreshedSession,
-                        cursor: serverCursor,
-                        questionsSequence,
-                    } = await loadSessionContent(storedId, authUserId);
-                    if (!isCurrent()) return;
-                    // Questions held for a decision may be settled by now.
-                    // The list's own sequence, else the cursor read before it.
-                    const listSequence = questionsSequence ?? serverCursor;
-                    if (listSequence !== undefined) {
-                        reconcileQuestionConflicts(storedId, serverQs, listSequence);
-                    }
-                    const definitionReady = await switchToGame(
-                        { id: refreshedSession.gameId },
-                        {
-                            revisionId: refreshedSession.gameRevisionId,
-                            sessionId: refreshedSession.id,
-                        },
-                    );
-                    if (!isCurrent()) return;
-                    cancelPendingQuestionSave();
-                    cancelPendingHiderSave();
-                    cancelPendingPlanningModeSave();
-                    // The role may have changed since the first fetch.
-                    if (refreshedSession.role === "viewer") {
-                        discardSessionEdits(storedId);
-                    }
-                    setActiveSession(refreshedSession);
-                    // Keep edits the flush above couldn't deliver on top of the
-                    // server state, as an explicit selection does.
-                    const reconciled = applyUnsyncedEvents(storedId, {
-                        strokes: serverStrokes,
-                        questions: serverQs,
-                    });
-                    strokes.set(reconciled.strokes);
-                    // Without its definition, keep what the game may support.
-                    const visibleQuestions = filterSupportedQuestions(
-                        reconciled.questions,
-                        definitionReady ? compiledGameAtom.get() : null,
-                    );
-                    console.info(
-                        "[searchlight:session] reconciled",
-                        visibleQuestions.length,
-                        "question(s) from server",
-                    );
-                    suppressNextSaveRef.current = true;
-                    boardSessionRef.current = storedId;
-                    questions.set(visibleQuestions);
-                    const cachedState = getCachedSession(storedId);
-                    if (cachedState && definitionReady) {
-                        setCachedSession({
-                            ...cachedState,
-                            userId: authUserId,
-                            visibility: refreshedSession.visibility,
-                            questions: visibleQuestions,
-                        });
-                    }
-                    // Edits the flush couldn't deliver stay on top, as for
-                    // questions.
-                    showSessionModes(refreshedSession);
-                    startSSE(storedId, (status) =>
-                        forgetSession(storedId, status),
-                    );
-                    sessionRecheck.reset();
-                } catch (e) {
-                    console.warn(
-                        canPaintCache
-                            ? "[searchlight:session] background reconcile failed, keeping cached state"
-                            : "[searchlight:session] content load failed",
-                        e,
-                    );
-                    // The session is authorized: its modes are known, and
-                    // its game may still come from the copy kept here.
-                    if (isCurrent()) showSessionModes(data);
-                    if (isCurrent() && canPaintCache) {
-                        await switchToGame(
-                            { id: data.gameId },
-                            {
-                                revisionId: data.gameRevisionId,
-                                sessionId: data.id,
-                            },
-                        );
-                    }
-                    if (isCurrent() && canPaintCache) {
-                        keepCheckingSession(storedId, generation);
-                    }
-                } finally {
-                    if (isCurrent()) {
-                        loadingGenerationRef.current = null;
-                        setGameNotLoaded(!gameDefinitionReady.get());
-                    }
-                }
+                // Loaded like a selection: its edits sent, then the server's
+                // state, else the copy kept here (see selectSession).
+                await handleSessionSelected(data);
             })
             .catch((e) => {
                 if (!isCurrent()) return;
@@ -1515,8 +1437,10 @@ export function SessionManager() {
                     restoreKept();
                     keepCheckingSession(storedId, generation);
                 }
+                if (deadline.signal.aborted) warnTooSlow(painted);
             })
             .finally(() => {
+                deadline.clear();
                 if (isCurrent()) setLoading(false);
             });
 
@@ -1552,9 +1476,11 @@ export function SessionManager() {
         currentPlanningMode,
     ]);
 
-    const handleSessionSelected = useCallback(
-        async (selected: GameSessionSummary) => {
-            if (!authUserId) return;
+    // Load a session: returns whether its server state loaded (see
+    // handleSessionSelected).
+    const selectSession = useCallback(
+        async (selected: GameSessionSummary): Promise<boolean> => {
+            if (!authUserId) return false;
             const generation = ++sessionLoadGenerationRef.current;
             const isCurrent = () =>
                 generation === sessionLoadGenerationRef.current;
@@ -1585,23 +1511,10 @@ export function SessionManager() {
                 setActiveGameDefinition(null);
             }
 
-            // Check local cache for instant paint. If not cached, clear atoms so stale
-            // content from the outgoing session is never published.
-            const cached = getCachedSession(selected.id);
-            const canPaintCache = Boolean(
-                cached && cached.userId === authUserId,
-            );
-            if (canPaintCache && cached) {
-                const derived = applyUnsyncedEvents(selected.id, cached);
-                // As in the stored-session restore above, the board is shown
-                // under the loading overlay until the server state replaces it.
-                suppressNextSaveRef.current = true;
-                boardSessionRef.current = selected.id;
-                strokes.set(derived.strokes);
-                questions.set(
-                    filterSupportedQuestions(derived.questions, null),
-                );
-                paintedFromSnapshot(selected.id);
+            // The copy kept here shows under the loading overlay until the
+            // server's state replaces it. Without one, clear the atoms so the
+            // outgoing session's content is never published.
+            if (paintKeptCopy(selected.id)) {
                 console.info(
                     "[searchlight:session] painted from cache, loading server state",
                 );
@@ -1614,26 +1527,38 @@ export function SessionManager() {
             setLoading(true);
 
             let sessionToActivate = selected;
+            // Its modes show already: a kept board's, or the session's own.
+            const modesShown = activeSessionData.get()?.id === selected.id;
+            // The server's state shows, its stream open.
+            let live = false;
             // Shown as kept here, without the server's state.
             let restoredFromCache = false;
+            // Everything the load waits on the server for.
+            const deadline = startLoadDeadline();
 
             try {
                 // On explicit selection, flush pending events BEFORE authoritative load!
-                await flushPendingEvents(selected.id).catch((err) => {
-                    console.info(
-                        "[searchlight:session] flush pending failed (offline?):",
-                        err,
-                    );
-                });
-                if (!isCurrent()) return;
+                await deadline.race(
+                    flushPendingEvents(selected.id).catch((err) => {
+                        console.info(
+                            "[searchlight:session] flush pending failed (offline?):",
+                            err,
+                        );
+                    }),
+                );
+                if (!isCurrent()) return false;
                 const {
                     questions: loadedQuestions,
                     strokes: loadedStrokes,
                     session: refreshedSession,
                     cursor: loadedCursor,
                     questionsSequence,
-                } = await loadSessionContent(selected.id, authUserId);
-                if (!isCurrent()) return;
+                } = await loadSessionContent(
+                    selected.id,
+                    authUserId,
+                    deadline.signal,
+                );
+                if (!isCurrent()) return false;
                 // Questions held for a decision may be settled by now.
                 // The list's own sequence, else the cursor read before it.
                 const listSequence = questionsSequence ?? loadedCursor;
@@ -1646,14 +1571,16 @@ export function SessionManager() {
                     "[searchlight:session] applying game",
                     refreshedSession.gameName,
                 );
-                const definitionReady = await switchToGame(
-                    { id: refreshedSession.gameId },
-                    {
-                        revisionId: refreshedSession.gameRevisionId,
-                        sessionId: refreshedSession.id,
-                    },
+                const definitionReady = await deadline.race(
+                    switchToGame(
+                        { id: refreshedSession.gameId },
+                        {
+                            revisionId: refreshedSession.gameRevisionId,
+                            sessionId: refreshedSession.id,
+                        },
+                    ),
                 );
-                if (!isCurrent()) return;
+                if (!isCurrent()) return false;
                 if (refreshedSession.role === "viewer") {
                     discardSessionEdits(selected.id);
                 }
@@ -1691,27 +1618,16 @@ export function SessionManager() {
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),
                 );
-                sessionRecheck.reset();
+                live = true;
             } catch (e: unknown) {
-                if (!isCurrent()) return;
+                if (!isCurrent()) return false;
+                const timedOut = deadline.signal.aborted;
                 console.warn(
                     "[searchlight:session] failed to load session content:",
                     e,
                 );
-                // As kept now: a queued list may have been saved meanwhile.
-                const kept = getCachedSession(selected.id);
-                if (canPaintCache && kept && kept.userId === authUserId) {
-                    // Offline fallback: replay pending events on top of cached snapshot
-                    const derived = applyUnsyncedEvents(selected.id, kept);
-                    suppressNextSaveRef.current = true;
-                    boardSessionRef.current = selected.id;
-                    strokes.set(derived.strokes);
-                    questions.set(
-                        filterSupportedQuestions(derived.questions, null),
-                    );
-                    paintedFromSnapshot(selected.id);
-                    restoredFromCache = true;
-                } else {
+                restoredFromCache = paintKeptCopy(selected.id);
+                if (!restoredFromCache) {
                     // No cache and no server — leave atoms empty, don't publish stale session content
                     boardSessionRef.current = null;
                     strokes.set([]);
@@ -1719,18 +1635,21 @@ export function SessionManager() {
                 }
                 if (restoredFromCache) {
                     // The session is authorized, so its game may still come
-                    // from the copy kept here, as for a stored session. Its
-                    // modes are the server's when switching to it; on the
-                    // same session they stay as shown, as `selected` may be
+                    // from the copy kept here (else the banner says so). Its
+                    // modes stay as shown, if they are: `selected` may be
                     // older than an edit the flush just sent.
-                    if (switchingSession) showSessionModes(selected);
-                    await switchToGame(
-                        { id: selected.gameId },
-                        {
-                            revisionId: selected.gameRevisionId,
-                            sessionId: selected.id,
-                        },
-                    );
+                    if (!modesShown) showSessionModes(selected);
+                    await deadline
+                        .race(
+                            switchToGame(
+                                { id: selected.gameId },
+                                {
+                                    revisionId: selected.gameRevisionId,
+                                    sessionId: selected.id,
+                                },
+                            ),
+                        )
+                        .catch(() => false);
                 } else if (switchingSession) {
                     // The outgoing session's hider and planning mode aren't
                     // this session's.
@@ -1743,10 +1662,12 @@ export function SessionManager() {
                         planningModeEnabled.set(false);
                     }
                 }
+                if (timedOut) warnTooSlow(restoredFromCache);
             } finally {
+                deadline.clear();
                 if (isCurrent()) setLoading(false);
             }
-            if (!isCurrent()) return;
+            if (!isCurrent()) return false;
 
             // Suppress save effects that fire when sessionId changes — state was just
             // loaded from the server so there's nothing new to write back.
@@ -1765,9 +1686,53 @@ export function SessionManager() {
             loadingGenerationRef.current = null;
             setShowPicker(false);
             setGameNotLoaded(!gameDefinitionReady.get());
-            if (restoredFromCache) keepCheckingSession(selected.id, generation);
+            return live;
         },
         [authUserId, forgetSession],
+    );
+
+    // Every session load goes through here. However it ends, its generation
+    // is released (saves and the background recheck wait while it's set) and
+    // the overlay goes. A board left showing the copy kept here is checked
+    // again until the server answers.
+    const handleSessionSelected = useCallback(
+        async (selected: GameSessionSummary) => {
+            const before = sessionLoadGenerationRef.current;
+            const load = selectSession(selected);
+            // selectSession starts its generation right away, if any.
+            const generation = sessionLoadGenerationRef.current;
+            if (generation === before) return;
+            const isCurrent = () =>
+                generation === sessionLoadGenerationRef.current;
+            let live = false;
+            try {
+                live = await load;
+            } catch (err) {
+                console.warn("[searchlight:session] load failed:", err);
+                if (isCurrent()) {
+                    toast.error(
+                        "Something went wrong loading this session. Try again.",
+                        { toastId: "session-load-failed" },
+                    );
+                    setGameNotLoaded(!gameDefinitionReady.get());
+                }
+            } finally {
+                if (loadingGenerationRef.current === generation) {
+                    loadingGenerationRef.current = null;
+                }
+                if (isCurrent()) setLoading(false);
+            }
+            if (!isCurrent()) return;
+            if (live) {
+                sessionRecheck.reset();
+            } else if (
+                boardSessionRef.current === selected.id &&
+                activeSessionId.get() === selected.id
+            ) {
+                keepCheckingSession(selected.id, generation);
+            }
+        },
+        [selectSession],
     );
 
     // Load the session again, its game included. Fetching the session first
@@ -1797,18 +1762,23 @@ export function SessionManager() {
             }
         };
         setLoading(true);
+        const deadline = startLoadDeadline();
         let selected: GameSessionSummary;
         try {
             let res: Response;
             try {
                 res = await fetch(`${API_BASE}/sessions/${id}`, {
                     credentials: "include",
+                    signal: deadline.signal,
                 });
             } catch (e) {
-                // fetch rejects only when the request couldn't be sent.
+                // fetch rejects only when the request couldn't be sent, or
+                // took too long.
                 if (isCurrent()) {
                     fail(
-                        "Couldn't reach the server. Check your connection and try again.",
+                        deadline.signal.aborted
+                            ? "The server is taking too long. Try again in a moment."
+                            : "Couldn't reach the server. Check your connection and try again.",
                         e,
                     );
                 }
@@ -1847,6 +1817,7 @@ export function SessionManager() {
                 return;
             }
         } finally {
+            deadline.clear();
             if (isCurrent()) setLoading(false);
         }
         if (!isCurrent()) return;

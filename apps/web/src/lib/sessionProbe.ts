@@ -54,32 +54,50 @@ async function probe(
         const status = await sessionUnavailableStatus(res);
         return status === null ? RETRY : { kind: "unavailable", status };
     }
-    let session: GameSessionSummary;
+    let session: unknown;
     try {
-        session = (await res.json()) as GameSessionSummary;
+        session = await res.json();
     } catch {
         return RETRY;
     }
-    try {
-        const content = await Promise.all([
-            read("/strokes").then((answer) => usableList(answer, "strokes")),
-            read("/questions").then((answer) =>
-                usableList(answer, "questions"),
-            ),
-        ]);
-        if (content.includes("signedOut")) return { kind: "signedOut" };
-        return content.every((part) => part === "ok")
-            ? { kind: "ready", session }
-            : RETRY;
-    } catch {
-        return RETRY;
-    }
+    if (!isSessionDetails(session, sessionId)) return RETRY;
+    // Each on its own: one failing mustn't hide the other's 401.
+    const content = await Promise.all([
+        read("/strokes").then(
+            (answer) => usableList(answer, "strokes"),
+            () => "retry" as const,
+        ),
+        read("/questions").then(
+            (answer) => usableList(answer, "questions"),
+            () => "retry" as const,
+        ),
+    ]);
+    if (content.includes("signedOut")) return { kind: "signedOut" };
+    return content.every((part) => part === "ok")
+        ? { kind: "ready", session }
+        : RETRY;
+}
+
+// The details a load reads of the session it asked for.
+function isSessionDetails(
+    value: unknown,
+    sessionId: string,
+): value is GameSessionSummary {
+    if (typeof value !== "object" || value === null) return false;
+    const details = value as Record<string, unknown>;
+    return (
+        details.id === sessionId &&
+        typeof details.gameId === "string" &&
+        typeof details.gameRevisionId === "string" &&
+        typeof details.role === "string"
+    );
 }
 
 /**
  * Whether a content answer is one the load can use: OK, and JSON whose
- * `key` is a list of entries, as loadStrokesFromServer and fetchQuestions
- * read it.
+ * `key` is a list, as loadStrokesFromServer and fetchQuestions read it. The
+ * questions must all be entries; malformed strokes are skipped by the load,
+ * so one of them mustn't hold it off.
  */
 async function usableList(
     answer: Response,
@@ -96,7 +114,8 @@ async function usableList(
             typeof data === "object" && data !== null
                 ? (data as Record<string, unknown>)[key]
                 : undefined;
-        return Array.isArray(list) &&
+        if (!Array.isArray(list)) return "retry";
+        return key === "strokes" ||
             list.every((entry) => typeof entry === "object" && entry !== null)
             ? "ok"
             : "retry";

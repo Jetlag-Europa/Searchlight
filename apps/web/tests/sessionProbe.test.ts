@@ -15,7 +15,13 @@ vi.stubGlobal("fetch", mockFetch);
 
 const SID = "probe-session";
 const BASE = `http://localhost:3001/sessions/${SID}`;
-const session = { id: SID, name: "Team B" } as GameSessionSummary;
+const session = {
+    id: SID,
+    name: "Team B",
+    gameId: "game-1",
+    gameRevisionId: "revision-1",
+    role: "member",
+} as GameSessionSummary;
 
 // Each read answered as given, else as the API does when all is well.
 function answer(overrides: Record<string, () => Response | Promise<never>>) {
@@ -77,6 +83,20 @@ describe("probeSession", () => {
         },
     );
 
+    test.each([
+        ["strokes", "questions"],
+        ["questions", "strokes"],
+    ])(
+        "says the user is signed out when its %s answer 401 and its %s can't be reached",
+        async (signedOut, unreachable) => {
+            answer({
+                [`/${signedOut}`]: () => new Response(null, { status: 401 }),
+                [`/${unreachable}`]: offline,
+            });
+            expect(await probeSession(SID)).toEqual({ kind: "signedOut" });
+        },
+    );
+
     test("says the user is signed out on a 401", async () => {
         answer({ "": () => new Response(null, { status: 401 }) });
         expect(await probeSession(SID)).toEqual({ kind: "signedOut" });
@@ -86,6 +106,15 @@ describe("probeSession", () => {
         ...notTheSession,
         ["a 503", () => new Response(null, { status: 503 })],
         ["unreadable details", () => new Response("<html>", { status: 200 })],
+        ["no details", () => Response.json(null)],
+        [
+            "another session's details",
+            () => Response.json({ ...session, id: "other" }),
+        ],
+        [
+            "details without a game",
+            () => Response.json({ ...session, gameId: undefined }),
+        ],
     ])("retries when the session answers with %s", async (_, res) => {
         answer({ "": res });
         expect(await probeSession(SID)).toEqual({ kind: "retry" });
@@ -121,14 +150,26 @@ describe("probeSession", () => {
                 }),
         ],
         ["questions", "no list", () => Response.json({ questions: null })],
+        ["strokes", "no list", () => Response.json({ strokes: {} })],
         [
-            "strokes",
+            "questions",
             "a list with a gap",
-            () => Response.json({ strokes: [null] }),
+            () => Response.json({ questions: [null] }),
         ],
     ])("retries when its %s answer with %s", async (part, _, res) => {
         answer({ [`/${part}`]: res });
         expect(await probeSession(SID)).toEqual({ kind: "retry" });
+    });
+
+    // The load skips them (see loadStrokesFromServer): retrying wouldn't help.
+    test("is ready when some strokes are malformed", async () => {
+        answer({
+            "/strokes": () =>
+                Response.json({
+                    strokes: [null, { payloadJson: "x" }, { payloadJson: {} }],
+                }),
+        });
+        expect(await probeSession(SID)).toEqual({ kind: "ready", session });
     });
 
     describe("on a request that hangs", () => {
