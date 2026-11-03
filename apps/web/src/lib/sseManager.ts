@@ -68,8 +68,6 @@ let replayAttempt = 0;
 let replayRetry: NodeJS.Timeout | undefined;
 let reconnectTimer: NodeJS.Timeout | undefined;
 let onSessionUnavailable: ((status: number) => void) | undefined;
-// The current session's stream has been open before: the next open is a
-// reconnect, after which live-only events may have been missed.
 const MAX_BUFFERED_EVENTS = 500;
 
 // Failed replays and closed streams retry with a doubling, capped delay
