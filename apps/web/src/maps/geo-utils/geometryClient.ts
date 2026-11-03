@@ -113,7 +113,10 @@ export function requestGeometry(
     request: BoundaryTargetRequest,
 ): Promise<GeometryResult>;
 export function requestGeometry(request: ClipRequest): Promise<GeometryResult>;
-export function requestGeometry(request: UnionRequest): Promise<GeometryResult>;
+export function requestGeometry(
+    request: UnionRequest,
+    options?: RequestOptions,
+): Promise<GeometryResult>;
 export function requestGeometry(
     request: LineVoronoiRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[][]>;

@@ -171,7 +171,15 @@ div.leaflet-control-attribution.leaflet-control {
     }
 }
 
-/* Zone name labels — permanent Leaflet tooltips on hiding zone polygons */
+/* Zone name labels — markers in the tooltip pane styled as centred Leaflet
+   tooltips. Real tooltips measure themselves on every zoom. */
+.zone-name-marker {
+    /* Stack in DOM order like tooltips, not by the marker's y position. */
+    z-index: auto !important;
+}
+.zone-name-marker > .zone-name-label {
+    transform: translate(-50%, -50%);
+}
 .zone-name-label {
     background: rgba(255, 255, 255, 0.85);
     border: none;
