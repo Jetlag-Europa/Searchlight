@@ -11,6 +11,18 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - The message after a delete now names the question ("Radius 2 deleted"). Its Undo still puts the question back as if never deleted while the delete hasn't reached the server; once it may have, Undo puts back a copy, which History shows as "restored".
 - History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
 
+## Smoother hiding-zone map on big games (2026-11-03)
+
+- With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
+- "No Overlap" merges the zones without freezing the page, and the map keeps what it showed until the new outline is ready. Turning Zone Labels on or off, or leaving a viewed zone, redraws the outline at once.
+- An answer or a teammate's update that rules out no zone no longer redraws the zones.
+
+## Deleting a session asks first (2026-11-03)
+
+- Deleting a session from the session list now opens a confirm that names the session and says it is deleted for everyone in it, with its questions and drawings. Before, two taps on the right end of a row deleted it on a phone, where the button couldn't be seen.
+- On a phone or other touch screen, each row's Delete and Leave are always shown and big enough to tap. With a mouse they still appear on hover, and now also on keyboard focus.
+- Teammates who had the session open are told it was deleted, instead of landing on the session list without a word.
+
 ## Casual Games (2026-11-03)
 
 - Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
