@@ -29,6 +29,7 @@ import {
     findEndgame,
     foundAt,
     guessRoles,
+    hiderZone,
     type LoggedPosition,
     positionAt,
     questionPins,
@@ -91,6 +92,8 @@ interface ReplayResponse {
     canSeeLocations: boolean;
     people: ReplayPerson[];
     hider: { lat: number; lng: number } | null;
+    // From the game's log, when the session was copied in from one.
+    marks: { endgame: number | null; found: number | null };
 }
 
 // Leaflet inserts string tooltips as HTML; question names are user input.
@@ -186,6 +189,39 @@ function marksOf(
     ].sort((a, b) => a.at - b.at);
 }
 
+// The endgame as the data shows it: from the hider's and seekers' logged
+// positions, or without those from the session's hider location and where
+// the seekers asked from.
+function findEndgameFromData(
+    replay: Replay,
+    compiled: Parameters<typeof hidingZoneCircles>[0],
+    data: ReplayResponse,
+    hiderId: string | null,
+) {
+    const zones = hidingZoneCircles(compiled);
+    const pinned = data.people.filter((p) => p.pinned);
+    const hider = pinned.find((p) => p.id === hiderId);
+    if (!hider && data.hider) {
+        const { lat, lng } = data.hider;
+        return findEndgame(
+            replay,
+            zones,
+            [
+                [replay.start, lat, lng, null],
+                [replay.end, lat, lng, null],
+            ],
+            [askedFrom(replay)],
+            ASKED_NEAR_KM,
+        );
+    }
+    return findEndgame(
+        replay,
+        zones,
+        hider?.positions ?? null,
+        pinned.filter((p) => p !== hider).map((p) => p.positions),
+    );
+}
+
 export function ReplayPage() {
     const userId = useStore(verifiedUserId);
     const map = useStore(leafletMapContext);
@@ -269,38 +305,26 @@ export function ReplayPage() {
     }, [userId, sessionId]);
 
     // The endgame: when the seekers arrived in the hider's zone (or, without
-    // their positions, when the board was cleared).
+    // their positions, when the board was cleared), unless the game's log
+    // says when.
     const $compiled = useStore(compiledGameAtom);
     const endgame = useMemo(() => {
         if (!replay || !$compiled || !data) return null;
-        const pinned = data.people.filter((p) => p.pinned);
-        const hider = pinned.find((p) => p.id === hiderId);
-        // Without live locations: the session's hider location, and the
-        // seekers where they asked from.
-        if (!hider && data.hider) {
-            const { lat, lng } = data.hider;
-            return findEndgame(
-                replay,
-                hidingZoneCircles($compiled),
-                [
-                    [replay.start, lat, lng, null],
-                    [replay.end, lat, lng, null],
-                ],
-                [askedFrom(replay)],
-                ASKED_NEAR_KM,
-            );
-        }
-        return findEndgame(
-            replay,
-            hidingZoneCircles($compiled),
-            hider?.positions ?? null,
-            pinned.filter((p) => p !== hider).map((p) => p.positions),
-        );
+        const found = findEndgameFromData(replay, $compiled, data, hiderId);
+        // The log knows when the endgame started; the zone is the hider's.
+        if (data.marks.endgame === null) return found;
+        const zone =
+            found?.zone ??
+            (data.hider
+                ? hiderZone(hidingZoneCircles($compiled), data.hider)
+                : null);
+        return { at: data.marks.endgame, zone, by: "log" as const };
     }, [replay, $compiled, data, hiderId]);
     // When a seeker walked up to the hider after the last question; the
     // replay runs on until shortly after.
     const found = useMemo(() => {
         if (!replay || !data) return null;
+        if (data.marks.found !== null) return data.marks.found;
         const pinned = data.people.filter((p) => p.pinned);
         const hider = pinned.find((p) => p.id === hiderId);
         if (!hider) return null;
@@ -765,7 +789,9 @@ export function ReplayPage() {
                                     : m.kind === "endgame"
                                       ? endgame?.by === "arrival"
                                           ? "Endgame: the seekers reached the hider's zone"
-                                          : "Endgame: the board was cleared"
+                                          : endgame?.by === "log"
+                                            ? "Endgame (from the game's log)"
+                                            : "Endgame: the board was cleared"
                                       : `${m.kind === "asked" ? "Asked" : "Answered"}: ${questionTitle(all, all.find((q) => q.key === m.key)!)}`
                             }
                             className={cn(
