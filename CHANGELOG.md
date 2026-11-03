@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Casual Games (2026-11-03)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
 ## Spectator links (2026-11-03)
 
 - A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
@@ -28,12 +34,6 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Game editors (`games.edit` or `server.admin`) can now rename a game and change its size from `/games` → **Settings**, without importing its file again. The game's ID stays the same, so its links and exports keep working.
 - Saving makes a new revision, as an import of the edited file would: **Export JSON** has the new name, the new name shows in game lists and links right away, and sessions already started are offered the update ("Game update available"), even for a rename alone; a new size applies there once their creator accepts it. Changing the settings back makes the earlier revision current again instead of adding one.
 - If the game changed since the page loaded, for example through an import, the save is refused and the game isn't changed: reload the page and edit again. For a preloaded game, the next change to its file replaces the edit, as it replaces an upload.
-
-## Casual Games (2026-10-27)
-
-- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
-- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
-- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
 
 ## Paste field when the clipboard is blocked (2026-10-26)
 

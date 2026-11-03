@@ -6,7 +6,13 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
-import { assertCanManageGame, canManageGame, findGameByIdOrKey, isUnlisted } from "../lib/game-access.js";
+import {
+  assertCanManageGame,
+  canManageGame,
+  findGameByIdOrKey,
+  isOwnCasualGame,
+  isUnlisted,
+} from "../lib/game-access.js";
 import { connectedUserIds } from "../lib/broadcaster.js";
 import { ImportValidationError, updateGameSettings } from "../games/import-service.js";
 
@@ -111,7 +117,7 @@ export async function gameRoutes(app: FastifyInstance) {
         const visibility = game.currentRevisionId
           ? visibilityByRevision.get(game.currentRevisionId)
           : undefined;
-        if (visibility?.kind === "discord-role") {
+        if (visibility?.kind === "discord-role" && !isOwnCasualGame(user.discordId, game)) {
           const passes = await userPassesDiscordRoleGate(
             user.discordId,
             visibility.guildId,

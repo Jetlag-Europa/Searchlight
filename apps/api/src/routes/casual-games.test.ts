@@ -346,6 +346,22 @@ describe("Casual Games", () => {
       expect((await exportAs(PLAYER)).statusCode).toBe(403);
     });
 
+    test("a role gate on a role the creator lacks doesn't hide their game from them", async () => {
+      const key = `${KEY_PREFIX}gated`;
+      const gated = {
+        ...definition(key, "Gated 2026"),
+        visibility: { kind: "discord-role", guildId: EU_SERVER_ID, roleId: "test-casual-gone-role" },
+      };
+      expect((await importAs(CREATOR, gated)).statusCode).toBe(201);
+      const game = await prisma.game.findUniqueOrThrow({ where: { gameKey: key } });
+
+      expect((await listGames(CREATOR, true)).map((g) => g.gameKey)).toContain(key);
+      const exportAs = (userId: string) =>
+        app.inject({ method: "GET", url: `/games/${game.id}/export`, headers: as(userId) });
+      expect((await exportAs(CREATOR)).statusCode).toBe(200);
+      expect((await exportAs(RIVAL)).statusCode).toBe(403);
+    });
+
     test("the creator keeps access to their game after losing the role", async () => {
       await setEuRoles(CREATOR, []);
       const res = await app.inject({ method: "GET", url: `/games/${gameId}/export`, headers: as(CREATOR) });

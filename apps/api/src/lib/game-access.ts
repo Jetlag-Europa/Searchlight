@@ -72,6 +72,17 @@ export async function canManageGame(
   return canManageGames(await getUserPermissions(userId, game.serverId, true, logger));
 }
 
+/**
+ * A Casual game's creator passes its role gates: a gate only decides who else
+ * may use the game, and on Casual Games a game link stands in for it anyway.
+ */
+export function isOwnCasualGame(
+  userId: string,
+  game: { serverId: string; createdById: string | null },
+): boolean {
+  return game.serverId === CASUAL_SERVER_ID && game.createdById !== null && game.createdById === userId;
+}
+
 /** Throws 403 unless the user may change the game's listing and links. */
 export async function assertCanManageGame(
   userId: string,
@@ -113,7 +124,8 @@ async function revisionVisibilities(revisionIds: (string | null | undefined)[]):
  * Throws 403 unless the user may use the game: membership of its server
  * (virtual servers have no guild to check), managing the game if it is
  * unlisted (POST /sessions refuses unlisted games to everyone),
- * and the role gate of every given revision. Every way
+ * and the role gate of every given revision (not for the creator of a Casual
+ * game, see isOwnCasualGame). Every way
  * of reaching a game's definitions or pinning a session to one of its
  * revisions goes through this check. Exceptions: a session's participants may
  * read the revision it is pinned to, forks copy their source's revision, and
@@ -135,6 +147,7 @@ export async function assertGameAccess(
     }
   }
 
+  if (isOwnCasualGame(userId, game)) return;
   for (const visibility of await revisionVisibilities(revisionIds)) {
     const gate = getDiscordRoleGate(visibility);
     if (gate) {

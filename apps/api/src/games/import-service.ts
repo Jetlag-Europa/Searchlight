@@ -434,7 +434,7 @@ async function importRevision(
     // B. Check collision / update permission
     if (cur && !ctx.allowUpdate && source !== "preload") {
       throw new ImportConflictError(
-        `Game "${gameKey}" already exists (revision ${cur.revision}). Import with allowUpdate to replace it.`,
+        `Game "${gameKey}" already exists (revision ${cur.revision}). Import it as an update to replace it.`,
         "GAME_EXISTS",
         true,
         cur.revision,

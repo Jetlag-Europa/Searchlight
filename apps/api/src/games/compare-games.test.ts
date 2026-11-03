@@ -34,6 +34,7 @@ describe("compareWithExisting", () => {
     expect(result).toEqual({
       name: "London 2026",
       revision: 3,
+      currentRevisionId: "rev-3",
       createdByYou: true,
       likelyMistake: false,
       differences: [],
