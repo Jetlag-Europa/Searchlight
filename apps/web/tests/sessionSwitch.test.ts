@@ -20,7 +20,14 @@ import {
     applyPendingEventsToState,
 } from "@/lib/eventQueue";
 
+import {
+    LOAD_TIMEOUT_MS,
+    LoadTimeoutError,
+    startLoadDeadline,
+} from "@/lib/loadDeadline";
 import { flushPendingEvents } from "@/lib/syncManager";
+
+import { routeNotFound } from "./apiResponses";
 const store = new Map<string, string>();
 function mockStorage(values: Map<string, string>) {
     return {
@@ -222,12 +229,15 @@ describe("session switch & sync edge cases", () => {
                     callOrder.push("session");
                     return Response.json({
                         id: "test-cursor-session",
+                        name: "Cursor",
+                        gameId: "game-1",
+                        gameRevisionId: "revision-1",
                         hiderLat: 1,
                         hiderLng: 2,
                         planningModeEnabled: true,
                     });
                 }
-                return new Response(JSON.stringify({}), { status: 404 });
+                return routeNotFound("GET", new URL(url).pathname);
             }),
         );
 
@@ -250,6 +260,9 @@ describe("session switch & sync edge cases", () => {
         const sessionId = "metadata-recovery";
         const server = {
             id: sessionId,
+            name: "Metadata",
+            gameId: "game-1",
+            gameRevisionId: "revision-1",
             hiderLat: null as number | null,
             hiderLng: null as number | null,
             planningModeEnabled: false,
@@ -352,5 +365,62 @@ describe("page exit flush", () => {
         document.dispatchEvent(new Event("visibilitychange"));
         expect(getPendingEvents(sessionId)).toHaveLength(2);
         expect(hasPendingQuestionSave(sessionId)).toBe(true);
+    });
+});
+
+describe("a session load's deadline", () => {
+    it("stops the reads, so nothing is kept", async () => {
+        vi.useFakeTimers();
+        try {
+            vi.stubGlobal(
+                "fetch",
+                vi.fn(
+                    (_url: string, init: RequestInit) =>
+                        new Promise((_, reject) => {
+                            // As fetch does: an aborted signal rejects at once.
+                            if (init.signal?.aborted)
+                                reject(init.signal.reason);
+                            init.signal?.addEventListener("abort", () =>
+                                reject(init.signal?.reason),
+                            );
+                        }),
+                ),
+            );
+            const deadline = startLoadDeadline();
+            let error: unknown;
+            void loadSessionContent(
+                "slow-session",
+                "verified-user",
+                deadline.signal,
+            ).catch((e: unknown) => (error = e));
+            await vi.advanceTimersByTimeAsync(LOAD_TIMEOUT_MS - 1);
+            expect(error).toBeUndefined();
+            await vi.advanceTimersByTimeAsync(1);
+            expect(error).toBeInstanceOf(LoadTimeoutError);
+            expect(getCachedSession("slow-session")).toBeNull();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+});
+
+describe("the session's details a load reads", () => {
+    it("fails the load, keeping nothing, when they aren't the session's", async () => {
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string) => {
+                if (url.endsWith("/events/cursor"))
+                    return Response.json({ sequence: 3 });
+                if (url.endsWith("/strokes"))
+                    return Response.json({ strokes: [] });
+                if (url.endsWith("/questions"))
+                    return Response.json({ questions: [], sequence: 3 });
+                return Response.json({});
+            }),
+        );
+        await expect(
+            loadSessionContent("odd-session", "verified-user"),
+        ).rejects.toThrow("unreadable details");
+        expect(getCachedSession("odd-session")).toBeNull();
     });
 });

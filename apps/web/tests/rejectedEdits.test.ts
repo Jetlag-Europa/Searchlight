@@ -22,6 +22,8 @@ import { enqueueEvent } from "@/lib/eventQueue";
 import { handleRejectedEdits, RELOAD_DELAY_MS } from "@/lib/rejectedEdits";
 import { flushPendingEvents } from "@/lib/syncManager";
 
+import { routeNotFound, sessionNotFound } from "./apiResponses";
+
 const SID = "rejected-session";
 
 function queueStrokes(count: number) {
@@ -107,11 +109,24 @@ describe("rejected edits", () => {
 
     test("a 403/404 only asks the server once whether the session is gone", async () => {
         queueStrokes(3);
-        mockFetch.mockResolvedValue(new Response(null, { status: 404 }));
+        mockFetch.mockImplementation(async () => sessionNotFound());
         await flushPendingEvents(SID);
         await vi.advanceTimersByTimeAsync(RELOAD_DELAY_MS);
         expect(toastError).not.toHaveBeenCalled();
         expect(reload).not.toHaveBeenCalled();
         expect(confirmUnavailable).toHaveBeenCalledExactlyOnceWith(SID);
+    });
+
+    // A build the PWA cached, or a rolled-back API, without that route.
+    test("a 404 for a route the API doesn't have asks nothing", async () => {
+        queueStrokes(1);
+        mockFetch.mockImplementation(async () =>
+            routeNotFound("POST", `/sessions/${SID}/strokes`),
+        );
+        await flushPendingEvents(SID);
+        await vi.advanceTimersByTimeAsync(RELOAD_DELAY_MS);
+        expect(toastError).not.toHaveBeenCalled();
+        expect(reload).not.toHaveBeenCalled();
+        expect(confirmUnavailable).not.toHaveBeenCalled();
     });
 });

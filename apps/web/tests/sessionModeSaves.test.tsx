@@ -1,7 +1,7 @@
 // SessionManager saves the hider and planning mode a player sets, but never
-// the values a session load just showed. Rendered with React into a minimal
-// stand-in for the DOM (there is no DOM library here); the server is a fake
-// fetch, and the saves are spies.
+// the values a session load just showed, and gets over a load that fails.
+// Rendered with React into a minimal stand-in for the DOM (there is no DOM
+// library here); the server is a fake fetch, and the saves are spies.
 import type { GameSessionSummary } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -211,10 +211,12 @@ vi.mock("@/lib/sessionState", async (importOriginal) => ({
     loadSessionContent: vi.fn(),
     saveHiderModeToServer: vi.fn(),
     savePlanningModeToServer: vi.fn(),
+    saveQuestionsDebounced: vi.fn(),
 }));
 
 import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { toast } from "react-toastify";
 
 import { SessionManager } from "@/components/SessionManager";
 import {
@@ -224,13 +226,23 @@ import {
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { hiderMode, planningModeEnabled } from "@/lib/context";
+import {
+    gameDefinitionReady,
+    hiderMode,
+    planningModeEnabled,
+    questions,
+} from "@/lib/context";
 import { setCachedSession } from "@/lib/eventQueue";
+import { switchToGame } from "@/lib/games";
+import { FLUSH_WAIT_MS, LOAD_TIMEOUT_MS } from "@/lib/loadDeadline";
 import {
     loadSessionContent,
     saveHiderModeToServer,
     savePlanningModeToServer,
+    saveQuestionsDebounced,
 } from "@/lib/sessionState";
+import { flushPendingEvents } from "@/lib/syncManager";
+import type { Questions } from "@/maps/schema";
 
 const USER = "user-1";
 const session = (
@@ -254,6 +266,8 @@ const session = (
 
 // What the fake server has for each session.
 let server: Record<string, GameSessionSummary> = {};
+// The server takes this account's sign-in for expired.
+let signedOut = false;
 const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), {
         status,
@@ -276,8 +290,14 @@ const fetchMock = vi.fn(async (input: string | URL) => {
     if (url.pathname === "/sessions") {
         return json({ sessions: Object.values(server) });
     }
+    if (signedOut) return json({ error: "Unauthorized" }, 401);
     const match = url.pathname.match(/^\/sessions\/([^/]+)$/);
     if (match && server[match[1]]) return json(server[match[1]]);
+    // What a background check reads (a load's own reads are faked).
+    const content = url.pathname.match(
+        /^\/sessions\/([^/]+)\/(strokes|questions)$/,
+    );
+    if (content && server[content[1]]) return json({ [content[2]]: [] });
     return json({ error: "not found" }, 404);
 });
 
@@ -341,6 +361,30 @@ const click = async (matches: (text: string) => boolean) => {
     await settle();
 };
 
+// Where map.astro puts the "game not loaded" banner.
+const bannerSlot = () => {
+    const slot = env.document.createElement("div");
+    env.document.body.appendChild(slot);
+    Object.assign(env.document, {
+        getElementById: (id: string) =>
+            id === "game-not-loaded-banner" ? slot : null,
+    });
+    return slot;
+};
+
+// The full-screen overlay a session load shows.
+const overlayShown = () =>
+    [...env.document.body.walk()].some((n) =>
+        n.getAttribute("class")?.includes("animate-spin"),
+    );
+
+// Time passing, for what waits on timers (the load deadline, the background
+// check); everything else still runs on its own.
+const wait = async (ms: number) => {
+    await act(() => vi.advanceTimersByTimeAsync(ms));
+    await settle();
+};
+
 // A live event on the session's stream, as the server sends it.
 let sequence = 0;
 const serverSends = async (
@@ -367,8 +411,11 @@ const serverSends = async (
 beforeEach(() => {
     env.store.clear();
     server = {};
+    signedOut = false;
     sequence = 0;
+    env.FakeEventSource.last = null;
     vi.stubGlobal("fetch", fetchMock);
+    vi.mocked(flushPendingEvents).mockImplementation(async () => {});
     vi.mocked(loadSessionContent).mockImplementation(async (id) => ({
         strokes: [],
         questions: [],
@@ -389,6 +436,10 @@ afterEach(async () => {
     offlineUserId.set(null);
     hiderMode.set(false);
     planningModeEnabled.set(false);
+    questions.set([]);
+    // Back to the fake document's own (see bannerSlot).
+    delete (env.document as { getElementById?: unknown }).getElementById;
+    vi.useRealTimers();
     vi.clearAllMocks();
     vi.restoreAllMocks();
 });
@@ -584,5 +635,236 @@ describe("planning mode and hider saves after a session load", () => {
         expect(savePlanningModeToServer).toHaveBeenCalledWith("a", false);
         await play(() => hiderMode.set(false));
         expect(saveHiderModeToServer).toHaveBeenCalledWith("a", false);
+    });
+});
+
+describe("a session load that fails", () => {
+    // Only timers: the fake server answers on its own.
+    const fakeTimers = () =>
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    // A read that answers only once the load gives up on it.
+    const hangs = (_id: string, _userId: string, signal?: AbortSignal) =>
+        new Promise<never>((_, reject) =>
+            signal?.addEventListener("abort", () => reject(signal.reason)),
+        );
+
+    it("saves the first question added after a reload whose content failed", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValue(new Error("503"));
+        await reload("a");
+
+        const added = [
+            { id: "radius", key: 1, data: { lat: 1, lng: 2 } },
+        ] as unknown as Questions;
+        await play(() => questions.set(added));
+        expect(saveQuestionsDebounced).toHaveBeenCalledWith("a", added);
+    });
+
+    it("says it shows the copy kept here when the server fails", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValue(new Error("503"));
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+
+        expect(overlayShown()).toBe(false);
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "Couldn't load the latest from the server. Showing the copy saved on this device; it will keep trying.",
+            { toastId: "session-load" },
+        );
+    });
+
+    it("says so when the server takes too long and nothing was kept", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        vi.mocked(loadSessionContent).mockImplementation(hangs);
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        await wait(LOAD_TIMEOUT_MS);
+        expect(overlayShown()).toBe(false);
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "The server is taking too long. Try again in a moment.",
+            { toastId: "session-load" },
+        );
+        // Nothing to check again: it shows nothing of the session.
+        fetchMock.mockClear();
+        await wait(30_000);
+        expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("reads the server's state when sending the queued edits takes too long", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(flushPendingEvents).mockImplementation(
+            () => new Promise(() => {}),
+        );
+        await reload("a");
+        expect(loadSessionContent).not.toHaveBeenCalled();
+
+        await wait(FLUSH_WAIT_MS);
+        expect(loadSessionContent).toHaveBeenCalledTimes(1);
+        expect(overlayShown()).toBe(false);
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+    });
+
+    it("shows the copy kept here when the server takes too long, and keeps trying", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockImplementation(hangs);
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        await wait(LOAD_TIMEOUT_MS);
+        expect(overlayShown()).toBe(false);
+        expect(activeSessionId.get()).toBe("a");
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "The server is taking too long. Showing the copy saved on this device; it will keep trying.",
+            { toastId: "session-load" },
+        );
+        await play(() => planningModeEnabled.set(true));
+        expect(savePlanningModeToServer).toHaveBeenCalledWith("a", true);
+
+        fetchMock.mockClear();
+        await wait(3000);
+        expect(fetchMock).toHaveBeenCalledWith(
+            "http://localhost:3001/sessions/a",
+            expect.anything(),
+        );
+    });
+
+    it("says nothing of a load another one took over", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        let fail: (error: Error) => void = () => {};
+        vi.mocked(loadSessionContent).mockImplementationOnce(
+            () => new Promise((_, reject) => (fail = reject)),
+        );
+        const error = vi.spyOn(toast, "error");
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+
+        // Another account signs in, as AuthGuard does it: the session the
+        // last one had open is dropped first.
+        await play(() => {
+            clearActiveSession();
+            verifiedUserId.set("user-2");
+        });
+
+        await act(async () => fail(new Error("503")));
+        await settle();
+        // The first load doesn't fall back to the kept copy (its game), nor
+        // say anything.
+        expect(switchToGame).not.toHaveBeenCalled();
+        expect(activeSessionId.get()).toBe("");
+        expect(error).not.toHaveBeenCalled();
+        expect(warn).not.toHaveBeenCalled();
+    });
+
+    it("loads the board again once the server answers, sending what was queued", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
+        await reload("a");
+        expect(env.FakeEventSource.last).toBeNull();
+        vi.mocked(flushPendingEvents).mockClear();
+
+        await wait(3000);
+        expect(loadSessionContent).toHaveBeenCalledTimes(2);
+        expect(flushPendingEvents).toHaveBeenCalledWith("a");
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+
+        // Live: it isn't checked again.
+        await wait(120_000);
+        expect(loadSessionContent).toHaveBeenCalledTimes(2);
+    });
+
+    it("stops checking once the sign-in has expired, and says so", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(loadSessionContent).mockRejectedValue(new Error("503"));
+        const error = vi.spyOn(toast, "error");
+        await reload("a");
+
+        signedOut = true;
+        fetchMock.mockClear();
+        await wait(3000);
+        expect(error).toHaveBeenCalledExactlyOnceWith(
+            "Your sign-in has expired. Reload the page to sign in again.",
+            { toastId: "sign-in-expired" },
+        );
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+
+        await wait(120_000);
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(error).toHaveBeenCalledTimes(1);
+    });
+
+    it("goes live without a game that takes too long, and shows it once it lands", async () => {
+        fakeTimers();
+        server = { a: session("a") };
+        keep(session("a"));
+        let landGame: () => void = () => {};
+        vi.mocked(switchToGame).mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    landGame = () => {
+                        gameDefinitionReady.set(true);
+                        resolve(true);
+                    };
+                }),
+        );
+        const slot = bannerSlot();
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+        expect(overlayShown()).toBe(true);
+
+        await wait(LOAD_TIMEOUT_MS);
+        expect(overlayShown()).toBe(false);
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+        expect(slot.textContent).toContain("Game not loaded");
+        expect(warn).not.toHaveBeenCalled();
+        // Live: nothing to check again.
+        fetchMock.mockClear();
+        await wait(30_000);
+        expect(fetchMock).not.toHaveBeenCalled();
+
+        await act(async () => landGame());
+        await settle();
+        expect(slot.textContent).toBe("");
+    });
+
+    it("doesn't say a live board shows the copy kept here when Retry fails", async () => {
+        server = { a: session("a") };
+        keep(session("a"));
+        vi.mocked(switchToGame).mockImplementationOnce(async () => false);
+        const slot = bannerSlot();
+        const warn = vi.spyOn(toast, "warn");
+        await reload("a");
+        expect(env.FakeEventSource.last?.url).toBe(
+            "http://localhost:3001/sessions/a/stream",
+        );
+        expect(slot.textContent).toContain("Game not loaded");
+
+        // The server answers nothing it can use now.
+        server = {};
+        await click((text) => text === "Retry");
+        expect(warn).toHaveBeenCalledExactlyOnceWith(
+            "Couldn't load the latest from the server. Try again in a moment.",
+            { toastId: "session-load" },
+        );
     });
 });

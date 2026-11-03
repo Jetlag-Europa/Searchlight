@@ -4,6 +4,13 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## A session that can't load keeps your edits and recovers by itself (2026-11-03)
+
+- A session is only forgotten, with the edits not yet sent from this device, when the server says it was deleted or you lost access to it. Any other error, such as a server update in progress, no longer drops you on the session list.
+- When a session can't be loaded, the board shows the copy saved on this device and says so. Once the server answers again, the board reloads by itself and sends your edits, without reloading the page.
+- Loading a session no longer hangs behind the spinner: after at most a minute the board shows the saved copy and keeps trying. A game still downloading by then shows once it arrives, with the "game not loaded" banner until it does.
+- After a reload that couldn't reach the server, the first question you added is now saved.
+
 ## First mode change after a reload is saved (2026-11-03)
 
 - After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.

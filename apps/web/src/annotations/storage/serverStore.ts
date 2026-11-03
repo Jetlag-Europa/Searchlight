@@ -1,4 +1,4 @@
-import type { StrokeFeature } from "@/annotations/types";
+import { isStrokeLike, type StrokeFeature } from "@/annotations/types";
 import { isSessionReadOnly } from "@/lib/activeSession";
 import { pendingEventCount,syncStatus } from "@/lib/context";
 import {
@@ -8,6 +8,7 @@ import {
 } from "@/lib/eventQueue";
 import {
     assertMaySend,
+    assertStrokeDeleted,
     recordSendFailure,
     SyncRequestError,
 } from "@/lib/syncManager";
@@ -37,13 +38,23 @@ function refreshSyncCounts(sessionId: string): void {
     if (count === 0) syncStatus.set("synced");
 }
 
-export async function loadStrokesFromServer(sessionId: string): Promise<StrokeFeature[]> {
+export async function loadStrokesFromServer(
+    sessionId: string,
+    signal?: AbortSignal,
+): Promise<StrokeFeature[]> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes`, {
         credentials: "include",
+        signal,
     });
     if (!res.ok) throw new Error(`Failed to load strokes: ${res.status}`);
-    const data = await res.json() as { strokes: Array<{ clientUuid: string; payloadJson: unknown }> };
-    return data.strokes.map((s) => s.payloadJson as StrokeFeature);
+    const data = (await res.json()) as { strokes: unknown[] };
+    const loaded: StrokeFeature[] = [];
+    for (const entry of data.strokes) {
+        const stroke = (entry as { payloadJson?: unknown } | null)?.payloadJson;
+        if (isStrokeLike(stroke)) loaded.push(stroke);
+        else console.warn("[serverStore] skipping a malformed stroke:", entry);
+    }
+    return loaded;
 }
 
 export async function saveStrokeToServer(
@@ -86,7 +97,7 @@ export async function saveStrokeToServer(
                 },
             );
             if (!res.ok)
-                throw new SyncRequestError("stroke.create", res.status);
+                throw await SyncRequestError.from("stroke.create", res);
             markEventSynced(sessionId, event.localId);
             refreshSyncCounts(sessionId);
         } catch (e) {
@@ -138,9 +149,7 @@ export async function deleteStrokeFromServer(
                 credentials: "include",
             },
         );
-        if (!res.ok && res.status !== 404) {
-            throw new SyncRequestError("stroke.delete", res.status);
-        }
+        await assertStrokeDeleted(res);
         markEventSynced(sessionId, event.localId);
         refreshSyncCounts(sessionId);
     } catch (e) {
