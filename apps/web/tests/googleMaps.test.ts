@@ -98,6 +98,7 @@ it("reads an unknown stored map type as Roadmap", () => {
     expect(googleMapTypeOf("terrain")).toBe("terrain");
     expect(googleMapTypeOf("moon")).toBe("roadmap");
     expect(googleMapTypeOf("toString")).toBe("roadmap");
+    expect(googleMapTypeOf("hasOwnProperty")).toBe("roadmap");
     expect(googleMapTypeOf(undefined)).toBe("roadmap");
 });
 
@@ -176,6 +177,28 @@ it("gives up on a stalled load, then waits for that script on retry", async () =
     (win as any).__searchlightGoogleMapsReady();
     await expect(retry).resolves.toBeUndefined();
     expect(googleMapsProblem.get()).toBeNull();
+});
+
+it("shows Google after all when a timed-out load finishes late", async () => {
+    vi.useFakeTimers();
+    const { win, scripts } = stubBrowser(true);
+    const {
+        GOOGLE_MAPS_LOAD_TIMEOUT_MS,
+        googleMapsProblem,
+        loadGoogleMapsApi,
+    } = await loadModule();
+
+    const first = loadGoogleMapsApi();
+    vi.advanceTimersByTime(GOOGLE_MAPS_LOAD_TIMEOUT_MS);
+    await expect(first).rejects.toThrow();
+    expect(googleMapsProblem.get()).toBe("load-failed");
+
+    // No offline/online in between: the browser never noticed.
+    (win as any).google = { maps: { importLibrary: async () => ({}) } };
+    (win as any).__searchlightGoogleMapsReady();
+    await vi.waitFor(() => expect(googleMapsProblem.get()).toBeNull());
+    await expect(loadGoogleMapsApi()).resolves.toBeUndefined();
+    expect(scripts).toHaveLength(1);
 });
 
 it("stops trying after Google rejects the key", async () => {

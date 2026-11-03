@@ -128,15 +128,25 @@ export function loadGoogleMapsApi(): Promise<void> {
         // Google calls this when it rejects the key: wrong referrer, or the
         // API isn't enabled for it.
         w.gm_authFailure = () => googleMapsProblem.set("auth-failed");
-        const timer = setTimeout(
-            () => reject(new Error("The Maps JavaScript API timed out")),
-            GOOGLE_MAPS_LOAD_TIMEOUT_MS,
-        );
+        let timedOut = false;
+        const timer = setTimeout(() => {
+            timedOut = true;
+            reject(new Error("The Maps JavaScript API timed out"));
+        }, GOOGLE_MAPS_LOAD_TIMEOUT_MS);
         loadBootstrap()
             // GoogleMutant needs google.maps.Map, which the async loader
             // only defines once the maps library is imported.
             .then(() => w.google.maps.importLibrary("maps"))
-            .then(() => resolve(), reject)
+            .then(() => {
+                resolve();
+                // It arrived after all, on a slow connection the browser
+                // still calls online: show Google now rather than after a
+                // reload. The next load finds the API and resolves at once.
+                if (timedOut && googleMapsProblem.get() === "load-failed") {
+                    apiLoad = null;
+                    googleMapsProblem.set(null);
+                }
+            }, reject)
             .finally(() => clearTimeout(timer));
     }).catch((error) => {
         googleMapsProblem.set("load-failed");
@@ -156,7 +166,10 @@ export type GoogleMapType = keyof typeof GOOGLE_MAP_TYPES;
 
 /** A stored map type, or Roadmap for one this version doesn't know. */
 export function googleMapTypeOf(value: unknown): GoogleMapType {
-    return typeof value === "string" && Object.hasOwn(GOOGLE_MAP_TYPES, value)
+    // Not Object.hasOwn: Safari 14 and Chrome 87, which the build targets,
+    // don't have it.
+    return typeof value === "string" &&
+        Object.prototype.hasOwnProperty.call(GOOGLE_MAP_TYPES, value)
         ? (value as GoogleMapType)
         : "roadmap";
 }
