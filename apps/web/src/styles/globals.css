@@ -182,3 +182,12 @@ div.leaflet-control-attribution.leaflet-control {
 .zone-labels-hidden .zone-name-label {
     display: none !important;
 }
+
+/* Google's terms don't allow keeping its map outside the API, so a page the
+   browser prints (Ctrl+P, Share → Print) leaves it out. The app's own print
+   button switches to CARTO instead (GoogleBasemap.tsx). */
+@media print {
+    .google-basemap {
+        visibility: hidden;
+    }
+}

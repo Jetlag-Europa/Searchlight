@@ -47,6 +47,7 @@ import {
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
+import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -80,6 +81,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $autoSave = useStore(autoSave);
     const $planningMode = useStore(planningModeEnabled);
     const $baseTileLayer = useStore(baseTileLayer);
+    const $googleMapsProblem = useStore(googleMapsProblem);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $autoLockQuestions = useStore(autoLockQuestions);
     const $followMe = useStore(followMe);
@@ -259,12 +261,35 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             neighbourhood:
                                                 "Thunderforest Neighbourhood",
                                             osmcarto: "OpenStreetMap Carto",
+                                            ...(googleMapsAvailable && {
+                                                google: "Google Maps",
+                                            }),
                                         }}
-                                        value={$baseTileLayer}
+                                        // A build without a Google key
+                                        // draws CARTO Voyager instead.
+                                        value={
+                                            $baseTileLayer === "google" &&
+                                            !googleMapsAvailable
+                                                ? "voyager"
+                                                : $baseTileLayer
+                                        }
                                         onValueChange={(v) =>
                                             baseTileLayer.set(v as any)
                                         }
                                     />
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable &&
+                                        $googleMapsProblem && (
+                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                {$googleMapsProblem ===
+                                                "offline"
+                                                    ? "Google Maps needs a connection. Showing CARTO Voyager until you're back online."
+                                                    : $googleMapsProblem ===
+                                                        "load-failed"
+                                                      ? "Google Maps couldn't load. Showing CARTO Voyager; it's tried again when the connection comes back."
+                                                      : "Google Maps refused this site's key. Showing CARTO Voyager."}
+                                            </p>
+                                        )}
                                     <div className="flex flex-col items-center gap-2">
                                         <Label>Thunderforest API Key</Label>
                                         <Input

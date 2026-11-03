@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Google Maps as a basemap (2026-11-03)
+
+- Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
+- Without a connection the map shows CARTO Voyager until it's back, and prints always use CARTO Voyager: Google's terms don't allow storing its map. Choosing a print size while Google Maps is shown switches the map first; choose the size again to print.
+- **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key.
+
 ## Spectator links (2026-11-03)
 
 - A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.

@@ -307,7 +307,13 @@ export function acquireScopedLoading(scope: string | symbol): () => void {
 }
 
 export const baseTileLayer = persistentAtom<
-    "voyager" | "light" | "dark" | "transport" | "neighbourhood" | "osmcarto"
+    | "voyager"
+    | "light"
+    | "dark"
+    | "transport"
+    | "neighbourhood"
+    | "osmcarto"
+    | "google"
 >("baseTileLayer", "voyager");
 export const thunderforestApiKey = persistentAtom<string>(
     "thunderforestApiKey",

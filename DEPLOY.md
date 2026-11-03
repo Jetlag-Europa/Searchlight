@@ -94,6 +94,26 @@ every update. Keep API changes working with it.
 - **Another API hostname:** change `PUBLIC_API_BASE` in `.env` and deploy with
   `--build` (or change the build arg in `.github/workflows/docker-images.yml`).
 
+## Google Maps basemap
+
+Players can pick Google Maps as the basemap when the web image is built with
+`PUBLIC_GOOGLE_MAPS_API_KEY`: in `.env` when building on the server, as
+the repository variable of that name for the CI image, or in the environment
+of a [Cloudflare](#web-app-on-cloudflare) build. Without it the option isn't
+offered. The key ships to every browser, so in
+[Google Cloud](https://console.cloud.google.com/apis/credentials):
+
+- enable the **Maps JavaScript API** for the project (billing must be on),
+- restrict the key to websites (`https://<web host>/*`) and to the Maps
+  JavaScript API only,
+- cap **Map loads per day** under Google Maps Platform → Quotas, and set a
+  budget alert.
+
+Google bills a map load each time the page creates its map, not per tile: a
+player costs about one per app start, whatever they zoom or pan, and only once
+they show Google's map. 10,000 loads a month are free. Google's terms don't
+allow caching its map, so offline and in prints the app uses CARTO Voyager.
+
 ## Cloudflare Tunnel
 
 The tunnel is locally managed: no token, nothing in the Cloudflare dashboard.
