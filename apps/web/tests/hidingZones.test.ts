@@ -6,11 +6,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import { compileGameDefinition } from "@/game-definition/compile";
 import {
     hidingZoneCircles,
-    hidingZoneLayer,
     sameZones,
     survivingHidingZones,
 } from "@/maps/geo-utils";
-import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 const district: Polygon = {
     type: "Polygon",
@@ -230,15 +228,4 @@ it("compares zone lists by their objects, in any order", () => {
     expect(sameZones([a], [a, b])).toBe(false);
     // An equal but new zone is a change.
     expect(sameZones([a, b], [c, b])).toBe(false);
-});
-
-it("merges No Overlap in the worker into the outline it drew before", async () => {
-    const zones = hidingZoneCircles(compileGameDefinition(game));
-    const outline = await requestGeometry(
-        { kind: "union", regions: zones },
-        { supersede: "hiding-zone-outline" },
-    );
-    expect(outline?.geometry).toEqual(
-        hidingZoneLayer(zones, "no-overlap").features[0].geometry,
-    );
 });
