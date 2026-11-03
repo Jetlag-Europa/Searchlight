@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Question cards stay usable while the map calculates (2026-11-03)
+
+- While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves. Tapping a card's lock, hide or delete button, or **Add Question**, right after typing a question's name no longer does nothing.
+- Renaming or folding a question, locking or unlocking it outside planning mode, or a teammate's save that changes no answer no longer recalculates the map or the hiding zones, or moves your map back to the remaining area.
+- **Set to current location** now only greys out its own location while it waits for a GPS fix, not every card.
+
 ## Spectator links (2026-11-03)
 
 - A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
