@@ -45,10 +45,7 @@ import {
     sessionPickerOpen,
 } from "@/lib/context";
 import { hiderMode, planningModeEnabled } from "@/lib/context";
-import {
-    deletedSessionNotice,
-    isApiNotFound,
-} from "@/lib/deletedSessionNotice";
+import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
 import { isSameDoubleTap } from "@/lib/doubleTap";
 import {
     applyPendingModes,
@@ -89,6 +86,7 @@ import {
     savePlanningModeToServer,
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
+import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import {
     SESSION_ROLE_CHANGED_EVENT,
     SESSION_STREAM_RECONNECTED_EVENT,
@@ -307,9 +305,10 @@ function SessionPickerOverlay({
                 credentials: "include",
             });
             // When the request itself fails it may still have gone through,
-            // so the id stays. The API's 404 is a delete that already
-            // happened: an earlier try whose reply was lost, or another tab.
-            if (!res.ok && !isApiNotFound(res)) {
+            // so the id stays. The API's 404 for the session is a delete that
+            // already happened: an earlier try whose reply was lost, or
+            // another tab.
+            if (!res.ok && (await sessionUnavailableStatus(res)) !== 404) {
                 deletedHere.delete(sessionId);
                 throw new Error(`${res.status}`);
             }
@@ -1160,16 +1159,7 @@ export function SessionManager() {
             if (activeSessionId.get() === sessionId) clearActiveSession();
             if (boardSessionRef.current === sessionId) boardSessionRef.current = null;
             setShowPicker(true);
-            // A proxy's 404 while the API is redeployed lands here too: say
-            // it was deleted only once the API itself says so.
-            if (notice)
-                void fetch(`${API_BASE}/sessions/${sessionId}`, {
-                    credentials: "include",
-                })
-                    .then((res) => {
-                        if (isApiNotFound(res)) toast.warn(notice);
-                    })
-                    .catch(() => {});
+            if (notice) toast.warn(notice);
         },
         [authUserId],
     );
@@ -1331,16 +1321,21 @@ export function SessionManager() {
         fetch(`${API_BASE}/sessions/${storedId}`, { credentials: "include" })
             .then(async (res) => {
                 if (!isCurrent()) return;
-                if (res.status === 403 || res.status === 404) {
+                const unavailable = res.ok
+                    ? null
+                    : await sessionUnavailableStatus(res);
+                if (!isCurrent()) return;
+                if (unavailable !== null) {
                     console.warn(
                         "[searchlight:session] stored session unavailable (" +
-                            res.status +
+                            unavailable +
                             "), showing picker",
                     );
-                    forgetSession(storedId, res.status);
+                    forgetSession(storedId, unavailable);
                     return;
                 }
-                // Anything else (502, 503, 429…) is handled like being offline.
+                // Anything else (502, 503, 429, a route this API doesn't
+                // have…) is handled like being offline.
                 if (!res.ok)
                     throw new Error(`session fetch failed: ${res.status}`);
                 const data: GameSessionSummary = await res.json();
@@ -1738,8 +1733,12 @@ export function SessionManager() {
                 return;
             }
             if (!isCurrent()) return;
-            if (res.status === 403 || res.status === 404) {
-                forgetSession(id, res.status);
+            const unavailable = res.ok
+                ? null
+                : await sessionUnavailableStatus(res);
+            if (!isCurrent()) return;
+            if (unavailable !== null) {
+                forgetSession(id, unavailable);
                 return;
             }
             if (res.status === 401) {
@@ -1805,9 +1804,13 @@ export function SessionManager() {
                 credentials: "include",
             });
             if (activeSessionId.get() !== id) return;
-            if (forgetIfGone && (res.status === 403 || res.status === 404)) {
-                forgetSession(id, res.status);
-                return;
+            if (forgetIfGone && !res.ok) {
+                const unavailable = await sessionUnavailableStatus(res);
+                if (activeSessionId.get() !== id) return;
+                if (unavailable !== null) {
+                    forgetSession(id, unavailable);
+                    return;
+                }
             }
             if (!res.ok) return;
             const fresh: GameSessionSummary = await res.json();

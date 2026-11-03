@@ -8,6 +8,7 @@ import {
 } from "@/lib/eventQueue";
 import {
     assertMaySend,
+    assertStrokeDeleted,
     recordSendFailure,
     SyncRequestError,
 } from "@/lib/syncManager";
@@ -86,7 +87,7 @@ export async function saveStrokeToServer(
                 },
             );
             if (!res.ok)
-                throw new SyncRequestError("stroke.create", res.status);
+                throw await SyncRequestError.from("stroke.create", res);
             markEventSynced(sessionId, event.localId);
             refreshSyncCounts(sessionId);
         } catch (e) {
@@ -138,9 +139,7 @@ export async function deleteStrokeFromServer(
                 credentials: "include",
             },
         );
-        if (!res.ok && res.status !== 404) {
-            throw new SyncRequestError("stroke.delete", res.status);
-        }
+        await assertStrokeDeleted(res);
         markEventSynced(sessionId, event.localId);
         refreshSyncCounts(sessionId);
     } catch (e) {

@@ -21,6 +21,8 @@ import {
 } from "@/lib/eventQueue";
 
 import { flushPendingEvents } from "@/lib/syncManager";
+
+import { routeNotFound } from "./apiResponses";
 const store = new Map<string, string>();
 function mockStorage(values: Map<string, string>) {
     return {
@@ -227,7 +229,7 @@ describe("session switch & sync edge cases", () => {
                         planningModeEnabled: true,
                     });
                 }
-                return new Response(JSON.stringify({}), { status: 404 });
+                return routeNotFound("GET", new URL(url).pathname);
             }),
         );
 

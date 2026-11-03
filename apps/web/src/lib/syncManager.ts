@@ -49,6 +49,7 @@ import {
     sameQuestionList,
     sameQuestionSubstance,
 } from "@/lib/questionMerge";
+import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -62,26 +63,58 @@ const KEEPALIVE_BODY_LIMIT = 64 * 1024;
 /** The server answered an edit with an error status. */
 export class SyncRequestError extends Error {
     readonly status: number;
+    // The API's own 403/404 for the session (see sessionUnavailableStatus),
+    // else null, e.g. for a route it doesn't have.
+    readonly sessionStatus: 403 | 404 | null;
 
-    constructor(type: EventType, status: number) {
+    private constructor(
+        type: EventType,
+        status: number,
+        sessionStatus: 403 | 404 | null,
+    ) {
         super(`${type} failed: ${status}`);
         this.status = status;
+        this.sessionStatus = sessionStatus;
     }
+
+    static async from(
+        type: EventType,
+        res: Response,
+    ): Promise<SyncRequestError> {
+        const sessionStatus = await sessionUnavailableStatus(res);
+        return new SyncRequestError(type, res.status, sessionStatus);
+    }
+}
+
+/**
+ * Throws unless a stroke's delete went through, or the API says its session
+ * is gone (it can't have the stroke then either).
+ */
+export async function assertStrokeDeleted(res: Response): Promise<void> {
+    if (res.ok) return;
+    const error = await SyncRequestError.from("stroke.delete", res);
+    if (error.sessionStatus !== 404) throw error;
 }
 
 export type SendFailure = "retry" | "unavailable" | "rejected";
 
 /**
- * What a failed send means. A 403 or 404 means the session is gone or this
- * user lost access to it. Any other 4xx but 401, 408 and 429 refuses the edit
- * itself (too large, invalid, a conflict): resending it would fail again and
- * block the edits behind it, and incoming updates to its field, forever. A
- * network error (no status), a 5xx, 401, 408 or 429 may pass on a retry.
+ * What a failed send means. A 403 or 404 the API gave for the session
+ * (`unavailable`) means it is gone or this user lost access to it; any other
+ * 403/404, such as one for a route this API doesn't have, may pass on a
+ * retry. Any other 4xx but 401, 408 and 429 refuses the edit itself (too
+ * large, invalid, a conflict): resending it would fail again and block the
+ * edits behind it, and incoming updates to its field, forever. A network
+ * error (no status), a 5xx, 401, 408 or 429 may pass on a retry.
  */
-export function classifySendFailure(status: number | undefined): SendFailure {
+export function classifySendFailure(
+    status: number | undefined,
+    unavailable: boolean,
+): SendFailure {
     if (status === undefined || status < 400 || status >= 500) return "retry";
     if (status === 401 || status === 408 || status === 429) return "retry";
-    if (status === 403 || status === 404) return "unavailable";
+    if (status === 403 || status === 404)
+        return unavailable ? "unavailable" : "retry";
     return "rejected";
 }
 
@@ -96,17 +129,25 @@ export function assertMaySend(): void {
 }
 
 function failureOf(err: unknown): { kind: SendFailure; status?: number } {
-    const status = err instanceof SyncRequestError ? err.status : undefined;
-    return { kind: classifySendFailure(status), status };
+    if (!(err instanceof SyncRequestError)) return { kind: "retry" };
+    return {
+        kind: classifySendFailure(err.status, err.sessionStatus !== null),
+        status: err.status,
+    };
 }
 
-type RejectionListener = (event: PendingEvent, status: number) => void;
+type RejectionListener = (
+    event: PendingEvent,
+    status: number,
+    kind: Exclude<SendFailure, "retry">,
+) => void;
 const rejectionListeners = new Set<RejectionListener>();
 
 /**
  * Hear about edits the server refused for good. A rejected edit has already
  * left the queue, so the listener should show the server's state for its
- * field again. An edit to an unavailable session (403/404) stays queued.
+ * field again. An edit to an unavailable session (403/404, `kind`
+ * "unavailable") stays queued.
  */
 export function onEventRejected(listener: RejectionListener): () => void {
     rejectionListeners.add(listener);
@@ -154,7 +195,7 @@ async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
     });
-    if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+    if (!res.ok) throw await SyncRequestError.from("questions.replace", res);
     const data = (await res.json()) as {
         questions: Array<{ clientUuid?: string; payloadJson: Questions[number] }>;
         sequence?: number;
@@ -373,7 +414,8 @@ async function sendQuestions(
                 continue;
             }
         }
-        if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+        if (!res.ok)
+            throw await SyncRequestError.from("questions.replace", res);
         const sequence =
             res.status === 200
                 ? await res
@@ -414,15 +456,14 @@ async function sendEvent(
                 payloadJson: stroke,
             }),
         });
-        if (!res.ok) throw new SyncRequestError("stroke.create", res.status);
+        if (!res.ok) throw await SyncRequestError.from("stroke.create", res);
     } else if (event.type === "stroke.delete") {
         const { clientUuid } = event.payloadJson as { clientUuid: string };
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
             method: "DELETE",
             credentials: "include",
         });
-        if (!res.ok && res.status !== 404)
-            throw new SyncRequestError("stroke.delete", res.status);
+        await assertStrokeDeleted(res);
     } else if (event.type === "questions.replace") {
         return sendQuestions(event, keepalive);
     } else if (event.type === "hider.update") {
@@ -433,7 +474,7 @@ async function sendEvent(
             body: JSON.stringify(event.payloadJson),
             keepalive,
         });
-        if (!res.ok) throw new SyncRequestError("hider.update", res.status);
+        if (!res.ok) throw await SyncRequestError.from("hider.update", res);
     } else if (event.type === "planning.toggle") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -442,7 +483,7 @@ async function sendEvent(
             body: JSON.stringify(event.payloadJson),
             keepalive,
         });
-        if (!res.ok) throw new SyncRequestError("planning.toggle", res.status);
+        if (!res.ok) throw await SyncRequestError.from("planning.toggle", res);
     }
 }
 
@@ -480,7 +521,9 @@ export function recordSendFailure(event: PendingEvent, err: unknown): boolean {
         scheduleRetry(sessionId);
     }
     if (kind !== "retry" && queued && status !== undefined) {
-        for (const listener of rejectionListeners) listener(event, status);
+        for (const listener of rejectionListeners) {
+            listener(event, status, kind);
+        }
     }
     return kind === "rejected";
 }

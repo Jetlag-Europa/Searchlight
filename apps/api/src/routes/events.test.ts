@@ -305,6 +305,9 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(404);
+    // The web app forgets a session, and its unsent edits, only on this
+    // message (apps/web/src/lib/sessionUnavailable.ts).
+    expect(res.json().message).toBe("Session not found");
   });
 
   test("403 when user is not a participant of the session", async () => {
@@ -361,6 +364,7 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(404);
+    expect(res.json().message).toBe("Session not found");
   });
 
   test("cursor: 403 when user is not a participant of the session", async () => {

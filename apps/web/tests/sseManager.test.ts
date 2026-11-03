@@ -64,6 +64,8 @@ import {
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 
+import { forbidden, notTheSession, sessionNotFound } from "./apiResponses";
+
 const SID = "sse-test-session";
 
 function makeStroke(clientUuid: string): StrokeFeature {
@@ -983,11 +985,13 @@ describe("stream and replay recovery", () => {
         expect(MockEventSource._last).toBe(stream);
     });
 
-    test.each([403, 404])(
+    test.each([403, 404] as const)(
         "stops and reports a closed stream whose session answers %i",
         async (status) => {
             const onUnavailable = vi.fn();
-            mockFetch.mockResolvedValue({ ok: false, status });
+            mockFetch.mockImplementation(async () =>
+                status === 404 ? sessionNotFound() : forbidden(),
+            );
             startSSE(SID, onUnavailable);
             const stream = MockEventSource._last!;
             closeStream(stream);
@@ -1002,11 +1006,13 @@ describe("stream and replay recovery", () => {
         },
     );
 
-    test.each([403, 404])(
+    test.each([403, 404] as const)(
         "stops replaying and reports the session when gap fill answers %i",
         async (status) => {
             const onUnavailable = vi.fn();
-            mockFetch.mockResolvedValue({ ok: false, status });
+            mockFetch.mockImplementation(async () =>
+                status === 404 ? sessionNotFound() : forbidden(),
+            );
             startSSE(SID, onUnavailable);
             const stream = MockEventSource._last!;
             stream.onopen!(new Event("open"));
@@ -1020,6 +1026,48 @@ describe("stream and replay recovery", () => {
             expect(mockFetch).toHaveBeenCalledTimes(1);
         },
     );
+
+    test.each(notTheSession)(
+        "keeps reconnecting a closed stream after %s",
+        async (_, answer) => {
+            const onUnavailable = vi.fn();
+            mockFetch.mockImplementation(async () => answer());
+            startSSE(SID, onUnavailable);
+            const stream = MockEventSource._last!;
+            closeStream(stream);
+
+            // 3 + 6 seconds.
+            await vi.advanceTimersByTimeAsync(9000);
+            expect(mockFetch).toHaveBeenCalledTimes(2);
+            expect(onUnavailable).not.toHaveBeenCalled();
+            expect(stream.close).not.toHaveBeenCalled();
+
+            mockFetch.mockImplementation(async () => emptyPage());
+            await vi.advanceTimersByTimeAsync(12_000);
+            expect(MockEventSource._last).not.toBe(stream);
+            expect(onUnavailable).not.toHaveBeenCalled();
+        },
+    );
+
+    test.each(notTheSession)("keeps replaying after %s", async (_, answer) => {
+        const onUnavailable = vi.fn();
+        mockFetch.mockImplementation(async () => answer());
+        startSSE(SID, onUnavailable);
+        const stream = MockEventSource._last!;
+        stream.onopen!(new Event("open"));
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(syncStatus.get()).toBe("offline");
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+
+        mockFetch.mockImplementation(async () => emptyPage());
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(syncStatus.get()).toBe("live");
+        expect(onUnavailable).not.toHaveBeenCalled();
+        expect(stream.close).not.toHaveBeenCalled();
+    });
 
     test("backs off between failed gap fills and resets once one completes", async () => {
         mockFetch.mockResolvedValue({ ok: false, status: 503 });

@@ -14,6 +14,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 
+import { routeNotFoundBody, SESSION_NOT_FOUND_BODY } from "./apiResponses";
+
 const realSetTimeout = globalThis.setTimeout;
 const realClearTimeout = globalThis.clearTimeout;
 const realSetImmediate = globalThis.setImmediate;
@@ -160,14 +162,18 @@ vi.stubGlobal("clearTimeout", ((id: unknown) => {
 }) as Any);
 
 let reqIds = 0;
-const fakeResponse = (status: number, body: unknown) => ({
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => {
-        if (body === undefined) throw new SyntaxError("no body");
-        return JSON.parse(JSON.stringify(body));
-    },
-});
+const fakeResponse = (status: number, body: unknown) => {
+    const res = {
+        ok: status >= 200 && status < 300,
+        status,
+        json: async () => {
+            if (body === undefined) throw new SyntaxError("no body");
+            return JSON.parse(JSON.stringify(body));
+        },
+        clone: () => res,
+    };
+    return res;
+};
 vi.stubGlobal("fetch", (url: string, init?: RequestInit) => {
     const c = cur();
     if (!c) return Promise.reject(new Error("fetch outside a client: " + url));
@@ -201,7 +207,7 @@ function serve(c: Client, req: Req): { status: number; body: unknown } {
     const u = new URL(req.url);
     const parts = u.pathname.split("/").filter(Boolean); // sessions, sid, ...
     if (parts[0] !== "sessions" || parts[1] !== server.sid)
-        return { status: 404, body: {} };
+        return { status: 404, body: SESSION_NOT_FOUND_BODY };
     const rest = parts.slice(2).join("/");
     if (req.method === "GET" && rest === "questions") {
         return {
@@ -302,7 +308,10 @@ function serve(c: Client, req: Req): { status: number; body: unknown } {
         if (baseSequence === undefined) return { status: 204, body: undefined };
         return { status: 200, body: { sequence: server.seq } };
     }
-    return { status: 404, body: {} };
+    return {
+        status: 404,
+        body: routeNotFoundBody(req.method, `${u.pathname}${u.search}`),
+    };
 }
 
 // ───────────────────────── helpers ─────────────────────────

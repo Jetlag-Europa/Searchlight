@@ -383,34 +383,49 @@ test.describe("deleting a session with a mouse", () => {
         await expectBodyTappable(page);
     });
 
-    // While the API is redeployed, the proxy answers 404 in plain text.
-    test("a proxy's 404 doesn't count as deleted", async ({
-        page,
-        request,
-    }) => {
-        const kept = await createSession(request, "Kept");
-        await testLogin(page);
-        await page.goto("/map/");
-        await showServer(page, kept.serverId);
-        await page.route(`${API_BASE}/sessions/${kept.id}`, (route) =>
-            route.request().method() === "DELETE"
-                ? route.fulfill({
-                      status: 404,
-                      contentType: "text/plain",
-                      body: "404 page not found",
-                  })
-                : route.fallback(),
-        );
+    // Only the API's own 404 for the session means it's gone: not a proxy's
+    // plain-text one, nor one for a route the running API doesn't have.
+    for (const [kind, answer] of [
+        [
+            "a proxy's",
+            { contentType: "text/plain", body: "404 page not found" },
+        ],
+        [
+            "a missing route's",
+            {
+                contentType: "application/json",
+                body: JSON.stringify({
+                    message: "Route DELETE:/sessions/x not found",
+                    error: "Not Found",
+                    statusCode: 404,
+                }),
+            },
+        ],
+    ] as const) {
+        test(`${kind} 404 doesn't count as deleted`, async ({
+            page,
+            request,
+        }) => {
+            const kept = await createSession(request, "Kept");
+            await testLogin(page);
+            await page.goto("/map/");
+            await showServer(page, kept.serverId);
+            await page.route(`${API_BASE}/sessions/${kept.id}`, (route) =>
+                route.request().method() === "DELETE"
+                    ? route.fulfill({ status: 404, ...answer })
+                    : route.fallback(),
+            );
 
-        const del = deleteButton(page, kept);
-        await del.click();
-        await confirmDelete(page, deleteDialog(page, kept), "click");
-        await expect(
-            picker(page).getByText("Failed to delete session: 404"),
-        ).toBeVisible();
-        await expect(del).toBeVisible();
-        expect(await sessionStatus(request, kept.id)).toBe(200);
-    });
+            const del = deleteButton(page, kept);
+            await del.click();
+            await confirmDelete(page, deleteDialog(page, kept), "click");
+            await expect(
+                picker(page).getByText("Failed to delete session: 404"),
+            ).toBeVisible();
+            await expect(del).toBeVisible();
+            expect(await sessionStatus(request, kept.id)).toBe(200);
+        });
+    }
 
     // Its first try's reply was lost, or another tab got there first.
     test("Delete of a session already gone takes it off the list", async ({

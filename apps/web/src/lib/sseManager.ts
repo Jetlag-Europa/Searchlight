@@ -47,6 +47,7 @@ import {
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
 } from "@/lib/sessionState";
+import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import {
     onQuestionsSaved,
     questionsSavedByEcho,
@@ -76,10 +77,6 @@ const RETRY_MIN_MS = 3_000;
 const RETRY_MAX_MS = 30_000;
 let replayRetryDelay = RETRY_MIN_MS;
 let reconnectDelay = RETRY_MIN_MS;
-
-function isUnavailableStatus(status: number): boolean {
-    return status === 403 || status === 404;
-}
 
 // The session was deleted or this user lost access: retrying cannot help.
 function sessionUnavailable(sessionId: string, status: number): void {
@@ -502,11 +499,15 @@ async function gapFill(
             const url = `${API_BASE}/sessions/${sessionId}/events?after=${after}&limit=50`;
             const res = await fetch(url, { credentials: "include" });
             if (!isCurrent()) return;
-            if (isUnavailableStatus(res.status)) {
-                unavailableStatus = res.status;
-                break;
+            if (!res.ok) {
+                const unavailable = await sessionUnavailableStatus(res);
+                if (!isCurrent()) return;
+                if (unavailable !== null) {
+                    unavailableStatus = unavailable;
+                    break;
+                }
+                throw new Error(`Gap fill failed: ${res.status}`);
             }
-            if (!res.ok) throw new Error(`Gap fill failed: ${res.status}`);
             const data = (await res.json()) as {
                 events: EventRecord[];
                 nextAfter: number | null;
@@ -589,7 +590,8 @@ function drainBufferedEvents(sessionId: string, generation: number): void {
 
 /**
  * Stream live events for `sessionId`. `onUnavailable` is called, after the
- * stream has stopped, once the server answers 403 or 404 for the session.
+ * stream has stopped, once the server answers 403 or 404 for the session
+ * (see sessionUnavailableStatus).
  */
 export function startSSE(
     sessionId: string,
@@ -637,8 +639,11 @@ function scheduleReconnect(sessionId: string, generation: number): void {
             console.warn("[searchlight:sse] reconnect check failed:", err);
         }
         if (!isCurrent()) return;
-        if (res && isUnavailableStatus(res.status)) {
-            sessionUnavailable(sessionId, res.status);
+        const unavailable =
+            res && !res.ok ? await sessionUnavailableStatus(res) : null;
+        if (!isCurrent()) return;
+        if (unavailable !== null) {
+            sessionUnavailable(sessionId, unavailable);
         } else if (res?.ok) {
             openStream(sessionId, generation);
         } else {
