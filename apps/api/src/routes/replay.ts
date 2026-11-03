@@ -108,6 +108,12 @@ export async function replayRoutes(app: FastifyInstance) {
         snapshots,
         canSeeLocations,
         people,
+        // The session's hider location (hider mode), for finding the endgame
+        // without live locations.
+        hider:
+          session.hiderLat !== null && session.hiderLng !== null
+            ? { lat: session.hiderLat, lng: session.hiderLng }
+            : null,
       };
     },
   );

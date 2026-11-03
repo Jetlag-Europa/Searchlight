@@ -22,6 +22,7 @@ import {
 import { applyGameDefinition, currentGameId } from "@/lib/games";
 import { defaultQuestionLabel, questionName } from "@/lib/questionNames";
 import {
+    askedFrom,
     boardAt,
     condenseReplay,
     type Endgame,
@@ -86,6 +87,7 @@ interface ReplayResponse {
     snapshots: { at: number; questions: unknown[] }[];
     canSeeLocations: boolean;
     people: ReplayPerson[];
+    hider: { lat: number; lng: number } | null;
 }
 
 // Leaflet inserts string tooltips as HTML; question names are user input.
@@ -270,6 +272,20 @@ export function ReplayPage() {
         if (!replay || !$compiled || !data) return null;
         const pinned = data.people.filter((p) => p.pinned);
         const hider = pinned.find((p) => p.id === hiderId);
+        // Without live locations: the session's hider location, and the
+        // seekers where they asked from.
+        if (!hider && data.hider) {
+            const { lat, lng } = data.hider;
+            return findEndgame(
+                replay,
+                hidingZoneCircles($compiled),
+                [
+                    [replay.start, lat, lng, null],
+                    [replay.end, lat, lng, null],
+                ],
+                [askedFrom(replay)],
+            );
+        }
         return findEndgame(
             replay,
             hidingZoneCircles($compiled),

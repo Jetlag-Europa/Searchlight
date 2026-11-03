@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
     arrivedAt,
+    askedFrom,
     boardAt,
     condenseReplay,
     findEndgame,
@@ -62,11 +63,25 @@ describe("condenseReplay", () => {
         expect(replay.questions.map((q) => q.question.key)).toEqual([1]);
     });
 
-    it("drops questions that were never locked", () => {
+    it("keeps unlocked questions left on the board, answered when last changed", () => {
+        // The same objects throughout: the schema gives each a random colour.
+        const one = radar(1, false);
+        const draft = radar(2, true);
+        const answered = {
+            ...draft,
+            data: { ...draft.data, radius: 8 },
+        } as Question;
         const replay = condenseReplay([
-            snap(100, radar(1, false), radar(2, true)),
+            snap(100, one, draft),
+            snap(110, one, answered),
+            snap(120, one, answered),
         ]);
-        expect(replay.questions.map((q) => q.question.key)).toEqual([1]);
+        expect(
+            replay.questions.map((q) => [q.question.key, q.answeredAt]),
+        ).toEqual([
+            [1, 100],
+            [2, 110],
+        ]);
     });
 
     it("keeps locked questions a clear removed, and records the clear", () => {
@@ -382,5 +397,23 @@ describe("foundAt", () => {
         expect(
             foundAt(hider, [track([0, [52.01, 4.0]])], 0, Infinity),
         ).toBeNull();
+    });
+});
+
+describe("askedFrom", () => {
+    it("takes each question's last pin, when it was asked", () => {
+        const thermometer = questionSchema.parse({
+            id: "thermometer",
+            key: 7,
+            data: { latA: 52, lngA: 4, latB: 52.1, lngB: 4.1, drag: false },
+        });
+        const replay = condenseReplay([
+            snap(100, radar(1, false)),
+            snap(200, radar(1, false), thermometer),
+        ]);
+        expect(askedFrom(replay)).toEqual([
+            [100, 52, 5, null],
+            [200, 52.1, 4.1, null],
+        ]);
     });
 });
