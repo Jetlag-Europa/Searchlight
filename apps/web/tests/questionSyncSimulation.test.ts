@@ -1288,7 +1288,9 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                 // delete of it merges in as over any question. Only one
                 // the player's version doesn't already include: made after
                 // the player's own last change of it before the delete (an
-                // earlier Undo under its key changed nothing).
+                // earlier Undo under its key changed nothing). Their own
+                // Undo under its key takes their delete back: their version
+                // stands.
                 if (last.kind === "undo" && last.sameKey) {
                     const undone = last;
                     const deletedAt =
@@ -1313,7 +1315,9 @@ function finalChecks(mode: Mode, quiet: boolean, quiescePuts: number) {
                             (h) =>
                                 h.c !== undone.c &&
                                 h.step > ownBefore &&
-                                (h.kind === "edit" || h.kind === "delete"),
+                                (h.kind === "edit" ||
+                                    h.kind === "delete" ||
+                                    (h.kind === "undo" && h.sameKey)),
                         )
                         .at(-1);
                     if (
@@ -2714,6 +2718,22 @@ const TRACES: Array<{
             expectOnServer(1003, "c0.");
             expectOnServer(2001, "c0.1");
         },
+    },
+    {
+        // Seed 1048 of a run with request timeouts (PR #114) came down to
+        // this: both players delete a question and undo it under its key,
+        // and the first had edited it.
+        name: "shared: two Undos under the key keep the edit made before the first delete",
+        mode: "shared",
+        seed: 1048,
+        actions: [
+            { t: "user", c: 0, kind: "edit", pick: 0 },
+            { t: "user", c: 0, kind: "delete", pick: 0 },
+            { t: "user", c: 0, kind: "undo", pick: 0 },
+            { t: "user", c: 1, kind: "delete", pick: 0 },
+            { t: "user", c: 1, kind: "undo", pick: 0 },
+        ],
+        check: () => expectOnServer(1, "c0."),
     },
 ];
 
