@@ -59,6 +59,10 @@ The seed (`apps/api/prisma/seed-test.ts`) creates the `e2e-test-user` and the
 - The Playwright context blocks the service worker, which serves pages and
   scripts from its precache: a test could run the build it cached instead of
   the deployed one.
+- `serviceWorker.e2e.ts` is the exception: it tests the service worker's
+  updates, so it serves a local production build itself and needs no stack.
+  Build first (`pnpm --filter @searchlight/web build`), or point `WEB_DIST` at
+  a build; without one it's skipped.
 - Run the API with `ENABLE_TEST_AUTH=1` anywhere else only with
   `HOST=127.0.0.1`: test login skips Discord entirely.
 

@@ -167,7 +167,7 @@ To roll back:
 ```bash
 docker compose stop api
 infra/backup.sh
-docker compose exec -T postgres psql -U taibled -d taibled -v ON_ERROR_STOP=1 <<'SQL'
+docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -v ON_ERROR_STOP=1' <<'SQL'
 BEGIN;
 UPDATE "SessionLink" SET "revokedAt" = now()
 WHERE "linkType" = 'view' AND "revokedAt" IS NULL;
