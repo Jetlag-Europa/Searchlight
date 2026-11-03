@@ -26,7 +26,9 @@ const DIST = resolve(
 
 // What the server is serving: the build as it is, the same build changed
 // (its pages, and so its service worker), or a worker that takes over at
-// once, as a rollback's does.
+// once without waiting for a Reload. (The self-destroying worker of a
+// rollback build, DEPLOY.md, also navigates the pages itself, so a tab may
+// reload twice then; the page's own part is what this checks.)
 type Deployed = "build" | "update" | "takeover";
 let deployed: Deployed = "build";
 
@@ -219,7 +221,7 @@ test("accepting an update in one tab reloads each open tab once, into it", async
     await expectReloadedOnceIntoNextBuild(pages);
 });
 
-test("a worker that takes over at once, as a rollback's does, reloads each open tab once", async ({
+test("a worker that takes over without waiting reloads each open tab once", async ({
     context,
 }) => {
     const pages = [

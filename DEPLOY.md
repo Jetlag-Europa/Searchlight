@@ -113,8 +113,10 @@ doesn't help either: a browser keeps a worker it can't update.
   has served the installable app.
 - Deploy the older source with `selfDestroying: true` added as the first
   option inside `AstroPWA({ ... })` in `apps/web/astro.config.mjs` instead.
-  Its `/sw.js` removes the worker and its caches and reloads open pages once
-  into the older version, which then loads from the network.
+  Its `/sw.js` removes the worker and its caches and reloads open pages into
+  the older version, which then loads from the network. A tab opened with a
+  forced reload (Ctrl+Shift+R on a computer) isn't under the worker, so it
+  keeps running the newer version until it is reloaded.
 - Keep serving that `/sw.js` for as long as the older version runs: a phone
   that was offline or asleep picks it up at its next update check. Going
   forward again is an ordinary update.
@@ -178,8 +180,8 @@ curl -fsS https://<web host>/sw.js | grep -c registration.unregister   # 1: the 
 ```
 
 Then, in a browser that used the newer version, open the app online: an open
-page reloads once into the older version, and game, invite and session links
-open their own pages again.
+page reloads into the older version, and game, invite and session links open
+their own pages again.
 
 ## Google Maps basemap
 

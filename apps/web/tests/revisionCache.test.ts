@@ -165,8 +165,12 @@ describe("kept game revisions", () => {
         await clearStoredRevisions();
     });
 
-    test("survive another store finishing while one cleans up", async () => {
-        // r1's cleanup lists the cache's keys while r2's store finishes.
+    // A store's cleanup lists the cache's keys, and holds them up until
+    // `meanwhile` has run.
+    async function cleanUpAround(
+        store: () => Promise<void>,
+        meanwhile: () => Promise<unknown>,
+    ) {
         const cache = await storage.open("searchlight-game-revisions-v1");
         const keys = cache.keys.bind(cache);
         let listing!: () => void;
@@ -178,14 +182,34 @@ describe("kept game revisions", () => {
             await finished;
             return keys();
         });
-        const first = storeRevision("game", "r1", json("one"));
+        const storing = store();
         await listed;
-        await storeRevision("game", "r2", json("two"));
+        await meanwhile();
         finishListing();
-        await first;
+        await storing;
+    }
 
+    test("survive another store finishing while one cleans up", async () => {
+        await cleanUpAround(
+            () => storeRevision("game", "r1", json("one")),
+            () => storeRevision("game", "r2", json("two")),
+        );
         expect(await readStoredRevision("game", "r1")).toBeDefined();
         expect(await readStoredRevision("game", "r2")).toBeDefined();
+    });
+
+    test("keep the one a session reads while a store makes room", async () => {
+        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+            await storeRevision("game", `r${i}`, json(`${i}`));
+        }
+        // Storing r5 pushes r1 out, but r1 is read (made recent) meanwhile.
+        await cleanUpAround(
+            () => storeRevision("game", "r5", json("5")),
+            () => readStoredRevision("game", "r1"),
+        );
+        expect(await readStoredRevision("game", "r1")).toBeDefined();
+        expect(await readStoredRevision("game", "r5")).toBeDefined();
+        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
     });
 
     test("survive a full disk as a no-op", async () => {

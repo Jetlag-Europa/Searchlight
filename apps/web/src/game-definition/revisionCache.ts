@@ -46,16 +46,15 @@ function readIndex(): string[] {
     }
 }
 
-// `key` was just used; returns the keys that no longer fit.
-function touch(key: string): string[] {
+// `key` was just used: it becomes the newest, and the oldest that no longer
+// fit leave the index.
+function touch(key: string): void {
     const index = [...readIndex().filter((k) => k !== key), key];
-    const dropped = index.slice(0, Math.max(0, index.length - MAX_STORED_REVISIONS));
     writeStorage(
         "localStorage",
         INDEX_KEY,
-        JSON.stringify(index.slice(dropped.length)),
+        JSON.stringify(index.slice(-MAX_STORED_REVISIONS)),
     );
-    return dropped;
 }
 
 /** The kept copy of a game revision, if this browser has one. */
@@ -111,16 +110,15 @@ export async function storeRevision(
         );
         // Copies no longer in the index (pruned, or kept by an index that
         // was cleared) go too.
-        const dropped = new Set(touch(key));
+        touch(key);
         const keys = await cache.keys();
-        // Read after the keys: a store that finished meanwhile is in both.
+        // Read after the keys: a copy stored or read meanwhile is in it.
         const index = new Set(readIndex());
         await Promise.all(
             keys
                 .filter(
                     (request) =>
-                        request.url !== key &&
-                        (dropped.has(request.url) || !index.has(request.url)),
+                        request.url !== key && !index.has(request.url),
                 )
                 .map((request) => cache.delete(request)),
         );
