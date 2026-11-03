@@ -4,6 +4,14 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Session list, invite and join pages on a bad connection (2026-11-03)
+
+- The session list shows **Try again** when it can't load, and loads again by itself once the phone is back online. Before, a failed list left the installed app stuck. Invite and game links do the same: a link page that gets no answer within 15 seconds says it can't reach Searchlight and offers Try again.
+- A board that reloads by itself after the server comes back waits while you're typing in a question, so what you type isn't replaced.
+- Opening a session that was deleted after the list was shown now says it was deleted, instead of showing a saved copy.
+- In Invite, **Make spectator** asks for a second tap, as their edits not yet sent are lost. The drawer no longer shows the previous session's links after switching sessions.
+- "Your sign-in has expired" has a **Sign in** button, as the installed app has no reload.
+
 ## Google Maps as a basemap (2026-11-03)
 
 - Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
