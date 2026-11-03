@@ -3,6 +3,7 @@ import { type Id, toast } from "react-toastify";
 import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { questionListSentSince } from "@/lib/eventQueue";
+import { questionDecisionsPossible } from "@/lib/questionConflicts";
 import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
 import { boardLabel } from "@/lib/questionNames";
 import { showQuestionCard } from "@/lib/questionSidebarTab";
@@ -149,8 +150,12 @@ export function undoQuestionDeletion(
         // to the server after all, so the undone board takes its place now.
         // (SessionManager schedules the board's save only after it redraws,
         // too late to replace it; that save is the same board again.)
+        // Only while the board's edits are saved at all (SessionManager's
+        // own guards), as for Restore.
         const sessionId = deletion.sessionId;
-        const waiting = hasPendingQuestionSave(sessionId);
+        const waiting =
+            questionDecisionsPossible.get() &&
+            hasPendingQuestionSave(sessionId);
         if (waiting) cancelPendingQuestionSave(sessionId);
         questions.set(next);
         if (waiting) {

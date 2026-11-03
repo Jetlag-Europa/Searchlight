@@ -134,6 +134,16 @@ export function lineageKeys(
     return keys;
 }
 
+/** Every key some deleted question is known to have been restored as. */
+export function restoredKeys(lines: Lines): number[] {
+    return [
+        ...lines.flatMap((line) =>
+            (line.removed ?? []).flatMap((r) => r.restoredAs ?? []),
+        ),
+        ...pairsHere().map(([, to]) => to),
+    ];
+}
+
 const holds = (board: readonly { key: number }[], key: number) =>
     board.some((q) => sameQuestionKey(q.key, key));
 

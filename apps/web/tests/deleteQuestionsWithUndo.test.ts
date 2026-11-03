@@ -44,6 +44,7 @@ import {
     undoQuestionDeletion,
 } from "@/lib/deleteQuestionsWithUndo";
 import { getPendingEvents, noteQuestionListSent } from "@/lib/eventQueue";
+import { setQuestionDecisionsPossible } from "@/lib/questionConflicts";
 import { isOnBoard } from "@/lib/questionUndo";
 import {
     hasScheduledQuestionSave,
@@ -84,6 +85,7 @@ beforeEach(() => {
     activeSessionRole.set("member");
 });
 afterEach(() => {
+    setQuestionDecisionsPossible(false);
     questions.set([]);
     toasts.length = 0;
 });
@@ -104,6 +106,8 @@ describe("undoing a delete", () => {
     test("puts the undone board in place of the delete's list still waiting", () => {
         board(q(1, "a"), q(2, "b"), q(3, "c"));
         const sessionId = activeSessionId.get();
+        // The board's edits are saved (SessionManager says so).
+        setQuestionDecisionsPossible(true);
         const pending = deleteQuestionsWithUndo([2])!;
         // As the board's save does once it has redrawn without it.
         saveQuestionsDebounced(sessionId, questions.get());
@@ -201,11 +205,7 @@ describe("the toast after Restore", () => {
         ]);
         const { undo } = lastToast();
         // Moved by a teammate meanwhile; folding doesn't count.
-        board(
-            q(1, "a"),
-            q(0.5, "b", { collapsed: true }),
-            q(0.75, "c moved"),
-        );
+        board(q(1, "a"), q(0.5, "b", { collapsed: true }), q(0.75, "c moved"));
         undo!();
         expect(keys()).toEqual([1, 0.75]);
         expect(lastToast().text).toBe(

@@ -28,6 +28,8 @@ export interface RemovedQuestion {
      * its key, or the same content (Restore puts it back under a new key).
      */
     restoredAs?: number[];
+    /** Keys of the list it was deleted from. */
+    order?: number[];
 }
 
 export interface HistoryLine {
@@ -444,6 +446,7 @@ function addEntryLines(
             index: c.index,
             label: labels.label(c),
             question: c.question,
+            order: entry.order,
         }),
     );
     if (removed.length >= GROUP_AT) {

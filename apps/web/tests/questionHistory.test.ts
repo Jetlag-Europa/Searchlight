@@ -443,6 +443,31 @@ describe("what a deleted question became", () => {
     });
 });
 
+describe("a teammate's restore the History hasn't loaded yet", () => {
+    it("counts a new question with the deleted one's content as back", () => {
+        const deleted = radar(0.5, 51);
+        // New questions get a random colour: twins are copies.
+        const twin = { ...structuredClone(deleted), key: 0.25 };
+        const removed = {
+            key: 0.5,
+            index: 1,
+            label: "Radius 2",
+            question: deleted,
+            order: [0.25, 0.5],
+        };
+        // The twin was on the board when it was deleted: another question.
+        expect(restorable(removed, [twin], null)).not.toMatchObject({
+            reason: expect.stringMatching(/^On the board/),
+        });
+        // A copy that appeared since is the teammate's restore.
+        const copy = { ...structuredClone(deleted), key: 0.75 };
+        expect(restorable(removed, [twin, copy], null)).toEqual({
+            status: "unavailable",
+            reason: "On the board as Radius 2",
+        });
+    });
+});
+
 describe("when Restore waits", () => {
     afterEach(() => {
         questions.set([]);

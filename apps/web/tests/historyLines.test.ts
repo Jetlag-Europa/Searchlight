@@ -125,6 +125,7 @@ describe("question history lines", () => {
                 index: 1,
                 label: "Radius 2",
                 question: removed(K2).question,
+                order: [K1, K2],
             },
         ]);
         expect(line.order).toEqual([K1, K2]);

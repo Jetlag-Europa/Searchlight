@@ -12,7 +12,7 @@ import {
     questionConflicts,
     questionDecisionsPossible,
 } from "@/lib/questionConflicts";
-import { sameQuestionKey } from "@/lib/questionMerge";
+import { sameQuestionKey, sameQuestionSubstance } from "@/lib/questionMerge";
 import { boardLabel } from "@/lib/questionNames";
 import {
     asRestored,
@@ -20,6 +20,7 @@ import {
     type Lines,
     onBoardAs,
     placeRestored,
+    restoredKeys,
 } from "@/lib/questionUndo";
 import { type Question, questionSchema } from "@/maps/schema";
 
@@ -153,7 +154,7 @@ export function notRightNowReason(
  * client, or one the game no longer has, isn't put back broken.
  */
 export function restorable(
-    removed: Pick<RemovedQuestion, "key" | "question" | "restoredAs">,
+    removed: Pick<RemovedQuestion, "key" | "question" | "restoredAs" | "order">,
     current: readonly { key: number }[],
     compiled: Pick<CompiledGame, "questionMap"> | null,
     // Every line loaded, for what it was restored as since.
@@ -170,6 +171,26 @@ export function restorable(
         };
     }
     const question = parseRemoved(removed.question);
+    // A teammate's restore the History hasn't loaded yet: a question with
+    // its content that wasn't on the board when it was deleted (a twin that
+    // was is another question), and isn't known as another one's restore.
+    // Restoring again would make two.
+    const claimed = [...(removed.order ?? []), ...restoredKeys(lines)];
+    const since = current.filter(
+        (q) => !claimed.some((key) => sameQuestionKey(key, q.key)),
+    );
+    const twin = since.find(
+        (q) =>
+            sameQuestionSubstance(q, removed.question) ||
+            (question !== null && sameQuestionSubstance(q, question)),
+    );
+    if (removed.order && twin) {
+        const label = boardLabel(current, twin.key);
+        return {
+            status: "unavailable",
+            reason: label ? `On the board as ${label}` : "On the board",
+        };
+    }
     if (!question) {
         return { status: "unavailable", reason: "Can't be restored" };
     }
@@ -246,7 +267,7 @@ export function formatHistoryTime(
 ): { day: string | null; time: string } {
     const date = new Date(at);
     const time = date.toLocaleTimeString([], {
-        hour: "2-digit",
+        hour: "numeric",
         minute: "2-digit",
     });
     if (date.toDateString() === now.toDateString()) return { day: null, time };
