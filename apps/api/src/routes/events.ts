@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { subscribe, addPresence, removePresence, getPresence, registerUserStream } from "../lib/broadcaster.js";
+import { subscribe, addPresence, removePresence, getPresence, registerUserStream, toEventRecord } from "../lib/broadcaster.js";
 import type { PresenceUser, SessionRole } from "@searchlight/shared";
 import { env } from "../lib/env.js";
 import { eventForRole, resolveSessionAccess } from "../lib/session-access.js";
@@ -89,17 +89,7 @@ export async function eventRoutes(app: FastifyInstance) {
       const nextAfter = hasMore && events.length > 0 ? events[events.length - 1].sequence : null;
 
       return {
-        events: events.map((e) => eventForRole({
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        }, role)),
+        events: events.map((e) => eventForRole(toEventRecord(e), role)),
         nextAfter,
       };
     },

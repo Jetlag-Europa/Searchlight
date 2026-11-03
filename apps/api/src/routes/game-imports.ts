@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
 import { Type } from "@sinclair/typebox";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import {
   type ImportActor,
   ImportConflictError,
@@ -10,7 +8,7 @@ import {
   ImportValidationError,
 } from "../games/import-service.js";
 import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
-import { getUserPermissions, hasPermissionOnSomeServer, isAdmin } from "../lib/permissions.js";
+import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { listedSessionsWhere } from "../lib/session-access.js";
@@ -34,57 +32,6 @@ declare module "fastify" {
 export async function resolveImportActor(
   req: FastifyRequest,
 ): Promise<ImportActor> {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const rawToken = authHeader.slice(7).trim();
-    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const tokenRecord = await prisma.gameImportToken.findUnique({
-      where: { tokenHash },
-    });
-    if (!tokenRecord) {
-      throw Object.assign(new Error("Invalid bearer token"), {
-        statusCode: 401,
-      });
-    }
-    if (tokenRecord.revokedAt) {
-      throw Object.assign(new Error("Revoked bearer token"), {
-        statusCode: 401,
-      });
-    }
-    if (tokenRecord.expiresAt && tokenRecord.expiresAt < new Date()) {
-      throw Object.assign(new Error("Expired bearer token"), {
-        statusCode: 401,
-      });
-    }
-    // On Casual Games a token acts for its creator and lasts only as long as
-    // their role does: they must still be a global admin or hold games.create
-    // there. games.edit covers other people's games there, which only global
-    // admins may change.
-    const ownerMayCreateCasualGames = async () =>
-      isAdmin(tokenRecord.createdBy) ||
-      (await getUserPermissions(tokenRecord.createdBy, CASUAL_SERVER_ID, true, req.log)).has(
-        "games.create",
-      );
-    return {
-      userId: tokenRecord.createdBy,
-      type: "token",
-      async canCreateGames(serverId: string) {
-        return (
-          tokenRecord.serverId === serverId &&
-          tokenRecord.permissions.includes("games.create") &&
-          (serverId !== CASUAL_SERVER_ID || (await ownerMayCreateCasualGames()))
-        );
-      },
-      canEditGames(serverId: string) {
-        return (
-          tokenRecord.serverId === serverId &&
-          tokenRecord.permissions.includes("games.edit") &&
-          (serverId !== CASUAL_SERVER_ID || isAdmin(tokenRecord.createdBy))
-        );
-      },
-    };
-  }
-
   // Session cookie auth
   const { user } = await resolveSession(req);
   // Turn away users who can't import anywhere before the body is parsed; the
@@ -94,7 +41,6 @@ export async function resolveImportActor(
   }
   return {
     userId: user.discordId,
-    type: "cookie",
     async canCreateGames(serverId: string) {
       const perms = await getUserPermissions(user.discordId, serverId, true, req.log);
       return perms.has("games.create") || perms.has("server.admin");
@@ -149,46 +95,6 @@ async function assertGameDefinitionAccess({
   // nothing else (not the export, the current revision or other revisions).
   session?: { id: string | undefined; revisionId: string };
 }): Promise<void> {
-  // 1. Bearer token auth (server-scoped import tokens)
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const rawToken = authHeader.slice(7).trim();
-    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const tokenRecord = await prisma.gameImportToken.findUnique({
-      where: { tokenHash },
-    });
-    if (
-      !tokenRecord ||
-      tokenRecord.revokedAt ||
-      (tokenRecord.expiresAt && tokenRecord.expiresAt < new Date())
-    ) {
-      throw Object.assign(new Error("Invalid, expired, or revoked bearer token"), {
-        statusCode: 401,
-      });
-    }
-    if (tokenRecord.serverId !== game.serverId) {
-      throw Object.assign(
-        new Error("Token does not have access to this game's server"),
-        { statusCode: 403 },
-      );
-    }
-    const hasPerm =
-      tokenRecord.permissions.includes("games.edit") ||
-      tokenRecord.permissions.includes("games.create");
-    if (!hasPerm) {
-      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-    }
-    // A Casual game is its creator's, as for cookie auth (see canManageGame).
-    if (
-      game.serverId === CASUAL_SERVER_ID &&
-      !isAdmin(tokenRecord.createdBy) &&
-      game.createdById !== tokenRecord.createdBy
-    ) {
-      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-    }
-    return;
-  }
-
   // 2. Cookie session auth
   const { user } = await resolveSession(req);
 
@@ -268,7 +174,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
       try {
         const result = await importGameDefinition({
           raw: (body?.["game"] ?? body) as unknown,
-          source: actor.type === "cookie" ? "web" : "api",
+          source: "web",
           actor,
           dryRun,
           expectedServerId,
@@ -352,47 +258,6 @@ export async function gameImportRoutes(app: FastifyInstance) {
         .header("ETag", etag)
         .header("Content-Disposition", attachmentDisposition(`${game.gameKey}.game.json`))
         .send(JSON.stringify(definition));
-    },
-  );
-
-  // GET /games/:gameId/revisions
-  app.get(
-    "/:gameId/revisions",
-    async (req, reply) => {
-      const { gameId } = req.params as { gameId: string };
-      const game = await findGameByIdOrKey(gameId);
-
-      if (!game) {
-        return reply.status(404).send({ error: "Game not found" });
-      }
-
-      await assertGameDefinitionAccess({
-        req,
-        game,
-        revisionIds: [game.currentRevisionId],
-      });
-
-      const revisions = await prisma.gameRevision.findMany({
-        where: { gameId: game.id },
-        orderBy: { revision: "desc" },
-        select: {
-          id: true,
-          gameId: true,
-          revision: true,
-          formatVersion: true,
-          checksum: true,
-          source: true,
-          createdBy: true,
-          createdAt: true,
-        },
-      });
-
-      return reply.send({
-        revisions: revisions.map((r) => ({
-          ...r,
-          createdAt: r.createdAt.toISOString(),
-        })),
-      });
     },
   );
 

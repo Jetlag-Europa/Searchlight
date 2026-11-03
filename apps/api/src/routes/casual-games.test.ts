@@ -1,5 +1,4 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
-import { createHash } from "node:crypto";
 
 // Every membership this file needs is cached up front. Other lookups fail:
 // GET /servers asks about every server, and a membership cached on another
@@ -102,7 +101,6 @@ async function cleanup() {
   await prisma.rolePermission.deleteMany({
     where: { serverId: CASUAL_SERVER_ID, discordRoleId: { in: [CREATOR_ROLE, MAPPED_ROLE] } },
   });
-  await prisma.gameImportToken.deleteMany({ where: { createdBy: { in: USERS } } });
   await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
   await prisma.authSession.deleteMany({ where: { userId: { in: USERS } } });
   await prisma.user.deleteMany({ where: { discordId: { in: USERS } } });
@@ -294,30 +292,6 @@ describe("Casual Games", () => {
       );
       expect(res.statusCode).toBe(409);
       expect(res.json().code).toBe("GAME_CHANGED");
-    });
-
-    test("a Casual import token works only while its creator holds the role", async () => {
-      const rawToken = "test-casual-token-secret";
-      await prisma.gameImportToken.create({
-        data: {
-          name: "Casual token",
-          tokenHash: createHash("sha256").update(rawToken).digest("hex"),
-          serverId: CASUAL_SERVER_ID,
-          permissions: ["games.create"],
-          createdBy: CREATOR,
-        },
-      });
-      const importWithToken = () =>
-        app.inject({
-          method: "POST",
-          url: "/games/import?dryRun=true",
-          headers: { authorization: `Bearer ${rawToken}` },
-          payload: definition(`${KEY_PREFIX}token`, "Token Game"),
-        });
-
-      expect((await importWithToken()).statusCode).toBe(201);
-      await setEuRoles(CREATOR, []);
-      expect((await importWithToken()).statusCode).toBe(403);
     });
   });
 

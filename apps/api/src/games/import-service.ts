@@ -17,7 +17,6 @@ const MAX_REVISION = 2_147_483_647;
 
 export interface ImportActor {
   userId?: string | null;
-  type: "cookie" | "token";
   canCreateGames(serverId: string): boolean | Promise<boolean>;
   canEditGames(serverId: string): boolean | Promise<boolean>;
 }

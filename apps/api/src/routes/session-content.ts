@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { broadcast } from "../lib/broadcaster.js";
+import { broadcast, toEventRecord } from "../lib/broadcaster.js";
 import { notFound } from "../lib/http-errors.js";
 import { resolveSessionAccess, resolveSessionWriter } from "../lib/session-access.js";
 import type { Event, Prisma, Stroke } from "@prisma/client";
@@ -178,17 +178,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       if (transactionResult.eventToBroadcast) {
         const e = transactionResult.eventToBroadcast;
         req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.create event saved, broadcasting");
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       } else {
         req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write and broadcast");
       }
@@ -301,17 +291,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       if (eventToBroadcast) {
         const e = eventToBroadcast;
         req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.delete event saved, broadcasting");
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       } else {
         req.log.info({ sessionId, clientUuid }, "[events] stroke delete already processed, skipping broadcast");
       }
@@ -572,17 +552,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       if (eventToBroadcast) {
         const e = eventToBroadcast;
         req.log.info({ sessionId, eventId: e.id, replacementId, sequence: e.sequence }, "[events] questions.replace event saved, broadcasting");
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       } else {
         req.log.info({ sessionId, replacementId }, "[events] questions.replace duplicate skipped broadcast");
       }
