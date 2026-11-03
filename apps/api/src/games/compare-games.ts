@@ -108,7 +108,7 @@ function areasOverlap(a: ComparedGame, b: ComparedGame): boolean | "barely" | nu
  * mentioned. A play area that can't be compared counts as the same.
  */
 export function compareWithExisting(
-  existing: ComparedGame & { revision: number; createdById: string | null },
+  existing: ComparedGame & { revision: number; currentRevisionId: string | null; createdById: string | null },
   incoming: ComparedGame,
   userId: string | null | undefined,
 ): ExistingGameComparison {
@@ -125,6 +125,7 @@ export function compareWithExisting(
   return {
     name: existing.name,
     revision: existing.revision,
+    currentRevisionId: existing.currentRevisionId,
     createdByYou,
     likelyMistake: !sameName || overlap === false || overlap === "barely",
     differences,

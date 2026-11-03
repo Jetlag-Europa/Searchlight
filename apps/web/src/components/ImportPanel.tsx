@@ -19,7 +19,7 @@ const STALE_PREVIEW_CODES = [
     "GAME_EXISTS",
     "GAME_ID_TAKEN",
     "GAME_DELETED",
-    "REVISION_CHANGED",
+    "GAME_CHANGED",
 ];
 
 type ServerOption = { id: string; name: string; permissions?: string[] };
@@ -150,12 +150,17 @@ export function ImportPanel({
                 false,
                 updating,
                 unlisted && !casual,
-                existing?.revision,
+                existing?.currentRevisionId ?? undefined,
             );
             if (run === latestDryRun.current) setImported(result);
         } catch (err: any) {
             if (run !== latestDryRun.current) return;
-            setImportError(err.message || "Import failed");
+            // The preview is redone below, so there's no page to reload.
+            setImportError(
+                err.code === "GAME_CHANGED"
+                    ? `${existing?.name ?? "The game"} changed since the preview. Check the new preview, then import again.`
+                    : err.message || "Import failed",
+            );
             if (STALE_PREVIEW_CODES.includes(err.code)) {
                 setPreviewCode(err.code);
                 setPreviewRefresh((n) => n + 1);

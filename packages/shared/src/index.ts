@@ -115,6 +115,8 @@ export interface ExistingGameComparison {
   name: string;
   /** Its current revision, before the import. */
   revision: number;
+  /** That revision's id: an update sent with it as expectedCurrentRevisionId only replaces this revision. */
+  currentRevisionId: string | null;
   /** Whether the importer created it; null when its creator isn't recorded. */
   createdByYou: boolean | null;
   /** The file looks like a different game (name or play area differ). */

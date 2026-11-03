@@ -231,9 +231,10 @@ export async function gameImportRoutes(app: FastifyInstance) {
         querystring: Type.Object({
           dryRun: Type.Optional(Type.Boolean()),
           allowUpdate: Type.Optional(Type.Boolean()),
-          // The existing game's revision a dry run showed: the update is
-          // refused (409 REVISION_CHANGED) if the game changed since.
-          expectedRevision: Type.Optional(Type.Integer({ minimum: 0 })),
+          // The existing game's revision a dry run showed (its
+          // existing.currentRevisionId): the update is refused (409
+          // GAME_CHANGED) if the game changed since.
+          expectedCurrentRevisionId: Type.Optional(Type.String({ minLength: 1 })),
           expectedServerId: Type.Optional(Type.String()),
           // Only applies when the import creates the game; PATCH /games/:id
           // changes it later. Casual games are always unlisted.
@@ -242,21 +243,26 @@ export async function gameImportRoutes(app: FastifyInstance) {
       },
     },
     async (req, reply) => {
-      const { dryRun = false, allowUpdate = false, expectedServerId, expectedRevision, unlisted = false } =
-        req.query as {
-          dryRun?: boolean;
-          allowUpdate?: boolean;
-          expectedServerId?: string;
-          expectedRevision?: number;
-          unlisted?: boolean;
-        };
+      const {
+        dryRun = false,
+        allowUpdate = false,
+        expectedServerId,
+        expectedCurrentRevisionId,
+        unlisted = false,
+      } = req.query as {
+        dryRun?: boolean;
+        allowUpdate?: boolean;
+        expectedServerId?: string;
+        expectedCurrentRevisionId?: string;
+        unlisted?: boolean;
+      };
       const body = req.body as Record<string, unknown> | null | undefined;
       const shouldAllowUpdate = allowUpdate || Boolean(body?.allowUpdate);
       // Like allowUpdate, it may come with the game in the body.
-      const bodyRevision = body?.expectedRevision;
-      const pinnedRevision =
-        expectedRevision ??
-        (typeof bodyRevision === "number" && Number.isInteger(bodyRevision) ? bodyRevision : undefined);
+      const bodyRevisionId = body?.expectedCurrentRevisionId;
+      const pinnedRevisionId =
+        expectedCurrentRevisionId ??
+        (typeof bodyRevisionId === "string" && bodyRevisionId ? bodyRevisionId : undefined);
       const actor = req.importActor!;
 
       try {
@@ -267,7 +273,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
           dryRun,
           expectedServerId,
           allowUpdate: shouldAllowUpdate,
-          expectedRevision: pinnedRevision,
+          expectedCurrentRevisionId: pinnedRevisionId,
           unlisted,
         });
 

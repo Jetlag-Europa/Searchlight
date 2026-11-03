@@ -29,9 +29,10 @@ export interface ImportGameDefinitionParams {
   dryRun?: boolean;
   expectedServerId?: string;
   allowUpdate?: boolean;
-  // The existing game's revision the caller previewed: an update refuses if
-  // the game has moved on since, rather than replace what they didn't see.
-  expectedRevision?: number;
+  // The id of the existing game's revision the caller previewed: an update
+  // refuses (409 GAME_CHANGED) if the game has moved on since, rather than
+  // replace what they didn't see.
+  expectedCurrentRevisionId?: string;
   // For a new game only: an existing game keeps its listing. Casual games
   // are always unlisted.
   unlisted?: boolean;
@@ -107,9 +108,9 @@ interface ImportContext {
   actor?: ImportActor;
   dryRun: boolean;
   allowUpdate: boolean;
-  expectedRevision?: number;
   // Refuse the update (409 GAME_CHANGED) unless this is still the current
-  // revision once the game is locked.
+  // revision once the game is locked: the revision an import previewed, or
+  // the one a settings edit started from.
   expectedCurrentRevisionId?: string;
   // Imports un-archive the game; a settings edit leaves that alone.
   keepArchived?: boolean;
@@ -164,7 +165,7 @@ async function importDefinition(
     dryRun = false,
     expectedServerId,
     allowUpdate = false,
-    expectedRevision,
+    expectedCurrentRevisionId,
     unlisted = false,
   } = params;
 
@@ -231,7 +232,7 @@ async function importDefinition(
     actor,
     dryRun,
     allowUpdate,
-    expectedRevision,
+    expectedCurrentRevisionId,
   };
 
   // 4. Look up existing game by gameKey
@@ -373,8 +374,10 @@ async function importRevision(
     if (!locked) {
       throw new ImportConflictError("The game was deleted during the import", "GAME_DELETED");
     }
-    // An import committed since the caller read the definition it edited:
-    // saving the edit would undo that import.
+    // An import committed since the caller previewed the game or read the
+    // definition it edited: going ahead would replace or undo that import.
+    // Revision ids, unlike numbers, are never current again for another game
+    // that reuses the id after a delete.
     if (
       ctx.expectedCurrentRevisionId !== undefined &&
       locked.currentRevisionId !== ctx.expectedCurrentRevisionId
@@ -428,19 +431,7 @@ async function importRevision(
       };
     }
 
-    // B. Check the game is still the one the caller previewed
-    const currentRevision = cur?.revision ?? 0;
-    if (ctx.expectedRevision !== undefined && currentRevision !== ctx.expectedRevision) {
-      throw new ImportConflictError(
-        `"${locked.name}" changed since you previewed it (now revision ${currentRevision}). Check the import again.`,
-        "REVISION_CHANGED",
-        false,
-        currentRevision,
-        existing,
-      );
-    }
-
-    // C. Check collision / update permission
+    // B. Check collision / update permission
     if (cur && !ctx.allowUpdate && source !== "preload") {
       throw new ImportConflictError(
         `Game "${gameKey}" already exists (revision ${cur.revision}). Import with allowUpdate to replace it.`,
@@ -451,7 +442,7 @@ async function importRevision(
       );
     }
 
-    // D. Content identical to an older revision re-activates that revision;
+    // C. Content identical to an older revision re-activates that revision;
     // new content becomes the next one. Existing revisions are never rewritten:
     // sessions are pinned to them.
     const previous = await tx.gameRevision.findUnique({

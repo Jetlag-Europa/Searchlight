@@ -5,7 +5,7 @@ const LONDON = { name: "London 2026", bounds: [-0.5, 51.3, 0.3, 51.7], center: [
 const PARIS = { name: "Paris 2026", bounds: [2.2, 48.8, 2.5, 48.95], center: [2.35, 48.86] };
 
 function existing(game: object, createdById: string | null = "me") {
-  return { ...LONDON, revision: 3, createdById, ...game };
+  return { ...LONDON, revision: 3, currentRevisionId: "rev-3", createdById, ...game };
 }
 
 describe("namesMatch", () => {

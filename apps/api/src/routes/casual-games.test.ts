@@ -254,27 +254,46 @@ describe("Casual Games", () => {
     });
 
     test("an update pinned to the previewed revision goes ahead while the game is unchanged", async () => {
-      const res = await importAs(
-        CREATOR,
-        definition(GAME_KEY, "London 2026 v2"),
-        "?dryRun=true&allowUpdate=true&expectedRevision=1",
-      );
+      const def = definition(GAME_KEY, "London 2026 v2");
+      const preview = await importAs(CREATOR, def, "?dryRun=true&allowUpdate=true");
+      const { currentRevisionId } = preview.json().existing;
+      expect(currentRevisionId).toBe((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).currentRevisionId);
+
+      const res = await importAs(CREATOR, def, `?dryRun=true&allowUpdate=true&expectedCurrentRevisionId=${currentRevisionId}`);
       expect(res.statusCode).toBe(200);
       expect(res.json().status).toBe("updated");
     });
 
     test("an update pinned to another revision is refused, from the query or the body", async () => {
       const def = definition(GAME_KEY, "London 2026 v2");
-      const fromQuery = await importAs(CREATOR, def, "?dryRun=true&allowUpdate=true&expectedRevision=4");
-      const fromBody = await importAs(CREATOR, { game: def, allowUpdate: true, expectedRevision: 4 }, "?dryRun=true");
+      const fromQuery = await importAs(CREATOR, def, "?allowUpdate=true&expectedCurrentRevisionId=not-current");
+      const fromBody = await importAs(CREATOR, { game: def, allowUpdate: true, expectedCurrentRevisionId: "not-current" });
       for (const res of [fromQuery, fromBody]) {
         expect(res.statusCode).toBe(409);
-        expect(res.json()).toMatchObject({
-          code: "REVISION_CHANGED",
-          message: '"London 2026" changed since you previewed it (now revision 1). Check the import again.',
-          existing: { name: "London 2026", revision: 1 },
-        });
+        expect(res.json()).toMatchObject({ code: "GAME_CHANGED" });
       }
+      const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+      expect(game.name).toBe("London 2026");
+    });
+
+    test("a preview of a deleted game doesn't pin the game re-created with its id", async () => {
+      const key = `${KEY_PREFIX}recreated`;
+      expect((await importAs(CREATOR, definition(key, "Recreated 2026"))).statusCode).toBe(201);
+      const preview = await importAs(CREATOR, definition(key, "Recreated 2026 v2"), "?dryRun=true&allowUpdate=true");
+      const previewed = preview.json().existing.currentRevisionId;
+
+      const old = await prisma.game.findUniqueOrThrow({ where: { gameKey: key } });
+      expect((await app.inject({ method: "DELETE", url: `/games/${old.id}`, headers: as(ADMIN) })).statusCode).toBe(204);
+      expect((await importAs(CREATOR, definition(key, "Recreated 2026"))).statusCode).toBe(201);
+
+      // Both are revision 1; only the id tells them apart.
+      const res = await importAs(
+        CREATOR,
+        definition(key, "Recreated 2026 v2"),
+        `?allowUpdate=true&expectedCurrentRevisionId=${previewed}`,
+      );
+      expect(res.statusCode).toBe(409);
+      expect(res.json().code).toBe("GAME_CHANGED");
     });
 
     test("a Casual import token works only while its creator holds the role", async () => {
