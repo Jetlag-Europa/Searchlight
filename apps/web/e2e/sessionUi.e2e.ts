@@ -1,6 +1,5 @@
 import type { Page } from "@playwright/test";
 
-import { DOUBLE_TAP_MS } from "../src/lib/doubleTap";
 import { API_BASE, expect, test, testLogin } from "./fixtures";
 import {
     createSession,
@@ -111,13 +110,13 @@ test("Make spectator asks first", async ({ page, request, browser }) => {
     await testLogin(page);
     await openBoard(page, session);
     const drawer = await openInvite(page);
+    // A quick second tap is the same double tap, not a decision.
     await drawer.getByRole("button", { name: "Make spectator" }).tap();
+    await drawer.getByRole("button", { name: "Confirm?" }).tap();
     await expect(drawer.getByText("Edits they haven’t sent yet are lost")).toBeVisible();
     await page.waitForTimeout(1_000);
     expect(await role()).toBe("member");
 
-    // A quick second tap is the same double tap, not a decision.
-    await page.waitForTimeout(DOUBLE_TAP_MS);
     await drawer.getByRole("button", { name: "Confirm?" }).tap();
     await expect.poll(role).toBe("viewer");
     await expect(drawer.getByRole("button", { name: "Let them edit" })).toBeVisible();

@@ -1048,6 +1048,35 @@ describe("the session picker", () => {
         expect(focusedWhileInert).toEqual([false]);
     });
 
+    it("shows the sessions when the game catalog is slow", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        server = { a: session("a") };
+        vi.mocked(fetchGameCatalog).mockImplementationOnce(
+            () =>
+                new Promise((resolve) =>
+                    setTimeout(() => resolve([]), DETAILS_TIMEOUT_MS + 5_000),
+                ),
+        );
+        // A body can't be read once its request is aborted.
+        fetchMock.mockImplementation(async (input, init) => {
+            const res = await defaultFetch(input);
+            if (new URL(String(input)).pathname !== "/sessions") return res;
+            const body = await res.text();
+            return {
+                ok: true,
+                status: 200,
+                json: async () => {
+                    if (init?.signal?.aborted) throw init.signal.reason;
+                    return JSON.parse(body);
+                },
+            } as Response;
+        });
+        await reload("");
+        await wait(DETAILS_TIMEOUT_MS + 5_000);
+        expect(pageText()).toContain("Session a");
+        expect(pageText()).not.toContain("Failed to load sessions");
+    });
+
     it("creates one session when Enter is pressed twice", async () => {
         vi.mocked(fetchGameCatalog).mockResolvedValueOnce([
             { id: "game-1", name: "Game" } as Game,
@@ -1266,6 +1295,11 @@ describe("a session deleted since the picker listed it", () => {
 });
 
 describe("a role changed while the session loads", () => {
+    // The session's stream connects, as the server answers it.
+    const streamOpens = async () => {
+        await act(async () => env.FakeEventSource.last!.onopen!({}));
+        await settle();
+    };
     const roleChanged = (role: string) =>
         act(async () => {
             window.dispatchEvent(
@@ -1275,9 +1309,20 @@ describe("a role changed while the session loads", () => {
             );
         });
 
+    it("shows when it came after the load but before the stream opened", async () => {
+        server = { a: session("a", { role: "member" }) };
+        await reload("a");
+        expect(activeSessionRole.get()).toBe("member");
+
+        server.a = session("a", { role: "viewer" });
+        await streamOpens();
+        expect(activeSessionRole.get()).toBe("viewer");
+    });
+
     it("ignores a role check the server answered before a later change", async () => {
         server = { a: session("a", { role: "member" }) };
-        // The check after the load (the second read of the details) is slow.
+        // The check once the stream opens (the second read of the details)
+        // is slow.
         let answerCheck: (res: Response) => void = () => {};
         let detailsReads = 0;
         fetchMock.mockImplementation(async (input) => {
@@ -1288,6 +1333,7 @@ describe("a role changed while the session loads", () => {
             return defaultFetch(input);
         });
         await reload("a");
+        await streamOpens();
         expect(detailsReads).toBe(2);
 
         // Made a spectator, then a player again, while it waits.
@@ -1309,7 +1355,7 @@ describe("a role changed while the session loads", () => {
         expect(roles).not.toContain("viewer");
     });
 
-    it("shows once the load is done", async () => {
+    it("shows once the stream is open", async () => {
         // The real reads, which keep the copy that must not keep the hider.
         const actual =
             await vi.importActual<typeof import("@/lib/sessionState")>(
@@ -1334,11 +1380,12 @@ describe("a role changed while the session loads", () => {
         await reload("a");
         expect(overlayShown()).toBe(true);
 
-        // The creator makes them a spectator while the game downloads,
+        // The creator makes them a spectator while the game downloads, or
         // before the stream that would say so is open.
         server.a = session("a", { role: "viewer" });
         await act(async () => landGame());
         await settle();
+        await streamOpens();
         expect(activeSessionRole.get()).toBe("viewer");
         expect(hiderMode.get()).toBe(false);
         expect(getCachedSession("a")?.role).toBe("viewer");

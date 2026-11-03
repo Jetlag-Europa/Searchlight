@@ -361,10 +361,15 @@ function SessionPickerOverlay({
             setError(null);
             const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
             try {
-                const [sessRes, games] = await Promise.all([
+                const [data, games] = await Promise.all([
+                    // Read before the catalog is waited for: the deadline
+                    // that bounds it would stop reading it.
                     fetch(`${API_BASE}/sessions?serverId=${serverId}`, {
                         credentials: "include",
                         signal: deadline.signal,
+                    }).then(async (res): Promise<SessionsResponse> => {
+                        if (!res.ok) throw new Error(`${res.status}`);
+                        return res.json();
                     }),
                     // A server is listed for non-members who have sessions
                     // there (from a game link or an invite link); its catalog is
@@ -381,9 +386,6 @@ function SessionPickerOverlay({
                               })
                         : Promise.resolve([] as Game[]),
                 ]);
-                if (reqId !== loadSessionsReqRef.current) return;
-                if (!sessRes.ok) throw new Error(`${sessRes.status}`);
-                const data: SessionsResponse = await sessRes.json();
                 if (reqId !== loadSessionsReqRef.current) return;
                 setSessions(data.sessions);
                 setAvailableGames(games);
@@ -1895,9 +1897,6 @@ export function SessionManager() {
             );
             if (live) {
                 sessionRecheck.reset();
-                // A role change made before the stream opened (while the
-                // game downloaded, say) wasn't sent on it.
-                void checkSession(selected.id, false);
             } else if (
                 boardSessionRef.current === selected.id &&
                 activeSessionId.get() === selected.id
@@ -2040,8 +2039,9 @@ export function SessionManager() {
         [],
     );
 
-    // A role change made while the stream was down was missed: check the
-    // session once it's back.
+    // A role change made before the stream opened (while the game
+    // downloaded, say) or while it was down was missed: check the session
+    // once it's open.
     useEffect(() => {
         const onReconnected = (event: Event) => {
             const { sessionId: reconnectedId } = (
