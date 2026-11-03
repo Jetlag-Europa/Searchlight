@@ -212,9 +212,10 @@ div.leaflet-control-attribution.leaflet-control {
 }
 
 /* Google's terms don't allow keeping its map outside the API, so a page the
-   browser prints (Ctrl+P, Share → Print) leaves it out. */
+   browser prints (Ctrl+P, Share → Print) leaves it out. Not visibility:
+   GoogleMutant marks each tile it copies visible, which would win. */
 @media print {
     .google-basemap {
-        visibility: hidden;
+        display: none !important;
     }
 }
