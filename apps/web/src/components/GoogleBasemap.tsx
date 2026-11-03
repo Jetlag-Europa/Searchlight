@@ -2,10 +2,9 @@ import "leaflet.gridlayer.googlemutant";
 
 import { useStore } from "@nanostores/react";
 import L from "leaflet";
-import { useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useMap } from "react-leaflet";
 
-import { activeSessionId } from "@/lib/activeSession";
 import {
     googleMapType,
     hideGooglePlaces,
@@ -14,10 +13,10 @@ import {
 import {
     type GoogleLook,
     googleLook,
+    googleMapDrawn,
     googleMapTypeOf,
     HIDE_PLACES_STYLES,
     loadGoogleMapsApi,
-    reportGoogleMapLoad,
 } from "@/lib/googleMaps";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
@@ -26,6 +25,20 @@ import {
 // offline and back reuses this one instead of loading another.
 let layer: L.GridLayer | null = null;
 let applyLook: ((look: GoogleLook) => void) | null = null;
+// Whether the layer, Google's logo and its copyright are shown. They're hidden
+// while CARTO stands in, so the two maps never show together.
+let shown = false;
+
+/** Shows or hides Google's map, logo and copyright. */
+function showGoogle(googleMutant: any, show: boolean) {
+    shown = show;
+    googleMutant.setOpacity(show ? 1 : 0);
+    for (const container of [
+        googleMutant._logoContainer,
+        googleMutant._attributionContainer,
+    ])
+        if (container) container.style.display = show ? "" : "none";
+}
 
 // GoogleMutant's own default. Google's map stops short of it where it has no
 // closer imagery, and GoogleMutant then enlarges the closest tiles it has.
@@ -57,9 +70,10 @@ function googleLayer(): L.GridLayer {
         className: "google-basemap",
     }) as L.GridLayer;
     const googleMutant = layer as any;
-    // GoogleMutant creates the map once, on the layer's first add.
-    googleMutant.once("spawned", () =>
-        reportGoogleMapLoad(activeSessionId.get()),
+    // GoogleMutant moves the logo and copyright in once Google has drawn them
+    // (after this listener, hence the microtask): hide them if it isn't shown.
+    googleMutant.on("controls_ready", () =>
+        queueMicrotask(() => showGoogle(googleMutant, shown)),
     );
     applyLook = googleLook(
         {
@@ -123,29 +137,57 @@ function redrawWhenLoaded(googleMutant: any) {
     });
 }
 
-/** Google Maps' own map as the basemap, with its logo and copyright. */
-export const GoogleBasemap = () => {
+// Leaflet's tile fade-in (200 ms), with a frame to spare.
+const TILE_FADE_MS = 250;
+
+/**
+ * Google Maps' own map as the basemap, with its logo and copyright. Until
+ * Google has drawn the map's tiles it shows `children` (CARTO) instead, and
+ * keeps doing so if Google never does: on a weak connection the loader, a
+ * module or the tiles can take long or not come at all.
+ */
+export const GoogleBasemap = ({ children }: { children: ReactNode }) => {
     const map = useMap();
+    const [drawn, setDrawn] = useState(false);
     const $googleMapType = useStore(googleMapType);
     const $showGoogleTransit = useStore(showGoogleTransit);
     const $hideGooglePlaces = useStore(hideGooglePlaces);
 
     useEffect(() => {
         let mounted = true;
+        // Leaflet fires "load" once every tile in view has loaded, then fades
+        // each one in over 200 ms. Swap after that, or the map shows through.
+        let fadeTimer: ReturnType<typeof setTimeout> | undefined;
+        const onLoad = () => {
+            fadeTimer = setTimeout(() => setDrawn(true), TILE_FADE_MS);
+        };
         loadGoogleMapsApi()
             .then(() => {
                 if (!mounted) return;
-                googleLayer().addTo(map);
-                keepGoogleAttribution(layer);
+                const googleMutant = googleLayer() as any;
+                showGoogle(googleMutant, false);
+                googleMutant.once("load", onLoad);
+                googleMutant.addTo(map);
+                keepGoogleAttribution(googleMutant);
                 applyLook?.(chosenLook());
             })
             // googleMapsProblem now says why, and the map falls back to CARTO.
             .catch(() => {});
         return () => {
             mounted = false;
+            clearTimeout(fadeTimer);
+            layer?.off("load", onLoad);
             if (layer && map.hasLayer(layer)) map.removeLayer(layer);
         };
     }, [map]);
+
+    // CARTO goes in this commit's cleanup, and Google shows in the same task,
+    // so the browser never paints both or neither.
+    useEffect(() => {
+        if (!drawn || !layer) return;
+        showGoogle(layer, true);
+        googleMapDrawn();
+    }, [drawn]);
 
     // Only while the layer is on the map: Google draws nothing for a map
     // that isn't on the page, and the load above applies the settings when it
@@ -154,5 +196,5 @@ export const GoogleBasemap = () => {
         if (layer && map.hasLayer(layer)) applyLook?.(chosenLook());
     }, [map, $googleMapType, $showGoogleTransit, $hideGooglePlaces]);
 
-    return null;
+    return drawn ? null : children;
 };

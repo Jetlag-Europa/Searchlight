@@ -13,25 +13,6 @@ export const GOOGLE_MAPS_API_KEY = (import.meta.env
 
 export const googleMapsAvailable = GOOGLE_MAPS_API_KEY !== "";
 
-/** Google Maps Platform's free map loads a month (Maps JavaScript API). */
-export const FREE_MAP_LOADS_PER_MONTH = 10_000;
-
-const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-/**
- * Tells the API that this page created its Google map, which Google bills as
- * a map load, for the counts on the admin page. Best effort: a lost report
- * only makes the count a little low.
- */
-export function reportGoogleMapLoad(sessionId: string): void {
-    fetch(`${API_BASE}/me/google-map-loads`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(sessionId ? { sessionId } : {}),
-    }).catch(() => {});
-}
-
 /**
  * Why Google's map can't be shown right now, if it can't. "offline" clears
  * when the browser is back online; the others last until a reload.
@@ -92,23 +73,39 @@ function loaderFailed(): void {
     failLoader = null;
 }
 
+// Whether this page's Google map has drawn its tiles once. Until it has, the
+// map shows CARTO (GoogleBasemap.tsx), and a failing Google module means it
+// won't draw at all.
+let drawn = false;
+
+/** Google's map has drawn its first tiles. */
+export function googleMapDrawn(): void {
+    drawn = true;
+}
+
 if (typeof window !== "undefined") {
-    // The loader adds Google's main script, which can fail on its own on a
-    // bad connection. The loader then never calls back, and nothing of the
-    // API is defined, so a new loader can load it again.
     window.addEventListener(
         "error",
         (event) => {
             const target = event.target as HTMLScriptElement | null;
             if (
-                target?.tagName === "SCRIPT" &&
-                target.src.startsWith(
+                target?.tagName !== "SCRIPT" ||
+                !target.src.startsWith(
                     "https://maps.googleapis.com/maps-api-v3/",
                 )
-            ) {
-                target.remove();
-                loaderFailed();
-            }
+            )
+                return;
+            target.remove();
+            // The loader adds Google's main script, which can fail on its own
+            // on a bad connection. The loader then never calls back, and
+            // nothing of the API is defined, so a new loader can load it again.
+            if (!(window as any).google?.maps?.importLibrary)
+                return loaderFailed();
+            // A module the loaded API fetches later. Before the map has drawn,
+            // it may be the one it needs to: say so, CARTO stays. After that,
+            // Google's map works without it.
+            if (!drawn && !googleMapsProblem.get())
+                googleMapsProblem.set("load-failed");
         },
         // Load errors don't bubble.
         true,
@@ -128,7 +125,10 @@ function loadBootstrap(): Promise<void> {
             "https://maps.googleapis.com/maps/api/js?" +
             new URLSearchParams({
                 key: GOOGLE_MAPS_API_KEY,
-                v: "weekly",
+                // GoogleMutant relies on Google's internals (tile URLs, where
+                // the logo sits): the quarterly release changes them least
+                // often.
+                v: "quarterly",
                 loading: "async",
                 callback: "__searchlightGoogleMapsReady",
             });

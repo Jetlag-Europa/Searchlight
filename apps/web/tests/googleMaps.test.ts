@@ -126,6 +126,18 @@ function arrive(win: EventTarget) {
     (win as any).__searchlightGoogleMapsReady();
 }
 
+/** A script of Google's failing to load, as the window sees it. */
+function scriptFailed(win: EventTarget, src: string) {
+    const failed = new Event("error");
+    Object.defineProperty(failed, "target", {
+        value: { tagName: "SCRIPT", src, remove() {} },
+    });
+    win.dispatchEvent(failed);
+}
+
+const MAP_MODULE =
+    "https://maps.googleapis.com/maps-api-v3/api/js/66/12d/map.js";
+
 /** googleMaps.ts reads the connection and listens for changes on import. */
 async function loadModule() {
     vi.resetModules();
@@ -319,6 +331,39 @@ it("ignores errors from other scripts", async () => {
     win.dispatchEvent(failed);
     arrive(win);
     await expect(first).resolves.toBeUndefined();
+    expect(googleMapsProblem.get()).toBeNull();
+});
+
+it("loads Google's quarterly release", async () => {
+    const { scripts } = stubBrowser(true);
+    const { loadGoogleMapsApi } = await loadModule();
+    void loadGoogleMapsApi().catch(() => {});
+    const params = new URL(scripts[0].src).searchParams;
+    expect(params.get("v")).toBe("quarterly");
+});
+
+it("falls back when a Google module fails before the map has drawn", async () => {
+    const { win } = stubBrowser(true);
+    const { googleMapsProblem, loadGoogleMapsApi } = await loadModule();
+    const load = loadGoogleMapsApi();
+    arrive(win);
+    await expect(load).resolves.toBeUndefined();
+
+    // The API loaded, but the module the map needs to draw didn't.
+    scriptFailed(win, MAP_MODULE);
+    expect(googleMapsProblem.get()).toBe("load-failed");
+});
+
+it("ignores a Google module failing once the map has drawn", async () => {
+    const { win } = stubBrowser(true);
+    const { googleMapsProblem, loadGoogleMapsApi, googleMapDrawn } =
+        await loadModule();
+    const load = loadGoogleMapsApi();
+    arrive(win);
+    await load;
+    googleMapDrawn();
+
+    scriptFailed(win, MAP_MODULE);
     expect(googleMapsProblem.get()).toBeNull();
 });
 

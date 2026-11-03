@@ -102,6 +102,20 @@ const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
         { animate: false },
     );
 
+/** CARTO Voyager: the default basemap, and Google's stand-in. */
+const voyagerLayer = () => (
+    <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>; Powered by Esri and Turf.js'
+        url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
+        subdomains="abcd"
+        maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
+        minZoom={2}
+        noWrap
+        crossOrigin
+        bounds={WORLD_BOUNDS}
+    />
+);
+
 const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     switch (tileLayer) {
         case "light":
@@ -163,7 +177,8 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
             break;
 
         case "google":
-            return <GoogleBasemap />;
+            // CARTO until Google's map has drawn, or if it never does.
+            return <GoogleBasemap>{voyagerLayer()}</GoogleBasemap>;
 
         case "osmcarto":
             return (
@@ -179,18 +194,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
             );
     }
 
-    return (
-        <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>; Powered by Esri and Turf.js'
-            url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
-            subdomains="abcd"
-            maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
-            minZoom={2}
-            noWrap
-            crossOrigin
-            bounds={WORLD_BOUNDS}
-        />
-    );
+    return voyagerLayer();
 };
 
 // The game may not have loaded, or may not offer the requested question type.
