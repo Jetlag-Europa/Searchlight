@@ -31,14 +31,6 @@ export interface UserPreferences {
   autoLockQuestions?: boolean;
 }
 
-/** GET /admin/google-map-loads: Google map loads the web app reported. */
-export interface GoogleMapLoadsResponse {
-  month: string; // YYYY-MM, UTC
-  total: number;
-  users: { discordId: string; displayName: string; username: string; loads: number }[];
-  days: { day: string; loads: number }[]; // YYYY-MM-DD, UTC; days without loads left out
-}
-
 export interface MeResponse {
   user: User;
   preferences: UserPreferences;
