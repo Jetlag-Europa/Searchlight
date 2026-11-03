@@ -304,7 +304,7 @@ describe("where a merge puts their additions", () => {
         expect(keys(mergeQuestionLists(base, local, server))).toEqual([1, 2, 9, 7, 3]);
     });
 
-    test("keeps one they added below the curses above it there, and above those below it", () => {
+    test("keeps one they added below the curses above it there", () => {
         // We moved the curse down meanwhile: still below it.
         const base = [radius(1), curse(9), radius(2), radius(3)];
         const local = [radius(1), radius(2), curse(9), radius(3)];

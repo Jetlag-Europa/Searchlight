@@ -304,8 +304,8 @@ function mergeLists<Q>(
             if (was !== undefined && ours(question)) return;
             // Below every question above it there that is still in the list
             // (else at the top), then below ours added there: a zone-size
-            // curse applies to the questions below it, so one restored above
-            // a curse, or added below one, stays so even if we moved it.
+            // curse applies to the questions below it, so every curse above
+            // it there stays above it, even one we moved.
             const above = new Set(serverIds.slice(0, index));
             let at = 0;
             mergedIds.forEach((m, i) => {
