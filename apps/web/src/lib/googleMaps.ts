@@ -75,11 +75,9 @@ if (typeof window !== "undefined") {
     window.addEventListener("online", () => {
         const problem = googleMapsProblem.get();
         if (problem === "offline") googleMapsProblem.set(null);
-        // The script may have failed for want of a connection: try again.
-        if (problem === "load-failed") {
-            apiLoad = null;
-            googleMapsProblem.set(null);
-        }
+        // The script may have failed for want of a connection: try again
+        // (a failed load leaves no promise behind, see loadGoogleMapsApi).
+        if (problem === "load-failed") googleMapsProblem.set(null);
     });
 }
 
@@ -91,6 +89,39 @@ let apiLoad: Promise<void> | null = null;
 // The loader script while it's in the page and hasn't failed. A retry waits
 // for it rather than adding another: Google warns against loading it twice.
 let script: HTMLScriptElement | null = null;
+// Fails the load waiting for that script.
+let failLoader: ((error: Error) => void) | null = null;
+
+/** The loader, or the main script it adds, failed: the next try starts over. */
+function loaderFailed(): void {
+    script?.remove();
+    script = null;
+    failLoader?.(new Error("The Maps JavaScript API didn't load"));
+    failLoader = null;
+}
+
+if (typeof window !== "undefined") {
+    // The loader adds Google's main script, which can fail on its own on a
+    // bad connection. The loader then never calls back, and nothing of the
+    // API is defined, so a new loader can load it again.
+    window.addEventListener(
+        "error",
+        (event) => {
+            const target = event.target as HTMLScriptElement | null;
+            if (
+                target?.tagName === "SCRIPT" &&
+                target.src.startsWith(
+                    "https://maps.googleapis.com/maps-api-v3/",
+                )
+            ) {
+                target.remove();
+                loaderFailed();
+            }
+        },
+        // Load errors don't bubble.
+        true,
+    );
+}
 
 /** Resolves once Google's loader has run (google.maps.importLibrary). */
 function loadBootstrap(): Promise<void> {
@@ -98,6 +129,7 @@ function loadBootstrap(): Promise<void> {
         const w = window as any;
         if (w.google?.maps?.importLibrary) return resolve();
         w.__searchlightGoogleMapsReady = () => resolve();
+        failLoader = reject;
         if (script) return;
         script = document.createElement("script");
         script.src =
@@ -109,11 +141,7 @@ function loadBootstrap(): Promise<void> {
                 callback: "__searchlightGoogleMapsReady",
             });
         script.async = true;
-        script.onerror = () => {
-            script?.remove();
-            script = null;
-            reject(new Error("The Maps JavaScript API didn't load"));
-        };
+        script.onerror = loaderFailed;
         document.head.appendChild(script);
     });
 }
@@ -123,7 +151,8 @@ function loadBootstrap(): Promise<void> {
  * only creating a map counts as a map load.
  */
 export function loadGoogleMapsApi(): Promise<void> {
-    apiLoad ??= new Promise<void>((resolve, reject) => {
+    if (apiLoad) return apiLoad;
+    const attempt: Promise<void> = new Promise<void>((resolve, reject) => {
         const w = window as any;
         // Google calls this when it rejects the key: wrong referrer, or the
         // API isn't enabled for it.
@@ -142,17 +171,24 @@ export function loadGoogleMapsApi(): Promise<void> {
                 // It arrived after all, on a slow connection the browser
                 // still calls online: show Google now rather than after a
                 // reload. The next load finds the API and resolves at once.
-                if (timedOut && googleMapsProblem.get() === "load-failed") {
-                    apiLoad = null;
+                // Not while offline: Google's tiles couldn't load.
+                if (
+                    timedOut &&
+                    googleMapsProblem.get() === "load-failed" &&
+                    navigator.onLine !== false
+                )
                     googleMapsProblem.set(null);
-                }
             }, reject)
             .finally(() => clearTimeout(timer));
     }).catch((error) => {
-        googleMapsProblem.set("load-failed");
+        // The next load tries again, once a problem has cleared.
+        if (apiLoad === attempt) apiLoad = null;
+        // Offline and a rejected key say more, and clear on their own terms.
+        if (!googleMapsProblem.get()) googleMapsProblem.set("load-failed");
         throw error;
     });
-    return apiLoad;
+    apiLoad = attempt;
+    return attempt;
 }
 
 /** Google's map types, drawn by the same map: switching costs nothing. */

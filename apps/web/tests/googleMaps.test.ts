@@ -107,7 +107,8 @@ function stubBrowser(onLine: boolean) {
     const win = new EventTarget();
     const scripts: { src: string; onerror?: () => void; remove(): void }[] = [];
     vi.stubGlobal("window", win);
-    vi.stubGlobal("navigator", { onLine });
+    const nav = { onLine };
+    vi.stubGlobal("navigator", nav);
     vi.stubGlobal("document", {
         createElement: () => ({ remove() {} }),
         head: {
@@ -115,7 +116,18 @@ function stubBrowser(onLine: boolean) {
                 scripts.push(script),
         },
     });
-    return { win, scripts };
+    /** The browser's connection changes, as the browser reports it. */
+    const setOnline = (online: boolean) => {
+        nav.onLine = online;
+        win.dispatchEvent(new Event(online ? "online" : "offline"));
+    };
+    return { win, scripts, setOnline };
+}
+
+/** Google's loader arriving: the API, then its ready callback. */
+function arrive(win: EventTarget) {
+    (win as any).google = { maps: { importLibrary: async () => ({}) } };
+    (win as any).__searchlightGoogleMapsReady();
 }
 
 /** googleMaps.ts reads the connection and listens for changes on import. */
@@ -194,11 +206,124 @@ it("shows Google after all when a timed-out load finishes late", async () => {
     expect(googleMapsProblem.get()).toBe("load-failed");
 
     // No offline/online in between: the browser never noticed.
-    (win as any).google = { maps: { importLibrary: async () => ({}) } };
-    (win as any).__searchlightGoogleMapsReady();
+    arrive(win);
     await vi.waitFor(() => expect(googleMapsProblem.get()).toBeNull());
     await expect(loadGoogleMapsApi()).resolves.toBeUndefined();
     expect(scripts).toHaveLength(1);
+});
+
+it("stays on CARTO when a timed-out load finishes late while offline", async () => {
+    vi.useFakeTimers();
+    const { win, scripts, setOnline } = stubBrowser(true);
+    const {
+        GOOGLE_MAPS_LOAD_TIMEOUT_MS,
+        googleMapsProblem,
+        loadGoogleMapsApi,
+    } = await loadModule();
+
+    const first = loadGoogleMapsApi();
+    setOnline(false);
+    expect(googleMapsProblem.get()).toBe("offline");
+    vi.advanceTimersByTime(GOOGLE_MAPS_LOAD_TIMEOUT_MS);
+    await expect(first).rejects.toThrow();
+    expect(googleMapsProblem.get()).toBe("offline"); // not "load-failed"
+
+    arrive(win); // still offline
+    await vi.runAllTimersAsync();
+    expect(googleMapsProblem.get()).toBe("offline");
+
+    // Back online: Google again, from the script already in the page.
+    setOnline(true);
+    expect(googleMapsProblem.get()).toBeNull();
+    await expect(loadGoogleMapsApi()).resolves.toBeUndefined();
+    expect(scripts).toHaveLength(1);
+});
+
+it("waits for the connection when a load fails, goes offline, then finishes", async () => {
+    vi.useFakeTimers();
+    const { win, scripts, setOnline } = stubBrowser(true);
+    const {
+        GOOGLE_MAPS_LOAD_TIMEOUT_MS,
+        googleMapsProblem,
+        loadGoogleMapsApi,
+    } = await loadModule();
+
+    const first = loadGoogleMapsApi();
+    vi.advanceTimersByTime(GOOGLE_MAPS_LOAD_TIMEOUT_MS);
+    await expect(first).rejects.toThrow();
+    expect(googleMapsProblem.get()).toBe("load-failed");
+    setOnline(false);
+    arrive(win);
+    await vi.runAllTimersAsync();
+    expect(googleMapsProblem.get()).toBe("load-failed");
+
+    setOnline(true);
+    expect(googleMapsProblem.get()).toBeNull();
+    await expect(loadGoogleMapsApi()).resolves.toBeUndefined();
+    expect(scripts).toHaveLength(1);
+});
+
+it("keeps a rejected key rejected when the load also times out", async () => {
+    vi.useFakeTimers();
+    const { win } = stubBrowser(true);
+    const {
+        GOOGLE_MAPS_LOAD_TIMEOUT_MS,
+        googleMapsProblem,
+        loadGoogleMapsApi,
+    } = await loadModule();
+
+    const first = loadGoogleMapsApi();
+    (win as any).gm_authFailure();
+    vi.advanceTimersByTime(GOOGLE_MAPS_LOAD_TIMEOUT_MS);
+    await expect(first).rejects.toThrow();
+    expect(googleMapsProblem.get()).toBe("auth-failed");
+    arrive(win);
+    await vi.runAllTimersAsync();
+    expect(googleMapsProblem.get()).toBe("auth-failed");
+});
+
+it("starts a new loader once Google's main script has failed", async () => {
+    const { win, scripts, setOnline } = stubBrowser(true);
+    const { googleMapsProblem, loadGoogleMapsApi } = await loadModule();
+
+    const first = loadGoogleMapsApi();
+    // The loader ran, but the main script it added failed: no timeout wait.
+    const failed = new Event("error");
+    Object.defineProperty(failed, "target", {
+        value: {
+            tagName: "SCRIPT",
+            src: "https://maps.googleapis.com/maps-api-v3/api/js/66/12d/main.js",
+            remove() {},
+        },
+    });
+    win.dispatchEvent(failed);
+    await expect(first).rejects.toThrow();
+    expect(googleMapsProblem.get()).toBe("load-failed");
+
+    setOnline(true);
+    const retry = loadGoogleMapsApi();
+    expect(scripts).toHaveLength(2);
+    arrive(win);
+    await expect(retry).resolves.toBeUndefined();
+    expect(googleMapsProblem.get()).toBeNull();
+});
+
+it("ignores errors from other scripts", async () => {
+    const { win } = stubBrowser(true);
+    const { googleMapsProblem, loadGoogleMapsApi } = await loadModule();
+    const first = loadGoogleMapsApi();
+    const failed = new Event("error");
+    Object.defineProperty(failed, "target", {
+        value: {
+            tagName: "SCRIPT",
+            src: "https://example.com/other.js",
+            remove() {},
+        },
+    });
+    win.dispatchEvent(failed);
+    arrive(win);
+    await expect(first).resolves.toBeUndefined();
+    expect(googleMapsProblem.get()).toBeNull();
 });
 
 it("stops trying after Google rejects the key", async () => {
