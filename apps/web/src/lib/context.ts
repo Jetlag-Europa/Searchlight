@@ -5,6 +5,7 @@ import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     askedVariants,
     firstUnasked,
@@ -48,6 +49,9 @@ const playerCustomData = (family: string): Record<string, unknown> =>
         ? { locationType: "custom", places: [] }
         : { type: family === "matching" ? "custom-points" : "custom-measure" };
 export const addQuestion = (question: DeepPartial<Question>) => {
+    if (sessionReadOnly.get()) {
+        throw new Error("Spectators can't add questions");
+    }
     // Every question belongs to a game: none can be added until its
     // definition has loaded.
     const compiled = compiledGameAtom.get();

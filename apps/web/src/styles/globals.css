@@ -24,6 +24,21 @@ body {
     pointer-events: auto;
 }
 
+/* The close button takes the toast's right edge, full height and a finger
+   wide, instead of a small X in the top corner: a toast's own button, such as
+   Undo, sat right next to it, so a tap on a phone hit the wrong one. */
+.Toastify__close-button {
+    position: static;
+    align-self: stretch;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    margin: calc(-1 * var(--toastify-toast-padding));
+    margin-left: 8px;
+}
+
 .leaflet-container {
     height: 100vh; /* Fallback for old browsers */
     height: 100svh;

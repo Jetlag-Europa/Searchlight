@@ -4,6 +4,17 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Spectator links (2026-11-03)
+
+- A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
+- Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator") or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
+- Spectators show as "Spectating" on the map and in the session list, and don't count as players in a game's stats.
+
+## One page for checking and importing games (2026-11-02)
+
+- `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
+- The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.

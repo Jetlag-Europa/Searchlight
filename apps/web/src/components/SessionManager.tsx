@@ -6,7 +6,7 @@ import {
     type ServersResponse,
     type SessionsResponse,
 } from "@searchlight/shared";
-import { Settings, TriangleAlert } from "lucide-react";
+import { EyeIcon, Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
@@ -22,8 +22,10 @@ import {
 import {
     activeSessionData,
     activeSessionId,
+    activeSessionRole,
     clearActiveSession,
     offlineUserId,
+    sessionReadOnly,
     setActiveSession,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -58,9 +60,12 @@ import {
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
 import {
+    becomeSpectator,
+    cacheSessionRole,
     cancelPendingHiderSave,
     cancelPendingPlanningModeSave,
     cancelPendingQuestionSave,
+    discardSessionEdits,
     flushSavesOnPageExit,
     flushSessionSaves,
     hasScheduledQuestionSave,
@@ -69,7 +74,14 @@ import {
     savePlanningModeToServer,
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
-import { startSSE, stopSSE } from "@/lib/sseManager";
+import {
+    SESSION_ROLE_CHANGED_EVENT,
+    SESSION_STREAM_RECONNECTED_EVENT,
+    type SessionRoleChangedDetail,
+    type SessionStreamReconnectedDetail,
+    startSSE,
+    stopSSE,
+} from "@/lib/sseManager";
 import {
     flushPendingEvents,
     onQuestionsSaved,
@@ -446,9 +458,13 @@ function SessionPickerOverlay({
                                                     {session.visibility}
                                                 </span>{" "}
                                                 ·{" "}
-                                                <span className="capitalize">
-                                                    {session.role}
-                                                </span>
+                                                {session.role === "viewer" ? (
+                                                    "Spectating"
+                                                ) : (
+                                                    <span className="capitalize">
+                                                        {session.role}
+                                                    </span>
+                                                )}
                                             </div>
                                         </button>
                                         {session.role === "creator" && (
@@ -482,7 +498,7 @@ function SessionPickerOverlay({
                                                       : "✕"}
                                             </button>
                                         )}
-                                        {session.role === "member" && (
+                                        {session.role !== "creator" && (
                                             <button
                                                 onClick={() =>
                                                     handleLeaveSession(
@@ -663,10 +679,12 @@ function OfflinePickerNotice({ onClose }: { onClose: () => void }) {
 
 function SessionChip({
     session,
+    readOnly,
     onChangeSession,
     inert,
 }: {
     session: GameSessionSummary;
+    readOnly: boolean;
     onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
     inert: boolean;
 }) {
@@ -682,6 +700,15 @@ function SessionChip({
                 >
                     {session.name}
                 </span>
+                {readOnly && (
+                    <span
+                        className="flex items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 font-medium text-primary"
+                        title="You can watch this session but not change it"
+                    >
+                        <EyeIcon aria-hidden="true" className="size-3" />
+                        Spectating
+                    </span>
+                )}
                 <button
                     onClick={onChangeSession}
                     className="text-muted-foreground hover:text-foreground underline whitespace-nowrap"
@@ -755,6 +782,7 @@ export function SessionManager() {
     const currentHiderMode = useStore(hiderMode);
     const currentPlanningMode = useStore(planningModeEnabled);
     const gameReady = useStore(gameDefinitionReady);
+    const readOnly = useStore(sessionReadOnly);
     const [showPicker, setShowPicker] = useState(false);
     const [loading, setLoading] = useState(false);
     // The last session load ended without the session's game definition.
@@ -824,7 +852,8 @@ export function SessionManager() {
             Boolean(activeSessionId.get() && authUserId) &&
                 !loadingRef.current &&
                 !isLoadingSession() &&
-                !savesBlocked(),
+                !savesBlocked() &&
+                !sessionReadOnly.get(),
         );
     useEffect(refreshQuestionDecisions);
     useEffect(() => () => setQuestionDecisionsPossible(false), []);
@@ -883,7 +912,9 @@ export function SessionManager() {
                 );
                 return false;
             }
-            return true;
+            // Read when the questions change: a spectator's board saves
+            // nothing, and becoming a player again is no edit to save.
+            return !sessionReadOnly.get();
         })();
         // A player's edit to a question held for a decision decides it.
         trackBoardQuestions(sessionId, currentQuestions, save);
@@ -901,9 +932,9 @@ export function SessionManager() {
             });
             return;
         }
-        if (shouldSuppressHiderSave()) {
+        if (shouldSuppressHiderSave(currentHiderMode)) {
             console.info(
-                "[searchlight:session] hider save suppressed by SSE counter",
+                "[searchlight:session] hider save suppressed — set by the server",
                 { sessionId, hiderMode: currentHiderMode },
             );
             return;
@@ -914,6 +945,7 @@ export function SessionManager() {
             );
             return;
         }
+        if (sessionReadOnly.get()) return;
         console.info("[searchlight:session] queuing hider save", {
             sessionId,
             hiderMode: currentHiderMode,
@@ -932,9 +964,9 @@ export function SessionManager() {
             );
             return;
         }
-        if (shouldSuppressPlanningModeSave()) {
+        if (shouldSuppressPlanningModeSave(currentPlanningMode)) {
             console.info(
-                "[searchlight:session] planning mode save suppressed by SSE counter",
+                "[searchlight:session] planning mode save suppressed — set by the server",
                 { sessionId, planningModeEnabled: currentPlanningMode },
             );
             return;
@@ -945,12 +977,22 @@ export function SessionManager() {
             );
             return;
         }
+        if (sessionReadOnly.get()) return;
         console.info("[searchlight:session] queuing planning mode save", {
             sessionId,
             planningModeEnabled: currentPlanningMode,
         });
         savePlanningModeToServer(sessionId, currentPlanningMode);
     }, [sessionId, authUserId, currentPlanningMode]);
+
+    // Spectators never see the hider: no position is kept for them, whatever
+    // set it. The hider save effect skips the change, as it is read-only.
+    // While a session loads, the role is still the outgoing session's.
+    useEffect(() => {
+        if (!readOnly || currentHiderMode === false) return;
+        if (isLoadingSession()) return;
+        hiderMode.set(false);
+    }, [readOnly, currentHiderMode]);
 
     // Flush pending question, hider & planning saves when the page may close.
     useEffect(() => flushSavesOnPageExit(), []);
@@ -1078,7 +1120,17 @@ export function SessionManager() {
         // and planning mode and its game as this browser kept them, with the
         // edits not yet synced.
         const restoreKept = () => {
-            const kept = cached?.session;
+            // The cache's role is kept up to date with the server's, and a
+            // spectator's board never shows the hider.
+            const kept =
+                cached?.session && cached.role === "viewer"
+                    ? {
+                          ...cached.session,
+                          role: "viewer" as const,
+                          hiderLat: null,
+                          hiderLng: null,
+                      }
+                    : cached?.session;
             if (!kept) {
                 setGameNotLoaded(true);
                 return;
@@ -1092,12 +1144,22 @@ export function SessionManager() {
                 if (isCurrent()) setGameNotLoaded(!ready);
             });
         };
+        // The cache says whether its user only spectates the session: their
+        // board is read-only, and edits from before are dropped, before it
+        // shows.
+        const spectateIfCached = () => {
+            if (canPaintCache && cached?.role === "viewer") {
+                discardSessionEdits(storedId);
+                activeSessionRole.set("viewer");
+            }
+        };
 
         if (offline) {
             console.info(
                 "[searchlight:session] server unreachable, restoring kept session",
                 storedId,
             );
+            spectateIfCached();
             if (paintCached()) {
                 offlineBoardUserRef.current = authUserId;
                 refreshQuestionDecisions();
@@ -1128,6 +1190,8 @@ export function SessionManager() {
                     throw new Error(`session fetch failed: ${res.status}`);
                 const data: GameSessionSummary = await res.json();
                 if (!isCurrent()) return;
+                // A spectator's edits from before can't be sent or shown.
+                if (data.role === "viewer") discardSessionEdits(storedId);
                 // The cached snapshot may be stale: nothing shown before the
                 // server reconcile may be saved over fresher questions.
                 loadingGenerationRef.current = generation;
@@ -1169,6 +1233,10 @@ export function SessionManager() {
                     cancelPendingQuestionSave();
                     cancelPendingHiderSave();
                     cancelPendingPlanningModeSave();
+                    // The role may have changed since the first fetch.
+                    if (refreshedSession.role === "viewer") {
+                        discardSessionEdits(storedId);
+                    }
                     setActiveSession(refreshedSession);
                     // Keep edits the flush above couldn't deliver on top of the
                     // server state, as an explicit selection does.
@@ -1236,6 +1304,7 @@ export function SessionManager() {
                 console.warn("[searchlight:session] session fetch error:", e);
                 // Keep the pointer even without a cache to show, so the next
                 // load can restore the session once the server is back.
+                spectateIfCached();
                 const painted = paintCached();
                 setShowPicker(!painted);
                 if (painted) restoreKept();
@@ -1255,10 +1324,12 @@ export function SessionManager() {
         if (session.id !== sessionId) return;
         const cached = getCachedSession(session.id);
         if (!cached || cached.userId !== authUserId) return;
+        // A spectator's copy never has the hider.
+        const hider = session.role === "viewer" ? null : currentHiderMode;
         const kept: GameSessionSummary = {
             ...session,
-            hiderLat: currentHiderMode ? currentHiderMode.latitude : null,
-            hiderLng: currentHiderMode ? currentHiderMode.longitude : null,
+            hiderLat: hider ? hider.latitude : null,
+            hiderLng: hider ? hider.longitude : null,
             planningModeEnabled: currentPlanningMode,
         };
         if (JSON.stringify(cached.session) === JSON.stringify(kept)) return;
@@ -1287,6 +1358,8 @@ export function SessionManager() {
             // their delivery (or retry) must not hold up the switch.
             const outgoingId = activeSessionId.get();
             if (outgoingId) flushSessionSaves(outgoingId);
+            // A spectator's edits from before can't be sent or shown.
+            if (selected.role === "viewer") discardSessionEdits(selected.id);
 
             console.info(
                 "[searchlight:session] selecting session",
@@ -1371,6 +1444,9 @@ export function SessionManager() {
                     },
                 );
                 if (!isCurrent()) return;
+                if (refreshedSession.role === "viewer") {
+                    discardSessionEdits(selected.id);
+                }
 
                 // Reconcile any remaining pending events that were not flushed
                 const reconciledState = applyUnsyncedEvents(selected.id, {
@@ -1550,6 +1626,43 @@ export function SessionManager() {
         }
     };
 
+    // The session the server sent has this user in another role than the
+    // board's: a change made while the stream was down, whose live event was
+    // missed. Load it again with that role. Becoming a spectator applies
+    // right away, as in onRoleChanged below.
+    const applyServerRole = (fresh: GameSessionSummary) => {
+        if (fresh.id !== activeSessionId.get()) return;
+        if (fresh.role === activeSessionRole.get()) return;
+        console.info(
+            "[searchlight:session] role is now",
+            fresh.role,
+            "on the server, reloading",
+        );
+        if (fresh.role === "viewer") becomeSpectator(fresh.id);
+        void handleSessionSelected(fresh);
+    };
+
+    // Check the active session again: reload it if this user's role in it
+    // changed, and with `forgetIfGone`, forget it if it's gone.
+    const checkSession = async (id: string, forgetIfGone: boolean) => {
+        try {
+            const res = await fetch(`${API_BASE}/sessions/${id}`, {
+                credentials: "include",
+            });
+            if (activeSessionId.get() !== id) return;
+            if (forgetIfGone && (res.status === 403 || res.status === 404)) {
+                forgetSession(id, res.status);
+                return;
+            }
+            if (!res.ok) return;
+            const fresh: GameSessionSummary = await res.json();
+            if (isLoadingSession()) return;
+            applyServerRole(fresh);
+        } catch (err) {
+            console.warn("[searchlight:session] session check failed:", err);
+        }
+    };
+
     // A question list saved here was merged with changes made elsewhere:
     // show them, on top of anything edited since. A load in progress shows
     // the server's list anyway.
@@ -1573,34 +1686,77 @@ export function SessionManager() {
 
     // The server refused edits for good (too large, invalid, a conflict) and
     // they left the queue: load the session again, which also checks it's
-    // still there, so the board shows what the server has.
+    // still there, so the board shows what the server has. A 403 to a
+    // session that is still there means this user only spectates it now.
     useEffect(
         () =>
             handleRejectedEdits({
                 isLoading: isLoadingSession,
                 reload: () => void retryGameLoad(),
-                confirmUnavailable: (id) => {
-                    fetch(`${API_BASE}/sessions/${id}`, {
-                        credentials: "include",
-                    })
-                        .then((res) => {
-                            if (
-                                (res.status === 403 || res.status === 404) &&
-                                activeSessionId.get() === id
-                            ) {
-                                forgetSession(id, res.status);
-                            }
-                        })
-                        .catch((err) => {
-                            console.warn(
-                                "[searchlight:session] session check failed:",
-                                err,
-                            );
-                        });
-                },
+                confirmUnavailable: (id) => void checkSession(id, true),
             }),
         [forgetSession, handleSessionSelected],
     );
+
+    // Whatever role the server gives, the cached copy keeps too, even when
+    // loading the session's content then fails.
+    useEffect(
+        () =>
+            activeSessionData.subscribe((data) => {
+                if (data) cacheSessionRole(data.id, data.role);
+            }),
+        [],
+    );
+
+    // A role change made while the stream was down was missed: check the
+    // session once it's back.
+    useEffect(() => {
+        const onReconnected = (event: Event) => {
+            const { sessionId: reconnectedId } = (
+                event as CustomEvent<SessionStreamReconnectedDetail>
+            ).detail;
+            if (reconnectedId !== activeSessionId.get()) return;
+            if (isLoadingSession()) return;
+            // Only the role: a stray 403 or 404 here (a captive portal, say)
+            // mustn't forget the session and its unsent edits. The stream
+            // finds out for itself if the session is really gone.
+            void checkSession(reconnectedId, false);
+        };
+        window.addEventListener(
+            SESSION_STREAM_RECONNECTED_EVENT,
+            onReconnected,
+        );
+        return () =>
+            window.removeEventListener(
+                SESSION_STREAM_RECONNECTED_EVENT,
+                onReconnected,
+            );
+    }, [forgetSession, handleSessionSelected]);
+
+    // The creator made this user a player or a spectator of the active
+    // session: load it again with the new role. Becoming a spectator applies
+    // right away, so nothing more is saved or sent meanwhile, and the board
+    // stays read-only if the reload fails.
+    useEffect(() => {
+        const onRoleChanged = (event: Event) => {
+            const {
+                sessionId: changedId,
+                userId,
+                role,
+            } = (event as CustomEvent<SessionRoleChangedDetail>).detail;
+            if (userId !== authUserId || changedId !== activeSessionId.get())
+                return;
+            console.info("[searchlight:session] role changed to", role);
+            if (role === "viewer") becomeSpectator(changedId);
+            void retryGameLoad();
+        };
+        window.addEventListener(SESSION_ROLE_CHANGED_EVENT, onRoleChanged);
+        return () =>
+            window.removeEventListener(
+                SESSION_ROLE_CHANGED_EVENT,
+                onRoleChanged,
+            );
+    }, [authUserId, forgetSession, handleSessionSelected]);
 
     // map.astro places the slot beside the revision banner.
     const bannerSlot = document.getElementById("game-not-loaded-banner");
@@ -1642,6 +1798,7 @@ export function SessionManager() {
             {session && (
                 <SessionChip
                     session={session}
+                    readOnly={readOnly}
                     onChangeSession={openPicker}
                     inert={showPicker}
                 />
