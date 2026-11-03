@@ -440,7 +440,7 @@ const ZoneSidebarContent = () => {
                 );
             } catch (error) {
                 console.error("Error drawing hiding zones:", error);
-                // A throw before showGeoJSON would leave the old zones up.
+                // A throw while drawing would leave part of the zones up.
                 removeHidingZones();
                 toast.error("The hiding zones couldn't be drawn", {
                     toastId: "hiding-zone-display-error",
