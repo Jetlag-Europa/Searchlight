@@ -34,6 +34,7 @@ import {
     setCachedSession,
     updateQueuedPayload,
 } from "@/lib/eventQueue";
+import { startLoadDeadline } from "@/lib/loadDeadline";
 import {
     lookUpConflictAuthors,
     questionHistory,
@@ -60,6 +61,26 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 // A larger body is sent normally: it is queued durably either way, and a
 // hidden tab that is not unloaded can still deliver it.
 const KEEPALIVE_BODY_LIMIT = 64 * 1024;
+
+// A request on mobile data that died without a reset may never answer, and
+// hold up what waits on it: every later save of its session (see
+// sendPendingEvent), or the stream's recovery. Give up on it after this long,
+// its body included. A save given up on is sent again under its own id, so
+// it still lands once. Long enough for a 1 MiB question list on a slow
+// connection.
+const REQUEST_TIMEOUT_MS = 45_000;
+
+/** `request`, its signal aborted after REQUEST_TIMEOUT_MS. */
+export async function withTimeout<T>(
+    request: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+    const deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
+    try {
+        return await request(deadline.signal);
+    } finally {
+        deadline.clear();
+    }
+}
 
 /** The server answered an edit with an error status. */
 export class SyncRequestError extends Error {
@@ -192,9 +213,13 @@ export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
 // list saves the questions it keeps from there under their ids.
 const serverClientUuids = new WeakMap<object, string>();
 
-async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
+async function fetchServerQuestions(
+    sessionId: string,
+    signal: AbortSignal,
+): Promise<QuestionsBase> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
+        signal,
     });
     if (!res.ok) throw await SyncRequestError.from("questions.replace", res);
     const data = (await res.json()) as {
@@ -347,6 +372,7 @@ async function mergeWithServer(
 async function sendQuestions(
     event: PendingEvent,
     keepalive: boolean,
+    signal: AbortSignal,
 ): Promise<QuestionsSaved> {
     const { sessionId } = event;
     let payload = event.payloadJson as QuestionsReplacePayload;
@@ -373,18 +399,21 @@ async function sendQuestions(
             headers: { "Content-Type": "application/json" },
             body,
             keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+            signal,
         });
         if (res.status === 409 && payload.base) {
             const code = await res
                 .json()
                 .then((data: { code?: unknown }) => data?.code)
                 .catch(() => undefined);
+            // Cut off before it said why: not a refusal, so try it again.
+            if (signal.aborted) throw signal.reason;
             if (code === QUESTIONS_CHANGED) {
                 // Not a refusal of the edit: retry it later if this keeps on.
                 if (merges >= MAX_QUESTION_MERGES) {
                     throw new Error("questions kept changing, merging later");
                 }
-                const server = await fetchServerQuestions(sessionId);
+                const server = await fetchServerQuestions(sessionId, signal);
                 const list = payload.questions.map((q) => q.payloadJson);
                 const merged = await mergeWithServer(
                     event,
@@ -445,6 +474,7 @@ async function sendQuestions(
 async function sendEvent(
     event: PendingEvent,
     keepalive: boolean,
+    signal: AbortSignal,
 ): Promise<QuestionsSaved | undefined> {
     const { sessionId } = event;
 
@@ -458,6 +488,7 @@ async function sendEvent(
                 clientUuid: stroke.properties.clientUuid,
                 payloadJson: stroke,
             }),
+            signal,
         });
         if (!res.ok) throw await SyncRequestError.from("stroke.create", res);
     } else if (event.type === "stroke.delete") {
@@ -465,28 +496,21 @@ async function sendEvent(
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
             method: "DELETE",
             credentials: "include",
+            signal,
         });
         await assertStrokeDeleted(res);
     } else if (event.type === "questions.replace") {
-        return sendQuestions(event, keepalive);
-    } else if (event.type === "hider.update") {
+        return sendQuestions(event, keepalive, signal);
+    } else if (event.type === "hider.update" || event.type === "planning.toggle") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(event.payloadJson),
             keepalive,
+            signal,
         });
-        if (!res.ok) throw await SyncRequestError.from("hider.update", res);
-    } else if (event.type === "planning.toggle") {
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(event.payloadJson),
-            keepalive,
-        });
-        if (!res.ok) throw await SyncRequestError.from("planning.toggle", res);
+        if (!res.ok) throw await SyncRequestError.from(event.type, res);
     }
 }
 
@@ -663,7 +687,9 @@ async function dispatchQueuedEvent(
     syncStatus.set("syncing");
     try {
         assertMaySend();
-        const savedQuestions = await sendEvent(event, keepalive);
+        const savedQuestions = await withTimeout((signal) =>
+            sendEvent(event, keepalive, signal),
+        );
         // Its SSE echo can arrive first, and later replaces may already be
         // cached on top of it: only a still-queued replace updates the cache.
         const stillQueued = getPendingEvents(sessionId).some(

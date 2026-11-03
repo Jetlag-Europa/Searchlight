@@ -22,8 +22,16 @@ import {
 import type { StrokeFeature } from "@/annotations/types";
 import { activeSessionId } from "@/lib/activeSession";
 import { syncStatus } from "@/lib/context";
-import { enqueueEvent, getPendingEvents } from "@/lib/eventQueue";
-import { executeHiderPatch, saveQuestionsToServer } from "@/lib/sessionState";
+import {
+    enqueueEvent,
+    getPendingEvents,
+    setCachedSession,
+} from "@/lib/eventQueue";
+import {
+    executeHiderPatch,
+    executePlanningPatch,
+    saveQuestionsToServer,
+} from "@/lib/sessionState";
 import {
     classifySendFailure,
     flushPendingEvents,
@@ -387,5 +395,107 @@ describe("edits the server rejects", () => {
         );
         await vi.advanceTimersByTimeAsync(120_000);
         expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+});
+
+// A request on mobile data that died without a reset never answers: it must
+// not hold up the session's later saves (audit SYNC-06).
+describe("a request that never answers", () => {
+    const REQUEST_TIMEOUT_MS = 45_000;
+    // Answers only by failing once its request is aborted, as fetch does.
+    const hangs = (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_, reject) =>
+            init?.signal?.addEventListener("abort", () =>
+                reject(init.signal!.reason),
+            ),
+        );
+    // Headers that come, and a body that never ends until aborted.
+    const bodyHangs = (status: number) => (_url: string, init?: RequestInit) =>
+        Promise.resolve(
+            new Response(
+                new ReadableStream({
+                    start(controller) {
+                        init?.signal?.addEventListener("abort", () =>
+                            controller.error(init.signal!.reason),
+                        );
+                    },
+                }),
+                { status, headers: { "Content-Type": "application/json" } },
+            ),
+        );
+    const body = (call: number) =>
+        JSON.parse(mockFetch.mock.calls[call][1].body as string);
+
+    test("is given up after 45 seconds, and the save after it goes through", async () => {
+        mockFetch.mockImplementationOnce(hangs).mockResolvedValue(ok());
+        const first = executePlanningPatch(SID, true);
+        first.catch(() => {});
+        const second = executePlanningPatch(SID, false);
+
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1);
+        await expect(first).rejects.toThrow();
+        await second;
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(body(1)).toEqual({ planningModeEnabled: false });
+        expect(getPendingEvents(SID)).toEqual([]);
+    });
+
+    test("sends a question list again under its own id", async () => {
+        const list = [{ id: "radius", key: 1, data: {} }] as unknown as Questions;
+        mockFetch
+            .mockImplementationOnce(hangs)
+            .mockResolvedValue(Response.json({ sequence: 1 }));
+        await expect(
+            Promise.all([
+                saveQuestionsToServer(SID, list),
+                vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS),
+            ]),
+        ).rejects.toThrow();
+        expect(getPendingEvents(SID)).toHaveLength(1);
+
+        // The usual retry.
+        await vi.advanceTimersByTimeAsync(1_000);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(body(1).replacementId).toBe(body(0).replacementId);
+        expect(getPendingEvents(SID)).toEqual([]);
+    });
+
+    test("keeps a list whose refusal never finishes arriving, to merge later", async () => {
+        const list = [{ id: "radius", key: 1, data: {} }] as unknown as Questions;
+        // Made from the server's list at 3: a refusal may say it moved on.
+        setCachedSession({
+            sessionId: SID,
+            strokes: [],
+            questions: [] as unknown as Questions,
+            serverQuestions: { sequence: 3, questions: [] as unknown as Questions },
+            lastSyncedAt: 0,
+            lastSequence: 3,
+        });
+        mockFetch.mockImplementationOnce(bodyHangs(409));
+        const save = saveQuestionsToServer(SID, list);
+        save.catch(() => {});
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+        await expect(save).rejects.toThrow();
+        // Not refused for good: queued, to be sent again.
+        expect(getPendingEvents(SID)).toHaveLength(1);
+        expect(getPendingEvents(SID)[0].status).toBe("failed");
+    });
+
+    test("doesn't hold up erasing a stroke whose drawing never answered", async () => {
+        const stroke = {
+            type: "Feature",
+            properties: { clientUuid: "stroke-1" },
+            geometry: { type: "LineString", coordinates: [] },
+        } as unknown as StrokeFeature;
+        mockFetch.mockImplementationOnce(hangs).mockResolvedValue(ok());
+        const drawn = saveStrokeToServer(SID, stroke);
+        drawn.catch(() => {});
+        const erased = deleteStrokeFromServer(SID, "stroke-1");
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+        await erased;
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(mockFetch.mock.calls[1][1].method).toBe("DELETE");
     });
 });
