@@ -1077,6 +1077,24 @@ describe("the session picker", () => {
         expect(pageText()).not.toContain("Failed to load sessions");
     });
 
+    it("says when the server's games didn't load, and loads them again", async () => {
+        server = { a: session("a") };
+        vi.mocked(fetchGameCatalog).mockRejectedValueOnce(
+            new Error("Failed to fetch"),
+        );
+        await reload("");
+        expect(pageText()).toContain("Session a");
+        expect(pageText()).toContain("Failed to load this server’s games");
+
+        vi.mocked(fetchGameCatalog).mockResolvedValueOnce([
+            { id: "game-1", name: "Game" } as Game,
+        ]);
+        await click((text) => text === "Try again");
+        await click((text) => text === "+ New session");
+        expect(pageText()).not.toContain("Failed to load");
+        expect(pageText()).not.toContain("No games available");
+    });
+
     it("creates one session when Enter is pressed twice", async () => {
         vi.mocked(fetchGameCatalog).mockResolvedValueOnce([
             { id: "game-1", name: "Game" } as Game,

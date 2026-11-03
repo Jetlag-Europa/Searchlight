@@ -95,7 +95,7 @@ function open(page: "join" | "play", fetch: typeof globalThis.fetch) {
 }
 
 // Answers like the API, or never: a request that hangs until it's given up.
-const LINK_INFO = {
+const LINK_INFO: Record<"join" | "play", Record<string, unknown>> = {
     join: { valid: true, linkType: "join", sessionName: "S", gameName: "G" },
     play: { valid: true, gameName: "G", serverName: "Server" },
 };
@@ -128,6 +128,7 @@ const settle = async () => {
 beforeEach(() => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     hang = false;
+    LINK_INFO.join = { ...LINK_INFO.join, linkType: "join" };
 });
 
 afterEach(() => {
@@ -170,16 +171,26 @@ describe.each(["join", "play"] as const)("the %s page", (page) => {
         expect(shown("valid")).toBe(true);
         expect(shown("unreachable")).toBe(false);
     });
+});
 
-    it("lets the player try again when joining or starting hangs", async () => {
+// Redeeming a join or view link again is harmless; a copy or a new session
+// given up on may still be made, and the next tap would make another, so
+// that request is waited for however long it takes.
+it.each([
+    ["join", "join", true],
+    ["join", "view", true],
+    ["join", "fork", false],
+    ["play", "game", false],
+] as const)(
+    "on the %s page with a %s link, gives up on a request that hangs: %s",
+    async (page, linkType, givesUp) => {
+        if (page === "join") LINK_INFO.join = { ...LINK_INFO.join, linkType };
         const { elements, shown, location } = open(page, fetchMock);
         await settle();
         expect(shown("valid")).toBe(true);
 
         hang = true;
-        const button = elements.get(
-            page === "join" ? "redeem-btn" : "start-btn",
-        )!;
+        const button = elements.get(page === "join" ? "redeem-btn" : "start-btn")!;
         if (page === "join") {
             void button.listeners.get("click")!({});
         } else {
@@ -192,8 +203,8 @@ describe.each(["join", "play"] as const)("the %s page", (page) => {
 
         await vi.advanceTimersByTimeAsync(DEADLINE_MS);
         await settle();
-        expect(button.disabled).toBe(false);
-        expect(shown(page === "join" ? "redeem-error" : "error")).toBe(true);
+        expect(button.disabled).toBe(!givesUp);
+        expect(shown(page === "join" ? "redeem-error" : "error")).toBe(givesUp);
         expect(location.href).toBe(`http://localhost/${page}?token=t1`);
-    });
-});
+    },
+);

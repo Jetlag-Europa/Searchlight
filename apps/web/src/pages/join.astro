@@ -160,12 +160,15 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 return;
             }
 
-            const request = deadline();
+            // Redeeming a join or view link again is harmless. A copy given
+            // up on may still be made, and tapping again would make another,
+            // so that is waited for however long it takes.
+            const request = linkInfo.linkType === "fork" ? null : deadline();
             try {
                 const res = await fetch(`${apiBase}/links/${encodeURIComponent(token)}/redeem`, {
                     method: "POST",
                     credentials: "include",
-                    signal: request.signal,
+                    signal: request?.signal,
                 });
                 if (!res.ok) {
                     if (res.status === 404) { $("valid").classList.replace("flex", "hidden"); showEl("invalid"); return; }
@@ -176,14 +179,14 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 localStorage.setItem("taibled-pending-link-session", sessionId);
                 window.location.href = "/map";
             } catch (e) {
-                $("redeem-error").textContent = request.signal.aborted
+                $("redeem-error").textContent = request?.signal.aborted
                     ? "Searchlight is taking too long to answer. Try again."
                     : e instanceof Error ? e.message : String(e);
                 $("redeem-error").classList.remove("hidden");
                 $("redeem-btn").disabled = false;
                 $("redeem-label").textContent = redeemText;
             } finally {
-                request.clear();
+                request?.clear();
             }
         });
     }

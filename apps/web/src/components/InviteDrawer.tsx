@@ -128,6 +128,8 @@ function SessionInviteDrawer({
             if (!res.ok) return;
             const data = await res.json() as { participants?: SessionParticipant[] };
             setParticipants(data.participants ?? []);
+            // A role changed meanwhile (here or elsewhere) asks again.
+            setConfirmDemoteOf(null);
         } catch {
             // non-critical
         }

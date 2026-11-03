@@ -175,14 +175,14 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
 
             $("start-btn").disabled = true;
             $("start-label").textContent = "…";
-            const request = deadline();
+            // No deadline: a start given up on may still land, and tapping
+            // again would start a second session.
             try {
                 const res = await fetch(`${apiBase}/game-links/${encodeURIComponent(token)}/sessions`, {
                     method: "POST",
                     credentials: "include",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ name, visibility: "private" }),
-                    signal: request.signal,
                 });
                 if (res.status === 404) { showInvalid(); return; }
                 if (res.status === 401) { logIn(); return; }
@@ -194,13 +194,9 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
                 localStorage.setItem("taibled-pending-link-session", id);
                 window.location.href = "/map";
             } catch (err) {
-                showError(request.signal.aborted
-                    ? "Searchlight is taking too long to answer. Try again."
-                    : `Couldn't start the session: ${err.message}`);
+                showError(`Couldn't start the session: ${err.message}`);
                 $("start-btn").disabled = false;
                 $("start-label").textContent = startLabel;
-            } finally {
-                request.clear();
             }
         });
     }

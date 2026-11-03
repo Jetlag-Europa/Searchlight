@@ -235,6 +235,7 @@ function SessionPickerOverlay({
     const [selectedServerId, setSelectedServerId] = useState<string>("");
     const [sessions, setSessions] = useState<GameSessionSummary[] | null>(null);
     const [availableGames, setAvailableGames] = useState<Game[]>([]);
+    const [catalogFailed, setCatalogFailed] = useState(false);
     const [loadingServers, setLoadingServers] = useState(true);
     const [recheckingServers, setRecheckingServers] = useState(false);
     const [loadingSessions, setLoadingSessions] = useState(false);
@@ -360,6 +361,7 @@ function SessionPickerOverlay({
             setSessions(null);
             setError(null);
             const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
+            let catalogError: Error | null = null;
             try {
                 const [data, games] = await Promise.all([
                     // Read before the catalog is waited for: the deadline
@@ -377,11 +379,12 @@ function SessionPickerOverlay({
                     isMember && serverId !== CASUAL_SERVER_ID
                         ? deadline
                               .race(fetchGameCatalog(serverId))
-                              .catch((err) => {
+                              .catch((err: Error) => {
                                   console.warn(
                                       "[searchlight:session] game catalog unavailable:",
                                       err,
                                   );
+                                  catalogError = err;
                                   return [] as Game[];
                               })
                         : Promise.resolve([] as Game[]),
@@ -390,6 +393,13 @@ function SessionPickerOverlay({
                 setSessions(data.sessions);
                 setAvailableGames(games);
                 setNewSessionGameId(games.length > 0 ? games[0].id : "");
+                // Its sessions still open; Try again loads the games too.
+                setCatalogFailed(catalogError !== null);
+                if (catalogError) {
+                    setError(
+                        `Failed to load this server’s games: ${(catalogError as Error).message}`,
+                    );
+                }
             } catch (e: unknown) {
                 if (reqId !== loadSessionsReqRef.current) return;
                 setError(`Failed to load sessions: ${(e as Error).message}`);
@@ -417,7 +427,9 @@ function SessionPickerOverlay({
     // coming back online, loads it again (the installed app has no reload).
     const listFailed =
         Boolean(error) &&
-        (!servers || (Boolean(selectedServerId) && sessions === null));
+        (!servers ||
+            (Boolean(selectedServerId) &&
+                (sessions === null || catalogFailed)));
     const retryList = useCallback(() => {
         if (!servers || !selectedServerId) void loadServers();
         else void loadSessionsForServer(selectedServerId, selectedIsMember);
