@@ -9,9 +9,12 @@ import {
     loadGameDefinition,
 } from "@/game-definition/store";
 import { verifiedUserId } from "@/lib/activeSession";
+import { startCalculation } from "@/lib/calculating";
 import {
     hiderMode,
+    hidingZoneScale,
     leafletMapContext,
+    perQuestionMapData,
     planningModeEnabled,
     polyGeoJSON,
     questions,
@@ -35,7 +38,12 @@ import {
     trail,
 } from "@/lib/replay";
 import { cn } from "@/lib/utils";
-import { hidingZoneCircles } from "@/maps/geo-utils/hidingZones";
+import type { StationCircle } from "@/maps/api";
+import { filterZoneIndexes } from "@/maps/geo-utils/geometryClient";
+import {
+    hidingZoneCircles,
+    survivingHidingZones,
+} from "@/maps/geo-utils/hidingZones";
 import { type Question, type Questions, questionSchema } from "@/maps/schema";
 
 // The replay page (tracker stack): a session's questions, as they were asked
@@ -377,6 +385,54 @@ export function ReplayPage() {
         questions.set(filterSupportedQuestions(board, $compiled));
         // Only when the board's questions, locks or zone change, not every frame.
     }, [boardKey, replay, $compiled]);
+
+    // The hiding zones the answers so far leave, drawn as the map page draws
+    // them. Not in the endgame: the board is then the hider's zone.
+    const $perQuestionMapData = useStore(perQuestionMapData);
+    const $hidingZoneScale = useStore(hidingZoneScale);
+    const [zonesLeft, setZonesLeft] = useState<StationCircle[]>([]);
+    useEffect(() => {
+        if (!$compiled || zone) {
+            setZonesLeft([]);
+            return;
+        }
+        let current = true;
+        const finish = startCalculation("replay-zones");
+        survivingHidingZones(
+            $compiled,
+            $perQuestionMapData,
+            $hidingZoneScale,
+            filterZoneIndexes,
+            () => current,
+        )
+            .then((zones) => {
+                if (current && zones) setZonesLeft(zones);
+            })
+            .catch((error) => console.error(error))
+            .finally(finish);
+        return () => {
+            current = false;
+        };
+    }, [$compiled, $perQuestionMapData, $hidingZoneScale, zone]);
+    useEffect(() => {
+        if (!map || zonesLeft.length === 0) return;
+        // Their own pane, under the board's shading and the question pins.
+        if (!map.getPane("replayZones"))
+            map.createPane("replayZones").style.zIndex = "390";
+        const layer = L.geoJSON(zonesLeft, {
+            pane: "replayZones",
+            interactive: false,
+            style: {
+                color: "green",
+                fillColor: "green",
+                fillOpacity: 0.2,
+                weight: 2,
+            },
+        }).addTo(map);
+        return () => {
+            layer.remove();
+        };
+    }, [map, zonesLeft]);
 
     // People shown, with their roles and names.
     const people = useMemo(() => {
