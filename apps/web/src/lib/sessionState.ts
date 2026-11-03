@@ -58,22 +58,27 @@ function refreshSyncCounts(sessionId: string): void {
  * is told, and a debounced edit waits in memory (see debounceSave) for
  * Retry, the next edit or the page closing to queue it.
  */
+// Retry on the storage-full toast, which may have been shown for another
+// session: only the active one can have an edit waiting (a load cancels the
+// others'). Done once none waits; a board that can't save it (another tab
+// took the session over) keeps it waiting.
+function retryUnqueuedEdits(): boolean {
+    const id = activeSessionId.get();
+    const waiting = () =>
+        [questionSaves, hiderSaves, planningSaves].some((state) => state.pending.has(id));
+    if (!id || !waiting()) return true;
+    if (isSessionReadOnly(id)) return false;
+    flushSessionSaves(id);
+    return !waiting();
+}
+
 function queueEdit(event: Parameters<typeof enqueueEvent>[0]): PendingEvent {
     const { sessionId } = event;
     let queued: PendingEvent;
     try {
         queued = enqueueEvent(event);
     } catch (err) {
-        // Retry is done once nothing waits to be queued. A board that can't
-        // save it (another tab took the session over) keeps waiting.
-        sayStorageFull(() => {
-            if (sessionId !== activeSessionId.get()) return true;
-            if (isSessionReadOnly(sessionId)) return false;
-            flushSessionSaves(sessionId);
-            return ![questionSaves, hiderSaves, planningSaves].some((state) =>
-                state.pending.has(sessionId),
-            );
-        });
+        sayStorageFull(retryUnqueuedEdits);
         throw err;
     }
     refreshSyncCounts(sessionId);

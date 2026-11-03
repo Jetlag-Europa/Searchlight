@@ -1785,6 +1785,8 @@ export function SessionManager() {
     // Load the session again, its game included. Fetching the session first
     // also covers an offline restore, which never got the session's details.
     const retryGameLoad = async () => {
+        // Taken over by another tab: Use here (a reload) loads it.
+        if (editingInOtherTab.get()) return;
         const id = activeSessionId.get();
         // As now: the effects that call this don't run again when it changes.
         if (offlineRef.current) {
@@ -1855,7 +1857,9 @@ export function SessionManager() {
     // changed, and with `forgetIfGone`, forget it if it's gone.
     const checkSession = async (id: string, forgetIfGone: boolean) => {
         const details = await fetchSessionDetails(id);
-        if (activeSessionId.get() !== id) return;
+        // Taken over meanwhile: the other tab checks it now, and its queue
+        // isn't this tab's to drop.
+        if (activeSessionId.get() !== id || editingInOtherTab.get()) return;
         if (details.kind === "unavailable" && forgetIfGone) {
             forgetSession(id, details.status);
             return;

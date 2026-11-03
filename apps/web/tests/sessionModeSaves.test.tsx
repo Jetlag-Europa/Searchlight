@@ -222,6 +222,7 @@ import { SessionManager } from "@/components/SessionManager";
 import {
     activeSessionData,
     activeSessionId,
+    activeSessionRole,
     clearActiveSession,
     isSessionReadOnly,
     offlineUserId,
@@ -236,6 +237,7 @@ import {
 import { setCachedSession } from "@/lib/eventQueue";
 import { switchToGame } from "@/lib/games";
 import { FLUSH_WAIT_MS, LOAD_TIMEOUT_MS } from "@/lib/loadDeadline";
+import { SESSION_STREAM_RECONNECTED_EVENT } from "@/lib/sseManager";
 import {
     loadSessionContent,
     saveHiderModeToServer,
@@ -938,6 +940,47 @@ describe("another tab of this browser opening the session", () => {
         expect(env.document.body.textContent).toContain(notice);
         expect(isSessionReadOnly("a")).toBe(true);
         expect(env.FakeEventSource.last).toBeNull();
+    });
+
+    it("leaves the queue alone when a role check started before answers after", async () => {
+        server = { a: session("a", { role: "member" }) };
+        await reload("a");
+        // The stream reconnects: the board checks the role, slowly.
+        let answer = () => {};
+        fetchMock.mockImplementationOnce(
+            (input: string | URL) =>
+                new Promise((resolve) => {
+                    answer = () =>
+                        resolve(json(session(new URL(String(input)).pathname.split("/")[2], { role: "viewer" })));
+                }),
+        );
+        await act(async () =>
+            window.dispatchEvent(
+                new CustomEvent(SESSION_STREAM_RECONNECTED_EVENT, {
+                    detail: { sessionId: "a" },
+                }),
+            ),
+        );
+        await otherTabOpens();
+        // The other tab has queued an edit; this one's old check answers.
+        const queued = JSON.stringify([
+            {
+                localId: "other-tab-edit",
+                sessionId: "a",
+                type: "planning.toggle",
+                payloadJson: { planningModeEnabled: true },
+                clientUuid: "planning-other-tab",
+                clientCreatedAt: 0,
+                status: "pending",
+                createdAt: 0,
+            },
+        ]);
+        env.store.set(`taibled-pending-a~${USER}`, queued);
+        await act(async () => answer());
+        await settle();
+        expect(env.store.get(`taibled-pending-a~${USER}`)).toBe(queued);
+        expect(activeSessionRole.get()).not.toBe("viewer");
+        expect(locks.request).toHaveBeenCalledOnce();
     });
 
     it("stops a load still running here", async () => {

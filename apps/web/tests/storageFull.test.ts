@@ -55,12 +55,14 @@ import { clearStrokeTombstones } from "@/annotations/storage/serverStore";
 import type { StrokeFeature } from "@/annotations/types";
 import {
     activeSessionId,
+    activeSessionRole,
     editingInOtherTab,
     verifiedUserId,
 } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { getPendingEvents, setCachedSession } from "@/lib/eventQueue";
 import {
+    becomeSpectator,
     cancelPendingQuestionSave,
     hasScheduledQuestionSave,
     saveQuestionsDebounced,
@@ -131,6 +133,7 @@ afterEach(() => {
     cancelPendingQuestionSave();
     clearStrokeTombstones();
     activeSessionId.set("");
+    activeSessionRole.set(null);
     verifiedUserId.set(null);
     vi.useRealTimers();
     vi.restoreAllMocks();
@@ -208,6 +211,60 @@ describe("an edit the queue has no room for", () => {
         expect(queued).toHaveLength(1);
         expect(queued[0].payloadJson).toMatchObject({ base: { sequence: 5 } });
         expect(hasScheduledQuestionSave(SID)).toBe(false);
+    });
+
+    test("stays up until Retry: no close button, no swipe", () => {
+        nearlyFull();
+        saveQuestionsDebounced(SID, bigList("edited", 300_000));
+        vi.advanceTimersByTime(600);
+        expect(vi.mocked(toast.error).mock.lastCall?.[1]).toMatchObject({
+            autoClose: false,
+            closeButton: false,
+            closeOnClick: false,
+            draggable: false,
+        });
+    });
+
+    test("Retry acts for the session shown, whichever session the toast was shown for", () => {
+        nearlyFull();
+        saveQuestionsDebounced(SID, bigList("edited", 300_000));
+        vi.advanceTimersByTime(600);
+        // The toast stays as it was shown (react-toastify keeps one per id).
+        const retry = retryButton()!;
+        // To another session, whose edit doesn't fit either (the switch
+        // dropped this one's).
+        cancelPendingQuestionSave();
+        const other = "other-session";
+        setCachedSession({
+            sessionId: other,
+            userId: "me",
+            strokes: [],
+            questions: [],
+            serverQuestions: { sequence: 1, questions: [] },
+            lastSyncedAt: 0,
+            lastSequence: 1,
+        });
+        activeSessionId.set(other);
+        // Nothing fits now, even once other copies are dropped.
+        capacity = 0;
+        saveQuestionsDebounced(other, bigList("other", 1_000));
+        vi.advanceTimersByTime(600);
+        retry();
+        expect(closeToast).not.toHaveBeenCalled();
+        expect(hasScheduledQuestionSave(other)).toBe(true);
+        capacity = Infinity;
+        retry();
+        expect(closeToast).toHaveBeenCalledOnce();
+        expect(getPendingEvents(other)).toHaveLength(1);
+    });
+
+    test("Retry closes once no edit waits: a demotion dropped it", () => {
+        nearlyFull();
+        saveQuestionsDebounced(SID, bigList("edited", 300_000));
+        vi.advanceTimersByTime(600);
+        becomeSpectator(SID);
+        retryButton()!();
+        expect(closeToast).toHaveBeenCalledOnce();
     });
 
     test("waits on Retry in a tab another one took the session over from", () => {

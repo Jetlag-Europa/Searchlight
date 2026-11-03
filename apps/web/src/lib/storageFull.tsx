@@ -32,6 +32,7 @@ export function sayStorageFull(retry?: () => boolean): void {
             autoClose: false,
             closeButton: false,
             closeOnClick: false,
+            draggable: false,
         },
     );
 }
