@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
 import * as L from "leaflet";
 import _ from "lodash";
 import { SidebarCloseIcon } from "lucide-react";
@@ -39,6 +40,7 @@ import { createLatestTask } from "@/lib/latestTask";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
 import { hidingZonesCalculated, zonesLeft } from "@/lib/zonesLeft";
+import type { StationCircle } from "@/maps/api";
 import {
     extractStationLabel,
     extractStationName,
@@ -137,6 +139,13 @@ const ZoneSidebarContent = () => {
     const zoneRefreshQueue = useMemo(() => createLatestTask(), []);
     const selectionTaskQueue = useMemo(() => createLatestTask(), []);
     const outlineTaskQueue = useMemo(() => createLatestTask(), []);
+    // The last No Overlap outline, drawn again without a merge while the zones
+    // are the same: after turning the labels on or off (the outline has none),
+    // leaving a viewed zone or switching back to No Overlap.
+    const lastOutline = useRef<{
+        zones: StationCircle[];
+        outline: Feature<Polygon | MultiPolygon>;
+    } | null>(null);
 
     // The game's hiding radius, for reference: zones take theirs from the
     // game, resized by any zone size change in the questions.
@@ -381,6 +390,11 @@ const ZoneSidebarContent = () => {
                 $displayHidingZonesStyle === "no-overlap" &&
                 activeStations.length > 1
             ) {
+                const last = lastOutline.current;
+                if (last && sameZones(last.zones, activeStations)) {
+                    showGeoJSON(last.outline);
+                    return;
+                }
                 // Merging hundreds of zones can take a second, so the worker
                 // does it while the current drawing stays up.
                 void outlineTaskQueue.request(async (isCurrent) => {
@@ -389,8 +403,19 @@ const ZoneSidebarContent = () => {
                             { kind: "union", regions: activeStations },
                             { supersede: "hiding-zone-outline" },
                         );
+                        // Still the outline of these zones if the view moved
+                        // on meanwhile, so the next switch back can use it.
+                        if (union) {
+                            lastOutline.current = {
+                                zones: activeStations,
+                                outline: union,
+                            };
+                        }
                         if (!isCurrent()) return;
-                        showGeoJSON(union ?? turf.featureCollection([]));
+                        if (!union) {
+                            throw new Error("The zones merged to nothing");
+                        }
+                        showGeoJSON(union);
                     } catch (error) {
                         if (!isCurrent() || error instanceof SupersededError) {
                             return;

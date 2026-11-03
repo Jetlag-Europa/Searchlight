@@ -7,7 +7,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Smoother hiding-zone map on big games (2026-11-03)
 
 - With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
-- "No Overlap" merges the zones without freezing the page. The map keeps the previous outline until the new one is ready.
+- "No Overlap" merges the zones without freezing the page, and the map keeps what it showed until the new outline is ready. Turning Zone Labels on or off, or leaving a viewed zone, redraws the outline at once.
 - An answer or a teammate's update that rules out no zone no longer redraws the zones.
 
 ## Casual Games (2026-11-03)
