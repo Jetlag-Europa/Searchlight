@@ -198,6 +198,19 @@ describe("kept game revisions", () => {
         expect(await readStoredRevision("game", "r2")).toBeDefined();
     });
 
+    test("keep no more than that when the index can't be written", async () => {
+        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+            await storeRevision("game", `r${i}`, json(`${i}`));
+        }
+        vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+            throw new DOMException("full", "QuotaExceededError");
+        });
+        await storeRevision("game", "new", json("new"));
+
+        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
+        expect(await readStoredRevision("game", "new")).toBeDefined();
+    });
+
     test("keep the one a session reads while a store makes room", async () => {
         for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
             await storeRevision("game", `r${i}`, json(`${i}`));

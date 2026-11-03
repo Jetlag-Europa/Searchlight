@@ -46,15 +46,16 @@ function readIndex(): string[] {
     }
 }
 
-// `key` was just used: it becomes the newest, and the oldest that no longer
-// fit leave the index.
-function touch(key: string): void {
-    const index = [...readIndex().filter((k) => k !== key), key];
-    writeStorage(
-        "localStorage",
-        INDEX_KEY,
-        JSON.stringify(index.slice(-MAX_STORED_REVISIONS)),
+// The index with `key` as the newest, without the oldest that no longer fit.
+function withNewest(key: string): string[] {
+    return [...readIndex().filter((k) => k !== key), key].slice(
+        -MAX_STORED_REVISIONS,
     );
+}
+
+// `key` was just used.
+function touch(key: string): void {
+    writeStorage("localStorage", INDEX_KEY, JSON.stringify(withNewest(key)));
 }
 
 /** The kept copy of a game revision, if this browser has one. */
@@ -113,13 +114,11 @@ export async function storeRevision(
         touch(key);
         const keys = await cache.keys();
         // Read after the keys: a copy stored or read meanwhile is in it.
-        const index = new Set(readIndex());
+        // With `key`, in case the index couldn't be written.
+        const keep = new Set(withNewest(key));
         await Promise.all(
             keys
-                .filter(
-                    (request) =>
-                        request.url !== key && !index.has(request.url),
-                )
+                .filter((request) => !keep.has(request.url))
                 .map((request) => cache.delete(request)),
         );
     } catch (err) {
