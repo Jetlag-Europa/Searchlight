@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
     HANDOVER_MS,
+    resultsPending,
     SHOW_AFTER_MS,
     showCalculating,
     startCalculation,
@@ -71,6 +72,22 @@ describe("calculating question results", () => {
         late();
         vi.advanceTimersByTime(SHOW_AFTER_MS + HANDOVER_MS);
         expect(showCalculating.get()).toBe(false);
+    });
+
+    it("says results are pending at once, until the newest of each source is done", () => {
+        const obsolete = startCalculation("questions");
+        expect(resultsPending.get()).toBe(true);
+        const newer = startCalculation("questions");
+        const zones = startCalculation("zones");
+        obsolete();
+        expect(resultsPending.get()).toBe(true);
+        newer();
+        expect(resultsPending.get()).toBe(true);
+        zones();
+        // No handover delay.
+        expect(resultsPending.get()).toBe(false);
+        obsolete();
+        expect(resultsPending.get()).toBe(false);
     });
 
     it("waits for every source", () => {
