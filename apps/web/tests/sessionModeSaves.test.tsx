@@ -858,6 +858,7 @@ describe("a session load that fails", () => {
         await wait(3000);
         expect(error).toHaveBeenCalledExactlyOnceWith(expect.anything(), {
             toastId: "sign-in-expired",
+            autoClose: false,
         });
         expect(fetchMock).toHaveBeenCalledTimes(1);
 
@@ -1148,25 +1149,36 @@ describe("a background reload", () => {
         expect(overlayShown()).toBe(false);
         expect(mapBoard.inert).toBe(false);
     });
+});
 
-    it("checks only the session's details before it loads", async () => {
-        fakeTimers();
-        server = { a: session("a") };
-        keep(session("a"));
-        vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
-        await reload("a");
+// A link that answers small requests but not big ones (congested mobile
+// data): the board stays usable, not held under the overlay over and over.
+it("a background check that can't get the content leaves the board alone", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const mapBoard = board();
+    server = { a: session("a") };
+    keep(session("a"));
+    vi.mocked(loadSessionContent).mockRejectedValueOnce(new Error("503"));
+    await reload("a");
 
-        fetchMock.mockClear();
-        await wait(3000);
-        expect(loadSessionContent).toHaveBeenCalledTimes(2);
-        const paths = fetchMock.mock.calls.map(
-            ([input]) => new URL(String(input)).pathname,
+    const stalls = (signal?: AbortSignal | null) =>
+        new Promise<never>((_, reject) =>
+            signal?.addEventListener("abort", () => reject(signal.reason)),
         );
-        // The load reads the content itself (faked here).
-        expect(paths.filter((path) => /strokes|questions/.test(path))).toEqual(
-            [],
-        );
-    });
+    fetchMock.mockImplementation((input, init) =>
+        /\/(strokes|questions)$/.test(new URL(String(input)).pathname)
+            ? stalls(init?.signal)
+            : defaultFetch(input),
+    );
+    vi.mocked(loadSessionContent).mockImplementation((_id, _user, signal) =>
+        stalls(signal),
+    );
+    let blockedSeconds = 0;
+    for (let second = 0; second < 300; second++) {
+        await wait(1000);
+        if (overlayShown() || mapBoard.inert) blockedSeconds++;
+    }
+    expect(blockedSeconds).toBe(0);
 });
 
 describe("a session deleted since the picker listed it", () => {

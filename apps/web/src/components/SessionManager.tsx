@@ -80,7 +80,7 @@ import {
 } from "@/lib/questionSaveSuppress";
 import { handleRejectedEdits } from "@/lib/rejectedEdits";
 import { readStorage, removeStorage } from "@/lib/safeStorage";
-import { fetchSessionDetails } from "@/lib/sessionProbe";
+import { fetchSessionDetails, probeSession } from "@/lib/sessionProbe";
 import {
     becomeSpectator,
     cacheSessionRole,
@@ -182,7 +182,8 @@ function saySignInExpired(): void {
                 Sign in
             </button>
         </div>,
-        { toastId: "sign-in-expired" },
+        // Until it's tapped or closed: nothing else offers it.
+        { toastId: "sign-in-expired", autoClose: false },
     );
 }
 
@@ -1339,11 +1340,11 @@ export function SessionManager() {
     );
 
     // The board shows what was kept of a session the server didn't answer
-    // for (a 5xx, no network, a route this API doesn't have): check its
-    // details again quietly until the server answers, then load it, which
-    // sends the queued edits, reads the rest and opens the stream. A load
-    // that fails again shows the kept copy again and checks on. Any other
-    // load stops it.
+    // for (a 5xx, no network, a route this API doesn't have): check it again
+    // quietly until the server answers, then load it, which sends the queued
+    // edits and opens the stream. Any other load stops it. (The check reads
+    // the content the load reads again, but fails quietly where a load would
+    // hold the board under its overlay until its deadline.)
     const keepCheckingSession = (id: string, generation: number) => {
         const isCurrent = () =>
             generation === sessionLoadGenerationRef.current &&
@@ -1368,21 +1369,19 @@ export function SessionManager() {
         sessionRecheck.start(async () => {
             if (!isCurrent()) return true;
             if (busy()) return false;
-            const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
-            const details = await fetchSessionDetails(id, deadline.signal);
-            deadline.clear();
+            const probe = await probeSession(id);
             if (!isCurrent()) return true;
-            if (details.kind === "unavailable") {
-                forgetSession(id, details.status);
+            if (probe.kind === "unavailable") {
+                forgetSession(id, probe.status);
                 return true;
             }
-            if (details.kind === "signedOut") {
+            if (probe.kind === "signedOut") {
                 saySignInExpired();
                 return true;
             }
-            if (details.kind === "retry" || busy()) return false;
+            if (probe.kind === "retry" || busy()) return false;
             console.info("[searchlight:session] server answered, loading", id);
-            void loadSession(details.session);
+            void loadSession(probe.session);
             return true;
         });
     };

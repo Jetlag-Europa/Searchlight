@@ -371,7 +371,8 @@ function SessionInviteDrawer({
                             <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">In this session</p>
                             {others.map((p) => {
                                 const nextRole = p.role === "viewer" ? "member" : "viewer";
-                                const confirming = confirmDemoteOf === p.userId;
+                                const confirming =
+                                    confirmDemoteOf === p.userId && nextRole === "viewer";
                                 return (
                                     <div
                                         key={p.userId}
