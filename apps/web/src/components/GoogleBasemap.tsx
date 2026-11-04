@@ -90,6 +90,22 @@ function googleLayer(): L.GridLayer {
         for (let i = 0; i < googleMutant._imagesPerTile; i++)
             delete googleMutant._tileCallbacks[`${key}/${i}`];
     });
+    // Offline, Google's map stays where it is: it can't load another view's
+    // tiles, and GoogleMutant would keep those that failed as empty ones for
+    // good. The tiles on the map stay; the rest come once back online.
+    const update = googleMutant._update;
+    googleMutant._update = function (center?: L.LatLng) {
+        if (navigator.onLine) update.call(this, center);
+        else (L.GridLayer.prototype as any)._update.call(this, center);
+    };
+    window.addEventListener("online", () => {
+        if (!googleMutant._map) return;
+        // A look changed offline (see GoogleBasemap).
+        applyLook?.(chosenLook());
+        // Tiles copied offline from the ones GoogleMutant kept are empty
+        // too: copy them again, with Google's map following the view.
+        googleMutant.redraw();
+    });
     applyLook = googleLook(
         {
             setMapType: (type) =>
@@ -162,7 +178,8 @@ export const GoogleBasemap = ({
     active,
     children,
 }: {
-    // Whether Google can show now; if not (offline, failing), only CARTO.
+    // Whether Google can show now; if not (offline before it has drawn,
+    // failing), only CARTO.
     active: boolean;
     children: ReactNode;
 }) => {
@@ -223,9 +240,12 @@ export const GoogleBasemap = ({
 
     // Only while the layer is on the map: Google draws nothing for a map
     // that isn't on the page, and the load above applies the settings when it
-    // adds the layer.
+    // adds the layer. Nor offline, where Google can't load what a look needs
+    // (its transit layer's code, new tiles): it's applied once back online
+    // (googleLayer).
     useEffect(() => {
-        if (layer && map.hasLayer(layer)) applyLook?.(chosenLook());
+        if (layer && map.hasLayer(layer) && navigator.onLine)
+            applyLook?.(chosenLook());
     }, [map, $googleMapType, $showGoogleTransit, $hideGooglePlaces]);
 
     return active && drawn ? null : children;
