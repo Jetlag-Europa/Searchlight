@@ -733,12 +733,6 @@ const ZoneSidebarContent = () => {
                                                                     ],
                                                                 );
                                                             }
-
-                                                            // Not the list at the tap: the zones
-                                                            // may have been recalculated since.
-                                                            setStations([
-                                                                ...trainStations.get(),
-                                                            ]);
                                                         }, 100);
                                                     }}
                                                     disabled={$isLoading}
