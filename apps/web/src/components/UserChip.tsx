@@ -1,9 +1,7 @@
-import { useStore } from "@nanostores/react";
 import type { User } from "@searchlight/shared";
 import { toast } from "react-toastify";
 
 import { clearActiveSession } from "@/lib/activeSession";
-import { sessionPickerOpen } from "@/lib/context";
 import { forgetGameViews } from "@/lib/gameView";
 import { forgetAccount } from "@/lib/offlineAccess";
 
@@ -15,8 +13,6 @@ interface Props {
 }
 
 export function UserChip({ user, apiBase }: Props) {
-    const pickerOpen = useStore(sessionPickerOpen);
-
     async function handleLogout() {
         try {
             const res = await fetch(`${apiBase}/auth/logout`, {
@@ -49,10 +45,7 @@ export function UserChip({ user, apiBase }: Props) {
 
     return (
         <StatusChip slot="user">
-            <div
-                inert={pickerOpen}
-                className="flex w-max items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-white text-sm backdrop-blur-sm"
-            >
+            <div className="flex w-max items-center gap-2 rounded-full bg-black/60 px-3 py-1.5 text-white text-sm backdrop-blur-sm">
                 <img
                     src={user.avatarUrl}
                     alt={user.displayName}
