@@ -40,14 +40,7 @@ import {
 } from "@/lib/questionSidebarTab";
 
 import { AddQuestionDialog } from "./AddQuestionDialog";
-import {
-    MatchingQuestionComponent,
-    MeasuringQuestionComponent,
-    RadiusQuestionComponent,
-    TentacleQuestionComponent,
-    ThermometerQuestionComponent,
-    ZoneSizeComponent,
-} from "./QuestionCards";
+import { CardForQuestion } from "./QuestionCards";
 import { QuestionHistory } from "./QuestionHistory";
 
 export const QuestionSidebar = () => {
@@ -140,60 +133,10 @@ export const QuestionSidebar = () => {
                 className="mt-8 md:mt-0"
             >
                 {tab === "history" && <QuestionHistory />}
-                {tab === "questions" && $questions.map((question) => {
-                    switch (question.id) {
-                        case "radius":
-                            return (
-                                <RadiusQuestionComponent
-                                    data={question.data}
-                                    key={question.key}
-                                    questionKey={question.key}
-                                />
-                            );
-                        case "thermometer":
-                            return (
-                                <ThermometerQuestionComponent
-                                    data={question.data}
-                                    key={question.key}
-                                    questionKey={question.key}
-                                />
-                            );
-                        case "tentacles":
-                            return (
-                                <TentacleQuestionComponent
-                                    data={question.data}
-                                    key={question.key}
-                                    questionKey={question.key}
-                                />
-                            );
-                        case "matching":
-                            return (
-                                <MatchingQuestionComponent
-                                    data={question.data}
-                                    key={question.key}
-                                    questionKey={question.key}
-                                />
-                            );
-                        case "measuring":
-                            return (
-                                <MeasuringQuestionComponent
-                                    data={question.data}
-                                    key={question.key}
-                                    questionKey={question.key}
-                                />
-                            );
-                        case "zone-size":
-                            return (
-                                <ZoneSizeComponent
-                                    data={question.data}
-                                    key={question.key}
-                                    questionKey={question.key}
-                                />
-                            );
-                        default:
-                            return null;
-                    }
-                })}
+                {tab === "questions" &&
+                    $questions.map((question) => (
+                        <CardForQuestion key={question.key} question={question} />
+                    ))}
             </SidebarContent>
             <SidebarGroup>
                 {/* A spectator can't add, delete or save questions. */}

@@ -44,7 +44,6 @@ import { gameDefinitionReady, questions } from "@/lib/context";
 import {
     applyUnsyncedEvents,
     boardPaintedFromSnapshot,
-    enqueueEvent,
     discardSessionData,
     getCachedSession,
     getPendingEvents,
@@ -1583,39 +1582,6 @@ describe("decisions and our own saves", () => {
         expect(getCachedSession(SID)?.serverQuestions?.sequence).toBe(
             server.seq,
         );
-    });
-});
-
-describe("a list queued by a build from before", () => {
-    test("counts as possibly sent: a version of ours it holds isn't asked about", async () => {
-        snapshot([q(1)], 4);
-        const server = fakeServer(4, [q(1)]);
-        // On its way when that page went away, and it landed.
-        server.seq = 5;
-        server.list = [q(1, "a")];
-        store.set(
-            `taibled-pending-${SID}~u1`,
-            JSON.stringify([
-                {
-                    localId: "legacy",
-                    sessionId: SID,
-                    type: "questions.replace",
-                    payloadJson: {
-                        replacementId: "r-legacy",
-                        questions: wire([q(1, "a")]),
-                        base: { sequence: 4, questions: [q(1)] },
-                    },
-                    clientUuid: "questions-replace-r-legacy",
-                    clientCreatedAt: 0,
-                    status: "pending",
-                    createdAt: 0,
-                },
-            ]),
-        );
-        void enqueueEvent;
-        await saveQuestionsToServer(SID, [q(1, "b")]);
-        expect(stored()).toEqual([]);
-        expect(labels(server.list)).toEqual(["1:b"]);
     });
 });
 

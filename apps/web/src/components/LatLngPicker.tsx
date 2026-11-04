@@ -399,7 +399,6 @@ export const LatitudeLongitude = ({
     onChange,
     label = "Location",
     colorName,
-    children,
     disabled,
     inlineEdit = false,
     localLocations,
@@ -410,8 +409,6 @@ export const LatitudeLongitude = ({
     onChange: (lat: number | null, lng: number | null) => void;
     label?: string;
     colorName?: keyof typeof ICON_COLORS;
-    className?: string;
-    children?: React.ReactNode;
     disabled?: boolean;
     inlineEdit?: boolean;
     localLocations?: LocalLocation[];
@@ -647,7 +644,6 @@ export const LatitudeLongitude = ({
                 </div>
             </SidebarMenuItem>
             {pasteDialog}
-            {children}
         </>
     );
 };

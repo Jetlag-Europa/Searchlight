@@ -1,9 +1,8 @@
 import { isStrokeLike, type StrokeFeature } from "@/annotations/types";
 import { isSessionReadOnly } from "@/lib/activeSession";
-import { pendingEventCount,syncStatus } from "@/lib/context";
+import { syncStatus } from "@/lib/context";
 import {
     enqueueEvent,
-    getPendingEvents,
     markEventSynced,
     type PendingEvent,
 } from "@/lib/eventQueue";
@@ -13,6 +12,7 @@ import {
     assertMaySend,
     assertStrokeDeleted,
     recordSendFailure,
+    refreshSyncCounts,
     SyncRequestError,
     withTimeout,
 } from "@/lib/syncManager";
@@ -32,12 +32,6 @@ export function isStrokeTombstoned(clientUuid: string): boolean {
 
 export function clearStrokeTombstones(): void {
     strokeTombstones.clear();
-}
-
-function refreshSyncCounts(sessionId: string): void {
-    const count = getPendingEvents(sessionId).length;
-    pendingEventCount.set(count);
-    if (count === 0) syncStatus.set("synced");
 }
 
 // Storage too full to queue a stroke's edit: said, and the board shows it

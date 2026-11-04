@@ -53,12 +53,8 @@ export function assertCanWrite(role: SessionRole): void {
 }
 
 /** resolveSessionAccess, then 403 unless the caller is a creator or member. */
-export async function resolveSessionWriter<I extends Prisma.GameSessionInclude = {}>(
-  sessionId: string,
-  userId: string,
-  include?: I,
-) {
-  const access = await resolveSessionAccess(sessionId, userId, include);
+export async function resolveSessionWriter(sessionId: string, userId: string) {
+  const access = await resolveSessionAccess(sessionId, userId);
   assertCanWrite(access.role);
   return access;
 }
