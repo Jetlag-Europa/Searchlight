@@ -250,6 +250,11 @@ test.describe("deleting a session on a phone", () => {
             await expect(
                 teammate.getByText(other.name, { exact: true }),
             ).toBeVisible({ timeout: 30_000 });
+            // The confirm doesn't come back with the sheet.
+            await teammate.locator('[data-sidebar="trigger"]').first().tap();
+            await expect(teammate.locator(sheet)).toBeVisible();
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
         } finally {
             await teammateContext.close();
         }
@@ -431,5 +436,56 @@ test.describe("deleting a session with a mouse", () => {
         await confirmDelete(page, deleteDialog(page, gone), "click");
         await expect(del).toHaveCount(0);
         await expect(picker(page).getByText(/Failed to delete/)).toHaveCount(0);
+    });
+
+    test("a teammate with the Delete All confirm open can pick another session", async ({
+        request,
+        browser,
+    }) => {
+        test.slow();
+        const shared = await createSession(request, "Desk");
+        const other = await createSession(request, "Next");
+        const teammateContext = await browser.newContext(desktop);
+        // The Delete All confirm sounds the alarm with this on.
+        await teammateContext.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        try {
+            const teammate = await teammateContext.newPage();
+            await testLogin(teammate, OTHER_USER_ID);
+            await join(request, teammate, shared.id);
+            await join(request, teammate, other.id);
+            await openBoard(teammate, shared);
+            await teammate
+                .getByRole("button", { name: "Delete All Questions" })
+                .click();
+            const confirm = teammate.getByRole("alertdialog");
+            const alarm = teammate.locator(".warning-flash");
+            await expect(confirm).toBeVisible();
+            await expect(alarm).toHaveCount(1);
+
+            const deleted = await request.delete(
+                `${API_BASE}/sessions/${shared.id}`,
+            );
+            expect(deleted.ok()).toBe(true);
+            // The picker opening closes the confirm, and the alarm stops: left
+            // open, it would stay over the next session's board and delete
+            // that session's questions.
+            await expect(picker(teammate)).toBeVisible({ timeout: 60_000 });
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
+            await expectBodyTappable(teammate);
+            await picker(teammate)
+                .getByRole("button", { name: new RegExp(`^${other.name}`) })
+                .click();
+            await expect(picker(teammate)).toBeHidden();
+            await expect(
+                teammate.getByText(other.name, { exact: true }),
+            ).toBeVisible({ timeout: 30_000 });
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
+        } finally {
+            await teammateContext.close();
+        }
     });
 });
