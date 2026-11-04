@@ -256,31 +256,49 @@ function pendingKey(sessionId: string) {
     if (!owner) return legacyPendingKey(sessionId);
     const key = `${PENDING_PREFIX}${sessionId}~${owner}`;
     // Builds from before queued without an owner: the snapshot's owner made
-    // those edits. Anyone else's stay where they are.
+    // those edits, so they move to that account's queue, whoever reads them
+    // first (another account's load soon makes the snapshot its own).
     try {
         const legacy = localStorage.getItem(legacyPendingKey(sessionId));
         if (!legacy || othersLegacyQueues.get(`${sessionId}~${owner}`) === legacy) {
             return key;
         }
-        if (getCachedSession(sessionId)?.userId !== owner) {
-            othersLegacyQueues.set(`${sessionId}~${owner}`, legacy);
-        } else {
-            const own = localStorage.getItem(key);
+        const maker = getCachedSession(sessionId)?.userId;
+        if (maker) {
+            const makerKey = `${PENDING_PREFIX}${sessionId}~${maker}`;
+            const own = localStorage.getItem(makerKey);
             const owned = own ? (JSON.parse(own) as PendingEvent[]) : [];
-            const events = [
-                ...(JSON.parse(legacy) as PendingEvent[]),
-                ...owned,
-            ];
+            const older = JSON.parse(legacy) as PendingEvent[];
             try {
-                localStorage.setItem(key, JSON.stringify(events));
+                localStorage.setItem(makerKey, JSON.stringify([...older, ...owned]));
+                localStorage.removeItem(legacyPendingKey(sessionId));
+                return key;
             } catch {
-                // No room for the copy (storage full): until there is, the
-                // edits are shown and sent from where they are, after this
-                // account's own.
-                return owned.length > 0 ? key : legacyPendingKey(sessionId);
+                // No room for the copy (storage full): until there is, this
+                // account's edits are shown and sent from where they are,
+                // after its own. As in the copy, its own newer question list,
+                // hider or planning mode replaces the older one.
+                if (maker === owner) {
+                    if (owned.length === 0) return legacyPendingKey(sessionId);
+                    const rest = older.filter(
+                        (event) =>
+                            !isReplacementEventType(event.type) ||
+                            !owned.some((o) => o.type === event.type),
+                    );
+                    if (rest.length === 0) {
+                        localStorage.removeItem(legacyPendingKey(sessionId));
+                    } else if (rest.length < older.length) {
+                        localStorage.setItem(
+                            legacyPendingKey(sessionId),
+                            JSON.stringify(rest),
+                        );
+                    }
+                    return key;
+                }
             }
-            localStorage.removeItem(legacyPendingKey(sessionId));
         }
+        // Not known to be this account's, or no room to move another's.
+        othersLegacyQueues.set(`${sessionId}~${owner}`, legacy);
     } catch {
         // Storage is best-effort; the legacy queue stays put.
     }

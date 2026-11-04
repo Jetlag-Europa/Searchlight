@@ -6,7 +6,7 @@ import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 // A request that hangs on a bad connection mustn't hold up the next try.
-export const PROBE_TIMEOUT_MS = 8_000;
+export const PROBE_TIMEOUT_MS = 30_000;
 
 export type SessionDetails =
     // The server answered with the session's details (for a probe: and with
