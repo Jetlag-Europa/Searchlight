@@ -165,7 +165,9 @@ function redrawWhenLoaded(googleMutant: any) {
             "tilesloaded",
             () => {
                 pendingRedraw = null;
-                googleMutant.redraw();
+                // Google reports its tiles loaded even when they failed
+                // offline; keep the old ones then: the online redraw follows.
+                if (navigator.onLine) googleMutant.redraw();
             },
         );
     });

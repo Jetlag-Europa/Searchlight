@@ -268,7 +268,7 @@ export const Map = ({ className }: { className?: string }) => {
             ? "voyager"
             : $chosenBasemap;
     // GoogleBasemap stays, with its CARTO stand-in, while Google can't show
-    // (offline, failing), so that CARTO isn't swapped for another CARTO
+    // (offline before its first draw, failing), so that CARTO isn't swapped for another CARTO
     // layer, which goes empty while its tiles load.
     const $googleMapsProblem = useStore(googleMapsProblem);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
