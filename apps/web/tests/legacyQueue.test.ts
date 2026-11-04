@@ -79,7 +79,7 @@ const stroke = (id: string) => ({
                 [1, 1],
             ],
         },
-        properties: {},
+        properties: { clientUuid: id },
     },
 });
 
@@ -161,11 +161,44 @@ test.each([false, true])(
         expect(sent.filter((s) => !s.startsWith("stroke"))).toEqual(["new"]);
         expect(server).toEqual([1, 2]);
         // The old queue's drawing still goes out.
-        expect(sent.filter((s) => s.startsWith("stroke"))).toHaveLength(1);
+        expect(sent.filter((s) => s.startsWith("stroke"))).toEqual(["stroke s1"]);
         expect(me.queue.getPendingEvents(SID)).toEqual([]);
     },
     15_000,
 );
+
+// Dropping the older list may make room for the copy, between a read of
+// the queue and the write that adds to it.
+test("an edit queued with no room to copy keeps the old queue's drawing", async () => {
+    const me = await page("A");
+    me.queue.setCachedSession({
+        sessionId: SID,
+        userId: "A",
+        strokes: [],
+        questions: [],
+        lastSyncedAt: 0,
+        lastSequence: 0,
+    });
+    store.set(
+        LEGACY,
+        JSON.stringify([list("old", [1, 2, 3, 4, 5, 6, 7, 8]), stroke("s1")]),
+    );
+    store.set(`${LEGACY}~A`, JSON.stringify([list("new", [1, 2])]));
+    capacity = used() + 10;
+    me.queue.enqueueEvent({
+        sessionId: SID,
+        type: "planning.toggle",
+        payloadJson: { planningModeEnabled: true },
+        clientUuid: "planning",
+        clientCreatedAt: 3,
+    });
+    expect(me.queue.getPendingEvents(SID).map((e) => e.localId)).toEqual([
+        "s1",
+        "new",
+        expect.any(String),
+    ]);
+    expect(store.has(LEGACY)).toBe(false);
+});
 
 // An unreadable one is left where it is, and doesn't stop new edits.
 test("edits still queue beside one that isn't a list (storage full)", async () => {

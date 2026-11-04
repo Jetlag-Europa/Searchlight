@@ -286,13 +286,18 @@ function pendingKey(sessionId: string) {
                             !isReplacementEventType(event.type) ||
                             !owned.some((o) => o.type === event.type),
                     );
-                    if (rest.length === 0) {
-                        localStorage.removeItem(legacyPendingKey(sessionId));
-                    } else if (rest.length < older.length) {
+                    if (rest.length < older.length) {
                         localStorage.setItem(
                             legacyPendingKey(sessionId),
                             JSON.stringify(rest),
                         );
+                        // That may have made room for the copy: make it now,
+                        // not in the write after a caller read the queue.
+                        localStorage.setItem(
+                            makerKey,
+                            JSON.stringify([...rest, ...owned]),
+                        );
+                        localStorage.removeItem(legacyPendingKey(sessionId));
                     }
                     return key;
                 }
