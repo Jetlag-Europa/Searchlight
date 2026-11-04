@@ -38,6 +38,7 @@ import {
     polyGeoJSON,
     questionFinishedMapData,
     questions,
+    showAllMatchingCells,
     thunderforestApiKey,
     triggerLocalRefresh,
 } from "@/lib/context";
@@ -71,6 +72,7 @@ import {
     standingResult,
     writeBackAnswers,
 } from "@/maps/mapResult";
+import { PLANNING_CONTEXT } from "@/maps/questions/operators/geometry";
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { GoogleBasemap } from "./GoogleBasemap";
@@ -273,6 +275,7 @@ export const Map = ({ className }: { className?: string }) => {
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
     const $planningMode = useStore(planningModeEnabled);
+    const $showAllMatchingCells = useStore(showAllMatchingCells);
     const $compiledGame = useStore(compiledGameAtom);
     const $followMe = useStore(followMe);
     const $permanentOverlay = useStore(permanentOverlay);
@@ -325,6 +328,7 @@ export const Map = ({ className }: { className?: string }) => {
 
         const sourceQuestions = questions.get();
         const planning = planningModeEnabled.get();
+        const allCells = showAllMatchingCells.get();
         const compiled = compiledGameAtom.get();
         const hider = hiderMode.get();
         const boundary = polyGeoJSON.get();
@@ -347,6 +351,7 @@ export const Map = ({ className }: { className?: string }) => {
             currentGameId.get() === activeGameId &&
             questions.get() === sourceQuestions &&
             planningModeEnabled.get() === planning &&
+            showAllMatchingCells.get() === allCells &&
             compiledGameAtom.get() === compiled &&
             hiderMode.get() === hider &&
             polyGeoJSON.get() === boundary &&
@@ -419,7 +424,11 @@ export const Map = ({ className }: { className?: string }) => {
                 answered: perQuestionMapData.get(),
                 mask: questionFinishedMapData.get(),
             });
-            const previewKey = planningPreviewKey(snapshot, planning);
+            const previewKey = planningPreviewKey(
+                snapshot,
+                planning,
+                allCells,
+            );
             if (shown && sameResult(shown, perQuestionRegions, previewKey)) {
                 answerCards();
                 hidingZoneScale.set(zoneScaleAfter(snapshot));
@@ -439,7 +448,14 @@ export const Map = ({ className }: { className?: string }) => {
                     );
                     if (!isCurrent()) return;
                     if (!geometry) continue;
-                    const layer = L.geoJSON(geometry);
+                    const layer = L.geoJSON(geometry, {
+                        // Borders drawn for context stay out of the way of the
+                        // seeker's own cell.
+                        style: (feature) =>
+                            feature?.properties?.[PLANNING_CONTEXT]
+                                ? { weight: 2, opacity: 0.6 }
+                                : {},
+                    });
                     Object.assign(layer, { questionKey: question.key });
                     previews.push(layer);
                 }
@@ -702,6 +718,7 @@ export const Map = ({ className }: { className?: string }) => {
         map,
         $hiderMode,
         $planningMode,
+        $showAllMatchingCells,
         $compiledGame,
         $polyGeoJSON,
         $gameDefinitionReady,

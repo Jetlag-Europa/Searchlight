@@ -23,27 +23,32 @@ export interface MapResult {
 
 /**
  * The questions planning mode outlines on the map, by what their outlines
- * depend on. Empty outside planning mode.
+ * depend on, and whether matching questions draw every cell around them.
+ * Empty outside planning mode.
  */
 export function planningPreviewKey(
     questions: Questions,
     planning: boolean,
+    allMatchingCells = false,
 ): string {
     if (!planning) return "";
-    return JSON.stringify(
-        questions
-            .filter(
-                (question) =>
-                    !isZoneSizeChange(question) &&
-                    question.data.enabled !== false &&
-                    question.data.drag,
-            )
-            .map((question) => [
-                question.key,
-                question.id,
-                regionData(question),
-            ]),
+    const outlined = questions.filter(
+        (question) =>
+            !isZoneSizeChange(question) &&
+            question.data.enabled !== false &&
+            question.data.drag,
     );
+    const key = JSON.stringify(
+        outlined.map((question) => [
+            question.key,
+            question.id,
+            regionData(question),
+        ]),
+    );
+    return allMatchingCells &&
+        outlined.some((question) => question.id === "matching")
+        ? `all-cells ${key}`
+        : key;
 }
 
 /**

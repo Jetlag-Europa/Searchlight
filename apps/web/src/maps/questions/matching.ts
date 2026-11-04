@@ -1,4 +1,5 @@
 import * as turf from "@turf/turf";
+import type { Feature, MultiLineString } from "geojson";
 
 import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 import {
@@ -6,8 +7,10 @@ import {
     holedMask,
     identityKey,
     modifyMapData,
+    requestGeometry,
     setBounded,
 } from "@/maps/geo-utils";
+import { withCellBorders } from "@/maps/questions/operators/geometry";
 import type { CustomMatchingQuestion, MatchingQuestion } from "@/maps/schema";
 
 // Manual memoize so we can skip caching undefined results, such as a custom
@@ -151,12 +154,65 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
     return question;
 };
 
-export const matchingPlanningPolygon = async (question: MatchingQuestion) => {
+// Keyed by the points and play area alone, so dragging the pin reuses them.
+const _customPointBordersCache = new Map<
+    string,
+    Promise<Feature<MultiLineString> | null>
+>();
+
+/**
+ * The borders between every custom point's cell within the play area, or
+ * null with fewer than two points or no play area.
+ */
+export const customPointBorders = async (question: MatchingQuestion) => {
+    const data = (question as CustomMatchingQuestion).geo;
+    const area = polyGeoJSON.get() ?? mapGeoJSON.get();
+    if (question.type !== "custom-points" || !area) return null;
+    if (!Array.isArray(data) || data.length < 2) return null;
+    const key = JSON.stringify({ geo: data, area: identityKey(area) });
+    const cached = _customPointBordersCache.get(key);
+    if (cached) return cached;
+    const [minX, minY, maxX, maxY] = turf.bbox(
+        turf.featureCollection([...data, ...area.features]),
+    );
+    const padX = (maxX - minX) * 0.1 || 0.1;
+    const padY = (maxY - minY) * 0.1 || 0.1;
+    const voronoi = geoSpatialVoronoiSafe(turf.featureCollection(data), [
+        minX - padX,
+        minY - padY,
+        maxX + padX,
+        maxY + padY,
+    ]);
+    const borders = requestGeometry({
+        kind: "cellBorders",
+        cells: voronoi.features,
+        area,
+    });
+    setBounded(_customPointBordersCache, key, borders, MAX_CACHED_BOUNDARIES);
+    // A failure isn't kept, so the next refresh retries.
+    borders.catch(() => {
+        if (_customPointBordersCache.get(key) === borders)
+            _customPointBordersCache.delete(key);
+    });
+    return borders;
+};
+
+export const matchingPlanningPolygon = async (
+    question: MatchingQuestion,
+    showAllCells = false,
+) => {
     try {
         const boundary = await determineMatchingBoundary(question);
         if (!boundary) return false;
 
-        return turf.polygonToLine(boundary);
+        const lines = turf.polygonToLine(boundary);
+        // Only context: if they fail, the seeker's cell still shows.
+        const borders = showAllCells
+            ? await customPointBorders(question).catch(() => null)
+            : null;
+        return borders
+            ? withCellBorders(borders, turf.flatten(lines).features)
+            : lines;
     } catch {
         return false;
     }

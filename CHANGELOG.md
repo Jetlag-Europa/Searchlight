@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Every matching cell while planning (2026-11-04)
+
+- A new option, **Show all matching cells when planning?**, draws the borders of every cell a matching question could answer with, not just the seeker's own, while planning mode is on. They are drawn thin and faint behind the seeker's cell, clipped to the play area and simplified. It works for "nearest" questions on point layers, for "same region" questions, and for custom points; line layers such as rivers and rail lines still show only the seeker's cell. Dragging the pin reuses the drawn borders, so only the seeker's cell is redrawn.
+- The option is off by default, as a layer with hundreds of cells can slow down the map in some browsers.
+
 ## Pins for custom points show again (2026-11-04)
 
 - The points you place for a custom tentacle, matching or measuring question show their blue pin again, instead of a broken image.

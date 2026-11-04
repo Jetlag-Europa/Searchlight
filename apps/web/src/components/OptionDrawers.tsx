@@ -43,6 +43,7 @@ import {
     permanentOverlay,
     planningModeEnabled,
     save,
+    showAllMatchingCells,
     showGoogleTransit,
     showZoneNames,
     thunderforestApiKey,
@@ -90,6 +91,7 @@ export const OptionDrawers = () => {
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
     const $planningMode = useStore(planningModeEnabled);
+    const $showAllMatchingCells = useStore(showAllMatchingCells);
     const $baseTileLayer = useStore(baseTileLayer);
     const $googleMapsProblem = useStore(googleMapsProblem);
     const $googleStandingIn = useStore(googleStandingIn);
@@ -522,6 +524,20 @@ export const OptionDrawers = () => {
                                                 can&apos;t change it.
                                             </p>
                                         )}
+                                    </div>
+                                    <div className="flex flex-row items-center gap-2">
+                                        <label className="text-2xl font-semibold font-poppins">
+                                            Show all matching cells when
+                                            planning?
+                                        </label>
+                                        <Checkbox
+                                            checked={$showAllMatchingCells}
+                                            onCheckedChange={() =>
+                                                showAllMatchingCells.set(
+                                                    !$showAllMatchingCells,
+                                                )
+                                            }
+                                        />
                                     </div>
                                     <div className="flex flex-row items-center gap-2">
                                         <label className="text-2xl font-semibold font-poppins">
