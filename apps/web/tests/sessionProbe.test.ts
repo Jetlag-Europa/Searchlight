@@ -199,6 +199,36 @@ describe("probeSession", () => {
             expect(result).toEqual({ kind: "retry" });
             expect(vi.getTimerCount()).toBe(0);
         });
+
+        // A big session's strokes on a slow link (~80 KiB gzipped at
+        // 100 kbit/s), after the details on a fresh connection: each try
+        // must get long enough, or the board never goes live again (audit
+        // 2026-11-04 round 3, SYNC3-O-1).
+        test("waits for content that takes a slow link several seconds", async () => {
+            const delays: Record<string, number> = {
+                "": 1_500,
+                "/strokes": 9_000,
+                "/questions": 300,
+            };
+            answer({});
+            const answered = mockFetch.getMockImplementation()!;
+            mockFetch.mockImplementation(
+                (url: string, init: RequestInit) =>
+                    new Promise((resolve, reject) => {
+                        const timer = setTimeout(
+                            () => resolve(answered(url, init)),
+                            delays[url.slice(BASE.length)],
+                        );
+                        init.signal?.addEventListener("abort", () => {
+                            clearTimeout(timer);
+                            reject(new DOMException("Aborted", "AbortError"));
+                        });
+                    }),
+            );
+            const probe = probeSession(SID);
+            await vi.advanceTimersByTimeAsync(10_500);
+            expect(await probe).toEqual({ kind: "ready", session });
+        });
     });
 });
 
