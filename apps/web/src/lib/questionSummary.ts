@@ -5,6 +5,7 @@
 
 import { isRecord } from "@searchlight/shared";
 
+// same: numbers within rounding, objects whatever their field order.
 import { sameQuestion as same, sameQuestionKey } from "@/lib/questionMerge";
 import {
     defaultQuestionLabel,

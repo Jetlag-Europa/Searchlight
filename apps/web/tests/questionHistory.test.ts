@@ -358,22 +358,24 @@ describe("restoring from the history", () => {
 
     it("keeps the order of questions restored one by one", () => {
         const [x, a, b, y] = [1, 2, 3, 4].map((lat) => radar(lat / 8, lat));
-        const target = (q: Radar, index: number, order: number[]) => ({
+        const order = [x.key, a.key, b.key, y.key];
+        const target = (q: Radar, index: number) => ({
             key: q.key,
             index,
             label: `Radius ${index + 1}`,
             question: q,
             order,
         });
-        const order = [x.key, a.key, b.key, y.key];
         questions.set([x, y]);
-        restoreFromHistory([target(a, 1, order)]);
-        restoreFromHistory([target(b, 2, order)]);
+        restoreFromHistory([target(a, 1)]);
+        restoreFromHistory([target(b, 2)]);
         expect(questions.get().map(latOf)).toEqual([1, 2, 3, 4]);
         // One restored by a teammate.
         const [p, q, r, z] = [5, 6, 7, 8].map((lat) => radar(lat / 16, lat));
         questions.set([p, asRestored(q, 0.9), z]);
-        restoreFromHistory([target(r, 2, [p.key, q.key, r.key, z.key])]);
+        restoreFromHistory([
+            { ...target(r, 2), order: [p.key, q.key, r.key, z.key] },
+        ]);
         expect(questions.get().map(latOf)).toEqual([5, 6, 7, 8]);
     });
 
