@@ -269,8 +269,9 @@ function pendingKey(sessionId: string) {
             const own = localStorage.getItem(makerKey);
             const owned = own ? (JSON.parse(own) as PendingEvent[]) : [];
             const older = JSON.parse(legacy) as PendingEvent[];
+            const merged = JSON.stringify([...older, ...owned]);
             try {
-                localStorage.setItem(makerKey, JSON.stringify([...older, ...owned]));
+                localStorage.setItem(makerKey, merged);
                 localStorage.removeItem(legacyPendingKey(sessionId));
                 return key;
             } catch {

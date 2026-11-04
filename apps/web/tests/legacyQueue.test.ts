@@ -167,6 +167,32 @@ test.each([false, true])(
     15_000,
 );
 
+// An unreadable one is left where it is, and doesn't stop new edits.
+test("edits still queue beside one that isn't a list (storage full)", async () => {
+    const me = await page("A");
+    me.queue.setCachedSession({
+        sessionId: SID,
+        userId: "A",
+        strokes: [],
+        questions: [],
+        lastSyncedAt: 0,
+        lastSequence: 0,
+    });
+    store.set(LEGACY, "null");
+    capacity = used() + 2_000;
+    me.queue.enqueueEvent({
+        sessionId: SID,
+        type: "stroke.create",
+        payloadJson: stroke("s1").payloadJson,
+        clientUuid: "s1",
+        clientCreatedAt: 1,
+    });
+    expect(me.queue.getPendingEvents(SID).map((e) => e.clientUuid)).toEqual([
+        "s1",
+    ]);
+    expect(store.get(LEGACY)).toBe("null");
+});
+
 // Another account's load makes the snapshot its own, so after a reload the
 // queue must already be the snapshot's first owner's.
 test("another account's queue stays that account's after this one loads the session and reloads", async () => {
