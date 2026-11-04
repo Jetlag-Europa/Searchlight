@@ -128,12 +128,14 @@ export function requestGeometry(
 export function requestGeometry(
     request: RemoveRegionOverlapsRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[]>;
+export function requestGeometry(request: FilterZoneRequest): Promise<number[]>;
 export async function requestGeometry(
     request:
         | BoundaryTargetRequest
         | BufferRequest
         | ClipRequest
         | DistanceRequest
+        | FilterZoneRequest
         | LineVoronoiRequest
         | RegionOverlapsRequest
         | RemoveRegionOverlapsRequest
@@ -151,6 +153,8 @@ export async function requestGeometry(
             return findRegionOverlaps(request);
         if (request.kind === "removeRegionOverlaps")
             return removeRegionOverlaps(request);
+        if (request.kind === "filterZone")
+            return calculateFilterZoneIndexes(request.circles, request.regions);
         const buffer = await loadInlineBuffer();
         if (request.kind === "distance")
             return buffer.calculateDistance(request);
@@ -175,31 +179,10 @@ export async function requestGeometry(
         }
     });
 }
-export async function filterZoneIndexes(
+export function filterZoneIndexes(
     circles: Feature<Polygon | MultiPolygon>[],
     regions: FeatureCollection<Polygon | MultiPolygon>[],
 ): Promise<number[]> {
-    if (onThisThread) {
-        return calculateFilterZoneIndexes(circles, regions);
-    }
-    const activeWorker = getWorker();
-    return new Promise((resolve, reject) => {
-        const id = ++nextId;
-        pending.set(id, {
-            resolve: resolve as (result: unknown) => void,
-            reject,
-        });
-        try {
-            const request: FilterZoneRequest = {
-                kind: "filterZone",
-                circles,
-                regions,
-            };
-            activeWorker.postMessage({ id, request });
-        } catch (error) {
-            pending.delete(id);
-            reject(error);
-        }
-    });
+    return requestGeometry({ kind: "filterZone", circles, regions });
 }
 export { calculateFilterZoneIndexes };

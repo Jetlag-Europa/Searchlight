@@ -13,7 +13,7 @@ import {
 } from "@/lib/askedQuestions";
 import type { LatLng } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
-import { extractStationLabel } from "@/maps/geo-utils";
+import { extractStationLabel, type ZoneDisplayStyle } from "@/maps/geo-utils";
 import {
     type DeepPartial,
     type Question,
@@ -135,9 +135,11 @@ export const displayHidingZones = persistentAtom<boolean>(
         listen: false,
     },
 );
-export const displayHidingZonesStyle = persistentAtom<
-    "zones" | "stations" | "no-overlap" | "no-display"
->("displayHidingZonesStyle", "zones", { listen: false });
+export const displayHidingZonesStyle = persistentAtom<ZoneDisplayStyle>(
+    "displayHidingZonesStyle",
+    "zones",
+    { listen: false },
+);
 export const showZoneNames = persistentAtom<boolean>("showZoneNames", false, {
     encode: JSON.stringify,
     decode: JSON.parse,
