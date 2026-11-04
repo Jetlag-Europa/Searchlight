@@ -232,3 +232,70 @@ test("a worker that takes over without waiting reloads each open tab once", asyn
     await checkForUpdate(pages[0]);
     await expectReloadedOnceIntoNextBuild(pages);
 });
+
+test.describe("one session open in two tabs", () => {
+    // The map signed in from what this browser kept (no API runs here): it
+    // edits the session it last showed, in one tab at a time.
+    test.beforeEach(async ({ context }) => {
+        await context.addInitScript(() => {
+            if (localStorage.getItem("taibled-authed-user")) return;
+            localStorage.setItem("taibled-authed-user", "user-1");
+            localStorage.setItem(
+                "taibled-authed-user-verified",
+                String(Date.now()),
+            );
+            localStorage.setItem("taibled-last-session", "session-1");
+        });
+    });
+    const notice = (page: Page) =>
+        page.getByText("This session is open in another tab");
+    // B opens the session last: it edits it, and A shows the notice.
+    const openTwice = async (context: BrowserContext) => {
+        const a = await openControlled(context, "/map/");
+        await expect
+            .poll(() =>
+                a.evaluate(async () =>
+                    (await navigator.locks.query()).held?.map((l) => l.name),
+                ),
+            )
+            .toContain("searchlight-session:session-1");
+        const b = await openControlled(context, "/map/");
+        await expect(notice(a)).toBeVisible({ timeout: 30_000 });
+        await expect(notice(b)).toBeHidden();
+        return [a, b];
+    };
+    const offerUpdate = async (page: Page) => {
+        deployed = "update";
+        await checkForUpdate(page);
+        await expect(
+            page.getByText("A new version of Searchlight is available"),
+        ).toBeVisible({ timeout: 30_000 });
+    };
+
+    test("an update accepted in the tab that edits leaves it editing", async ({
+        context,
+    }) => {
+        const [a, b] = await openTwice(context);
+        await offerUpdate(b);
+        await b.getByRole("button", { name: "Reload" }).click();
+
+        await expect.poll(() => onNextBuild(b), { timeout: 30_000 }).toBe(true);
+        await b.waitForTimeout(3_000);
+        // A would take the session back if it reloaded: Use here reloads it.
+        expect(await Promise.all([a, b].map(history))).toEqual([
+            { loads: 1, reloads: 0 },
+            { loads: 2, reloads: 1 },
+        ]);
+        await expect(notice(b)).toBeHidden();
+        await expect(notice(a)).toBeVisible();
+    });
+
+    test("Reload tapped in the tab the session was taken from reloads it", async ({
+        context,
+    }) => {
+        const [a, b] = await openTwice(context);
+        await offerUpdate(a);
+        await a.getByRole("button", { name: "Reload" }).click();
+        await expectReloadedOnceIntoNextBuild([a, b]);
+    });
+});

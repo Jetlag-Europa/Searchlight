@@ -255,7 +255,12 @@ import {
     planningModeEnabled,
     questions,
 } from "@/lib/context";
-import { getCachedSession, setCachedSession } from "@/lib/eventQueue";
+import {
+    conflictsKey,
+    enqueueEvent,
+    getCachedSession,
+    setCachedSession,
+} from "@/lib/eventQueue";
 import { fetchGameCatalog, switchToGame } from "@/lib/games";
 import {
     DETAILS_TIMEOUT_MS,
@@ -272,6 +277,10 @@ import {
     SESSION_ROLE_CHANGED_EVENT,
     SESSION_STREAM_RECONNECTED_EVENT,
 } from "@/lib/sseManager";
+import {
+    questionDecisionsPossible,
+    resolveQuestionConflict,
+} from "@/lib/questionConflicts";
 import { flushPendingEvents } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -1101,6 +1110,47 @@ describe("another tab of this browser opening the session", () => {
         expect(mapBoard.inert).toBe(true);
     });
 
+    it("takes no change on the board for an edit, nor a decision", async () => {
+        const q = { id: "radius", key: 7, data: { lat: 1, lng: 2, radius: 5 } };
+        server = { a: session("a") };
+        vi.mocked(loadSessionContent).mockImplementation(async (id) => ({
+            strokes: [],
+            questions: [q] as unknown as Questions,
+            session: server[id],
+            cursor: 0,
+        }));
+        await reload("a");
+        // A teammate's version of it, held for a decision.
+        const held = JSON.stringify([
+            {
+                key: 7,
+                kind: "both-changed",
+                mine: q,
+                theirs: { ...q, data: { ...q.data, radius: 9 } },
+                base: q,
+                baseSequence: 0,
+                theirsSequence: 1,
+                detectedAt: 0,
+            },
+        ]);
+        env.store.set(conflictsKey("a"), held);
+        expect(questionDecisionsPossible.get()).toBe(true);
+
+        await otherTabOpens();
+        expect(questionDecisionsPossible.get()).toBe(false);
+        resolveQuestionConflict("a", 7, "mine");
+        // A GPS fix landing, or the Undo of a toast over the notice.
+        vi.mocked(saveQuestionsDebounced).mockClear();
+        await play(() =>
+            questions.set([
+                { ...q, data: { ...q.data, radius: 6 } },
+            ] as unknown as Questions),
+        );
+        expect(saveQuestionsDebounced).not.toHaveBeenCalled();
+        // The tab that edits the session still has it to decide.
+        expect(env.store.get(conflictsKey("a"))).toBe(held);
+    });
+
     it("stops a load still running here", async () => {
         server = { a: session("a") };
         let finishLoad = () => {};
@@ -1591,4 +1641,130 @@ describe("a role changed while the session loads", () => {
         expect(getCachedSession("a")?.role).toBe("viewer");
         expect(getCachedSession("a")?.session?.hiderLat).toBeNull();
     });
+});
+
+describe("a list of ours answered while the session loads", () => {
+    const q = (key: number) => ({
+        id: "radius",
+        key,
+        data: { lat: 0, lng: 0, radius: key },
+    });
+
+    for (const gameLands of [true, false]) {
+        it(`keeps the question it saved on the board${gameLands ? "" : ", without the game"}`, async () => {
+            vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+            // The real reads, sends and saves.
+            const state =
+                await vi.importActual<typeof import("@/lib/sessionState")>(
+                    "@/lib/sessionState",
+                );
+            const sync =
+                await vi.importActual<typeof import("@/lib/syncManager")>(
+                    "@/lib/syncManager",
+                );
+            vi.mocked(loadSessionContent).mockImplementation(
+                state.loadSessionContent,
+            );
+            vi.mocked(flushPendingEvents).mockImplementation(
+                sync.flushPendingEvents,
+            );
+            vi.mocked(saveQuestionsDebounced).mockImplementation(
+                state.saveQuestionsDebounced,
+            );
+            // The server's list, saved as the route does: only when made
+            // from its latest. The reload's send of the queued list hangs.
+            let saved: { payloadJson: { key: number } }[] = [];
+            let at = 0;
+            const events: unknown[] = [];
+            const puts: { baseSequence: number; questions: typeof saved }[] =
+                [];
+            const firstAnswer = Promise.withResolvers<Response>();
+            fetchMock.mockImplementation(async (input, init) => {
+                const path = new URL(String(input)).pathname;
+                if (
+                    path === "/sessions/a/questions" &&
+                    init?.method === "PUT"
+                ) {
+                    const body = JSON.parse(init.body as string);
+                    puts.push(body);
+                    if (puts.length === 1) return firstAnswer.promise;
+                    if (body.baseSequence < at) {
+                        return json({ code: "QUESTIONS_CHANGED" }, 409);
+                    }
+                    saved = body.questions;
+                    return json({ sequence: ++at });
+                }
+                if (path === "/sessions/a/questions") {
+                    return json({ questions: saved, sequence: at });
+                }
+                if (path === "/sessions/a/events/cursor") {
+                    return json({ sequence: at });
+                }
+                if (path === "/sessions/a/events") {
+                    return json({ events, nextAfter: null });
+                }
+                return defaultFetch(input, init);
+            });
+            const game = Promise.withResolvers<boolean>();
+            vi.mocked(switchToGame).mockImplementation(() => game.promise);
+            server = { a: session("a") };
+            keep(session("a"));
+            // Added before the reload; its save went out, unanswered.
+            enqueueEvent({
+                sessionId: "a",
+                type: "questions.replace",
+                clientUuid: "questions-replace-q1",
+                clientCreatedAt: 0,
+                payloadJson: {
+                    replacementId: "q1",
+                    base: { sequence: 0, questions: [] },
+                    questions: [
+                        { clientUuid: "q-1", ordinal: 0, payloadJson: q(1) },
+                    ],
+                },
+            });
+
+            await reload("a");
+            // Sent again, too slowly: the load reads the list without it.
+            await wait(FLUSH_WAIT_MS);
+            expect(switchToGame).toHaveBeenCalledOnce();
+            // It lands while the game loads.
+            saved = puts[0].questions;
+            at = 1;
+            events.push({
+                id: "event-1",
+                sessionId: "a",
+                userId: USER,
+                type: "questions.replace",
+                sequence: 1,
+                clientUuid: "questions-replace-q1",
+                payloadJson: { replacementId: "q1", questions: saved },
+            });
+            await act(async () => firstAnswer.resolve(json({ sequence: 1 })));
+            await settle();
+            if (gameLands) {
+                await act(async () => {
+                    gameDefinitionReady.set(true);
+                    game.resolve(true);
+                });
+                await settle();
+            } else {
+                await wait(LOAD_TIMEOUT_MS - FLUSH_WAIT_MS);
+            }
+            expect(overlayShown()).toBe(false);
+            await act(async () => env.FakeEventSource.last!.onopen!({}));
+            await settle();
+            expect(questions.get().map((x) => x.key)).toEqual([1]);
+
+            // The next question goes next to it, for everyone.
+            await play(() =>
+                questions.set([
+                    ...questions.get(),
+                    q(2),
+                ] as unknown as Questions),
+            );
+            await wait(600);
+            expect(saved.map((x) => x.payloadJson.key)).toEqual([1, 2]);
+        });
+    }
 });

@@ -36,6 +36,7 @@ import {
     activeSessionRole,
     clearActiveSession,
     editingInOtherTab,
+    isSessionReadOnly,
     offlineUserId,
     sessionReadOnly,
     setActiveSession,
@@ -59,6 +60,7 @@ import {
     getCachedSession,
     getPendingEvents,
     isSessionSummary,
+    queuedQuestionsBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
@@ -1185,7 +1187,8 @@ export function SessionManager() {
                 !loadingRef.current &&
                 !isLoadingSession() &&
                 !savesBlocked() &&
-                !sessionReadOnly.get(),
+                !sessionReadOnly.get() &&
+                !editingInOtherTab.get(),
         );
     useEffect(refreshQuestionDecisions);
     useEffect(() => () => setQuestionDecisionsPossible(false), []);
@@ -1222,8 +1225,9 @@ export function SessionManager() {
                 return false;
             }
             // Read when the questions change: a spectator's board saves
-            // nothing, and becoming a player again is no edit to save.
-            return !sessionReadOnly.get();
+            // nothing, and becoming a player again is no edit to save. Nor
+            // does a board another tab took the session over from.
+            return !isSessionReadOnly(sessionId);
         })();
         // A player's edit to a question held for a decision decides it.
         trackBoardQuestions(sessionId, currentQuestions, save);
@@ -1316,6 +1320,7 @@ export function SessionManager() {
         sessionLoadGenerationRef.current++;
         sessionRecheck.stop();
         setLoading(false);
+        refreshQuestionDecisions();
     };
 
     // The session was deleted (404) or this user can no longer open it (403):
@@ -1793,12 +1798,20 @@ export function SessionManager() {
                 boardSessionRef.current = selected.id;
                 questions.set(visibleQuestions);
                 const cachedState = getCachedSession(selected.id);
-                if (cachedState && definitionReady) {
+                if (cachedState) {
                     setCachedSession({
                         ...cachedState,
                         userId,
                         visibility: refreshedSession.visibility,
-                        questions: visibleQuestions,
+                        // Without its definition, the questions kept stay as they are.
+                        ...(definitionReady && { questions: visibleQuestions }),
+                        // The board's base is the list read, or the one still
+                        // queued on it, as above: a list of ours answered
+                        // since isn't on the board yet, and the stream shows it.
+                        serverQuestions: queuedQuestionsBase(selected.id) ?? {
+                            sequence: loadedCursor ?? 0,
+                            questions: loadedQuestions,
+                        },
                     });
                 }
                 showSessionModes(refreshedSession);
