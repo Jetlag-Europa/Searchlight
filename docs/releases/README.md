@@ -6,11 +6,12 @@ picks out the highlights since the last release, and is published on
 
 Each file here is the body of one release, named after its version. Keep it to
 the highlights, for the two groups who read it: game makers, who import games,
-and players. Leave out individual games, internal fixes and server admin steps,
-which stay in the changelog's **Upgrading** lines, and link the list of commits
-since the last release (`compare/v2.0.0...v2.1.0`) for everything else. Use full URLs for
-links, since the body is also shown on GitHub, where relative links don't
-resolve.
+and players. Leave out individual games, internal fixes and server admin steps
+(those stay in the changelog's **Upgrading** lines), and link the list of
+commits since the last release
+(`https://github.com/Jetlag-Europa/Searchlight/compare/v2.0.0...v2.1.0`) for
+everything else. Use full URLs for links: relative links don't resolve in a
+GitHub release.
 
 A release describes how it differs from the last one. Leave out fixes for
 problems that came up after the last release and were fixed before this one:
@@ -21,13 +22,13 @@ the problem was there at the last release's tag.
 
 - **Major** (3.0): a change to how Searchlight works as a whole, like 2.0's importable
   games.
-- **Minor** (2.1): a batch of new features. Players get a "what changed" notice.
+- **Minor** (2.1): a batch of new features.
 - **Patch** (2.1.1): fixes only.
 
 | Release | Commit | Covers |
 | --- | --- | --- |
 | 1.0.0 | `4394c1b6d` (2026-09-26) | JetLagHideAndSeek's fork up to Jules's last change |
-| 2.0.0 | the commit that adds this file | Importable games, and everything since 1.0 |
+| 2.0.0 | `ce3f572c3` (2026-10-21) | Importable games, and everything since 1.0 |
 
 ## Publishing a release
 

@@ -3,8 +3,8 @@
 Searchlight ships as two Docker images plus Postgres:
 
 - **api** runs `prisma migrate deploy`, creates any Discord servers missing
-  from the database, then starts Fastify on port 3000, which imports every
-  `games/preloaded/*.game.json`. A changed game becomes a new revision; running
+  from the database, imports every `games/preloaded/*.game.json`, then starts
+  Fastify on port 3000. A changed game becomes a new revision; running
   sessions stay on the revision they started with. `GET /health` returns
   `{"ok":true}`. It compresses its own responses (brotli or gzip), so a proxy
   in front of it doesn't need to, but it must pass `/sessions/:id/stream`
@@ -62,8 +62,9 @@ names the stack, so plain `docker compose` commands work there without flags.
    ```bash
    docker login ghcr.io -u <github-user>
    ```
-4. **Config:** `cp .env.prod.example .env`, fill in every empty value, pick the
-   `COMPOSE_FILE` line, and `chmod 600 .env`.
+4. **Config:** `cp .env.prod.example .env`, fill in the empty values
+   (`ADMIN_DISCORD_IDS` and `PUBLIC_GOOGLE_MAPS_API_KEY` may stay empty), pick
+   the `COMPOSE_FILE` line, and `chmod 600 .env`.
 5. **Ingress:** set up the [Cloudflare Tunnel](#cloudflare-tunnel), or point
    your own proxy at the API port with the backend overlay.
 6. **Start:** as in the update below.
@@ -93,8 +94,9 @@ every update. Keep API changes working with it.
   then pull and `up -d`. Remove it to follow `latest` again.
 - Either one, to an older version than the server ran, is a rollback: read
   [Roll back](#roll-back) first.
-- **Another API hostname:** change `PUBLIC_API_BASE` in `.env` and deploy with
-  `--build` (or change the build arg in `.github/workflows/docker-images.yml`).
+- **Another API hostname:** change `PUBLIC_API_BASE` and `DISCORD_REDIRECT_URI`
+  in `.env` and deploy with `--build` (or change the build arg in
+  `.github/workflows/docker-images.yml`).
 
 ## Roll back
 
@@ -263,7 +265,7 @@ map; Workers static-asset hosting has no such step.
 ```bash
 docker compose ps
 docker compose logs -f api
-apps/api/scripts/auth-walls.sh writemap-api-1   # summarise 401s by client
+apps/api/scripts/auth-walls.sh <COMPOSE_PROJECT_NAME>-api-1   # summarise 401s by client
 ```
 
 ### Backups
@@ -281,7 +283,7 @@ encrypted. Nightly, via `crontab -e`:
 ```bash
 docker compose down -v            # deletes the database
 docker compose up -d --wait postgres
-gunzip -c <dump>.sql.gz | docker compose exec -T postgres psql -U taibled -d taibled
+gunzip -c <dump>.sql.gz | docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"'
 docker compose up -d
 ```
 
