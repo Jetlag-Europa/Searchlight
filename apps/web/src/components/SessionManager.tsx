@@ -1803,7 +1803,7 @@ export function SessionManager() {
                         ...cachedState,
                         userId,
                         visibility: refreshedSession.visibility,
-                        // Without its definition, the list as loaded stays.
+                        // Without its definition, the questions kept stay as they are.
                         ...(definitionReady && { questions: visibleQuestions }),
                         // The board's base is the list read, or the one still
                         // queued on it, as above: a list of ours answered
