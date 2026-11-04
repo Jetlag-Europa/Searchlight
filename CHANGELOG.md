@@ -76,7 +76,6 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## One page for checking and importing games (2026-11-02)
 
 - `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
-- The game checker (on the import page and `check-game.mjs`) now reports a game over the 50 MB import limit as an error rather than a warning, since the import refuses it. It sizes the game as compact JSON, which is what the import page sends, so a file's indentation no longer sets off the "simplify boundaries" warning. `check-game.mjs` warns separately when only the indentation takes a file over the limit.
 
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
@@ -132,7 +131,6 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Overlap check agrees with the checker (2026-10-20)
 
 - The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.
-- The file the page offers for download after a fix keeps the original's formatting. A file on one line used to come back indented, several times larger: a 4.9 MB game came back as 23 MB, and the size warning then counted the larger copy.
 - The overlap check, which the import button waits for, runs 3–6 times faster: a game with about 50,000 border vertices, such as Belgium or Greater Manchester, now takes under a second instead of 3–4 s. It also works from the regions' coordinates, so a region carrying a stale or 3D `bbox` no longer makes it miss an overlap.
 
 ## Radar listed once, at any radius (2026-10-19)
@@ -242,7 +240,6 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Hiding zones left (2026-10-18)
 
 - The map and the zone sidebar show how many hiding zones are left, such as "23 of 155 zones left", while "Display hiding zones?" is on. Zones you disabled by hand don't count, and the sidebar says how many it left out.
-- The "Calculating…" pill now sits below the session name, where the count goes, so it no longer covers the session name on narrower screens. On phones the count hides while a sidebar is open.
 - Switching sessions no longer briefly shows the previous session's zones.
 
 ## A lighter map page (2026-10-18)

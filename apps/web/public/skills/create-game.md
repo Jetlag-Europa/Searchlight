@@ -56,7 +56,7 @@ The KML holds the whole map, one folder per My Maps layer. If a download returns
 | `hidingZones.radius` | The rules. If they don't state it, measure the map's drawn zone circles with `gt.circleRadius()` and take the most common value (circles cut at the play-area edge come out smaller). Otherwise ask. |
 | `tierOverrides` | Only when the map draws differently sized circles per stop style or folder, or the rules give per-mode radii. |
 | `radars` | The rules' radar list, converted to the game unit (`1 km` gives `1000`). A "Custom" entry needs nothing, since radii stay editable. |
-| `thermometer` | `true` if the rules list any thermometer. Players set its distance in the app. |
+| `thermometer` | `true` if the rules list any thermometer. The file holds no thermometer distances: players place both ends in the app. |
 | `features` | The rules' matching/measuring table and tentacle list (below). |
 
 **Map the rules' feature table to layers.** Rules usually list the rulebook categories, each with a source:
@@ -169,8 +169,8 @@ The import rejects unknown properties, both at the root and in each layer. Posit
 | `visibility` | no | `{"kind":"server-members"}` | Or `{"kind":"discord-role","guildId":"…","roleId":"…"}` to restrict the game to one role. |
 | `unit` | no | | Avoid it. Set `hidingZones.unit` instead (section 4). |
 | `map.center` | yes | | `[lng, lat]`. Use the play area's centre. |
-| `map.bounds` | no | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`. Set it to the play area's bbox plus a small margin. Matching cells are computed over this box, so a box much larger than the play area only slows matching down. |
-| `map.playArea` | yes | | A FeatureCollection of Polygon/MultiPolygon features. It is the starting map: everything outside it is eliminated from the start, and the view fits to it. |
+| `map.bounds` | no | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`, west ≤ east and south ≤ north. The map opens on this box. Set it to the play area's bbox plus a small margin: matching cells are computed over a box covering it, so a box much larger than the play area only slows matching down. |
+| `map.playArea` | yes | | A FeatureCollection of Polygon/MultiPolygon features. It is the starting map: everything outside it is eliminated from the start. |
 | `hidingZones` | yes | | Section 4. |
 | `radars`, `thermometer` | no | **off** | Section 5.1. |
 | `features` | no | none | Question layers, section 5.2. |
@@ -187,7 +187,7 @@ Known `serverId` values:
 | JetLag Nordics | `1376560872029290708` |
 | Casual Games (games outside the JetLag servers) | `home-games` |
 
-A game dev imports into the Discord server where their role has game permissions (section 8). Casual Games has no Discord server of its own: a role on JetLag EU grants creating Casual games. A Casual game is always unlisted and only its creator and Searchlight admins see it; every session of it starts from a game link, also for its creator.
+A game dev imports into the Discord server where their role has game permissions (section 8). Casual Games has no Discord server of its own: a role on JetLag EU grants creating Casual games (section 8).
 
 ## 4. Hiding zones
 
@@ -201,12 +201,12 @@ A game dev imports into the Discord server where their role has game permissions
 - **`properties.tier`** selects a radius from `tierOverrides`. Write tiers as strings, like the `tierOverrides` keys (a number `1` is read as `"1"`). Tier names are case-sensitive: `"outer"` does not match `"Outer"`. Zones whose tier has no override use the base radius.
 - **`properties.radius`** overrides the radius for that single zone: a number in the game unit, or `{ "value": 1, "unit": "kilometers" }`. Anything else (such as the string `"600"`) is ignored and the zone gets its tier or base radius.
 - **Radius precedence:** zone `radius`, then `tierOverrides[tier]`, then `hidingZones.radius`, then 400.
-- **Units:** every radius (zone, tier, base and radar values) is in one unit: root `unit` if set, otherwise `hidingZones.unit`, otherwise meters. A root `unit` silently overrides `hidingZones.unit`: `"unit": "kilometers"` with `"radius": 400, "unit": "meters"` gives 400 km zones. So set only `hidingZones.unit`.
+- **Units:** `"meters"`, `"kilometers"` or `"miles"`. Every radius (zone, tier, base and radar values) is in one unit: root `unit` if set, otherwise `hidingZones.unit`, otherwise meters. A root `unit` silently overrides `hidingZones.unit`: `"unit": "kilometers"` with `"radius": 400, "unit": "meters"` gives 400 km zones. So set only `hidingZones.unit`.
 - Every zone should lie inside the play area.
 
 ## 5. Questions
 
-A game offers only what it declares. The Add Question buttons for radar and thermometer are disabled when the game doesn't declare them. Players can always draw their own custom matching, measuring and tentacle questions, so when the game has no layer for one of those families its button adds a custom question instead. Each picker lists only the game's own questions, plus players' hand-drawn custom questions. Questions pasted from other games are rejected if this game doesn't define them.
+The Add Question buttons for radar and thermometer are disabled when the game doesn't declare them. Players can always draw their own custom matching, measuring and tentacle questions, so when the game has no layer for one of those families its button adds a custom question instead. Each picker lists only the game's own questions plus those custom ones. Questions pasted from other games are rejected if this game doesn't define them.
 
 ### 5.1 Radar and thermometer
 
@@ -214,23 +214,23 @@ A game offers only what it declares. The Add Question buttons for radar and ther
 |---|---|---|
 | `radars` | omitted or `false` | no radar questions |
 | | `true` | radar enabled. A new radar starts at the base hiding radius (`hidingZones.radius`). |
-| | `[400, 600]` | radar enabled. A new radar, from Add Question or the map's right-click menu, starts at the first radius, and the radar card offers every listed radius as a quick pick. List the radii the rules use, e.g. the rules' radar list, or by convention the base radius plus each tier radius. |
+| | `[400, 600]` | radar enabled. A new radar, from Add Question or the map's right-click menu, starts at the first radius, and the radar card offers every listed radius as a quick pick (shown as "500 m", "2 km"). List the radii the rules use, e.g. the rules' radar list, or by convention the base radius plus each tier radius. |
 | `thermometer` | omitted or `false` | no thermometer |
 | | `true` | thermometer enabled |
 
-Radar radii are in the game unit (section 4). They are starting values, not limits: the radius stays editable on the radar card, next to the declared radii as quick picks (shown as "500 m", "2 km") when there are several.
+Radar radii are positive numbers in the game unit (section 4). They are starting values, not limits: the radius stays editable on the radar card.
 
 Write both fields explicitly in every game, even when the value is `false`.
 
 ### 5.2 Question layers (`features`)
 
-Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a region layer may have a fourth, `"noOverlaps": true`. `data` is an embedded FeatureCollection. All features in one layer must share one geometry family. Don't set `noOverlaps` yourself: Searchlight's import page sets it when it checks a region layer, or fixes its overlaps, before importing.
+Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a region layer may have a fourth, `"noOverlaps": true`. `data` is an embedded FeatureCollection. All features in one layer must share one geometry family. Don't set `noOverlaps` yourself: Searchlight's import page checks each region layer and, with **Fix overlaps and mark** (or **Mark … noOverlaps** when there is nothing to fix), fixes and marks it before importing.
 
 | Layer geometry | `matching` | `measuring` | `tentacle` |
 |---|---|---|---|
 | **Point** (sites) | **Nearest {name}**: do seeker and hider have the same nearest site? Each point owns its Voronoi cell. | **Distance to {name}**: is the hider closer to their nearest site than the seeker is to theirs? | **Tentacles: {name}**: of the sites within the radius the seeker picks, which is the hider's nearest? |
 | **LineString / MultiLineString** | **Nearest {name}**: is the same line nearest to both? Each *feature* is one line. | **Distance to {name}**: compares the distance to the nearest line in the layer. | not allowed |
-| **Polygon / MultiPolygon** (regions) | **Same {name}**: are they in the same region? "Outside every region" counts as its own answer. | **Distance to {name} Boundary**: compares each player's distance to the boundary of the region *they* are in. | not allowed |
+| **Polygon / MultiPolygon** (regions) | **Same {name}**: are they in the same region? "Outside every region" counts as its own answer. | **Distance to {name} Boundary**: compares each player's distance to the boundary of the region *they* are in (outside every region: the nearest region's boundary). | not allowed |
 
 **Labels and IDs come from `name`.**
 
@@ -250,6 +250,7 @@ Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a regio
 - non-embedded data
 - unclosed rings, rings with fewer than 4 positions, or lines with fewer than 2
 - positions with an altitude or outside the valid range
+- `map.bounds` with west > east or south > north
 - an empty slug or colliding question IDs
 - two layers with the same `name`
 
@@ -258,14 +259,14 @@ Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a regio
 - **Matching on a single feature** always gets the same answer. Use `measuring` only for one-off sites (the only airport, the only zoo) and single lines (one coastline, one border).
 - **One feature per real-world line.** Matching treats each feature as its own line, so merge the segments of one line into one MultiLineString. A layer of 500 rail segments asks "nearest segment?".
 - **Matching regions should tile the play area without overlaps.** Where regions overlap, the first in file order wins, and zones outside every region form an extra "outside" answer. Searchlight's import page finds overlaps, shows what fixing them changes, and fixes them (giving each overlap to the first region) before importing; tell the user to download the fixed file it offers.
-- **Own boundary is the nearest boundary.** When regions don't overlap, the boundary of the region a player is in is also the nearest boundary of *any* region: a straight line to another region's boundary has to cross the player's own boundary first, or end on it. So for everyone inside a region, "Distance to {name} Boundary" already compares distances to the nearest region boundary. The two differ only for a player outside every region, who has no own boundary in the region layer (and counts as infinitely far) but still has a nearest line in a line layer. Once Searchlight's import page has marked a region layer `noOverlaps`, the app answers its distance question with one buffer around the whole boundary network, so a separate line layer of the same boundaries (e.g. `"Borough Boundary"` as MultiLineStrings next to the `"Borough"` region layer) is no longer needed for speed. If you add one anyway, both are labelled "Distance to Borough Boundary", so enable measuring on only one of them.
+- **No separate boundary line layer is needed.** When regions don't overlap, the boundary of the region a player is in is also the nearest boundary of *any* region (a straight line to another region's boundary has to cross the player's own first), and a player outside every region is measured to the nearest region's boundary. So "Distance to {name} Boundary" already measures to the nearest region boundary, as a line layer of the same boundaries would. Once a region layer is marked `noOverlaps`, the app answers it with one buffer around the whole boundary network, which is fast. If you add a line layer anyway (e.g. `"Borough Boundary"` next to the `"Borough"` region layer), both are labelled "Distance to Borough Boundary", so enable measuring on only one of them.
 - **Include sites just outside the play area.** The nearest museum to a hider near the edge may be across the border, so take POIs from the play area's bbox plus a few km.
 - **Keep geometry light:**
   - Keep each layer measured to, and each line layer matched on, well under 20,000 vertices in all, and each region matched on under 20,000 by itself: matching on regions only ever works with the one region a seeker is in.
   - If a layer is over, and its vertices lie closer than about 50 m (borders traced point by point, as from OSM), simplify it with a topology-preserving simplifier at about 10 m tolerance. Simplifying each feature on its own opens gaps and overlaps between neighbours. Where vertices are already far apart, simplifying removes little; the checker then only notes the layer.
   - Round coordinates to 6 decimal places (about 0.1 m). Use fixed decimals, not 6 *significant* digits, which leaves about 11 m steps.
   - Keep only `name` in properties (plus `tier`/`radius` on zones).
-  - Preloaded games range from tens of KB to about 8 MB, and the import limit is 50 MB of compact JSON. The checker warns over 10 MB and fails over 50 MB.
+  - Preloaded games range from about 0.3 MB to 7 MB, and the import limit is 50 MB. The checker sizes the file as compact JSON and warns over 10 MB, fails over 50 MB.
 - Every feature should have `properties.name`, because players see it in answers and tentacle lists.
 
 ### 5.3 Standard rulebook layers
@@ -282,9 +283,9 @@ npm i @tmcw/togeojson@7.1.2 @xmldom/xmldom@0.9.12
 
 | Helper | Use |
 |---|---|
-| `readKmlFolders(path)` | KML (unzip KMZ first, it's a zip around `doc.kml`). Returns a `Map` from top-level folder name to features; Google My Maps layers are folders. Nested folders belong to their top-level folder. `ExtendedData` becomes string properties (e.g. `tier`, `radius`). `get()` returns `undefined` for a mistyped folder name, which `normalize()` and `bbox()` reject with an error. |
+| `readKmlFolders(path)` | KML (unzip KMZ first, it's a zip around `doc.kml`). Returns a `Map` from top-level folder name to features; Google My Maps layers are folders. Nested folders belong to their top-level folder, and placemarks outside any folder are under `"(root)"`. `ExtendedData` becomes string properties (e.g. `tier`, `radius`). `get()` returns `undefined` for a mistyped folder name, which `normalize()` and `bbox()` reject with an error. |
 | `readGeoJson(path)` | A FeatureCollection, Feature or bare geometry, returned as features. |
-| `readCsv(path)` | Header row with `lat`/`latitude` and `lng`/`lon`/`longitude`. Other columns become properties (e.g. `name`, `tier`, `category`). Quoted fields are handled. Rows with a blank or non-numeric lat or lng are skipped, and the count is printed. |
+| `readCsv(path)` | Header row with `lat`/`latitude` and `lng`/`lon`/`long`/`longitude`. Other columns become properties (e.g. `name`, `tier`, `category`). Quoted fields are handled. Rows with a blank or non-numeric lat or lng are skipped, and the count is printed. |
 | `overpassPoints(OSM_TAGS.museum, bbox)` | Named OSM sites in a bbox, as Points. `OSM_TAGS` covers the rulebook categories (airport means `aeroway=aerodrome` with an IATA code). Ask the user before using OSM, review the results with them, and run one query at a time against the public endpoint. |
 | `normalize(features, { keep })` | **Always run this.** It drops altitude, rounds to 6 decimals, closes rings, removes degenerate parts, splits MultiPoint, merges KML MultiGeometry (`GeometryCollection`) into MultiLineString/MultiPolygon, and keeps only the `keep` properties (default `["name"]`). A numeric-looking `radius` string becomes a number. A `GeometryCollection` that mixes families (a pin plus a shape) becomes one feature per family: filter by `geometry.type` before building a layer. |
 | `normalize(features, { name: "WD26NM" })` | Reads the name from another property when the placemark name is a placeholder. `normalize()` also strips CDATA and decodes entities in every kept string (`decodeText()`). |
@@ -345,21 +346,23 @@ node check-game.mjs --strict testville-2026.game.json
 - **WARN:** it imports but will play badly, e.g. swapped `[lat, lng]`, zones outside the play area, duplicate zone or feature IDs, names with CDATA wrappers or XML entities (`<![CDATA[…]]>`, `&amp;`), case-mismatched or numeric tiers, single-feature matching or tentacles, regions that overlap or that no zone lies in, or heavy geometry.
 - **NOTE:** worth a look but often intentional, e.g. plural-looking layer names.
 
-`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other. Preloaded games must pass it.
+`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other. Preloaded games must pass it (in the Searchlight repo, see `docs/ADDING_GAMES.md`).
 
-The checker ends with the question list and labels, which is what players will see. Read it back to the user. To see the file on a map, the user can drop it on the import page, `https://searchlight.jetlageuropa.org/games/import` (after signing in): it draws the play area, the hiding zones and each layer, runs the same checks, and only saves the game when they click import. The page sends files as compact JSON, so it skips the checker's warning about a formatted file over the 50 MB limit, which only matters when posting the file to the API yourself. Inside the Searchlight repo, also run `pnpm verify:preloaded-games` for preloaded games. `pnpm --filter @searchlight/api validate-game <id>` runs only the server validator, and only on a file already saved as `games/preloaded/<id>.game.json`.
+Output is one line per finding (`ERROR`, `WARN `, `FAIL ` or `NOTE `, then the JSON path and the message), then `<id>: N hiding zones, N layers. Questions offered:` with one line per question (kind, label and question ID, e.g. `matching     Same Arrondissement  [matching-arrondissement]`), then the totals. It exits 1 on any ERROR or FAIL. The question list is what players will see: read it back to the user.
+
+To see the file on a map, the user can drop it on the import page, `https://searchlight.jetlageuropa.org/games/import` (after signing in): it draws the play area, the hiding zones and each layer, runs the same checks, and only saves the game when they click import.
 
 ## 8. Import, update, export
 
 - **Web:** on `/games`, click **+ Import Game JSON**, which opens the import page, and pick the file. It draws the file on a map, lists the checker's findings, offers to fix overlapping regions, and previews the import with the server's validation before anything is saved. Importing a file whose `id` already exists updates that game: the page warns first, names the game it would replace, and asks for an extra confirmation when the file looks like a different game (another name or play area). For a new game, give the file a new `id` instead.
-- **Unlisted:** a new game can be imported unlisted (the import page's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing. Casual games have no **Unlisted** box: they are always unlisted, can't be made listed, and only their creator or a Searchlight admin manages their links.
+- **Unlisted:** a new game can be imported unlisted (the import page's **Unlisted** box, or `&unlisted=true` on the API). It isn't offered when creating a session; everyone, game managers included, starts sessions of it through a game link. Game managers still see it on `/games`. Game managers change it later, and create or revoke links, on `/games` (**Make listed**/**Make unlisted**, **Links**). Updates keep the game's listing. Casual games have no **Unlisted** box: they are always unlisted and can't be made listed, only their creator and Searchlight admins see them and manage their links, and every session of one starts from a game link, also for its creator.
 - **API:** `POST /games/import` with the definition (or `{"game": …}`) as the JSON body.
   - Add `?dryRun=true` to validate only, `&allowUpdate=true` to replace an existing game with the same `id` (with `&expectedCurrentRevisionId=<id>`, the `existing.currentRevisionId` a dry run returned, only if that is still its current revision), and `&unlisted=true` to create the game unlisted.
   - Authenticate with the session cookie you get by signing in to the web app; Searchlight doesn't issue API tokens. You need the `games.create` permission (new game) or `games.edit` (update) on that server, or server admin. On Casual Games, the creator updates their own game with `games.create` (`games.edit` can't be granted there); Searchlight admins can update any Casual game. Without either, the import is refused before the definition is validated.
-- **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them, `/games` shows no import button for that server. For Casual Games, a Searchlight admin opens the **Casual Games** card and ticks only **Create Casual games**, for one of JetLag EU's roles.
+- **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them on any server, `/games` shows no import button. For Casual Games, a Searchlight admin opens the **Casual Games** card and ticks only **Create Casual games**, for one of JetLag EU's roles.
   - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission, a server change, or an `id` taken by a game you can't edit (`GAME_ID_TAKEN`; change `id`); `409` if the game exists and `allowUpdate` isn't set, or with `GAME_CHANGED` if it changed since `expectedCurrentRevisionId`.
-  - The body limit is 50 MB. The checker sizes the file both as compact JSON and as it is on disk; post it compact (`JSON.stringify(game)`) if only its indentation takes it over.
-- **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json`. The file name must equal the `id`. The API imports and updates these files on every start, so the file wins over an earlier web import of the same game. A file that fails to import is logged as an error and skipped; the other files still load.
+  - The body limit is 50 MB. The checker sizes the file both as compact JSON and as it is on disk; post it compact (`JSON.stringify(game)`, as the import page does) if only its indentation takes it over.
+- **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json` (the file name must equal the `id`) and follow `docs/ADDING_GAMES.md`. On start the API applies each file whose content changed since the last start; an upload made since an unchanged file was applied stays current.
 - **Revisions:** every import with new content creates a new revision. Running sessions stay on the revision they started with. Content identical to the current revision is reported as `unchanged`; content identical to an older revision re-activates that revision (reported as `updated` with its number) instead of creating a new one.
 - **Export:**
   - Web: **Export JSON** on `/games` (the current revision), or **Export Game JSON** under Options in the map's left drawer (the revision being played, which in a session started before an update is its pinned revision).
