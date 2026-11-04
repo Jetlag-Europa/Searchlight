@@ -4,10 +4,14 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Pins for custom points show again (2026-11-04)
+
+- The points you place for a custom tentacle, matching or measuring question show their blue pin again, instead of a broken image.
+
 ## Session list, invite and join pages on a bad connection (2026-11-03)
 
 - The session list shows **Try again** when it can't load, and loads again by itself once the phone is back online. Invite and game links do the same: a link page that gets no answer within 15 seconds says it can't reach Searchlight and offers Try again.
-- Opening a session that was deleted after the list was shown now says it was deleted, instead of showing a saved copy.
+- Opening a session that was deleted after the list was shown now says it was deleted.
 - Invite no longer shows the previous session's links after switching sessions.
 - "Your sign-in has expired" has a **Sign in** button, as the installed app has no reload.
 

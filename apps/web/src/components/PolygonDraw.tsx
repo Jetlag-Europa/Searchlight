@@ -36,6 +36,16 @@ import {
     SidebarMenuItem,
 } from "./ui/sidebar";
 
+// The points drawn here (and leaflet-draw's marker tool) use Leaflet's default
+// icon. Leaflet looks for its image next to leaflet.css, which the build
+// inlines, so it would ask for /map/marker-icon.png: use the app's blue one.
+L.Icon.Default.imagePath = "";
+L.Icon.Default.mergeOptions({
+    iconUrl: "/markers/marker-icon-2x-blue.png",
+    iconRetinaUrl: "/markers/marker-icon-2x-blue.png",
+    shadowUrl: "/markers/marker-shadow.png",
+});
+
 const swapCoordinates = (geojson: any) => {
     return JSON.parse(JSON.stringify(geojson), (key, value) => {
         if (
