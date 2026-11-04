@@ -185,4 +185,3 @@ export function filterZoneIndexes(
 ): Promise<number[]> {
     return requestGeometry({ kind: "filterZone", circles, regions });
 }
-export { calculateFilterZoneIndexes };

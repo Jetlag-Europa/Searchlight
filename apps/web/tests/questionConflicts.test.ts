@@ -47,8 +47,6 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
-    queuedQuestionsBase,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import {

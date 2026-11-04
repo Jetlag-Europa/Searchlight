@@ -1,5 +1,5 @@
 import { Type } from "@sinclair/typebox";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   type ImportActor,
   ImportConflictError,

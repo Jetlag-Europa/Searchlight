@@ -237,15 +237,10 @@ onQuestionsSaved(({ sessionId, sequence }) => {
 
 function handleServerEvent(
     event: EventRecord,
-    expectedSessionId?: string,
+    targetSessionId: string,
     persist = true,
 ): void {
-    const targetSessionId = expectedSessionId ?? currentSessionId;
-    if (
-        !targetSessionId ||
-        !currentSessionId ||
-        currentSessionId !== targetSessionId
-    ) {
+    if (!currentSessionId || currentSessionId !== targetSessionId) {
         console.info(
             "[searchlight:sse] discarding event for mismatched session:",
             event.sessionId,

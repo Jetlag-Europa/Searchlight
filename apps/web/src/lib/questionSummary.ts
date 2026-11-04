@@ -3,7 +3,9 @@
 // come from other builds, so nothing here trusts a field's shape: anything
 // unreadable falls back to the question's type, and nothing throws.
 
-import { sameQuestion, sameQuestionKey } from "@/lib/questionMerge";
+import { isRecord } from "@searchlight/shared";
+
+import { sameQuestion as same, sameQuestionKey } from "@/lib/questionMerge";
 import {
     defaultQuestionLabel,
     questionName,
@@ -29,10 +31,7 @@ const UNIT_ABBREVIATIONS: Record<DistanceUnit, string> = {
     miles: "mi",
 };
 
-const isFields = (value: unknown): value is Fields =>
-    !!value && typeof value === "object" && !Array.isArray(value);
-
-const fieldsOf = (value: unknown): Fields => (isFields(value) ? value : {});
+const fieldsOf = (value: unknown): Fields => (isRecord(value) ? value : {});
 
 const dataOf = (question: unknown): Fields => fieldsOf(fieldsOf(question).data);
 
@@ -106,12 +105,12 @@ function kindLabel(
 function tentacleChoice(data: Fields): string {
     const location = data.location;
     if (location === false) return "Not Within";
-    if (!isFields(location)) return "None chosen";
+    if (!isRecord(location)) return "None chosen";
     const name = fieldsOf(location.properties).name;
     return text(name) ?? (typeof name === "number" ? String(name) : "Location");
 }
 
-export interface QuestionSummary {
+interface QuestionSummary {
     // What it asks: "2 km", "Nearest Airport". Absent when the type says it.
     subject?: string;
     // Its answer, in the card's words: "Inside", "Colder", "Same".
@@ -239,10 +238,6 @@ function metersBetween(
     return 2 * 6_371_008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-// Numbers within rounding, and objects whatever their field order, as the
-// merge compares them.
-const same = (a: unknown, b: unknown): boolean => sameQuestion(a, b);
-
 // Which fields say what. Device fields (folded, locked) and the key aren't
 // part of what a question asks, so they're never a difference.
 const IGNORED = new Set(["collapsed", "drag"]);
@@ -364,7 +359,7 @@ export function questionDifferences(
 
 // ── A conflict, in words ─────────────────────────────────────────────────────
 
-export interface ConflictLike {
+interface ConflictLike {
     key: number;
     mine: unknown;
     theirs: unknown;
@@ -398,7 +393,7 @@ export function conflictQuestionLabel(
             return { name, label: `${type} (not on the map)` };
         }
         const label = defaultQuestionLabel(
-            board.filter(isFields) as unknown as Parameters<
+            board.filter(isRecord) as unknown as Parameters<
                 typeof defaultQuestionLabel
             >[0],
             keyOf(onBoard)!,
@@ -470,7 +465,7 @@ export function rawDifferences(
     return out;
 }
 
-export interface AuthorLike {
+interface AuthorLike {
     displayName?: unknown;
     self?: unknown;
 }

@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, Point, Polygon } from "geojson";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { hiderMode } from "@/lib/context";
 import {

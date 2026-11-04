@@ -15,10 +15,12 @@ type Fields = Record<string, unknown>;
 // question wins, or whether an edit or a removal does.
 const DEVICE_FIELDS = new Set(["collapsed", "drag"]);
 
+/** A question's key, if it has one (questions without are told apart by content). */
 function numericKey(question: Question): number | undefined {
     const key = (question as { key?: unknown } | null)?.key;
     return typeof key === "number" && Number.isFinite(key) ? key : undefined;
 }
+export { numericKey as questionKey };
 
 /** Whether two keys name the same question. */
 export function sameQuestionKey(a: number, b: number): boolean {
@@ -87,11 +89,6 @@ function changedInSubstance(question: Question, base: Question): boolean {
 export function sameQuestionSubstance(a: Question | null, b: Question | null): boolean {
     if (a === null || b === null) return a === b;
     return !changedInSubstance(a, b);
-}
-
-/** A question's key, if it has one (questions without are told apart by content). */
-export function questionKey(question: Question): number | undefined {
-    return numericKey(question);
 }
 
 /** `question` as `shown` shows it: its device fields (folded, locked) from there. */

@@ -467,17 +467,13 @@ export function getPendingEvents(sessionId: string): PendingEvent[] {
     }
 }
 
-function savePendingEvents(sessionId: string, events: PendingEvent[]): void {
-    writePendingQueue(sessionId, events);
-}
-
 export function markEventSynced(sessionId: string, localId: string): void {
     const events = getPendingEvents(sessionId);
     const index = events.findIndex((event) => event.localId === localId);
     if (index === -1) return;
     const synced = events[index];
     // Also retire older snapshots from queues written before coalescing.
-    savePendingEvents(
+    writePendingQueue(
         sessionId,
         events.filter(
             (event, i) =>
@@ -489,7 +485,7 @@ export function markEventSynced(sessionId: string, localId: string): void {
 
 /** Drop an event the server rejected: resending it can never succeed. */
 export function discardEvent(sessionId: string, localId: string): void {
-    savePendingEvents(
+    writePendingQueue(
         sessionId,
         getPendingEvents(sessionId).filter(
             (event) => event.localId !== localId,
@@ -501,7 +497,7 @@ export function markEventFailed(sessionId: string, localId: string): void {
     const events = getPendingEvents(sessionId).map((e) =>
         e.localId === localId ? { ...e, status: "failed" as const } : e,
     );
-    savePendingEvents(sessionId, events);
+    writePendingQueue(sessionId, events);
 }
 
 export function getCachedSession(sessionId: string): CachedSessionState | null {

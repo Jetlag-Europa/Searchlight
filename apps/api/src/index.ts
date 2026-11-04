@@ -151,4 +151,4 @@ if (activePreloadDir) {
   }
 }
 
-const address = await app.listen({ port: env.PORT, host: env.HOST });
+await app.listen({ port: env.PORT, host: env.HOST });

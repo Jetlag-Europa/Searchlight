@@ -1,4 +1,8 @@
-import type { QuestionChange, QuestionHistoryEntry } from "@searchlight/shared";
+import {
+    isRecord,
+    type QuestionChange,
+    type QuestionHistoryEntry,
+} from "@searchlight/shared";
 
 import { sameQuestion, sameQuestionKey } from "@/lib/questionMerge";
 import { questionName } from "@/lib/questionNames";
@@ -37,11 +41,9 @@ export interface HistoryLine {
     items?: { label: string; removed?: RemovedQuestion }[];
     /** Questions the line deleted, for Restore. */
     removed?: RemovedQuestion[];
-    /** Keys of the list before the deletion, where Restore puts them back. */
-    order?: number[];
 }
 
-export interface HistoryLineOptions {
+interface HistoryLineOptions {
     /** The player reading it, whose changes say "You". */
     selfId?: string | null;
     unit?: Units;
@@ -66,9 +68,6 @@ const ANSWER_FIELDS: Partial<Record<string, string>> = {
 };
 
 const PIN_COORDINATES = new Set(PIN_FIELDS.flatMap(([lat, lng]) => [lat, lng]));
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-    typeof value === "object" && value !== null && !Array.isArray(value);
 
 // Areas and places are left out of the history's changes: both sides read
 // { omitted: true }, so whether they changed can't be told from them.
@@ -345,7 +344,7 @@ function addEntryLines(
     const push = (
         line: Pick<
             DraftLine,
-            "text" | "items" | "removed" | "order" | "changes" | "startedAt"
+            "text" | "items" | "removed" | "changes" | "startedAt"
         >,
     ) =>
         lines.push({
@@ -409,7 +408,6 @@ function addEntryLines(
             text: `deleted ${pluralQuestions(removed.length)}`,
             items: removed.map((q) => ({ label: q.label, removed: q })),
             removed,
-            order: entry.order,
         });
     } else {
         removed.forEach((question, i) => {
@@ -418,7 +416,6 @@ function addEntryLines(
             push({
                 text: `deleted ${question.label}${deletedSummary(was, unit)}`,
                 removed: [question],
-                order: entry.order,
             });
         });
     }
@@ -457,6 +454,5 @@ export function historyLines(
             text: line.text,
             ...(line.items && { items: line.items }),
             ...(line.removed && { removed: line.removed }),
-            ...(line.order && { order: line.order }),
         }));
 }

@@ -299,9 +299,10 @@ describe("restoring from the history", () => {
     it("puts a question back where it was, under a new key", () => {
         const [a, b, c] = [radar(0.25, 1), radar(0.5, 2), radar(0.75, 3)];
         // The board's first question was saved one ulp off since.
+        const order = [a.key, b.key, c.key];
         questions.set([{ ...a, key: nextUp(a.key) }, c]);
-        restoreFromHistory({ order: [a.key, b.key, c.key] }, [
-            { key: b.key, index: 1, label: "Radius 2", question: b },
+        restoreFromHistory([
+            { key: b.key, index: 1, label: "Radius 2", question: b, order },
         ]);
         const board = questions.get();
         expect(board).toHaveLength(3);
@@ -314,8 +315,8 @@ describe("restoring from the history", () => {
             data: { ...b.data, restoredFrom: [b.key] },
         });
         // Clicked again before the History reloads: it's there now.
-        restoreFromHistory({ order: [a.key, b.key, c.key] }, [
-            { key: b.key, index: 1, label: "Radius 2", question: b },
+        restoreFromHistory([
+            { key: b.key, index: 1, label: "Radius 2", question: b, order },
         ]);
         expect(questions.get()).toBe(board);
     });
@@ -323,11 +324,12 @@ describe("restoring from the history", () => {
     it("keeps the order of questions restored together", () => {
         const [a, b, c] = [radar(0.25, 1), radar(0.5, 2), radar(0.75, 3)];
         const d = radar(0.9, 4);
+        const order = [a.key, b.key, c.key, d.key];
         questions.set([d]);
-        restoreFromHistory({ order: [a.key, b.key, c.key, d.key] }, [
-            { key: c.key, index: 2, label: "Radius 3", question: c },
-            { key: a.key, index: 0, label: "Radius 1", question: a },
-            { key: b.key, index: 1, label: "Radius 2", question: b },
+        restoreFromHistory([
+            { key: c.key, index: 2, label: "Radius 3", question: c, order },
+            { key: a.key, index: 0, label: "Radius 1", question: a, order },
+            { key: b.key, index: 1, label: "Radius 2", question: b, order },
         ]);
         expect(questions.get().map(latOf)).toEqual([1, 2, 3, 4]);
     });
@@ -356,23 +358,22 @@ describe("restoring from the history", () => {
 
     it("keeps the order of questions restored one by one", () => {
         const [x, a, b, y] = [1, 2, 3, 4].map((lat) => radar(lat / 8, lat));
-        const order = [x.key, a.key, b.key, y.key];
-        const target = (q: Radar, index: number) => ({
+        const target = (q: Radar, index: number, order: number[]) => ({
             key: q.key,
             index,
             label: `Radius ${index + 1}`,
             question: q,
+            order,
         });
+        const order = [x.key, a.key, b.key, y.key];
         questions.set([x, y]);
-        restoreFromHistory({ order }, [target(a, 1)]);
-        restoreFromHistory({ order }, [target(b, 2)]);
+        restoreFromHistory([target(a, 1, order)]);
+        restoreFromHistory([target(b, 2, order)]);
         expect(questions.get().map(latOf)).toEqual([1, 2, 3, 4]);
         // One restored by a teammate.
         const [p, q, r, z] = [5, 6, 7, 8].map((lat) => radar(lat / 16, lat));
         questions.set([p, asRestored(q, 0.9), z]);
-        restoreFromHistory({ order: [p.key, q.key, r.key, z.key] }, [
-            target(r, 2),
-        ]);
+        restoreFromHistory([target(r, 2, [p.key, q.key, r.key, z.key])]);
         expect(questions.get().map(latOf)).toEqual([5, 6, 7, 8]);
     });
 
@@ -448,12 +449,10 @@ describe("restoring from the history", () => {
             reason: "On the board as Radius 1",
         });
         questions.set([copy]);
-        expect(restoreFromHistory({ order: [deleted.key] }, [removal])).toEqual(
-            {
-                back: [],
-                alreadyBack: 1,
-            },
-        );
+        expect(restoreFromHistory([removal])).toEqual({
+            back: [],
+            alreadyBack: 1,
+        });
         expect(questions.get()).toEqual([copy]);
     });
 });
@@ -542,8 +541,7 @@ describe("what a deleted question became", () => {
         }
         // x goes back below c, which a became.
         questions.set([c, y]);
-        const line = lines.find((l) => l.removed?.includes(deletedX))!;
-        restoreFromHistory(line, [deletedX]);
+        restoreFromHistory([deletedX]);
         expect(questions.get().map(latOf)).toEqual([4, 2, 3]);
     });
 
@@ -659,7 +657,7 @@ describe("what a deleted question became", () => {
         expect(restorable(removal, [one], null).status).toBe("ok");
         // Restored, it says what it was restored from.
         questions.set([one]);
-        restoreFromHistory(lines[0], [removal]);
+        restoreFromHistory([removal]);
         expect(questions.get().map((x) => x.data.restoredFrom)).toEqual([
             [a.key],
             [a.key, two.key],
@@ -677,7 +675,7 @@ describe("what a deleted question became", () => {
         const [deletedOne] = deletionsOf(lines, one.key);
         const [deletedTwo] = deletionsOf(lines, two.key);
         questions.set([]);
-        restoreFromHistory(lines[0], [deletedOne]);
+        restoreFromHistory([deletedOne]);
         expect(restorable(deletedOne, questions.get(), null).status).toBe(
             "unavailable",
         );
@@ -723,8 +721,8 @@ describe("what a deleted question became", () => {
         const [deletedB] = deletionsOf(lines, b.key);
         const [deletedX] = deletionsOf(lines, x.key);
         questions.set([tail]);
-        restoreFromHistory(lines[0], [deletedB]);
-        restoreFromHistory(lines[0], [deletedX]);
+        restoreFromHistory([deletedB]);
+        restoreFromHistory([deletedX]);
         expect(questions.get().map(latOf)).toEqual([1, 2, 3]);
     });
 });
@@ -784,6 +782,7 @@ describe("when Restore waits", () => {
             index: 0,
             label: "Radius 1",
             question: deleted,
+            order: [0.5],
         };
         // The board isn't showing a saved session yet.
         setQuestionDecisionsPossible(false);
@@ -791,20 +790,26 @@ describe("when Restore waits", () => {
             status: "unavailable",
             reason: notRightNowReason(),
         });
-        restoreFromHistory({ order: [0.5] }, [target]);
+        restoreFromHistory([target]);
         expect(questions.get()).toEqual([]);
         // Once it is, it goes back.
         setQuestionDecisionsPossible(true);
         expect(restoreBlocked({ key: 0.5, question: null })).toBeNull();
-        restoreFromHistory({ order: [0.5] }, [target]);
+        restoreFromHistory([target]);
         expect(questions.get().map(latOf)).toEqual([50]);
     });
 
     it("names what it put back as the board calls it now", () => {
         setQuestionDecisionsPossible(true);
         // Radius 2 when deleted; Radius 1 went too, so it's back as Radius 1.
-        const { back } = restoreFromHistory({ order: [0.25, 0.5] }, [
-            { key: 0.5, index: 1, label: "Radius 2", question: radar(0.5) },
+        const { back } = restoreFromHistory([
+            {
+                key: 0.5,
+                index: 1,
+                label: "Radius 2",
+                question: radar(0.5),
+                order: [0.25, 0.5],
+            },
         ]);
         expect(back.map((r) => r.label)).toEqual(["Radius 1"]);
         expect(back[0].key).not.toBe(0.5);
@@ -817,11 +822,12 @@ describe("when Restore waits", () => {
             index: 0,
             label: "Radius 1",
             question: deleted,
+            order: [0.5],
         };
         setQuestionDecisionsPossible(true);
         activeSessionRole.set("viewer");
         try {
-            restoreFromHistory({ order: [0.5] }, [target]);
+            restoreFromHistory([target]);
             expect(questions.get()).toEqual([]);
         } finally {
             activeSessionRole.set(null);

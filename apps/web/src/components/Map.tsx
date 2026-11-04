@@ -83,7 +83,6 @@ const WORLD_CENTER: L.LatLngTuple = [20, 0];
 // The lowest zoom at which the world, which doesn't wrap, fills the width.
 const worldZoom = (width: number) =>
     Math.max(2, Math.ceil(Math.log2(width / 256)));
-// Basemap tiles exist only within the world; outside it they answer 400.
 
 const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
     map.fitBounds(

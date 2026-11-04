@@ -12,7 +12,7 @@ import {
     verifiedUserId,
 } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
-import type { HistoryLine, RemovedQuestion } from "@/lib/historyLines";
+import type { RemovedQuestion } from "@/lib/historyLines";
 import {
     questionConflicts,
     questionDecisionsPossible,
@@ -100,7 +100,7 @@ export function appendOlderPage(
  * at once, offline too, and only asks for what came since. In memory only,
  * and dropped for another session or account.
  */
-export interface LoadedHistory {
+interface LoadedHistory {
     sessionId: string;
     history: QuestionHistoryResponse;
     /** The last refresh failed: what's shown may be behind. */
@@ -224,7 +224,7 @@ export async function loadOlderHistory(sessionId: string): Promise<boolean> {
     return true;
 }
 
-export type Restorable =
+type Restorable =
     | { status: "ok"; question: Question }
     | { status: "unavailable"; reason: string };
 
@@ -343,7 +343,6 @@ export interface Restored {
  * edit.
  */
 export function restoreFromHistory(
-    line: Pick<HistoryLine, "order">,
     targets: readonly RemovedQuestion[],
 ): Restored {
     // A spectator's board isn't saved (as deleteQuestionsWithUndo).
@@ -367,7 +366,8 @@ export function restoreFromHistory(
             },
         ];
     });
-    const next = placeRestored(current, line.order ?? [], restored);
+    // A line's targets were all deleted from the same list.
+    const next = placeRestored(current, targets[0]?.order ?? [], restored);
     if (!next) return { back: [], alreadyBack };
     questions.set(next);
     return {

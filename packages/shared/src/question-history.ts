@@ -5,7 +5,7 @@
 // Session questions are stored unparsed, so nothing here may assume a shape:
 // entries without a numeric key are skipped, and nothing throws.
 
-export type QuestionChangeKind = "added" | "changed" | "removed";
+type QuestionChangeKind = "added" | "changed" | "removed";
 
 export interface QuestionChange {
   kind: QuestionChangeKind;
@@ -87,7 +87,7 @@ export const sameNumber = (a: number, b: number) =>
 const sameQuestionKey = (a: unknown, b: unknown): boolean =>
   typeof a === "number" && typeof b === "number" && sameNumber(a, b);
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
+export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 /**
@@ -172,7 +172,7 @@ function pickFields(data: Record<string, unknown>, fields: string[]): Record<str
   return stripBulkyData(picked);
 }
 
-export interface QuestionListDiff {
+interface QuestionListDiff {
   changes: QuestionChange[];
   /** The questions in both lists are in a different order. */
   reordered: boolean;
