@@ -223,23 +223,18 @@ test.describe("deleting a session on a phone", () => {
                 `${API_BASE}/sessions/${shared.id}`,
             );
             expect(deleted.ok()).toBe(true);
-            // The sheet hides the rest of the page from screen readers.
-            const row = teammate
-                .getByRole("dialog", {
-                    name: "Select a Session",
-                    includeHidden: true,
-                })
-                .getByRole("button", {
-                    name: new RegExp(`^${other.name}`),
-                    includeHidden: true,
-                });
-            await expect(row).toBeVisible({ timeout: 60_000 });
-            await row.tap();
-            await expect(row).toBeHidden();
+            // The sheet closes: open, it would hide the picker from screen
+            // readers, keep focus and scrolling, and take the taps.
+            await expect(picker(teammate)).toBeVisible({ timeout: 60_000 });
+            await expect(teammate.locator(sheet)).toBeHidden();
+            await expectBodyTappable(teammate);
+            await picker(teammate)
+                .getByRole("button", { name: new RegExp(`^${other.name}`) })
+                .tap();
+            await expect(picker(teammate)).toBeHidden();
             await expect(
                 teammate.getByText(other.name, { exact: true }),
             ).toBeVisible({ timeout: 30_000 });
-            await expectBodyTappable(teammate);
         } finally {
             await teammateContext.close();
         }

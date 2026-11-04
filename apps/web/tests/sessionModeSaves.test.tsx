@@ -1254,9 +1254,13 @@ describe("the session picker", () => {
 
         await click((text) => text === "Check again");
         expect(pageText()).toContain("Session a");
-        expect(
-            [...env.document.body.walk()].some((n) => n.nodeName === "SELECT"),
-        ).toBe(true);
+        const select = [...env.document.body.walk()].find(
+            (n) => n.nodeName === "SELECT",
+        );
+        const props = Object.entries(select as object).find(([key]) =>
+            key.startsWith("__reactProps$"),
+        )![1] as { value: string };
+        expect(props.value).toBe("server-1");
     });
 
     it("still offers Try again for the sessions after a recheck", async () => {

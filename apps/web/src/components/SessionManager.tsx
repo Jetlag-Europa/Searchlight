@@ -48,6 +48,8 @@ import {
     planningModeEnabled,
     questions,
     sessionPickerOpen,
+    sidebarContextL,
+    sidebarContextR,
 } from "@/lib/context";
 import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
 import { isSameDoubleTap } from "@/lib/doubleTap";
@@ -511,8 +513,8 @@ function SessionPickerOverlay({
         ),
     );
 
-    // Taking taps over a sheet open underneath (the question sidebar on a
-    // phone), which turns pointer events off on the body.
+    // Taking taps over a dialog or a phone's sheet open underneath, which
+    // turns pointer events off on the body.
     return (
         <div
             ref={setOverlay}
@@ -1079,6 +1081,12 @@ export function SessionManager() {
     }, [showPicker, loading]);
     useEffect(() => {
         sessionPickerOpen.set(showPicker);
+        // A phone's sidebar sheet open underneath would keep screen readers,
+        // focus and scrolling from the picker.
+        if (showPicker) {
+            sidebarContextL.get().setOpenMobile(false);
+            sidebarContextR.get().setOpenMobile(false);
+        }
         // Back on the board: a background recheck waited for the picker.
         if (!showPicker && recheckWaitedForPicker) {
             recheckWaitedForPicker = false;
@@ -2101,9 +2109,11 @@ export function SessionManager() {
     // map.astro places the slot beside the revision banner.
     const bannerSlot = document.getElementById("game-not-loaded-banner");
 
+    // Taking taps, as the picker does: a phone's sheet underneath isn't
+    // edited during a load, which would replace what was done there.
     if (loading) {
         return (
-            <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
+            <div className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
         );
