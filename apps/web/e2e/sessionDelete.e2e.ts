@@ -488,4 +488,36 @@ test.describe("deleting a session with a mouse", () => {
             await teammateContext.close();
         }
     });
+
+    test("the Delete All confirm closes when the window turns phone-sized", async ({
+        page,
+        request,
+    }) => {
+        const session = await createSession(request, "Turn");
+        // The Delete All confirm sounds the alarm with this on.
+        await page.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        await testLogin(page, OTHER_USER_ID);
+        await join(request, page, session.id);
+        await openBoard(page, session);
+        await page.getByRole("button", { name: "Delete All Questions" }).click();
+        const confirm = page.locator('[role="alertdialog"]');
+        const alarm = page.locator(".warning-flash");
+        await expect(confirm).toBeVisible();
+        await expect(alarm).toHaveCount(1);
+
+        // A tablet or phone turned upright: the sidebar becomes a sheet, and
+        // takes the confirm away. The alarm stops, and the confirm doesn't
+        // come back when the sheet is opened.
+        await page.setViewportSize({ width: 400, height: 800 });
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+        await page.locator('[data-sidebar="trigger"]').first().click();
+        await expect(
+            page.locator('[data-mobile="true"][data-sidebar="sidebar"]'),
+        ).toBeVisible();
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+    });
 });

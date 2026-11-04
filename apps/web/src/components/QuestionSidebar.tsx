@@ -114,14 +114,15 @@ export const QuestionSidebar = () => {
     };
     // The confirm closes when the session picker opens: left open on a
     // desktop, it would stay over the next session's board and delete its
-    // questions. On a phone the picker closes the sheet, which takes the
-    // confirm along without saying it closed.
+    // questions. A phone's sheet closing (the picker closes it), or the
+    // desktop sidebar turning into a sheet, takes the confirm along without
+    // saying it closed.
     useEffect(() => {
         if (pickerOpen || !sidebar.openMobile) {
             setConfirmOpen(false);
             stopAlarm();
         }
-    }, [pickerOpen, sidebar.openMobile]);
+    }, [pickerOpen, sidebar.openMobile, sidebar.isMobile]);
 
     return (
         <>
