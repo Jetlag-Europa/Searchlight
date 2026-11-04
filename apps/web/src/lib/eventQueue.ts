@@ -838,8 +838,11 @@ export function discardSessionData(
                 if (key && prefixes.some((p) => key.startsWith(p))) keys.push(key);
             }
             for (const key of keys) localStorage.removeItem(key);
+        } else {
+            // Not with allAccounts: its keys are gone, and pendingKey would
+            // move the old-format queue back under its account's key first.
+            localStorage.removeItem(pendingKey(sessionId));
         }
-        localStorage.removeItem(pendingKey(sessionId));
         localStorage.removeItem(legacyPendingKey(sessionId));
         localStorage.removeItem(conflictsKey(sessionId));
         localStorage.removeItem(`${CONFLICTS_PREFIX}${sessionId}`);

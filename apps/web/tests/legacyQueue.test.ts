@@ -316,3 +316,22 @@ test("another account's queue stays that account's after this one loads the sess
     const a = await page("A");
     expect(a.queue.getPendingEvents(SID).map((e) => e.localId)).toEqual(["old"]);
 }, 15_000);
+
+test("deleting a session clears every account's queue, the old-format one too", async () => {
+    const b = await page("B");
+    b.queue.setCachedSession({
+        sessionId: SID,
+        userId: "A",
+        strokes: [],
+        questions: [],
+        lastSyncedAt: 0,
+        lastSequence: 0,
+    });
+    store.set(LEGACY, JSON.stringify([stroke("legacy-drawing")]));
+    store.set(`${LEGACY}~A`, "[]");
+    store.set(`${LEGACY}~B`, "[]");
+
+    // Deleted from the picker without opening it: nothing of it stays behind.
+    b.queue.discardSessionData(SID, { allAccounts: true });
+    expect([...store.keys()].filter((k) => k.startsWith(LEGACY))).toEqual([]);
+});
