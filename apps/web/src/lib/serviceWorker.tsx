@@ -1,7 +1,7 @@
 import { toast } from "react-toastify";
 import { registerSW } from "virtual:pwa-register";
 
-import { editingInOtherTab } from "@/lib/activeSession";
+import { editingInOtherTab } from "@/lib/otherTab";
 
 // Registers the service worker (src/sw.ts); Layout.astro runs this on every
 // page. In `astro dev` the plugin swaps in a registerSW that does nothing.

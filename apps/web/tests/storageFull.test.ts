@@ -360,24 +360,32 @@ describe("a queue from before queues were per account", () => {
         });
     });
 
-    test("is shown and sent from where it is while there's no room to copy it", async () => {
-        store.set(
-            `taibled-pending-${SID}`,
-            JSON.stringify([queued("before", 100_000)]),
-        );
-        capacity = used() + 1_000;
-        mockFetch.mockResolvedValue(new Response(null, { status: 201 }));
+    // This account's own queue may be there already, emptied.
+    test.each([false, true])(
+        "is shown and sent from where it is while there's no room to copy it (own emptied queue: %s)",
+        async (emptied) => {
+            store.set(
+                `taibled-pending-${SID}`,
+                JSON.stringify([queued("before", 100_000)]),
+            );
+            if (emptied) store.set(`taibled-pending-${SID}~me`, "[]");
+            capacity = used() + 1_000;
+            mockFetch.mockResolvedValue(new Response(null, { status: 201 }));
 
-        expect(getPendingEvents(SID).map((e) => e.localId)).toEqual(["before"]);
-        expect(
-            applyUnsyncedEvents(SID, { strokes: [], questions: [] }).strokes,
-        ).toHaveLength(1);
-        await flushPendingEvents(SID);
-        expect(mockFetch).toHaveBeenCalledOnce();
-        expect(getPendingEvents(SID)).toEqual([]);
-    });
+            expect(getPendingEvents(SID).map((e) => e.localId)).toEqual([
+                "before",
+            ]);
+            expect(
+                applyUnsyncedEvents(SID, { strokes: [], questions: [] })
+                    .strokes,
+            ).toHaveLength(1);
+            await flushPendingEvents(SID);
+            expect(mockFetch).toHaveBeenCalledOnce();
+            expect(getPendingEvents(SID)).toEqual([]);
+        },
+    );
 
-    test("waits while this account has a queue of its own and there's no room", () => {
+    test("waits while this account has edits of its own queued and there's no room", () => {
         store.set(
             `taibled-pending-${SID}`,
             JSON.stringify([queued("before", 60_000)]),

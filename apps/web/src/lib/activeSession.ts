@@ -1,6 +1,7 @@
 import type { GameSessionSummary, SessionRole } from "@searchlight/shared";
 import { atom, computed } from "nanostores";
 
+import { editingInOtherTab } from "@/lib/otherTab";
 import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 
 const SS_KEY = "taibled-active-session";
@@ -33,9 +34,8 @@ export const sessionReadOnly = computed(
     (role) => role === "viewer",
 );
 
-// Another tab or window of this browser took the active session over (see
-// tabLock): this board shows it, but saves and sends nothing for it.
-export const editingInOtherTab = atom(false);
+// Another tab or window of this browser took the active session over.
+export { editingInOtherTab };
 
 /** Edits to `sessionId` must not be made, queued or sent from this board. */
 export function isSessionReadOnly(sessionId: string): boolean {

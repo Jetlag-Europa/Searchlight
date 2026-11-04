@@ -270,16 +270,18 @@ function pendingKey(sessionId: string) {
             othersLegacyQueues.set(`${sessionId}~${owner}`, legacy);
         } else {
             const own = localStorage.getItem(key);
+            const owned = own ? (JSON.parse(own) as PendingEvent[]) : [];
             const events = [
                 ...(JSON.parse(legacy) as PendingEvent[]),
-                ...(own ? (JSON.parse(own) as PendingEvent[]) : []),
+                ...owned,
             ];
             try {
                 localStorage.setItem(key, JSON.stringify(events));
             } catch {
                 // No room for the copy (storage full): until there is, the
-                // edits are shown and sent from where they are.
-                return own ? key : legacyPendingKey(sessionId);
+                // edits are shown and sent from where they are, after this
+                // account's own.
+                return owned.length > 0 ? key : legacyPendingKey(sessionId);
             }
             localStorage.removeItem(legacyPendingKey(sessionId));
         }
