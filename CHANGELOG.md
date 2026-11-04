@@ -6,10 +6,9 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 ## Session list, invite and join pages on a bad connection (2026-11-03)
 
-- The session list shows **Try again** when it can't load, and loads again by itself once the phone is back online. Before, a failed list left the installed app stuck. Invite and game links do the same: a link page that gets no answer within 15 seconds says it can't reach Searchlight and offers Try again.
-- A board that reloads by itself after the server comes back waits while you're typing in a question, so what you type isn't replaced.
+- The session list shows **Try again** when it can't load, and loads again by itself once the phone is back online. Before, a failed list stayed that way until the page was reloaded. Invite and game links do the same: a link page that gets no answer within 15 seconds says it can't reach Searchlight and offers Try again.
 - Opening a session that was deleted after the list was shown now says it was deleted, instead of showing a saved copy.
-- In Invite, **Make spectator** asks for a second tap, as their edits not yet sent are lost. The drawer no longer shows the previous session's links after switching sessions.
+- Invite no longer shows the previous session's links after switching sessions.
 - "Your sign-in has expired" has a **Sign in** button, as the installed app has no reload.
 
 ## A session is changed in one tab at a time (2026-11-03)
@@ -22,20 +21,15 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 - Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
 - With Google Maps chosen, **Google Maps view** picks Roadmap, Satellite, Hybrid (the photo with streets and names) or Terrain. **Show transit lines** adds Google's public transport map (train, metro and tram lines in the operators' colours, and stops), and **Hide shops and places** takes the pins of shops, restaurants, schools, sights and other places off the map, so the paths stand out; stops, street names and park names stay. Neither applies to Satellite, which is the photo alone. All of them are drawn by the same Google map, at no extra cost, and are saved with your other options.
-- Until Google's map has drawn, the map shows CARTO Voyager, so a slow or weak connection never leaves it empty, and it stays on CARTO if Google's map can't load at all. Offline it shows CARTO too. Google's terms don't allow storing its map, though, so once Google's map shows, areas not seen yet can stay empty on a weak connection: choose CARTO Voyager in Options there. A page printed from the browser leaves Google's map out.
+- Until Google's map has drawn, the map shows CARTO Voyager, so a slow or weak connection never leaves it empty, and it stays on CARTO if Google's map can't load at all, offline too. Once Google's map has drawn, going offline keeps what it shows on screen. Google's terms don't allow storing its map, though, so other areas can stay empty offline or on a weak connection: choose CARTO Voyager in Options there. A page printed from the browser leaves Google's map out.
 - Options says that Searchlight includes Google Maps features and content, and links Google's terms and privacy policy, as Google's terms require.
-- **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key. Migration `20261103130000_google_map_loads` creates a table for short-lived map load counts and `20261103140000_drop_google_map_loads` drops it again, so on a server that ran neither they cancel out.
+- **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key. Migrations `20261103130000_google_map_loads` and `20261103140000_drop_google_map_loads` create a table and drop it again, which leaves the schema as it was.
 
 ## A session that can't load keeps your edits and recovers by itself (2026-11-03)
 
 - A session is only forgotten, with the edits not yet sent from this device, when the server says it was deleted or you lost access to it. Any other error, such as a server update in progress, no longer drops you on the session list.
-- When a session can't be loaded, the board shows the copy saved on this device and says so. Once the server answers again, the board reloads by itself and sends your edits, without reloading the page.
+- When a session can't be loaded, the board shows the copy saved on this device and says so. Once the server answers again, the board reloads by itself and sends your edits, without reloading the page. While you're typing in a field, such as a question's name, it waits until you leave it, so what you type isn't replaced.
 - Loading a session no longer hangs behind the spinner: after at most a minute the board shows the saved copy and keeps trying. A game still downloading by then shows once it arrives, with the "game not loaded" banner until it does.
-- After a reload that couldn't reach the server, the first question you added is now saved.
-
-## First mode change after a reload is saved (2026-11-03)
-
-- After reloading the map, the first time you turned planning mode on or off, or placed or moved the hider, wasn't saved: teammates didn't see it, and the next reload undid it. It is now saved like any later change.
 
 ## Question history (2026-11-03)
 
@@ -71,7 +65,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Spectator links (2026-11-03)
 
 - A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
-- Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator") or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
+- Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator", which asks for a second tap, as that player's edits not yet sent are lost) or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
 - Spectators show as "Spectating" on the map and in the session list, and don't count as players in a game's stats.
 - **Upgrading:** an API from before this one fails on sessions with a spectator and turns spectator links into invites. Going back to one takes the steps in DEPLOY.md → Roll back.
 
@@ -112,7 +106,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 - Searchlight can be installed on a phone or computer: **Install app** in Chrome and Edge (Android and desktop), or **Share → Add to Home Screen** in Safari on iPhone and iPad. It opens on the map in its own window, with the new Searchlight logo as its icon.
 - It keeps working when the connection drops for a while. The app itself is kept on the device, so its pages open without a connection, and questions are still worked out: ArcGIS's projection engine now comes with the app instead of from js.arcgis.com. Changes made meanwhile are sent once the connection is back, as before.
-- Reopening or reloading the map while the server can't be reached shows your session and its game as you left them, with "Can't reach the server, retrying…", and catches up once the server answers. This works for the last account that logged in on that browser, for up to a week after it last reached the server (a map already open and playing offline carries on past that until the server answers), and only until it logs out: logging out also deletes the games kept for it (the 4 most recently played game versions). Starting to log in on that browser ends it too, until the server confirms who logged in; a login cancelled or left unfinished stops counting after 15 minutes.
+- Reopening or reloading the map while the server can't be reached shows your session and its game as you left them, with "Can't reach the server, retrying…", and catches up once the server answers. This works for the last account that logged in on that browser, for up to a week after it last reached the server (a map already open and playing offline carries on past that until the server answers), and only until it logs out: logging out also deletes the games kept for it (the 4 most recently played game versions). Starting to log in on that browser ends it too, until the server confirms who logged in.
 - Questions saved after the connection was down, or by two players at the same moment, no longer overwrite questions other players added or changed meanwhile. Searchlight merges the lists: other players' new questions and answers stay, and your changes are applied on top. Where both sides changed the same question differently, Searchlight asks which version to keep (see above). Folding or locking a question on your device never overrides someone else's answer.
 - Map tiles you've looked at are kept on the device, so those areas still show while you're offline: CARTO and Thunderforest tiles for up to 30 days after they were downloaded (3,000 tiles at most), and OpenStreetMap tiles for up to 7 days. OpenStreetMap tiles still come from the network first, following its caching headers as its tile policy asks; the kept copy is used when the network fails or takes over 3 seconds.
 - A new version shows "A new version of Searchlight is available" with a **Reload** button instead of replacing the page mid-game. Reload also reloads the app's other open tabs, which can't keep running the old version; the map saves its state first. Open pages check for a new version every hour, and when they come back to the foreground (at most every 10 minutes).
