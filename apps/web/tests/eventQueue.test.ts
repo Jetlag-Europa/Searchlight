@@ -3,7 +3,6 @@ import {
     applyPendingEventsToState,
     applyPendingModes,
     applyUnsyncedEvents,
-    clearCachedSession,
     discardSessionData,
     enqueueEvent,
     evictOldCachedSessions,
@@ -11,10 +10,10 @@ import {
     markEventFailed,
     markEventSynced,
     getPendingEvents,
-    resetFailedEvents,
     setCachedSession,
     type PendingEvent,
 } from "@/lib/eventQueue";
+import { verifiedUserId } from "@/lib/activeSession";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 import type { GameSessionSummary } from "@searchlight/shared";
@@ -103,7 +102,7 @@ describe("enqueueEvent", () => {
 describe("markEventSynced", () => {
     test("removes the event from the queue", () => {
         const e1 = enqueueEvent(baseEvent({ clientUuid: "s1" }));
-        const e2 = enqueueEvent(baseEvent({ clientUuid: "s2" }));
+        enqueueEvent(baseEvent({ clientUuid: "s2" }));
         markEventSynced(SID, e1.localId);
         const remaining = getPendingEvents(SID);
         expect(remaining).toHaveLength(1);
@@ -117,32 +116,12 @@ describe("markEventSynced", () => {
     });
 });
 
-// ── markEventFailed / resetFailedEvents ──────────────────────────────────────
-describe("markEventFailed / resetFailedEvents", () => {
+// ── markEventFailed ──────────────────────────────────────────────────────────
+describe("markEventFailed", () => {
     test("sets status to failed", () => {
         const e = enqueueEvent(baseEvent({ clientUuid: "f1" }));
         markEventFailed(SID, e.localId);
         expect(getPendingEvents(SID)[0].status).toBe("failed");
-    });
-
-    test("resetFailedEvents sets all failed back to pending", () => {
-        const e1 = enqueueEvent(baseEvent({ clientUuid: "f2" }));
-        const e2 = enqueueEvent(baseEvent({ clientUuid: "f3" }));
-        markEventFailed(SID, e1.localId);
-        markEventFailed(SID, e2.localId);
-        resetFailedEvents(SID);
-        const events = getPendingEvents(SID);
-        expect(events.every((e) => e.status === "pending")).toBe(true);
-    });
-
-    test("resetFailedEvents leaves pending events untouched", () => {
-        const e1 = enqueueEvent(baseEvent({ clientUuid: "r1" }));
-        enqueueEvent(baseEvent({ clientUuid: "r2" })); // stays pending
-        markEventFailed(SID, e1.localId);
-        resetFailedEvents(SID);
-        expect(getPendingEvents(SID).every((e) => e.status === "pending")).toBe(
-            true,
-        );
     });
 });
 
@@ -291,22 +270,6 @@ describe("setCachedSession / getCachedSession", () => {
     });
 });
 
-describe("clearCachedSession", () => {
-    test("removes cache while preserving pending queue", () => {
-        setCachedSession({
-            sessionId: SID,
-            strokes: [],
-            questions: [] as unknown as Questions,
-            lastSyncedAt: 0,
-            lastSequence: 0,
-        });
-        enqueueEvent(baseEvent({ clientUuid: "clr" }));
-        clearCachedSession(SID);
-        expect(getCachedSession(SID)).toBeNull();
-        expect(getPendingEvents(SID)).toHaveLength(1);
-    });
-});
-
 describe("discardSessionData", () => {
     test("drops the queue and cache of a session that can no longer sync", () => {
         enqueueEvent(baseEvent());
@@ -322,6 +285,58 @@ describe("discardSessionData", () => {
         expect(getPendingEvents(SID)).toEqual([]);
         expect(getCachedSession(SID)).toBeNull();
         expect(getPendingEvents("other-session")).toHaveLength(1);
+    });
+
+    // Leaving drops only the leaver's unsent edits; a deleted session's can
+    // never be sent by anyone. Neither touches another session, even one
+    // whose id starts with this one's.
+    describe("on a device two accounts share", () => {
+        const sessions = [SID, `${SID}0`, "other-session"];
+        const keys = (account: string) =>
+            sessions.flatMap((sid) => [
+                `taibled-pending-${sid}~${account}`,
+                `taibled-conflicts-${sid}~${account}`,
+            ]);
+        beforeEach(() => {
+            for (const account of ["u1", "u2"]) {
+                verifiedUserId.set(account);
+                for (const sid of sessions) {
+                    enqueueEvent(baseEvent({ sessionId: sid }));
+                    store.set(`taibled-conflicts-${sid}~${account}`, "[]");
+                }
+            }
+            verifiedUserId.set("u1");
+        });
+        afterEach(() => verifiedUserId.set(null));
+
+        test("leaving drops this account's edits for that session only", () => {
+            expect(keys("u1").every((k) => store.has(k))).toBe(true);
+            discardSessionData(SID);
+            const gone = [
+                `taibled-pending-${SID}~u1`,
+                `taibled-conflicts-${SID}~u1`,
+            ];
+            expect(gone.filter((k) => store.has(k))).toEqual([]);
+            expect(
+                [...keys("u1"), ...keys("u2")].filter(
+                    (k) => !gone.includes(k) && !store.has(k),
+                ),
+            ).toEqual([]);
+        });
+
+        test("deleting drops every account's edits for that session only", () => {
+            discardSessionData(SID, { allAccounts: true });
+            const gone = ["u1", "u2"].flatMap((account) => [
+                `taibled-pending-${SID}~${account}`,
+                `taibled-conflicts-${SID}~${account}`,
+            ]);
+            expect(gone.filter((k) => store.has(k))).toEqual([]);
+            expect(
+                [...keys("u1"), ...keys("u2")].filter(
+                    (k) => !gone.includes(k) && !store.has(k),
+                ),
+            ).toEqual([]);
+        });
     });
 });
 
@@ -542,7 +557,7 @@ describe("applyPendingEventsToState", () => {
 });
 
 describe("applyUnsyncedEvents", () => {
-    test("replays pending and failed edits but not acknowledged ones", () => {
+    test("replays pending and failed edits", () => {
         enqueueEvent(
             baseEvent({ payloadJson: stroke("pending"), clientUuid: "a" }),
         );
@@ -550,24 +565,6 @@ describe("applyUnsyncedEvents", () => {
             baseEvent({ payloadJson: stroke("failed"), clientUuid: "b" }),
         );
         markEventFailed(SID, failed.localId);
-        const synced = enqueueEvent(
-            baseEvent({
-                type: "stroke.delete",
-                payloadJson: { clientUuid: "server" },
-                clientUuid: "c",
-            }),
-        );
-        // A stale "synced" entry from an older queue must not be replayed.
-        store.set(
-            `taibled-pending-${SID}`,
-            JSON.stringify(
-                getPendingEvents(SID).map((event) =>
-                    event.localId === synced.localId
-                        ? { ...event, status: "synced" }
-                        : event,
-                ),
-            ),
-        );
 
         const result = applyUnsyncedEvents(SID, {
             strokes: [stroke("server")],

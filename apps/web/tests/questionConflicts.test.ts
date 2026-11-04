@@ -44,12 +44,9 @@ import { gameDefinitionReady, questions } from "@/lib/context";
 import {
     applyUnsyncedEvents,
     boardPaintedFromSnapshot,
-    enqueueEvent,
     discardSessionData,
     getCachedSession,
     getPendingEvents,
-    queuedQuestionsBase,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
 import {
@@ -59,6 +56,7 @@ import {
     questionConflictArrivals,
     questionConflicts,
     reconcileQuestionConflicts,
+    recordQuestionConflicts,
     resolveAllQuestionConflicts,
     resolveQuestionConflict,
     setQuestionDecisionsPossible,
@@ -1585,39 +1583,6 @@ describe("decisions and our own saves", () => {
     });
 });
 
-describe("a list queued by a build from before", () => {
-    test("counts as possibly sent: a version of ours it holds isn't asked about", async () => {
-        snapshot([q(1)], 4);
-        const server = fakeServer(4, [q(1)]);
-        // On its way when that page went away, and it landed.
-        server.seq = 5;
-        server.list = [q(1, "a")];
-        store.set(
-            `taibled-pending-${SID}~u1`,
-            JSON.stringify([
-                {
-                    localId: "legacy",
-                    sessionId: SID,
-                    type: "questions.replace",
-                    payloadJson: {
-                        replacementId: "r-legacy",
-                        questions: wire([q(1, "a")]),
-                        base: { sequence: 4, questions: [q(1)] },
-                    },
-                    clientUuid: "questions-replace-r-legacy",
-                    clientCreatedAt: 0,
-                    status: "pending",
-                    createdAt: 0,
-                },
-            ]),
-        );
-        void enqueueEvent;
-        await saveQuestionsToServer(SID, [q(1, "b")]);
-        expect(stored()).toEqual([]);
-        expect(labels(server.list)).toEqual(["1:b"]);
-    });
-});
-
 describe("who changed a question", () => {
     test("is the other player, for a conflict a list made from our merged save finds", async () => {
         snapshot([q(1), q(2)], 4);
@@ -2044,5 +2009,115 @@ describe("our own versions that may be on the server", () => {
         );
         const payload = getPendingEvents(SID)[0].payloadJson as { own?: Q[] };
         expect(labels(payload.own ?? [])).toEqual(["2:small"]);
+    });
+});
+
+describe("a decision over a question restored meanwhile", () => {
+    // Restore's copy of `of`, under `key`: it says what it was restored from.
+    const copyOf = (of: Q, key: number, data: Record<string, unknown> = {}) =>
+        ({
+            ...of,
+            key,
+            data: { ...of.data, restoredFrom: [of.key], ...data },
+        }) as Q;
+    const original = q(0.2, "same", { within: true });
+    const answered = q(0.2, "same", { within: false });
+
+    test("keeping our edit of it drops the copy as it was restored", async () => {
+        snapshot([q(0.1), original], 4);
+        const server = fakeServer(4, [q(0.1), original]);
+        // Deleted, then restored as a copy, while we answered it offline.
+        server.other([q(0.1), copyOf(original, 0.9)]);
+        await edit([q(0.1), answered]);
+        expect(held()).toMatchObject([{ key: 0.2, kind: "they-deleted" }]);
+        resolveQuestionConflict(SID, 0.2, "mine");
+        await saveBoard();
+        // One version of it shapes the zone, not two.
+        expect(server.list).toEqual([q(0.1), answered]);
+    });
+
+    test("keeps a copy edited since, beside it", async () => {
+        snapshot([q(0.1), original], 4);
+        const server = fakeServer(4, [q(0.1), original]);
+        const moved = copyOf(original, 0.9, { lat: 51 });
+        server.other([q(0.1), moved]);
+        await edit([q(0.1), answered]);
+        resolveQuestionConflict(SID, 0.2, "mine");
+        await saveBoard();
+        expect(server.list).toEqual([q(0.1), answered, moved]);
+    });
+
+    test("leaves another copy of the same question alone", async () => {
+        // Two copies of one question: restored twice at once.
+        const [one, two] = [copyOf(original, 0.8), copyOf(original, 0.9)];
+        snapshot([q(0.1), one, two], 4);
+        const server = fakeServer(4, [q(0.1), one, two]);
+        const theirs = copyOf(original, 0.8, { within: false });
+        const mine = copyOf(original, 0.8, { label: "renamed" });
+        server.other([q(0.1), theirs, two]);
+        await edit([q(0.1), mine, two]);
+        expect(held()).toMatchObject([{ key: 0.8, kind: "both-changed" }]);
+        resolveQuestionConflict(SID, 0.8, "mine");
+        await saveBoard();
+        expect(server.list).toEqual([q(0.1), mine, two]);
+    });
+
+    test("keeps a copy that was on the board beside it already", async () => {
+        // A copy of it, alike, below a curse: another question by now.
+        const curse = q(0.5, "curse");
+        const beside = copyOf(original, 0.9);
+        snapshot([original, curse, beside], 4);
+        const server = fakeServer(4, [original, curse, beside]);
+        server.other([answered, curse, beside]);
+        await edit([curse, beside]);
+        expect(held()).toMatchObject([{ key: 0.2, kind: "we-deleted" }]);
+        resolveQuestionConflict(SID, 0.2, "theirs");
+        await saveBoard();
+        expect(server.list).toEqual([answered, curse, beside]);
+    });
+
+    test("keeps to the copies there when it was first held", () => {
+        snapshot([q(0.1), original], 4);
+        const held = (theirs: Q, sequence: number, base: Q[]) =>
+            recordQuestionConflicts(
+                SID,
+                [
+                    {
+                        key: 0.2,
+                        kind: "we-deleted",
+                        mine: null,
+                        theirs,
+                        base: original,
+                        theirsAfterKey: 0.1,
+                    },
+                ],
+                {
+                    baseSequence: 4,
+                    theirsSequence: sequence,
+                    madeFrom: { sequence: 4, questions: base },
+                },
+            );
+        held(answered, 5, [q(0.1), original]);
+        // Asked about anew from a base that has our Undo's copy since.
+        held(q(0.2, "same", { within: false, radius: 9 }), 6, [
+            q(0.1),
+            original,
+            copyOf(original, 0.9),
+        ]);
+        expect(stored()).toHaveLength(1);
+        expect(stored()[0].baseCopies ?? []).toEqual([]);
+    });
+
+    test("keeping their edit of one we deleted drops our Undo's copy", async () => {
+        snapshot([q(0.1), original], 4);
+        const server = fakeServer(4, [q(0.1), original]);
+        server.other([q(0.1), answered]);
+        // We deleted it and Undo put it back as a copy, before our save's
+        // answer said a teammate had answered it.
+        await edit([q(0.1), copyOf(original, 0.9)]);
+        expect(held()).toMatchObject([{ key: 0.2, kind: "we-deleted" }]);
+        resolveQuestionConflict(SID, 0.2, "theirs");
+        await saveBoard();
+        expect(server.list).toEqual([q(0.1), answered]);
     });
 });

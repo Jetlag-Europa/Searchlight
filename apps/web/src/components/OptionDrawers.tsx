@@ -1,5 +1,8 @@
 import { useStore } from "@nanostores/react";
-import { resolveGameDefinitionId } from "@searchlight/shared";
+import {
+    formatGameDefinitionJson,
+    resolveGameDefinitionId,
+} from "@searchlight/shared";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useState } from "react";
 import { toast } from "react-toastify";
@@ -19,6 +22,7 @@ import {
     activeGameDefinitionAtom,
     compiledGameAtom,
 } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     allowGooglePlusCodes,
     animateMapMovements,
@@ -32,18 +36,29 @@ import {
     displayHidingZones,
     displayHidingZonesStyle,
     followMe,
+    googleMapType,
+    hideGooglePlaces,
     hiderMode,
     hidingZoneFocusedStationID,
     permanentOverlay,
     planningModeEnabled,
     save,
     showAllMatchingCells,
+    showGoogleTransit,
     showZoneNames,
     thunderforestApiKey,
     trainStations,
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
+import {
+    GOOGLE_MAP_TYPES,
+    googleMapsAvailable,
+    googleMapsProblem,
+    googleMapTypeOf,
+    googleModuleFailed,
+    googleStandingIn,
+} from "@/lib/googleMaps";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -58,10 +73,10 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-} from "./ui/sidebar-l";
+} from "./ui/sidebar";
 import { UnitSelect } from "./UnitSelect";
 
-export const OptionDrawers = ({ className }: { className?: string }) => {
+export const OptionDrawers = () => {
     useStore(triggerLocalRefresh);
     const $defaultCustomQuestions = useStore(defaultCustomQuestions);
     const $allowGooglePlusCodes = useStore(allowGooglePlusCodes);
@@ -78,18 +93,27 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const $planningMode = useStore(planningModeEnabled);
     const $showAllMatchingCells = useStore(showAllMatchingCells);
     const $baseTileLayer = useStore(baseTileLayer);
+    const $googleMapsProblem = useStore(googleMapsProblem);
+    const $googleStandingIn = useStore(googleStandingIn);
+    const $googleModuleFailed = useStore(googleModuleFailed);
+    const $googleMapType = useStore(googleMapType);
+    const $showGoogleTransit = useStore(showGoogleTransit);
+    const $hideGooglePlaces = useStore(hideGooglePlaces);
+    // Google draws no lines or pins on the bare satellite photo.
+    const googlePhotoOnly = googleMapTypeOf($googleMapType) === "satellite";
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $autoLockQuestions = useStore(autoLockQuestions);
     const $followMe = useStore(followMe);
     const $customInitPref = useStore(customInitPreference);
     const $penToolbarVisible = useStore(penToolbarVisible);
     const $showZoneNames = useStore(showZoneNames);
+    const $readOnly = useStore(sessionReadOnly);
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
     const { readPaste, pasteDialog } = usePasteText();
 
     return (
-        <div className={cn("flex flex-col items-end gap-2", className)}>
+        <div className="flex flex-col items-end gap-2">
             {/* Always-visible All Zones button */}
             <Button
                 className="w-32 shadow-md"
@@ -183,10 +207,8 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                                 try {
                                                     const blob = new Blob(
                                                         [
-                                                            JSON.stringify(
+                                                            formatGameDefinitionJson(
                                                                 def,
-                                                                null,
-                                                                2,
                                                             ),
                                                         ],
                                                         {
@@ -258,12 +280,148 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             neighbourhood:
                                                 "Thunderforest Neighbourhood",
                                             osmcarto: "OpenStreetMap Carto",
+                                            ...(googleMapsAvailable && {
+                                                google: "Google Maps",
+                                            }),
                                         }}
-                                        value={$baseTileLayer}
+                                        // A build without a Google key
+                                        // draws CARTO Voyager instead.
+                                        value={
+                                            $baseTileLayer === "google" &&
+                                            !googleMapsAvailable
+                                                ? "voyager"
+                                                : $baseTileLayer
+                                        }
                                         onValueChange={(v) =>
                                             baseTileLayer.set(v as any)
                                         }
                                     />
+                                    {/* Google Maps Platform Terms 3.2.2(a). */}
+                                    {googleMapsAvailable && (
+                                        <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                            Searchlight includes Google Maps
+                                            features and content. Their use is
+                                            subject to the{" "}
+                                            <a
+                                                href="https://maps.google.com/help/terms_maps/"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-500 cursor-pointer"
+                                            >
+                                                Google Maps/Google Earth
+                                                Additional Terms of Service
+                                            </a>{" "}
+                                            and the{" "}
+                                            <a
+                                                href="https://policies.google.com/privacy"
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-blue-500 cursor-pointer"
+                                            >
+                                                Google Privacy Policy
+                                            </a>
+                                            .
+                                        </p>
+                                    )}
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable && (
+                                            <>
+                                                <Label>Google Maps view</Label>
+                                                <Select
+                                                    trigger="Google Maps view"
+                                                    options={GOOGLE_MAP_TYPES}
+                                                    value={googleMapTypeOf(
+                                                        $googleMapType,
+                                                    )}
+                                                    onValueChange={(v) =>
+                                                        googleMapType.set(v)
+                                                    }
+                                                />
+                                                <div className="flex flex-row items-center gap-2">
+                                                    <label
+                                                        htmlFor="showGoogleTransit"
+                                                        className={cn(
+                                                            "text-sm font-medium",
+                                                            googlePhotoOnly &&
+                                                                "opacity-50",
+                                                        )}
+                                                    >
+                                                        Show transit lines
+                                                    </label>
+                                                    <Checkbox
+                                                        id="showGoogleTransit"
+                                                        disabled={
+                                                            googlePhotoOnly
+                                                        }
+                                                        checked={
+                                                            $showGoogleTransit
+                                                        }
+                                                        onCheckedChange={() =>
+                                                            showGoogleTransit.set(
+                                                                !$showGoogleTransit,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                <div className="flex flex-row items-center gap-2">
+                                                    <label
+                                                        htmlFor="hideGooglePlaces"
+                                                        className={cn(
+                                                            "text-sm font-medium",
+                                                            googlePhotoOnly &&
+                                                                "opacity-50",
+                                                        )}
+                                                    >
+                                                        Hide shops and places
+                                                    </label>
+                                                    <Checkbox
+                                                        id="hideGooglePlaces"
+                                                        disabled={
+                                                            googlePhotoOnly
+                                                        }
+                                                        checked={
+                                                            $hideGooglePlaces
+                                                        }
+                                                        onCheckedChange={() =>
+                                                            hideGooglePlaces.set(
+                                                                !$hideGooglePlaces,
+                                                            )
+                                                        }
+                                                    />
+                                                </div>
+                                                {googlePhotoOnly && (
+                                                    <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                        Satellite is the photo
+                                                        alone. Hybrid adds
+                                                        streets, names and
+                                                        transit lines to it.
+                                                    </p>
+                                                )}
+                                            </>
+                                        )}
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable &&
+                                        $googleMapsProblem && (
+                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                {$googleMapsProblem ===
+                                                "offline"
+                                                    ? "Google Maps needs a connection. Showing CARTO Voyager until you're back online."
+                                                    : $googleMapsProblem ===
+                                                        "load-failed"
+                                                      ? "Google Maps couldn't load. Showing CARTO Voyager; reload the page to try again."
+                                                      : "Google Maps refused this site's key. Showing CARTO Voyager."}
+                                            </p>
+                                        )}
+                                    {$baseTileLayer === "google" &&
+                                        googleMapsAvailable &&
+                                        !$googleMapsProblem &&
+                                        $googleStandingIn && (
+                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                {$googleModuleFailed
+                                                    ? "Part of Google Maps couldn't load, so it may not draw. Showing CARTO Voyager; reload the page to try again."
+                                                    : "Google Maps is still loading. Showing CARTO Voyager until it has drawn."}
+                                            </p>
+                                        )}
                                     <div className="flex flex-col items-center gap-2">
                                         <Label>Thunderforest API Key</Label>
                                         <Input
@@ -341,18 +499,31 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }}
                                         />
                                     </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Enable planning mode?
-                                        </label>
-                                        <Checkbox
-                                            checked={$planningMode}
-                                            onCheckedChange={(checked) => {
-                                                planningModeEnabled.set(
-                                                    checked === true,
-                                                );
-                                            }}
-                                        />
+                                    {/* Planning mode is the session's: a
+                                        spectator sees it as its players set
+                                        it, and is told so (phones show no
+                                        hover title). */}
+                                    <div className="flex flex-col items-center gap-1">
+                                        <div className="flex flex-row items-center gap-2">
+                                            <label className="text-2xl font-semibold font-poppins">
+                                                Enable planning mode?
+                                            </label>
+                                            <Checkbox
+                                                checked={$planningMode}
+                                                disabled={$readOnly}
+                                                onCheckedChange={(checked) => {
+                                                    planningModeEnabled.set(
+                                                        checked === true,
+                                                    );
+                                                }}
+                                            />
+                                        </div>
+                                        {$readOnly && (
+                                            <p className="text-xs text-gray-500">
+                                                Set by the players: spectators
+                                                can&apos;t change it.
+                                            </p>
+                                        )}
                                     </div>
                                     <div className="flex flex-row items-center gap-2">
                                         <label className="text-2xl font-semibold font-poppins">
@@ -438,19 +609,23 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }
                                         />
                                     </div>
-                                    <div className="flex flex-row items-center gap-2">
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Show pen toolbar?
-                                        </label>
-                                        <Checkbox
-                                            checked={$penToolbarVisible}
-                                            onCheckedChange={() =>
-                                                penToolbarVisible.set(
-                                                    !$penToolbarVisible,
-                                                )
-                                            }
-                                        />
-                                    </div>
+                                    {/* Spectators can't draw, so they get
+                                        no pen toolbar. */}
+                                    {!$readOnly && (
+                                        <div className="flex flex-row items-center gap-2">
+                                            <label className="text-2xl font-semibold font-poppins">
+                                                Show pen toolbar?
+                                            </label>
+                                            <Checkbox
+                                                checked={$penToolbarVisible}
+                                                onCheckedChange={() =>
+                                                    penToolbarVisible.set(
+                                                        !$penToolbarVisible,
+                                                    )
+                                                }
+                                            />
+                                        </div>
+                                    )}
                                     <div className="flex flex-row items-center gap-2">
                                         <label className="text-2xl font-semibold font-poppins">
                                             Auto-lock questions?
@@ -464,36 +639,41 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
                                             }
                                         />
                                     </div>
-                                    <div
-                                        className="flex flex-row items-center gap-2"
-                                        title={
-                                            hiderModeUnavailable
-                                                ? "Available once the game has loaded"
-                                                : undefined
-                                        }
-                                    >
-                                        <label className="text-2xl font-semibold font-poppins">
-                                            Hider mode?
-                                        </label>
-                                        <Checkbox
-                                            checked={!!$hiderMode}
-                                            disabled={hiderModeUnavailable}
-                                            onCheckedChange={() => {
-                                                if ($hiderMode === false) {
-                                                    if (!$compiledGame) return;
-                                                    const { center } =
-                                                        $compiledGame;
-                                                    hiderMode.set({
-                                                        latitude: center[1],
-                                                        longitude: center[0],
-                                                    });
-                                                } else {
-                                                    hiderMode.set(false);
-                                                }
-                                            }}
-                                        />
-                                    </div>
-                                    {$hiderMode !== false && (
+                                    {/* Spectators never see the hider. */}
+                                    {!$readOnly && (
+                                        <div
+                                            className="flex flex-row items-center gap-2"
+                                            title={
+                                                hiderModeUnavailable
+                                                    ? "Available once the game has loaded"
+                                                    : undefined
+                                            }
+                                        >
+                                            <label className="text-2xl font-semibold font-poppins">
+                                                Hider mode?
+                                            </label>
+                                            <Checkbox
+                                                checked={!!$hiderMode}
+                                                disabled={hiderModeUnavailable}
+                                                onCheckedChange={() => {
+                                                    if ($hiderMode === false) {
+                                                        if (!$compiledGame)
+                                                            return;
+                                                        const { center } =
+                                                            $compiledGame;
+                                                        hiderMode.set({
+                                                            latitude: center[1],
+                                                            longitude:
+                                                                center[0],
+                                                        });
+                                                    } else {
+                                                        hiderMode.set(false);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                    {$hiderMode !== false && !$readOnly && (
                                         <SidebarMenu>
                                             <LatitudeLongitude
                                                 latitude={$hiderMode.latitude}

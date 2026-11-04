@@ -18,6 +18,7 @@ import {
 import {
     activeSessionId,
     offlineUserId,
+    sessionReadOnly,
     verifiedUserId,
 } from "@/lib/activeSession";
 import { gameDefinitionReady, questions } from "@/lib/context";
@@ -47,6 +48,7 @@ import {
     sameQuestionSubstance,
 } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
+import { isCopyOf, withoutCopiesOf } from "@/lib/questionUndo";
 import type { QuestionsSaved } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -54,12 +56,12 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 type Question = Questions[number];
 
-export type QuestionConflictKind =
+type QuestionConflictKind =
     | "both-changed"
     | "they-deleted"
     | "we-deleted";
 
-export interface QuestionConflictAuthor {
+interface QuestionConflictAuthor {
     userId: string;
     displayName: string;
     // This account, on another device.
@@ -89,6 +91,9 @@ export interface QuestionConflict {
     author?: QuestionConflictAuthor | null;
     // `theirs` changed again after it was first held.
     changedAgain?: boolean;
+    // Keys of copies of it (Restore's) in the list both sides started from:
+    // other questions, not ones put back since.
+    baseCopies?: number[];
     detectedAt: number;
 }
 
@@ -252,7 +257,8 @@ function refresh(): void {
     }
     const sessionId = activeSessionId.get();
     let shown: QuestionConflict[] = [];
-    if (sessionId && typeof localStorage !== "undefined") {
+    // A spectator has nothing to decide: their edits are never saved.
+    if (sessionId && !sessionReadOnly.get() && typeof localStorage !== "undefined") {
         const game = boardGame();
         const board = questions.get();
         shown = readHeld(conflictsKey(sessionId))
@@ -282,6 +288,7 @@ const followSession = () => {
 activeSessionId.listen(followSession);
 verifiedUserId.listen(followSession);
 offlineUserId.listen(followSession);
+sessionReadOnly.listen(refresh);
 gameDefinitionReady.listen(refresh);
 compiledGameAtom.listen(refresh);
 
@@ -340,6 +347,15 @@ export function recordQuestionConflicts(
             theirsSequence,
             detectedAt,
         };
+        // As when first held: a later base may have a copy put back since.
+        const baseCopies = before
+            ? (before.baseCopies ?? [])
+            : madeFrom
+              ? baseQuestions(madeFrom)
+                    .filter((q) => isCopyOf(q, found.key))
+                    .map((q) => q.key)
+              : [];
+        if (baseCopies.length > 0) record.baseCopies = baseCopies;
         if (
             before &&
             (before.changedAgain ||
@@ -756,14 +772,25 @@ function resolve(
         );
         // Folded or locked here stays so; one the board lacks goes after
         // its neighbour on that side, else after the other side's.
+        const kept = choice === "mine" ? conflict.mine : conflict.theirs;
         board = placeVersion(
             board,
             conflict.key,
-            choice === "mine" ? conflict.mine : conflict.theirs,
+            kept,
             choice === "mine"
                 ? [conflict.mineAfterKey, conflict.theirsAfterKey]
                 : [conflict.theirsAfterKey, conflict.mineAfterKey],
         );
+        // Deleted on one side and kept, it is back: a copy Restore or Undo
+        // put back meanwhile would be a second version of it.
+        if (kept && conflict.kind !== "both-changed") {
+            board = withoutCopiesOf(
+                board,
+                conflict.key,
+                conflict.base,
+                conflict.baseCopies,
+            );
+        }
     }
     refresh();
 

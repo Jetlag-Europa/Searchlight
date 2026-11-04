@@ -1,10 +1,15 @@
 import type {
     GameSessionSummary,
+    SessionRole,
     SessionVisibility,
 } from "@searchlight/shared";
 
-import type { StrokeFeature } from "@/annotations/types";
-import { offlineUserId, verifiedUserId } from "@/lib/activeSession";
+import { isStrokeLike, type StrokeFeature } from "@/annotations/types";
+import {
+    isSessionReadOnly,
+    offlineUserId,
+    verifiedUserId,
+} from "@/lib/activeSession";
 import { forgetDisabledZones } from "@/lib/disabledZones";
 import {
     findQuestionByKey,
@@ -38,7 +43,8 @@ export interface PendingEvent {
     payloadJson: unknown;
     clientUuid: string;
     clientCreatedAt: number;
-    status: "pending" | "synced" | "failed";
+    // A synced event leaves the queue (see markEventSynced).
+    status: "pending" | "failed";
     createdAt: number;
     // A question list once sent: it may be on the server even without an
     // answer (see QuestionsReplacePayload.own).
@@ -156,12 +162,8 @@ function ownVersions(replaced: PendingEvent[]): Questions {
     for (const event of replaced) {
         const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
         for (const question of Array.isArray(payload?.own) ? payload.own : []) add(question);
-        // Queued by a build from before, which didn't mark it: it may have
-        // been on its way when that page went away.
-        const legacy = !("sent" in event) && isQuestionsBase(payload?.base);
         const sent =
             event.sent ||
-            legacy ||
             event.status === "failed" ||
             Boolean(payload?.merged);
         if (!sent || !Array.isArray(payload?.questions)) continue;
@@ -183,6 +185,8 @@ export interface CachedSessionState {
     sessionId: string;
     userId?: string;
     visibility?: SessionVisibility;
+    // So a board restored offline knows its user only spectates.
+    role?: SessionRole;
     // The session's details as last shown, its hider and planning mode
     // included: an offline restore has nothing else to load its game from.
     session?: GameSessionSummary;
@@ -209,7 +213,8 @@ export function isQuestionsBase(value: unknown): value is QuestionsBase {
     );
 }
 
-function isSessionSummary(
+// The details of the session asked for, as the server sends them.
+export function isSessionSummary(
     value: unknown,
     sessionId: string,
 ): value is GameSessionSummary {
@@ -251,23 +256,55 @@ function pendingKey(sessionId: string) {
     if (!owner) return legacyPendingKey(sessionId);
     const key = `${PENDING_PREFIX}${sessionId}~${owner}`;
     // Builds from before queued without an owner: the snapshot's owner made
-    // those edits. Anyone else's stay where they are.
+    // those edits, so they move to that account's queue, whoever reads them
+    // first (another account's load soon makes the snapshot its own).
     try {
         const legacy = localStorage.getItem(legacyPendingKey(sessionId));
         if (!legacy || othersLegacyQueues.get(`${sessionId}~${owner}`) === legacy) {
             return key;
         }
-        if (getCachedSession(sessionId)?.userId !== owner) {
-            othersLegacyQueues.set(`${sessionId}~${owner}`, legacy);
-        } else {
-            const own = localStorage.getItem(key);
-            const events = [
-                ...(JSON.parse(legacy) as PendingEvent[]),
-                ...(own ? (JSON.parse(own) as PendingEvent[]) : []),
-            ];
-            localStorage.setItem(key, JSON.stringify(events));
-            localStorage.removeItem(legacyPendingKey(sessionId));
+        const maker = getCachedSession(sessionId)?.userId;
+        if (maker) {
+            const makerKey = `${PENDING_PREFIX}${sessionId}~${maker}`;
+            const own = localStorage.getItem(makerKey);
+            const owned = own ? (JSON.parse(own) as PendingEvent[]) : [];
+            const older = JSON.parse(legacy) as PendingEvent[];
+            const merged = JSON.stringify([...older, ...owned]);
+            try {
+                localStorage.setItem(makerKey, merged);
+                localStorage.removeItem(legacyPendingKey(sessionId));
+                return key;
+            } catch {
+                // No room for the copy (storage full): until there is, this
+                // account's edits are shown and sent from where they are,
+                // after its own. As in the copy, its own newer question list,
+                // hider or planning mode replaces the older one.
+                if (maker === owner) {
+                    if (owned.length === 0) return legacyPendingKey(sessionId);
+                    const rest = older.filter(
+                        (event) =>
+                            !isReplacementEventType(event.type) ||
+                            !owned.some((o) => o.type === event.type),
+                    );
+                    if (rest.length < older.length) {
+                        localStorage.setItem(
+                            legacyPendingKey(sessionId),
+                            JSON.stringify(rest),
+                        );
+                        // That may have made room for the copy: make it now,
+                        // not in the write after a caller read the queue.
+                        localStorage.setItem(
+                            makerKey,
+                            JSON.stringify([...rest, ...owned]),
+                        );
+                        localStorage.removeItem(legacyPendingKey(sessionId));
+                    }
+                    return key;
+                }
+            }
         }
+        // Not known to be this account's, or no room to move another's.
+        othersLegacyQueues.set(`${sessionId}~${owner}`, legacy);
     } catch {
         // Storage is best-effort; the legacy queue stays put.
     }
@@ -341,9 +378,7 @@ export function evictOldCachedSessions(
                             (protectedSessionId
                                 ? cacheKey(protectedSessionId)
                                 : undefined) ||
-                        getPendingEvents(key.slice(CACHE_PREFIX.length)).some(
-                            (event) => event.status !== "synced",
-                        ),
+                        getPendingEvents(key.slice(CACHE_PREFIX.length)).length > 0,
                 });
             } catch {
                 cacheEntries.push({ key, lastSyncedAt: 0, hasPending: true });
@@ -394,6 +429,20 @@ function writePendingQueue(sessionId: string, events: PendingEvent[]): void {
 export function enqueueEvent(
     event: Omit<PendingEvent, "localId" | "status" | "createdAt">,
 ): PendingEvent {
+    // A spectator's edit is never queued, and so never sent: dispatching an
+    // event only sends what is still queued.
+    if (isSessionReadOnly(event.sessionId)) {
+        console.warn(
+            "[eventQueue] not queuing an edit to a read-only session:",
+            event.type,
+        );
+        return {
+            ...event,
+            localId: crypto.randomUUID(),
+            status: "pending",
+            createdAt: Date.now(),
+        };
+    }
     // These events contain complete field snapshots. Persist the new snapshot
     // atomically in place of older intent, including requests with a lost ACK.
     const queued = getPendingEvents(event.sessionId);
@@ -413,7 +462,7 @@ export function enqueueEvent(
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
-        // Not sent yet (one without the mark is from a build before).
+        // Not sent yet.
         ...(event.type === "questions.replace" ? { sent: false } : {}),
     };
     events.push(newEvent);
@@ -427,7 +476,12 @@ export function enqueueEvent(
         const rest = { ...payload };
         delete rest.own;
         newEvent.payloadJson = rest;
-        writePendingQueue(event.sessionId, events);
+        // Read again: the snapshots dropped for room may have let an old
+        // queue move in (see pendingKey).
+        writePendingQueue(event.sessionId, [
+            ...getPendingEvents(event.sessionId).filter((q) => !replaces(q)),
+            newEvent,
+        ]);
     }
     return newEvent;
 }
@@ -442,17 +496,13 @@ export function getPendingEvents(sessionId: string): PendingEvent[] {
     }
 }
 
-function savePendingEvents(sessionId: string, events: PendingEvent[]): void {
-    writePendingQueue(sessionId, events);
-}
-
 export function markEventSynced(sessionId: string, localId: string): void {
     const events = getPendingEvents(sessionId);
     const index = events.findIndex((event) => event.localId === localId);
     if (index === -1) return;
     const synced = events[index];
     // Also retire older snapshots from queues written before coalescing.
-    savePendingEvents(
+    writePendingQueue(
         sessionId,
         events.filter(
             (event, i) =>
@@ -464,7 +514,7 @@ export function markEventSynced(sessionId: string, localId: string): void {
 
 /** Drop an event the server rejected: resending it can never succeed. */
 export function discardEvent(sessionId: string, localId: string): void {
-    savePendingEvents(
+    writePendingQueue(
         sessionId,
         getPendingEvents(sessionId).filter(
             (event) => event.localId !== localId,
@@ -476,14 +526,7 @@ export function markEventFailed(sessionId: string, localId: string): void {
     const events = getPendingEvents(sessionId).map((e) =>
         e.localId === localId ? { ...e, status: "failed" as const } : e,
     );
-    savePendingEvents(sessionId, events);
-}
-
-export function resetFailedEvents(sessionId: string): void {
-    const events = getPendingEvents(sessionId).map((e) =>
-        e.status === "failed" ? { ...e, status: "pending" as const } : e,
-    );
-    savePendingEvents(sessionId, events);
+    writePendingQueue(sessionId, events);
 }
 
 export function getCachedSession(sessionId: string): CachedSessionState | null {
@@ -502,10 +545,13 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
                 ? parsed.serverQuestions
                 : undefined,
             visibility: parsed.visibility,
+            role: parsed.role,
             session: isSessionSummary(parsed.session, sessionId)
                 ? parsed.session
                 : undefined,
-            strokes: Array.isArray(parsed.strokes) ? parsed.strokes : [],
+            strokes: Array.isArray(parsed.strokes)
+                ? parsed.strokes.filter(isStrokeLike)
+                : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
             lastSyncedAt:
                 typeof parsed.lastSyncedAt === "number"
@@ -547,8 +593,7 @@ function sameBase(a: QuestionsBase | undefined, b: QuestionsBase): boolean {
 
 function latestQueuedQuestions(sessionId: string): PendingEvent | undefined {
     return getPendingEvents(sessionId).findLast(
-        (event) =>
-            event.type === "questions.replace" && event.status !== "synced",
+        (event) => event.type === "questions.replace",
     );
 }
 
@@ -681,7 +726,6 @@ export function rebaseQueuedQuestions(
         const payload = event.payloadJson as Partial<QuestionsReplacePayload>;
         if (
             event.type !== "questions.replace" ||
-            event.status === "synced" ||
             event.localId === exceptLocalId ||
             !isQuestionsBase(payload?.base) ||
             !sameBase(payload.base, from)
@@ -694,6 +738,40 @@ export function rebaseQueuedQuestions(
         return { ...event, payloadJson: next };
     });
     if (changed) writePendingQueue(sessionId, rebased);
+}
+
+// When the newest question list sent to each session in this page was
+// made: a change made before then may be on the server, even if the list
+// was answered with an error or not at all, or was replaced in the queue
+// since. A list sent while offline counts too: the request is still made,
+// and can't be told from one that got through, so counting it is the safe
+// side. In memory: it is for Undo, which lasts no longer than the page.
+const questionListsSent = new Map<string, number>();
+
+/** A queued question list is being sent (see questionListSentSince). */
+export function noteQuestionListSent(event: PendingEvent): void {
+    const latest = questionListsSent.get(event.sessionId);
+    if (latest === undefined || event.createdAt > latest) {
+        questionListsSent.set(event.sessionId, event.createdAt);
+    }
+}
+
+/**
+ * Whether a question list made at `time` or later has been sent to the
+ * session: a change made at `time` may then be on the server. Sent from
+ * this page (offline too, see above), or by another tab of the account,
+ * which shares the queue and marks a list sent there. A list only queued,
+ * not sent, doesn't count. One sent by another tab and since answered has
+ * left the queue, so it isn't seen.
+ */
+export function questionListSentSince(sessionId: string, time: number): boolean {
+    if ((questionListsSent.get(sessionId) ?? -Infinity) >= time) return true;
+    return getPendingEvents(sessionId).some(
+        (event) =>
+            event.type === "questions.replace" &&
+            event.sent === true &&
+            event.createdAt >= time,
+    );
 }
 
 /** The queued event is being sent: it may land from now on. */
@@ -719,9 +797,17 @@ export function updateQueuedPayload(
     return true;
 }
 
-export function clearCachedSession(sessionId: string): void {
-    localStorage.removeItem(cacheKey(sessionId));
-    // Do NOT remove pendingKey(sessionId) — avoid losing pending queue on cache eviction
+// Drop the edits waiting to be sent to a session, and the questions held for
+// a decision on them, keeping its snapshot: for a spectator, who can't change
+// it.
+export function discardPendingEvents(sessionId: string): void {
+    try {
+        localStorage.removeItem(pendingKey(sessionId));
+        localStorage.removeItem(conflictsKey(sessionId));
+    } catch (e) {
+        console.warn("[eventQueue] failed to discard pending events:", e);
+    }
+    for (const listener of discardListeners) listener(sessionId);
 }
 
 // For a session that can never sync again (deleted, or this user removed):
@@ -748,8 +834,11 @@ export function discardSessionData(
                 if (key && prefixes.some((p) => key.startsWith(p))) keys.push(key);
             }
             for (const key of keys) localStorage.removeItem(key);
+        } else {
+            // Not with allAccounts: its keys are gone, and pendingKey would
+            // move the old-format queue back under its account's key first.
+            localStorage.removeItem(pendingKey(sessionId));
         }
-        localStorage.removeItem(pendingKey(sessionId));
         localStorage.removeItem(legacyPendingKey(sessionId));
         localStorage.removeItem(conflictsKey(sessionId));
         localStorage.removeItem(`${CONFLICTS_PREFIX}${sessionId}`);
@@ -780,7 +869,8 @@ export function applyPendingEventsToState(
     let { strokes, questions } = base;
     for (const event of events) {
         if (event.type === "stroke.create") {
-            const stroke = event.payloadJson as StrokeFeature;
+            const stroke = event.payloadJson;
+            if (!isStrokeLike(stroke)) continue;
             if (
                 !strokes.find(
                     (s) =>
@@ -791,7 +881,10 @@ export function applyPendingEventsToState(
                 strokes = [...strokes, stroke];
             }
         } else if (event.type === "stroke.delete") {
-            const { clientUuid } = event.payloadJson as { clientUuid: string };
+            const clientUuid = (
+                event.payloadJson as { clientUuid?: unknown } | null
+            )?.clientUuid;
+            if (typeof clientUuid !== "string") continue;
             strokes = strokes.filter(
                 (s) => s.properties.clientUuid !== clientUuid,
             );
@@ -864,8 +957,5 @@ export function applyUnsyncedEvents(
     sessionId: string,
     base: { strokes: StrokeFeature[]; questions: Questions },
 ): { strokes: StrokeFeature[]; questions: Questions } {
-    return applyPendingEventsToState(
-        base,
-        getPendingEvents(sessionId).filter((event) => event.status !== "synced"),
-    );
+    return applyPendingEventsToState(base, getPendingEvents(sessionId));
 }

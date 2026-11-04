@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
 import { formatRadius, radarRadii } from "@/game-definition/compile";
@@ -36,12 +36,10 @@ export const RadiusQuestionComponent = ({
     data,
     questionKey,
     sub,
-    className,
 }: {
     data: RadiusQuestion;
     questionKey: number;
     sub?: string;
-    className?: string;
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
@@ -67,7 +65,6 @@ export const RadiusQuestionComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={sub}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified

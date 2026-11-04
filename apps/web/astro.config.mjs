@@ -11,7 +11,6 @@ import { defineConfig } from "astro/config";
 import autoprefixer from "autoprefixer";
 import tailwindcss from "tailwindcss";
 
-import { geometryFallbackChunks as findFallbackChunks } from "./src/lib/geometryFallbackChunks.ts";
 import { precacheUrl } from "./src/lib/pageCache.ts";
 
 // react-leaflet-draw imports a default export from leaflet-draw, a plain
@@ -83,36 +82,6 @@ function arcgisAssets() {
 // Rolldown rejects two ES versions.
 const BROWSERS = ["edge88", "firefox78", "chrome87", "safari14"];
 
-// Geometry on the page's own thread, only where there is no Worker
-// (src/maps/geo-utils/geometryClient.ts): about 2 MB browsers never load.
-// Rolldown splits what it shares with ArcGIS's lazily loaded operators into
-// chunks with generic names (label, form, request, ...) that pages' own
-// chunks can have too, so they're found by the bundle graph, not by name:
-// the chunks reachable from bufferGeometry.ts but not from any entry without
-// passing through it. The build fails if pages could reach them otherwise.
-const GEOMETRY_FALLBACK = "/src/maps/geo-utils/bufferGeometry.ts";
-const GEOMETRY_FALLBACK_LOADER = "/src/maps/geo-utils/geometryClient.ts";
-/** @type {Set<string>} */
-const geometryFallbackChunks = new Set();
-
-const findGeometryFallbackChunks = {
-    name: "searchlight:geometry-fallback-chunks",
-    /** @param {{ name: string }} environment */
-    applyToEnvironment: (environment) => environment.name === "client",
-    /**
-     * @param {unknown} _options
-     * @param {Record<string, { type: string } & import("./src/lib/geometryFallbackChunks.ts").OutputChunk>} bundle
-     */
-    generateBundle(_options, bundle) {
-        const found = findFallbackChunks(
-            Object.values(bundle).filter((file) => file.type === "chunk"),
-            GEOMETRY_FALLBACK,
-            GEOMETRY_FALLBACK_LOADER,
-        );
-        for (const name of found) geometryFallbackChunks.add(name);
-    },
-};
-
 // https://astro.build/config
 export default defineConfig({
     // Astro 7 strips whitespace between inline elements JSX-style by default;
@@ -154,28 +123,15 @@ export default defineConfig({
                 // WASM is 2.8 MB.
                 maximumFileSizeToCacheInBytes: 15 * 1024 * 1024,
                 manifestTransforms: [
-                    async (entries) => {
-                        if (geometryFallbackChunks.size === 0) {
-                            throw new Error(
-                                `No chunks found for ${GEOMETRY_FALLBACK}; update findGeometryFallbackChunks in astro.config.mjs`,
-                            );
-                        }
-                        return {
-                            manifest: entries
-                                // Only loaded where there is no Worker
-                                .filter(
-                                    (entry) =>
-                                        !geometryFallbackChunks.has(entry.url),
-                                )
-                                // Pages by the URL the server shows them at
-                                // (src/sw.ts finds them by it).
-                                .map((entry) => ({
-                                    ...entry,
-                                    url: precacheUrl(entry.url),
-                                })),
-                            warnings: [],
-                        };
-                    },
+                    // Pages by the URL the server shows them at (src/sw.ts
+                    // finds them by it).
+                    async (entries) => ({
+                        manifest: entries.map((entry) => ({
+                            ...entry,
+                            url: precacheUrl(entry.url),
+                        })),
+                        warnings: [],
+                    }),
                 ],
             },
             manifest: {
@@ -243,7 +199,7 @@ export default defineConfig({
             // src/maps/geo-utils/geometry.worker.ts
             __ARCGIS_ASSETS_PATH__: JSON.stringify(ARCGIS_ASSETS_PATH),
         },
-        plugins: [leafletDrawSideEffectImport, findGeometryFallbackChunks],
+        plugins: [leafletDrawSideEffectImport],
         // The dev server pre-bundles react-leaflet-draw, outside Vite's plugins.
         optimizeDeps: {
             rolldownOptions: { plugins: [leafletDrawSideEffectImport] },
@@ -280,6 +236,10 @@ export default defineConfig({
     },
     devToolbar: {
         enabled: false,
+    },
+    // The import page took over from /designer; older guides link to it.
+    redirects: {
+        "/designer": "/games/import",
     },
     site: "https://searchlight.jetlageuropa.org",
     base: "/",

@@ -5,6 +5,7 @@ import {
 } from "@/game-definition/store";
 import {
     activeSessionId,
+    isSessionReadOnly,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
@@ -25,6 +26,7 @@ import {
     markEventFailed,
     markEventSent,
     markEventSynced,
+    noteQuestionListSent,
     type PendingEvent,
     type QuestionsBase,
     type QuestionsReplacePayload,
@@ -32,6 +34,7 @@ import {
     setCachedSession,
     updateQueuedPayload,
 } from "@/lib/eventQueue";
+import { type LoadDeadline, startLoadDeadline } from "@/lib/loadDeadline";
 import {
     lookUpConflictAuthors,
     questionHistory,
@@ -48,6 +51,7 @@ import {
     sameQuestionList,
     sameQuestionSubstance,
 } from "@/lib/questionMerge";
+import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
@@ -58,29 +62,81 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 // hidden tab that is not unloaded can still deliver it.
 const KEEPALIVE_BODY_LIMIT = 64 * 1024;
 
+// A request on mobile data that died without a reset may never answer, and
+// hold up what waits on it: every later save of its session (see
+// sendPendingEvent), or the stream's recovery. Give up on each request after
+// this long, the body read from it included. A save given up on is sent
+// again under its own id, so it still lands once. Long enough to send a
+// 1 MiB question list at 200 kbit/s.
+const REQUEST_TIMEOUT_MS = 45_000;
+
+/** `request`, its signal aborted after REQUEST_TIMEOUT_MS. */
+export async function withTimeout<T>(
+    request: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+    const deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
+    try {
+        return await request(deadline.signal);
+    } finally {
+        deadline.clear();
+    }
+}
+
 /** The server answered an edit with an error status. */
 export class SyncRequestError extends Error {
     readonly status: number;
+    // The API's own 403/404 for the session (see sessionUnavailableStatus),
+    // else null, e.g. for a route it doesn't have.
+    readonly sessionStatus: 403 | 404 | null;
 
-    constructor(type: EventType, status: number) {
+    private constructor(
+        type: EventType,
+        status: number,
+        sessionStatus: 403 | 404 | null,
+    ) {
         super(`${type} failed: ${status}`);
         this.status = status;
+        this.sessionStatus = sessionStatus;
     }
+
+    static async from(
+        type: EventType,
+        res: Response,
+    ): Promise<SyncRequestError> {
+        const sessionStatus = await sessionUnavailableStatus(res);
+        return new SyncRequestError(type, res.status, sessionStatus);
+    }
+}
+
+/**
+ * Throws unless a stroke's delete went through, or the API says its session
+ * is gone (it can't have the stroke then either).
+ */
+export async function assertStrokeDeleted(res: Response): Promise<void> {
+    if (res.ok) return;
+    const error = await SyncRequestError.from("stroke.delete", res);
+    if (error.sessionStatus !== 404) throw error;
 }
 
 export type SendFailure = "retry" | "unavailable" | "rejected";
 
 /**
- * What a failed send means. A 403 or 404 means the session is gone or this
- * user lost access to it. Any other 4xx but 401, 408 and 429 refuses the edit
- * itself (too large, invalid, a conflict): resending it would fail again and
- * block the edits behind it, and incoming updates to its field, forever. A
- * network error (no status), a 5xx, 401, 408 or 429 may pass on a retry.
+ * What a failed send means. A 403 or 404 the API gave for the session
+ * (`unavailable`) means it is gone or this user lost access to it; any other
+ * 403/404, such as one for a route this API doesn't have, may pass on a
+ * retry. Any other 4xx but 401, 408 and 429 refuses the edit itself (too
+ * large, invalid, a conflict): resending it would fail again and block the
+ * edits behind it, and incoming updates to its field, forever. A network
+ * error (no status), a 5xx, 401, 408 or 429 may pass on a retry.
  */
-export function classifySendFailure(status: number | undefined): SendFailure {
+export function classifySendFailure(
+    status: number | undefined,
+    unavailable: boolean,
+): SendFailure {
     if (status === undefined || status < 400 || status >= 500) return "retry";
     if (status === 401 || status === 408 || status === 429) return "retry";
-    if (status === 403 || status === 404) return "unavailable";
+    if (status === 403 || status === 404)
+        return unavailable ? "unavailable" : "retry";
     return "rejected";
 }
 
@@ -95,17 +151,25 @@ export function assertMaySend(): void {
 }
 
 function failureOf(err: unknown): { kind: SendFailure; status?: number } {
-    const status = err instanceof SyncRequestError ? err.status : undefined;
-    return { kind: classifySendFailure(status), status };
+    if (!(err instanceof SyncRequestError)) return { kind: "retry" };
+    return {
+        kind: classifySendFailure(err.status, err.sessionStatus !== null),
+        status: err.status,
+    };
 }
 
-type RejectionListener = (event: PendingEvent, status: number) => void;
+type RejectionListener = (
+    event: PendingEvent,
+    status: number,
+    kind: Exclude<SendFailure, "retry">,
+) => void;
 const rejectionListeners = new Set<RejectionListener>();
 
 /**
  * Hear about edits the server refused for good. A rejected edit has already
  * left the queue, so the listener should show the server's state for its
- * field again. An edit to an unavailable session (403/404) stays queued.
+ * field again. An edit to an unavailable session (403/404, `kind`
+ * "unavailable") stays queued.
  */
 export function onEventRejected(listener: RejectionListener): () => void {
     rejectionListeners.add(listener);
@@ -149,11 +213,15 @@ export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
 // list saves the questions it keeps from there under their ids.
 const serverClientUuids = new WeakMap<object, string>();
 
-async function fetchServerQuestions(sessionId: string): Promise<QuestionsBase> {
+async function fetchServerQuestions(
+    sessionId: string,
+    signal: AbortSignal,
+): Promise<QuestionsBase> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
         credentials: "include",
+        signal,
     });
-    if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+    if (!res.ok) throw await SyncRequestError.from("questions.replace", res);
     const data = (await res.json()) as {
         questions: Array<{ clientUuid?: string; payloadJson: Questions[number] }>;
         sequence?: number;
@@ -304,10 +372,13 @@ async function mergeWithServer(
 async function sendQuestions(
     event: PendingEvent,
     keepalive: boolean,
+    requestSignal: () => AbortSignal,
 ): Promise<QuestionsSaved> {
     const { sessionId } = event;
     let payload = event.payloadJson as QuestionsReplacePayload;
     const madeFrom = payload.merged?.base ?? payload.base;
+    // Before anything can fail: from here the list may land (for Undo).
+    noteQuestionListSent(event);
     if (!event.sent) {
         try {
             markEventSent(sessionId, event.localId);
@@ -322,24 +393,28 @@ async function sendQuestions(
             questions: payload.questions,
             ...(baseSequence === undefined ? {} : { baseSequence }),
         });
+        const signal = requestSignal();
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
             method: "PUT",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body,
             keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+            signal,
         });
         if (res.status === 409 && payload.base) {
             const code = await res
                 .json()
                 .then((data: { code?: unknown }) => data?.code)
                 .catch(() => undefined);
+            // Cut off before it said why: not a refusal, so try it again.
+            if (signal.aborted) throw signal.reason;
             if (code === QUESTIONS_CHANGED) {
                 // Not a refusal of the edit: retry it later if this keeps on.
                 if (merges >= MAX_QUESTION_MERGES) {
                     throw new Error("questions kept changing, merging later");
                 }
-                const server = await fetchServerQuestions(sessionId);
+                const server = await fetchServerQuestions(sessionId, requestSignal());
                 const list = payload.questions.map((q) => q.payloadJson);
                 const merged = await mergeWithServer(
                     event,
@@ -372,7 +447,8 @@ async function sendQuestions(
                 continue;
             }
         }
-        if (!res.ok) throw new SyncRequestError("questions.replace", res.status);
+        if (!res.ok)
+            throw await SyncRequestError.from("questions.replace", res);
         const sequence =
             res.status === 200
                 ? await res
@@ -384,6 +460,8 @@ async function sendQuestions(
                       )
                       .catch(() => undefined)
                 : undefined;
+        // Cut off before it said at what sequence: send it again for that.
+        if (signal.aborted) throw signal.reason;
         const saved = payload.questions.map((q) => q.payloadJson);
         return {
             sessionId,
@@ -396,9 +474,11 @@ async function sendQuestions(
     }
 }
 
+/** Send `event`, each request with the signal `requestSignal` gives it. */
 async function sendEvent(
     event: PendingEvent,
     keepalive: boolean,
+    requestSignal: () => AbortSignal,
 ): Promise<QuestionsSaved | undefined> {
     const { sessionId } = event;
 
@@ -412,36 +492,29 @@ async function sendEvent(
                 clientUuid: stroke.properties.clientUuid,
                 payloadJson: stroke,
             }),
+            signal: requestSignal(),
         });
-        if (!res.ok) throw new SyncRequestError("stroke.create", res.status);
+        if (!res.ok) throw await SyncRequestError.from("stroke.create", res);
     } else if (event.type === "stroke.delete") {
         const { clientUuid } = event.payloadJson as { clientUuid: string };
         const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
             method: "DELETE",
             credentials: "include",
+            signal: requestSignal(),
         });
-        if (!res.ok && res.status !== 404)
-            throw new SyncRequestError("stroke.delete", res.status);
+        await assertStrokeDeleted(res);
     } else if (event.type === "questions.replace") {
-        return sendQuestions(event, keepalive);
-    } else if (event.type === "hider.update") {
+        return sendQuestions(event, keepalive, requestSignal);
+    } else if (event.type === "hider.update" || event.type === "planning.toggle") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
             credentials: "include",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(event.payloadJson),
             keepalive,
+            signal: requestSignal(),
         });
-        if (!res.ok) throw new SyncRequestError("hider.update", res.status);
-    } else if (event.type === "planning.toggle") {
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(event.payloadJson),
-            keepalive,
-        });
-        if (!res.ok) throw new SyncRequestError("planning.toggle", res.status);
+        if (!res.ok) throw await SyncRequestError.from(event.type, res);
     }
 }
 
@@ -458,7 +531,7 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let retryDelay = RETRY_MIN_MS;
 
 function hasUnsyncedEvents(sessionId: string): boolean {
-    return getPendingEvents(sessionId).some((event) => event.status !== "synced");
+    return getPendingEvents(sessionId).length > 0;
 }
 
 /**
@@ -479,7 +552,9 @@ export function recordSendFailure(event: PendingEvent, err: unknown): boolean {
         scheduleRetry(sessionId);
     }
     if (kind !== "retry" && queued && status !== undefined) {
-        for (const listener of rejectionListeners) listener(event, status);
+        for (const listener of rejectionListeners) {
+            listener(event, status, kind);
+        }
     }
     return kind === "rejected";
 }
@@ -513,10 +588,9 @@ export function retryPendingEvents(sessionId: string): void {
     });
 }
 
-function refreshSyncCounts(sessionId: string): void {
-    const remaining = getPendingEvents(sessionId).filter(
-        (event) => event.status !== "synced",
-    ).length;
+/** The pending count shown for a session's queue, as it is now. */
+export function refreshSyncCounts(sessionId: string): void {
+    const remaining = getPendingEvents(sessionId).length;
     pendingEventCount.set(remaining);
     if (remaining === 0) {
         syncStatus.set("synced");
@@ -571,7 +645,8 @@ export function latestSavedQuestionsSequence(sessionId: string): number | undefi
     return answered.get(sessionId);
 }
 
-function notifyQuestionsSaved(saved: QuestionsSaved): void {
+/** Tell those listening (onQuestionsSaved) that a question list was saved. */
+export function notifyQuestionsSaved(saved: QuestionsSaved): void {
     for (const listener of questionsSavedListeners) listener(saved);
 }
 
@@ -605,6 +680,8 @@ async function dispatchQueuedEvent(
     keepalive: boolean,
 ): Promise<void> {
     const { sessionId } = requested;
+    // A spectator's board sends nothing, including edits queued before.
+    if (isSessionReadOnly(sessionId)) return;
     const queued = getPendingEvents(sessionId);
     const event = isReplacementEventType(requested.type)
         ? queued.findLast((candidate) => candidate.type === requested.type)
@@ -612,9 +689,17 @@ async function dispatchQueuedEvent(
     if (!event) return;
 
     syncStatus.set("syncing");
+    // Each request gets REQUEST_TIMEOUT_MS of its own: a list merged on its
+    // way is sent, read and sent again.
+    let deadline: LoadDeadline | undefined;
+    const requestSignal = () => {
+        deadline?.clear();
+        deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
+        return deadline.signal;
+    };
     try {
         assertMaySend();
-        const savedQuestions = await sendEvent(event, keepalive);
+        const savedQuestions = await sendEvent(event, keepalive, requestSignal);
         // Its SSE echo can arrive first, and later replaces may already be
         // cached on top of it: only a still-queued replace updates the cache.
         const stillQueued = getPendingEvents(sessionId).some(
@@ -649,6 +734,7 @@ async function dispatchQueuedEvent(
         if (!recordSendFailure(event, err)) syncStatus.set("offline");
         throw err;
     } finally {
+        deadline?.clear();
         refreshSyncCounts(sessionId);
     }
 }
@@ -671,10 +757,8 @@ export function sendPendingEvent(
 }
 
 export async function flushPendingEvents(sessionId: string): Promise<void> {
-    const pending = getPendingEvents(sessionId).filter(
-        (event) => event.status !== "synced",
-    );
-    for (const event of pending) {
+    if (isSessionReadOnly(sessionId)) return;
+    for (const event of getPendingEvents(sessionId)) {
         try {
             await sendPendingEvent(event);
         } catch (err) {

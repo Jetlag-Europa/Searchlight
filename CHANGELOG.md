@@ -4,6 +4,84 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Every matching cell while planning (2026-11-04)
+
+- A new option, **Show all matching cells when planning?**, draws the borders of every cell a matching question could answer with, not just the seeker's own, while planning mode is on. They are drawn thin and faint behind the seeker's cell, clipped to the play area and simplified. It works for "nearest" questions on point layers, for "same region" questions, and for custom points; line layers such as rivers and rail lines still show only the seeker's cell. Dragging the pin reuses the drawn borders, so only the seeker's cell is redrawn.
+- The option is off by default, as a layer with hundreds of cells can slow down the map in some browsers.
+
+## Pins for custom points show again (2026-11-04)
+
+- The points you place for a custom tentacle, matching or measuring question show their blue pin again, instead of a broken image.
+
+## Session list, invite and join pages on a bad connection (2026-11-03)
+
+- The session list shows **Try again** when it can't load, and loads again by itself once the phone is back online. Invite and game links do the same: a link page that gets no answer within 15 seconds says it can't reach Searchlight and offers Try again.
+- Opening a session that was deleted after the list was shown now says it was deleted.
+- Invite no longer shows the previous session's links after switching sessions.
+- "Your sign-in has expired" has a **Sign in** button, as the installed app has no reload.
+
+## A session is changed in one tab at a time (2026-11-03)
+
+- With a session open in two tabs or windows of one browser (or in Chrome and the installed app on Android), the two could undo each other's question changes. Now the tab that opened the session last changes it; the other shows "This session is open in another tab" and, with **Use here**, takes it back. The iPhone Home Screen app counts as its own device, as before.
+- A save on a connection that died without saying so no longer holds up every later save for minutes: it is tried again after 45 seconds.
+- When the device's storage is too full to keep an edit, a message now says the change wasn't saved, with **Retry**, instead of losing it without a word.
+
+## Google Maps as a basemap (2026-11-03)
+
+- Options → Base map style now offers **Google Maps**, so seekers see the same footpaths and alleys as in the Google Maps app, which hiding spots are often defined by. Zones, shading, markers and drawings stay on top as with the other maps.
+- With Google Maps chosen, **Google Maps view** picks Roadmap, Satellite, Hybrid (the photo with streets and names) or Terrain. **Show transit lines** adds Google's public transport map (train, metro and tram lines in the operators' colours, and stops), and **Hide shops and places** takes the pins of shops, restaurants, schools, sights and other places off the map, so the paths stand out; stops, street names and park names stay. Neither applies to Satellite, which is the photo alone. All of them are drawn by the same Google map, at no extra cost, and are saved with your other options.
+- Until Google's map has drawn, the map shows CARTO Voyager, so it isn't empty while Google loads, and it stays on CARTO if Google's map can't load, offline for example. Once Google's map has drawn, going offline keeps what's on screen, and Google fills in the rest once the connection is back. Google's terms don't allow storing its map, though, so other areas can stay empty offline or on a weak connection: choose CARTO Voyager in Options there. A page printed from the browser leaves Google's map out.
+- Options says that Searchlight includes Google Maps features and content, and links Google's terms and privacy policy, as Google's terms require.
+- **Upgrading:** the option only appears when the web image is built with `PUBLIC_GOOGLE_MAPS_API_KEY`, a Google Maps Platform key for the Maps JavaScript API. See "Google Maps basemap" in DEPLOY.md for restricting and capping the key. Migrations `20261103130000_google_map_loads` and `20261103140000_drop_google_map_loads` create a table and drop it again, which leaves the schema as it was.
+
+## A session that can't load keeps your edits and recovers by itself (2026-11-03)
+
+- A session is only forgotten, with the edits not yet sent from this device, when the server says it was deleted or you lost access to it. Any other error, such as a server update in progress, no longer drops you on the session list.
+- When a session can't be loaded, the board shows the copy saved on this device and says so. Once the server answers again, the board reloads by itself and sends your edits, without reloading the page. It waits while you're typing in a field, so what you type isn't replaced.
+- Loading a session no longer hangs behind the spinner: after about a minute the board shows the saved copy and keeps trying. A game still downloading by then shows once it arrives, with the "game not loaded" banner until it does.
+
+## Question history (2026-11-03)
+
+- A **History** button at the bottom of the Questions sidebar shows, for everyone in the session, who added, answered, moved, renamed, locked, turned off or deleted each question, and when, newest first. A change that adds or deletes 3 or more questions at once, such as a preset or Delete All, is one line, and quick edits by one player to the same question, other than answers, are shown as one.
+- A deleted question has a **Restore** button there, long after its Undo is gone. It puts the question back where it was, for everyone. A "Radius 2 is back" message then offers **Undo**, and **Show**, which opens the Questions list at that question. Spectators can read History but not restore.
+- The message after a delete now names the question ("Radius 2 deleted"). Its Undo still puts the question back as if never deleted while the delete hasn't reached the server; once it may have, Undo puts back a copy, which History shows as "restored".
+- History shows only the questions: hider positions and drawings aren't in it. Times are when a change reached the server, so an edit made offline shows when it synced. A session copied from a link starts its history at its first save, which lists every copied question as added.
+
+## Smoother hiding-zone map on big games (2026-11-03)
+
+- With Zone Labels on, turning a zone on or off, Clear Disabled, switching the zone style and pinch-zooming no longer freeze the map for seconds on games with hundreds of zones, such as Belgium (424 zones). The labels look the same.
+- "No Overlap" merges the zones without freezing the page, and the map keeps what it showed until the new outline is ready. Turning Zone Labels on or off, or leaving a viewed zone, redraws the outline at once.
+- An answer or a teammate's update that rules out no zone no longer redraws the zones.
+
+## Deleting a session asks first (2026-11-03)
+
+- Deleting a session from the session list now opens a confirm that names the session and says it is deleted for everyone in it, with its questions and drawings. Before, two taps on the right end of a row deleted it on a phone, where the button couldn't be seen.
+- On a phone or other touch screen, each row's Delete and Leave are always shown and big enough to tap. With a mouse they still appear on hover, and now also on keyboard focus.
+- Teammates who had the session open are told it was deleted, instead of landing on the session list without a word.
+
+## Casual Games (2026-11-03)
+
+- Home Games is now **Casual Games**, for games outside the JetLag servers. Anyone with the role a global admin maps on `/admin` (a JetLag EU role, given `games.create` on Casual Games) can upload their own games there, and rename or resize them with **Settings**. Casual games are always unlisted: only their creator and global admins see them on `/games`, and every session of one starts from a game link, which the creator makes on `/games`. Casual Games is no longer offered when creating a session; it only lists your existing sessions there. Exter Rotterdam 26, its one game until now, is unlisted too, and is now its owner's: they make the game links that start new sessions of it.
+- Importing a file whose `id` is already taken now always says that it will update that game, names it and gives its revision. When the file looks like a different game (another name, or a play area that doesn't overlap), the import page flags it as a likely mistake and asks for confirmation before replacing it. If the game changes between the preview and the import, the import is refused and the preview redone, so it never replaces a revision you didn't see. An id taken by a game you can't edit is refused, and the page asks you to give the file a new `id`.
+- **Upgrading:** migrations rename the server, link it to JetLag EU's roles, unlist its games and give Exter Rotterdam 26 its owner. Map a role on `/admin` to let people create Casual games; until then only global admins can.
+
+## Question cards stay usable while the map calculates (2026-11-03)
+
+- While the map works out the remaining area, which can take several seconds for a distance-to-border question in a big game such as Belgium, the question cards, **Add Question**, **Delete All Questions**, **Save** and the hiding-zone list no longer grey out. Change an answer or add the next question straight away: the map shows the result of your latest change, and "Calculating…" shows while it works. A field you are typing in no longer loses focus when a teammate saves. Tapping a card's lock, hide or delete button, or **Add Question**, right after typing a question's name no longer does nothing.
+- Renaming or folding a question, locking or unlocking it outside planning mode, or a teammate's save that changes no answer no longer recalculates the map or the hiding zones, or moves your map back to the remaining area.
+- **Set to current location** now only greys out its own location while it waits for a GPS fix, not every card.
+
+## Spectator links (2026-11-03)
+
+- A session's creator can now make a spectator link next to the invite link (Invite in the menu). Whoever opens it follows the board live but can't change anything: no questions, answers, drawing or planning mode. It suits people watching a game, or someone helping a player without the risk of breaking their board. Spectators never see the hider's position, even while hider mode is on.
+- Invite lists who's in the session, and the creator can turn a player into a spectator ("Make spectator", which asks for a second tap, as that player's edits not yet sent are lost) or back ("Let them edit"). The change reaches their open board right away. Someone already in the session keeps their role when they open a spectator link, and a spectator stays one when they open an invite link.
+- Spectators show as "Spectating" on the map and in the session list, and don't count as players in a game's stats.
+- **Upgrading:** an API from before this one fails on sessions with a spectator and turns spectator links into invites. Going back to one takes the steps in DEPLOY.md → Roll back.
+
+## One page for checking and importing games (2026-11-02)
+
+- `/designer` is gone: the import page, `/games/import`, does everything it did and imports the file too. Old links to `/designer` open the import page, which needs you to be signed in.
+
 ## Zone sidebar stays with "No Overlap" (2026-10-31)
 
 - With "No Overlap" chosen, the hiding-zone sidebar no longer disappears on reload, after a session switch, when every zone has been ruled out, or after Disable All. If the zones can't be drawn, a message says so and the sidebar stays. If the sidebar itself fails, it shows a message and a button to reset the zone view, instead of vanishing.
@@ -36,14 +114,14 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 - Searchlight can be installed on a phone or computer: **Install app** in Chrome and Edge (Android and desktop), or **Share → Add to Home Screen** in Safari on iPhone and iPad. It opens on the map in its own window, with the new Searchlight logo as its icon.
 - It keeps working when the connection drops for a while. The app itself is kept on the device, so its pages open without a connection, and questions are still worked out: ArcGIS's projection engine now comes with the app instead of from js.arcgis.com. Changes made meanwhile are sent once the connection is back, as before.
-- Reopening or reloading the map while the server can't be reached shows your session and its game as you left them, with "Can't reach the server, retrying…", and catches up once the server answers. This works for the last account that logged in on that browser, for up to a week after it last reached the server (a map already open and playing offline carries on past that until the server answers), and only until it logs out: logging out also deletes the games kept for it (the 4 most recently played game versions). Starting to log in on that browser ends it too, until the server confirms who logged in; a login cancelled or left unfinished stops counting after 15 minutes.
+- Reopening or reloading the map while the server can't be reached shows your session and its game as you left them, with "Can't reach the server, retrying…", and catches up once the server answers. This works for the last account that logged in on that browser, for up to a week after it last reached the server (a map already open and playing offline carries on past that until the server answers), and only until it logs out: logging out also deletes the games kept for it (the 4 most recently played game versions). Starting to log in on that browser ends it too, until the server confirms who logged in.
 - Questions saved after the connection was down, or by two players at the same moment, no longer overwrite questions other players added or changed meanwhile. Searchlight merges the lists: other players' new questions and answers stay, and your changes are applied on top. Where both sides changed the same question differently, Searchlight asks which version to keep (see above). Folding or locking a question on your device never overrides someone else's answer.
 - Map tiles you've looked at are kept on the device, so those areas still show while you're offline: CARTO and Thunderforest tiles for up to 30 days after they were downloaded (3,000 tiles at most), and OpenStreetMap tiles for up to 7 days. OpenStreetMap tiles still come from the network first, following its caching headers as its tile policy asks; the kept copy is used when the network fails or takes over 3 seconds.
-- A new version shows "A new version of Searchlight is available" with a **Reload** button instead of replacing the page mid-game. Reload also reloads the app's other open tabs, which can't keep running the old version; the map saves its state first. Open pages check for a new version every hour, and when they come back to the foreground (at most every 10 minutes).
-- A game or invite link opened without a connection now says Searchlight can't be reached, and tries again once the connection is back, instead of calling the link invalid.
+- A new version shows "A new version of Searchlight is available" with a **Reload** button instead of replacing the page mid-game. Reload also reloads the app's other open tabs, which can't keep running the old version (a tab showing "This session is open in another tab" waits until you tap **Use here**); the map saves its state first. Open pages check for a new version every hour, and when they come back to the foreground (at most every 10 minutes).
+- A game or invite link opened when Searchlight can't be reached now says so, and tries again once the connection is back, instead of calling the link invalid.
 - The coloured question markers come with the app instead of from GitHub and cdnjs.
 - On iPhone and iPad, an app added to the Home Screen keeps its own cookies, so you may have to log in once more inside it.
-- **Upgrading:** players keep running the web version they have until they click **Reload**, so after an update some browsers still run the previous one for a while: keep the API working with the previous web version. Saving questions stays compatible: a save without the new `baseSequence` replaces the list as before. The web image's nginx now serves the app's manifest as `application/manifest+json` and compresses the WASM file; a web app hosted on Cloudflare gets `no-cache` for `/sw.js` and the manifest from `public/_headers`. Players' browsers download the whole app (about 6.7 MB before compression) on their first visit after the update.
+- **Upgrading:** players keep running the web version they have until they click **Reload**, so after an update some browsers still run the previous one for a while: keep the API working with the previous web version. Saving questions stays compatible: a save without the new `baseSequence` replaces the list as before. The web image's nginx now serves the app's manifest as `application/manifest+json` and compresses the WASM file; a web app hosted on Cloudflare gets `no-cache` for `/sw.js` and the manifest from `public/_headers`. Players' browsers download the whole app (about 7.5 MB, 2.6 MB compressed) on their first visit after the update. Browsers keep the app's service worker from then on, so going back to a web version from before this one takes the steps in DEPLOY.md → Roll back: deployed as it is, an older web build answers every page with the home page.
 
 ## Game link previews (2026-10-21)
 
@@ -55,15 +133,9 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Searchlight now has numbered releases on [GitHub Releases](https://github.com/Jetlag-Europa/Searchlight/releases), each summing up the changes since the one before. 1.0 is Searchlight as Jules built it on top of JetLagHideAndSeek, up to 26 September 2026; 2.0 is everything since, starting with importable games.
 - **Upgrading:** when a release is published, its Docker images are also tagged with its version, such as `2.0.0` and `2.0`. Set `SEARCHLIGHT_IMAGE_TAG=2.0` in `.env` to stay on a release and still get its fixes, instead of following `latest`.
 
-## Every matching cell while planning (2026-10-20)
-
-- A new option, **Show all matching cells when planning?**, draws the borders of every cell a matching question could answer with, not just the seeker's own, while planning mode is on. They are drawn thin and faint behind the seeker's cell, clipped to the play area and simplified. It works for "nearest" questions on point layers, for "same region" questions, and for custom points; line layers such as rivers and rail lines still show only the seeker's cell. Dragging the pin reuses the drawn borders, so only the seeker's cell is redrawn.
-- The option is off by default, as a layer with hundreds of cells can slow down the map in some browsers.
-
 ## Overlap check agrees with the checker (2026-10-20)
 
 - The import page's and `/designer`'s overlap check now measures an overlap by how far it reaches into a region, as `check-game.mjs` does, instead of by its average width, and no longer ignores one under 1 m² however far it reaches. A border corner poking about 1 m into a neighbour used to pass as rounding on the page, which then marked the layer `noOverlaps`, while the checker flagged it as a defect. The page now finds and fixes such corners. The preloaded games had none.
-- The file the page offers for download after a fix keeps the original's formatting. A file on one line used to come back indented, several times larger: a 4.9 MB game came back as 23 MB, and the size warning then counted the larger copy.
 - The overlap check, which the import button waits for, runs 3–6 times faster: a game with about 50,000 border vertices, such as Belgium or Greater Manchester, now takes under a second instead of 3–4 s. It also works from the regions' coordinates, so a region carrying a stale or 3D `bbox` no longer makes it miss an overlap.
 
 ## Radar listed once, at any radius (2026-10-19)
@@ -173,7 +245,6 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Hiding zones left (2026-10-18)
 
 - The map and the zone sidebar show how many hiding zones are left, such as "23 of 155 zones left", while "Display hiding zones?" is on. Zones you disabled by hand don't count, and the sidebar says how many it left out.
-- The "Calculating…" pill now sits below the session name, where the count goes, so it no longer covers the session name on narrower screens. On phones the count hides while a sidebar is open.
 - Switching sessions no longer briefly shows the previous session's zones.
 
 ## A lighter map page (2026-10-18)

@@ -11,7 +11,7 @@ import { Select } from "@/components/ui/select";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { UnitSelect } from "@/components/UnitSelect";
 import { compiledGameAtom } from "@/game-definition/store";
 import { askedHints } from "@/lib/askedQuestions";
@@ -42,12 +42,10 @@ export const TentacleQuestionComponent = ({
     data,
     questionKey,
     sub,
-    className,
 }: {
     data: TentacleQuestion;
     questionKey: number;
     sub?: string;
-    className?: string;
 }) => {
     const $questions = useStore(questions);
     const $drawingQuestionKey = useStore(drawingQuestionKey);
@@ -92,7 +90,6 @@ export const TentacleQuestionComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={compiled?.questionMap.get(data.locationType)?.label ?? sub}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified

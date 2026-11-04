@@ -8,6 +8,7 @@ import prisma from "./lib/prisma.js";
 import { closeAllStreams } from "./lib/broadcaster.js";
 import { errorHandler } from "./lib/error-handler.js";
 import { rejectCrossOriginWrites } from "./lib/origin-check.js";
+import { registerCompression } from "./lib/compression.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,7 @@ import { gameImportRoutes } from "./routes/game-imports.js";
 import { sessionRoutes } from "./routes/sessions.js";
 import { sessionContentRoutes } from "./routes/session-content.js";
 import { eventRoutes } from "./routes/events.js";
+import { questionHistoryRoutes } from "./routes/question-history.js";
 import { linkRoutes } from "./routes/links.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
 import { ogRoutes } from "./routes/og.js";
@@ -60,6 +62,8 @@ await app.register(fastifyCors, {
   credentials: true,
 });
 
+await registerCompression(app);
+
 app.addHook("onRequest", rejectCrossOriginWrites);
 
 await app.register(fastifyCookie, {
@@ -85,6 +89,7 @@ await app.register(gameLinkManagementRoutes, { prefix: "/games" });
 await app.register(sessionRoutes, { prefix: "/sessions" });
 await app.register(sessionContentRoutes, { prefix: "/sessions" });
 await app.register(eventRoutes, { prefix: "/sessions" });
+await app.register(questionHistoryRoutes, { prefix: "/sessions" });
 await app.register(linkRoutes, { prefix: "/links" });
 await app.register(gameLinkRoutes, { prefix: "/game-links" });
 await app.register(ogRoutes, { prefix: "/og" });
@@ -146,4 +151,4 @@ if (activePreloadDir) {
   }
 }
 
-const address = await app.listen({ port: env.PORT, host: env.HOST });
+await app.listen({ port: env.PORT, host: env.HOST });

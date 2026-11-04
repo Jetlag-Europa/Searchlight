@@ -13,11 +13,7 @@ import { usePasteText } from "@/components/PasteFallback";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useDebounce } from "@/hooks/useDebounce";
-import {
-    allowGooglePlusCodes,
-    isLoading,
-    setScopedLoading,
-} from "@/lib/context";
+import { allowGooglePlusCodes, isLoading } from "@/lib/context";
 import { splitPlusCode } from "@/lib/plusCode";
 import { cn } from "@/lib/utils";
 import { determineName, geocode, ICON_COLORS } from "@/maps/api";
@@ -41,7 +37,7 @@ import {
     DialogTrigger,
 } from "./ui/dialog";
 import { Separator } from "./ui/separator";
-import { SidebarMenuItem } from "./ui/sidebar-l";
+import { SidebarMenuItem } from "./ui/sidebar";
 
 export const parseCoordinatesFromText = (
     text: string,
@@ -395,13 +391,14 @@ const LatLngEditForm = ({
     );
 };
 
+const LOCATION_KEPT = "Card locked, so its location was kept";
+
 export const LatitudeLongitude = ({
     latitude,
     longitude,
     onChange,
     label = "Location",
     colorName,
-    children,
     disabled,
     inlineEdit = false,
     localLocations,
@@ -412,8 +409,6 @@ export const LatitudeLongitude = ({
     onChange: (lat: number | null, lng: number | null) => void;
     label?: string;
     colorName?: keyof typeof ICON_COLORS;
-    className?: string;
-    children?: React.ReactNode;
     disabled?: boolean;
     inlineEdit?: boolean;
     localLocations?: LocalLocation[];
@@ -421,6 +416,17 @@ export const LatitudeLongitude = ({
 }) => {
     const $isLoading = useStore(isLoading);
     const { readPaste, pasteDialog } = usePasteText();
+    // Only this location waits for its GPS fix: the fix writes nowhere else.
+    const [locating, setLocating] = useState(false);
+    const blocked = disabled || locating;
+    // Locking the card while its fix is pending keeps the location. The card
+    // also disables it while another card prefills, which locks nothing.
+    const disabledRef = useRef(disabled);
+    disabledRef.current = disabled;
+    // A teammate's save while the fix is pending gives the card new question
+    // data, which only the latest onChange writes to.
+    const onChangeRef = useRef(onChange);
+    onChangeRef.current = onChange;
 
     const color = colorName ? ICON_COLORS[colorName] : "transparent";
 
@@ -432,14 +438,14 @@ export const LatitudeLongitude = ({
                 }}
                 className={cn(
                     "p-2 rounded-md space-y-1 mt-2",
-                    $isLoading && "brightness-50",
+                    ($isLoading || locating) && "brightness-50",
                 )}
             >
                 {!inlineEdit && (
                     <div
                         className={cn(
                             "flex justify-between items-center",
-                            $isLoading && "opacity-50",
+                            ($isLoading || locating) && "opacity-50",
                         )}
                         style={{
                             color: colorName === "gold" ? "black" : undefined,
@@ -475,7 +481,7 @@ export const LatitudeLongitude = ({
                                 latitude={latitude}
                                 longitude={longitude}
                                 onChange={onChange}
-                                disabled={disabled}
+                                disabled={blocked}
                                 localLocations={localLocations}
                                 onResultSelect={onResultSelect}
                             />
@@ -484,7 +490,7 @@ export const LatitudeLongitude = ({
                         <Dialog>
                             <DialogTrigger asChild>
                                 <Button
-                                    disabled={disabled}
+                                    disabled={blocked}
                                     variant="outline"
                                     title="Edit coordinates"
                                 >
@@ -501,7 +507,7 @@ export const LatitudeLongitude = ({
                                     latitude={latitude}
                                     longitude={longitude}
                                     onChange={onChange}
-                                    disabled={disabled}
+                                    disabled={blocked}
                                     localLocations={localLocations}
                                     onResultSelect={onResultSelect}
                                 />
@@ -526,10 +532,7 @@ export const LatitudeLongitude = ({
                                 if (!navigator || !navigator.geolocation)
                                     return alert("Geolocation not supported");
 
-                                setScopedLoading(
-                                    "latLngPicker:geolocation",
-                                    true,
-                                );
+                                setLocating(true);
 
                                 toast.promise(
                                     new Promise<GeolocationPosition>(
@@ -545,26 +548,32 @@ export const LatitudeLongitude = ({
                                         },
                                     )
                                         .then((position) => {
-                                            onChange(
+                                            if (
+                                                disabledRef.current &&
+                                                !isLoading.get()
+                                            )
+                                                throw new Error(LOCATION_KEPT);
+                                            onChangeRef.current(
                                                 position.coords.latitude,
                                                 position.coords.longitude,
                                             );
                                         })
-                                        .finally(() => {
-                                            setScopedLoading(
-                                                "latLngPicker:geolocation",
-                                                false,
-                                            );
-                                        }),
+                                        .finally(() => setLocating(false)),
                                     {
                                         pending: "Fetching location",
                                         success: "Location fetched",
-                                        error: "Could not fetch location",
+                                        error: {
+                                            render: ({ data }) =>
+                                                data instanceof Error &&
+                                                data.message === LOCATION_KEPT
+                                                    ? LOCATION_KEPT
+                                                    : "Could not fetch location",
+                                        },
                                     },
                                     { autoClose: 500 },
                                 );
                             }}
-                            disabled={disabled}
+                            disabled={blocked}
                             title="Set to current location"
                         >
                             <LocateIcon />
@@ -598,7 +607,7 @@ export const LatitudeLongitude = ({
                                     autoClose: 1000,
                                 });
                             }}
-                            disabled={disabled}
+                            disabled={blocked}
                             title="Paste coordinates from clipboard"
                         >
                             <ClipboardPasteIcon />
@@ -635,7 +644,6 @@ export const LatitudeLongitude = ({
                 </div>
             </SidebarMenuItem>
             {pasteDialog}
-            {children}
         </>
     );
 };

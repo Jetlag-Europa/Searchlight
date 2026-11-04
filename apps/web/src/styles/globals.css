@@ -18,10 +18,33 @@ body {
     height: 100%;
 }
 
-/* A modal (the sidebar on phones) turns off pointer events outside it; toasts
-   such as the Undo after a delete stay clickable. */
 .Toastify__toast {
+    /* A modal (the sidebar on phones) turns off pointer events outside it;
+       toasts such as the Undo after a delete stay clickable. */
     pointer-events: auto;
+    /* Keeps the close button below clear of the content. */
+    column-gap: 8px;
+}
+
+/* Together with the gap, the icon's usual 10px from the text. */
+.Toastify__toast-icon {
+    margin-inline-end: 2px;
+}
+
+/* The close button takes the toast's end edge, full height and a finger
+   wide, instead of a small X in the top corner: a toast's own button, such as
+   Undo, sat right next to it, so a tap on a phone hit the wrong one. The auto
+   margin keeps it at the edge when the content is a short string. */
+.Toastify__close-button {
+    position: static;
+    align-self: stretch;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    margin: calc(-1 * var(--toastify-toast-padding));
+    margin-inline-start: auto;
 }
 
 .leaflet-container {
@@ -113,25 +136,8 @@ div.leaflet-control-attribution.leaflet-control {
         --sidebar-ring: 217.2 91.2% 59.8%;
     }
 
-    main:not(.fullscreen)
-        .leaflet-control-container
-        .leaflet-top.leaflet-left
-        .leaflet-control {
+    main:not(.fullscreen) .leaflet-top .leaflet-control {
         @apply !mt-[104px] md:!mt-[40px];
-    }
-
-    main:not(.fullscreen)
-        .leaflet-top
-        .leaflet-control:not(.leaflet-control-easyPrint) {
-        @apply !mt-[104px] md:!mt-[40px];
-    }
-
-    div.leaflet-top div.leaflet-control-easyPrint {
-        @apply !mt-[140px] md:!mt-[74px];
-    }
-
-    main.fullscreen div.leaflet-control-easyPrint {
-        @apply hidden;
     }
 
     .selected-card-background-temporary {
@@ -148,7 +154,15 @@ div.leaflet-control-attribution.leaflet-control {
     }
 }
 
-/* Zone name labels — permanent Leaflet tooltips on hiding zone polygons */
+/* Zone name labels — markers in the tooltip pane styled as centred Leaflet
+   tooltips. Real tooltips measure themselves on every zoom. */
+.zone-name-marker {
+    /* Stack in DOM order like tooltips, not by the marker's y position. */
+    z-index: auto !important;
+}
+.zone-name-marker > .zone-name-label {
+    transform: translate(-50%, -50%);
+}
 .zone-name-label {
     background: rgba(255, 255, 255, 0.85);
     border: none;
@@ -166,4 +180,25 @@ div.leaflet-control-attribution.leaflet-control {
 }
 .zone-labels-hidden .zone-name-label {
     display: none !important;
+}
+
+/* Google's logo, which GoogleMutant moves into the bottom-left corner. Its
+   wrapper has no size, so the logo sat at the map's bottom edge, under the
+   scale bar; Google's terms want it uncovered. It gets its own box below. */
+.leaflet-bottom.leaflet-left > div:not(.leaflet-control) {
+    position: relative;
+    clear: both;
+    float: left;
+    width: 66px;
+    height: 26px;
+    margin: 0 0 5px 10px;
+}
+
+/* Google's terms don't allow keeping its map outside the API, so a page the
+   browser prints (Ctrl+P, Share → Print) leaves it out. Not visibility:
+   GoogleMutant marks each tile it copies visible, which would win. */
+@media print {
+    .google-basemap {
+        display: none !important;
+    }
 }

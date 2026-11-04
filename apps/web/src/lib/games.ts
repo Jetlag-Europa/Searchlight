@@ -157,9 +157,12 @@ export function switchToGame(
             .then(async () => {
                 try {
                     const loaded = await definition;
+                    // Still the session it was asked from, or now the one
+                    // it was asked for (a switch activates it meanwhile).
+                    const active = activeSessionId.get();
                     if (
                         generation !== gameSwitchGeneration ||
-                        activeSessionId.get() !== startingSessionId
+                        (active !== startingSessionId && active !== sessionId)
                     ) return false;
                     applyGameDefinition(loaded);
                     return true;

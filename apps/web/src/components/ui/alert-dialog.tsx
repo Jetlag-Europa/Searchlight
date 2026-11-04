@@ -27,12 +27,16 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName;
 
 const AlertDialogContent = React.forwardRef<
     React.ElementRef<typeof AlertDialogPrimitive.Content>,
-    React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, ...props }, ref) => (
+    React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content> & {
+        // Where the dialog renders; the map's dialog container by default.
+        container?: Element | null;
+    }
+>(({ className, container, ...props }, ref) => (
     <AlertDialogPortal
-        container={document.querySelector(
-            "#map-modal-dialog-container-leaflet",
-        )}
+        container={
+            container ??
+            document.querySelector("#map-modal-dialog-container-leaflet")
+        }
     >
         <AlertDialogOverlay />
         <AlertDialogPrimitive.Content
@@ -136,8 +140,6 @@ export {
     AlertDialogDescription,
     AlertDialogFooter,
     AlertDialogHeader,
-    AlertDialogOverlay,
-    AlertDialogPortal,
     AlertDialogTitle,
     AlertDialogTrigger,
 };

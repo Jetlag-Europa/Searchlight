@@ -2,7 +2,7 @@ import { toast } from "react-toastify";
 
 import { activeSessionId } from "@/lib/activeSession";
 import type { EventType } from "@/lib/eventQueue";
-import { classifySendFailure, onEventRejected } from "@/lib/syncManager";
+import { onEventRejected } from "@/lib/syncManager";
 
 // What a toast calls an edit the server refused.
 const REJECTED_EDITS: Record<EventType, string> = {
@@ -23,8 +23,8 @@ interface Options {
     /** Load the active session again, as after selecting it. */
     reload: () => void;
     /**
-     * A write got a 403/404, which a proxy can answer too: forget the
-     * session only if the server says it's gone. The edit stays queued.
+     * A write got the API's 403/404 for the session: forget it only if
+     * loading the session says so too. The edit stays queued.
      */
     confirmUnavailable: (sessionId: string) => void;
 }
@@ -57,12 +57,12 @@ export function handleRejectedEdits({
         }, RELOAD_DELAY_MS);
     };
 
-    const unlisten = onEventRejected((event, status) => {
+    const unlisten = onEventRejected((event, status, kind) => {
         const { sessionId, type } = event;
         // Another session's board isn't shown, and loads from the server
         // when it is.
         if (activeSessionId.get() !== sessionId) return;
-        if (classifySendFailure(status) === "unavailable") {
+        if (kind === "unavailable") {
             schedule(sessionId, false);
             return;
         }

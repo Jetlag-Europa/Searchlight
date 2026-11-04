@@ -1,6 +1,5 @@
-import { createHash } from "node:crypto";
 import { Type } from "@sinclair/typebox";
-import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyRequest } from "fastify";
 import {
   type ImportActor,
   ImportConflictError,
@@ -12,6 +11,7 @@ import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
 import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
+import { listedSessionsWhere } from "../lib/session-access.js";
 
 // Game definitions embed full GeoJSON boundaries; preloaded ones reach ~8 MB,
 // well past Fastify's 1 MiB default.
@@ -32,46 +32,6 @@ declare module "fastify" {
 export async function resolveImportActor(
   req: FastifyRequest,
 ): Promise<ImportActor> {
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const rawToken = authHeader.slice(7).trim();
-    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const tokenRecord = await prisma.gameImportToken.findUnique({
-      where: { tokenHash },
-    });
-    if (!tokenRecord) {
-      throw Object.assign(new Error("Invalid bearer token"), {
-        statusCode: 401,
-      });
-    }
-    if (tokenRecord.revokedAt) {
-      throw Object.assign(new Error("Revoked bearer token"), {
-        statusCode: 401,
-      });
-    }
-    if (tokenRecord.expiresAt && tokenRecord.expiresAt < new Date()) {
-      throw Object.assign(new Error("Expired bearer token"), {
-        statusCode: 401,
-      });
-    }
-    return {
-      userId: tokenRecord.createdBy,
-      type: "token",
-      canCreateGames(serverId: string) {
-        return (
-          tokenRecord.serverId === serverId &&
-          tokenRecord.permissions.includes("games.create")
-        );
-      },
-      canEditGames(serverId: string) {
-        return (
-          tokenRecord.serverId === serverId &&
-          tokenRecord.permissions.includes("games.edit")
-        );
-      },
-    };
-  }
-
   // Session cookie auth
   const { user } = await resolveSession(req);
   // Turn away users who can't import anywhere before the body is parsed; the
@@ -81,7 +41,6 @@ export async function resolveImportActor(
   }
   return {
     userId: user.discordId,
-    type: "cookie",
     async canCreateGames(serverId: string) {
       const perms = await getUserPermissions(user.discordId, serverId, true, req.log);
       return perms.has("games.create") || perms.has("server.admin");
@@ -93,8 +52,8 @@ export async function resolveImportActor(
   };
 }
 
-// Proxies such as Cloudflare weaken ETags when they compress (W/"..."), and
-// If-None-Match may list several tags.
+// A proxy that compresses or recompresses responses weakens ETags (W/"..."),
+// and If-None-Match may list several tags.
 function matchesETag(ifNoneMatch: string | undefined, etag: string): boolean {
   if (!ifNoneMatch) return false;
   return ifNoneMatch
@@ -128,7 +87,7 @@ async function assertGameDefinitionAccess({
   session,
 }: {
   req: FastifyRequest;
-  game: { id: string; serverId: string; unlisted: boolean };
+  game: { id: string; serverId: string; unlisted: boolean; createdById: string | null };
   // The requested revision and the game's current one; each one's role gate applies.
   revisionIds: (string | null | undefined)[];
   // Only for routes serving a single revision: participants of a session pinned
@@ -136,61 +95,18 @@ async function assertGameDefinitionAccess({
   // nothing else (not the export, the current revision or other revisions).
   session?: { id: string | undefined; revisionId: string };
 }): Promise<void> {
-  // 1. Bearer token auth (server-scoped import tokens)
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith("Bearer ")) {
-    const rawToken = authHeader.slice(7).trim();
-    const tokenHash = createHash("sha256").update(rawToken).digest("hex");
-    const tokenRecord = await prisma.gameImportToken.findUnique({
-      where: { tokenHash },
-    });
-    if (
-      !tokenRecord ||
-      tokenRecord.revokedAt ||
-      (tokenRecord.expiresAt && tokenRecord.expiresAt < new Date())
-    ) {
-      throw Object.assign(new Error("Invalid, expired, or revoked bearer token"), {
-        statusCode: 401,
-      });
-    }
-    if (tokenRecord.serverId !== game.serverId) {
-      throw Object.assign(
-        new Error("Token does not have access to this game's server"),
-        { statusCode: 403 },
-      );
-    }
-    const hasPerm =
-      tokenRecord.permissions.includes("games.edit") ||
-      tokenRecord.permissions.includes("games.create");
-    if (!hasPerm) {
-      throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-    }
-    return;
-  }
-
-  // 2. Cookie session auth
+  // Cookie session auth
   const { user } = await resolveSession(req);
 
-  // 3. Shared session access check: matches established /sessions GET access
+  // Shared session access check: the sessions GET /sessions lists for the
+  // user, viewers' included
   if (session?.id) {
     const pinned = await prisma.gameSession.findFirst({
       where: {
         id: session.id,
         gameId: game.id,
         gameRevisionId: session.revisionId,
-        OR: [
-          { creatorId: user.discordId },
-          {
-            visibility: "shared",
-            participants: {
-              some: {
-                userId: user.discordId,
-                acceptedAt: { not: null },
-                revokedAt: null,
-              },
-            },
-          },
-        ],
+        ...listedSessionsWhere(user.discordId),
       },
       select: { id: true },
     });
@@ -200,7 +116,7 @@ async function assertGameDefinitionAccess({
     }
   }
 
-  // 4. Server membership and Discord role visibility checks
+  // Server membership and Discord role visibility checks
   await assertGameAccess(user.discordId, game, revisionIds, req.log);
 }
 
@@ -221,32 +137,49 @@ export async function gameImportRoutes(app: FastifyInstance) {
         querystring: Type.Object({
           dryRun: Type.Optional(Type.Boolean()),
           allowUpdate: Type.Optional(Type.Boolean()),
+          // The existing game's revision a dry run showed (its
+          // existing.currentRevisionId): the update is refused (409
+          // GAME_CHANGED) if the game changed since.
+          expectedCurrentRevisionId: Type.Optional(Type.String({ minLength: 1 })),
           expectedServerId: Type.Optional(Type.String()),
           // Only applies when the import creates the game; PATCH /games/:id
-          // changes it later.
+          // changes it later. Casual games are always unlisted.
           unlisted: Type.Optional(Type.Boolean()),
         }),
       },
     },
     async (req, reply) => {
-      const { dryRun = false, allowUpdate = false, expectedServerId, unlisted = false } = req.query as {
+      const {
+        dryRun = false,
+        allowUpdate = false,
+        expectedServerId,
+        expectedCurrentRevisionId,
+        unlisted = false,
+      } = req.query as {
         dryRun?: boolean;
         allowUpdate?: boolean;
         expectedServerId?: string;
+        expectedCurrentRevisionId?: string;
         unlisted?: boolean;
       };
       const body = req.body as Record<string, unknown> | null | undefined;
       const shouldAllowUpdate = allowUpdate || Boolean(body?.allowUpdate);
+      // Like allowUpdate, it may come with the game in the body.
+      const bodyRevisionId = body?.expectedCurrentRevisionId;
+      const pinnedRevisionId =
+        expectedCurrentRevisionId ??
+        (typeof bodyRevisionId === "string" && bodyRevisionId ? bodyRevisionId : undefined);
       const actor = req.importActor!;
 
       try {
         const result = await importGameDefinition({
           raw: (body?.["game"] ?? body) as unknown,
-          source: actor.type === "cookie" ? "web" : "api",
+          source: "web",
           actor,
           dryRun,
           expectedServerId,
           allowUpdate: shouldAllowUpdate,
+          expectedCurrentRevisionId: pinnedRevisionId,
           unlisted,
         });
 
@@ -269,6 +202,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
             message: err.message,
             canUpdate: err.canUpdate ?? false,
             existingRevision: err.existingRevision,
+            existing: err.existing,
           });
         }
         if (err instanceof ImportForbiddenError) {
@@ -324,47 +258,6 @@ export async function gameImportRoutes(app: FastifyInstance) {
         .header("ETag", etag)
         .header("Content-Disposition", attachmentDisposition(`${game.gameKey}.game.json`))
         .send(JSON.stringify(definition));
-    },
-  );
-
-  // GET /games/:gameId/revisions
-  app.get(
-    "/:gameId/revisions",
-    async (req, reply) => {
-      const { gameId } = req.params as { gameId: string };
-      const game = await findGameByIdOrKey(gameId);
-
-      if (!game) {
-        return reply.status(404).send({ error: "Game not found" });
-      }
-
-      await assertGameDefinitionAccess({
-        req,
-        game,
-        revisionIds: [game.currentRevisionId],
-      });
-
-      const revisions = await prisma.gameRevision.findMany({
-        where: { gameId: game.id },
-        orderBy: { revision: "desc" },
-        select: {
-          id: true,
-          gameId: true,
-          revision: true,
-          formatVersion: true,
-          checksum: true,
-          source: true,
-          createdBy: true,
-          createdAt: true,
-        },
-      });
-
-      return reply.send({
-        revisions: revisions.map((r) => ({
-          ...r,
-          createdAt: r.createdAt.toISOString(),
-        })),
-      });
     },
   );
 

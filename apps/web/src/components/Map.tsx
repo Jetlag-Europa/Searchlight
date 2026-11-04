@@ -12,8 +12,12 @@ import { toast } from "react-toastify";
 
 import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
-import { activeSessionData, activeSessionId } from "@/lib/activeSession";
-import { CARTO_API_KEY } from "@/lib/basemap";
+import {
+    activeSessionData,
+    activeSessionId,
+    sessionReadOnly,
+} from "@/lib/activeSession";
+import { CARTO_API_KEY, WORLD_BOUNDS } from "@/lib/basemap";
 import { bootstrapDefaults } from "@/lib/bootstrap";
 import { startCalculation } from "@/lib/calculating";
 import {
@@ -34,7 +38,6 @@ import {
     polyGeoJSON,
     questionFinishedMapData,
     questions,
-    setScopedLoading,
     showAllMatchingCells,
     thunderforestApiKey,
     triggerLocalRefresh,
@@ -47,8 +50,10 @@ import {
     rememberGameView,
     savedGameView,
 } from "@/lib/gameView";
+import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
+import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
@@ -59,11 +64,19 @@ import {
     requestGeometry,
     SupersededError,
 } from "@/maps/geo-utils/geometryClient";
+import {
+    answerInput,
+    type MapResult,
+    planningPreviewKey,
+    sameResult,
+    standingResult,
+    writeBackAnswers,
+} from "@/maps/mapResult";
 import { PLANNING_CONTEXT } from "@/maps/questions/operators/geometry";
 
 import { DraggableMarkers } from "./DraggableMarkers";
+import { GoogleBasemap } from "./GoogleBasemap";
 import { LeafletFullScreenButton } from "./LeafletFullScreenButton";
-import { MapPrint } from "./MapPrint";
 import { PolygonDraw } from "./PolygonDraw";
 
 // Before a game has loaded, the map shows the world, or the game it showed
@@ -72,11 +85,6 @@ const WORLD_CENTER: L.LatLngTuple = [20, 0];
 // The lowest zoom at which the world, which doesn't wrap, fills the width.
 const worldZoom = (width: number) =>
     Math.max(2, Math.ceil(Math.log2(width / 256)));
-// Basemap tiles exist only within the world; outside it they answer 400.
-const WORLD_BOUNDS: L.LatLngBoundsExpression = [
-    [-90, -180],
-    [90, 180],
-];
 
 const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
     map.fitBounds(
@@ -86,6 +94,26 @@ const fitGameBounds = (map: L.Map, [west, south, east, north]: GameBounds) =>
         ],
         { animate: false },
     );
+
+/**
+ * CARTO Voyager: the default basemap, and Google's stand-in. As that, it goes
+ * to zoom 21 with Google's hidden layer, enlarging its own closest tiles.
+ */
+const voyagerLayer = (maxZoom = 20) => (
+    <TileLayer
+        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>; Powered by Esri and Turf.js'
+        url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
+        subdomains="abcd"
+        maxZoom={maxZoom}
+        // Tiles that failed while the connection was gone come back with it.
+        eventHandlers={retryTilesWhenOnline as any}
+        maxNativeZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
+        minZoom={2}
+        noWrap
+        crossOrigin
+        bounds={WORLD_BOUNDS}
+    />
+);
 
 const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
     switch (tileLayer) {
@@ -161,18 +189,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
             );
     }
 
-    return (
-        <TileLayer
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors; &copy; <a href="https://carto.com/attributions">CARTO</a>; Powered by Esri and Turf.js'
-            url={`https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${CARTO_API_KEY}`}
-            subdomains="abcd"
-            maxZoom={20} // This technically should be 6, but once the ratelimiting starts this can take over
-            minZoom={2}
-            noWrap
-            crossOrigin
-            bounds={WORLD_BOUNDS}
-        />
-    );
+    return voyagerLayer();
 };
 
 // The game may not have loaded, or may not offer the requested question type.
@@ -245,7 +262,16 @@ const ADD_QUESTION_MENU_ITEMS = [
 
 export const Map = ({ className }: { className?: string }) => {
     const $questions = useStore(questions);
-    const $baseTileLayer = useStore(baseTileLayer);
+    const $chosenBasemap = useStore(baseTileLayer);
+    // Google chosen on a device whose build has no key: CARTO Voyager.
+    const $baseTileLayer =
+        $chosenBasemap === "google" && !googleMapsAvailable
+            ? "voyager"
+            : $chosenBasemap;
+    // GoogleBasemap stays, with its CARTO stand-in, while Google can't show
+    // (offline before its first draw, failing), so that CARTO isn't swapped for another CARTO
+    // layer, which goes empty while its tiles load.
+    const $googleMapsProblem = useStore(googleMapsProblem);
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
     const $planningMode = useStore(planningModeEnabled);
@@ -259,14 +285,20 @@ export const Map = ({ className }: { className?: string }) => {
     const $currentGameId = useStore(currentGameId);
     const $activeSession = useStore(activeSessionData);
     const $activeSessionId = useStore(activeSessionId);
+    const $readOnly = useStore(sessionReadOnly);
     const $lastGameView = useStore(lastGameView);
     const refreshQueue = useMemo(() => createLatestTask(), []);
     const renderedGameIdRef = useRef<string | null>(null);
     const framedGameIdRef = useRef<string | null>(null);
     // The framed game is a saved view, not yet confirmed by its loaded game.
     const provisionalViewRef = useRef(false);
+    // What the map shows, to skip a refresh that would show the same.
+    const shownRef = useRef<(MapResult & { previews: L.GeoJSON[] }) | null>(
+        null,
+    );
 
     const clearQuestionLayers = (targetMap: L.Map) => {
+        shownRef.current = null;
         targetMap.eachLayer((layer) => {
             if (
                 ("questionKey" in layer && layer.questionKey != null) ||
@@ -337,12 +369,23 @@ export const Map = ({ className }: { className?: string }) => {
             }
             return;
         }
-        setScopedLoading("map", true);
         const finishCalculation = startCalculation("questions");
         try {
             // Question cards and markers mutate data in place, even when auto-save
             // is off. Take an immutable view before any awaited geometry work.
             const snapshot = structuredClone(sourceQuestions);
+            // Hider mode answers the questions: show its answers on the cards.
+            const before =
+                hider !== false
+                    ? snapshot.map(({ data }) => answerInput(data))
+                    : undefined;
+            const answerCards = () => {
+                if (
+                    before &&
+                    writeBackAnswers(sourceQuestions, snapshot, before)
+                )
+                    triggerLocalRefresh.set(Math.random());
+            };
 
             let mapGeoData = boundary ?? mapGeoJSON.get();
             if (!mapGeoData) {
@@ -369,29 +412,53 @@ export const Map = ({ className }: { className?: string }) => {
                 snapshot,
                 mapGeoData,
                 planning,
+                isCurrent,
             );
             if (!isCurrent()) return;
 
+            // A rename, a lock toggle or a teammate's list with the same
+            // answers leaves the regions and outlines as they are: keep the
+            // map, its zones and its view.
+            const inputs = [map, activeGameId, mapGeoData, compiled];
+            const shown = standingResult(shownRef.current, inputs, {
+                answered: perQuestionMapData.get(),
+                mask: questionFinishedMapData.get(),
+            });
+            const previewKey = planningPreviewKey(
+                snapshot,
+                planning,
+                allCells,
+            );
+            if (shown && sameResult(shown, perQuestionRegions, previewKey)) {
+                answerCards();
+                hidingZoneScale.set(zoneScaleAfter(snapshot));
+                return;
+            }
+
             // Build the replacement off-map. Never clear the visible result
             // while awaiting geometry, or let an obsolete refresh publish layers.
-            const previews: L.GeoJSON[] = [];
-            for (const question of snapshot) {
-                const geometry = await determinePlanningPolygon(
-                    question,
-                    planning,
-                );
-                if (!isCurrent()) return;
-                if (!geometry) continue;
-                const layer = L.geoJSON(geometry, {
-                    // Borders drawn for context stay out of the way of the
-                    // seeker's own cell.
-                    style: (feature) =>
-                        feature?.properties?.[PLANNING_CONTEXT]
-                            ? { weight: 2, opacity: 0.6 }
-                            : {},
-                });
-                Object.assign(layer, { questionKey: question.key });
-                previews.push(layer);
+            let previews: L.GeoJSON[] = [];
+            if (shown?.previewKey === previewKey) {
+                previews = shown.previews;
+            } else {
+                for (const question of snapshot) {
+                    const geometry = await determinePlanningPolygon(
+                        question,
+                        planning,
+                    );
+                    if (!isCurrent()) return;
+                    if (!geometry) continue;
+                    const layer = L.geoJSON(geometry, {
+                        // Borders drawn for context stay out of the way of the
+                        // seeker's own cell.
+                        style: (feature) =>
+                            feature?.properties?.[PLANNING_CONTEXT]
+                                ? { weight: 2, opacity: 0.6 }
+                                : {},
+                    });
+                    Object.assign(layer, { questionKey: question.key });
+                    previews.push(layer);
+                }
             }
 
             // Standalone regions already include the base boundary. Reuse them
@@ -439,15 +506,17 @@ export const Map = ({ className }: { className?: string }) => {
             for (const preview of previews) preview.addTo(map);
             elimination.addTo(map);
             renderedGameIdRef.current = activeGameId;
-            if (hider !== false) {
-                snapshot.forEach((question, index) => {
-                    sourceQuestions[index].data = question.data;
-                });
-                triggerLocalRefresh.set(Math.random());
-            }
+            answerCards();
             hidingZoneScale.set(zoneScaleAfter(snapshot));
             perQuestionMapData.set(perQuestionRegions);
             questionFinishedMapData.set(mapGeoData);
+            shownRef.current = {
+                inputs,
+                answered: perQuestionRegions,
+                mask: mapGeoData,
+                previewKey,
+                previews,
+            };
 
             if (autoZoom.get()) {
                 if (!remaining.features.length) return;
@@ -478,7 +547,6 @@ export const Map = ({ className }: { className?: string }) => {
                 toast.error("No solutions found / error occurred");
             }
         } finally {
-            setScopedLoading("map", false);
             finishCalculation();
         }
     };
@@ -528,7 +596,14 @@ export const Map = ({ className }: { className?: string }) => {
                 {/* A new layer per basemap: react-leaflet only updates a
                     layer's URL, not its zoom range or attribution. */}
                 <Fragment key={$baseTileLayer}>
-                    {getTileLayer($baseTileLayer, $thunderforestApiKey)}
+                    {$baseTileLayer === "google" ? (
+                        // CARTO until Google's map has drawn, or while it can't.
+                        <GoogleBasemap active={!$googleMapsProblem}>
+                            {voyagerLayer(21)}
+                        </GoogleBasemap>
+                    ) : (
+                        getTileLayer($baseTileLayer, $thunderforestApiKey)
+                    )}
                 </Fragment>
                 <DraggableMarkers />
                 <div className="leaflet-top leaflet-right">
@@ -538,32 +613,22 @@ export const Map = ({ className }: { className?: string }) => {
                 </div>
                 <PolygonDraw />
                 <ScaleControl position="bottomleft" />
-                <MapPrint
-                    position="topright"
-                    sizeModes={["Current", "A4Portrait", "A4Landscape"]}
-                    hideControlContainer={false}
-                    hideClasses={[
-                        "leaflet-full-screen-specific-name",
-                        "leaflet-top",
-                        "leaflet-control-easyPrint",
-                        "leaflet-draw",
-                    ]}
-                    title="Print"
-                />
             </MapContainer>
         ),
-        [map, $baseTileLayer, $thunderforestApiKey],
+        [map, $baseTileLayer, $googleMapsProblem, $thunderforestApiKey],
     );
 
     // Questions come from the game: none can be added before it has loaded.
+    // A spectator can't add any, so the menu doesn't offer them.
     useEffect(() => {
         const contextmenu = (map as any)?.contextmenu;
         if (!contextmenu) return;
         ADD_QUESTION_MENU_ITEMS.forEach((_, item) => {
-            contextmenu.setDisabled(item, !$compiledGame);
+            contextmenu.setDisabled(item, !$compiledGame || $readOnly);
             // setDisabled only greys the item out; say why.
             const el: HTMLElement | undefined = contextmenu._items[item]?.el;
             if (!el) return;
+            el.style.display = $readOnly ? "none" : "";
             if ($compiledGame) {
                 el.removeAttribute("title");
                 el.removeAttribute("aria-disabled");
@@ -572,7 +637,7 @@ export const Map = ({ className }: { className?: string }) => {
                 el.setAttribute("aria-disabled", "true");
             }
         });
-    }, [map, $compiledGame]);
+    }, [map, $compiledGame, $readOnly]);
 
     // Until a game has loaded, open on this tab's game, or the session being
     // restored, as last framed: a definition can take a while to load, or

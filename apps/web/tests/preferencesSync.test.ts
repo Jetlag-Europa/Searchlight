@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 // ── localStorage mock ─────────────────────────────────────────────────────────
 const store = new Map<string, string>();
@@ -59,6 +59,9 @@ describe("PREF_ENTRIES", () => {
         expect(keys).toContain("autoZoom");
         expect(keys).toContain("warningAlarm");
         expect(keys).toContain("autoLockQuestions");
+        expect(keys).toContain("googleMapType");
+        expect(keys).toContain("showGoogleTransit");
+        expect(keys).toContain("hideGooglePlaces");
         expect(keys).toContain("baseTileLayer");
         expect(keys).toContain("penToolbarVisible");
         expect(keys).toContain("showZoneNames");

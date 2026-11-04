@@ -61,8 +61,11 @@ import {
     setCachedSession,
     getCachedSession,
 } from "@/lib/eventQueue";
+import { onQuestionsSaved, type QuestionsSaved } from "@/lib/syncManager";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
+
+import { forbidden, notTheSession, sessionNotFound } from "./apiResponses";
 
 const SID = "sse-test-session";
 
@@ -98,6 +101,11 @@ function makeEvent(
         serverReceivedAt: new Date().toISOString(),
         ...rest,
     };
+}
+
+// Lets the replay's reads and what follows them run.
+async function settle() {
+    for (let i = 0; i < 20; i++) await Promise.resolve();
 }
 
 function simulateMessage(data: EventRecord) {
@@ -368,6 +376,35 @@ describe("handleServerEvent — questions.replace", () => {
         expect(getPendingEvents(SID)).toEqual([]);
     });
 
+    test("says our list was saved when only its echo comes, as its answer would", () => {
+        const ours = { id: "radius", key: 1, data: {} };
+        questions.set([ours] as unknown as Questions);
+        const local = enqueueEvent({
+            sessionId: SID,
+            type: "questions.replace",
+            payloadJson: {
+                replacementId: "r-echoed",
+                questions: [{ clientUuid: "q-ours", ordinal: 0, payloadJson: ours }],
+            },
+            clientUuid: "questions-replace-r-echoed",
+            clientCreatedAt: Date.now(),
+        });
+        const saved: QuestionsSaved[] = [];
+        const stop = onQuestionsSaved((s) => saved.push(s));
+        startSSE(SID);
+        simulateMessage(
+            makeEvent("questions.replace", local.payloadJson, {
+                clientUuid: local.clientUuid,
+                sequence: 1,
+            }),
+        );
+        stop();
+        // The History refreshes on it.
+        expect(saved).toMatchObject([
+            { sessionId: SID, sequence: 1, saved: [ours] },
+        ]);
+    });
+
     test("does not re-apply our own echo over a newer local edit", () => {
         const ours = { id: "radius", key: 1, data: {} };
         const newer = { id: "radius", key: 2, data: {} };
@@ -480,8 +517,7 @@ describe("gap fill", () => {
         es.onerror!(new Event("error"));
         es.onopen!(new Event("open"));
 
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
 
         expect(mockFetch).toHaveBeenCalledTimes(2);
         const url = mockFetch.mock.calls[0][0] as string;
@@ -515,8 +551,7 @@ describe("gap fill", () => {
         const es = MockEventSource._last!;
         es.onopen!(new Event("open"));
 
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
 
         expect(strokes.get()).toHaveLength(1);
         expect(strokes.get()[0].properties.clientUuid).toBe("gap-stroke");
@@ -579,8 +614,7 @@ describe("gap fill", () => {
 
         // 3. Complete session A gap fill late
         resolveGapA();
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
         // 4. Session B's state and cache must not have stroke-from-a
         expect(
             strokes
@@ -651,9 +685,7 @@ describe("gap fill", () => {
 
         // Complete gap fill
         resolveGapFetch();
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
 
         // Both gap and live events applied in sequence order!
         const strokeUuids = strokes.get().map((s) => s.properties.clientUuid);
@@ -800,9 +832,7 @@ describe("gap fill", () => {
         );
 
         // Gap fill was triggered because of the jump!
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
 
         // Both intermediate (6) and jumped (7) strokes are applied in order!
         const strokeUuids = strokes.get().map((s) => s.properties.clientUuid);
@@ -846,8 +876,7 @@ describe("gap fill", () => {
             ok: true,
             json: async () => ({ events: [], nextAfter: null }),
         });
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
         expect(strokes.get()).toHaveLength(0);
 
         second.resolve({
@@ -862,9 +891,7 @@ describe("gap fill", () => {
                 nextAfter: null,
             }),
         });
-        await Promise.resolve();
-        await Promise.resolve();
-        await Promise.resolve();
+        await settle();
         expect(
             strokes.get().map((stroke) => stroke.properties.clientUuid),
         ).toEqual(["first", "second"]);
@@ -896,8 +923,7 @@ describe("gap fill", () => {
                     sequence: 2,
                 }),
             );
-            await Promise.resolve();
-            await Promise.resolve();
+            await settle();
             expect(strokes.get()).toHaveLength(0);
             expect(syncStatus.get()).toBe("offline");
             await vi.advanceTimersByTimeAsync(3000);
@@ -983,11 +1009,13 @@ describe("stream and replay recovery", () => {
         expect(MockEventSource._last).toBe(stream);
     });
 
-    test.each([403, 404])(
+    test.each([403, 404] as const)(
         "stops and reports a closed stream whose session answers %i",
         async (status) => {
             const onUnavailable = vi.fn();
-            mockFetch.mockResolvedValue({ ok: false, status });
+            mockFetch.mockImplementation(async () =>
+                status === 404 ? sessionNotFound() : forbidden(),
+            );
             startSSE(SID, onUnavailable);
             const stream = MockEventSource._last!;
             closeStream(stream);
@@ -1002,11 +1030,13 @@ describe("stream and replay recovery", () => {
         },
     );
 
-    test.each([403, 404])(
+    test.each([403, 404] as const)(
         "stops replaying and reports the session when gap fill answers %i",
         async (status) => {
             const onUnavailable = vi.fn();
-            mockFetch.mockResolvedValue({ ok: false, status });
+            mockFetch.mockImplementation(async () =>
+                status === 404 ? sessionNotFound() : forbidden(),
+            );
             startSSE(SID, onUnavailable);
             const stream = MockEventSource._last!;
             stream.onopen!(new Event("open"));
@@ -1020,6 +1050,85 @@ describe("stream and replay recovery", () => {
             expect(mockFetch).toHaveBeenCalledTimes(1);
         },
     );
+
+    test.each(notTheSession)(
+        "keeps reconnecting a closed stream after %s",
+        async (_, answer) => {
+            const onUnavailable = vi.fn();
+            mockFetch.mockImplementation(async () => answer());
+            startSSE(SID, onUnavailable);
+            const stream = MockEventSource._last!;
+            closeStream(stream);
+
+            // 3 + 6 seconds.
+            await vi.advanceTimersByTimeAsync(9000);
+            expect(mockFetch).toHaveBeenCalledTimes(2);
+            expect(onUnavailable).not.toHaveBeenCalled();
+            expect(stream.close).not.toHaveBeenCalled();
+
+            mockFetch.mockImplementation(async () => emptyPage());
+            await vi.advanceTimersByTimeAsync(12_000);
+            expect(MockEventSource._last).not.toBe(stream);
+            expect(onUnavailable).not.toHaveBeenCalled();
+        },
+    );
+
+    test.each(notTheSession)("keeps replaying after %s", async (_, answer) => {
+        const onUnavailable = vi.fn();
+        mockFetch.mockImplementation(async () => answer());
+        startSSE(SID, onUnavailable);
+        const stream = MockEventSource._last!;
+        stream.onopen!(new Event("open"));
+
+        await vi.advanceTimersByTimeAsync(0);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        expect(syncStatus.get()).toBe("offline");
+        await vi.advanceTimersByTimeAsync(3000);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+
+        mockFetch.mockImplementation(async () => emptyPage());
+        await vi.advanceTimersByTimeAsync(6000);
+        expect(syncStatus.get()).toBe("live");
+        expect(onUnavailable).not.toHaveBeenCalled();
+        expect(stream.close).not.toHaveBeenCalled();
+    });
+
+    // Mobile data that died without a reset: the request never answers.
+    const hangs = (_url: string, init?: RequestInit) =>
+        new Promise((_, reject) =>
+            init?.signal?.addEventListener("abort", () =>
+                reject(init.signal!.reason),
+            ),
+        );
+
+    test("gives up on a replay page that never comes, and replays again", async () => {
+        mockFetch
+            .mockImplementationOnce(hangs)
+            .mockImplementation(async () => emptyPage());
+        startSSE(SID);
+        MockEventSource._last!.onopen!(new Event("open"));
+        await vi.advanceTimersByTimeAsync(44_999);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        // Aborted at 45 seconds; replayed again 3 seconds later.
+        await vi.advanceTimersByTimeAsync(3_001);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(syncStatus.get()).toBe("live");
+    });
+
+    test("gives up on a reconnect check that never answers, and checks again", async () => {
+        mockFetch
+            .mockImplementationOnce(hangs)
+            .mockImplementation(async () => emptyPage());
+        startSSE(SID);
+        const stream = MockEventSource._last!;
+        closeStream(stream);
+        // Checked after 3 seconds, given up after 45 more, then 6 later.
+        await vi.advanceTimersByTimeAsync(3_000 + 44_999);
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+        await vi.advanceTimersByTimeAsync(1 + 6_000);
+        expect(mockFetch).toHaveBeenCalledTimes(2);
+        expect(MockEventSource._last).not.toBe(stream);
+    });
 
     test("backs off between failed gap fills and resets once one completes", async () => {
         mockFetch.mockResolvedValue({ ok: false, status: 503 });

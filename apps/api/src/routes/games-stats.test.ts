@@ -12,7 +12,8 @@ const ADMIN_ID = "test-gstats-admin"; // server.admin through a role
 const MANAGER_ID = "test-gstats-manager"; // game permissions, no server.admin
 const PLAYER_A = "test-gstats-player-a";
 const PLAYER_B = "test-gstats-player-b";
-const USERS = [ADMIN_ID, MANAGER_ID, PLAYER_A, PLAYER_B];
+const VIEWER_ID = "test-gstats-viewer";
+const USERS = [ADMIN_ID, MANAGER_ID, PLAYER_A, PLAYER_B, VIEWER_ID];
 const SERVER_ID = "test-gstats-server";
 const ADMIN_ROLE_ID = "test-gstats-admin-role";
 const MANAGER_ROLE_ID = "test-gstats-manager-role";
@@ -214,6 +215,33 @@ describe("GET /games/stats", () => {
     } finally {
       removePresence(RECENT_SESSION_ID, PLAYER_A);
       removePresence(RECENT_SESSION_ID, PLAYER_A);
+    }
+  });
+
+  test("leaves viewers out of players and live players", async () => {
+    await prisma.sessionParticipant.createMany({
+      data: [RECENT_SESSION_ID, OLD_SESSION_ID].map((sessionId) => ({
+        sessionId,
+        userId: VIEWER_ID,
+        role: "viewer" as const,
+        acceptedAt: new Date(),
+      })),
+    });
+    const viewer = { userId: VIEWER_ID, displayName: VIEWER_ID, avatarUrl: "https://example.com/a.png" };
+    const player = { userId: PLAYER_B, displayName: PLAYER_B, avatarUrl: "https://example.com/a.png" };
+    addPresence(RECENT_SESSION_ID, player);
+    addPresence(RECENT_SESSION_ID, viewer);
+    // Only watched: not live.
+    addPresence(OLD_SESSION_ID, viewer);
+    try {
+      const res = await getStats(ADMIN_ID);
+      const busy = (res.json().stats as Array<Record<string, unknown>>).find((s) => s.gameId === BUSY_GAME_ID);
+      expect(busy).toMatchObject({ liveSessions: 1, livePlayers: 1, players: 2 });
+    } finally {
+      removePresence(RECENT_SESSION_ID, PLAYER_B);
+      removePresence(RECENT_SESSION_ID, VIEWER_ID);
+      removePresence(OLD_SESSION_ID, VIEWER_ID);
+      await prisma.sessionParticipant.deleteMany({ where: { userId: VIEWER_ID } });
     }
   });
 

@@ -18,7 +18,15 @@ let endTimer: ReturnType<typeof setTimeout> | undefined;
  */
 export const showCalculating = atom<boolean>(false);
 
+/**
+ * Whether the newest calculation of any source is running, without the
+ * indicator's delay. Readers that must wait for the map to apply the answers
+ * (the answer split) use this, not isLoading.
+ */
+export const resultsPending = atom<boolean>(false);
+
 function update() {
+    resultsPending.set(running.size > 0);
     if (running.size) {
         clearTimeout(endTimer);
         endTimer = undefined;

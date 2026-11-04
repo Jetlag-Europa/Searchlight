@@ -1,7 +1,7 @@
 import type { CompiledGame } from "@/game-definition/compile";
 import { zoneScaleAfter } from "@/lib/zoneSize";
 
-import { standaloneRegion } from ".";
+import { regionData, standaloneRegion } from ".";
 import {
     type AnsweredRegion,
     type FilterZones,
@@ -41,21 +41,16 @@ export interface AnswerSplit {
 }
 
 /**
- * A question's data as far as its split depends on it: not its answer, which
- * the split tries both ways, nor its name, colours or collapsed state.
+ * A question's data as far as its split depends on it: its region's data
+ * ({@link regionData}) without its answer, which the split tries both ways.
  */
 export function splitInputs(question: Question): object {
     const answerFields = (SPLIT_ANSWERS[question.id] ?? []).flatMap(
         ({ data }) => Object.keys(data),
     );
     return {
-        ...question.data,
+        ...regionData(question),
         ...Object.fromEntries(answerFields.map((field) => [field, undefined])),
-        name: undefined,
-        collapsed: undefined,
-        color: undefined,
-        colorA: undefined,
-        colorB: undefined,
     };
 }
 

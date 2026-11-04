@@ -18,8 +18,6 @@ const DrawerTrigger = DrawerPrimitive.Trigger;
 
 const DrawerPortal = DrawerPrimitive.Portal;
 
-const DrawerClose = DrawerPrimitive.Close;
-
 const DrawerOverlay = React.forwardRef<
     React.ElementRef<typeof DrawerPrimitive.Overlay>,
     React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
@@ -79,17 +77,6 @@ const DrawerHeader = ({
 );
 DrawerHeader.displayName = "DrawerHeader";
 
-const DrawerFooter = ({
-    className,
-    ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
-    <div
-        className={cn("mt-auto flex flex-col gap-2 p-4", className)}
-        {...props}
-    />
-);
-DrawerFooter.displayName = "DrawerFooter";
-
 const DrawerTitle = React.forwardRef<
     React.ElementRef<typeof DrawerPrimitive.Title>,
     React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
@@ -119,13 +106,9 @@ DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
 export {
     Drawer,
-    DrawerClose,
     DrawerContent,
     DrawerDescription,
-    DrawerFooter,
     DrawerHeader,
-    DrawerOverlay,
-    DrawerPortal,
     DrawerTitle,
     DrawerTrigger,
 };

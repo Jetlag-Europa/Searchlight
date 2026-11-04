@@ -56,16 +56,18 @@ export class SupersededError extends Error {
     }
 }
 
-// Server-side and geometry test runtimes have no browser Worker API, so they
-// buffer on this thread. ArcGIS loads on demand there: browsers use the worker
-// and shouldn't download it with the page.
+// The unit tests run in Node, which has no Worker, so they do the geometry on
+// this thread. Every browser has a Worker: their build leaves this path out,
+// with the ArcGIS code it would load.
+const onThisThread =
+    import.meta.env.MODE === "test" && typeof Worker === "undefined";
 let inlineBuffer: Promise<typeof BufferGeometry> | undefined;
 function loadInlineBuffer(): Promise<typeof BufferGeometry> {
     inlineBuffer ??= import("./bufferGeometry");
     return inlineBuffer;
 }
 // Start loading now so the first buffer doesn't wait for it.
-if (typeof Worker === "undefined") loadInlineBuffer().catch(() => {});
+if (onThisThread) loadInlineBuffer().catch(() => {});
 
 let worker: Worker | undefined;
 let nextId = 0;
@@ -115,7 +117,10 @@ export function requestGeometry(
     request: BoundaryTargetRequest,
 ): Promise<GeometryResult>;
 export function requestGeometry(request: ClipRequest): Promise<GeometryResult>;
-export function requestGeometry(request: UnionRequest): Promise<GeometryResult>;
+export function requestGeometry(
+    request: UnionRequest,
+    options?: RequestOptions,
+): Promise<GeometryResult>;
 export function requestGeometry(
     request: CellBordersRequest,
 ): Promise<Feature<MultiLineString> | null>;
@@ -128,6 +133,7 @@ export function requestGeometry(
 export function requestGeometry(
     request: RemoveRegionOverlapsRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[]>;
+export function requestGeometry(request: FilterZoneRequest): Promise<number[]>;
 export async function requestGeometry(
     request:
         | BoundaryTargetRequest
@@ -135,13 +141,14 @@ export async function requestGeometry(
         | CellBordersRequest
         | ClipRequest
         | DistanceRequest
+        | FilterZoneRequest
         | LineVoronoiRequest
         | RegionOverlapsRequest
         | RemoveRegionOverlapsRequest
         | UnionRequest,
     options?: RequestOptions,
 ): Promise<unknown> {
-    if (typeof Worker === "undefined") {
+    if (onThisThread) {
         if (request.kind === "clip") return calculateClip(request);
         if (request.kind === "union") return calculateUnion(request);
         if (request.kind === "cellBorders")
@@ -154,6 +161,8 @@ export async function requestGeometry(
             return findRegionOverlaps(request);
         if (request.kind === "removeRegionOverlaps")
             return removeRegionOverlaps(request);
+        if (request.kind === "filterZone")
+            return calculateFilterZoneIndexes(request.circles, request.regions);
         const buffer = await loadInlineBuffer();
         if (request.kind === "distance")
             return buffer.calculateDistance(request);
@@ -178,31 +187,9 @@ export async function requestGeometry(
         }
     });
 }
-export async function filterZoneIndexes(
+export function filterZoneIndexes(
     circles: Feature<Polygon | MultiPolygon>[],
     regions: FeatureCollection<Polygon | MultiPolygon>[],
 ): Promise<number[]> {
-    if (typeof Worker === "undefined") {
-        return calculateFilterZoneIndexes(circles, regions);
-    }
-    const activeWorker = getWorker();
-    return new Promise((resolve, reject) => {
-        const id = ++nextId;
-        pending.set(id, {
-            resolve: resolve as (result: unknown) => void,
-            reject,
-        });
-        try {
-            const request: FilterZoneRequest = {
-                kind: "filterZone",
-                circles,
-                regions,
-            };
-            activeWorker.postMessage({ id, request });
-        } catch (error) {
-            pending.delete(id);
-            reject(error);
-        }
-    });
+    return requestGeometry({ kind: "filterZone", circles, regions });
 }
-export { calculateFilterZoneIndexes };

@@ -500,6 +500,19 @@ export async function standaloneRegion(
     return region;
 }
 
+// A question's region depends on its type and answer data, not on its name,
+// colours, collapsed or lock state (JSON drops the undefined keys). Hider mode
+// answers questions before they get here, so its answers are part of the data.
+export const regionData = (question: Question) => ({
+    ...question.data,
+    name: undefined,
+    collapsed: undefined,
+    drag: undefined,
+    color: undefined,
+    colorA: undefined,
+    colorB: undefined,
+});
+
 /**
  * Compute each enabled question's standalone "still-possible" region by applying
  * that question — and only that question — to the full base game boundary.
@@ -507,8 +520,8 @@ export async function standaloneRegion(
  * This is the basis for the per-question (dodge-aware) hiding-zone survival test:
  * a hider may move within their zone, so a zone is valid as long as it overlaps
  * EACH question's region independently. Folding all questions into a single
- * intersected area (as {@link applyQuestionsToMapGeoData} does) incorrectly
- * requires one point to satisfy every question at once. See [[DissapearingAct]].
+ * intersected area would wrongly require one point to satisfy every question at
+ * once. See [[DissapearingAct]].
  */
 // Standalone regions keyed by question content. Valid only while every other
 // input to the evaluators is unchanged; those atoms are replaced, never mutated,
@@ -535,6 +548,7 @@ export async function computePerQuestionRegions(
     questions: Questions,
     baseMapGeoData: any,
     planningModeEnabled: boolean,
+    isCurrent: () => boolean = () => true,
 ): Promise<{ question: Question; region: any; zoneScale: number }[]> {
     const regions: { question: Question; region: any; zoneScale: number }[] =
         [];
@@ -553,15 +567,11 @@ export async function computePerQuestionRegions(
         if (isZoneSizeChange(question)) continue;
         if (planningModeEnabled && question.data.drag) continue;
 
-        // A card's name and collapsed state change no region (JSON drops the
-        // undefined keys).
-        const key = JSON.stringify([
-            question.id,
-            { ...question.data, name: undefined, collapsed: undefined },
-        ]);
+        const key = JSON.stringify([question.id, regionData(question)]);
         const region =
             cache.get(key) ??
             (await standaloneRegion(question, baseMapGeoData));
+        if (!isCurrent()) return regions;
         used.set(key, region);
 
         regions.push({
@@ -571,43 +581,8 @@ export async function computePerQuestionRegions(
         });
     }
 
-    if (regionCache?.regions === cache) regionCache.regions = used;
+    // An obsolete run finishing first must not prune the newer run's regions.
+    if (regionCache?.regions === cache && isCurrent())
+        regionCache.regions = used;
     return regions;
-}
-
-export async function applyQuestionsToMapGeoData(
-    questions: Questions,
-    mapGeoData: any,
-    planningModeEnabled: boolean,
-    planningModeCallback?: (
-        polygon: FeatureCollection | Feature,
-        question: any,
-    ) => void,
-): Promise<any> {
-    for (const question of questions) {
-        if (question.data.enabled === false) continue;
-        if (isZoneSizeChange(question)) continue;
-        if (planningModeCallback) {
-            const planningPolygon = await determinePlanningPolygon(
-                question,
-                planningModeEnabled,
-            );
-            if (planningPolygon) {
-                planningModeCallback(planningPolygon, question);
-            }
-        }
-        if (planningModeEnabled && question.data.drag) {
-            continue;
-        }
-
-        mapGeoData = await adjustMapGeoDataForQuestion(question, mapGeoData);
-
-        if (!mapGeoData || mapGeoData.type !== "FeatureCollection") {
-            mapGeoData = {
-                type: "FeatureCollection",
-                features: mapGeoData ? [mapGeoData] : [],
-            };
-        }
-    }
-    return mapGeoData;
 }

@@ -1,19 +1,16 @@
 ---
 name: Feature request
-about: Suggest an idea for this project
-title: "Feature Request:"
+about: Suggest an idea for Searchlight
+title: "Feature request: "
 labels: ""
 assignees: ""
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**What problem would it solve?**
+What you were trying to do in a game, and what got in the way.
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**What you'd like**
+How you'd like it to work.
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
-
-**Additional context**
-Add any other context or screenshots about the feature request here.
+**Anything else**
+Alternatives you've considered, screenshots or examples from other tools.

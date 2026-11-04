@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import {
+  CASUAL_SERVER_ID,
   computeGameDefinitionChecksum,
+  type ExistingGameComparison,
   type GameDefinition,
   type GameImportResponse,
   resolveGameDefinitionId,
@@ -8,13 +10,13 @@ import {
   type ValidationIssue,
 } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
+import { compareWithExisting } from "./compare-games.js";
 
 // GameRevision.revision is a PostgreSQL integer.
 const MAX_REVISION = 2_147_483_647;
 
 export interface ImportActor {
-  userId?: string | null;
-  type: "cookie" | "token";
+  userId: string;
   canCreateGames(serverId: string): boolean | Promise<boolean>;
   canEditGames(serverId: string): boolean | Promise<boolean>;
 }
@@ -26,7 +28,12 @@ export interface ImportGameDefinitionParams {
   dryRun?: boolean;
   expectedServerId?: string;
   allowUpdate?: boolean;
-  // For a new game only: an existing game keeps its listing.
+  // The id of the existing game's revision the caller previewed: an update
+  // refuses (409 GAME_CHANGED) if the game has moved on since, rather than
+  // replace what they didn't see.
+  expectedCurrentRevisionId?: string;
+  // For a new game only: an existing game keeps its listing. Casual games
+  // are always unlisted.
   unlisted?: boolean;
 }
 
@@ -35,12 +42,14 @@ export class ImportConflictError extends Error {
   statusCode: number;
   canUpdate?: boolean;
   existingRevision?: number;
+  existing?: ExistingGameComparison;
 
   constructor(
     message: string,
     code: string,
     canUpdate = false,
     existingRevision?: number,
+    existing?: ExistingGameComparison,
   ) {
     super(message);
     this.name = "ImportConflictError";
@@ -48,6 +57,7 @@ export class ImportConflictError extends Error {
     this.statusCode = 409;
     this.canUpdate = canUpdate;
     this.existingRevision = existingRevision;
+    this.existing = existing;
   }
 }
 
@@ -71,12 +81,21 @@ export class ImportForbiddenError extends Error {
   code: string;
   statusCode: number;
 
-  constructor(message: string) {
+  constructor(message: string, code = "FORBIDDEN") {
     super(message);
     this.name = "ImportForbiddenError";
-    this.code = "FORBIDDEN";
+    this.code = code;
     this.statusCode = 403;
   }
+}
+
+// The file's id belongs to a game the caller may not change. Which server it
+// is on, or whose it is, is none of the caller's business.
+function gameIdTaken(gameKey: string, reason = `The id "${gameKey}" is already used by another game.`) {
+  return new ImportForbiddenError(
+    `${reason} To import this file as a new game, change "id" in the file.`,
+    "GAME_ID_TAKEN",
+  );
 }
 
 interface ImportContext {
@@ -89,7 +108,8 @@ interface ImportContext {
   dryRun: boolean;
   allowUpdate: boolean;
   // Refuse the update (409 GAME_CHANGED) unless this is still the current
-  // revision once the game is locked.
+  // revision once the game is locked: the revision an import previewed, or
+  // the one a settings edit started from.
   expectedCurrentRevisionId?: string;
   // Imports un-archive the game; a settings edit leaves that alone.
   keepArchived?: boolean;
@@ -144,6 +164,7 @@ async function importDefinition(
     dryRun = false,
     expectedServerId,
     allowUpdate = false,
+    expectedCurrentRevisionId,
     unlisted = false,
   } = params;
 
@@ -210,12 +231,13 @@ async function importDefinition(
     actor,
     dryRun,
     allowUpdate,
+    expectedCurrentRevisionId,
   };
 
   // 4. Look up existing game by gameKey
   const existingGame = await prisma.game.findUnique({
     where: { gameKey },
-    select: { id: true, serverId: true },
+    select: { id: true, serverId: true, createdById: true },
   });
   if (existingGame) {
     return importRevision(ctx, existingGame);
@@ -248,8 +270,9 @@ async function importDefinition(
           serverId: def.serverId,
           name: def.name,
           size: def.size ?? "medium",
-          unlisted,
+          unlisted: unlisted || def.serverId === CASUAL_SERVER_ID,
           preloadChecksum: source === "preload" ? ctx.checksum : null,
+          createdById: actor?.userId ?? null,
         },
       });
 
@@ -285,7 +308,7 @@ async function importDefinition(
     const raced = isUniqueViolation(err)
       ? await prisma.game.findUnique({
           where: { gameKey },
-          select: { id: true, serverId: true },
+          select: { id: true, serverId: true, createdById: true },
         })
       : null;
     if (!raced) throw err;
@@ -293,38 +316,67 @@ async function importDefinition(
   }
 }
 
+/**
+ * Throws unless the actor may update the game. Games can't move between
+ * servers. A Casual game is its creator's: they update it with games.create
+ * there (their role), and only games.edit (global admins) covers anyone's.
+ */
+async function assertCanUpdate(
+  ctx: ImportContext,
+  game: { serverId: string; createdById: string | null },
+): Promise<void> {
+  const { def, gameKey, actor } = ctx;
+  if (def.serverId !== game.serverId) throw gameIdTaken(gameKey);
+  if (!actor || (await actor.canEditGames(game.serverId))) return;
+
+  if (game.serverId === CASUAL_SERVER_ID) {
+    const ownGame = game.createdById !== null && game.createdById === actor.userId;
+    if (ownGame && (await actor.canCreateGames(game.serverId))) return;
+    throw gameIdTaken(gameKey);
+  }
+  throw gameIdTaken(
+    gameKey,
+    `A game with id "${gameKey}" already exists, and you do not have permission to edit games on this server.`,
+  );
+}
+
 async function importRevision(
   ctx: ImportContext,
-  game: { id: string; serverId: string },
+  game: { id: string; serverId: string; createdById: string | null },
 ): Promise<GameImportResponse> {
   const { def, gameKey, checksum, warnings, source, actor } = ctx;
 
-  // Prohibit cross-server updates. The id is taken; which server owns it is
-  // none of the caller's business.
-  if (def.serverId !== game.serverId) {
-    throw new ImportForbiddenError(
-      `Game id "${gameKey}" is already used by a game on another server`,
-    );
-  }
-  if (actor && !(await actor.canEditGames(game.serverId))) {
-    throw new ImportForbiddenError(
-      "You do not have permission to edit games on this server",
-    );
-  }
+  await assertCanUpdate(ctx, game);
 
   return prisma.$transaction(async (tx) => {
     // Serialize imports of this game, so the checks and the revision number
-    // below see every revision committed before this one.
+    // below see every revision committed before this one. The current
+    // revision's name and play area are read for the comparison with the
+    // file; its whole definition is multi-MB.
     const [locked] = await tx.$queryRaw<
-      { currentRevisionId: string | null; preloadChecksum: string | null }[]
+      {
+        currentRevisionId: string | null;
+        preloadChecksum: string | null;
+        name: string;
+        createdById: string | null;
+        bounds: unknown;
+        center: unknown;
+      }[]
     >`
-      SELECT "currentRevisionId", "preloadChecksum" FROM "Game" WHERE id = ${game.id} FOR UPDATE
+      SELECT g."currentRevisionId", g."preloadChecksum", g.name, g."createdById",
+        r.definition->'map'->'bounds' AS bounds, r.definition->'map'->'center' AS center
+      FROM "Game" g
+      LEFT JOIN "GameRevision" r ON r.id = g."currentRevisionId"
+      WHERE g.id = ${game.id}
+      FOR UPDATE OF g
     `;
     if (!locked) {
       throw new ImportConflictError("The game was deleted during the import", "GAME_DELETED");
     }
-    // An import committed since the caller read the definition it edited:
-    // saving the edit would undo that import.
+    // An import committed since the caller previewed the game or read the
+    // definition it edited: going ahead would replace or undo that import.
+    // Revision ids, unlike numbers, are never current again for another game
+    // that reuses the id after a delete.
     if (
       ctx.expectedCurrentRevisionId !== undefined &&
       locked.currentRevisionId !== ctx.expectedCurrentRevisionId
@@ -337,6 +389,11 @@ async function importRevision(
           select: { checksum: true, revision: true },
         })
       : null;
+    const existing = compareWithExisting(
+      { ...locked, revision: cur?.revision ?? 0 },
+      { name: def.name, bounds: def.map.bounds, center: def.map.center },
+      actor?.userId,
+    );
 
     // The preloaded file only changes the game when its content changed since
     // the last API start: whatever is current now was chosen after that, e.g.
@@ -350,6 +407,7 @@ async function importRevision(
         checksum: cur.checksum,
         errors: [],
         warnings,
+        existing,
       };
     }
     // Recorded for a preload as the file's content is applied below.
@@ -368,16 +426,18 @@ async function importRevision(
         checksum,
         errors: [],
         warnings,
+        existing,
       };
     }
 
     // B. Check collision / update permission
     if (cur && !ctx.allowUpdate && source !== "preload") {
       throw new ImportConflictError(
-        `Map "${def.name}" (${gameKey}) already exists (Revision ${cur.revision}). Check "Update existing map" to update it.`,
+        `Game "${gameKey}" already exists (revision ${cur.revision}). Import it as an update to replace it.`,
         "GAME_EXISTS",
         true,
         cur.revision,
+        existing,
       );
     }
 
@@ -413,6 +473,7 @@ async function importRevision(
       checksum,
       errors: [],
       warnings,
+      existing,
     };
     if (ctx.dryRun) {
       return result;
@@ -457,7 +518,13 @@ function gameChanged(): ImportConflictError {
 }
 
 export interface UpdateGameSettingsParams {
-  game: { id: string; gameKey: string; serverId: string; currentRevisionId: string | null };
+  game: {
+    id: string;
+    gameKey: string;
+    serverId: string;
+    currentRevisionId: string | null;
+    createdById: string | null;
+  };
   // The revision the edit started from.
   baseRevisionId: string;
   name?: string;

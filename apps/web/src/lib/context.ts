@@ -5,6 +5,7 @@ import { atom, onSet } from "nanostores";
 
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     askedVariants,
     firstUnasked,
@@ -12,7 +13,7 @@ import {
 } from "@/lib/askedQuestions";
 import type { LatLng } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
-import { extractStationLabel } from "@/maps/geo-utils";
+import { extractStationLabel, type ZoneDisplayStyle } from "@/maps/geo-utils";
 import {
     type DeepPartial,
     type Question,
@@ -48,6 +49,9 @@ const playerCustomData = (family: string): Record<string, unknown> =>
         ? { locationType: "custom", places: [] }
         : { type: family === "matching" ? "custom-points" : "custom-measure" };
 export const addQuestion = (question: DeepPartial<Question>) => {
+    if (sessionReadOnly.get()) {
+        throw new Error("Spectators can't add questions");
+    }
     // Every question belongs to a game: none can be added until its
     // definition has loaded.
     const compiled = compiledGameAtom.get();
@@ -96,6 +100,8 @@ export const addQuestion = (question: DeepPartial<Question>) => {
         }
     }
     const parsed = questionSchema.parse(candidate);
+    // A new question, though pasted from a restored one, restores nothing.
+    delete parsed.data.restoredFrom;
     if (!isQuestionSupported(parsed, compiled)) {
         throw new Error("This question is not part of the active game");
     }
@@ -129,9 +135,11 @@ export const displayHidingZones = persistentAtom<boolean>(
         listen: false,
     },
 );
-export const displayHidingZonesStyle = persistentAtom<
-    "zones" | "stations" | "no-overlap" | "no-display"
->("displayHidingZonesStyle", "zones", { listen: false });
+export const displayHidingZonesStyle = persistentAtom<ZoneDisplayStyle>(
+    "displayHidingZonesStyle",
+    "zones",
+    { listen: false },
+);
 export const showZoneNames = persistentAtom<boolean>("showZoneNames", false, {
     encode: JSON.stringify,
     decode: JSON.parse,
@@ -265,6 +273,12 @@ export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
     decode: JSON.parse,
 });
 
+/**
+ * Greys out editing while work that writes into a question after an await
+ * runs (custom-zone and tentacle prefill). Map and zone calculations don't
+ * set it: they work on a snapshot and the newest edit wins. Their progress
+ * is lib/calculating.ts.
+ */
 export const isLoading = atom<boolean>(false);
 const loadingScopeCounts = new Map<string | symbol, number>();
 
@@ -302,20 +316,35 @@ export function resetScopedLoading(scope?: string | symbol): void {
     }
     isLoading.set(total > 0);
 }
-/** Release one operation exactly once, including when its view unmounts. */
-export function acquireScopedLoading(scope: string | symbol): () => void {
-    setScopedLoading(scope, true);
-    let released = false;
-    return () => {
-        if (released) return;
-        released = true;
-        setScopedLoading(scope, false);
-    };
-}
 
 export const baseTileLayer = persistentAtom<
-    "voyager" | "light" | "dark" | "transport" | "neighbourhood" | "osmcarto"
+    | "voyager"
+    | "light"
+    | "dark"
+    | "transport"
+    | "neighbourhood"
+    | "osmcarto"
+    | "google"
 >("baseTileLayer", "voyager");
+// What the Google Maps basemap shows: its map type (a GoogleMapType; read it
+// with googleMapTypeOf), transit lines on top, and places hidden.
+export const googleMapType = persistentAtom<string>("googleMapType", "roadmap");
+export const hideGooglePlaces = persistentAtom<boolean>(
+    "hideGooglePlaces",
+    false,
+    {
+        encode: JSON.stringify,
+        decode: JSON.parse,
+    },
+);
+export const showGoogleTransit = persistentAtom<boolean>(
+    "showGoogleTransit",
+    false,
+    {
+        encode: JSON.stringify,
+        decode: JSON.parse,
+    },
+);
 export const thunderforestApiKey = persistentAtom<string>(
     "thunderforestApiKey",
     "",

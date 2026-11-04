@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
 import {
@@ -43,11 +43,9 @@ const QUICK_MULTIPLIERS = [0.5, 1.5];
 export const ZoneSizeComponent = ({
     data,
     questionKey,
-    className,
 }: {
     data: ZoneSizeChange;
     questionKey: number;
-    className?: string;
 }) => {
     useStore(triggerLocalRefresh);
     const $questions = useStore(questions);
@@ -92,7 +90,6 @@ export const ZoneSizeComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={formatMultiplier(multiplier)}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified
