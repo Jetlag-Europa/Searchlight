@@ -120,6 +120,10 @@ doesn't help either: a browser keeps a worker it can't update.
 - Keep serving that `/sw.js` for as long as the older version runs: a phone
   that was offline or asleep picks it up at its next update check. Going
   forward again is an ordinary update.
+- Edits still waiting to be sent when a page switches to the older version
+  (from a phone that was offline, say) don't show there, and are sent when
+  you go forward again. That can put back an old hider position or
+  planning-mode value: check them after going forward.
 
 **Spectator links** (`8d65fff46`, #85). Migrations stay applied when you go
 back: don't restore a backup to undo them, as that loses everything played
@@ -202,14 +206,15 @@ Google bills a map load each time the page creates its map, not per tile: a
 player costs about one per app start, whatever they zoom or pan, and only once
 they choose Google's map (even if it never draws on a bad connection). 10,000 loads a month are free; Google Cloud shows the
 loads per day under the API's metrics. Google's terms don't allow caching its
-map, so offline the app uses CARTO Voyager, and a page printed from the
-browser leaves Google's map out. The terms also require telling users that
+map, so the app stores none of it: offline, a Google map that has already
+drawn keeps what's on screen and one that hasn't shows CARTO Voyager, and a
+page printed from the browser leaves Google's map out. The terms also require telling users that
 the app includes Google Maps and linking Google's terms and privacy policy;
 Options does that under the basemap picker. Which terms apply depends on the
 billing account's country: outside the EEA they restrict using Google's map
 "with or near" non-Google maps. The app never shows both, but it does show
 CARTO Voyager by itself: while Google's map loads (Google's layer is on the
-map then, hidden), offline, and when Google can't load.
+map then, hidden), offline before it has drawn, and when Google can't load.
 
 ## Cloudflare Tunnel
 
