@@ -1,10 +1,7 @@
 import type { GameDefinition } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-    compiledGameAtom,
-    setActiveGameDefinition,
-} from "@/game-definition/store";
+import { compiledGameAtom } from "@/game-definition/store";
 import { activeSessionId } from "@/lib/activeSession";
 import {
     displayHidingZones,

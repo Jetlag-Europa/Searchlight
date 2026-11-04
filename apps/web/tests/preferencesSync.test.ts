@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 // ── localStorage mock ─────────────────────────────────────────────────────────
 const store = new Map<string, string>();

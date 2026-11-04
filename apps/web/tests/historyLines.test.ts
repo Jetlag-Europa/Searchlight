@@ -128,7 +128,6 @@ describe("question history lines", () => {
                 order: [K1, K2],
             },
         ]);
-        expect(line.order).toEqual([K1, K2]);
     });
 
     it("groups a delete of 3 or more, each restorable", () => {

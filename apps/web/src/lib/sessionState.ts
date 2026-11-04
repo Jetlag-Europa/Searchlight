@@ -196,9 +196,8 @@ function debounceSave(
 function hasPendingSave(
     state: SaveState,
     type: PendingEvent["type"],
-    sessionId?: string,
+    sessionId: string,
 ): boolean {
-    if (!sessionId) return state.pending.size > 0 || state.dispatches.size > 0;
     return (
         state.pending.has(sessionId) ||
         state.dispatches.has(sessionId) ||
@@ -234,7 +233,7 @@ export async function saveQuestionsToServer(
     await dispatchSave(questionSaves, queueQuestions(sessionId, qs));
 }
 
-export function hasPendingQuestionSave(sessionId?: string): boolean {
+export function hasPendingQuestionSave(sessionId: string): boolean {
     return hasPendingSave(questionSaves, "questions.replace", sessionId);
 }
 
@@ -254,16 +253,14 @@ export function cancelPendingQuestionSave(sessionId?: string): void {
 // keepalive only when the page is going away: keepalive bodies are capped at
 // 64 KiB, which a large question list exceeds.
 export async function flushQuestionSave(
-    sessionId?: string,
+    sessionId: string,
     keepalive = false,
 ): Promise<void> {
-    const targetSessionId = sessionId ?? activeSessionId.get();
-    if (!targetSessionId) return;
-    const pending = questionSaves.pending.get(targetSessionId);
+    const pending = questionSaves.pending.get(sessionId);
     if (pending) {
         await dispatchSave(questionSaves, pending(), keepalive);
     } else {
-        await questionSaves.dispatches.get(targetSessionId);
+        await questionSaves.dispatches.get(sessionId);
     }
 }
 
@@ -286,7 +283,7 @@ function queueHiderMode(sessionId: string, mode: HiderModeValue): PendingEvent {
     });
 }
 
-export function hasPendingHiderSave(sessionId?: string): boolean {
+export function hasPendingHiderSave(sessionId: string): boolean {
     return hasPendingSave(hiderSaves, "hider.update", sessionId);
 }
 
@@ -332,7 +329,7 @@ function queuePlanningMode(sessionId: string, enabled: boolean): PendingEvent {
     });
 }
 
-export function hasPendingPlanningModeSave(sessionId?: string): boolean {
+export function hasPendingPlanningModeSave(sessionId: string): boolean {
     return hasPendingSave(planningSaves, "planning.toggle", sessionId);
 }
 

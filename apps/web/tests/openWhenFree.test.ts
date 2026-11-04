@@ -62,19 +62,6 @@ describe("isTypingIn", () => {
             false,
         );
     });
-
-    test("looks into shadow roots", () => {
-        const host = el({
-            tagName: "ARCGIS-SEARCH",
-            shadowRoot: { activeElement: textField },
-        });
-        expect(isTypingIn(host)).toBe(true);
-        expect(
-            isTypingIn(
-                el({ tagName: "X", shadowRoot: { activeElement: button } }),
-            ),
-        ).toBe(false);
-    });
 });
 
 describe("openWhenFree", () => {

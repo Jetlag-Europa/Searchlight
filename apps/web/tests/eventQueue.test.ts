@@ -102,7 +102,7 @@ describe("enqueueEvent", () => {
 describe("markEventSynced", () => {
     test("removes the event from the queue", () => {
         const e1 = enqueueEvent(baseEvent({ clientUuid: "s1" }));
-        const e2 = enqueueEvent(baseEvent({ clientUuid: "s2" }));
+        enqueueEvent(baseEvent({ clientUuid: "s2" }));
         markEventSynced(SID, e1.localId);
         const remaining = getPendingEvents(SID);
         expect(remaining).toHaveLength(1);

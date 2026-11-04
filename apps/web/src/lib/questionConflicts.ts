@@ -56,12 +56,12 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 type Question = Questions[number];
 
-export type QuestionConflictKind =
+type QuestionConflictKind =
     | "both-changed"
     | "they-deleted"
     | "we-deleted";
 
-export interface QuestionConflictAuthor {
+interface QuestionConflictAuthor {
     userId: string;
     displayName: string;
     // This account, on another device.

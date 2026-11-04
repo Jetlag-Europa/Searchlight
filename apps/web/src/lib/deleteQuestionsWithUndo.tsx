@@ -103,13 +103,13 @@ function showUndoToast(
 }
 
 /** A delete that can still be undone, and when it was made. */
-export interface PendingUndo {
+interface PendingUndo {
     deletion: QuestionDeletion<Question>;
     deletedAt: number;
 }
 
 /** What an Undo did: old key to new (the same when put back as they were). */
-export interface UndoneDeletion {
+interface UndoneDeletion {
     placed: { from: number; key: number }[];
     // Already on the board, so not put back again.
     alreadyBack: number;

@@ -1,11 +1,6 @@
 import * as turf from "@turf/turf";
-import type {
-    Feature,
-    FeatureCollection,
-    MultiPolygon,
-    Polygon,
-} from "geojson";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Feature, MultiPolygon, Polygon } from "geojson";
+import { beforeEach, describe, expect, it } from "vitest";
 import {
     isLoading,
     resetScopedLoading,

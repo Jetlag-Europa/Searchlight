@@ -2,7 +2,7 @@ import { atom } from "nanostores";
 
 import { sidebarContextL } from "@/lib/context";
 
-export type QuestionSidebarTab = "questions" | "history";
+type QuestionSidebarTab = "questions" | "history";
 
 /** Which list the questions sidebar shows: the cards, or their History. */
 export const questionSidebarTab = atom<QuestionSidebarTab>("questions");

@@ -4,6 +4,7 @@ import { Type } from "@sinclair/typebox";
 import {
   BULKY_QUESTION_FIELDS,
   diffQuestionLists,
+  isRecord,
   stripBulkyData,
   type QuestionHistoryEntry,
   type QuestionHistoryResponse,
@@ -95,9 +96,6 @@ function questionsOf(listText: string | null, sequence: number, origins: WeakMap
     return null;
   }
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
 
 // Read as text, by place, so the questions are what was stored. Null when
 // it isn't there.

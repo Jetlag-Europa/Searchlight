@@ -71,7 +71,7 @@ export interface HistoryListProps {
     disabled: boolean;
     // A spectator can't change the board: no Restore at all.
     readOnly?: boolean;
-    onRestore: (line: HistoryLine, targets: RemovedQuestion[]) => void;
+    onRestore: (targets: RemovedQuestion[]) => void;
 }
 
 /** The lines, newest first, with Restore on deleted questions. */
@@ -85,7 +85,7 @@ export const HistoryList = ({
 }: HistoryListProps) => {
     // Restore, or why not, as visible text: a disabled button's tooltip never
     // shows on a phone.
-    const restoreControl = (line: HistoryLine, targets: RemovedQuestion[]) => {
+    const restoreControl = (targets: RemovedQuestion[]) => {
         if (readOnly) return null;
         const checks = targets.map((t) => restorable(t, current, compiled));
         const unavailable = checks.find((c) => c.status === "unavailable");
@@ -119,7 +119,7 @@ export const HistoryList = ({
                 size="sm"
                 className="h-7 shrink-0 px-2 text-xs"
                 disabled={disabled}
-                onClick={() => onRestore(line, targets)}
+                onClick={() => onRestore(targets)}
             >
                 {targets.length > 1 ? "Restore all" : "Restore"}
             </Button>
@@ -161,7 +161,7 @@ export const HistoryList = ({
                                                     {item.label}
                                                 </span>
                                                 {item.removed &&
-                                                    restoreControl(line, [
+                                                    restoreControl([
                                                         item.removed,
                                                     ])}
                                             </li>
@@ -170,7 +170,7 @@ export const HistoryList = ({
                                 </details>
                             )}
                         </div>
-                        {line.removed && restoreControl(line, line.removed)}
+                        {line.removed && restoreControl(line.removed)}
                     </li>
                 );
             })}
@@ -416,11 +416,8 @@ export const QuestionHistory = () => {
                 compiled={compiled}
                 disabled={$isLoading}
                 readOnly={$readOnly}
-                onRestore={(line, targets) => {
-                    const { back, alreadyBack } = restoreFromHistory(
-                        line,
-                        targets,
-                    );
+                onRestore={(targets) => {
+                    const { back, alreadyBack } = restoreFromHistory(targets);
                     if (back.length > 0) showRestoredToast(back);
                     else if (alreadyBack > 0) showAlreadyOnBoard();
                 }}
