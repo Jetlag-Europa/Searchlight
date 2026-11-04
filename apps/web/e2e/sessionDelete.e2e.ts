@@ -200,6 +200,61 @@ test.describe("deleting a session on a phone", () => {
         }
     });
 
+    test("a teammate with the question sheet open can pick another session", async ({
+        request,
+        browser,
+    }) => {
+        test.slow();
+        const shared = await createSession(request, "Sheet");
+        const other = await createSession(request, "Other");
+        const teammateContext = await browser.newContext(phone);
+        // The Delete All confirm sounds the alarm with this on.
+        await teammateContext.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        try {
+            const teammate = await teammateContext.newPage();
+            await testLogin(teammate, OTHER_USER_ID);
+            await join(request, teammate, shared.id);
+            await join(request, teammate, other.id);
+            await openBoard(teammate, shared);
+            // The question sidebar: a modal sheet over the whole screen, here
+            // with a confirm open in it.
+            await teammate.locator('[data-sidebar="trigger"]').first().tap();
+            const sheet = '[data-mobile="true"][data-sidebar="sidebar"]';
+            await expect(teammate.locator(sheet)).toBeVisible();
+            await teammate
+                .getByRole("button", { name: "Delete All Questions" })
+                .tap();
+            const confirm = teammate.locator('[role="alertdialog"]');
+            const alarm = teammate.locator(".warning-flash");
+            await expect(confirm).toBeVisible();
+            await expect(alarm).toHaveCount(1);
+
+            const deleted = await request.delete(
+                `${API_BASE}/sessions/${shared.id}`,
+            );
+            expect(deleted.ok()).toBe(true);
+            // The sheet closes: open, it would hide the picker from screen
+            // readers, keep focus and scrolling, and take the taps. Its
+            // confirm goes with it, and the alarm stops.
+            await expect(picker(teammate)).toBeVisible({ timeout: 60_000 });
+            await expect(teammate.locator(sheet)).toBeHidden();
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
+            await expectBodyTappable(teammate);
+            await picker(teammate)
+                .getByRole("button", { name: new RegExp(`^${other.name}`) })
+                .tap();
+            await expect(picker(teammate)).toBeHidden();
+            await expect(
+                teammate.getByText(other.name, { exact: true }),
+            ).toBeVisible({ timeout: 30_000 });
+        } finally {
+            await teammateContext.close();
+        }
+    });
+
     test("a session deleted after the list was shown says so when opened", async ({
         page,
         request,

@@ -49,6 +49,8 @@ import {
     planningModeEnabled,
     questions,
     sessionPickerOpen,
+    sidebarContextL,
+    sidebarContextR,
 } from "@/lib/context";
 import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
 import { isSameDoubleTap } from "@/lib/doubleTap";
@@ -71,6 +73,7 @@ import {
     startLoadDeadline,
 } from "@/lib/loadDeadline";
 import { endOfflineAccess } from "@/lib/offlineAccess";
+import { isTypingIn } from "@/lib/openWhenFree";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
 import {
     reconcileQuestionConflicts,
@@ -141,29 +144,6 @@ let recheckedSessionId: string | null = null;
 let recheckWaitedForPicker = false;
 // Or while the player typed in a field: leaving it tries then.
 let recheckWaitedForTyping = false;
-
-// Fields that take a tap, not typing.
-const NOT_TYPED_IN = new Set([
-    "button",
-    "checkbox",
-    "color",
-    "file",
-    "hidden",
-    "image",
-    "radio",
-    "range",
-    "reset",
-    "submit",
-]);
-
-// The player is typing in a field (a question's name or radius, say): a load
-// now would replace the board, and what they typed with it.
-function typingInField(): boolean {
-    const field = document.activeElement as HTMLInputElement | null;
-    if (!field) return false;
-    if (field.tagName === "TEXTAREA" || field.isContentEditable) return true;
-    return field.tagName === "INPUT" && !NOT_TYPED_IN.has(field.type);
-}
 
 // As AuthGuard does when /me says the sign-in is gone. Not "reload the
 // page": the installed app has no reload button.
@@ -299,31 +279,40 @@ function SessionPickerOverlay({
         return () => window.removeEventListener("keydown", closeOnEscape);
     }, [close]);
 
-    // A list that doesn't come in time failed, and can be tried again.
+    // A list that doesn't come in time failed, and can be tried again. The
+    // server list remembers for hours that you aren't in a server, so Check
+    // again (`recheck`) asks Discord again, for someone who just joined one.
     const loadServersReqRef = useRef(0);
-    const loadServers = useCallback(async () => {
+    const loadServers = useCallback(async (recheck = false) => {
         const reqId = ++loadServersReqRef.current;
-        setLoadingServers(true);
-        setError(null);
+        // A recheck keeps the list up, and what failed to load from it.
+        const setBusy = recheck ? setRecheckingServers : setLoadingServers;
+        setBusy(true);
+        if (!recheck) setError(null);
         const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
         try {
-            const res = await fetch(`${API_BASE}/servers`, {
-                credentials: "include",
-                signal: deadline.signal,
-            });
+            const res = await fetch(
+                `${API_BASE}/servers${recheck ? "?recheck=true" : ""}`,
+                { credentials: "include", signal: deadline.signal },
+            );
             if (!res.ok) throw new Error(`${res.status}`);
             const data: ServersResponse = await res.json();
             if (reqId !== loadServersReqRef.current) return;
             setServers(data.servers);
-            if (data.servers.length === 1) {
-                setSelectedServerId(data.servers[0].id);
-            }
+            // A server of its own is picked, one no longer listed isn't.
+            setSelectedServerId((id) =>
+                data.servers.length === 1
+                    ? data.servers[0].id
+                    : data.servers.some((s) => s.id === id)
+                      ? id
+                      : "",
+            );
         } catch (e: unknown) {
             if (reqId !== loadServersReqRef.current) return;
             setError(`Failed to load servers: ${(e as Error).message}`);
         } finally {
             deadline.clear();
-            if (reqId === loadServersReqRef.current) setLoadingServers(false);
+            if (reqId === loadServersReqRef.current) setBusy(false);
         }
     }, []);
     useEffect(() => {
@@ -332,32 +321,6 @@ function SessionPickerOverlay({
             loadServersReqRef.current++;
         };
     }, [loadServers]);
-
-    // The server list remembers for hours that you aren't in a server, so ask
-    // Discord again on request, for someone who just joined one.
-    const recheckServers = () => {
-        setRecheckingServers(true);
-        const deadline = startLoadDeadline(DETAILS_TIMEOUT_MS);
-        fetch(`${API_BASE}/servers?recheck=true`, {
-            credentials: "include",
-            signal: deadline.signal,
-        })
-            .then(async (res) => {
-                if (!res.ok) throw new Error(`${res.status}`);
-                const data: ServersResponse = await res.json();
-                setServers(data.servers);
-                setSelectedServerId((id) =>
-                    data.servers.some((s) => s.id === id) ? id : "",
-                );
-            })
-            .catch((e: Error) =>
-                setError(`Failed to load servers: ${e.message}`),
-            )
-            .finally(() => {
-                deadline.clear();
-                setRecheckingServers(false);
-            });
-    };
 
     const loadSessionsForServer = useCallback(
         async (serverId: string, isMember: boolean) => {
@@ -552,10 +515,12 @@ function SessionPickerOverlay({
         ),
     );
 
+    // Taking taps over a dialog or a phone's sheet open underneath, which
+    // turns pointer events off on the body.
     return (
         <div
             ref={setOverlay}
-            className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm"
+            className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/95 backdrop-blur-sm"
         >
             {/* Scrolls on a small or sideways phone, where it's taller than
                 the screen. */}
@@ -652,7 +617,7 @@ function SessionPickerOverlay({
                         <Button
                             variant="link"
                             className="h-auto p-0 text-xs"
-                            onClick={recheckServers}
+                            onClick={() => void loadServers(true)}
                             disabled={recheckingServers}
                         >
                             {recheckingServers ? "Checking…" : "Check again"}
@@ -1118,6 +1083,12 @@ export function SessionManager() {
     }, [showPicker, loading]);
     useEffect(() => {
         sessionPickerOpen.set(showPicker);
+        // A phone's sidebar sheet open underneath would keep screen readers,
+        // focus and scrolling from the picker.
+        if (showPicker) {
+            sidebarContextL.get().setOpenMobile(false);
+            sidebarContextR.get().setOpenMobile(false);
+        }
         // Back on the board: a background recheck waited for the picker.
         if (!showPicker && recheckWaitedForPicker) {
             recheckWaitedForPicker = false;
@@ -1382,7 +1353,8 @@ export function SessionManager() {
                 recheckWaitedForPicker = true;
                 return true;
             }
-            if (typingInField()) {
+            // A load now would replace the board, and what they typed with it.
+            if (isTypingIn(document.activeElement)) {
                 recheckWaitedForTyping = true;
                 return true;
             }
@@ -1578,6 +1550,16 @@ export function SessionManager() {
                 refreshQuestionDecisions();
                 restoreKept();
             }
+            return cleanup;
+        }
+        // Back from playing the kept board offline: checked and loaded as a
+        // board the server didn't answer for, so not under someone typing.
+        if (
+            offlineBoardUser === authUserId &&
+            boardSessionRef.current === storedId
+        ) {
+            keepCheckingSession(storedId, generation);
+            sessionRecheck.tryNow();
             return cleanup;
         }
         setLoading(true);
@@ -2140,9 +2122,11 @@ export function SessionManager() {
     // map.astro places the slot beside the revision banner.
     const bannerSlot = document.getElementById("game-not-loaded-banner");
 
+    // Taking taps, as the picker does: a phone's sheet underneath isn't
+    // edited during a load, which would replace what was done there.
     if (loading) {
         return (
-            <div className="fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
+            <div className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/80">
                 <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
             </div>
         );

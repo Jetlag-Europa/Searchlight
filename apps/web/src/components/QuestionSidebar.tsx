@@ -116,6 +116,11 @@ export const QuestionSidebar = () => {
             audioRef.current = null;
         }
     };
+    // The confirm goes when a phone's sheet closes under it (the session
+    // picker closes it), without saying it closed.
+    useEffect(() => {
+        if (!sidebar.openMobile) stopAlarm();
+    }, [sidebar.openMobile]);
 
     return (
         <>
