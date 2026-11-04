@@ -520,4 +520,51 @@ test.describe("deleting a session with a mouse", () => {
         await expect(confirm).toBeHidden();
         await expect(alarm).toHaveCount(0);
     });
+
+    test("the Delete All confirm doesn't come back when a spectator may edit again", async ({
+        page,
+        request,
+    }) => {
+        test.slow();
+        const session = await createSession(request, "Role");
+        // The Delete All confirm sounds the alarm with this on.
+        await page.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        await testLogin(page, OTHER_USER_ID);
+        await join(request, page, session.id);
+        await openBoard(page, session);
+        await page
+            .getByRole("button", { name: "Delete All Questions" })
+            .click();
+        const confirm = page.locator('[role="alertdialog"]');
+        const alarm = page.locator(".warning-flash");
+        await expect(confirm).toBeVisible();
+        await expect(alarm).toHaveCount(1);
+        const setRole = async (role: string) => {
+            const res = await request.patch(
+                `${API_BASE}/sessions/${session.id}/participants/${OTHER_USER_ID}`,
+                { data: { role } },
+            );
+            expect(res.ok()).toBe(true);
+        };
+
+        // Made a spectator: the button goes, and the confirm and alarm with it.
+        await setRole("viewer");
+        await expect(page.getByText(/You're spectating/)).toBeVisible({
+            timeout: 30_000,
+        });
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+        // Allowed to edit again: the button is back, the old confirm isn't.
+        await setRole("member");
+        await expect(page.getByText(/You're spectating/)).toBeHidden({
+            timeout: 30_000,
+        });
+        await expect(
+            page.getByRole("button", { name: "Delete All Questions" }),
+        ).toBeVisible();
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+    });
 });
