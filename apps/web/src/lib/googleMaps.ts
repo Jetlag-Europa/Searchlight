@@ -25,26 +25,14 @@ export const googleMapsProblem = atom<GoogleMapsProblem | null>(
         : null,
 );
 
-/** The basemap to draw for the chosen one: CARTO whenever Google can't be. */
-export function effectiveBasemap<T extends string>(
-    chosen: T,
-    {
-        available,
-        problem,
-    }: {
-        available: boolean;
-        problem: GoogleMapsProblem | null;
-    },
-): T | "voyager" {
-    if (chosen !== "google") return chosen;
-    return available && !problem ? chosen : "voyager";
-}
-
 if (typeof window !== "undefined") {
-    // Without a connection Google's map can't load, and its tiles may not be
-    // cached by us, so the map falls back to CARTO's cached tiles meanwhile.
+    // Without a connection Google's map can't load, so the map falls back to
+    // CARTO's cached tiles meanwhile. Not once it has drawn (`drawn` below):
+    // it keeps the tiles it shows, and fills in the rest once back online,
+    // where CARTO would have hardly any cached for someone using Google.
     window.addEventListener("offline", () => {
-        if (!googleMapsProblem.get()) googleMapsProblem.set("offline");
+        if (!drawn && !googleMapsProblem.get())
+            googleMapsProblem.set("offline");
     });
     window.addEventListener("online", () => {
         const problem = googleMapsProblem.get();

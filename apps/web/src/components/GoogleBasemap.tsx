@@ -82,6 +82,33 @@ function googleLayer(): L.GridLayer {
     googleMutant.on("controls_ready", () =>
         queueMicrotask(() => showGoogle(googleMutant, shown)),
     );
+    // GoogleMutant keeps a callback, holding its tile, for each tile it waits
+    // for until Google draws that tile, which it may never do (offline, a
+    // view left before it did). Forget them once Leaflet drops the tile.
+    googleMutant.on("tileunload", ({ coords }: L.TileEvent) => {
+        const key = googleMutant._tileCoordsToKey(coords);
+        for (let i = 0; i < googleMutant._imagesPerTile; i++)
+            delete googleMutant._tileCallbacks[`${key}/${i}`];
+    });
+    // Offline, Google's map stays where it is: it can't load another view's
+    // tiles, and GoogleMutant would keep those that failed as empty ones for
+    // good. The tiles on the map stay; the rest come once back online.
+    const update = googleMutant._update;
+    googleMutant._update = function (center?: L.LatLng) {
+        if (navigator.onLine) update.call(this, center);
+        else (L.GridLayer.prototype as any)._update.call(this, center);
+    };
+    window.addEventListener("online", () => {
+        if (!googleMutant._map) return;
+        // The redraw below replaces one still waiting for a look's tiles.
+        pendingRedraw?.remove();
+        pendingRedraw = null;
+        // A look changed offline (see GoogleBasemap).
+        applyLook?.(chosenLook());
+        // Tiles copied offline from the ones GoogleMutant kept are empty
+        // too: copy them again, with Google's map following the view.
+        googleMutant.redraw();
+    });
     applyLook = googleLook(
         {
             setMapType: (type) =>
@@ -138,7 +165,9 @@ function redrawWhenLoaded(googleMutant: any) {
             "tilesloaded",
             () => {
                 pendingRedraw = null;
-                googleMutant.redraw();
+                // Google reports its tiles loaded even when they failed
+                // offline; keep the old ones then: the online redraw follows.
+                if (navigator.onLine) googleMutant.redraw();
             },
         );
     });
@@ -154,7 +183,8 @@ export const GoogleBasemap = ({
     active,
     children,
 }: {
-    // Whether Google can show now; if not (offline, failing), only CARTO.
+    // Whether Google can show now; if not (offline before it has drawn,
+    // failing), only CARTO.
     active: boolean;
     children: ReactNode;
 }) => {
@@ -176,11 +206,14 @@ export const GoogleBasemap = ({
                 showGoogle(googleMutant, false);
                 // Before the layer is added: a look changed while it was off
                 // the map clears the tiles GoogleMutant kept, rather than
-                // drawing them first.
-                applyLook?.(chosenLook());
+                // drawing them first. Offline, once back online (googleLayer).
+                if (navigator.onLine) applyLook?.(chosenLook());
                 stopWaiting = whenDrawn(
                     googleMutant,
+                    // Not offline (added again after a first draw): tiles
+                    // copied from those GoogleMutant kept may be empty then.
                     () =>
+                        navigator.onLine &&
                         viewTilesShown(googleMutant, (x, y, z) =>
                             Object.assign(L.point(x, y), { z }),
                         ),
@@ -215,9 +248,12 @@ export const GoogleBasemap = ({
 
     // Only while the layer is on the map: Google draws nothing for a map
     // that isn't on the page, and the load above applies the settings when it
-    // adds the layer.
+    // adds the layer. Nor offline, where Google can't load what a look needs
+    // (its transit layer's code, new tiles): it's applied once back online
+    // (googleLayer).
     useEffect(() => {
-        if (layer && map.hasLayer(layer)) applyLook?.(chosenLook());
+        if (layer && map.hasLayer(layer) && navigator.onLine)
+            applyLook?.(chosenLook());
     }, [map, $googleMapType, $showGoogleTransit, $hideGooglePlaces]);
 
     return active && drawn ? null : children;
