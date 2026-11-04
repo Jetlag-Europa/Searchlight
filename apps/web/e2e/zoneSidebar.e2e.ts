@@ -8,6 +8,7 @@ import { createSession, openBoard, useThrowawaySessions } from "./sessions";
  */
 
 useThrowawaySessions();
+test.skip(({ isMobile }) => isMobile, "the zone sidebar is a sheet on phones");
 
 test("striking out a zone while viewing another keeps the list where it is", async ({
     page,
