@@ -75,10 +75,13 @@ const PIN_FIELD_PAIRS: readonly (readonly [lat: string, lng: string])[] = [
 
 const OMITTED = { omitted: true } as const;
 
-// Keys and coordinates can be one ulp off the original: Prisma can store or
-// read a 17-digit double slightly wrong, and a client then saves that. Such
-// numbers are the same.
-const sameNumber = (a: number, b: number) =>
+/**
+ * Keys and coordinates can be one ulp off the original: Prisma can store or
+ * read a 17-digit double slightly wrong, and a client then saves that. Such
+ * numbers are the same. Well under the step between new question keys
+ * (1e-15) and anything a player enters.
+ */
+export const sameNumber = (a: number, b: number) =>
   a === b || Math.abs(a - b) <= 4e-16 * Math.max(Math.abs(a), Math.abs(b));
 
 const sameQuestionKey = (a: unknown, b: unknown): boolean =>
@@ -194,11 +197,6 @@ function pairQuestions(before: ListedQuestion[], after: ListedQuestion[]): Map<L
     }
   }
   return pairs;
-}
-
-/** The questions kept from one saved list to the next, as [before, after], paired as diffQuestionLists pairs them. */
-export function keptQuestions(prev: unknown, next: unknown): [Record<string, unknown>, Record<string, unknown>][] {
-  return [...pairQuestions(listQuestions(prev), listQuestions(next))].map(([after, before]) => [before.raw, after.raw]);
 }
 
 /** What changed from one saved question list to the next. */

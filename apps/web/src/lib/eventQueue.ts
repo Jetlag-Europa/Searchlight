@@ -162,12 +162,8 @@ function ownVersions(replaced: PendingEvent[]): Questions {
     for (const event of replaced) {
         const payload = event.payloadJson as Partial<QuestionsReplacePayload> | null;
         for (const question of Array.isArray(payload?.own) ? payload.own : []) add(question);
-        // Queued by a build from before, which didn't mark it: it may have
-        // been on its way when that page went away.
-        const legacy = !("sent" in event) && isQuestionsBase(payload?.base);
         const sent =
             event.sent ||
-            legacy ||
             event.status === "failed" ||
             Boolean(payload?.merged);
         if (!sent || !Array.isArray(payload?.questions)) continue;
@@ -442,7 +438,7 @@ export function enqueueEvent(
         localId: crypto.randomUUID(),
         status: "pending",
         createdAt: Date.now(),
-        // Not sent yet (one without the mark is from a build before).
+        // Not sent yet.
         ...(event.type === "questions.replace" ? { sent: false } : {}),
     };
     events.push(newEvent);

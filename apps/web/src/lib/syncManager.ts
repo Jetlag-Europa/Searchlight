@@ -588,7 +588,8 @@ export function retryPendingEvents(sessionId: string): void {
     });
 }
 
-function refreshSyncCounts(sessionId: string): void {
+/** The pending count shown for a session's queue, as it is now. */
+export function refreshSyncCounts(sessionId: string): void {
     const remaining = getPendingEvents(sessionId).length;
     pendingEventCount.set(remaining);
     if (remaining === 0) {

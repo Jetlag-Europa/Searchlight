@@ -24,6 +24,7 @@ import {
     backAs,
     isCopyOf,
     placeRestored,
+    standsFor,
 } from "@/lib/questionUndo";
 import { type Question, questionSchema } from "@/maps/schema";
 
@@ -248,7 +249,11 @@ const parseRemoved = (question: unknown): Question | null => {
  * wouldn't be saved.
  */
 export function restoreBlocked(
-    removed: number | Pick<RemovedQuestion, "key" | "question">,
+    {
+        key,
+        question,
+        order = [],
+    }: Pick<RemovedQuestion, "key" | "question" | "order">,
     {
         held = questionConflicts.get(),
         decisionsPossible = questionDecisionsPossible.get(),
@@ -257,15 +262,15 @@ export function restoreBlocked(
         decisionsPossible?: boolean;
     } = {},
 ): string | null {
-    const { key, question } =
-        typeof removed === "number"
-            ? { key: removed, question: null }
-            : removed;
+    // A copy of it held is another question if the copy, or what it was
+    // copied from, was on the board beside it when it was deleted (as
+    // backAs). Its original held always counts: keeping that would take an
+    // unchanged copy put back meanwhile off the board.
     if (
         held.some(
             (c) =>
                 sameQuestionKey(c.key, key) ||
-                isCopyOf(c.base, key) ||
+                standsFor({ ...(c.base as object), key: c.key }, key, order) ||
                 isCopyOf(question, c.key),
         )
     ) {

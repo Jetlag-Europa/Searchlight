@@ -48,7 +48,7 @@ export interface HistoryLineOptions {
 }
 
 // Typing "2" then "25" into a radius, or nudging a pin, makes one line.
-export const COALESCE_WINDOW_MS = 90_000;
+const COALESCE_WINDOW_MS = 90_000;
 // A save adding (or deleting) this many questions, such as a preset, a copied
 // session's first save or Delete All, is one line.
 const GROUP_AT = 3;
@@ -142,7 +142,7 @@ const pluralQuestions = (count: number) =>
 
 // What a change did, as one phrase per kind of change. The first names the
 // question, the rest say "it": "answered Radius 2: Outside and locked it".
-export function describeChange(
+function describeChange(
     change: QuestionChange,
     label: string,
     defaultLabel: string,
@@ -243,9 +243,7 @@ const isAnswerChange = (change: QuestionChange) => {
 // Several changes to one question in a row, as one: each field from the
 // first change that touched it to the last, even where that left it unset,
 // and only the fields that end up different.
-export function mergeChanges(
-    changes: readonly QuestionChange[],
-): QuestionChange {
+function mergeChanges(changes: readonly QuestionChange[]): QuestionChange {
     const touching = (field: string) =>
         changes.filter((c) => (c.fields ?? []).includes(field));
     const fields = [...new Set(changes.flatMap((c) => c.fields ?? []))];

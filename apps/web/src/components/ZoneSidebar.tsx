@@ -49,6 +49,7 @@ import {
     safeUnion,
     sameZones,
     survivingHidingZones,
+    type ZoneDisplayStyle,
 } from "@/maps/geo-utils";
 import {
     filterZoneIndexes,
@@ -73,6 +74,16 @@ import { ScrollToTop } from "./ui/scroll-to-top";
 import { MENU_ITEM_CLASSNAME } from "./ui/sidebar";
 
 let buttonJustClicked = false;
+
+// The zone list's buttons.
+const ZONE_BUTTON_CLASSNAME =
+    "bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0";
+const ZONE_STYLES: [label: string, style: ZoneDisplayStyle][] = [
+    ["No Display", "no-display"],
+    ["All Stations", "stations"],
+    ["All Zones", "zones"],
+    ["No Overlap", "no-overlap"],
+];
 
 /** Take the zone sidebar's layers off the map. */
 function removeZoneLayers(map: L.Map | null) {
@@ -535,58 +546,21 @@ const ZoneSidebarContent = () => {
                                     </div>
                                 </SidebarMenuItem>
                             )}
-                            {$displayHidingZones && stations.length > 0 && (
-                                <SidebarMenuItem
-                                    className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
-                                    onClick={() => {
-                                        setHidingZoneModeStationID("");
-                                        displayHidingZonesStyle.set(
-                                            "no-display",
-                                        );
-                                    }}
-                                    disabled={$isLoading}
-                                >
-                                    No Display
-                                </SidebarMenuItem>
-                            )}
-                            {$displayHidingZones && stations.length > 0 && (
-                                <SidebarMenuItem
-                                    className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
-                                    onClick={() => {
-                                        setHidingZoneModeStationID("");
-                                        displayHidingZonesStyle.set("stations");
-                                    }}
-                                    disabled={$isLoading}
-                                >
-                                    All Stations
-                                </SidebarMenuItem>
-                            )}
-                            {$displayHidingZones && stations.length > 0 && (
-                                <SidebarMenuItem
-                                    className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
-                                    onClick={() => {
-                                        setHidingZoneModeStationID("");
-                                        displayHidingZonesStyle.set("zones");
-                                    }}
-                                    disabled={$isLoading}
-                                >
-                                    All Zones
-                                </SidebarMenuItem>
-                            )}
-                            {$displayHidingZones && stations.length > 0 && (
-                                <SidebarMenuItem
-                                    className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
-                                    onClick={() => {
-                                        setHidingZoneModeStationID("");
-                                        displayHidingZonesStyle.set(
-                                            "no-overlap",
-                                        );
-                                    }}
-                                    disabled={$isLoading}
-                                >
-                                    No Overlap
-                                </SidebarMenuItem>
-                            )}
+                            {$displayHidingZones &&
+                                stations.length > 0 &&
+                                ZONE_STYLES.map(([label, style]) => (
+                                    <SidebarMenuItem
+                                        key={style}
+                                        className={ZONE_BUTTON_CLASSNAME}
+                                        onClick={() => {
+                                            setHidingZoneModeStationID("");
+                                            displayHidingZonesStyle.set(style);
+                                        }}
+                                        disabled={$isLoading}
+                                    >
+                                        {label}
+                                    </SidebarMenuItem>
+                                ))}
                             {$displayHidingZones && focusedStation && (
                                 <SidebarMenuItem
                                     className={cn(
@@ -627,7 +601,7 @@ const ZoneSidebarContent = () => {
                                     ),
                                 ) && (
                                     <SidebarMenuItem
-                                        className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+                                        className={ZONE_BUTTON_CLASSNAME}
                                         onClick={() => {
                                             setDisabledStations([]);
                                         }}
@@ -638,7 +612,7 @@ const ZoneSidebarContent = () => {
                                 )}
                             {$displayHidingZones && (
                                 <SidebarMenuItem
-                                    className="bg-popover hover:bg-accent relative flex cursor-pointer gap-2 select-none items-center rounded-sm px-2 py-2.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0"
+                                    className={ZONE_BUTTON_CLASSNAME}
                                     onClick={() => {
                                         setDisabledStations(
                                             stations.map(
@@ -733,12 +707,6 @@ const ZoneSidebarContent = () => {
                                                                     ],
                                                                 );
                                                             }
-
-                                                            // Not the list at the tap: the zones
-                                                            // may have been recalculated since.
-                                                            setStations([
-                                                                ...trainStations.get(),
-                                                            ]);
                                                         }, 100);
                                                     }}
                                                     disabled={$isLoading}

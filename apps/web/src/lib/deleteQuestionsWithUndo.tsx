@@ -20,9 +20,9 @@ import {
     asRestored,
     backAs,
     deleteQuestions,
+    placeRemovedQuestions,
     placeRestored,
     type QuestionDeletion,
-    undoDeletion,
 } from "@/lib/questionUndo";
 import {
     cancelPendingQuestionSave,
@@ -157,11 +157,7 @@ export function undoQuestionDeletion(
     ).length;
     if (missing.length === 0) return { placed: [], alreadyBack };
     if (!questionListSentSince(deletion.sessionId, deletedAt)) {
-        const next = undoDeletion(
-            current,
-            { ...deletion, removed: missing },
-            deletion.sessionId,
-        );
+        const next = placeRemovedQuestions(current, deletion.order, missing);
         if (!next) return { placed: [], alreadyBack };
         // The delete's own list may still be waiting: in the debounce, or
         // queued behind a list on its way. Sent, it would take the delete
@@ -286,7 +282,7 @@ export function showRestoredToast(
  * (null when none is), and the labels of those changed since, which stay
  * (as that board calls them).
  */
-export function withoutRestored<T extends { key: number }>(
+function withoutRestored<T extends { key: number }>(
     board: readonly T[],
     restored: readonly { key: number; question: unknown }[],
 ): { next: T[] | null; changed: string[] } {

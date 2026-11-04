@@ -4,8 +4,6 @@ import { Type } from "@sinclair/typebox";
 import {
   BULKY_QUESTION_FIELDS,
   diffQuestionLists,
-  keptQuestions,
-  sameJsonValue,
   stripBulkyData,
   type QuestionHistoryEntry,
   type QuestionHistoryResponse,
@@ -101,103 +99,19 @@ function questionsOf(listText: string | null, sequence: number, origins: WeakMap
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
-// A bulky field as listWithoutBulk reads it.
-const fingerprintOf = (value: unknown): string | undefined =>
-  isRecord(value) && typeof value.fingerprint === "string" ? value.fingerprint : undefined;
-
-// Read as text, by place: Prisma's Json numbers can come back one ulp off,
-// and the questions must be what was stored. Each is the question, or one
-// field of its data; null when it isn't there.
-async function readInFull(
-  sessionId: string,
-  wanted: { origin: Origin; field?: string }[],
-): Promise<(string | null)[]> {
+// Read as text, by place, so the questions are what was stored. Null when
+// it isn't there.
+async function readInFull(sessionId: string, wanted: { origin: Origin }[]): Promise<(string | null)[]> {
   if (wanted.length === 0) return [];
-  const places = JSON.stringify(
-    wanted.map(({ origin, field }, n) => ({ n, sequence: origin.sequence, i: origin.index, field: field ?? null })),
-  );
+  const places = JSON.stringify(wanted.map(({ origin }, n) => ({ n, sequence: origin.sequence, i: origin.index })));
   const rows = await prisma.$queryRaw<{ n: number; value: string | null }[]>`
-    SELECT w.n, (CASE WHEN w.field IS NULL THEN e."payloadJson"->'questions'->w.i->'payloadJson'
-                      ELSE e."payloadJson"->'questions'->w.i->'payloadJson'->'data'->w.field END)::text AS "value"
-    FROM jsonb_to_recordset(${places}::jsonb) AS w(n int, sequence int, i int, field text)
+    SELECT w.n, (e."payloadJson"->'questions'->w.i->'payloadJson')::text AS "value"
+    FROM jsonb_to_recordset(${places}::jsonb) AS w(n int, sequence int, i int)
     JOIN "Event" e ON e."sessionId" = ${sessionId} AND e."sequence" = w.sequence
   `;
   const values: (string | null)[] = wanted.map(() => null);
   for (const row of rows) values[row.n] = row.value;
   return values;
-}
-
-// A bulky field whose text changed from one save to the next can still be
-// the same: a client saving a boundary it read back a unit in the last place
-// off, which the diff allows for. Such fields are read in full and compared;
-// same ones are given the same fingerprint, so the diff sees no change.
-async function settleFingerprints(
-  sessionId: string,
-  lists: unknown[][],
-  origins: WeakMap<object, Origin>,
-): Promise<void> {
-  const fingerprints = (question: Record<string, unknown>) => {
-    const data = isRecord(question.data) ? question.data : {};
-    return BULKY_QUESTION_FIELDS.map((field) => fingerprintOf(data[field]));
-  };
-
-  // Changed between saves, for a question the diff takes as the same one.
-  const pairs: [string, string][] = [];
-  // Where to read each fingerprint's text: the first field seen with it.
-  const where = new Map<string, { origin: Origin; field: string }>();
-  const note = (fingerprint: string, question: object, field: string) => {
-    const origin = origins.get(question);
-    if (origin && !where.has(fingerprint)) where.set(fingerprint, { origin, field });
-  };
-  for (let i = 1; i < lists.length; i++) {
-    for (const [before, after] of keptQuestions(lists[i - 1], lists[i])) {
-      const was = fingerprints(before);
-      fingerprints(after).forEach((fingerprint, f) => {
-        const old = was[f];
-        if (!fingerprint || !old || old === fingerprint) return;
-        pairs.push([old, fingerprint]);
-        note(old, before, BULKY_QUESTION_FIELDS[f]);
-        note(fingerprint, after, BULKY_QUESTION_FIELDS[f]);
-      });
-    }
-  }
-  if (pairs.length === 0) return;
-
-  const read = [...where.keys()];
-  const texts = await readInFull(
-    sessionId,
-    read.map((fingerprint) => where.get(fingerprint)!),
-  );
-  const full = new Map(read.map((fingerprint, i) => [fingerprint, texts[i]]));
-  const parsed = new Map<string, unknown>();
-  const value = (fingerprint: string) => {
-    if (!parsed.has(fingerprint)) parsed.set(fingerprint, JSON.parse(full.get(fingerprint) ?? "null"));
-    return parsed.get(fingerprint);
-  };
-  // Same ones end up under one fingerprint, also along a chain of saves.
-  // Each is compared with the one saved before it, as the diff does: drift
-  // that adds up over several saves is no change at any of them.
-  const same = new Map<string, string>();
-  const settled = (fingerprint: string): string => {
-    const next = same.get(fingerprint);
-    return next === undefined ? fingerprint : settled(next);
-  };
-  for (const [before, after] of pairs) {
-    const a = settled(before);
-    const b = settled(after);
-    if (a === b || full.get(before) == null || full.get(after) == null) continue;
-    if (sameJsonValue(value(before), value(after))) same.set(b, a);
-  }
-  if (same.size === 0) return;
-  for (const question of lists.flat()) {
-    if (!isRecord(question) || !isRecord(question.data)) continue;
-    const data = question.data;
-    fingerprints(question).forEach((fingerprint, f) => {
-      if (fingerprint && settled(fingerprint) !== fingerprint) {
-        data[BULKY_QUESTION_FIELDS[f]] = { fingerprint: settled(fingerprint) };
-      }
-    });
-  }
 }
 
 const changeSchema = Type.Object({
@@ -277,11 +191,6 @@ async function historyEntries(
   const listOf = (save: ReplaceRow) => questionsOf(read.get(save.sequence) ?? null, save.sequence, origins);
   const first = (baseline && listOf(baseline)) || [];
   const lists = saves.map(listOf);
-  await settleFingerprints(
-    sessionId,
-    [first, ...lists.filter((list): list is unknown[] => list !== null)],
-    origins,
-  );
 
   let previous = first;
   const entries: QuestionHistoryEntry[] = [];

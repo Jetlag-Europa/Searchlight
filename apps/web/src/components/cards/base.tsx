@@ -45,7 +45,6 @@ import { cn } from "@/lib/utils";
 export const QuestionCard = ({
     children,
     questionKey,
-    className,
     label,
     sub,
     name,
@@ -59,7 +58,6 @@ export const QuestionCard = ({
 }: {
     children: React.ReactNode;
     questionKey: number;
-    className?: string;
     label?: string;
     sub?: string;
     name?: string;
@@ -89,7 +87,7 @@ export const QuestionCard = ({
     return (
         <>
             <SidebarGroup
-                className={cn(className, enabled === false && "opacity-50")}
+                className={cn(enabled === false && "opacity-50")}
                 // For showing the card after a Restore (showQuestionCard).
                 data-question-key={questionKey}
             >

@@ -21,7 +21,6 @@ import {
     pendingEventCount,
     planningModeEnabled,
     questions,
-    syncStatus,
 } from "@/lib/context";
 import {
     type CachedSessionState,
@@ -40,18 +39,13 @@ import { readError } from "@/lib/sessionUnavailable";
 import { sayStorageFull } from "@/lib/storageFull";
 import {
     latestSavedQuestionsSequence,
+    refreshSyncCounts,
     sendPendingEvent,
 } from "@/lib/syncManager";
 import { randomUUID } from "@/lib/utils";
 import type { Questions } from "@/maps/schema";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-function refreshSyncCounts(sessionId: string): void {
-    const count = getPendingEvents(sessionId).length;
-    pendingEventCount.set(count);
-    if (count === 0) syncStatus.set("synced");
-}
 
 /**
  * Queue an edit durably. Storage too full for it even after dropping the

@@ -75,7 +75,7 @@ import {
 } from "./ui/sidebar";
 import { UnitSelect } from "./UnitSelect";
 
-export const OptionDrawers = ({ className }: { className?: string }) => {
+export const OptionDrawers = () => {
     useStore(triggerLocalRefresh);
     const $defaultCustomQuestions = useStore(defaultCustomQuestions);
     const $allowGooglePlusCodes = useStore(allowGooglePlusCodes);
@@ -111,7 +111,7 @@ export const OptionDrawers = ({ className }: { className?: string }) => {
     const { readPaste, pasteDialog } = usePasteText();
 
     return (
-        <div className={cn("flex flex-col items-end gap-2", className)}>
+        <div className="flex flex-col items-end gap-2">
             {/* Always-visible All Zones button */}
             <Button
                 className="w-32 shadow-md"

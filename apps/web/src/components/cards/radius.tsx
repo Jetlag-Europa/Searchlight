@@ -36,12 +36,10 @@ export const RadiusQuestionComponent = ({
     data,
     questionKey,
     sub,
-    className,
 }: {
     data: RadiusQuestion;
     questionKey: number;
     sub?: string;
-    className?: string;
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
@@ -67,7 +65,6 @@ export const RadiusQuestionComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={sub}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified

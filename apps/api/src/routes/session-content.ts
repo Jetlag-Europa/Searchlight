@@ -6,6 +6,7 @@ import { broadcast, toEventRecord } from "../lib/broadcaster.js";
 import { notFound } from "../lib/http-errors.js";
 import { resolveSessionAccess, resolveSessionWriter } from "../lib/session-access.js";
 import type { Event, Prisma, Stroke } from "@prisma/client";
+import { sameNumber } from "@searchlight/shared";
 
 function conflict(msg = "Conflict", code?: string) {
   return Object.assign(new Error(msg), { statusCode: 409, ...(code ? { code } : {}) });
@@ -27,16 +28,10 @@ const QUESTION_CHANGES_MAX_KEYS = 50;
 // " 1"). Parsing it gives the same double the client has.
 const QUERY_NUMBER = "-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
 
-// The same tolerance the client's merge (questionMerge.ts) knows a question
-// by: payloads saved before the API wrote them exactly can hold a key one
-// unit in the last place off.
-const KEY_RELATIVE_TOLERANCE = 4e-16;
-
+// As the client's merge knows a question: payloads saved before the API
+// wrote them exactly can hold a key one unit in the last place off.
 function isRequestedKey(key: unknown, keys: number[]): boolean {
-  if (typeof key !== "number") return false;
-  return keys.some(
-    (k) => k === key || Math.abs(k - key) <= KEY_RELATIVE_TOLERANCE * Math.max(Math.abs(k), Math.abs(key)),
-  );
+  return typeof key === "number" && keys.some((k) => sameNumber(k, key));
 }
 
 // Prisma's query engine reads a Json value's numbers inexactly: a double

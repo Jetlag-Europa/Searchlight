@@ -387,19 +387,12 @@ async function loadGraph() {
         questionUndo: "@/lib/questionUndo",
         undo: "@/lib/deleteQuestionsWithUndo",
         lines: "@/lib/historyLines",
+        conflicts: "@/lib/questionConflicts",
     };
     for (const [name, path] of Object.entries(names))
         g[name] = await import(/* @vite-ignore */ path);
-    try {
-        const path = "@/lib/questionConflicts";
-        g.conflicts = await import(/* @vite-ignore */ path);
-    } catch {
-        // The `pwa` branch: no conflicts module.
-        g.conflicts = null;
-    }
     return g;
 }
-const VARIANT = () => (clients[0]?.g.conflicts ? "branch" : "pwa");
 
 // ───────────────────────── a run ─────────────────────────
 type Mode = "owned" | "shared";
@@ -558,7 +551,7 @@ async function setup() {
             activeSession.verifiedUserId.set(c.userId);
             activeSession.offlineUserId.set(null);
             activeSession.activeSessionId.set(sid);
-            conflicts?.setQuestionDecisionsPossible(true);
+            conflicts.setQuestionDecisionsPossible(true);
             eventQueue.setCachedSession({
                 sessionId: sid,
                 userId: c.userId,
@@ -686,7 +679,6 @@ async function applyUser(
         return `add ${key}:${label}`;
     }
     if (a.kind === "resolve") {
-        if (!conflicts) return null;
         const held = [...(conflicts.questionConflicts.get() as Any[])].sort(
             (x, y) => x.key - y.key,
         );
@@ -979,7 +971,6 @@ function enabled(
             out.push([0.8, { t: "user", c: i, kind: "delete", pick: rng() }]);
             if (
                 mode === "shared" &&
-                c.g.conflicts &&
                 (c.g.conflicts.questionConflicts.get() as Any[]).length > 0
             ) {
                 out.push([

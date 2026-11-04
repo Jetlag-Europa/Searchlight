@@ -947,19 +947,14 @@ function SessionChip({
     session,
     readOnly,
     onChangeSession,
-    inert,
 }: {
     session: GameSessionSummary;
     readOnly: boolean;
     onChangeSession: (event: React.MouseEvent<HTMLElement>) => void;
-    inert: boolean;
 }) {
     return (
         <StatusChip slot="session">
-            <div
-                className="flex w-max items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm"
-                inert={inert}
-            >
+            <div className="flex w-max items-center gap-2 bg-background/90 border border-border rounded-full px-3 py-1 text-xs shadow-sm backdrop-blur-sm">
                 <span
                     // Shorter beside the badge, to fit a 360 px phone.
                     className={`font-medium truncate ${
@@ -1072,9 +1067,9 @@ export function SessionManager() {
         restorePickerFocusRef.current = true;
         setShowPicker(false);
     }, []);
-    // The board behind the picker is inert, and so is the user chip (it reads
-    // sessionPickerOpen). Nor is the board played on while a load replaces
-    // it: what was typed meanwhile would be replaced too, and not saved.
+    // The board behind the picker is inert, with the status chips in it. Nor
+    // is the board played on while a load replaces it: what was typed
+    // meanwhile would be replaced too, and not saved.
     // Before focus returns to the board, below.
     useEffect(() => {
         const board = document.getElementById("map-board");
@@ -1211,31 +1206,11 @@ export function SessionManager() {
         // Consumed by the first run that may save: the next change is new.
         const loaded = loadedHiderModeRef.current;
         loadedHiderModeRef.current = NOT_LOADED;
-        if (currentHiderMode === loaded) {
-            console.info("[searchlight:session] hider save suppressed by ref", {
-                sessionId,
-                hiderMode: currentHiderMode,
-            });
-            return;
-        }
-        if (shouldSuppressHiderSave(currentHiderMode)) {
-            console.info(
-                "[searchlight:session] hider save suppressed — set by the server",
-                { sessionId, hiderMode: currentHiderMode },
-            );
-            return;
-        }
-        if (isLoadingSession()) {
-            console.info(
-                "[searchlight:session] hider save suppressed — session is loading",
-            );
-            return;
-        }
+        if (currentHiderMode === loaded) return;
+        // Set by the server.
+        if (shouldSuppressHiderSave(currentHiderMode)) return;
+        if (isLoadingSession()) return;
         if (sessionReadOnly.get()) return;
-        console.info("[searchlight:session] queuing hider save", {
-            sessionId,
-            hiderMode: currentHiderMode,
-        });
         saveHiderModeToServer(sessionId, currentHiderMode);
     }, [sessionId, authUserId, currentHiderMode]);
 
@@ -1245,31 +1220,11 @@ export function SessionManager() {
         // Consumed by the first run that may save, as for the hider.
         const loaded = loadedPlanningModeRef.current;
         loadedPlanningModeRef.current = NOT_LOADED;
-        if (currentPlanningMode === loaded) {
-            console.info(
-                "[searchlight:session] planning mode save suppressed by ref",
-                { sessionId, planningModeEnabled: currentPlanningMode },
-            );
-            return;
-        }
-        if (shouldSuppressPlanningModeSave(currentPlanningMode)) {
-            console.info(
-                "[searchlight:session] planning mode save suppressed — set by the server",
-                { sessionId, planningModeEnabled: currentPlanningMode },
-            );
-            return;
-        }
-        if (isLoadingSession()) {
-            console.info(
-                "[searchlight:session] planning mode save suppressed — session is loading",
-            );
-            return;
-        }
+        if (currentPlanningMode === loaded) return;
+        // Set by the server.
+        if (shouldSuppressPlanningModeSave(currentPlanningMode)) return;
+        if (isLoadingSession()) return;
         if (sessionReadOnly.get()) return;
-        console.info("[searchlight:session] queuing planning mode save", {
-            sessionId,
-            planningModeEnabled: currentPlanningMode,
-        });
         savePlanningModeToServer(sessionId, currentPlanningMode);
     }, [sessionId, authUserId, currentPlanningMode]);
 
@@ -2163,7 +2118,6 @@ export function SessionManager() {
                     session={session}
                     readOnly={readOnly}
                     onChangeSession={openPicker}
-                    inert={showPicker}
                 />
             )}
             <OtherTabNotice />
