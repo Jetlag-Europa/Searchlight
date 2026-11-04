@@ -199,11 +199,6 @@ function pairQuestions(before: ListedQuestion[], after: ListedQuestion[]): Map<L
   return pairs;
 }
 
-/** The questions kept from one saved list to the next, as [before, after], paired as diffQuestionLists pairs them. */
-export function keptQuestions(prev: unknown, next: unknown): [Record<string, unknown>, Record<string, unknown>][] {
-  return [...pairQuestions(listQuestions(prev), listQuestions(next))].map(([after, before]) => [before.raw, after.raw]);
-}
-
 /** What changed from one saved question list to the next. */
 export function diffQuestionLists(prev: unknown, next: unknown): QuestionListDiff {
   const before = listQuestions(prev);
