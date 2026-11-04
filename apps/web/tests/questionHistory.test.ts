@@ -608,21 +608,22 @@ describe("what a deleted question became", () => {
                 held: [conflict],
                 decisionsPossible: true,
             });
-        // a deleted with b held, or a copy of b; b deleted with a held.
+        // a deleted with b held, or a copy of b.
         const deletedA = { key: a.key, question: a, order: both };
-        const deletedB = { key: b.key, question: b, order: both };
         expect(held(deletedA, { key: b.key, base: b })).toBeNull();
         expect(
             held(deletedA, { key: 0.7, base: asRestored(b, 0.7) }),
         ).toBeNull();
-        expect(held(deletedB, { key: a.key, base: a })).toBeNull();
-        // Deleted alone, they wait: b stands for a then, and a for b.
+        // Deleted alone, a waits: b stands for it then.
         expect(
             held({ ...deletedA, order: [a.key] }, { key: b.key, base: b }),
         ).toBe("Needs a decision first");
-        expect(
-            held({ ...deletedB, order: [b.key] }, { key: a.key, base: a }),
-        ).toBe("Needs a decision first");
+        // b deleted with a held waits even beside it: keeping a would take
+        // an unchanged copy put back meanwhile off the board.
+        const deletedB = { key: b.key, question: b, order: both };
+        expect(held(deletedB, { key: a.key, base: a })).toBe(
+            "Needs a decision first",
+        );
     });
 
     it("tells apart two questions alike, each restored on its own", () => {

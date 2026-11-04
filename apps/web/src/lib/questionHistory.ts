@@ -262,15 +262,16 @@ export function restoreBlocked(
         decisionsPossible?: boolean;
     } = {},
 ): string | null {
-    // A question on the board beside it when it was deleted is another
-    // one, and so is a copy of that (as backAs).
+    // A copy of it held is another question if the copy, or what it was
+    // copied from, was on the board beside it when it was deleted (as
+    // backAs). Its original held always counts: keeping that would take an
+    // unchanged copy put back meanwhile off the board.
     if (
         held.some(
             (c) =>
                 sameQuestionKey(c.key, key) ||
                 standsFor({ ...(c.base as object), key: c.key }, key, order) ||
-                (isCopyOf(question, c.key) &&
-                    !order.some((k) => sameQuestionKey(k, c.key))),
+                isCopyOf(question, c.key),
         )
     ) {
         return "Needs a decision first";
