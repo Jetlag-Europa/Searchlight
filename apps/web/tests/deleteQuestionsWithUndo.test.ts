@@ -106,6 +106,14 @@ describe("undoing a delete", () => {
         expect(keys()).toEqual([1, 2, 3]);
     });
 
+    test("does nothing once another session is active", () => {
+        board(q(1, "a"), q(2, "b"));
+        const pending = deleteQuestionsWithUndo([1])!;
+        activeSessionId.set(`undo-${++sid}`);
+        expect(undoQuestionDeletion(pending)).toBeNull();
+        expect(keys()).toEqual([2]);
+    });
+
     test("puts the undone board in place of the delete's list still waiting", () => {
         board(q(1, "a"), q(2, "b"), q(3, "c"));
         const sessionId = activeSessionId.get();

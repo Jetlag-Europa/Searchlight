@@ -26,17 +26,6 @@ export const deleteQuestions = <T extends { key: number }>(
     },
 });
 
-// The list with the deleted questions back, or null when there is nothing to
-// restore: the session changed, or every question is back already.
-export const undoDeletion = <T extends { key: number }>(
-    current: readonly T[],
-    deletion: QuestionDeletion<T>,
-    sessionId: string,
-): T[] | null =>
-    sessionId === deletion.sessionId
-        ? placeRemovedQuestions(current, deletion.order, deletion.removed)
-        : null;
-
 // The list with removed questions put back, or null when they are all there
 // already. Each goes right below the nearest question that was above it in
 // `order` and is still there (or at the top), not at its old index: questions
@@ -112,7 +101,7 @@ export function asRestored<T extends { key: number; data: object }>(
 
 // Whether `q` is the question with `key` or a copy of it, and not one of
 // another question in `beside` (on the board beside it) or a copy of that.
-function standsFor(
+export function standsFor(
     q: { key: number },
     key: number,
     beside: readonly number[],

@@ -595,6 +595,36 @@ describe("what a deleted question became", () => {
         expect(held({ key: 0.8, base: radar(0.8) })).toBeNull();
     });
 
+    it("doesn't wait for a decision over another question that was beside it", () => {
+        // b, a copy of a, was on the board beside it, edited apart.
+        const a = radar(0.5);
+        const b = asRestored(moved(a, 2), 0.6);
+        const both = [a.key, b.key];
+        const held = (
+            removal: { key: number; question: unknown; order: number[] },
+            conflict: { key: number; base: unknown },
+        ) =>
+            restoreBlocked(removal, {
+                held: [conflict],
+                decisionsPossible: true,
+            });
+        // a deleted with b held, or a copy of b; b deleted with a held.
+        const deletedA = { key: a.key, question: a, order: both };
+        const deletedB = { key: b.key, question: b, order: both };
+        expect(held(deletedA, { key: b.key, base: b })).toBeNull();
+        expect(
+            held(deletedA, { key: 0.7, base: asRestored(b, 0.7) }),
+        ).toBeNull();
+        expect(held(deletedB, { key: a.key, base: a })).toBeNull();
+        // Deleted alone, they wait: b stands for a then, and a for b.
+        expect(
+            held({ ...deletedA, order: [a.key] }, { key: b.key, base: b }),
+        ).toBe("Needs a decision first");
+        expect(
+            held({ ...deletedB, order: [b.key] }, { key: a.key, base: a }),
+        ).toBe("Needs a decision first");
+    });
+
     it("tells apart two questions alike, each restored on its own", () => {
         // Two identical questions, deleted one after the other.
         const p = radar(0.61, 6);
@@ -732,7 +762,10 @@ describe("when Restore waits", () => {
 
     it("waits for a decision over that question, and for an editable board", () => {
         const blocked = (held: { key: number }[], decisionsPossible: boolean) =>
-            restoreBlocked(0.5, { held, decisionsPossible });
+            restoreBlocked(
+                { key: 0.5, question: null },
+                { held, decisionsPossible },
+            );
         expect(blocked([], true)).toBeNull();
         // Held under a key saved one ulp off.
         expect(blocked([{ key: nextUp(0.5) }], true)).toBe(
@@ -761,7 +794,7 @@ describe("when Restore waits", () => {
         expect(questions.get()).toEqual([]);
         // Once it is, it goes back.
         setQuestionDecisionsPossible(true);
-        expect(restoreBlocked(0.5)).toBeNull();
+        expect(restoreBlocked({ key: 0.5, question: null })).toBeNull();
         restoreFromHistory({ order: [0.5] }, [target]);
         expect(questions.get().map(latOf)).toEqual([50]);
     });

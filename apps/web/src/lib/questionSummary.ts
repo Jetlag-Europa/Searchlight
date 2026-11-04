@@ -4,7 +4,11 @@
 // unreadable falls back to the question's type, and nothing throws.
 
 import { sameQuestion, sameQuestionKey } from "@/lib/questionMerge";
-import { defaultQuestionLabel, questionName } from "@/lib/questionNames";
+import {
+    defaultQuestionLabel,
+    questionName,
+    TYPE_LABELS,
+} from "@/lib/questionNames";
 import { formatDistance } from "@/lib/utils";
 import { formatMultiplier, validMultiplier } from "@/lib/zoneSize";
 
@@ -18,16 +22,6 @@ export interface SummaryOptions {
     // The player's unit, for how far a pin moved.
     unit?: DistanceUnit;
 }
-
-// The same names as the question cards' labels (questionNames.ts).
-const TYPE_LABELS: Record<string, string> = {
-    radius: "Radius",
-    thermometer: "Thermometer",
-    tentacles: "Tentacles",
-    matching: "Matching",
-    measuring: "Measuring",
-    "zone-size": "Zone Size",
-};
 
 const UNIT_ABBREVIATIONS: Record<DistanceUnit, string> = {
     meters: "m",
@@ -59,7 +53,7 @@ const typeId = (question: unknown): string | undefined =>
 /** "Radius", or "Question" for a type this build doesn't know. */
 export function questionTypeLabel(question: unknown): string {
     const id = typeId(question);
-    return (id && TYPE_LABELS[id]) || "Question";
+    return (id && TYPE_LABELS[id as keyof typeof TYPE_LABELS]) || "Question";
 }
 
 // "2 km", "500 m", "1.5 mi", as the radius cards' quick picks write them. A
@@ -403,15 +397,12 @@ export function conflictQuestionLabel(
             const type = questionTypeLabel(conflict.theirs ?? conflict.mine);
             return { name, label: `${type} (not on the map)` };
         }
-        const label =
-            typeId(onBoard) && TYPE_LABELS[typeId(onBoard)!]
-                ? defaultQuestionLabel(
-                      board.filter(isFields) as unknown as Parameters<
-                          typeof defaultQuestionLabel
-                      >[0],
-                      keyOf(onBoard)!,
-                  )
-                : "";
+        const label = defaultQuestionLabel(
+            board.filter(isFields) as unknown as Parameters<
+                typeof defaultQuestionLabel
+            >[0],
+            keyOf(onBoard)!,
+        );
         return { name, label: label || questionTypeLabel(onBoard) };
     } catch {
         return { label: questionTypeLabel(conflict.theirs ?? conflict.mine) };

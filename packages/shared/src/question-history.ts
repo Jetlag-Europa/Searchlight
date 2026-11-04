@@ -75,10 +75,13 @@ const PIN_FIELD_PAIRS: readonly (readonly [lat: string, lng: string])[] = [
 
 const OMITTED = { omitted: true } as const;
 
-// Keys and coordinates can be one ulp off the original: Prisma can store or
-// read a 17-digit double slightly wrong, and a client then saves that. Such
-// numbers are the same.
-const sameNumber = (a: number, b: number) =>
+/**
+ * Keys and coordinates can be one ulp off the original: Prisma can store or
+ * read a 17-digit double slightly wrong, and a client then saves that. Such
+ * numbers are the same. Well under the step between new question keys
+ * (1e-15) and anything a player enters.
+ */
+export const sameNumber = (a: number, b: number) =>
   a === b || Math.abs(a - b) <= 4e-16 * Math.max(Math.abs(a), Math.abs(b));
 
 const sameQuestionKey = (a: unknown, b: unknown): boolean =>

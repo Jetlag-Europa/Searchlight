@@ -5,13 +5,17 @@ import {
     deleteQuestions,
     placeRemovedQuestions,
     placeRestored,
-    undoDeletion,
+    type QuestionDeletion,
     withoutCopiesOf,
 } from "@/lib/questionUndo";
 import { questionSchema } from "@/maps/schema";
 
 const q = (key: number, label = String(key)) => ({ key, label });
 const keys = (list: { key: number }[]) => list.map((x) => x.key);
+const undoDeletion = <T extends { key: number }>(
+    current: readonly T[],
+    deletion: QuestionDeletion<T>,
+) => placeRemovedQuestions(current, deletion.order, deletion.removed);
 
 describe("undoing a question delete", () => {
     it("puts a deleted question back where it was", () => {
@@ -22,7 +26,7 @@ describe("undoing a question delete", () => {
             "s1",
         );
         expect(keys(remaining)).toEqual([1, 3]);
-        expect(undoDeletion(remaining, deletion, "s1")).toEqual(list);
+        expect(undoDeletion(remaining, deletion)).toEqual(list);
     });
 
     it("restores Delete All in the original order", () => {
@@ -33,13 +37,13 @@ describe("undoing a question delete", () => {
             "s1",
         );
         expect(remaining).toEqual([]);
-        expect(undoDeletion(remaining, deletion, "s1")).toEqual(list);
+        expect(undoDeletion(remaining, deletion)).toEqual(list);
         // Inserted by ascending index, whatever order they were stored in.
         const shuffled = {
             ...deletion,
             removed: [...deletion.removed].reverse(),
         };
-        expect(keys(undoDeletion([], shuffled, "s1")!)).toEqual([1, 2, 3, 4]);
+        expect(keys(undoDeletion([], shuffled)!)).toEqual([1, 2, 3, 4]);
     });
 
     it("keeps changes made to the list meanwhile", () => {
@@ -51,7 +55,7 @@ describe("undoing a question delete", () => {
         // A teammate renamed 1, deleted 3 and added 5.
         const current = [q(1, "renamed"), q(5)];
         expect(keys(remaining)).toEqual([1, 3]);
-        const restored = undoDeletion(current, deletion, "s1")!;
+        const restored = undoDeletion(current, deletion)!;
         // 4 goes below 2, the nearest question above it that is still there.
         expect(keys(restored)).toEqual([1, 2, 4, 5]);
         expect(restored[0].label).toBe("renamed");
@@ -65,21 +69,17 @@ describe("undoing a question delete", () => {
         );
         // A teammate deleted 1 and 2: index 3 is now past 5.
         const current = remaining.filter((x) => x.key > 2);
-        expect(keys(undoDeletion(current, deletion, "s1")!)).toEqual([3, 4, 5]);
+        expect(keys(undoDeletion(current, deletion)!)).toEqual([3, 4, 5]);
     });
 
     it("keeps the order when deletes are undone oldest first", () => {
         const first = deleteQuestions([q(1), q(2), q(3)], new Set([2]), "s1");
         const second = deleteQuestions(first.remaining, new Set([1]), "s1");
-        const afterFirstUndo = undoDeletion(
-            second.remaining,
-            first.deletion,
-            "s1",
-        )!;
+        const afterFirstUndo = undoDeletion(second.remaining, first.deletion)!;
         expect(keys(afterFirstUndo)).toEqual([2, 3]);
-        expect(
-            keys(undoDeletion(afterFirstUndo, second.deletion, "s1")!),
-        ).toEqual([1, 2, 3]);
+        expect(keys(undoDeletion(afterFirstUndo, second.deletion)!)).toEqual([
+            1, 2, 3,
+        ]);
     });
 
     it("puts a question at the top when nothing above it is left", () => {
@@ -88,7 +88,7 @@ describe("undoing a question delete", () => {
             new Set([3]),
             "s1",
         );
-        expect(keys(undoDeletion([q(4)], deletion, "s1")!)).toEqual([3, 4]);
+        expect(keys(undoDeletion([q(4)], deletion)!)).toEqual([3, 4]);
     });
 
     it("skips questions that are back already", () => {
@@ -99,20 +99,10 @@ describe("undoing a question delete", () => {
         );
         // Another tab's Undo, synced: 3 is back.
         const current = [...remaining, q(3, "theirs")];
-        const restored = undoDeletion(current, deletion, "s1")!;
+        const restored = undoDeletion(current, deletion)!;
         expect(keys(restored)).toEqual([1, 2, 3]);
         expect(restored[2].label).toBe("theirs");
-        expect(undoDeletion(restored, deletion, "s1")).toBeNull();
-    });
-
-    it("does nothing once another session is active", () => {
-        const { remaining, deletion } = deleteQuestions(
-            [q(1), q(2)],
-            new Set([1]),
-            "s1",
-        );
-        expect(undoDeletion(remaining, deletion, "s2")).toBeNull();
-        expect(undoDeletion(remaining, deletion, "")).toBeNull();
+        expect(undoDeletion(restored, deletion)).toBeNull();
     });
 });
 
@@ -220,6 +210,6 @@ describe("putting deleted questions back with drifted keys", () => {
         );
         // Restored from History meanwhile, and read back one ulp off.
         const current = [q(nextUp(A)), ...remaining];
-        expect(undoDeletion(current, deletion, "s1")).toBeNull();
+        expect(undoDeletion(current, deletion)).toBeNull();
     });
 });
