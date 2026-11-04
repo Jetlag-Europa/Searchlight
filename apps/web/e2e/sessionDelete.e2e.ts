@@ -250,6 +250,11 @@ test.describe("deleting a session on a phone", () => {
             await expect(
                 teammate.getByText(other.name, { exact: true }),
             ).toBeVisible({ timeout: 30_000 });
+            // The confirm doesn't come back with the sheet.
+            await teammate.locator('[data-sidebar="trigger"]').first().tap();
+            await expect(teammate.locator(sheet)).toBeVisible();
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
         } finally {
             await teammateContext.close();
         }
@@ -431,5 +436,135 @@ test.describe("deleting a session with a mouse", () => {
         await confirmDelete(page, deleteDialog(page, gone), "click");
         await expect(del).toHaveCount(0);
         await expect(picker(page).getByText(/Failed to delete/)).toHaveCount(0);
+    });
+
+    test("a teammate with the Delete All confirm open can pick another session", async ({
+        request,
+        browser,
+    }) => {
+        test.slow();
+        const shared = await createSession(request, "Desk");
+        const other = await createSession(request, "Next");
+        const teammateContext = await browser.newContext(desktop);
+        // The Delete All confirm sounds the alarm with this on.
+        await teammateContext.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        try {
+            const teammate = await teammateContext.newPage();
+            await testLogin(teammate, OTHER_USER_ID);
+            await join(request, teammate, shared.id);
+            await join(request, teammate, other.id);
+            await openBoard(teammate, shared);
+            await teammate
+                .getByRole("button", { name: "Delete All Questions" })
+                .click();
+            const confirm = teammate.getByRole("alertdialog");
+            const alarm = teammate.locator(".warning-flash");
+            await expect(confirm).toBeVisible();
+            await expect(alarm).toHaveCount(1);
+
+            const deleted = await request.delete(
+                `${API_BASE}/sessions/${shared.id}`,
+            );
+            expect(deleted.ok()).toBe(true);
+            // The picker opening closes the confirm, and the alarm stops: left
+            // open, it would stay over the next session's board and delete
+            // that session's questions.
+            await expect(picker(teammate)).toBeVisible({ timeout: 60_000 });
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
+            await expectBodyTappable(teammate);
+            await picker(teammate)
+                .getByRole("button", { name: new RegExp(`^${other.name}`) })
+                .click();
+            await expect(picker(teammate)).toBeHidden();
+            await expect(
+                teammate.getByText(other.name, { exact: true }),
+            ).toBeVisible({ timeout: 30_000 });
+            await expect(confirm).toBeHidden();
+            await expect(alarm).toHaveCount(0);
+        } finally {
+            await teammateContext.close();
+        }
+    });
+
+    test("the Delete All confirm closes when the window turns phone-sized", async ({
+        page,
+        request,
+    }) => {
+        const session = await createSession(request, "Turn");
+        // The Delete All confirm sounds the alarm with this on.
+        await page.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        await testLogin(page, OTHER_USER_ID);
+        await join(request, page, session.id);
+        await openBoard(page, session);
+        await page.getByRole("button", { name: "Delete All Questions" }).click();
+        const confirm = page.locator('[role="alertdialog"]');
+        const alarm = page.locator(".warning-flash");
+        await expect(confirm).toBeVisible();
+        await expect(alarm).toHaveCount(1);
+
+        // A tablet or phone turned upright: the sidebar becomes a sheet, and
+        // takes the confirm away. The alarm stops, and the confirm doesn't
+        // come back when the sheet is opened.
+        await page.setViewportSize({ width: 400, height: 800 });
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+        await page.locator('[data-sidebar="trigger"]').first().click();
+        await expect(
+            page.locator('[data-mobile="true"][data-sidebar="sidebar"]'),
+        ).toBeVisible();
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+    });
+
+    test("the Delete All confirm doesn't come back when a spectator may edit again", async ({
+        page,
+        request,
+    }) => {
+        test.slow();
+        const session = await createSession(request, "Role");
+        // The Delete All confirm sounds the alarm with this on.
+        await page.addInitScript(() =>
+            localStorage.setItem("warningAlarm2", "true"),
+        );
+        await testLogin(page, OTHER_USER_ID);
+        await join(request, page, session.id);
+        await openBoard(page, session);
+        await page
+            .getByRole("button", { name: "Delete All Questions" })
+            .click();
+        const confirm = page.locator('[role="alertdialog"]');
+        const alarm = page.locator(".warning-flash");
+        await expect(confirm).toBeVisible();
+        await expect(alarm).toHaveCount(1);
+        const setRole = async (role: string) => {
+            const res = await request.patch(
+                `${API_BASE}/sessions/${session.id}/participants/${OTHER_USER_ID}`,
+                { data: { role } },
+            );
+            expect(res.ok()).toBe(true);
+        };
+
+        // Made a spectator: the button goes, and the confirm and alarm with it.
+        await setRole("viewer");
+        await expect(page.getByText(/You're spectating/)).toBeVisible({
+            timeout: 30_000,
+        });
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
+        // Allowed to edit again: the button is back, the old confirm isn't.
+        await setRole("member");
+        await expect(page.getByText(/You're spectating/)).toBeHidden({
+            timeout: 30_000,
+        });
+        await expect(
+            page.getByRole("button", { name: "Delete All Questions" }),
+        ).toBeVisible();
+        await expect(confirm).toBeHidden();
+        await expect(alarm).toHaveCount(0);
     });
 });

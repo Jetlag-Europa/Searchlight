@@ -29,6 +29,7 @@ import {
     isLoading,
     questions,
     save,
+    sessionPickerOpen,
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
@@ -50,12 +51,14 @@ export const QuestionSidebar = () => {
     const $isLoading = useStore(isLoading);
     const $warningAlarm = useStore(warningAlarm);
     const $readOnly = useStore(sessionReadOnly);
+    const [confirmOpen, setConfirmOpen] = useState(false);
     const [alarmActive, setAlarmActive] = useState(false);
     // History is only fetched while it's shown.
     const tab = useStore(questionSidebarTab);
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const cardToShow = useStore(questionCardToShow);
     const sidebar = useStore(SidebarContext);
+    const pickerOpen = useStore(sessionPickerOpen);
     // State, not a ref: a phone's sheet draws its content only once open,
     // a moment after it says so, and the card is looked for again then.
     const [content, setContent] = useState<HTMLDivElement | null>(null);
@@ -109,11 +112,18 @@ export const QuestionSidebar = () => {
             audioRef.current = null;
         }
     };
-    // The confirm goes when a phone's sheet closes under it (the session
-    // picker closes it), without saying it closed.
+    // The confirm closes when the session picker opens: left open on a
+    // desktop, it would stay over the next session's board and delete its
+    // questions. A phone's sheet closing (the picker closes it), the desktop
+    // sidebar turning into a sheet, or becoming a spectator (which hides the
+    // button) takes the confirm along without saying it closed, so it must
+    // not come back with the button.
     useEffect(() => {
-        if (!sidebar.openMobile) stopAlarm();
-    }, [sidebar.openMobile]);
+        if ($readOnly || pickerOpen || !sidebar.openMobile) {
+            setConfirmOpen(false);
+            stopAlarm();
+        }
+    }, [$readOnly, pickerOpen, sidebar.openMobile, sidebar.isMobile]);
 
     return (
         <>
@@ -163,7 +173,14 @@ export const QuestionSidebar = () => {
                                     </AddQuestionDialog>
                                 </SidebarMenuItem>
                                 <SidebarMenuItem>
-                                    <AlertDialog onOpenChange={(open) => open ? startAlarm() : stopAlarm()}>
+                                    <AlertDialog
+                                        open={confirmOpen}
+                                        onOpenChange={(open) => {
+                                            setConfirmOpen(open);
+                                            if (open) startAlarm();
+                                            else stopAlarm();
+                                        }}
+                                    >
                                         <AlertDialogTrigger asChild>
                                             <SidebarMenuButton
                                                 className="bg-red-600 hover:bg-red-700 transition-colors"
