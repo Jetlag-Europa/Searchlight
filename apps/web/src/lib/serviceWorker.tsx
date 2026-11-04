@@ -1,6 +1,8 @@
 import { toast } from "react-toastify";
 import { registerSW } from "virtual:pwa-register";
 
+import { editingInOtherTab } from "@/lib/activeSession";
+
 // Registers the service worker (src/sw.ts); Layout.astro runs this on every
 // page. In `astro dev` the plugin swaps in a registerSW that does nothing.
 
@@ -18,14 +20,19 @@ let registration: ServiceWorkerRegistration | undefined;
 // that activates at once), the page reloads, once: the old build's files
 // leave the cache and the server. The first install takes over a page that
 // had no worker without reloading it; an update it offers later does.
+// A tab another tab took the session over from doesn't, unless Reload was
+// tapped in it: reloaded, it would take the session back (see
+// editSessionHere). Its Use here reloads it.
 let reloadsOnTakeOver = Boolean(navigator.serviceWorker?.controller);
 let reloading = false;
+let reloadTappedHere = false;
 navigator.serviceWorker?.addEventListener("controllerchange", () => {
     if (reloading) return;
     if (!reloadsOnTakeOver) {
         reloadsOnTakeOver = true;
         return;
     }
+    if (editingInOtherTab.get() && !reloadTappedHere) return;
     reloading = true;
     window.location.reload();
 });
@@ -66,6 +73,7 @@ function showUpdateToast() {
 }
 
 function reload() {
+    reloadTappedHere = true;
     // Another page may have activated it already.
     if (registration?.waiting) void updateServiceWorker(true);
     else window.location.reload();

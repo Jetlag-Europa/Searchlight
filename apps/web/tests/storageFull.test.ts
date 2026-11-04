@@ -60,7 +60,11 @@ import {
     verifiedUserId,
 } from "@/lib/activeSession";
 import { questions } from "@/lib/context";
-import { getPendingEvents, setCachedSession } from "@/lib/eventQueue";
+import {
+    applyUnsyncedEvents,
+    getPendingEvents,
+    setCachedSession,
+} from "@/lib/eventQueue";
 import {
     becomeSpectator,
     cancelPendingQuestionSave,
@@ -68,6 +72,7 @@ import {
     saveQuestionsDebounced,
 } from "@/lib/sessionState";
 import { startSSE, stopSSE } from "@/lib/sseManager";
+import { flushPendingEvents } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
 const SID = "quota-session";
@@ -312,4 +317,76 @@ test("a drawing the queue has no room for is said", async () => {
     expect(getPendingEvents(SID)).toEqual([]);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(STORAGE_FULL, expect.anything());
+});
+
+describe("a queue from before queues were per account", () => {
+    // Kept for the account this session was kept for: it moves under that
+    // account's key, copied there first.
+    const queued = (localId: string, padding: number) => ({
+        localId,
+        sessionId: SID,
+        type: "stroke.create",
+        payloadJson: {
+            type: "Feature",
+            geometry: {
+                type: "LineString",
+                coordinates: [
+                    [0, 0],
+                    [1, 1],
+                ],
+            },
+            properties: {
+                tool: "pen",
+                color: "#000000",
+                widthMeters: 3,
+                createdAt: 0,
+                clientUuid: localId,
+                padding: "x".repeat(padding),
+            },
+        },
+        clientUuid: `stroke-create-${localId}`,
+        clientCreatedAt: 0,
+        status: "pending",
+        createdAt: 0,
+    });
+    beforeEach(() => {
+        setCachedSession({
+            sessionId: SID,
+            userId: "me",
+            strokes: [],
+            questions: [],
+            lastSyncedAt: 0,
+            lastSequence: 0,
+        });
+    });
+
+    test("is shown and sent from where it is while there's no room to copy it", async () => {
+        store.set(
+            `taibled-pending-${SID}`,
+            JSON.stringify([queued("before", 100_000)]),
+        );
+        capacity = used() + 1_000;
+        mockFetch.mockResolvedValue(new Response(null, { status: 201 }));
+
+        expect(getPendingEvents(SID).map((e) => e.localId)).toEqual(["before"]);
+        expect(
+            applyUnsyncedEvents(SID, { strokes: [], questions: [] }).strokes,
+        ).toHaveLength(1);
+        await flushPendingEvents(SID);
+        expect(mockFetch).toHaveBeenCalledOnce();
+        expect(getPendingEvents(SID)).toEqual([]);
+    });
+
+    test("waits while this account has a queue of its own and there's no room", () => {
+        store.set(
+            `taibled-pending-${SID}`,
+            JSON.stringify([queued("before", 60_000)]),
+        );
+        store.set(
+            `taibled-pending-${SID}~me`,
+            JSON.stringify([queued("own", 10)]),
+        );
+        capacity = used() + 1_000;
+        expect(getPendingEvents(SID).map((e) => e.localId)).toEqual(["own"]);
+    });
 });

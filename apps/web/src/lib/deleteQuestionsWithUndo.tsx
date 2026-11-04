@@ -1,6 +1,11 @@
 import { type Id, toast } from "react-toastify";
 
-import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    editingInOtherTab,
+    isSessionReadOnly,
+    sessionReadOnly,
+} from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import { questionListSentSince } from "@/lib/eventQueue";
 import {
@@ -32,8 +37,8 @@ import type { Question } from "@/maps/schema";
 let undoToastId: Id | null = null;
 
 // A short toast with Undo, for the session it was shown in, closed once its
-// user only spectates it. Undo goes through questions.set, so it saves and
-// syncs like any edit.
+// user only spectates it or another tab takes it over. Undo goes through
+// questions.set, so it saves and syncs like any edit.
 function showUndoToast(
     text: string,
     onUndo: () => void,
@@ -49,9 +54,9 @@ function showUndoToast(
                 <button
                     className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
                     onClick={() => {
-                        // The toast closes once its user only spectates the
-                        // session, but may still be on screen as it does.
-                        if (!sessionReadOnly.get()) onUndo();
+                        // The toast closes once the session is read-only
+                        // here, but may still be on screen as it does.
+                        if (!isSessionReadOnly(activeSessionId.get())) onUndo();
                         closeToast();
                     }}
                 >
@@ -87,9 +92,13 @@ function showUndoToast(
     const stopReadOnlyListener = sessionReadOnly.listen((readOnly) => {
         if (readOnly) toast.dismiss(id);
     });
+    const stopTakeOverListener = editingInOtherTab.listen((takenOver) => {
+        if (takenOver) toast.dismiss(id);
+    });
     stopListening = () => {
         stopSessionListener();
         stopReadOnlyListener();
+        stopTakeOverListener();
     };
 }
 
@@ -108,7 +117,8 @@ export interface UndoneDeletion {
 
 /**
  * Puts a delete's questions back where they were, or null in another
- * session or for a spectator. One already back (under its key, or as a
+ * session or on a read-only board (a spectator's, or one another tab took
+ * the session over from). One already back (under its key, or as a
  * copy: a teammate's restore of it) isn't put back again. One a teammate
  * edited meanwhile, held for a decision ("we deleted it"), comes back as
  * they left it: Undo takes the delete back, as Keep theirs does.
@@ -123,7 +133,7 @@ export function undoQuestionDeletion(
     { deletion, deletedAt }: PendingUndo,
     newKey?: () => number,
 ): UndoneDeletion | null {
-    if (sessionReadOnly.get()) return null;
+    if (isSessionReadOnly(deletion.sessionId)) return null;
     if (activeSessionId.get() !== deletion.sessionId) return null;
     const before = questions.get();
     // Held as "we deleted it": their version stands, and goes on the board.
@@ -209,7 +219,7 @@ export function showAlreadyOnBoard(): void {
 export const deleteQuestionsWithUndo = (
     keys: Iterable<number>,
 ): PendingUndo | null => {
-    if (sessionReadOnly.get()) return null;
+    if (isSessionReadOnly(activeSessionId.get())) return null;
     const board = questions.get();
     const { remaining, deletion } = deleteQuestions(
         board,

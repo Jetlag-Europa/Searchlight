@@ -25,18 +25,23 @@ type Rendered = {
 };
 const toasts: Array<string | ((p: { closeToast: () => void }) => Rendered)> =
     [];
+const dismissed: unknown[] = [];
 vi.mock("react-toastify", () => ({
     toast: Object.assign(
         (content: (typeof toasts)[number]) => {
             toasts.push(content);
             return `toast-${toasts.length}`;
         },
-        { dismiss: () => {} },
+        { dismiss: (id: unknown) => void dismissed.push(id) },
     ),
 }));
 
 import type { PendingEvent } from "@/lib/eventQueue";
-import { activeSessionId, activeSessionRole } from "@/lib/activeSession";
+import {
+    activeSessionId,
+    activeSessionRole,
+    editingInOtherTab,
+} from "@/lib/activeSession";
 import { questions } from "@/lib/context";
 import {
     deleteQuestionsWithUndo,
@@ -88,9 +93,11 @@ beforeEach(() => {
     activeSessionRole.set("member");
 });
 afterEach(() => {
+    editingInOtherTab.set(false);
     setQuestionDecisionsPossible(false);
     questions.set([]);
     toasts.length = 0;
+    dismissed.length = 0;
 });
 
 describe("undoing a delete", () => {
@@ -257,5 +264,42 @@ describe("the toast after Restore", () => {
         expect(lastToast().text).toBe(
             "Radius 2 was changed meanwhile, so it stays",
         );
+    });
+});
+
+describe("in a tab another tab took the session over from", () => {
+    test("the delete's toast closes, and its Undo puts nothing back", () => {
+        board(q(1, "a"), q(2, "b"), q(3, "c"));
+        const pending = deleteQuestionsWithUndo([2])!;
+        const { undo } = lastToast();
+        const shown = `toast-${toasts.length}`;
+        dismissed.length = 0;
+        editingInOtherTab.set(true);
+        expect(dismissed).toContain(shown);
+        // Tapped as it closes.
+        undo!();
+        expect(undoQuestionDeletion(pending)).toBeNull();
+        expect(keys()).toEqual([1, 3]);
+    });
+
+    test("the Restore toast's Undo takes nothing back", () => {
+        board(q(1, "a"), q(0.5, "b"), q(3, "c"));
+        showRestoredToast([
+            { label: "Radius 2", key: 0.5, question: q(0.5, "b") },
+        ]);
+        const { undo } = lastToast();
+        const shown = `toast-${toasts.length}`;
+        dismissed.length = 0;
+        editingInOtherTab.set(true);
+        expect(dismissed).toContain(shown);
+        undo!();
+        expect(keys()).toEqual([1, 0.5, 3]);
+    });
+
+    test("deletes nothing", () => {
+        board(q(1, "a"), q(2, "b"));
+        editingInOtherTab.set(true);
+        expect(deleteQuestionsWithUndo([2])).toBeNull();
+        expect(keys()).toEqual([1, 2]);
     });
 });

@@ -274,7 +274,13 @@ function pendingKey(sessionId: string) {
                 ...(JSON.parse(legacy) as PendingEvent[]),
                 ...(own ? (JSON.parse(own) as PendingEvent[]) : []),
             ];
-            localStorage.setItem(key, JSON.stringify(events));
+            try {
+                localStorage.setItem(key, JSON.stringify(events));
+            } catch {
+                // No room for the copy (storage full): until there is, the
+                // edits are shown and sent from where they are.
+                return own ? key : legacyPendingKey(sessionId);
+            }
             localStorage.removeItem(legacyPendingKey(sessionId));
         }
     } catch {
