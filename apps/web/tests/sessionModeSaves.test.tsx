@@ -1214,6 +1214,67 @@ describe("the session picker", () => {
         expect(pageText()).toContain("Failed to load servers");
     });
 
+    const serverList = (ids: string[]) =>
+        json({
+            servers: ids.map((id) => ({
+                id,
+                name: id,
+                isMember: true,
+                permissions: [],
+            })),
+        });
+
+    it("picks the only server a recheck finds, and lists its sessions", async () => {
+        server = { a: session("a") };
+        fetchMock.mockImplementation(async (input) => {
+            const url = new URL(String(input));
+            if (url.pathname === "/servers" && !url.search)
+                return serverList([]);
+            return defaultFetch(input);
+        });
+        await reload("");
+        expect(pageText()).not.toContain("Session a");
+
+        await click((text) => text === "Check again");
+        expect(pageText()).toContain("Session a");
+    });
+
+    it("keeps the server picked when a recheck finds more", async () => {
+        server = { a: session("a") };
+        fetchMock.mockImplementation(async (input) => {
+            const url = new URL(String(input));
+            if (url.pathname === "/servers")
+                return serverList(
+                    url.search ? ["server-1", "server-2"] : ["server-1"],
+                );
+            return defaultFetch(input);
+        });
+        await reload("");
+        expect(pageText()).toContain("Session a");
+
+        await click((text) => text === "Check again");
+        expect(pageText()).toContain("Session a");
+        expect(
+            [...env.document.body.walk()].some((n) => n.nodeName === "SELECT"),
+        ).toBe(true);
+    });
+
+    it("still offers Try again for the sessions after a recheck", async () => {
+        server = { a: session("a") };
+        fetchMock.mockImplementation(async (input) =>
+            new URL(String(input)).pathname === "/sessions"
+                ? json({ error: "Bad Gateway" }, 502)
+                : defaultFetch(input),
+        );
+        await reload("");
+        await click((text) => text === "Check again");
+        expect(pageText()).toContain("Failed to load sessions");
+
+        fetchMock.mockImplementation(defaultFetch);
+        await click((text) => text === "Try again");
+        expect(pageText()).toContain("Session a");
+    });
+
     it("gives focus back to the board once it can take it", async () => {
         const mapBoard = board();
         server = { a: session("a") };
@@ -1345,6 +1406,91 @@ describe("a background reload", () => {
         env.document.activeElement = checkbox;
         await wait(3000);
         expect(loadSessionContent).toHaveBeenCalledTimes(2);
+    });
+
+    describe("once /me answers after the board was played offline", () => {
+        const backOnline = () =>
+            play(() => {
+                verifiedUserId.set(USER);
+                offlineUserId.set(null);
+            });
+        const live = () =>
+            env.FakeEventSource.last?.url ===
+            "http://localhost:3001/sessions/a/stream";
+
+        it("waits while the player types, and loads once they leave the field", async () => {
+            fakeTimers();
+            const mapBoard = board();
+            server = { a: session("a") };
+            keep(session("a"));
+            await reload("a", { offline: true });
+
+            const field = env.document.createElement("input");
+            Object.assign(field, { type: "text" });
+            env.document.activeElement = field;
+            await backOnline();
+            await wait(120_000);
+            expect(loadSessionContent).not.toHaveBeenCalled();
+            expect(overlayShown()).toBe(false);
+            expect(mapBoard.inert).toBe(false);
+
+            env.document.activeElement = env.document.body;
+            await act(async () => {
+                env.document.dispatchEvent(new Event("focusout"));
+            });
+            await wait(0);
+            expect(loadSessionContent).toHaveBeenCalledOnce();
+            expect(live()).toBe(true);
+        });
+
+        it("loads right away when nobody types", async () => {
+            fakeTimers();
+            server = { a: session("a") };
+            keep(session("a"));
+            await reload("a", { offline: true });
+
+            await backOnline();
+            expect(loadSessionContent).toHaveBeenCalledOnce();
+            expect(live()).toBe(true);
+        });
+
+        it("forgets a session deleted meanwhile", async () => {
+            fakeTimers();
+            keep(session("a"));
+            fetchMock.mockImplementation(async (input) =>
+                new URL(String(input)).pathname === "/sessions/a"
+                    ? sessionNotFound()
+                    : defaultFetch(input),
+            );
+            await reload("a", { offline: true });
+
+            await backOnline();
+            expect(activeSessionId.get()).toBeFalsy();
+            expect(pageText()).toContain("Select a Session");
+        });
+
+        it("keeps checking quietly while the session can't be read", async () => {
+            fakeTimers();
+            const mapBoard = board();
+            server = { a: session("a") };
+            keep(session("a"));
+            await reload("a", { offline: true });
+            let down = true;
+            fetchMock.mockImplementation(async (input) =>
+                down &&
+                new URL(String(input)).pathname.startsWith("/sessions/a")
+                    ? json({ error: "Bad Gateway" }, 502)
+                    : defaultFetch(input),
+            );
+
+            await backOnline();
+            expect(loadSessionContent).not.toHaveBeenCalled();
+            expect(mapBoard.inert).toBe(false);
+            down = false;
+            await wait(6000);
+            expect(loadSessionContent).toHaveBeenCalledOnce();
+            expect(live()).toBe(true);
+        });
     });
 
     it("keeps the board out of reach while it loads", async () => {
