@@ -11,7 +11,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Session list, invite and join pages on a bad connection (2026-11-03)
 
 - The session list shows **Try again** when it can't load, and loads again by itself once the phone is back online. Invite and game links do the same: a link page that gets no answer within 15 seconds says it can't reach Searchlight and offers Try again.
-- Opening a session that was deleted after the list was shown now says it was deleted, instead of going back to the session list without a word.
+- Opening a session that was deleted after the list was shown now says it was deleted.
 - Invite no longer shows the previous session's links after switching sessions.
 - "Your sign-in has expired" has a **Sign in** button, as the installed app has no reload.
 
