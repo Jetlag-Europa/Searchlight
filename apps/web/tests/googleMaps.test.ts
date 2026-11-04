@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-    effectiveBasemap,
     type GoogleLook,
     googleLook,
     googleMapTypeOf,
@@ -10,31 +9,6 @@ import {
     viewTilesShown,
     whenDrawn,
 } from "@/lib/googleMaps";
-
-const ok = { available: true, problem: null } as const;
-
-it("draws Google only when it is available and loads", () => {
-    expect(effectiveBasemap("google", ok)).toBe("google");
-    expect(effectiveBasemap("google", { ...ok, available: false })).toBe(
-        "voyager",
-    );
-    expect(effectiveBasemap("google", { ...ok, problem: "offline" })).toBe(
-        "voyager",
-    );
-    expect(effectiveBasemap("google", { ...ok, problem: "auth-failed" })).toBe(
-        "voyager",
-    );
-});
-
-it("leaves the other basemaps alone", () => {
-    for (const chosen of ["voyager", "dark", "transport", "osmcarto"])
-        expect(
-            effectiveBasemap(chosen, {
-                available: false,
-                problem: "offline",
-            }),
-        ).toBe(chosen);
-});
 
 /** googleLook against a fake GoogleMutant that logs what it's asked. */
 function fakeLook(initial: GoogleLook) {
@@ -385,6 +359,17 @@ it("falls back while offline and comes back online", async () => {
     expect(googleMapsProblem.get()).toBeNull();
     win.dispatchEvent(new Event("offline"));
     expect(googleMapsProblem.get()).toBe("offline");
+});
+
+it("keeps Google's map offline once it has drawn", async () => {
+    // CARTO, as the stand-in, has hardly any tiles cached for a Google user.
+    const { win } = stubBrowser(true);
+    const { googleMapsProblem, googleMapDrawn } = await loadModule();
+    googleMapDrawn();
+    win.dispatchEvent(new Event("offline"));
+    expect(googleMapsProblem.get()).toBeNull();
+    win.dispatchEvent(new Event("online"));
+    expect(googleMapsProblem.get()).toBeNull();
 });
 
 it("retries a script that failed to load once back online", async () => {

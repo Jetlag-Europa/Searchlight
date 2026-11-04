@@ -82,6 +82,14 @@ function googleLayer(): L.GridLayer {
     googleMutant.on("controls_ready", () =>
         queueMicrotask(() => showGoogle(googleMutant, shown)),
     );
+    // GoogleMutant keeps a callback, holding its tile, for each tile it waits
+    // for until Google draws that tile, which it may never do (offline, a
+    // view left before it did). Forget them once Leaflet drops the tile.
+    googleMutant.on("tileunload", ({ coords }: L.TileEvent) => {
+        const key = googleMutant._tileCoordsToKey(coords);
+        for (let i = 0; i < googleMutant._imagesPerTile; i++)
+            delete googleMutant._tileCallbacks[`${key}/${i}`];
+    });
     applyLook = googleLook(
         {
             setMapType: (type) =>

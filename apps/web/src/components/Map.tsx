@@ -49,11 +49,7 @@ import {
     rememberGameView,
     savedGameView,
 } from "@/lib/gameView";
-import {
-    effectiveBasemap,
-    googleMapsAvailable,
-    googleMapsProblem,
-} from "@/lib/googleMaps";
+import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
 import { retryTilesWhenOnline } from "@/lib/retryTiles";
@@ -266,15 +262,15 @@ const ADD_QUESTION_MENU_ITEMS = [
 export const Map = ({ className }: { className?: string }) => {
     const $questions = useStore(questions);
     const $chosenBasemap = useStore(baseTileLayer);
+    // Google chosen on a device whose build has no key: CARTO Voyager.
+    const $baseTileLayer =
+        $chosenBasemap === "google" && !googleMapsAvailable
+            ? "voyager"
+            : $chosenBasemap;
+    // GoogleBasemap stays, with its CARTO stand-in, while Google can't show
+    // (offline, failing), so that CARTO isn't swapped for another CARTO
+    // layer, which goes empty while its tiles load.
     const $googleMapsProblem = useStore(googleMapsProblem);
-    const $baseTileLayer = effectiveBasemap($chosenBasemap, {
-        available: googleMapsAvailable,
-        problem: $googleMapsProblem,
-    });
-    // Chosen and offered: GoogleBasemap stays, with its CARTO stand-in, while
-    // Google can't show (offline, failing), so that CARTO isn't swapped for
-    // another CARTO layer, which goes empty while its tiles load.
-    const googleChosen = $chosenBasemap === "google" && googleMapsAvailable;
     const $thunderforestApiKey = useStore(thunderforestApiKey);
     const $hiderMode = useStore(hiderMode);
     const $planningMode = useStore(planningModeEnabled);
@@ -584,10 +580,10 @@ export const Map = ({ className }: { className?: string }) => {
             >
                 {/* A new layer per basemap: react-leaflet only updates a
                     layer's URL, not its zoom range or attribution. */}
-                <Fragment key={googleChosen ? "google" : $baseTileLayer}>
-                    {googleChosen ? (
+                <Fragment key={$baseTileLayer}>
+                    {$baseTileLayer === "google" ? (
                         // CARTO until Google's map has drawn, or while it can't.
-                        <GoogleBasemap active={$baseTileLayer === "google"}>
+                        <GoogleBasemap active={!$googleMapsProblem}>
                             {voyagerLayer(21)}
                         </GoogleBasemap>
                     ) : (
@@ -604,7 +600,7 @@ export const Map = ({ className }: { className?: string }) => {
                 <ScaleControl position="bottomleft" />
             </MapContainer>
         ),
-        [map, $baseTileLayer, googleChosen, $thunderforestApiKey],
+        [map, $baseTileLayer, $googleMapsProblem, $thunderforestApiKey],
     );
 
     // Questions come from the game: none can be added before it has loaded.
