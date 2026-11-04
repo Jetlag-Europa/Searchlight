@@ -100,6 +100,9 @@ function googleLayer(): L.GridLayer {
     };
     window.addEventListener("online", () => {
         if (!googleMutant._map) return;
+        // The redraw below replaces one still waiting for a look's tiles.
+        pendingRedraw?.remove();
+        pendingRedraw = null;
         // A look changed offline (see GoogleBasemap).
         applyLook?.(chosenLook());
         // Tiles copied offline from the ones GoogleMutant kept are empty
@@ -201,11 +204,14 @@ export const GoogleBasemap = ({
                 showGoogle(googleMutant, false);
                 // Before the layer is added: a look changed while it was off
                 // the map clears the tiles GoogleMutant kept, rather than
-                // drawing them first.
-                applyLook?.(chosenLook());
+                // drawing them first. Offline, once back online (googleLayer).
+                if (navigator.onLine) applyLook?.(chosenLook());
                 stopWaiting = whenDrawn(
                     googleMutant,
+                    // Not offline (added again after a first draw): tiles
+                    // copied from those GoogleMutant kept may be empty then.
                     () =>
+                        navigator.onLine &&
                         viewTilesShown(googleMutant, (x, y, z) =>
                             Object.assign(L.point(x, y), { z }),
                         ),
