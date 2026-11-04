@@ -476,7 +476,12 @@ export function enqueueEvent(
         const rest = { ...payload };
         delete rest.own;
         newEvent.payloadJson = rest;
-        writePendingQueue(event.sessionId, events);
+        // Read again: the snapshots dropped for room may have let an old
+        // queue move in (see pendingKey).
+        writePendingQueue(event.sessionId, [
+            ...getPendingEvents(event.sessionId).filter((q) => !replaces(q)),
+            newEvent,
+        ]);
     }
     return newEvent;
 }

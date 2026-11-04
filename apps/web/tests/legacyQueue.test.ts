@@ -200,6 +200,51 @@ test("an edit queued with no room to copy keeps the old queue's drawing", async 
     expect(store.has(LEGACY)).toBe(false);
 });
 
+// Or dropping other sessions' snapshots for room may let it move, between
+// the first try at queuing a question list and the smaller second one.
+test("a question list queued after making room keeps the old queue's drawing", async () => {
+    const me = await page("A");
+    me.queue.setCachedSession({
+        sessionId: SID,
+        userId: "A",
+        strokes: [],
+        questions: [],
+        lastSyncedAt: 5,
+        lastSequence: 0,
+    });
+    store.set(
+        "taibled-cache-other",
+        JSON.stringify({ sessionId: "other", lastSyncedAt: 1, pad: "x".repeat(400) }),
+    );
+    store.set(LEGACY, JSON.stringify([stroke("s1")]));
+    store.set(
+        `${LEGACY}~A`,
+        JSON.stringify([{ ...list("new", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), sent: true }]),
+    );
+    capacity = used() + 10;
+    const newer = [11, 12, 13, 14, 15, 16, 17, 18, 19, 20];
+    me.queue.enqueueEvent({
+        sessionId: SID,
+        type: "questions.replace",
+        payloadJson: {
+            replacementId: "newer",
+            questions: newer.map((key, ordinal) => ({
+                clientUuid: `newer-${key}`,
+                ordinal,
+                payloadJson: question(key),
+            })),
+            base: { sequence: 0, questions: [] },
+        },
+        clientUuid: "questions-replace-newer",
+        clientCreatedAt: 3,
+    });
+    expect(store.has("taibled-cache-other")).toBe(false);
+    expect(me.queue.getPendingEvents(SID).map((e) => e.clientUuid)).toEqual([
+        "s1",
+        "questions-replace-newer",
+    ]);
+});
+
 // An unreadable one is left where it is, and doesn't stop new edits.
 test("edits still queue beside one that isn't a list (storage full)", async () => {
     const me = await page("A");
