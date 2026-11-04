@@ -123,11 +123,27 @@ describe("planning outlines", () => {
     });
 
     it("change when matching questions start drawing every cell", () => {
-        const questions = [radius(1, 4.3, true)];
+        const matching = {
+            id: "matching",
+            key: 3,
+            data: { lat: 51.5, lng: 4.3, drag: true, type: "custom-points" },
+        } as any;
+        const questions = [radius(1, 4.3, true), matching];
         expect(planningPreviewKey(questions, true, true)).not.toBe(
             planningPreviewKey(questions, true),
         );
         expect(planningPreviewKey(questions, false, true)).toBe("");
+        // Without an unlocked matching question, nothing would change.
+        expect(planningPreviewKey([radius(1, 4.3, true)], true, true)).toBe(
+            planningPreviewKey([radius(1, 4.3, true)], true),
+        );
+        expect(
+            planningPreviewKey(
+                [{ ...matching, data: { ...matching.data, drag: false } }],
+                true,
+                true,
+            ),
+        ).toBe(planningPreviewKey([], true));
     });
 
     it("don't change when a locked question moves", () => {

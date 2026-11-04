@@ -32,21 +32,23 @@ export function planningPreviewKey(
     allMatchingCells = false,
 ): string {
     if (!planning) return "";
-    const key = JSON.stringify(
-        questions
-            .filter(
-                (question) =>
-                    !isZoneSizeChange(question) &&
-                    question.data.enabled !== false &&
-                    question.data.drag,
-            )
-            .map((question) => [
-                question.key,
-                question.id,
-                regionData(question),
-            ]),
+    const outlined = questions.filter(
+        (question) =>
+            !isZoneSizeChange(question) &&
+            question.data.enabled !== false &&
+            question.data.drag,
     );
-    return allMatchingCells ? `all-cells ${key}` : key;
+    const key = JSON.stringify(
+        outlined.map((question) => [
+            question.key,
+            question.id,
+            regionData(question),
+        ]),
+    );
+    return allMatchingCells &&
+        outlined.some((question) => question.id === "matching")
+        ? `all-cells ${key}`
+        : key;
 }
 
 /**
