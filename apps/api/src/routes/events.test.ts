@@ -677,9 +677,7 @@ describe("GET /sessions/:sessionId/events", () => {
     }
   });
 
-  // The stream's headers go out on the raw response, where no cookie can be
-  // added, so it leaves the login alone. The app's next ordinary request
-  // renews it, row and cookie together.
+  // The stream writes raw headers, where no cookie can go, so it must not renew.
   test("stream: doesn't renew a login that's due; the next ordinary request does", async () => {
     const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
     await prisma.authSession.update({ where: { id: AUTH_SESSION_ID }, data: { expiresAt } });

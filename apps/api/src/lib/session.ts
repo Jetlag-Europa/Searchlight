@@ -13,10 +13,7 @@ export interface ResolvedUser {
   preferences?: unknown;
 }
 
-// A login lasts 30 days from its last renewal. Once it is a day old, the next
-// ordinary request pushes it back to 30 days (see registerSessionRenewal). So
-// a login ends after 29 to 30 days without use, and the row is written at most
-// about once a day per login.
+// A login lasts 30 days from its last renewal; a request renews it once it is a day old.
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const RENEW_WHEN_LEFT_MS = SESSION_TTL_MS - 24 * 60 * 60 * 1000;
 
@@ -52,8 +49,8 @@ const unauthorized = (req: FastifyRequest, reason: AuthFailureReason) => {
   return Object.assign(new Error("Unauthorized"), { statusCode: 401 });
 };
 
-// The login each request resolved, for registerSessionRenewal.
-const resolvedLogins = new WeakMap<FastifyRequest, { id: string; expiresAt: Date }>();
+// Logins due for renewal, by the request that resolved them.
+const dueForRenewal = new WeakMap<FastifyRequest, string>();
 
 export async function resolveSession(req: FastifyRequest): Promise<{ user: ResolvedUser }> {
   const raw = req.cookies["session"];
@@ -68,46 +65,31 @@ export async function resolveSession(req: FastifyRequest): Promise<{ user: Resol
   });
 
   if (!session) throw unauthorized(req, "no_session_row");
-  if (session.expiresAt.getTime() < Date.now()) throw unauthorized(req, "expired");
+  if (session.expiresAt < new Date()) throw unauthorized(req, "expired");
 
-  resolvedLogins.set(req, { id: session.id, expiresAt: session.expiresAt });
+  if (session.expiresAt.getTime() - Date.now() < RENEW_WHEN_LEFT_MS) dueForRenewal.set(req, session.id);
 
   return { user: session.user };
 }
 
-// Every ordinary response to a request that resolved a login re-sends its
-// cookie with the row's expiry, renewing the row first if it is due. The
-// cookie never outlives the row, and a renewed cookie that never reached the
-// browser (a dropped connection) is repaired by the next response that does:
-// re-sending costs no write. A response that started before a logout may
-// bring the cookie back after it, but its row is gone, so it logs nobody in.
-// Hijacked replies (the SSE stream) skip onSend, so they send and renew
-// nothing; the app's ordinary requests do it. A failed renewal only logs: the
-// request is valid either way. Add it to the root instance before the routes.
+// Renews in onSend, so the new cookie rides on the response. Hijacked replies
+// (the SSE stream) skip onSend and renew nothing. Register before the routes.
 export function registerSessionRenewal(app: FastifyInstance): void {
   app.addHook("onSend", async (req, reply, payload) => {
-    const login = resolvedLogins.get(req);
-    if (!login) return payload;
-    resolvedLogins.delete(req);
-    let { expiresAt } = login;
-    if (expiresAt.getTime() - Date.now() < RENEW_WHEN_LEFT_MS) {
-      const renewed = new Date(Date.now() + SESSION_TTL_MS);
-      try {
-        // updateMany, not update: a logout may have deleted the row since,
-        // and then no cookie is sent. Concurrent requests each renew.
-        const { count } = await prisma.authSession.updateMany({
-          where: { id: login.id, expiresAt: { gt: new Date() } },
-          data: { expiresAt: renewed },
-        });
-        if (count === 0) return payload;
-        expiresAt = renewed;
-      } catch (err) {
-        req.log.warn({ err }, "Could not renew the login; it keeps its current expiry");
-      }
+    const id = dueForRenewal.get(req);
+    if (!id) return payload;
+    dueForRenewal.delete(req);
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
+    try {
+      // updateMany: a logout meanwhile deleted the row, so send no cookie.
+      const { count } = await prisma.authSession.updateMany({
+        where: { id, expiresAt: { gt: new Date() } },
+        data: { expiresAt },
+      });
+      if (count > 0) setSessionCookie(reply, id, expiresAt);
+    } catch (err) {
+      req.log.warn({ err }, "Could not renew the login");
     }
-    setSessionCookie(reply, login.id, expiresAt);
-    // Set-Cookie alone doesn't stop a shared cache from storing a response.
-    if (!reply.hasHeader("cache-control")) reply.header("cache-control", "private");
     return payload;
   });
 }
