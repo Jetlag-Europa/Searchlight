@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import http from "node:http";
 import { brotliDecompressSync } from "node:zlib";
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
@@ -27,9 +28,18 @@ async function buildTestApp() {
     await prisma.authSession.deleteMany({ where: { id: AUTH_ID } });
     return { ok: true };
   });
+  // Waits for the test to drop the connection before it answers.
+  app.get("/held", async (req) => {
+    await resolveSession(req);
+    held.started();
+    await held.released;
+    return { ok: true };
+  });
   await app.ready();
   return app;
 }
+
+const held = { started: () => {}, released: Promise.resolve() };
 
 describe("login renewal", () => {
   let app: Awaited<ReturnType<typeof buildTestApp>>;
@@ -45,6 +55,7 @@ describe("login renewal", () => {
     (await prisma.authSession.findUnique({ where: { id: AUTH_ID } }))?.expiresAt;
   const me = (headers: Record<string, string> = {}) =>
     app.inject({ method: "GET", url: "/me", headers: { cookie, ...headers } });
+  const sessionCookie = (res: Awaited<ReturnType<typeof me>>) => res.cookies.find((c) => c.name === "session");
 
   beforeAll(async () => {
     await prisma.authSession.deleteMany({ where: { userId: USER_ID } });
@@ -101,15 +112,40 @@ describe("login renewal", () => {
     expect(JSON.parse(brotliDecompressSync(res.rawPayload).toString()).user.discordId).toBe(USER_ID);
   });
 
-  test("a fresh login is neither written nor re-sent", async () => {
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS - DAY);
+  test("a login renewed less than a day ago is not written, but its cookie is re-sent as is", async () => {
+    const expiresAt = new Date(Date.now() + SESSION_TTL_MS - DAY + 60_000);
     await setExpiry(expiresAt);
     const update = vi.spyOn(prisma.authSession, "updateMany");
     const res = await me();
     expect(res.statusCode).toBe(200);
-    expect(res.headers["set-cookie"]).toBeUndefined();
     expect(update).not.toHaveBeenCalled();
     expect(await storedExpiry()).toEqual(expiresAt);
+    const setCookie = sessionCookie(res);
+    expect(app.unsignCookie(setCookie!.value).value).toBe(AUTH_ID);
+    expect(Math.abs((setCookie!.expires as Date).getTime() - expiresAt.getTime())).toBeLessThan(1000);
+    expect(res.headers["cache-control"]).toBe("private");
+  });
+
+  test("a login renewed more than a day ago is renewed", async () => {
+    await setExpiry(new Date(Date.now() + SESSION_TTL_MS - DAY - 60_000));
+    const res = await me();
+    expect(res.statusCode).toBe(200);
+    expect((await storedExpiry())!.getTime()).toBeGreaterThan(Date.now() + SESSION_TTL_MS - 60_000);
+    expect(sessionCookie(res)).toBeDefined();
+  });
+
+  test("a login ends after 30 days without use, not while it is used", async () => {
+    const start = Date.now();
+    const now = vi.spyOn(Date, "now");
+    await setExpiry(new Date(start + SESSION_TTL_MS));
+    // Used on day 14 and day 40: each gap is under 30 days.
+    now.mockReturnValue(start + 14 * DAY);
+    expect((await me()).statusCode).toBe(200);
+    now.mockReturnValue(start + 40 * DAY);
+    expect((await me()).statusCode).toBe(200);
+    // Then 31 days without use.
+    now.mockReturnValue(start + 71 * DAY);
+    expect((await me()).statusCode).toBe(401);
   });
 
   test("an expired login is still refused and not renewed", async () => {
@@ -138,8 +174,40 @@ describe("login renewal", () => {
     const res = await me();
     expect(res.statusCode).toBe(200);
     expect(res.json().user.discordId).toBe(USER_ID);
-    expect(res.headers["set-cookie"]).toBeUndefined();
     expect(await storedExpiry()).toEqual(expiresAt);
+    // The cookie goes out with the unchanged expiry.
+    expect(Math.abs((sessionCookie(res)!.expires as Date).getTime() - expiresAt.getTime())).toBeLessThan(1000);
+  });
+
+  // The renewal is written before the response goes out, so a phone that
+  // loses the connection then keeps a cookie on its old expiry while the row
+  // is no longer due. The next response it does get must carry the cookie.
+  test("a renewed cookie lost with a dropped connection is re-sent by the next response", async () => {
+    const browserExpiry = new Date(Date.now() + DAY);
+    await setExpiry(browserExpiry);
+    const started = new Promise<void>((resolve) => (held.started = resolve));
+    let release!: () => void;
+    held.released = new Promise<void>((resolve) => (release = resolve));
+    const baseUrl = await app.listen({ port: 0, host: "127.0.0.1" });
+    try {
+      const client = http.get(`${baseUrl}/held`, { headers: { cookie } });
+      client.on("error", () => {});
+      await started;
+      client.destroy();
+      await new Promise<void>((resolve) => client.once("close", resolve));
+      release();
+      await vi.waitFor(async () =>
+        expect((await storedExpiry())!.getTime()).toBeGreaterThan(Date.now() + SESSION_TTL_MS - 60_000),
+      );
+    } finally {
+      release();
+    }
+    const update = vi.spyOn(prisma.authSession, "updateMany");
+    const retry = await me();
+    expect(retry.statusCode).toBe(200);
+    expect(update).not.toHaveBeenCalled();
+    const stored = (await storedExpiry())!.getTime();
+    expect(Math.abs((sessionCookie(retry)!.expires as Date).getTime() - stored)).toBeLessThan(1000);
   });
 
   test("a login deleted by a logout meanwhile is not brought back", async () => {

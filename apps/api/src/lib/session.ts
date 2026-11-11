@@ -13,12 +13,12 @@ export interface ResolvedUser {
   preferences?: unknown;
 }
 
-// A login lasts 30 days from its last renewal. Once less than half of that is
-// left, the next ordinary request pushes it back to 30 days (see
-// registerSessionRenewal), so a player who keeps using the app stays logged
-// in, and the row is written at most about once every 15 days.
+// A login lasts 30 days from its last renewal. Once it is a day old, the next
+// ordinary request pushes it back to 30 days (see registerSessionRenewal). So
+// a login ends after 29 to 30 days without use, and the row is written at most
+// about once a day per login.
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const RENEW_WHEN_LEFT_MS = SESSION_TTL_MS / 2;
+const RENEW_WHEN_LEFT_MS = SESSION_TTL_MS - 24 * 60 * 60 * 1000;
 
 function sessionCookieOptions(expiresAt: Date) {
   const isProd = env.NODE_ENV === "production";
@@ -52,8 +52,8 @@ const unauthorized = (req: FastifyRequest, reason: AuthFailureReason) => {
   return Object.assign(new Error("Unauthorized"), { statusCode: 401 });
 };
 
-// Requests whose login is due for renewal, by session id.
-const dueForRenewal = new WeakMap<FastifyRequest, string>();
+// The login each request resolved, for registerSessionRenewal.
+const resolvedLogins = new WeakMap<FastifyRequest, { id: string; expiresAt: Date }>();
 
 export async function resolveSession(req: FastifyRequest): Promise<{ user: ResolvedUser }> {
   const raw = req.cookies["session"];
@@ -68,37 +68,46 @@ export async function resolveSession(req: FastifyRequest): Promise<{ user: Resol
   });
 
   if (!session) throw unauthorized(req, "no_session_row");
-  const now = Date.now();
-  if (session.expiresAt.getTime() < now) throw unauthorized(req, "expired");
+  if (session.expiresAt.getTime() < Date.now()) throw unauthorized(req, "expired");
 
-  if (session.expiresAt.getTime() - now < RENEW_WHEN_LEFT_MS) dueForRenewal.set(req, session.id);
+  resolvedLogins.set(req, { id: session.id, expiresAt: session.expiresAt });
 
   return { user: session.user };
 }
 
-// Renews a login that resolveSession found due, as the response goes out: the
-// row and the cookie are renewed together, so the cookie never expires before
-// the row (the browser drops an expired cookie, which logs the player out).
-// Hijacked replies (the SSE stream) skip onSend, so they renew nothing; the
-// app's ordinary requests do it. A failed renewal only logs: the request is
-// valid either way. Add it to the root instance before the routes.
+// Every ordinary response to a request that resolved a login re-sends its
+// cookie with the row's expiry, renewing the row first if it is due. The
+// cookie never outlives the row, and a renewed cookie that never reached the
+// browser (a dropped connection) is repaired by the next response that does:
+// re-sending costs no write. A response that started before a logout may
+// bring the cookie back after it, but its row is gone, so it logs nobody in.
+// Hijacked replies (the SSE stream) skip onSend, so they send and renew
+// nothing; the app's ordinary requests do it. A failed renewal only logs: the
+// request is valid either way. Add it to the root instance before the routes.
 export function registerSessionRenewal(app: FastifyInstance): void {
   app.addHook("onSend", async (req, reply, payload) => {
-    const sessionId = dueForRenewal.get(req);
-    if (!sessionId) return payload;
-    dueForRenewal.delete(req);
-    const expiresAt = new Date(Date.now() + SESSION_TTL_MS);
-    try {
-      // updateMany, not update: a logout may have deleted the row since.
-      // Concurrent requests each renew and each send their cookie.
-      const { count } = await prisma.authSession.updateMany({
-        where: { id: sessionId, expiresAt: { gt: new Date() } },
-        data: { expiresAt },
-      });
-      if (count === 1) setSessionCookie(reply, sessionId, expiresAt);
-    } catch (err) {
-      req.log.warn({ err }, "Could not renew the login; it keeps its current expiry");
+    const login = resolvedLogins.get(req);
+    if (!login) return payload;
+    resolvedLogins.delete(req);
+    let { expiresAt } = login;
+    if (expiresAt.getTime() - Date.now() < RENEW_WHEN_LEFT_MS) {
+      const renewed = new Date(Date.now() + SESSION_TTL_MS);
+      try {
+        // updateMany, not update: a logout may have deleted the row since,
+        // and then no cookie is sent. Concurrent requests each renew.
+        const { count } = await prisma.authSession.updateMany({
+          where: { id: login.id, expiresAt: { gt: new Date() } },
+          data: { expiresAt: renewed },
+        });
+        if (count === 0) return payload;
+        expiresAt = renewed;
+      } catch (err) {
+        req.log.warn({ err }, "Could not renew the login; it keeps its current expiry");
+      }
     }
+    setSessionCookie(reply, login.id, expiresAt);
+    // Set-Cookie alone doesn't stop a shared cache from storing a response.
+    if (!reply.hasHeader("cache-control")) reply.header("cache-control", "private");
     return payload;
   });
 }
