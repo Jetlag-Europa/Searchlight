@@ -2,7 +2,6 @@ import { useStore } from "@nanostores/react";
 import * as turf from "@turf/turf";
 import type { Feature, MultiPolygon, Polygon } from "geojson";
 import * as L from "leaflet";
-import _ from "lodash";
 import { SidebarCloseIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "react-toastify";
@@ -350,8 +349,7 @@ const ZoneSidebarContent = () => {
         if (!map) return;
 
         if ($displayHidingZones && hidingZoneModeStationID) {
-            const hiderStation = _.find(
-                stations,
+            const hiderStation = stations.find(
                 (c) => c.properties.properties.id === hidingZoneModeStationID,
             );
 
