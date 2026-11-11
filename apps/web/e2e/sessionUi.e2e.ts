@@ -14,9 +14,9 @@ import {
 } from "./sessions";
 
 /**
- * The session picker and the Invite drawer on a phone with a bad connection:
- * a list that fails can be loaded again, the drawer never shows another
- * session's links, and making someone a spectator asks first. Every session
+ * The session picker and the Invite and Share drawers on a phone with a bad
+ * connection: a list that fails can be loaded again, the drawers never show
+ * another session's links, and making someone a spectator asks first. Every session
  * here is a throwaway (see sessions.ts).
  */
 
@@ -26,6 +26,12 @@ test.use(phone);
 async function openInvite(page: Page) {
     await page.getByRole("button", { name: "Menu" }).tap();
     await page.getByRole("button", { name: "Invite", exact: true }).tap();
+    return page.getByRole("dialog");
+}
+
+async function openShare(page: Page) {
+    await page.getByRole("button", { name: "Menu" }).tap();
+    await page.getByRole("button", { name: "Share a copy", exact: true }).tap();
     return page.getByRole("dialog");
 }
 
@@ -84,6 +90,36 @@ test("the Invite drawer shows only the open session's links", async ({
     );
     drawer = await openInvite(page);
     await expect(drawer.getByText(`Invite to ${second.name}`)).toBeVisible();
+    await page.waitForTimeout(500);
+    await expect(drawer.getByRole("button", { name: "Copy" })).toHaveCount(0);
+    await expect(drawer.getByRole("button", { name: "Revoke" })).toHaveCount(0);
+});
+
+test("the Share drawer shows only the open session's links", async ({
+    page,
+    request,
+}) => {
+    const first = await createSession(request, "First");
+    const second = await createSession(request, "Second");
+    const link = await request.post(`${API_BASE}/sessions/${first.id}/links`, {
+        data: { linkType: "fork" },
+    });
+    expect(link.status()).toBe(201);
+
+    await testLogin(page);
+    await openBoard(page, first);
+    let drawer = await openShare(page);
+    await expect(drawer.getByRole("button", { name: "Copy" })).toHaveCount(1);
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+
+    await switchTo(page, second);
+    // Its links can't be loaded now.
+    await page.route(`${API_BASE}/sessions/${second.id}/links`, (route) =>
+        route.abort(),
+    );
+    drawer = await openShare(page);
+    await expect(drawer.getByText(`Share a copy of ${second.name}`)).toBeVisible();
     await page.waitForTimeout(500);
     await expect(drawer.getByRole("button", { name: "Copy" })).toHaveCount(0);
     await expect(drawer.getByRole("button", { name: "Revoke" })).toHaveCount(0);
