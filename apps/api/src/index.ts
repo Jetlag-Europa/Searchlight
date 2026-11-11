@@ -9,6 +9,7 @@ import { closeAllStreams } from "./lib/broadcaster.js";
 import { errorHandler } from "./lib/error-handler.js";
 import { rejectCrossOriginWrites } from "./lib/origin-check.js";
 import { registerCompression } from "./lib/compression.js";
+import { registerSessionRenewal } from "./lib/session.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,6 +70,8 @@ app.addHook("onRequest", rejectCrossOriginWrites);
 await app.register(fastifyCookie, {
   secret: env.SESSION_COOKIE_SECRET,
 });
+
+registerSessionRenewal(app);
 
 app.get(
   "/health",

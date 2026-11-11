@@ -7,6 +7,7 @@ import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
 import { registerCompression } from "../lib/compression.js";
+import { registerSessionRenewal } from "../lib/session.js";
 import { broadcast, closeUserStreams, connectedUserIds } from "../lib/broadcaster.js";
 import { eventRoutes, stallTimeout } from "./events.js";
 
@@ -25,6 +26,7 @@ async function buildTestApp() {
     secret: process.env["SESSION_COOKIE_SECRET"]!,
   });
   await registerCompression(app);
+  registerSessionRenewal(app);
   await app.register(eventRoutes, { prefix: "/sessions" });
   await app.ready();
   return app;
@@ -673,5 +675,28 @@ describe("GET /sessions/:sessionId/events", () => {
       res.destroy();
       await vi.waitFor(() => expect(isConnected()).toBe(false));
     }
+  });
+
+  // The stream's headers go out on the raw response, where no cookie can be
+  // added, so it leaves the login alone. The app's next ordinary request
+  // renews it, row and cookie together.
+  test("stream: doesn't renew a login that's due; the next ordinary request does", async () => {
+    const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    await prisma.authSession.update({ where: { id: AUTH_SESSION_ID }, data: { expiresAt } });
+    const res = await openRealStream();
+    try {
+      expect(res.headers["set-cookie"]).toBeUndefined();
+    } finally {
+      res.destroy();
+      await vi.waitFor(() => expect(isConnected()).toBe(false));
+    }
+    const row = await prisma.authSession.findUnique({ where: { id: AUTH_SESSION_ID } });
+    expect(row?.expiresAt).toEqual(expiresAt);
+
+    const next = await app.inject({ method: "GET", url: `/sessions/${SESSION1_ID}/events`, headers: { cookie } });
+    expect(next.statusCode).toBe(200);
+    expect(next.cookies.find((c) => c.name === "session")).toBeDefined();
+    const renewed = await prisma.authSession.findUnique({ where: { id: AUTH_SESSION_ID } });
+    expect(renewed!.expiresAt.getTime()).toBeGreaterThan(expiresAt.getTime());
   });
 });
