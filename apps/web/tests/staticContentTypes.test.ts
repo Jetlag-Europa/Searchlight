@@ -49,6 +49,10 @@ const STOCK_TYPES = new Set([
     "woff2",
 ]);
 
+// The type each extension under public/skills/ gets: the guide is read as
+// text, and browsers load the scripts as modules only with a JavaScript type.
+const SKILLS_TYPES = { md: "text/plain", mjs: "text/javascript" };
+
 describe("files in public/", () => {
     test("each have a content type nginx knows", () => {
         const unknown = filesUnder(resolve(web, "public"))
@@ -59,9 +63,9 @@ describe("files in public/", () => {
     });
 
     test("under skills/ open in a tab with nginx", () => {
-        const types = skillsTypes();
+        expect(Object.fromEntries(skillsTypes())).toEqual(SKILLS_TYPES);
         for (const ext of extensionsUnder("public/skills")) {
-            expect(types.get(ext), `.${ext}`).toMatch(/^text\//);
+            expect(Object.keys(SKILLS_TYPES), `.${ext}`).toContain(ext);
         }
         const block = skillsBlock();
         expect(block).toContain("charset utf-8;");
