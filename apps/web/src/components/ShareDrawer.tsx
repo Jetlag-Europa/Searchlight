@@ -34,8 +34,7 @@ async function errorMessage(res: Response): Promise<string> {
 export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
     const session = useStore(activeSessionData);
     if (session?.role !== "creator") return null;
-    // One per session: another session's links never show, or get copied or
-    // revoked, under this one, however late (or whether) its list loads.
+    // Keyed so a session switch never shows, copies or revokes the old session's links.
     return <SessionShareDrawer key={session.id} session={session} className={className} onOpen={onOpen} />;
 }
 
@@ -92,8 +91,7 @@ function SessionShareDrawer({
                 return;
             }
             const data: CreateLinkResponse = await res.json();
-            // The board moved to another session meanwhile: this link isn't
-            // the one to copy now.
+            // The board moved to another session meanwhile: don't copy this link.
             if (activeSessionData.get()?.id !== session.id) return;
             // Listed right away, so its "Copied!" shows for the full 2 s.
             createdLinkIds.current.add(data.id);
