@@ -1,6 +1,7 @@
 import { useStore } from "@nanostores/react";
 import type {
     CreateLinkResponse,
+    GameSessionSummary,
     SessionLinksResponse,
     SessionLinkSummary,
 } from "@searchlight/shared";
@@ -32,8 +33,20 @@ async function errorMessage(res: Response): Promise<string> {
 
 export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
     const session = useStore(activeSessionData);
-    const isCreator = session?.role === "creator";
+    if (session?.role !== "creator") return null;
+    // Keyed so a session switch never shows, copies or revokes the old session's links.
+    return <SessionShareDrawer key={session.id} session={session} className={className} onOpen={onOpen} />;
+}
 
+function SessionShareDrawer({
+    session,
+    className,
+    onOpen,
+}: {
+    session: GameSessionSummary;
+    className?: string;
+    onOpen?: () => void;
+}) {
     const [open, setOpen] = useState(false);
     const [sendError, setSendError] = useState<string | null>(null);
 
@@ -46,7 +59,6 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     const createdLinkIds = useRef(new Set<string>());
 
     const fetchLinks = useCallback(async () => {
-        if (!session || !isCreator) return;
         setLoadingLinks(true);
         createdLinkIds.current.clear();
         try {
@@ -62,10 +74,9 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
         } finally {
             setLoadingLinks(false);
         }
-    }, [session, isCreator]);
+    }, [session.id]);
 
     const handleCreateLink = async () => {
-        if (!session) return;
         setCreatingLink(true);
         setSendError(null);
         try {
@@ -80,6 +91,8 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
                 return;
             }
             const data: CreateLinkResponse = await res.json();
+            // The board moved to another session meanwhile: don't copy this link.
+            if (activeSessionData.get()?.id !== session.id) return;
             // Listed right away, so its "Copied!" shows for the full 2 s.
             createdLinkIds.current.add(data.id);
             setLinks((prev) => [
@@ -100,7 +113,6 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
     };
 
     const handleRevokeLink = async (linkId: string, token: string) => {
-        if (!session) return;
         setRevokingLinkId(linkId);
         setSendError(null);
         try {
@@ -135,8 +147,6 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
         }
     };
 
-    if (!isCreator) return null;
-
     return (
         <Drawer open={open} onOpenChange={handleOpenChange}>
             <DrawerTrigger asChild>
@@ -147,7 +157,7 @@ export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?
             <DrawerContent aria-describedby={undefined}>
                 <DrawerHeader>
                     <DrawerTitle>
-                        Share a copy of <span className="text-muted-foreground font-normal">{session?.name}</span>
+                        Share a copy of <span className="text-muted-foreground font-normal">{session.name}</span>
                     </DrawerTitle>
                 </DrawerHeader>
 
