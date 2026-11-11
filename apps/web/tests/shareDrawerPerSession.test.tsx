@@ -161,8 +161,12 @@ const buttons = (text: string) =>
 function click(text: string): Promise<void> {
     const [node] = buttons(text);
     if (!node) throw new Error(`no ${text} button`);
-    const propsKey = Object.keys(node).find((k) => k.startsWith("__reactProps$"))!;
-    const props = (node as unknown as Record<string, { onClick: () => unknown }>)[propsKey];
+    const propsKey = Object.keys(node).find((k) =>
+        k.startsWith("__reactProps$"),
+    )!;
+    const props = (
+        node as unknown as Record<string, { onClick: () => unknown }>
+    )[propsKey];
     let done: unknown;
     act(() => {
         done = props.onClick();
@@ -173,7 +177,8 @@ function click(text: string): Promise<void> {
 const settle = () => act(async () => {});
 
 let root: Root;
-const fetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
+const fetchMock =
+    vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
 
 beforeEach(async () => {
     vi.stubGlobal("fetch", fetchMock);
@@ -203,7 +208,14 @@ describe("ShareDrawer", () => {
         await act(async () => activeSessionData.set(session("a")));
         fetchMock.mockResolvedValueOnce(
             json({
-                links: [{ id: "link-a", token: "token-a", linkType: "fork", createdAt: "2026-11-11T00:00:00Z" }],
+                links: [
+                    {
+                        id: "link-a",
+                        token: "token-a",
+                        linkType: "fork",
+                        createdAt: "2026-11-11T00:00:00Z",
+                    },
+                ],
             }),
         );
         await openDrawer();
@@ -217,7 +229,9 @@ describe("ShareDrawer", () => {
             expect.stringContaining("/sessions/b/links"),
             expect.anything(),
         );
-        expect(env.document.body.textContent).toContain("Share a copy of Session b");
+        expect(env.document.body.textContent).toContain(
+            "Share a copy of Session b",
+        );
         expect(buttons("Copy")).toHaveLength(0);
         expect(buttons("Revoke")).toHaveLength(0);
     });
@@ -242,16 +256,24 @@ describe("ShareDrawer", () => {
 
     test("a link created in the open session is listed and copied", async () => {
         await act(async () => activeSessionData.set(session("a")));
-        fetchMock.mockResolvedValueOnce(json({ id: "link-a", token: "token-a" }, 201));
+        fetchMock.mockResolvedValueOnce(
+            json({ id: "link-a", token: "token-a" }, 201),
+        );
         const created = click("Create share link");
         await act(async () => created);
 
-        expect(env.writeText).toHaveBeenCalledWith("http://localhost/join?token=token-a");
+        expect(env.writeText).toHaveBeenCalledWith(
+            "http://localhost/join?token=token-a",
+        );
         expect(buttons("Copied!")).toHaveLength(1);
     });
 
     test("shows nothing to anyone but the creator", async () => {
-        for (const s of [session("a", "member"), session("a", "viewer"), null]) {
+        for (const s of [
+            session("a", "member"),
+            session("a", "viewer"),
+            null,
+        ]) {
             await act(async () => activeSessionData.set(s));
             expect(buttons("Share a copy")).toHaveLength(0);
         }
