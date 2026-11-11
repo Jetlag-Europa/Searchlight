@@ -56,11 +56,8 @@ import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
-import {
-    answerAsHider,
-    computePerQuestionRegions,
-    planningOutlines,
-} from "@/maps";
+import { computePerQuestionRegions, determinePlanningPolygon } from "@/maps";
+import { hiderifyQuestion } from "@/maps";
 import { BLANK_GEOJSON } from "@/maps/api";
 import {
     requestGeometry,
@@ -399,18 +396,18 @@ export const Map = ({ className }: { className?: string }) => {
                 return;
             }
             if (mapGeoJSON.get() !== mapGeoData) mapGeoJSON.set(mapGeoData);
-            const unanswered =
-                hider !== false
-                    ? await answerAsHider(snapshot, isCurrent)
-                    : undefined;
-            if (!isCurrent()) return;
+            if (hider !== false) {
+                for (const question of snapshot) {
+                    await hiderifyQuestion(question);
+                    if (!isCurrent()) return;
+                }
+            }
 
             const perQuestionRegions = await computePerQuestionRegions(
                 snapshot,
                 mapGeoData,
                 planning,
                 isCurrent,
-                unanswered,
             );
             if (!isCurrent()) return;
 
@@ -435,13 +432,13 @@ export const Map = ({ className }: { className?: string }) => {
             if (shown?.previewKey === previewKey) {
                 previews = shown.previews;
             } else {
-                const outlines = await planningOutlines(
-                    snapshot,
-                    planning,
-                    isCurrent,
-                );
-                if (!isCurrent()) return;
-                for (const { question, geometry } of outlines) {
+                for (const question of snapshot) {
+                    const geometry = await determinePlanningPolygon(
+                        question,
+                        planning,
+                    );
+                    if (!isCurrent()) return;
+                    if (!geometry) continue;
                     const layer = L.geoJSON(geometry);
                     Object.assign(layer, { questionKey: question.key });
                     previews.push(layer);

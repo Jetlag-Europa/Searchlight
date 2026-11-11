@@ -481,92 +481,6 @@ export async function standaloneRegion(
     return region;
 }
 
-// The region of a question that eliminates nothing: the whole base boundary.
-// Regions are never mutated, so the base itself serves when it's a collection.
-const unfilteredRegion = (baseMapGeoData: any) =>
-    baseMapGeoData?.type === "FeatureCollection"
-        ? baseMapGeoData
-        : {
-              type: "FeatureCollection",
-              features: baseMapGeoData ? [baseMapGeoData] : [],
-          };
-
-/**
- * One question's step of a map refresh: answering it, drawing its region or
- * its outline. A question that can't be (say a malformed one from another
- * client) is logged and gives `undefined`, rather than stopping the map for
- * every question. A superseded request or a failed worker isn't the
- * question's doing: those still throw, so the refresh starts over or shows
- * its error instead of a board that silently ignores a valid answer.
- */
-async function forQuestion<T>(
-    question: Question,
-    step: () => Promise<T>,
-    isCurrent: () => boolean,
-): Promise<{ value: T } | undefined> {
-    try {
-        return { value: await step() };
-    } catch (error) {
-        if (
-            error instanceof SupersededError ||
-            error instanceof GeometryWorkerError
-        )
-            throw error;
-        if (isCurrent())
-            console.error(
-                `Question ${question.key} (${question.id}) could not be drawn:`,
-                error,
-            );
-        return undefined;
-    }
-}
-
-/**
- * Hider mode: answers the questions in place, as the hider's position does.
- * Returns those it couldn't answer, left as they were: they eliminate
- * nothing (see computePerQuestionRegions).
- */
-export async function answerAsHider(
-    questions: Questions,
-    isCurrent: () => boolean = () => true,
-): Promise<Set<Question>> {
-    const unanswered = new Set<Question>();
-    for (const question of questions) {
-        // Answering may change the data in place before it fails.
-        const data = structuredClone(question.data);
-        const answered = await forQuestion(
-            question,
-            () => hiderifyQuestion(question),
-            isCurrent,
-        );
-        if (!isCurrent()) break;
-        if (answered) continue;
-        question.data = data;
-        unanswered.add(question);
-    }
-    return unanswered;
-}
-
-/** Planning mode's outline of each question that has one. */
-export async function planningOutlines(
-    questions: Questions,
-    planningModeEnabled: boolean,
-    isCurrent: () => boolean = () => true,
-): Promise<{ question: Question; geometry: any }[]> {
-    const outlines: { question: Question; geometry: any }[] = [];
-    for (const question of questions) {
-        const outline = await forQuestion(
-            question,
-            () => determinePlanningPolygon(question, planningModeEnabled),
-            isCurrent,
-        );
-        if (!isCurrent()) break;
-        if (outline?.value)
-            outlines.push({ question, geometry: outline.value });
-    }
-    return outlines;
-}
-
 // A question's region depends on its type and answer data, not on its name,
 // colours, collapsed or lock state (JSON drops the undefined keys). Hider mode
 // answers questions before they get here, so its answers are part of the data.
@@ -616,8 +530,6 @@ export async function computePerQuestionRegions(
     baseMapGeoData: any,
     planningModeEnabled: boolean,
     isCurrent: () => boolean = () => true,
-    // Questions hider mode couldn't answer (answerAsHider).
-    unanswered?: ReadonlySet<Question>,
 ): Promise<{ question: Question; region: any; zoneScale: number }[]> {
     const regions: { question: Question; region: any; zoneScale: number }[] =
         [];
@@ -638,21 +550,22 @@ export async function computePerQuestionRegions(
 
         const key = JSON.stringify([question.id, regionData(question)]);
         let region = cache.get(key);
-        if (unanswered?.has(question)) {
-            // Hider mode couldn't answer it: it eliminates nothing.
-            region = unfilteredRegion(baseMapGeoData);
-        } else if (region) {
+        try {
+            region ??= await standaloneRegion(question, baseMapGeoData);
             used.set(key, region);
-        } else {
-            // A question that can't be drawn eliminates nothing. It isn't
-            // cached, so it's tried again.
-            const drawn = await forQuestion(
-                question,
-                () => standaloneRegion(question, baseMapGeoData),
-                isCurrent,
-            );
-            if (drawn) used.set(key, (region = drawn.value));
-            else region = unfilteredRegion(baseMapGeoData);
+        } catch (error) {
+            if (
+                error instanceof SupersededError ||
+                error instanceof GeometryWorkerError
+            )
+                throw error;
+            // A malformed question eliminates nothing (uncached, so it's
+            // retried) rather than stopping the map for every question.
+            console.error(`Question ${question.id} could not be drawn:`, error);
+            region =
+                baseMapGeoData?.type === "FeatureCollection"
+                    ? baseMapGeoData
+                    : turf.featureCollection([baseMapGeoData]);
         }
         if (!isCurrent()) return regions;
 

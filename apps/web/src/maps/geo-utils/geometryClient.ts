@@ -54,17 +54,8 @@ export class SupersededError extends Error {
     }
 }
 
-/**
- * The geometry worker failed (it crashed or sent an unreadable message): every
- * calculation it had pending rejects with this, and the next request starts a
- * new worker. Nothing is wrong with the request itself.
- */
-export class GeometryWorkerError extends Error {
-    constructor() {
-        super("Geometry worker failed; retry the calculation");
-        this.name = "GeometryWorkerError";
-    }
-}
+// The worker crashed: nothing is wrong with the requests it had pending.
+export class GeometryWorkerError extends Error {}
 
 // The unit tests run in Node, which has no Worker, so they do the geometry on
 // this thread. Every browser has a Worker: their build leaves this path out,
@@ -106,7 +97,9 @@ function getWorker(): Worker {
         const fail = () => {
             worker?.terminate();
             worker = undefined;
-            const error = new GeometryWorkerError();
+            const error = new GeometryWorkerError(
+                "Geometry worker failed; retry the calculation",
+            );
             for (const task of pending.values()) task.reject(error);
             pending.clear();
         };
