@@ -11,6 +11,16 @@ import type { Question, Questions, Units } from "@/maps/schema";
 export const radarVariant = (radius: number, unit: Units) =>
     String(Math.round(turf.convertLength(radius, unit, "meters")));
 
+/**
+ * A stored radar's variant. Older clients saved a radius of 0 or less, and
+ * another client may store none: such a radar asks no size, rather than
+ * stopping every radar card from rendering.
+ */
+export const storedRadarVariant = (radius: unknown, unit: Units) =>
+    typeof radius === "number" && Number.isFinite(radius) && radius > 0
+        ? radarVariant(radius, unit)
+        : undefined;
+
 // What a question asks within its family: its layer (for matching, measuring
 // and tentacles) or its radar size. Thermometers and zone size changes have
 // no variants.
@@ -29,7 +39,7 @@ const askedVariant = (question: Question): string | undefined => {
                 : variant;
         }
         case "radius":
-            return radarVariant(question.data.radius, question.data.unit);
+            return storedRadarVariant(question.data.radius, question.data.unit);
         default:
             return undefined;
     }

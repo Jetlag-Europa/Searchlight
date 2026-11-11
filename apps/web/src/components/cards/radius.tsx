@@ -1,9 +1,9 @@
 import { useStore } from "@nanostores/react";
 import { CheckIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
     MENU_ITEM_CLASSNAME,
@@ -13,7 +13,11 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
 import { formatRadius, radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
-import { askedVariants, radarVariant } from "@/lib/askedQuestions";
+import {
+    askedVariants,
+    radarVariant,
+    storedRadarVariant,
+} from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     hiderMode,
@@ -33,6 +37,85 @@ import type { RadiusQuestion } from "@/maps/schema";
 import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
 
+/**
+ * The radius field. A radius only counts above zero, but "0" is on the way to
+ * "0.5": the field shows what the player types, and saves the last value
+ * above zero typed, 500 ms after the last keystroke (like the other fields, so
+ * the map isn't redrawn for each digit) or as soon as the field loses focus.
+ * A radius set elsewhere meanwhile (a teammate, a quick pick) or the field
+ * locking drops what was typed, and the field shows the stored radius.
+ */
+const RadiusField = ({
+    radius,
+    disabled,
+    onRadius,
+}: {
+    radius: number;
+    disabled: boolean;
+    onRadius: (radius: number) => void;
+}) => {
+    // What the player typed, and the stored radius it was typed over.
+    const [draft, setDraft] = useState<{ text: string; over: number }>();
+    const pending = useRef<{
+        radius: number;
+        timer: ReturnType<typeof setTimeout>;
+    }>(undefined);
+    const save = useRef(onRadius);
+    useEffect(() => {
+        save.current = onRadius;
+    });
+    const cancel = () => {
+        clearTimeout(pending.current?.timer);
+        pending.current = undefined;
+    };
+    const flush = () => {
+        const typed = pending.current?.radius;
+        cancel();
+        if (typed === undefined) return;
+        // The draft now stands over the radius it saved.
+        setDraft((draft) => draft && { ...draft, over: typed });
+        save.current(typed);
+    };
+    // Saved when the card goes, say when its sheet closes under the field.
+    useEffect(() => flush, []);
+
+    const stale =
+        draft !== undefined && (!Object.is(draft.over, radius) || disabled);
+    useEffect(() => {
+        if (!stale) return;
+        cancel();
+        setDraft(undefined);
+    }, [stale]);
+
+    return (
+        <RawInput
+            type="number"
+            className="rounded-md p-2 w-16"
+            min={0}
+            // Another client may have stored none.
+            value={draft && !stale ? draft.text : (radius ?? "")}
+            disabled={disabled}
+            onChange={(e) => {
+                const text = e.target.value;
+                setDraft({ text, over: draft && !stale ? draft.over : radius });
+                // A cleared field, or one reading zero or less, keeps the
+                // radius (and any typed but not yet saved).
+                const typed = parseFloat(text);
+                if (!(typed > 0) || !Number.isFinite(typed)) return;
+                cancel();
+                pending.current = {
+                    radius: typed,
+                    timer: setTimeout(flush, 500),
+                };
+            }}
+            onBlur={() => {
+                flush();
+                setDraft(undefined);
+            }}
+        />
+    );
+};
+
 export const RadiusQuestionComponent = ({
     data,
     questionKey,
@@ -50,17 +133,16 @@ export const RadiusQuestionComponent = ({
     // Radii the game declares, offered as quick picks when there are several.
     const declaredRadii = $compiledGame ? radarRadii($compiledGame) : [];
     // Compared in meters, so a typed 2 km also picks a declared 2000 m.
-    const declaredIndex = declaredRadii.findIndex(
-        (r) =>
-            radarVariant(r.value, r.unit) ===
-            radarVariant(data.radius, data.unit),
-    );
+    const variant = storedRadarVariant(data.radius, data.unit);
+    const declaredIndex =
+        variant === undefined
+            ? -1
+            : declaredRadii.findIndex(
+                  (r) => radarVariant(r.value, r.unit) === variant,
+              );
     // Sizes other radars asked, marked (but still offered) in the quick picks.
     const askedRadii = askedVariants($questions, "radius", questionKey);
     const label = defaultQuestionLabel($questions, questionKey);
-    // What the player is typing, shown until the field loses focus: a radius
-    // only counts above zero, but "0" is on the way to "0.5".
-    const [typed, setTyped] = useState<string>();
 
     return (
         <QuestionCard
@@ -80,22 +162,12 @@ export const RadiusQuestionComponent = ({
         >
             <SidebarMenuItem>
                 <div className={cn(MENU_ITEM_CLASSNAME, "gap-2 flex flex-row")}>
-                    <Input
-                        type="number"
-                        className="rounded-md p-2 w-16"
-                        min={0}
-                        value={typed ?? data.radius}
+                    <RadiusField
+                        radius={data.radius}
                         disabled={!data.drag || $isLoading}
-                        onChange={(e) => {
-                            setTyped(e.target.value);
-                            // Keep the last radius while the field is
-                            // cleared or reads zero or less.
-                            const radius = parseFloat(e.target.value);
-                            if (!(radius > 0) || !Number.isFinite(radius))
-                                return;
-                            questionModified((data.radius = radius));
-                        }}
-                        onBlur={() => setTyped(undefined)}
+                        onRadius={(radius) =>
+                            questionModified((data.radius = radius))
+                        }
                     />
                     <UnitSelect
                         unit={data.unit}
