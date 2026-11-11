@@ -296,7 +296,7 @@ export const OptionDrawers = () => {
                                     />
                                     {/* Google Maps Platform Terms 3.2.2(a). */}
                                     {googleMapsAvailable && (
-                                        <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                        <p className="text-xs text-muted-foreground max-w-[280px] text-center">
                                             Searchlight includes Google Maps
                                             features and content. Their use is
                                             subject to the{" "}
@@ -388,7 +388,7 @@ export const OptionDrawers = () => {
                                                     />
                                                 </div>
                                                 {googlePhotoOnly && (
-                                                    <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                                    <p className="text-xs text-muted-foreground max-w-[280px] text-center">
                                                         Satellite is the photo
                                                         alone. Hybrid adds
                                                         streets, names and
@@ -400,7 +400,7 @@ export const OptionDrawers = () => {
                                     {$baseTileLayer === "google" &&
                                         googleMapsAvailable &&
                                         $googleMapsProblem && (
-                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                            <p className="text-xs text-muted-foreground max-w-[280px] text-center">
                                                 {$googleMapsProblem ===
                                                 "offline"
                                                     ? "Google Maps needs a connection. Showing CARTO Voyager until you're back online."
@@ -414,7 +414,7 @@ export const OptionDrawers = () => {
                                         googleMapsAvailable &&
                                         !$googleMapsProblem &&
                                         $googleStandingIn && (
-                                            <p className="text-xs text-gray-500 max-w-[280px] text-center">
+                                            <p className="text-xs text-muted-foreground max-w-[280px] text-center">
                                                 {$googleModuleFailed
                                                     ? "Part of Google Maps couldn't load, so it may not draw. Showing CARTO Voyager; reload the page to try again."
                                                     : "Google Maps is still loading. Showing CARTO Voyager until it has drawn."}
@@ -433,7 +433,7 @@ export const OptionDrawers = () => {
                                             }
                                             placeholder="Enter your Thunderforest API key"
                                         />
-                                        <p className="text-xs text-gray-500">
+                                        <p className="text-xs text-muted-foreground">
                                             Needed for Thunderforest map styles.
                                             Create a key{" "}
                                             <a
@@ -517,7 +517,7 @@ export const OptionDrawers = () => {
                                             />
                                         </div>
                                         {$readOnly && (
-                                            <p className="text-xs text-gray-500">
+                                            <p className="text-xs text-muted-foreground">
                                                 Set by the players: spectators
                                                 can&apos;t change it.
                                             </p>
