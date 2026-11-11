@@ -1,5 +1,6 @@
 import { useStore } from "@nanostores/react";
 import { CheckIcon } from "lucide-react";
+import { useState } from "react";
 
 import { LatitudeLongitude } from "@/components/LatLngPicker";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,9 @@ export const RadiusQuestionComponent = ({
     // Sizes other radars asked, marked (but still offered) in the quick picks.
     const askedRadii = askedVariants($questions, "radius", questionKey);
     const label = defaultQuestionLabel($questions, questionKey);
+    // What the player is typing, shown until the field loses focus: a radius
+    // only counts above zero, but "0" is on the way to "0.5".
+    const [typed, setTyped] = useState<string>();
 
     return (
         <QuestionCard
@@ -79,14 +83,19 @@ export const RadiusQuestionComponent = ({
                     <Input
                         type="number"
                         className="rounded-md p-2 w-16"
-                        value={data.radius}
+                        min={0}
+                        value={typed ?? data.radius}
                         disabled={!data.drag || $isLoading}
                         onChange={(e) => {
-                            // Keep the last radius while the field is cleared.
+                            setTyped(e.target.value);
+                            // Keep the last radius while the field is
+                            // cleared or reads zero or less.
                             const radius = parseFloat(e.target.value);
-                            if (isNaN(radius)) return;
+                            if (!(radius > 0) || !Number.isFinite(radius))
+                                return;
                             questionModified((data.radius = radius));
                         }}
+                        onBlur={() => setTyped(undefined)}
                     />
                     <UnitSelect
                         unit={data.unit}

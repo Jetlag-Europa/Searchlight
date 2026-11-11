@@ -6,7 +6,7 @@ import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 
-import { arcDistanceToPoint } from "./geo-utils";
+import { arcDistanceToPoint, SupersededError } from "./geo-utils";
 import {
     adjustPerMatching,
     hiderifyMatching,
@@ -477,6 +477,16 @@ export async function standaloneRegion(
     return region;
 }
 
+// The region of a question that eliminates nothing: the whole base boundary.
+// Regions are never mutated, so the base itself serves when it's a collection.
+const unfilteredRegion = (baseMapGeoData: any) =>
+    baseMapGeoData?.type === "FeatureCollection"
+        ? baseMapGeoData
+        : {
+              type: "FeatureCollection",
+              features: baseMapGeoData ? [baseMapGeoData] : [],
+          };
+
 // A question's region depends on its type and answer data, not on its name,
 // colours, collapsed or lock state (JSON drops the undefined keys). Hider mode
 // answers questions before they get here, so its answers are part of the data.
@@ -545,11 +555,28 @@ export async function computePerQuestionRegions(
         if (planningModeEnabled && question.data.drag) continue;
 
         const key = JSON.stringify([question.id, regionData(question)]);
-        const region =
-            cache.get(key) ??
-            (await standaloneRegion(question, baseMapGeoData));
+        let region = cache.get(key);
+        if (!region) {
+            try {
+                region = await standaloneRegion(question, baseMapGeoData);
+                used.set(key, region);
+            } catch (error) {
+                // A newer request replaced this geometry: the caller starts over.
+                if (error instanceof SupersededError) throw error;
+                if (!isCurrent()) return regions;
+                // One question that can't be drawn (say a malformed one from
+                // another client) eliminates nothing, rather than stopping the
+                // map for every question. It isn't cached, so it's tried again.
+                console.error(
+                    `Question ${question.key} (${question.id}) could not be drawn:`,
+                    error,
+                );
+                region = unfilteredRegion(baseMapGeoData);
+            }
+        } else {
+            used.set(key, region);
+        }
         if (!isCurrent()) return regions;
-        used.set(key, region);
 
         regions.push({
             question,
