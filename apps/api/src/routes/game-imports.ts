@@ -13,7 +13,7 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { listedSessionsWhere } from "../lib/session-access.js";
 
-// Game definitions embed full GeoJSON boundaries; preloaded ones reach ~8 MB,
+// Game definitions embed full GeoJSON boundaries; preloaded ones reach ~2 MB,
 // well past Fastify's 1 MiB default.
 const MAX_GAME_IMPORT_BYTES = 50 * 1024 * 1024;
 // A broken multi-MB definition can produce an issue per feature; the message
