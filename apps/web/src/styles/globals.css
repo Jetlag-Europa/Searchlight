@@ -83,6 +83,9 @@ div.leaflet-control-attribution.leaflet-control {
         --accent-foreground: 222.2 47.4% 11.2%;
         --destructive: 0 84.2% 60.2%;
         --destructive-foreground: 210 40% 98%;
+        /* Red text (text-destructive) on the background: --destructive is
+           for fills and is too faint as text (red-600, 4.8:1 on white). */
+        --destructive-text: 0 72.2% 50.6%;
         --border: 214.3 31.8% 91.4%;
         --input: 214.3 31.8% 91.4%;
         --ring: 222.2 84% 4.9%;
@@ -118,6 +121,8 @@ div.leaflet-control-attribution.leaflet-control {
         --accent-foreground: 210 40% 98%;
         --destructive: 0 62.8% 30.6%;
         --destructive-foreground: 210 40% 98%;
+        /* red-400: 7.4:1 on the background, where --destructive is 2:1. */
+        --destructive-text: 0 91.2% 71.4%;
         --border: 217.2 32.6% 17.5%;
         --input: 217.2 32.6% 17.5%;
         --ring: 212.7 26.8% 83.9%;

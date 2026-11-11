@@ -65,6 +65,14 @@ export default {
 					"'Oxygen'"
 				]
     		},
+    		// text-destructive uses its own readable red; bg-/border-/ring-
+    		// destructive keep the dark fill that red buttons need.
+    		textColor: {
+    			destructive: {
+    				DEFAULT: 'hsl(var(--destructive-text))',
+    				foreground: 'hsl(var(--destructive-foreground))'
+    			}
+    		},
     		borderRadius: {
     			lg: 'var(--radius)',
     			md: 'calc(var(--radius) - 2px)',
