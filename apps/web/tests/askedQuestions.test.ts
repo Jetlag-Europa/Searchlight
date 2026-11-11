@@ -94,6 +94,19 @@ describe("askedVariants", () => {
         expect(asked.has(radarVariant(2000, "meters"))).toBe(true);
         expect(asked.has(radarVariant(2, "miles"))).toBe(false);
     });
+
+    it("leaves out a stored radar with a radius of 0 or less, or none", () => {
+        const radars = parse(
+            [2, 0, -3, null, Number.NaN].map((radius, key) => ({
+                id: "radius",
+                key,
+                data: { radius, unit: "kilometers" },
+            })),
+        );
+        expect(askedVariants(radars, "radius")).toEqual(
+            new Set([radarVariant(2, "kilometers")]),
+        );
+    });
 });
 
 describe("firstUnasked", () => {

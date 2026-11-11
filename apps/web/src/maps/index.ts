@@ -6,7 +6,11 @@ import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 
-import { arcDistanceToPoint } from "./geo-utils";
+import {
+    arcDistanceToPoint,
+    GeometryWorkerError,
+    SupersededError,
+} from "./geo-utils";
 import {
     adjustPerMatching,
     hiderifyMatching,
@@ -545,11 +549,25 @@ export async function computePerQuestionRegions(
         if (planningModeEnabled && question.data.drag) continue;
 
         const key = JSON.stringify([question.id, regionData(question)]);
-        const region =
-            cache.get(key) ??
-            (await standaloneRegion(question, baseMapGeoData));
+        let region = cache.get(key);
+        try {
+            region ??= await standaloneRegion(question, baseMapGeoData);
+            used.set(key, region);
+        } catch (error) {
+            if (
+                error instanceof SupersededError ||
+                error instanceof GeometryWorkerError
+            )
+                throw error;
+            // A malformed question eliminates nothing (uncached, so it's
+            // retried) rather than stopping the map for every question.
+            console.error(`Question ${question.id} could not be drawn:`, error);
+            region =
+                baseMapGeoData?.type === "FeatureCollection"
+                    ? baseMapGeoData
+                    : turf.featureCollection([baseMapGeoData]);
+        }
         if (!isCurrent()) return regions;
-        used.set(key, region);
 
         regions.push({
             question,
