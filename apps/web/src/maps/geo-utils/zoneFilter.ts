@@ -62,6 +62,18 @@ export function calculateFilterZoneIndexes(
         const circle = circles[i];
         if (!circle || !circle.geometry) continue;
         const cBbox = circleBboxes[i];
+        // Turf tests the circle against every vertex of a feature, so test
+        // only the part around the circle. The padding keeps the cut's own
+        // edges off the circle, also off a zone of radius 0.
+        const pad =
+            Math.max(cBbox[2] - cBbox[0], cBbox[3] - cBbox[1]) * 0.05 || 1e-9;
+        const around: BBox = [
+            cBbox[0] - pad,
+            cBbox[1] - pad,
+            cBbox[2] + pad,
+            cBbox[3] + pad,
+        ];
+        const onCircle = turf.coordAll(circle)[0];
         let intersectsAll = true;
 
         for (const reg of preparedRegions) {
@@ -87,7 +99,21 @@ export function calculateFilterZoneIndexes(
                 ) {
                     continue;
                 }
-                if (turf.booleanIntersects(circle, feature)) {
+                // Most zones lie well inside most regions.
+                if (turf.booleanPointInPolygon(onCircle, feature)) {
+                    intersectsAnyFeature = true;
+                    break;
+                }
+                const cut = turf.bboxClip(feature, around).geometry as
+                    | Polygon
+                    | MultiPolygon;
+                const nearby = (
+                    cut.type === "Polygon" ? [cut.coordinates] : cut.coordinates
+                ).filter((polygon) => polygon.length);
+                if (
+                    nearby.length &&
+                    turf.booleanIntersects(circle, turf.multiPolygon(nearby))
+                ) {
                     intersectsAnyFeature = true;
                     break;
                 }
