@@ -4,13 +4,19 @@ import type {
     BBox,
     Feature,
     FeatureCollection,
+    MultiLineString,
     MultiPolygon,
     Point,
     Polygon,
 } from "geojson";
 
 import { compiledGameAtom } from "@/game-definition/store";
-import { cellOfSite, geoSpatialVoronoiSafe, safeUnion } from "@/maps/geo-utils";
+import {
+    cellOfSite,
+    geoSpatialVoronoiSafe,
+    identityKey,
+    safeUnion,
+} from "@/maps/geo-utils";
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 import {
@@ -172,6 +178,29 @@ async function nearestLineRegion(
     );
 }
 
+/** The cells of the layer's points, over the domain the seeker's is drawn in. */
+async function pointVoronoi(
+    source: GeometrySource,
+    seekerPoint: Feature<Point>,
+    mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null,
+) {
+    const domainBbox = resolvePlayAreaBbox(mapGeoData, [
+        ...source.points,
+        seekerPoint,
+    ]);
+    const domainKey = `${domainBbox[0].toFixed(4)},${domainBbox[1].toFixed(4)},${domainBbox[2].toFixed(4)},${domainBbox[3].toFixed(4)}`;
+    const voronoi = await cachedGeometry(
+        source,
+        `matching:point-voronoi:${domainKey}`,
+        () =>
+            geoSpatialVoronoiSafe(
+                turf.featureCollection(source.points),
+                domainBbox,
+            ),
+    );
+    return { voronoi, domainKey };
+}
+
 export async function determineMatchingGeometry(
     params: Omit<MatchingEvaluationParams, "mapGeoData"> & {
         mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null;
@@ -215,19 +244,10 @@ export async function determineMatchingGeometry(
                 seekerPoint,
                 turf.featureCollection(source.points),
             );
-            const domainBbox = resolvePlayAreaBbox(mapGeoData, [
-                ...source.points,
-                seekerPoint,
-            ]);
-            const domainKey = `${domainBbox[0].toFixed(4)},${domainBbox[1].toFixed(4)},${domainBbox[2].toFixed(4)},${domainBbox[3].toFixed(4)}`;
-            const voronoi = await cachedGeometry(
+            const { voronoi } = await pointVoronoi(
                 source,
-                `matching:point-voronoi:${domainKey}`,
-                () =>
-                    geoSpatialVoronoiSafe(
-                        turf.featureCollection(source.points),
-                        domainBbox,
-                    ),
+                seekerPoint,
+                mapGeoData,
             );
             const region = cellOfSite(
                 voronoi.features,
@@ -269,4 +289,57 @@ export async function evaluateMatchingOperator(
         modifications: geometry.region,
         within: (params.data.same !== false) === geometry.sameInside,
     });
+}
+
+/**
+ * The borders between every cell the answer could have chosen, within the
+ * play area: the layer's points' cells or its regions. Undefined for lines,
+ * whose cells are only approximated, and when there are none.
+ */
+export async function determineMatchingCellBorders(
+    params: Omit<MatchingEvaluationParams, "mapGeoData">,
+    area: FeatureCollection<Polygon | MultiPolygon>,
+): Promise<Feature<MultiLineString> | undefined> {
+    const { evaluator, datasets, data } = params;
+    const source = geometrySource(evaluator, datasets, data);
+    if (!source) return undefined;
+    const areaKey = identityKey(area);
+    let borders: Feature<MultiLineString> | null = null;
+    switch (evaluator.operator) {
+        case "nearest-feature-match": {
+            if (source.lines.length || source.points.length < 2) break;
+            const seekerPoint = turf.point([data.lng, data.lat]);
+            // The cells the seeker's own is taken from, so the two agree.
+            const { voronoi, domainKey } = await pointVoronoi(
+                source,
+                seekerPoint,
+            );
+            borders = await cachedGeometry(
+                source,
+                `matching:point-borders:${domainKey}:${areaKey}`,
+                () =>
+                    requestGeometry({
+                        kind: "cellBorders",
+                        cells: voronoi.features,
+                        area,
+                    }),
+            );
+            break;
+        }
+        case "containing-region-match": {
+            if (!source.regions.length) break;
+            borders = await cachedGeometry(
+                source,
+                `matching:region-borders:${areaKey}`,
+                () =>
+                    requestGeometry({
+                        kind: "cellBorders",
+                        cells: source.regions,
+                        area,
+                    }),
+            );
+            break;
+        }
+    }
+    return borders ?? undefined;
 }
