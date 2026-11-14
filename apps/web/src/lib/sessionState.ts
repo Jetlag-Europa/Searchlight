@@ -574,12 +574,22 @@ function sendZonesDelta(event: PendingEvent, keepalive = false): Promise<void> {
         : sendPendingEvent(event, keepalive);
 }
 
+// Forget the change not queued yet: it is replaced, or queued now.
+function unscheduleZones(sessionId: string): boolean {
+    clearTimeout(zonesTimers.get(sessionId));
+    zonesTimers.delete(sessionId);
+    return scheduledZones.delete(sessionId);
+}
+
+/**
+ * Drop the change not queued yet (waiting out the debounce, or for room in
+ * storage: see flushDisabledZonesSave). The board stops showing it: it
+ * won't be saved.
+ */
 export function cancelPendingDisabledZonesSave(sessionId?: string): void {
     const ids = sessionId ? [sessionId] : [...zonesTimers.keys()];
     for (const id of ids) {
-        clearTimeout(zonesTimers.get(id));
-        zonesTimers.delete(id);
-        scheduledZones.delete(id);
+        if (unscheduleZones(id)) showDisabledZonesIfOnBoard(id);
     }
 }
 
@@ -602,7 +612,7 @@ export function saveDisabledZonesDelta(
         delta,
     );
     const next = diffZoneIds(saved, board);
-    cancelPendingDisabledZonesSave(sessionId);
+    unscheduleZones(sessionId);
     if (!isNoZonesChange(next)) {
         scheduledZones.set(sessionId, next);
         zonesTimers.set(
@@ -639,7 +649,7 @@ export async function flushDisabledZonesSave(
     // adoptLegacyDisabledZones) and whether or not this change has been
     // sent by then.
     enableLegacyDisabledZones(sessionId, delta.enableZoneIds);
-    cancelPendingDisabledZonesSave(sessionId);
+    unscheduleZones(sessionId);
     await sendZonesDelta(event, keepalive);
 }
 

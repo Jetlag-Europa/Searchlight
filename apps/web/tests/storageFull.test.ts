@@ -348,6 +348,25 @@ test("a disabled zone the queue has no room for is said, and queued by Retry", a
     expect([...disabledStations.get()].sort()).toEqual(["a", "b"]);
 });
 
+test("a disabled zone still waiting for room leaves the board when a session load drops it", async () => {
+    setDisabledZonesBase(SID, ["a"]);
+    capacity = used();
+    saveDisabledZonesDelta(SID, { disableZoneIds: ["b"], enableZoneIds: [] });
+    await vi.advanceTimersByTimeAsync(400);
+    expect([...disabledStations.get()].sort()).toEqual(["a", "b"]);
+
+    // The session loads again: it shows the server's zones, then drops what
+    // wasn't queued (see cancelPendingSaves in SessionManager).
+    setDisabledZonesBase(SID, ["a"]);
+    cancelPendingDisabledZonesSave();
+
+    // Nothing is left to save it, so the board doesn't show it either.
+    expect(disabledStations.get()).toEqual(["a"]);
+    capacity = Infinity;
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(getPendingEvents(SID)).toEqual([]);
+});
+
 describe("a queue from before queues were per account", () => {
     // Kept for the account this session was kept for: it moves under that
     // account's key, copied there first.
