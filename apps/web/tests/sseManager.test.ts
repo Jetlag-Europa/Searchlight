@@ -613,6 +613,35 @@ describe("handleServerEvent — zones.disabled", () => {
         expect(getCachedSession(SID)?.disabledZoneIds).toEqual(["theirs"]);
     });
 
+    test("skips a list older than the one the board is made from", () => {
+        // The reply to a save of ours brought the list as of event 2 before
+        // the stream got there.
+        setDisabledZonesBase(SID, ["mine", "theirs"], 2);
+        startSSE(SID);
+        simulateMessage(zones(["theirs"], 1));
+        expect(disabledStations.get()).toEqual(["mine", "theirs"]);
+        simulateMessage(zones(["mine", "theirs"], 2));
+        simulateMessage(zones(["mine"], 3));
+        expect(disabledStations.get()).toEqual(["mine"]);
+    });
+
+    test("caches the sequence the list is as of", () => {
+        setCachedSession({
+            sessionId: SID,
+            strokes: [],
+            questions: [] as unknown as Questions,
+            disabledZoneIds: [],
+            lastSyncedAt: 0,
+            lastSequence: 0,
+        });
+        startSSE(SID);
+        simulateMessage(zones(["theirs"], 1));
+        expect(getCachedSession(SID)).toMatchObject({
+            disabledZoneIds: ["theirs"],
+            disabledZonesSequence: 1,
+        });
+    });
+
     test("ignores a malformed payload", () => {
         setDisabledZonesBase(SID, ["a"]);
         startSSE(SID);

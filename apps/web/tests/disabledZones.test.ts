@@ -14,7 +14,12 @@ import {
     toggleDisabledZone,
     type ZonesDelta,
 } from "@/lib/disabledZones";
-import { discardSessionData, getPendingEvents } from "@/lib/eventQueue";
+import {
+    discardSessionData,
+    getCachedSession,
+    getPendingEvents,
+    setCachedSession,
+} from "@/lib/eventQueue";
 import {
     activeSessionId,
     activeSessionRole,
@@ -373,7 +378,8 @@ describe("the board", () => {
         expect(disabledStations.get()).toEqual([]);
     });
 
-    describe("as our own change is saved", () => {
+    // An API from before zones synced answers a save without the list.
+    describe("as our own change is saved, answered without the list", () => {
         let reply: PromiseWithResolvers<Response>;
         let sending: Promise<void>;
         let clientUuid: string;
@@ -431,6 +437,190 @@ describe("the board", () => {
             applyDisabledZonesEvent(SID, [], "zones-disabled-later");
             expect(disabledStations.get()).toEqual([]);
         });
+    });
+});
+
+// Loads, events and the replies to our saves each bring the server's whole
+// list with the event sequence it is as of, in any order.
+describe("the newest list the server sent", () => {
+    const SID = "zones-sequence";
+    // A PATCH's reply: the session as saved.
+    const saved = (ids: string[], sequence: number) =>
+        Response.json({ disabledZoneIds: ids, disabledZonesSequence: sequence });
+    // What this browser keeps of the session.
+    const keep = (ids: string[], sequence: number, userId?: string) =>
+        setCachedSession({
+            sessionId: SID,
+            userId,
+            strokes: [],
+            questions: [],
+            disabledZoneIds: ids,
+            disabledZonesSequence: sequence,
+            lastSyncedAt: 0,
+            lastSequence: sequence,
+        });
+    const keptZones = () => {
+        const kept = getCachedSession(SID);
+        return [kept?.disabledZoneIds, kept?.disabledZonesSequence];
+    };
+    let reply: PromiseWithResolvers<Response>;
+    let sending: Promise<void>;
+    let clientUuid: string;
+
+    // The board was on another session before: nothing is known of this one.
+    beforeEach(() => setDisabledZonesBase("another", []));
+
+    // We disable "a" on a board made from `ids` as of `sequence`; the save
+    // is on its way.
+    const disableA = (ids: string[] = [], sequence = 0) => {
+        reply = Promise.withResolvers<Response>();
+        vi.mocked(fetch).mockImplementation(async (_url, options) => {
+            requests.push(options!);
+            return reply.promise;
+        });
+        keep(ids, sequence);
+        setDisabledZonesBase(SID, ids, sequence);
+        saveDisabledZonesDelta(SID, delta(["a"]));
+        sending = flushDisabledZonesSave(SID);
+        clientUuid = getPendingEvents(SID)[0].clientUuid;
+    };
+
+    it("is the board's from our save's reply on, whatever older comes after", async () => {
+        disableA();
+        // Another player's "b" was saved just before ours.
+        reply.resolve(saved(["a", "b"], 2));
+        await sending;
+        expect(getPendingEvents(SID)).toEqual([]);
+        expect(sorted(disabledStations.get())).toEqual(["a", "b"]);
+        // The stream gets there later: nothing flickers back.
+        const board = disabledStations.get();
+        applyDisabledZonesEvent(SID, ["b"], "zones-disabled-theirs", 1);
+        applyDisabledZonesEvent(SID, ["a", "b"], clientUuid, 2);
+        expect(disabledStations.get()).toBe(board);
+        applyDisabledZonesEvent(SID, ["b"], "zones-disabled-later", 3);
+        expect(disabledStations.get()).toEqual(["b"]);
+    });
+
+    it("follows a later change when our reply comes after a load that had ours", async () => {
+        disableA();
+        // Saved as event 1, the reply slow. The session loads meanwhile:
+        // its list has ours, and its stream starts after event 1.
+        setDisabledZonesBase(SID, ["a"], 1);
+        reply.resolve(saved(["a"], 1));
+        await sending;
+        expect(getPendingEvents(SID)).toEqual([]);
+        expect(disabledStations.get()).toEqual(["a"]);
+        // Another player enables it again: our echo never came, and never
+        // will.
+        applyDisabledZonesEvent(SID, [], "zones-disabled-theirs", 2);
+        expect(disabledStations.get()).toEqual([]);
+    });
+
+    it("stays when the reply to our save is older", async () => {
+        disableA();
+        // Our echo, then another player's enable, both before the reply.
+        applyDisabledZonesEvent(SID, ["a"], clientUuid, 1);
+        applyDisabledZonesEvent(SID, [], "zones-disabled-theirs", 2);
+        reply.resolve(saved(["a"], 1));
+        await sending;
+        expect(disabledStations.get()).toEqual([]);
+    });
+
+    it("stays when a session load read an older one", async () => {
+        disableA();
+        reply.resolve(saved(["a"], 1));
+        await sending;
+        // The load read the session before our save landed.
+        setDisabledZonesBase(SID, [], 0);
+        expect(disabledStations.get()).toEqual(["a"]);
+        // The one a later load reads replaces it.
+        setDisabledZonesBase(SID, ["b"], 4);
+        expect(disabledStations.get()).toEqual(["b"]);
+    });
+
+    it("has a resent change as the server has it now", async () => {
+        disableA();
+        // Applied the first time (the reply was lost); another player
+        // enabled "a" and disabled "b" since.
+        reply.resolve(saved(["b"], 3));
+        await sending;
+        expect(disabledStations.get()).toEqual(["b"]);
+    });
+
+    it("is kept before our save's echo, for a reload without the server", async () => {
+        disableA();
+        reply.resolve(saved(["a"], 1));
+        await sending;
+        expect(getPendingEvents(SID)).toEqual([]);
+        expect(keptZones()).toEqual([["a"], 1]);
+
+        // A reload offline: only what's in storage is left.
+        disabledStations.set([]);
+        setDisabledZonesBase("another", []);
+        const kept = getCachedSession(SID)!;
+        setDisabledZonesBase(SID, kept.disabledZoneIds!, kept.disabledZonesSequence);
+        expect(disabledStations.get()).toEqual(["a"]);
+    });
+
+    it("is kept for a session left before its save was answered", async () => {
+        disableA();
+        // Another session is on the board by the time the reply comes.
+        setDisabledZonesBase("another", ["x"], 7);
+        reply.resolve(saved(["a"], 1));
+        await sending;
+        expect(disabledStations.get()).toEqual(["x"]);
+        expect(keptZones()).toEqual([["a"], 1]);
+    });
+
+    it("is not replaced in what's kept by an older reply or an older load", async () => {
+        disableA();
+        // The stream is ahead: another player's change is kept already.
+        keep(["b"], 5);
+        reply.resolve(saved(["a"], 1));
+        await sending;
+        expect(keptZones()).toEqual([["b"], 5]);
+
+        // A load that read the session before that change.
+        vi.stubGlobal(
+            "fetch",
+            vi.fn(async (url: string) => {
+                if (url.endsWith("/events/cursor")) return Response.json({ sequence: 4 });
+                if (url.endsWith("/questions")) return Response.json({ questions: [] });
+                if (url.endsWith("/strokes")) return Response.json({ strokes: [] });
+                return Response.json({
+                    id: SID,
+                    gameId: "game",
+                    gameRevisionId: "rev",
+                    name: "Session",
+                    disabledZoneIds: ["a"],
+                    disabledZonesSequence: 4,
+                });
+            }),
+        );
+        await loadSessionContent(SID, "user");
+        expect(keptZones()).toEqual([["b"], 5]);
+    });
+
+    it("isn't shown to another account that signed in before the reply", async () => {
+        verifiedUserId.set("u1");
+        activeSessionId.set(SID);
+        try {
+            disableA();
+            // Signing out clears the board; another account signs in.
+            activeSessionId.set("");
+            verifiedUserId.set("u2");
+            reply.resolve(saved(["a"], 1));
+            await sending;
+            expect(disabledStations.get()).toEqual([]);
+            // The first account's change stays queued for it: sent again
+            // when it's back, and recognised.
+            expect(getPendingEvents(SID)).toEqual([]);
+            verifiedUserId.set("u1");
+            expect(getPendingEvents(SID)).toHaveLength(1);
+        } finally {
+            activeSessionId.set("");
+            verifiedUserId.set(null);
+        }
     });
 });
 

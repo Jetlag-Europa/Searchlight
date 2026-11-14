@@ -383,16 +383,19 @@ export function flushPlanningModeSave(
 
 // The board shows the server's list (the base) with this device's changes
 // the base doesn't show yet applied on top, oldest first:
-// - acknowledged: saved, but the reply beat the SSE echo. Kept until the echo
-//   arrives, so the board doesn't flicker back in between. Every saved
-//   change has one: the server records a change with an ID even when it
-//   changed nothing.
 // - queued: in the event queue, so they show after a reload too.
 // - scheduled: the edit waiting out the debounce.
-// The base follows the server (session loads and every zones.disabled event):
-// other players' edits show while ours are on their way, and our own echo
-// changes nothing.
-let zonesBase: { sessionId: string; ids: string[] } | null = null;
+// The base follows the server: session loads, every zones.disabled event and
+// the reply to each save of ours all bring the whole list, with the event
+// sequence it is as of. The base only ever moves to a list that is not
+// older than its own (see isOlderThanBase), whichever way it came and in
+// whatever order: other players' edits show while ours are on their way, a
+// saved change of ours is in the base from its reply on, and its echo, or a
+// reply that comes after a load already had the change, changes nothing.
+// - acknowledged: only with an API from before, whose reply has no list.
+//   The saved change then stays on top until its echo or the next load.
+let zonesBase: { sessionId: string; ids: string[]; sequence?: number } | null =
+    null;
 // For zonesBase's session.
 let acknowledgedZones: Array<{ clientUuid: string; delta: ZonesDelta }> = [];
 const zonesTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -403,9 +406,27 @@ function isUnsyncedZonesEvent(event: PendingEvent): boolean {
     return event.type === "zones.disabled";
 }
 
-/** The server's disabled zones for a session, as last heard, if known. */
-export function getDisabledZonesBase(sessionId: string): string[] | undefined {
-    return zonesBase?.sessionId === sessionId ? zonesBase.ids : undefined;
+/**
+ * The server's disabled zones for a session, as last heard, and the event
+ * sequence they are as of, if known.
+ */
+export function getDisabledZonesBase(
+    sessionId: string,
+): { ids: string[]; sequence?: number } | undefined {
+    return zonesBase?.sessionId === sessionId ? zonesBase : undefined;
+}
+
+// A list as of `sequence` is older than the one the board is made from: the
+// base has every change in it, and what came after. A list whose sequence
+// isn't known (an API from before, a copy kept by a build from before) is
+// taken as it comes.
+function isOlderThanBase(sessionId: string, sequence?: number): boolean {
+    return (
+        zonesBase?.sessionId === sessionId &&
+        zonesBase.sequence !== undefined &&
+        sequence !== undefined &&
+        sequence < zonesBase.sequence
+    );
 }
 
 // The base with the changes already sent or queued: the board without the
@@ -420,7 +441,7 @@ function savedDisabledZones(sessionId: string): string[] {
         .map((event) => zonesDeltaOf(event.payloadJson));
     return [...acknowledged, ...queued].reduce(
         applyZonesDelta,
-        getDisabledZonesBase(sessionId) ?? [],
+        getDisabledZonesBase(sessionId)?.ids ?? [],
     );
 }
 
@@ -438,23 +459,34 @@ function showDisabledZonesIfOnBoard(sessionId: string): void {
 }
 
 /**
- * Show a session's disabled zones from a fresh session load. Every change
- * acknowledged before is in it.
+ * Show a session's disabled zones from the server's list as of `sequence`: a
+ * session load's, the copy kept here, a save's reply. Not over a later list
+ * the board already has for the session (a load read before a save of ours
+ * that has been answered since, a picker entry from before an event).
  */
-export function setDisabledZonesBase(sessionId: string, ids: string[]): void {
-    zonesBase = { sessionId, ids: [...ids] };
-    acknowledgedZones = [];
+export function setDisabledZonesBase(
+    sessionId: string,
+    ids: string[],
+    sequence?: number,
+): void {
+    if (!isOlderThanBase(sessionId, sequence)) {
+        zonesBase = { sessionId, ids: [...ids], sequence };
+        // Every change acknowledged before is in it.
+        acknowledgedZones = [];
+    }
     showDisabledZones(sessionId);
 }
 
 /**
  * A zones.disabled event: the whole list after a change, ours or another
- * player's. Events arrive in sequence order (see sseManager).
+ * player's, as of the event's sequence. Events arrive in sequence order (see
+ * sseManager), but the base can be ahead of them (see setDisabledZonesBase).
  */
 export function applyDisabledZonesEvent(
     sessionId: string,
     ids: string[],
     clientUuid: string,
+    sequence?: number,
 ): void {
     // Our own change came back (perhaps before its reply): it's in the base.
     const own = getPendingEvents(sessionId).find(
@@ -465,20 +497,29 @@ export function applyDisabledZonesEvent(
         refreshSyncCounts(sessionId);
     }
     if (zonesBase?.sessionId !== sessionId) acknowledgedZones = [];
-    zonesBase = { sessionId, ids: [...ids] };
     acknowledgedZones = acknowledgedZones.filter(
         (entry) => entry.clientUuid !== clientUuid,
     );
+    if (!isOlderThanBase(sessionId, sequence)) {
+        zonesBase = { sessionId, ids: [...ids], sequence };
+    }
     showDisabledZones(sessionId);
 }
 
-// A change acknowledged before its echo stays on the board until the echo
-// comes (see applyDisabledZonesEvent).
-onEventSynced((event) => {
+// A save of ours was answered. With the list the server then had, the board
+// is made from that list (it has the change, and other players' since)
+// unless it already has a later one. The copy kept here got it before the
+// change left the queue (see dispatchQueuedEvent). An API from before
+// answers without a list: the change stays on the board until its echo.
+onEventSynced((event, saved) => {
     if (
         event.type !== "zones.disabled" ||
         zonesBase?.sessionId !== event.sessionId
     ) {
+        return;
+    }
+    if (saved) {
+        setDisabledZonesBase(event.sessionId, saved.ids, saved.sequence);
         return;
     }
     acknowledgedZones.push({
@@ -840,6 +881,14 @@ export async function loadSessionContent(
     const loadedQuestions = loadedList.questions;
     // Taken over meanwhile: the copy is the other tab's, and older than its.
     if (editingInOtherTab.get()) throw new Error("another tab took the session over");
+    // A save of ours answered while the session was being read left a later
+    // list with the copy kept here than the one read: that one stays.
+    const kept = getCachedSession(sessionId);
+    const keptZonesAreLater =
+        kept?.disabledZoneIds !== undefined &&
+        kept.disabledZonesSequence !== undefined &&
+        session.disabledZonesSequence !== undefined &&
+        kept.disabledZonesSequence > session.disabledZonesSequence;
     setCachedSession({
         sessionId,
         userId,
@@ -847,9 +896,17 @@ export async function loadSessionContent(
         session,
         strokes: loadedStrokes,
         questions: loadedQuestions,
-        disabledZoneIds: Array.isArray(session.disabledZoneIds)
-            ? session.disabledZoneIds
-            : undefined,
+        ...(keptZonesAreLater
+            ? {
+                  disabledZoneIds: kept.disabledZoneIds,
+                  disabledZonesSequence: kept.disabledZonesSequence,
+              }
+            : {
+                  disabledZoneIds: Array.isArray(session.disabledZoneIds)
+                      ? session.disabledZoneIds
+                      : undefined,
+                  disabledZonesSequence: session.disabledZonesSequence,
+              }),
         // The board shows the loaded list, or the list still queued on top of
         // it, made from that list's base. The cursor was read first: it
         // never claims more than the list has.

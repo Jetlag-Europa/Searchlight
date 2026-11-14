@@ -94,12 +94,15 @@ function persistSessionCache(): void {
     if (!currentSessionId) return;
     const cached = getCachedSession(currentSessionId);
     if (!cached) return;
+    const zones = getDisabledZonesBase(currentSessionId);
     setCachedSession({
         ...cached,
         strokes: strokes.get(),
         questions: questions.get(),
-        disabledZoneIds:
-            getDisabledZonesBase(currentSessionId) ?? cached.disabledZoneIds,
+        ...(zones && {
+            disabledZoneIds: zones.ids,
+            disabledZonesSequence: zones.sequence,
+        }),
         lastSequence: lastAppliedSequence,
         lastSyncedAt: Date.now(),
     });
@@ -442,7 +445,9 @@ function handleServerEvent(
             ids.length,
             "zone(s)",
         );
-        applyDisabledZonesEvent(targetSessionId, ids, event.clientUuid);
+        // Not over a later list: the reply to a save of ours can bring one
+        // before the stream gets there.
+        applyDisabledZonesEvent(targetSessionId, ids, event.clientUuid, eventSeq);
     } else if (event.type === "session.revision-upgraded") {
         console.info(
             "[searchlight:sse] session.revision-upgraded received",

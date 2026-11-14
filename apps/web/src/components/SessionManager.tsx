@@ -1401,6 +1401,7 @@ export function SessionManager() {
             kept.disabledZoneIds ??
                 kept.session?.disabledZoneIds ??
                 legacyDisabledZones(id),
+            kept.disabledZoneIds && kept.disabledZonesSequence,
         );
         boardPaintedFromSnapshot(id);
         return true;
@@ -1679,11 +1680,17 @@ export function SessionManager() {
                 setActiveGameDefinition(null);
             }
 
-            // The zones the server just sent with the session, over the
-            // kept copy's. Never the outgoing session's, even offline.
+            // The zones the server sent with the session, over the kept
+            // copy's unless that has a later list (the picker's entry can be
+            // from before an event shown here). Never the outgoing
+            // session's, even offline.
             const showSelectedZones = (painted: boolean) => {
                 if (selected.disabledZoneIds) {
-                    setDisabledZonesBase(selected.id, selected.disabledZoneIds);
+                    setDisabledZonesBase(
+                        selected.id,
+                        selected.disabledZoneIds,
+                        selected.disabledZonesSequence,
+                    );
                 } else if (!painted) {
                     setDisabledZonesBase(selected.id, []);
                 }
@@ -1808,9 +1815,12 @@ export function SessionManager() {
                     });
                 }
                 showSessionModes(refreshedSession);
+                // Not over a later list: a save of ours answered since the
+                // session was read.
                 setDisabledZonesBase(
                     selected.id,
                     refreshedSession.disabledZoneIds ?? [],
+                    refreshedSession.disabledZonesSequence,
                 );
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),

@@ -198,6 +198,10 @@ export interface CachedSessionState {
     questions: Questions;
     // The server's disabled zones, without this device's unsaved changes.
     disabledZoneIds?: string[];
+    // The event sequence that list is as of, where the API told (see
+    // setDisabledZonesBase). It can be ahead of lastSequence: a save's reply
+    // brought the list before the stream got there.
+    disabledZonesSequence?: number;
     // The server's list the board's questions were made from (its "board
     // base"): the base of the next list queued. Moves on only when the board
     // does: a load, another player's list shown, a save of ours answered, or
@@ -563,6 +567,10 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
                       (id): id is string => typeof id === "string",
                   )
                 : undefined,
+            disabledZonesSequence:
+                typeof parsed.disabledZonesSequence === "number"
+                    ? parsed.disabledZonesSequence
+                    : undefined,
             lastSyncedAt:
                 typeof parsed.lastSyncedAt === "number"
                     ? parsed.lastSyncedAt
@@ -590,6 +598,24 @@ export function setCachedSession(state: CachedSessionState): void {
             // Ignore if still failing
         }
     }
+}
+
+/**
+ * Keep the server's disabled zones as of `sequence` with the copy kept of a
+ * session, unless that copy has a later list already.
+ */
+export function cacheDisabledZones(
+    sessionId: string,
+    ids: string[],
+    sequence: number,
+): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached || (cached.disabledZonesSequence ?? -1) > sequence) return;
+    setCachedSession({
+        ...cached,
+        disabledZoneIds: ids,
+        disabledZonesSequence: sequence,
+    });
 }
 
 // The same server list (whatever was decided on top of it since).
