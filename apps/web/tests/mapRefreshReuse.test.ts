@@ -197,3 +197,80 @@ it("drops a zone of radius 0 that lies outside a region", () => {
     expect(turf.booleanIntersects(zone, region.features[0])).toBe(false);
     expect(calculateFilterZoneIndexes([zone], [region])).toEqual([]);
 });
+
+// The zone filter cuts a region to the zone's surroundings. These are the
+// cases where the cut alone gave another answer than the whole region.
+it("keeps a zone that shares an edge with a region", () => {
+    const zone = turf.polygon([
+        [
+            [18, 59],
+            [18.001, 59],
+            [18, 59.001],
+            [18, 59],
+        ],
+    ]);
+    const region = turf.featureCollection([
+        turf.polygon([
+            [
+                [17.999, 59.002],
+                [18.002, 58.999],
+                [18.003, 59],
+                [18, 59.003],
+                [17.999, 59.002],
+            ],
+        ]),
+    ]);
+    expect(turf.booleanIntersects(zone, region.features[0])).toBe(true);
+    expect(calculateFilterZoneIndexes([zone], [region])).toEqual([0]);
+});
+
+it("decides a zone touching a region's edge as testing the whole region does", () => {
+    let touching = 0;
+    for (const centre of [
+        [8, 50],
+        [18.0649, 59.3326],
+    ]) {
+        const zone = turf.circle(centre, 0.4, { steps: 32 });
+        const ring = zone.geometry.coordinates[0];
+        for (let i = 0; i < 32; i++) {
+            const [x, y] = ring[i];
+            const before = ring[(i + 31) % 32];
+            const after = ring[i + 1];
+            // A region edge through this vertex: along the circle, and along
+            // each of the zone's two edges that meet here.
+            for (const [dx, dy] of [
+                [after[0] - before[0], after[1] - before[1]],
+                [after[0] - x, after[1] - y],
+                [before[0] - x, before[1] - y],
+            ]) {
+                for (const length of [0.5, 2, 100, 10000]) {
+                    const a = [x - dx * length, y - dy * length];
+                    const b = [x + dx * length, y + dy * length];
+                    const c = [b[0] + dy * length, b[1] - dx * length];
+                    const d = [a[0] + dy * length, a[1] - dx * length];
+                    const feature = turf.polygon([[a, b, c, d, a]]);
+                    const whole = turf.booleanIntersects(zone, feature);
+                    if (!whole) touching++;
+                    expect(
+                        calculateFilterZoneIndexes(
+                            [zone],
+                            [turf.featureCollection([feature])],
+                        ),
+                    ).toEqual(whole ? [0] : []);
+                }
+            }
+        }
+    }
+    // Both answers occur, so the cases are on the edge.
+    expect(touching).toBeGreaterThan(0);
+    expect(touching).toBeLessThan(768);
+});
+
+it("drops a zone that only a hole outside the region's outline reaches", () => {
+    const outline = turf.bboxPolygon([9, 51, 10, 52]).geometry.coordinates[0];
+    const strayHole = turf.circle([8, 50], 0.02, { steps: 32 }).geometry
+        .coordinates[0];
+    const region = turf.featureCollection([turf.polygon([outline, strayHole])]);
+    const zone = turf.circle([8, 50], 0.4, { steps: 32 });
+    expect(calculateFilterZoneIndexes([zone], [region])).toEqual([]);
+});
