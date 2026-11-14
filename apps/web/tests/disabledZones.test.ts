@@ -388,7 +388,8 @@ describe("the board", () => {
             reply = Promise.withResolvers<Response>();
             vi.mocked(fetch).mockImplementation(async (_url, options) => {
                 requests.push(options!);
-                return reply.promise;
+                // Each request its own reply: one is read only once.
+                return (await reply.promise).clone();
             });
             setDisabledZonesBase(SID, []);
             saveDisabledZonesDelta(SID, delta(["a"]));
@@ -513,6 +514,33 @@ describe("the newest list the server sent", () => {
         // Another player enables it again: our echo never came, and never
         // will.
         applyDisabledZonesEvent(SID, [], "zones-disabled-theirs", 2);
+        expect(disabledStations.get()).toEqual([]);
+    });
+
+    it("is asked for again when the reply to our save is cut off", async () => {
+        disableA();
+        // Saved as event 1. The session loads meanwhile, as above.
+        setDisabledZonesBase(SID, ["a"], 1);
+        reply.resolve(
+            new Response(
+                new ReadableStream({
+                    start: (controller) =>
+                        controller.error(new TypeError("terminated")),
+                }),
+                { headers: { "Content-Type": "application/json" } },
+            ),
+        );
+        await expect(sending).rejects.toThrow("terminated");
+        // Still queued under its ID, not taken for saved by an API from
+        // before: nothing of ours would then follow the list.
+        expect(getPendingEvents(SID).map((event) => event.clientUuid)).toEqual(
+            [clientUuid],
+        );
+        // Another player enables it again, then the resend is answered.
+        applyDisabledZonesEvent(SID, [], "zones-disabled-theirs", 2);
+        vi.mocked(fetch).mockImplementation(async () => saved([], 2));
+        await flushPendingEvents(SID);
+        expect(getPendingEvents(SID)).toEqual([]);
         expect(disabledStations.get()).toEqual([]);
     });
 

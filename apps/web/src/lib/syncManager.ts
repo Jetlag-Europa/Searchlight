@@ -557,10 +557,12 @@ async function sendEvent(
         if (!res.ok) throw await SyncRequestError.from("zones.disabled", res);
         // The session as saved: its whole list and the sequence that is as
         // of, also when the server recognised a resend or nothing changed.
-        const data = (await res.json().catch(() => undefined)) as
+        // A reply that can't be read (cut off, not the API's) fails the
+        // send: the change stays queued and is sent again, as a resend. Only
+        // a reply read in full and without a list is an API from before.
+        const data = (await res.json()) as
             | { disabledZoneIds?: unknown; disabledZonesSequence?: unknown }
             | undefined;
-        // Cut off before it said so: send it again for that, as a resend.
         if (signal.aborted) throw signal.reason;
         if (
             Array.isArray(data?.disabledZoneIds) &&
