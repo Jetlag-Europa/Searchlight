@@ -95,14 +95,21 @@ function persistSessionCache(): void {
     const cached = getCachedSession(currentSessionId);
     if (!cached) return;
     const zones = getDisabledZonesBase(currentSessionId);
+    // The copy can have a later list than this board: another tab's save was
+    // answered since. That one stays.
+    const keptZonesAreLater =
+        zones?.sequence !== undefined &&
+        cached.disabledZonesSequence !== undefined &&
+        cached.disabledZonesSequence > zones.sequence;
     setCachedSession({
         ...cached,
         strokes: strokes.get(),
         questions: questions.get(),
-        ...(zones && {
-            disabledZoneIds: zones.ids,
-            disabledZonesSequence: zones.sequence,
-        }),
+        ...(zones &&
+            !keptZonesAreLater && {
+                disabledZoneIds: zones.ids,
+                disabledZonesSequence: zones.sequence,
+            }),
         lastSequence: lastAppliedSequence,
         lastSyncedAt: Date.now(),
     });

@@ -59,6 +59,7 @@ import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { disabledStations, questions, syncStatus } from "@/lib/context";
 import {
+    cacheDisabledZones,
     enqueueEvent,
     getPendingEvents,
     markEventFailed,
@@ -639,6 +640,38 @@ describe("handleServerEvent — zones.disabled", () => {
         expect(getCachedSession(SID)).toMatchObject({
             disabledZoneIds: ["theirs"],
             disabledZonesSequence: 1,
+        });
+    });
+
+    test("leaves a later list another tab's save put in the copy kept here", () => {
+        setCachedSession({
+            sessionId: SID,
+            strokes: [],
+            questions: [] as unknown as Questions,
+            disabledZoneIds: [],
+            disabledZonesSequence: 0,
+            lastSyncedAt: 0,
+            lastSequence: 0,
+        });
+        setDisabledZonesBase(SID, [], 0);
+        startSSE(SID);
+        // The tab this one took the session over from: its save was on its
+        // way, and is answered now.
+        cacheDisabledZones(SID, ["theirs"], 2);
+        // Something else changes before the stream brings that list here.
+        simulateMessage(
+            makeEvent("planning.toggle", { enabled: true }, { sequence: 1 }),
+        );
+        expect(getCachedSession(SID)).toMatchObject({
+            disabledZoneIds: ["theirs"],
+            disabledZonesSequence: 2,
+            lastSequence: 1,
+        });
+        simulateMessage(zones(["theirs"], 2));
+        simulateMessage(zones([], 3));
+        expect(getCachedSession(SID)).toMatchObject({
+            disabledZoneIds: [],
+            disabledZonesSequence: 3,
         });
     });
 
