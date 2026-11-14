@@ -4,6 +4,7 @@ import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { registerCompression } from "../lib/compression.js";
 import { sessionRoutes } from "./sessions.js";
 import { linkRoutes } from "./links.js";
 
@@ -22,6 +23,7 @@ async function buildTestApp() {
   await app.register(fastifyCookie, {
     secret: process.env["SESSION_COOKIE_SECRET"]!,
   });
+  await registerCompression(app);
   await app.register(sessionRoutes, { prefix: "/sessions" });
   await app.register(linkRoutes, { prefix: "/links" });
   await app.ready();
@@ -253,6 +255,19 @@ describe("session sharing and links", () => {
 
     const after = await prisma.sessionLink.findMany({ where: { sessionId: SESSION_ID } });
     expect(after).toEqual([expect.objectContaining({ id: link.id, revokedAt: null })]);
+  });
+
+  test("the link list, which holds tokens, is never compressed", async () => {
+    // Enough links for the list to pass the compression threshold.
+    for (let i = 0; i < 10; i++) await createLink("join");
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/links`,
+      headers: { cookie: creatorCookie, "accept-encoding": "br, gzip" },
+    });
+    expect(list.statusCode).toBe(200);
+    expect(list.rawPayload.length).toBeGreaterThan(1024);
+    expect(list.headers["content-encoding"]).toBeUndefined();
   });
 
   test("a share link gives the recipient a private copy they created", async () => {

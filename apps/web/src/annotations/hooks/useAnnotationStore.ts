@@ -11,7 +11,7 @@ import type {
     StrokeWidthPreset,
 } from "@/annotations/types";
 import { PEN_COLORS } from "@/annotations/types";
-import { activeSessionId } from "@/lib/activeSession";
+import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 
 export const tool = persistentAtom<AnnotationTool>("annot-tool", "pen");
 
@@ -48,7 +48,11 @@ export const penEraserActive = atom(false);
 // They are no longer backed by localStorage.
 export const strokes = atom<StrokeFeature[]>([]);
 
+// A spectator's board shows the session's strokes as they are: none are added
+// or removed, not even locally.
+
 export function addStroke(s: StrokeFeature): void {
+    if (sessionReadOnly.get()) return;
     strokes.set([...strokes.get(), s]);
 
     const sessionId = activeSessionId.get();
@@ -59,6 +63,7 @@ export function addStroke(s: StrokeFeature): void {
 }
 
 export function removeStrokes(predicate: (s: StrokeFeature) => boolean): void {
+    if (sessionReadOnly.get()) return;
     const current = strokes.get();
     const removed: StrokeFeature[] = [];
     const next = current.filter((s) => {
@@ -80,6 +85,7 @@ export function removeStrokes(predicate: (s: StrokeFeature) => boolean): void {
 }
 
 export function clearAllStrokes(): void {
+    if (sessionReadOnly.get()) return;
     const current = strokes.get();
     strokes.set([]);
 

@@ -27,12 +27,10 @@ export const ThermometerQuestionComponent = ({
     data,
     questionKey,
     sub,
-    className,
 }: {
     data: ThermometerQuestion;
     questionKey: number;
     sub?: string;
-    className?: string;
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
@@ -72,7 +70,6 @@ export const ThermometerQuestionComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={sub}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed;

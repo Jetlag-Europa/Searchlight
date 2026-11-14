@@ -1,6 +1,23 @@
-import type { EventRecord, PresenceEvent, HiderUpdateEvent, PlanningToggleEvent, PresenceUser, SessionRevisionUpgradedEvent, ZonesDisabledEvent } from "@searchlight/shared";
+import type { Event } from "@prisma/client";
+import type {
+  EventRecord,
+  PresenceEvent,
+  HiderUpdateEvent,
+  PlanningToggleEvent,
+  PresenceUser,
+  SessionRevisionUpgradedEvent,
+  ParticipantRoleChangedEvent,
+  ZonesDisabledEvent,
+} from "@searchlight/shared";
 
-type AnySSEEvent = EventRecord | PresenceEvent | HiderUpdateEvent | PlanningToggleEvent | ZonesDisabledEvent | SessionRevisionUpgradedEvent;
+export type AnySSEEvent =
+  | EventRecord
+  | PresenceEvent
+  | HiderUpdateEvent
+  | PlanningToggleEvent
+  | ZonesDisabledEvent
+  | SessionRevisionUpgradedEvent
+  | ParticipantRoleChangedEvent;
 type Listener = (event: AnySSEEvent) => void;
 
 const listeners = new Map<string, Set<Listener>>();
@@ -19,6 +36,21 @@ export function subscribe(sessionId: string, cb: Listener): () => void {
 
 export function broadcast(sessionId: string, event: AnySSEEvent): void {
   listeners.get(sessionId)?.forEach((cb) => cb(event));
+}
+
+// A saved event as clients receive it, on the stream and in catch-up.
+export function toEventRecord(e: Event): EventRecord {
+  return {
+    id: e.id,
+    sessionId: e.sessionId,
+    userId: e.userId,
+    sequence: e.sequence,
+    type: e.type,
+    payloadJson: e.payloadJson,
+    clientUuid: e.clientUuid,
+    clientCreatedAt: e.clientCreatedAt.toISOString(),
+    serverReceivedAt: e.serverReceivedAt.toISOString(),
+  };
 }
 
 export function getPresence(sessionId: string): PresenceUser[] {

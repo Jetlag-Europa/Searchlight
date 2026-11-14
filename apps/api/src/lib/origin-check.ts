@@ -11,7 +11,7 @@ const frontendOrigin = new URL(env.FRONTEND_ORIGIN).origin;
 // is neither the frontend nor the API itself are rejected.
 //
 // Requests without Origin pass: browsers always send it on cross-origin POSTs,
-// and non-browser clients (import-token scripts, curl) don't send it.
+// and non-browser clients (scripts, curl) don't send it.
 export async function rejectCrossOriginWrites(req: FastifyRequest) {
   if (SAFE_METHODS.has(req.method)) return;
   const origin = req.headers.origin;

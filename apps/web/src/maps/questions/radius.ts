@@ -1,5 +1,6 @@
 import * as turf from "@turf/turf";
 
+import { isRadius } from "@/lib/askedQuestions";
 import { hiderMode } from "@/lib/context";
 import { arcBuffer, modifyMapData } from "@/maps/geo-utils";
 import type { RadiusQuestion } from "@/maps/schema";
@@ -9,6 +10,8 @@ export const adjustPerRadius = async (
     mapData: any,
 ) => {
     if (mapData === null) return;
+    // A bad radius eliminates nothing, as a tentacle without one does.
+    if (!isRadius(question.radius)) return mapData;
 
     const point = turf.point([question.lng, question.lat]);
     const circle = await arcBuffer(
@@ -42,6 +45,7 @@ export const hiderifyRadius = (question: RadiusQuestion) => {
 };
 
 export const radiusPlanningPolygon = async (question: RadiusQuestion) => {
+    if (!isRadius(question.radius)) return undefined;
     const point = turf.point([question.lng, question.lat]);
     const circle = await arcBuffer(
         turf.featureCollection([point]),

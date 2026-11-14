@@ -4,6 +4,7 @@ import { createHash, randomBytes, timingSafeEqual } from "crypto";
 import prisma from "../lib/prisma.js";
 import { discord } from "../lib/discord-client.js";
 import { env } from "../lib/env.js";
+import { SESSION_TTL_MS, setSessionCookie } from "../lib/session.js";
 
 const discordOAuth = new Discord(
   env.DISCORD_CLIENT_ID,
@@ -12,26 +13,6 @@ const discordOAuth = new Discord(
 );
 
 const SCOPES = ["identify"];
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days fixed
-
-function sessionCookieOptions(expiresAt: Date) {
-  const isProd = env.NODE_ENV === "production";
-  return {
-    httpOnly: true,
-    // Subdomains of one site (searchlight.jetlageuropa.org and
-    // api-searchlight.jetlageuropa.org) are same-site, so SameSite=Lax would work for
-    // them. None is kept for deployments where the web app and API are different
-    // sites, e.g. the web app on Cloudflare Workers (*.workers.dev; see DEPLOY.md),
-    // where Lax cookies aren't sent on the app's fetches. With None, cross-site forms
-    // also carry the cookie; lib/origin-check.ts rejects their writes.
-    sameSite: (isProd ? "none" : "lax") as "none" | "lax",
-    signed: true,
-    expires: expiresAt,
-    ...(isProd && {
-      secure: true,
-    }),
-  };
-}
 
 function avatarUrlFor(discordId: string, avatar: string | null): string {
   return avatar
@@ -47,10 +28,7 @@ async function startSession(reply: FastifyReply, discordId: string): Promise<voi
     data: { id: sessionId, userId: discordId, expiresAt },
   });
 
-  reply.setCookie("session", sessionId, {
-    ...sessionCookieOptions(expiresAt),
-    path: "/",
-  });
+  setSessionCookie(reply, sessionId, expiresAt);
 }
 
 // Users created by test/dev login never went through OAuth. Nothing reads the OAuth

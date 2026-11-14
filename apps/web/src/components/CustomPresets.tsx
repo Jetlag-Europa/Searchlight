@@ -39,6 +39,9 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
             type: presetTypeHint || data.type || "custom",
             data: safeClone(data),
         };
+        // What it was restored from is this question's alone (an older
+        // build applying a shared preset would copy it).
+        delete toSave.data.restoredFrom;
         const p = saveCustomPreset(toSave);
         toast.success(`Saved preset "${p.name}"`);
     };
@@ -46,8 +49,9 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
     const handleLoad = (preset: CustomPreset) => {
         // copy fields from preset.data into the question data so user can deviate
         const src = safeClone(preset.data);
-        // The question keeps its own name.
+        // The question keeps its own name, and what it was restored from.
         delete src.name;
+        delete src.restoredFrom;
         Object.keys(src).forEach((k) => {
             (data as any)[k] = src[k];
         });
@@ -97,6 +101,8 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
                 return;
             }
             const src = safeClone(payload.data);
+            // A shared question's too: what it was restored from is its own.
+            delete src.restoredFrom;
             Object.keys(src).forEach((k) => {
                 (data as any)[k] = src[k];
             });

@@ -27,10 +27,13 @@ function serializeLink(link: {
 
 // Under /games: managing a game's links (game managers of its server).
 export async function gameLinkManagementRoutes(app: FastifyInstance) {
+  // Responses holding link tokens are left uncompressed, so their length
+  // can't give anything away about the tokens (BREACH).
+
   // GET /games/:gameId/links — active links
   app.get(
     "/:gameId/links",
-    { schema: { params: Type.Object({ gameId: Type.String() }) } },
+    { compress: false, schema: { params: Type.Object({ gameId: Type.String() }) } },
     async (req) => {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };
@@ -50,7 +53,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
   // POST /games/:gameId/links — create a link
   app.post(
     "/:gameId/links",
-    { schema: { params: Type.Object({ gameId: Type.String() }) } },
+    { compress: false, schema: { params: Type.Object({ gameId: Type.String() }) } },
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };

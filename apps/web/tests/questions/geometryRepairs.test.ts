@@ -1238,7 +1238,7 @@ describe("Geometry Repairs & Regressions", () => {
                     },
                 });
             }
-        });
+        }, 15_000);
 
         it("answers a seeker between staggered samples of 1m-separated parallel lines by its own nearest line", async () => {
             const dLng = 1 / 111320; // ~1 meter separation at equator

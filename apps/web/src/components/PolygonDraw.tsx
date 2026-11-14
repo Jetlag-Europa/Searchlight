@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { FeatureGroup, Marker, Polygon, Polyline } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
 
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     autoSave,
     drawingQuestionKey,
@@ -33,7 +34,17 @@ import {
     SidebarMenu,
     SidebarMenuButton,
     SidebarMenuItem,
-} from "./ui/sidebar-l";
+} from "./ui/sidebar";
+
+// The points drawn here (and leaflet-draw's marker tool) use Leaflet's default
+// icon. Leaflet looks for its image next to leaflet.css, which the build
+// inlines, so it would ask for /map/marker-icon.png: use the app's blue one.
+L.Icon.Default.imagePath = "";
+L.Icon.Default.mergeOptions({
+    iconUrl: "/markers/marker-icon-2x-blue.png",
+    iconRetinaUrl: "/markers/marker-icon-2x-blue.png",
+    shadowUrl: "/markers/marker-shadow.png",
+});
 
 const swapCoordinates = (geojson: any) => {
     return JSON.parse(JSON.stringify(geojson), (key, value) => {
@@ -115,68 +126,13 @@ const TentacleMarker = ({
     );
 };
 
-const MatchingPointMarker = ({
+// A custom matching or measuring point.
+const PointMarker = ({
     point,
 }: {
-    point: CustomMatchingQuestion["geo"][number];
-}) => {
-    const $autoSave = useStore(autoSave);
-    const [open, setOpen] = useState(false);
-
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <Marker
-                position={[
-                    point.geometry.coordinates[1],
-                    point.geometry.coordinates[0],
-                ]}
-                // @ts-expect-error This is passed to options, so it is not typed
-                isDialog={true}
-                eventHandlers={{
-                    click: () => {
-                        setOpen(true);
-                    },
-                }}
-            />
-            <DialogContent aria-describedby={undefined}>
-                <div className="flex flex-col gap-2">
-                    <SidebarMenu>
-                        <LatitudeLongitude
-                            latitude={point.geometry.coordinates[1]}
-                            longitude={point.geometry.coordinates[0]}
-                            inlineEdit
-                            onChange={(lat, lng) => {
-                                if (lat) {
-                                    point.geometry.coordinates[1] = lat;
-                                }
-                                if (lng) {
-                                    point.geometry.coordinates[0] = lng;
-                                }
-
-                                questionModified();
-                            }}
-                        />
-                        {!$autoSave && (
-                            <SidebarMenuItem>
-                                <SidebarMenuButton
-                                    className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500 mt-2"
-                                    onClick={save}
-                                >
-                                    Save
-                                </SidebarMenuButton>
-                            </SidebarMenuItem>
-                        )}
-                    </SidebarMenu>
-                </div>
-            </DialogContent>
-        </Dialog>
-    );
-};
-
-const MeasuringPointMarker = ({
-    point,
-}: {
-    point: CustomMeasuringQuestion["geo"]["features"][number];
+    point:
+        | CustomMatchingQuestion["geo"][number]
+        | CustomMeasuringQuestion["geo"]["features"][number];
 }) => {
     const $autoSave = useStore(autoSave);
     const [open, setOpen] = useState(false);
@@ -234,13 +190,17 @@ const MeasuringPointMarker = ({
 export const PolygonDraw = () => {
     const $drawingQuestionKey = useStore(drawingQuestionKey);
     const $questions = useStore(questions);
+    const $readOnly = useStore(sessionReadOnly);
 
     const featureRef = useRef<any | null>(null);
 
-    // Drawing is only for the custom question being edited.
+    // Drawing is only for the custom question being edited, and never for a
+    // spectator.
     let question: Question | undefined;
 
-    if ($drawingQuestionKey !== -1) {
+    if ($drawingQuestionKey !== -1 && $readOnly) {
+        drawingQuestionKey.set(-1);
+    } else if ($drawingQuestionKey !== -1) {
         question = $questions.find((q) => q.key === $drawingQuestionKey);
 
         if (question && isZoneSizeChange(question)) question = undefined;
@@ -393,7 +353,7 @@ export const PolygonDraw = () => {
                 question.data.type === "custom-points" &&
                 ((question.data as CustomMatchingQuestion).geo ?? []).map(
                     (x: any) => (
-                        <MatchingPointMarker
+                        <PointMarker
                             key={x.geometry.coordinates.join(",")}
                             point={x}
                         />
@@ -406,7 +366,7 @@ export const PolygonDraw = () => {
                     .flatten(measuringGeo)
                     .features.filter((x: any) => turf.getType(x) === "Point")
                     .map((x: any) => (
-                        <MeasuringPointMarker
+                        <PointMarker
                             key={x.geometry.coordinates.join(",")}
                             point={x}
                         />

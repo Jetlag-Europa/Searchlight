@@ -1,5 +1,14 @@
 import { useStore } from "@nanostores/react";
-import { formatGameDefinitionJson, type Game, type GamesResponse, type GameStats, type GameStatsResponse, type ServersResponse, type ServerWithPermissions } from "@searchlight/shared";
+import {
+    CASUAL_SERVER_ID,
+    formatGameDefinitionJson,
+    type Game,
+    type GamesResponse,
+    type GameStats,
+    type GameStatsResponse,
+    type ServersResponse,
+    type ServerWithPermissions,
+} from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -15,6 +24,8 @@ const gamesUrl = (serverId: string) =>
 
 // Server admins (and global admins, on every server) see each game's usage.
 const GAME_PAGE_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+const hasGamePermission = (server: ServerWithPermissions) =>
+    server.permissions.some((p) => GAME_PAGE_PERMISSIONS.includes(p));
 
 const relativeTime = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
@@ -73,14 +84,23 @@ function GameCard({
 }) {
     const [error, setError] = useState<string | null>(null);
     const [savingListing, setSavingListing] = useState(false);
+    const userId = useStore(verifiedUserId);
+    const casual = game.serverId === CASUAL_SERVER_ID;
     const canDelete = permissions.includes("games.delete");
-    // Any game permission manages listing and links, as on the API.
-    const canManage = ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
-        permissions.includes(p),
-    );
-    // Same check as the API; a settings edit needs a revision to build on.
+    // Any game permission manages listing and links, as on the API. Casual
+    // games are managed by their creator and global admins (the only ones
+    // with server.admin there), and are always unlisted.
+    const canManage = casual
+        ? permissions.includes("server.admin") || (!!userId && game.createdById === userId)
+        : ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
+            permissions.includes(p),
+        );
+    // Same check as the API; a settings edit needs a revision to build on. A
+    // Casual game's creator edits it while they hold games.create there.
     const canEditSettings =
-        ["games.edit", "server.admin"].some((p) => permissions.includes(p)) && !!game.currentRevisionId;
+        (["games.edit", "server.admin"].some((p) => permissions.includes(p)) ||
+            (casual && !!userId && game.createdById === userId && permissions.includes("games.create"))) &&
+        !!game.currentRevisionId;
 
     const handleToggleListed = async () => {
         setError(null);
@@ -101,6 +121,27 @@ function GameCard({
             setError((e as Error).message);
         } finally {
             setSavingListing(false);
+        }
+    };
+    const handleExport = async () => {
+        setError(null);
+        try {
+            const res = await fetch(`${API_BASE}/games/${encodeURIComponent(game.gameKey)}/export`, {
+                credentials: "include",
+            });
+            if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
+            const data = await res.json();
+            const blob = new Blob([formatGameDefinitionJson(data)], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${game.gameKey}.game.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        } catch (e: unknown) {
+            setError((e as Error).message);
         }
     };
     const handleDelete = async () => {
@@ -142,7 +183,7 @@ function GameCard({
                 {error && <p className="text-xs text-destructive mt-1">{error}</p>}
             </div>
             <div className="flex flex-wrap gap-2 sm:justify-end sm:shrink-0">
-                {canManage && (
+                {canManage && !casual && (
                     <Button
                         size="sm"
                         variant="outline"
@@ -159,33 +200,11 @@ function GameCard({
                 )}
                 {canManage && <GameLinksDialog game={game} />}
                 {canEditSettings && <GameSettingsDialog game={game} onUpdated={onUpdated} />}
-                <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                        setError(null);
-                        try {
-                            const res = await fetch(`${API_BASE}/games/${encodeURIComponent(game.gameKey)}/export`, {
-                                credentials: "include",
-                            });
-                            if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
-                            const data = await res.json();
-                            const blob = new Blob([formatGameDefinitionJson(data)], { type: "application/json" });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement("a");
-                            a.href = url;
-                            a.download = `${game.gameKey}.game.json`;
-                            document.body.appendChild(a);
-                            a.click();
-                            document.body.removeChild(a);
-                            URL.revokeObjectURL(url);
-                        } catch (e: unknown) {
-                            setError((e as Error).message);
-                        }
-                    }}
-                >
-                    Export JSON
-                </Button>
+                {(canManage || !casual) && (
+                    <Button size="sm" variant="outline" onClick={handleExport}>
+                        Export JSON
+                    </Button>
+                )}
                 {canDelete && (
                     <Button size="sm" variant="destructive" onClick={handleDelete}>Delete</Button>
                 )}
@@ -194,7 +213,13 @@ function GameCard({
     );
 }
 
-function ServerSection({ server }: { server: ServerWithPermissions }) {
+function ServerSection({
+    server,
+    onGamesLoaded,
+}: {
+    server: ServerWithPermissions;
+    onGamesLoaded?: (count: number) => void;
+}) {
     const canCreate = server.permissions.includes("games.create");
     const canEdit = server.permissions.includes("games.edit");
     const canDelete = server.permissions.includes("games.delete");
@@ -209,11 +234,12 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     useEffect(() => {
         fetch(gamesUrl(server.id), { credentials: "include" })
             .then(async (res) => {
-                if (!res.ok) { setGames([]); return; }
+                if (!res.ok) { setGames([]); onGamesLoaded?.(0); return; }
                 const data: GamesResponse = await res.json();
                 setGames(data.games);
+                onGamesLoaded?.(data.games.length);
             })
-            .catch(() => setGames([]))
+            .catch(() => { setGames([]); onGamesLoaded?.(0); })
             .finally(() => setLoading(false));
     }, [server.id]);
 
@@ -228,11 +254,17 @@ function ServerSection({ server }: { server: ServerWithPermissions }) {
     }, [server.id, isServerAdmin]);
 
 
-    if (!hasAnyGamePerm) return null;
+    // A Casual creator who lost the role still manages the games they made.
+    if (!hasAnyGamePerm && (server.id !== CASUAL_SERVER_ID || games?.length === 0)) return null;
 
     return (
         <div className="mb-8">
             <h2 className="text-base font-semibold mb-3">{server.name}</h2>
+            {server.id === CASUAL_SERVER_ID && (
+                <p className="text-xs text-muted-foreground -mt-2 mb-3">
+                    Only a game’s creator and global admins see it here. Sessions start from game links.
+                </p>
+            )}
 
             {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
@@ -271,6 +303,9 @@ export function GameManager() {
     const [servers, setServers] = useState<ServerWithPermissions[] | null>(null);
     const [error, setError] = useState<string | null>(null);
     const userId = useStore(verifiedUserId);
+    // How many Casual games are listed for the user, for when they have no
+    // permission there: creators keep their games after losing the role.
+    const [casualGames, setCasualGames] = useState<number | null>(null);
 
     // Load once AuthGuard has verified the login, which waits out a server
     // that was down when the page opened.
@@ -288,14 +323,15 @@ export function GameManager() {
     if (error) return <p className="text-destructive">Error: {error}</p>;
     if (!servers) return <p className="text-muted-foreground">Loading…</p>;
 
-    const adminServers = servers.filter((s) =>
-        s.permissions.some((p) => GAME_PAGE_PERMISSIONS.includes(p)),
-    );
+    // Casual is listed for its creators even without a permission there; its
+    // section hides itself if they have no games after all.
+    const adminServers = servers.filter((s) => hasGamePermission(s) || s.id === CASUAL_SERVER_ID);
+    const casualWithoutPermission = adminServers.some((s) => !hasGamePermission(s));
     const importableServers = servers.filter((s) =>
         s.permissions.some((p) => ["games.create", "games.edit", "server.admin"].includes(p)),
     );
 
-    if (adminServers.length === 0) {
+    if (!servers.some(hasGamePermission) && (!casualWithoutPermission || casualGames === 0)) {
         return <p className="text-muted-foreground">You don’t have game management permissions in any server.</p>;
     }
     return (
@@ -314,7 +350,11 @@ export function GameManager() {
                 )}
             </div>
             {adminServers.map((s) => (
-                <ServerSection key={s.id} server={s} />
+                <ServerSection
+                    key={s.id}
+                    server={s}
+                    onGamesLoaded={s.id === CASUAL_SERVER_ID ? setCasualGames : undefined}
+                />
             ))}
         </div>
     );

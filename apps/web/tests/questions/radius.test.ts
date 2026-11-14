@@ -138,7 +138,6 @@ describe("adjustPerRadius — outside (base − circle)", () => {
 });
 
 describe("hiderifyRadius — sets within from the hider's distance", () => {
-    const base = boundary(8.5, 47.35, 8.6, 47.4);
     const seeker: [number, number] = [8.55, 47.375];
     const radius = 2;
     const unit: turf.Units = "kilometers";

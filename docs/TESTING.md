@@ -24,11 +24,9 @@ and push to `main`, after `pnpm build`. It also checks that
 against an independent **oracle**: the expected result worked out a second,
 simpler way (e.g. "a point survives a tentacle question iff it is within the
 radius and its nearest site is the answer") and sampled on a grid. Points
-within `edgeMargin` of a boundary are skipped, because the app's Voronoi cells
-are reprojected through Mercator and drift from the true geodesic boundaries
-(about 100 m near the sites, more further out). Keep scenarios small and
-tight for the same reason. A failing case writes an SVG to
-`apps/web/test-results/`.
+within a small margin of a boundary count as ambiguous and are skipped: the
+app draws circles and cells as polygons, which stray slightly from the
+oracle's exact ones. A failing case writes an SVG to `apps/web/test-results/`.
 
 Most question tests replace `arcBuffer` and `arcBufferToPoint` with Turf
 equivalents (`vi.mock("@/maps/geo-utils")`); the Voronoi, union and
@@ -59,15 +57,19 @@ The seed (`apps/api/prisma/seed-test.ts`) creates the `e2e-test-user` and the
 - The Playwright context blocks the service worker, which serves pages and
   scripts from its precache: a test could run the build it cached instead of
   the deployed one.
+- `serviceWorker.e2e.ts` is the exception: it tests the service worker's
+  updates, so it serves a local production build itself and needs no stack.
+  Build first (`pnpm --filter @searchlight/web build`), or point `WEB_DIST` at
+  a build; without one it's skipped.
 - Run the API with `ENABLE_TEST_AUTH=1` anywhere else only with
   `HOST=127.0.0.1`: test login skips Discord entirely.
 
 ## On a preview deployment
 
-On PR previews and staging (`https://sl-pr-<N>.dev.jl-e.org`) you can log in
+On PR previews (`https://sl-pr-<N>.dev.jl-e.org`) and staging you can log in
 as any Discord user without Discord: the API registers `/auth/dev-login` when
-`DEV_LOGIN_TOKEN` is set (at least 32 characters). Prod never sets it. The token is `DEV_LOGIN_TOKEN` in the preview server's
-`secrets/preview.env`.
+`DEV_LOGIN_TOKEN` is set (at least 32 characters). Prod never sets it. The
+token is `DEV_LOGIN_TOKEN` in the preview server's `secrets/preview.env`.
 
 - In a browser, open `https://sl-pr-<N>-api.dev.jl-e.org/auth/dev-login`,
   enter a Discord user ID and the token, and you land on `/map` as that user.
@@ -103,5 +105,5 @@ sync code:
 - Containing-region questions use ArcGIS's ellipsoidal distances in the
   worker, where Turf (in the unit tests) is spherical; at the equator they
   differ by about 120 m per degree.
-- On slow devices, Belgium 2026 (424 hiding zones) with several measuring
-  questions answered should keep the page responsive.
+- On slow devices, Belgium (`belgium-2026`, 424 hiding zones) with several
+  measuring questions answered should keep the page responsive.

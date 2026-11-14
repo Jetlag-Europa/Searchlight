@@ -2,9 +2,12 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { broadcast } from "../lib/broadcaster.js";
-import { forbidden, notFound } from "../lib/http-errors.js";
+import { broadcast, toEventRecord } from "../lib/broadcaster.js";
+import { notFound } from "../lib/http-errors.js";
+import { resolveSessionAccess, resolveSessionWriter } from "../lib/session-access.js";
 import type { Event, Prisma, Stroke } from "@prisma/client";
+import { sameNumber } from "@searchlight/shared";
+
 function conflict(msg = "Conflict", code?: string) {
   return Object.assign(new Error(msg), { statusCode: 409, ...(code ? { code } : {}) });
 }
@@ -25,16 +28,10 @@ const QUESTION_CHANGES_MAX_KEYS = 50;
 // " 1"). Parsing it gives the same double the client has.
 const QUERY_NUMBER = "-?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?";
 
-// The same tolerance the client's merge (questionMerge.ts) knows a question
-// by: payloads saved before the API wrote them exactly can hold a key one
-// unit in the last place off.
-const KEY_RELATIVE_TOLERANCE = 4e-16;
-
+// As the client's merge knows a question: payloads saved before the API
+// wrote them exactly can hold a key one unit in the last place off.
 function isRequestedKey(key: unknown, keys: number[]): boolean {
-  if (typeof key !== "number") return false;
-  return keys.some(
-    (k) => k === key || Math.abs(k - key) <= KEY_RELATIVE_TOLERANCE * Math.max(Math.abs(k), Math.abs(key)),
-  );
+  return typeof key === "number" && keys.some((k) => sameNumber(k, key));
 }
 
 // Prisma's query engine reads a Json value's numbers inexactly: a double
@@ -55,24 +52,6 @@ async function storeExactly(
   `;
 }
 
-async function assertParticipant(sessionId: string, userId: string) {
-  const session = await prisma.gameSession.findUnique({ where: { id: sessionId } });
-  if (!session) throw notFound("Session not found");
-
-  const isCreator = session.creatorId === userId;
-  if (isCreator) return session;
-
-  const participant = await prisma.sessionParticipant.findUnique({
-    where: { sessionId_userId: { sessionId, userId } },
-  });
-
-  if (!participant || participant.acceptedAt === null || participant.revokedAt !== null) {
-    throw forbidden();
-  }
-
-  return session;
-}
-
 export async function sessionContentRoutes(app: FastifyInstance) {
   // GET /sessions/:sessionId/strokes
   app.get(
@@ -85,7 +64,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      await resolveSessionAccess(sessionId, user.discordId);
 
       const strokes = await prisma.stroke.findMany({
         where: { sessionId, deletedAt: null },
@@ -119,7 +98,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      await resolveSessionWriter(sessionId, user.discordId);
 
       const { clientUuid, payloadJson } = req.body as { clientUuid: string; payloadJson: unknown };
 
@@ -194,17 +173,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       if (transactionResult.eventToBroadcast) {
         const e = transactionResult.eventToBroadcast;
         req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.create event saved, broadcasting");
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       } else {
         req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write and broadcast");
       }
@@ -230,7 +199,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId, clientUuid } = req.params as { sessionId: string; clientUuid: string };
-      await assertParticipant(sessionId, user.discordId);
+      await resolveSessionWriter(sessionId, user.discordId);
 
       let eventToBroadcast: Event | null = null;
       try {
@@ -317,17 +286,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       if (eventToBroadcast) {
         const e = eventToBroadcast;
         req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.delete event saved, broadcasting");
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       } else {
         req.log.info({ sessionId, clientUuid }, "[events] stroke delete already processed, skipping broadcast");
       }
@@ -349,7 +308,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       // Read before the questions: `sequence` never claims a later change
       // than the list has, which a save's baseSequence relies on.
-      const session = await assertParticipant(sessionId, user.discordId);
+      const { session } = await resolveSessionAccess(sessionId, user.discordId);
 
       const questions = await prisma.sessionQuestion.findMany({
         where: { sessionId },
@@ -392,7 +351,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      await resolveSessionAccess(sessionId, user.discordId);
 
       const { after, until = 2147483647, keys: keysParam } = req.query as {
         after: number;
@@ -480,7 +439,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      await assertParticipant(sessionId, user.discordId);
+      await resolveSessionWriter(sessionId, user.discordId);
 
       const { questions: incoming, replacementId, baseSequence } = req.body as {
         questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }>;
@@ -588,17 +547,7 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       if (eventToBroadcast) {
         const e = eventToBroadcast;
         req.log.info({ sessionId, eventId: e.id, replacementId, sequence: e.sequence }, "[events] questions.replace event saved, broadcasting");
-        broadcast(sessionId, {
-          id: e.id,
-          sessionId: e.sessionId,
-          userId: e.userId,
-          sequence: e.sequence,
-          type: e.type,
-          payloadJson: e.payloadJson,
-          clientUuid: e.clientUuid,
-          clientCreatedAt: e.clientCreatedAt.toISOString(),
-          serverReceivedAt: e.serverReceivedAt.toISOString(),
-        });
+        broadcast(sessionId, toEventRecord(e));
       } else {
         req.log.info({ sessionId, replacementId }, "[events] questions.replace duplicate skipped broadcast");
       }

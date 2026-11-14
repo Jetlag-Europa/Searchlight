@@ -1,6 +1,8 @@
 import type { GameDefinition } from "@searchlight/shared";
 import { atom, computed } from "nanostores";
 
+import { STORED_USER_KEY } from "@/lib/activeSession";
+import { readStorage } from "@/lib/safeStorage";
 import { questionSchema } from "@/maps/schema";
 
 import { fetchGameRevisionJSON } from "./api.js";
@@ -202,6 +204,7 @@ export function loadGameDefinition(
     const cached = getCachedRevisionDefinition(gameId, revisionId, sessionId);
     if (cached) return Promise.resolve(cached);
 
+    const owner = readStorage("localStorage", STORED_USER_KEY);
     const request = readStoredRevision(gameId, revisionId)
         .then(async (stored) => {
             // A kept copy must still make a game (the compiled game is
@@ -213,7 +216,7 @@ export function loadGameDefinition(
                 revisionId,
                 sessionId,
             );
-            void storeRevision(gameId, revisionId, json);
+            void storeRevision(gameId, revisionId, json, owner);
             return definition;
         })
         .then((definition) => {

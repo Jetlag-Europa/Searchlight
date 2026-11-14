@@ -102,9 +102,10 @@ import {
 import { hiderMode, mapGeoJSON } from "@/lib/context";
 import {
     adjustMapGeoDataForQuestion,
-    applyQuestionsToMapGeoData,
+    computePerQuestionRegions,
     determinePlanningPolygon,
     hiderifyQuestion,
+    standaloneRegion,
 } from "@/maps";
 import {
     arcBufferToPoint,
@@ -544,18 +545,17 @@ describe("compiled planning and evaluation geometry", () => {
                 same: true,
             }),
         };
-        const preview = vi.fn();
-        await applyQuestionsToMapGeoData([question], playArea, true, preview);
-        expect(preview).not.toHaveBeenCalled();
+        expect(
+            await computePerQuestionRegions([question], playArea, true),
+        ).toEqual([]);
         expect(await determinePlanningPolygon(question, true)).toBeUndefined();
         question.data.enabled = true;
         question.data.drag = false;
-        const result = await applyQuestionsToMapGeoData(
-            [question],
+        const result = await standaloneRegion(
+            question,
             turf.featureCollection([
                 turf.bboxPolygon([0.035, -0.005, 0.045, 0.005]),
             ]),
-            false,
         );
         expect(result).toEqual(turf.featureCollection([]));
     });

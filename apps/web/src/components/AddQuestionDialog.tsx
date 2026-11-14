@@ -10,7 +10,7 @@ import {
     DialogTitle,
     DialogTrigger,
 } from "@/components/ui/dialog";
-import { SidebarMenuButton } from "@/components/ui/sidebar-l";
+import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { compiledGameAtom } from "@/game-definition/store";
 import {
     addQuestion,

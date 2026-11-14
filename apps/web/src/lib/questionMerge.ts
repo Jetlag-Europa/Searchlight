@@ -3,6 +3,10 @@
 // would undo the other's changes, so it is merged first: three-way, against
 // the server's list it was made from.
 
+// Content equality, whatever order the fields come in (Postgres jsonb
+// reorders them), with numbers one unit in the last place apart the same.
+import { sameJsonValue as sameValue, sameNumber } from "@searchlight/shared";
+
 type Question = unknown;
 type Fields = Record<string, unknown>;
 
@@ -11,44 +15,12 @@ type Fields = Record<string, unknown>;
 // question wins, or whether an edit or a removal does.
 const DEVICE_FIELDS = new Set(["collapsed", "drag"]);
 
-// Until the API wrote payloads exactly, every number in them that needed all
-// 17 digits could come back one unit in the last place off (a key
-// 0.47550004144641034 as 0.4755000414464103, a latitude likewise). Numbers
-// this close are the same number. That's well under the step between new
-// question keys (1e-15, see newQuestionKey) and anything a player enters.
-const RELATIVE_TOLERANCE = 4e-16;
-
-function sameNumber(a: number, b: number): boolean {
-    return a === b || Math.abs(a - b) <= RELATIVE_TOLERANCE * Math.max(Math.abs(a), Math.abs(b));
-}
-
-// Content equality, whatever order the fields come in (Postgres jsonb
-// reorders them), with numbers compared within rounding.
-function sameValue(a: unknown, b: unknown): boolean {
-    if (typeof a === "number" && typeof b === "number") return sameNumber(a, b);
-    if (Array.isArray(a) || Array.isArray(b)) {
-        return (
-            Array.isArray(a) &&
-            Array.isArray(b) &&
-            a.length === b.length &&
-            a.every((v, i) => sameValue(v, b[i]))
-        );
-    }
-    if (a && b && typeof a === "object" && typeof b === "object") {
-        const fields = new Set([...Object.keys(a), ...Object.keys(b)]);
-        for (const field of fields) {
-            if (!sameValue((a as Fields)[field], (b as Fields)[field])) return false;
-        }
-        return true;
-    }
-    // A missing field reads as undefined, the same as an undefined one.
-    return a === b;
-}
-
+/** A question's key, if it has one (questions without are told apart by content). */
 function numericKey(question: Question): number | undefined {
     const key = (question as { key?: unknown } | null)?.key;
     return typeof key === "number" && Number.isFinite(key) ? key : undefined;
 }
+export { numericKey as questionKey };
 
 /** Whether two keys name the same question. */
 export function sameQuestionKey(a: number, b: number): boolean {
@@ -119,13 +91,8 @@ export function sameQuestionSubstance(a: Question | null, b: Question | null): b
     return !changedInSubstance(a, b);
 }
 
-/** A question's key, if it has one (questions without are told apart by content). */
-export function questionKey(question: Question): number | undefined {
-    return numericKey(question);
-}
-
 /** `question` as `shown` shows it: its device fields (folded, locked) from there. */
-export function withDeviceFieldsOf<Q>(question: Q, shown: unknown): Q {
+function withDeviceFieldsOf<Q>(question: Q, shown: unknown): Q {
     const data: Fields = { ...dataOf(question) };
     for (const field of DEVICE_FIELDS) {
         const value = dataOf(shown)[field];
@@ -292,15 +259,28 @@ function mergeLists<Q>(
             }
         }
     });
+    const serverIds = server.map(idOf);
+    const mergedIds = merged.map(idOf);
     server.forEach((question, index) => {
-        const id = idOf(question);
+        const id = serverIds[index];
         if (localIds.has(id)) return;
         const was = baseById.get(id);
         if (was === undefined || changedInSubstance(question, was)) {
             // Changed there to a version of ours that may have been saved
             // (its answer never came): our removal of it since stands.
             if (was !== undefined && ours(question)) return;
-            merged.push(question);
+            // Below every question above it there that is still in the list
+            // (else at the top), then below ours added there: a zone-size
+            // curse applies to the questions below it, so every curse above
+            // it there stays above it, even one we moved.
+            const above = new Set(serverIds.slice(0, index));
+            let at = 0;
+            mergedIds.forEach((m, i) => {
+                if (above.has(m)) at = i + 1;
+            });
+            while (at < mergedIds.length && !serverIndex.has(mergedIds[at])) at++;
+            merged.splice(at, 0, question);
+            mergedIds.splice(at, 0, id);
             if (was !== undefined && holds(question, question)) {
                 conflict("we-deleted", was, null, { question, index });
             }
@@ -317,7 +297,8 @@ function mergeLists<Q>(
  * removed that they changed in substance is kept with their change, and one
  * they removed that we changed in substance is kept with ours; a change to
  * how it's shown (folded, locked) alone doesn't keep it. Our order comes
- * first, then their additions in theirs.
+ * first; a question only they have goes below the questions above it there
+ * (and below ours added there).
  */
 export function mergeQuestionLists<Q>(
     base: readonly Q[],

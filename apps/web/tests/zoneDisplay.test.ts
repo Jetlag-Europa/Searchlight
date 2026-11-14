@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import type { StationCircle, StationPlace } from "@/maps/api";
 import { hidingZoneLayer, type ZoneDisplayStyle } from "@/maps/geo-utils";
+import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 const STYLES: ZoneDisplayStyle[] = [
     "no-overlap",
@@ -40,21 +41,20 @@ describe("hidingZoneLayer", () => {
         expect(layer.features).toEqual([only]);
     });
 
-    it("merges the zones into one feature in no-overlap", () => {
+    // Two or more zones are merged by the worker, as the sidebar asks it to.
+    it("merges the zones into one outline in no-overlap", async () => {
+        const merge = (regions: StationCircle[]) =>
+            requestGeometry(
+                { kind: "union", regions },
+                { supersede: "hiding-zone-outline" },
+            );
         const overlapping = [zone("a", 0), zone("b", 350)];
-        const merged = hidingZoneLayer(overlapping, "no-overlap");
-        expect(merged.features).toHaveLength(1);
-        expect(merged.features[0].geometry.type).toBe("Polygon");
+        expect((await merge(overlapping))?.geometry.type).toBe("Polygon");
 
-        const apart = hidingZoneLayer(
-            [...overlapping, zone("c", 10_000)],
-            "no-overlap",
-        );
-        expect(apart.features).toHaveLength(1);
-        const { geometry } = apart.features[0];
-        expect(geometry.type).toBe("MultiPolygon");
+        const apart = await merge([...overlapping, zone("c", 10_000)]);
+        expect(apart?.geometry.type).toBe("MultiPolygon");
         // The overlapping pair is one part, the far zone the other.
-        expect((geometry as MultiPolygon).coordinates).toHaveLength(2);
+        expect((apart?.geometry as MultiPolygon).coordinates).toHaveLength(2);
     });
 
     it("draws each zone's station in stations", () => {

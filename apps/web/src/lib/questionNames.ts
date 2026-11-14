@@ -2,7 +2,7 @@ import type { Question } from "@/maps/schema";
 
 export const QUESTION_NAME_MAX_LENGTH = 60;
 
-const TYPE_LABELS: Record<Question["id"], string> = {
+export const TYPE_LABELS: Record<Question["id"], string> = {
     radius: "Radius",
     thermometer: "Thermometer",
     tentacles: "Tentacles",
@@ -11,18 +11,21 @@ const TYPE_LABELS: Record<Question["id"], string> = {
     "zone-size": "Zone Size",
 };
 
-// "Radius 2": the type and the question's position among those of its type.
+// "Radius 2": the type and the question's position among those of its type
+// (empty when `questions` doesn't hold it, or holds it as a type this build
+// doesn't know).
 export const defaultQuestionLabel = (
-    questions: readonly Pick<Question, "id" | "key">[],
+    questions: readonly { key: number; id?: unknown }[],
     questionKey: number,
 ): string => {
     const question = questions.find((q) => q.key === questionKey);
-    if (!question) return "";
+    const type = TYPE_LABELS[question?.id as Question["id"]];
+    if (!question || !type) return "";
     const position =
         questions
             .filter((q) => q.id === question.id)
             .findIndex((q) => q.key === questionKey) + 1;
-    return `${TYPE_LABELS[question.id]} ${position}`;
+    return `${type} ${position}`;
 };
 
 // What the player typed, tidied: blank means no name. Cut by code point, so
@@ -47,4 +50,20 @@ export const setQuestionName = (
 ) => {
     if (name) data.name = name;
     else delete data.name;
+};
+
+// What the board calls a question: its name, or "Radius 2" (empty when the
+// board doesn't hold it, or holds it as a type this build doesn't know).
+// Positions shift as questions come and go, so this is the label as of
+// `questions`. Takes questions as read from anywhere, unparsed.
+export const boardLabel = (
+    questions: readonly { key: number; id?: unknown; data?: unknown }[],
+    questionKey: number,
+): string => {
+    const data = questions.find((q) => q.key === questionKey)?.data;
+    const name =
+        data && typeof data === "object"
+            ? questionName(data as { name?: unknown })
+            : undefined;
+    return name ?? defaultQuestionLabel(questions, questionKey);
 };

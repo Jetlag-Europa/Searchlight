@@ -42,7 +42,11 @@ jobs:
                     - image: web
                       # Baked into the static bundle, so this image only talks to
                       # the production API. Same default as docker-compose.yml.
-                      build-args: PUBLIC_API_BASE=https://api-searchlight.jetlageuropa.org
+                      # The Google key is the repository variable of that name;
+                      # without it the image doesn't offer Google Maps.
+                      build-args: |
+                          PUBLIC_API_BASE=https://api.searchlight.jetlageuropa.org
+                          PUBLIC_GOOGLE_MAPS_API_KEY=${{ vars.PUBLIC_GOOGLE_MAPS_API_KEY }}
         steps:
             - name: Image name
               id: name

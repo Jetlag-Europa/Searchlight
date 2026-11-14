@@ -118,7 +118,8 @@ export function GameSettingsDialog({
                     Settings
                 </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg">
+            {/* Scrolls on a small or sideways phone, where it's taller than the screen. */}
+            <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg sm:max-w-lg">
                 <DialogHeader>
                     <DialogTitle>Settings for {game.name}</DialogTitle>
                     <DialogDescription>

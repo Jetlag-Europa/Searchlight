@@ -13,14 +13,10 @@ const UNTYPED_INPUTS = new Set([
 ]);
 
 /**
- * Whether `element`, the focused one, takes typed text: a text field, a
- * textarea or anything contenteditable, looking into open shadow roots
- * (ArcGIS's search box). On a phone its keyboard is up.
+ * Whether `focused` takes typed text: a text field, a textarea or anything
+ * contenteditable. On a phone its keyboard is up.
  */
-export function isTypingIn(element: Element | null): boolean {
-    let focused = element;
-    while (focused?.shadowRoot?.activeElement)
-        focused = focused.shadowRoot.activeElement;
+export function isTypingIn(focused: Element | null): boolean {
     if (!focused) return false;
     if ((focused as HTMLElement).isContentEditable) return true;
     const field = focused as HTMLInputElement | HTMLTextAreaElement;

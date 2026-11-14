@@ -3,8 +3,15 @@
 // come from other builds, so nothing here trusts a field's shape: anything
 // unreadable falls back to the question's type, and nothing throws.
 
-import { sameQuestion, sameQuestionKey } from "@/lib/questionMerge";
-import { defaultQuestionLabel, questionName } from "@/lib/questionNames";
+import { isRecord } from "@searchlight/shared";
+
+// same: numbers within rounding, objects whatever their field order.
+import { sameQuestion as same, sameQuestionKey } from "@/lib/questionMerge";
+import {
+    defaultQuestionLabel,
+    questionName,
+    TYPE_LABELS,
+} from "@/lib/questionNames";
 import { formatDistance } from "@/lib/utils";
 import { formatMultiplier, validMultiplier } from "@/lib/zoneSize";
 
@@ -19,26 +26,13 @@ export interface SummaryOptions {
     unit?: DistanceUnit;
 }
 
-// The same names as the question cards' labels (questionNames.ts).
-const TYPE_LABELS: Record<string, string> = {
-    radius: "Radius",
-    thermometer: "Thermometer",
-    tentacles: "Tentacles",
-    matching: "Matching",
-    measuring: "Measuring",
-    "zone-size": "Zone Size",
-};
-
 const UNIT_ABBREVIATIONS: Record<DistanceUnit, string> = {
     meters: "m",
     kilometers: "km",
     miles: "mi",
 };
 
-const isFields = (value: unknown): value is Fields =>
-    !!value && typeof value === "object" && !Array.isArray(value);
-
-const fieldsOf = (value: unknown): Fields => (isFields(value) ? value : {});
+const fieldsOf = (value: unknown): Fields => (isRecord(value) ? value : {});
 
 const dataOf = (question: unknown): Fields => fieldsOf(fieldsOf(question).data);
 
@@ -59,7 +53,7 @@ const typeId = (question: unknown): string | undefined =>
 /** "Radius", or "Question" for a type this build doesn't know. */
 export function questionTypeLabel(question: unknown): string {
     const id = typeId(question);
-    return (id && TYPE_LABELS[id]) || "Question";
+    return (id && TYPE_LABELS[id as keyof typeof TYPE_LABELS]) || "Question";
 }
 
 // "2 km", "500 m", "1.5 mi", as the radius cards' quick picks write them. A
@@ -112,12 +106,12 @@ function kindLabel(
 function tentacleChoice(data: Fields): string {
     const location = data.location;
     if (location === false) return "Not Within";
-    if (!isFields(location)) return "None chosen";
+    if (!isRecord(location)) return "None chosen";
     const name = fieldsOf(location.properties).name;
     return text(name) ?? (typeof name === "number" ? String(name) : "Location");
 }
 
-export interface QuestionSummary {
+interface QuestionSummary {
     // What it asks: "2 km", "Nearest Airport". Absent when the type says it.
     subject?: string;
     // Its answer, in the card's words: "Inside", "Colder", "Same".
@@ -245,14 +239,15 @@ function metersBetween(
     return 2 * 6_371_008.8 * Math.asin(Math.min(1, Math.sqrt(h)));
 }
 
-// Numbers within rounding, and objects whatever their field order, as the
-// merge compares them.
-const same = (a: unknown, b: unknown): boolean => sameQuestion(a, b);
-
 // Which fields say what. Device fields (folded, locked) and the key aren't
 // part of what a question asks, so they're never a difference.
 const IGNORED = new Set(["collapsed", "drag"]);
-const PIN_FIELDS: [string, string, string][] = [
+/** Each pin's coordinate fields, and what to call it. */
+export const PIN_FIELDS: readonly (readonly [
+    lat: string,
+    lng: string,
+    pin: string,
+])[] = [
     ["lat", "lng", "pin"],
     ["latA", "lngA", "start"],
     ["latB", "lngB", "end"],
@@ -300,6 +295,26 @@ function moved(
 }
 
 /**
+ * Each pin that moved between two versions ("pin", or a thermometer's
+ * "start" and "end") and how far ("300 m"), or null when that can't be told.
+ */
+export function pinMoves(
+    a: unknown,
+    b: unknown,
+    options: SummaryOptions = {},
+): { pin: string; distance: string | null }[] {
+    const da = dataOf(a);
+    const db = dataOf(b);
+    const unit = options.unit ?? "kilometers";
+    const out: { pin: string; distance: string | null }[] = [];
+    for (const [lat, lng, pin] of PIN_FIELDS) {
+        const distance = moved(da, db, lat, lng, unit);
+        if (distance !== undefined) out.push({ pin, distance });
+    }
+    return out;
+}
+
+/**
  * What differs between two versions of a question, in a few words each:
  * "pin moved 300 m", "answer", "radius". Empty when they ask the same and
  * answer the same.
@@ -313,17 +328,16 @@ export function questionDifferences(
         if (!same(typeId(a), typeId(b))) return ["type"];
         const da = dataOf(a);
         const db = dataOf(b);
-        const unit = options.unit ?? "kilometers";
         const out: string[] = [];
         const add = (what: string) => {
             if (!out.includes(what)) out.push(what);
         };
         const handled = new Set<string>(IGNORED);
-        for (const [lat, lng, what] of PIN_FIELDS) {
-            handled.add(lat).add(lng);
-            const distance = moved(da, db, lat, lng, unit);
-            if (distance === null) add(`${what} moved`);
-            else if (distance !== undefined) add(`${what} moved ${distance}`);
+        for (const [lat, lng] of PIN_FIELDS) handled.add(lat).add(lng);
+        for (const { pin, distance } of pinMoves(a, b, options)) {
+            add(
+                distance === null ? `${pin} moved` : `${pin} moved ${distance}`,
+            );
         }
         const fields = new Set([...Object.keys(da), ...Object.keys(db)]);
         for (const field of fields) {
@@ -346,7 +360,7 @@ export function questionDifferences(
 
 // ── A conflict, in words ─────────────────────────────────────────────────────
 
-export interface ConflictLike {
+interface ConflictLike {
     key: number;
     mine: unknown;
     theirs: unknown;
@@ -379,15 +393,12 @@ export function conflictQuestionLabel(
             const type = questionTypeLabel(conflict.theirs ?? conflict.mine);
             return { name, label: `${type} (not on the map)` };
         }
-        const label =
-            typeId(onBoard) && TYPE_LABELS[typeId(onBoard)!]
-                ? defaultQuestionLabel(
-                      board.filter(isFields) as unknown as Parameters<
-                          typeof defaultQuestionLabel
-                      >[0],
-                      keyOf(onBoard)!,
-                  )
-                : "";
+        const label = defaultQuestionLabel(
+            board.filter(isRecord) as unknown as Parameters<
+                typeof defaultQuestionLabel
+            >[0],
+            keyOf(onBoard)!,
+        );
         return { name, label: label || questionTypeLabel(onBoard) };
     } catch {
         return { label: questionTypeLabel(conflict.theirs ?? conflict.mine) };
@@ -455,7 +466,7 @@ export function rawDifferences(
     return out;
 }
 
-export interface AuthorLike {
+interface AuthorLike {
     displayName?: unknown;
     self?: unknown;
 }

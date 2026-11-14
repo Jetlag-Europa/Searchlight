@@ -1,10 +1,13 @@
 import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { get, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
+import { brotliDecompressSync } from "node:zlib";
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { registerCompression } from "../lib/compression.js";
+import { registerSessionRenewal } from "../lib/session.js";
 import { broadcast, closeUserStreams, connectedUserIds } from "../lib/broadcaster.js";
 import { eventRoutes, stallTimeout } from "./events.js";
 
@@ -22,6 +25,8 @@ async function buildTestApp() {
   await app.register(fastifyCookie, {
     secret: process.env["SESSION_COOKIE_SECRET"]!,
   });
+  await registerCompression(app);
+  registerSessionRenewal(app);
   await app.register(eventRoutes, { prefix: "/sessions" });
   await app.ready();
   return app;
@@ -302,6 +307,9 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(404);
+    // The web app forgets a session, and its unsent edits, only on this
+    // message (apps/web/src/lib/sessionUnavailable.ts).
+    expect(res.json().message).toBe("Session not found");
   });
 
   test("403 when user is not a participant of the session", async () => {
@@ -314,6 +322,35 @@ describe("GET /sessions/:sessionId/events", () => {
     expect(res.statusCode).toBe(403);
   });
   // ── GET /sessions/:sessionId/events/cursor ──────────────────────────────────
+  test("a page of events is sent with brotli when accepted", async () => {
+    // A catch-up page of question list replacements, each with the whole list.
+    const questions = Array.from({ length: 10 }, (_, i) => ({ id: `q-${i}`, type: "radius", radius: i }));
+    await prisma.event.createMany({
+      data: Array.from({ length: 50 }, (_, i) => ({
+        sessionId: SESSION1_ID,
+        userId: USER1_ID,
+        sequence: 1001 + i,
+        type: "questions.replace",
+        payloadJson: { replacementId: `r-${i}`, questions },
+        clientUuid: `test-ev-replace-${i}`,
+        clientCreatedAt: t2,
+        serverReceivedAt: t2,
+      })),
+    });
+    try {
+      const url = `/sessions/${SESSION1_ID}/events?after=1000&limit=50`;
+      const plain = await app.inject({ method: "GET", url, headers: { cookie } });
+      expect(plain.json<{ events: unknown[] }>().events).toHaveLength(50);
+
+      const res = await app.inject({ method: "GET", url, headers: { cookie, "accept-encoding": "br" } });
+      expect(res.statusCode).toBe(200);
+      expect(res.headers["content-encoding"]).toBe("br");
+      expect(brotliDecompressSync(res.rawPayload).toString()).toBe(plain.body);
+    } finally {
+      await prisma.event.deleteMany({ where: { sessionId: SESSION1_ID, sequence: { gt: 1000 } } });
+    }
+  });
+
   test("cursor: 401 without auth cookie", async () => {
     const res = await app.inject({
       method: "GET",
@@ -329,6 +366,7 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(404);
+    expect(res.json().message).toBe("Session not found");
   });
 
   test("cursor: 403 when user is not a participant of the session", async () => {
@@ -516,11 +554,11 @@ describe("GET /sessions/:sessionId/events", () => {
   });
 
   // ── Stalled clients: a real socket, since inject() has no backpressure ──────
-  async function openRealStream(): Promise<IncomingMessage> {
+  async function openRealStream(headers: Record<string, string> = {}): Promise<IncomingMessage> {
     if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
     const { port } = app.server.address() as AddressInfo;
     const res = await new Promise<IncomingMessage>((resolve, reject) => {
-      get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } }, resolve).on(
+      get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie, ...headers } }, resolve).on(
         "error",
         reject,
       );
@@ -544,6 +582,35 @@ describe("GET /sessions/:sessionId/events", () => {
       serverReceivedAt: new Date().toISOString(),
     });
   }
+
+  test("stream: is sent uncompressed, event by event, even when the client accepts compression", async () => {
+    const res = await openRealStream({ "accept-encoding": "br, gzip" });
+    let received = "";
+    res.setEncoding("utf8");
+    res.on("data", (chunk: string) => {
+      received += chunk;
+    });
+    try {
+      expect(res.headers["content-type"]).toBe("text/event-stream");
+      expect(res.headers["content-encoding"]).toBeUndefined();
+      await vi.waitFor(() => expect(received).toContain("retry: 3000\n\n"));
+      broadcast(SESSION1_ID, {
+        id: "ev-plain",
+        sessionId: SESSION1_ID,
+        userId: USER1_ID,
+        sequence: 99,
+        type: "stroke.create",
+        payloadJson: { test: 1 },
+        clientUuid: "plain-1",
+        clientCreatedAt: new Date().toISOString(),
+        serverReceivedAt: new Date().toISOString(),
+      });
+      await vi.waitFor(() => expect(received).toContain('data: {"id":"ev-plain"'), { timeout: 1000 });
+    } finally {
+      res.destroy();
+      await vi.waitFor(() => expect(isConnected()).toBe(false));
+    }
+  });
 
   test("stream: a client that stops reading is disconnected", async () => {
     const saved = stallTimeout.ms;
@@ -608,5 +675,26 @@ describe("GET /sessions/:sessionId/events", () => {
       res.destroy();
       await vi.waitFor(() => expect(isConnected()).toBe(false));
     }
+  });
+
+  // The stream writes raw headers, where no cookie can go, so it must not renew.
+  test("stream: doesn't renew a login that's due; the next ordinary request does", async () => {
+    const expiresAt = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+    await prisma.authSession.update({ where: { id: AUTH_SESSION_ID }, data: { expiresAt } });
+    const res = await openRealStream();
+    try {
+      expect(res.headers["set-cookie"]).toBeUndefined();
+    } finally {
+      res.destroy();
+      await vi.waitFor(() => expect(isConnected()).toBe(false));
+    }
+    const row = await prisma.authSession.findUnique({ where: { id: AUTH_SESSION_ID } });
+    expect(row?.expiresAt).toEqual(expiresAt);
+
+    const next = await app.inject({ method: "GET", url: `/sessions/${SESSION1_ID}/events`, headers: { cookie } });
+    expect(next.statusCode).toBe(200);
+    expect(next.cookies.find((c) => c.name === "session")).toBeDefined();
+    const renewed = await prisma.authSession.findUnique({ where: { id: AUTH_SESSION_ID } });
+    expect(renewed!.expiresAt.getTime()).toBeGreaterThan(expiresAt.getTime());
   });
 });

@@ -75,7 +75,7 @@ match):
 pnpm --filter @searchlight/api prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script
 ```
 
-The API scripts read the root `.env`; so does the web app (for `PUBLIC_API_BASE`).
+The API and the web app (for `PUBLIC_API_BASE`) both read the root `.env`.
 
 ### When something doesn't work
 
@@ -94,7 +94,7 @@ The API scripts read the root `.env`; so does the web app (for `PUBLIC_API_BASE`
 Searchlight builds on
 [JetLagHideAndSeek](https://github.com/taibeled/JetLagHideAndSeek). Thanks to
 [taibeled](https://github.com/taibeled), who created it, and to its
-[22 contributors](https://github.com/taibeled/JetLagHideAndSeek/graphs/contributors).
+[contributors](https://github.com/taibeled/JetLagHideAndSeek/graphs/contributors).
 Thanks to [Jules](https://github.com/JulzyWulzy) for turning it into
 Searchlight, to [leandrocoding](https://github.com/leandrocoding), and to
 everyone who has played, tested and reported bugs along the way.

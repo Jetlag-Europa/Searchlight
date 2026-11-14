@@ -1,14 +1,20 @@
-import type { StrokeFeature } from "@/annotations/types";
-import { pendingEventCount,syncStatus } from "@/lib/context";
+import { isStrokeLike, type StrokeFeature } from "@/annotations/types";
+import { isSessionReadOnly } from "@/lib/activeSession";
+import { syncStatus } from "@/lib/context";
 import {
     enqueueEvent,
-    getPendingEvents,
     markEventSynced,
+    type PendingEvent,
 } from "@/lib/eventQueue";
+import { readError } from "@/lib/sessionUnavailable";
+import { sayStorageFull } from "@/lib/storageFull";
 import {
     assertMaySend,
+    assertStrokeDeleted,
     recordSendFailure,
+    refreshSyncCounts,
     SyncRequestError,
+    withTimeout,
 } from "@/lib/syncManager";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -28,21 +34,34 @@ export function clearStrokeTombstones(): void {
     strokeTombstones.clear();
 }
 
-function refreshSyncCounts(sessionId: string): void {
-    const count = getPendingEvents(sessionId).filter(
-        (e) => e.status === "pending" || e.status === "failed",
-    ).length;
-    pendingEventCount.set(count);
-    if (count === 0) syncStatus.set("synced");
+// Storage too full to queue a stroke's edit: said, and the board shows it
+// until a reload.
+function queueStrokeEdit(event: Parameters<typeof enqueueEvent>[0]): PendingEvent {
+    try {
+        return enqueueEvent(event);
+    } catch (err) {
+        sayStorageFull();
+        throw err;
+    }
 }
 
-export async function loadStrokesFromServer(sessionId: string): Promise<StrokeFeature[]> {
+export async function loadStrokesFromServer(
+    sessionId: string,
+    signal?: AbortSignal,
+): Promise<StrokeFeature[]> {
     const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes`, {
         credentials: "include",
+        signal,
     });
-    if (!res.ok) throw new Error(`Failed to load strokes: ${res.status}`);
-    const data = await res.json() as { strokes: Array<{ clientUuid: string; payloadJson: unknown }> };
-    return data.strokes.map((s) => s.payloadJson as StrokeFeature);
+    if (!res.ok) throw await readError(res, "strokes");
+    const data = (await res.json()) as { strokes: unknown[] };
+    const loaded: StrokeFeature[] = [];
+    for (const entry of data.strokes) {
+        const stroke = (entry as { payloadJson?: unknown } | null)?.payloadJson;
+        if (isStrokeLike(stroke)) loaded.push(stroke);
+        else console.warn("[serverStore] skipping a malformed stroke:", entry);
+    }
+    return loaded;
 }
 
 export async function saveStrokeToServer(
@@ -50,6 +69,8 @@ export async function saveStrokeToServer(
     stroke: StrokeFeature,
 ): Promise<void> {
     const clientUuid = stroke.properties.clientUuid;
+    // Spectators can't draw.
+    if (isSessionReadOnly(sessionId)) return;
     if (strokeTombstones.has(clientUuid)) {
         console.info(
             "[serverStore] stroke.create skipped — tombstone already exists:",
@@ -58,7 +79,7 @@ export async function saveStrokeToServer(
         return;
     }
 
-    const event = enqueueEvent({
+    const event = queueStrokeEdit({
         sessionId,
         type: "stroke.create",
         payloadJson: stroke,
@@ -70,9 +91,8 @@ export async function saveStrokeToServer(
     const postPromise = (async () => {
         try {
             assertMaySend();
-            const res = await fetch(
-                `${API_BASE}/sessions/${sessionId}/strokes`,
-                {
+            const res = await withTimeout((signal) =>
+                fetch(`${API_BASE}/sessions/${sessionId}/strokes`, {
                     method: "POST",
                     credentials: "include",
                     headers: { "Content-Type": "application/json" },
@@ -80,10 +100,11 @@ export async function saveStrokeToServer(
                         clientUuid,
                         payloadJson: stroke,
                     }),
-                },
+                    signal,
+                }),
             );
             if (!res.ok)
-                throw new SyncRequestError("stroke.create", res.status);
+                throw await SyncRequestError.from("stroke.create", res);
             markEventSynced(sessionId, event.localId);
             refreshSyncCounts(sessionId);
         } catch (e) {
@@ -104,9 +125,10 @@ export async function deleteStrokeFromServer(
     sessionId: string,
     clientUuid: string,
 ): Promise<void> {
+    if (isSessionReadOnly(sessionId)) return;
     recordStrokeTombstone(clientUuid);
 
-    const event = enqueueEvent({
+    const event = queueStrokeEdit({
         sessionId,
         type: "stroke.delete",
         payloadJson: { clientUuid },
@@ -127,16 +149,14 @@ export async function deleteStrokeFromServer(
 
     try {
         assertMaySend();
-        const res = await fetch(
-            `${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`,
-            {
+        const res = await withTimeout((signal) =>
+            fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
                 method: "DELETE",
                 credentials: "include",
-            },
+                signal,
+            }),
         );
-        if (!res.ok && res.status !== 404) {
-            throw new SyncRequestError("stroke.delete", res.status);
-        }
+        await assertStrokeDeleted(res);
         markEventSynced(sessionId, event.localId);
         refreshSyncCounts(sessionId);
     } catch (e) {

@@ -10,8 +10,6 @@ import type {
 import type { CompiledGame } from "@/game-definition/compile";
 import type { StationCircle, StationPlace } from "@/maps/api";
 
-import { safeUnion } from "./operators";
-
 const isUnit = (unit: unknown): unit is DistanceUnit =>
     unit === "meters" || unit === "kilometers" || unit === "miles";
 
@@ -62,10 +60,10 @@ export type ZoneDisplayStyle =
     | "no-display";
 
 /**
- * The layer the zone sidebar draws for the zones still in play: each zone,
- * each zone's station, or the zones merged into one shape ("no-overlap").
- * With no zones (not worked out yet, all ruled out, or all disabled by hand)
- * there is nothing to draw, in every style.
+ * The layer the zone sidebar draws for the zones still in play: each zone or
+ * each zone's station. The worker merges two or more zones for "no-overlap";
+ * one zone is its own outline. With no zones (not worked out yet, all ruled
+ * out, or all disabled by hand) there is nothing to draw, in every style.
  */
 export function hidingZoneLayer(
     zones: StationCircle[],
@@ -73,16 +71,41 @@ export function hidingZoneLayer(
 ): FeatureCollection {
     if (style === "no-display" || zones.length === 0)
         return turf.featureCollection([]);
-    switch (style) {
-        case "no-overlap":
-            return turf.featureCollection([
-                safeUnion(turf.featureCollection(zones)),
-            ]);
-        case "stations":
-            return turf.featureCollection(zones.map((zone) => zone.properties));
-        default:
-            return turf.featureCollection(zones);
-    }
+    if (style === "stations")
+        return turf.featureCollection(zones.map((zone) => zone.properties));
+    return turf.featureCollection(zones);
+}
+
+const circlesByGame = new WeakMap<
+    object,
+    { scale: number; circles: StationCircle[] }
+>();
+
+/**
+ * {@link hidingZoneCircles}, kept per compiled game for the latest scale so a
+ * zone stays the same object across recalculations. Only one scale is kept:
+ * each multiplier typed into a zone size change is another full set of
+ * zones. Callers must not mutate the result.
+ */
+function cachedHidingZoneCircles(
+    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    scale: number,
+): StationCircle[] {
+    const cached = circlesByGame.get(compiled);
+    if (cached?.scale === scale) return cached.circles;
+    const circles = hidingZoneCircles(compiled, scale);
+    circlesByGame.set(compiled, { scale, circles });
+    return circles;
+}
+
+/** Whether two zone lists hold the same zone objects, in any order. */
+export function sameZones(
+    a: readonly StationCircle[],
+    b: readonly StationCircle[],
+): boolean {
+    if (a.length !== b.length) return false;
+    const zones = new Set(a);
+    return b.every((zone) => zones.has(zone));
 }
 
 /** A question's still-possible region and the zone size it was asked at. */
@@ -102,7 +125,8 @@ export type FilterZones = (
  * question's region on its own (see DissapearingAct), with the zone sized as
  * it was when that question was asked: a curse that resizes the zones changes
  * only what later answers say. A missing region eliminates everywhere.
- * Returns undefined once `isCurrent` turns false.
+ * Returns undefined once `isCurrent` turns false. A zone is the same object
+ * every time for the same game and scale: don't mutate it.
  */
 export async function survivingHidingZones(
     compiled: Pick<CompiledGame, "definition" | "hidingZones">,
@@ -111,7 +135,9 @@ export async function survivingHidingZones(
     filterZones: FilterZones,
     isCurrent: () => boolean = () => true,
 ): Promise<StationCircle[] | undefined> {
-    const current = hidingZoneCircles(compiled, currentScale);
+    // The same zones as last time keep their objects, so the sidebar can
+    // tell nothing changed and skip redrawing them.
+    const current = cachedHidingZoneCircles(compiled, currentScale);
     const surviving = await survivingZoneIndexes(
         compiled,
         answered,

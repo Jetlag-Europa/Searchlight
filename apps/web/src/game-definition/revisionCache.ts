@@ -46,16 +46,16 @@ function readIndex(): string[] {
     }
 }
 
-// `key` was just used; returns the keys that no longer fit.
-function touch(key: string): string[] {
-    const index = [...readIndex().filter((k) => k !== key), key];
-    const dropped = index.slice(0, Math.max(0, index.length - MAX_STORED_REVISIONS));
-    writeStorage(
-        "localStorage",
-        INDEX_KEY,
-        JSON.stringify(index.slice(dropped.length)),
+// The index with `key` as the newest, without the oldest that no longer fit.
+function withNewest(key: string): string[] {
+    return [...readIndex().filter((k) => k !== key), key].slice(
+        -MAX_STORED_REVISIONS,
     );
-    return dropped;
+}
+
+// `key` was just used.
+function touch(key: string): void {
+    writeStorage("localStorage", INDEX_KEY, JSON.stringify(withNewest(key)));
 }
 
 /** The kept copy of a game revision, if this browser has one. */
@@ -93,12 +93,20 @@ export async function storeRevision(
     gameId: string,
     revisionId: string,
     json: string,
+    // The account stored when the load started: if another one logged in
+    // meanwhile, its copy isn't theirs to keep.
+    owner = readStorage("localStorage", STORED_USER_KEY),
 ): Promise<void> {
-    if (!readStorage("localStorage", STORED_USER_KEY)) return;
+    if (!owner || readStorage("localStorage", STORED_USER_KEY) !== owner)
+        return;
     const cache = await openCache();
     if (!cache) return;
     const key = revisionKey(gameId, revisionId);
     try {
+        // Indexed before the copy is written, so a store cleaning up in
+        // another tab never finds the copy without its index entry. (An entry
+        // whose copy didn't make it reads as not kept.)
+        touch(key);
         await cache.put(
             key,
             new Response(json, {
@@ -107,15 +115,13 @@ export async function storeRevision(
         );
         // Copies no longer in the index (pruned, or kept by an index that
         // was cleared) go too.
-        const dropped = new Set(touch(key));
-        const index = new Set(readIndex());
+        const keys = await cache.keys();
+        // Read after the keys: a copy stored or read meanwhile is in it.
+        // With `key`, in case the index couldn't be written.
+        const keep = new Set(withNewest(key));
         await Promise.all(
-            (await cache.keys())
-                .filter(
-                    (request) =>
-                        request.url !== key &&
-                        (dropped.has(request.url) || !index.has(request.url)),
-                )
+            keys
+                .filter((request) => !keep.has(request.url))
                 .map((request) => cache.delete(request)),
         );
     } catch (err) {

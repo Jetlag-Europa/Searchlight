@@ -9,7 +9,7 @@ import { Select } from "@/components/ui/select";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
 import { askedHints } from "@/lib/askedQuestions";
@@ -107,12 +107,10 @@ export const MeasuringQuestionComponent = ({
     data,
     questionKey,
     sub,
-    className,
 }: {
     data: MeasuringQuestion;
     questionKey: number;
     sub?: string;
-    className?: string;
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
@@ -168,7 +166,6 @@ export const MeasuringQuestionComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={compiled?.questionMap.get(data.type)?.label ?? sub}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified

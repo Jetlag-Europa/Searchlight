@@ -1,40 +1,28 @@
 ---
 name: Bug report
-about: Create a report to help us improve
+about: Something in Searchlight doesn't work as it should
 title: "Bug: "
 labels: ""
 assignees: ""
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**What happened**
+What went wrong, and what you expected instead.
 
-**To Reproduce**
-Steps to reproduce the behavior:
+**Steps to reproduce**
 
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+1.
+2.
+3.
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+**Game and session**
+Which game, and whether you were in a session (as hider or seeker) or just
+looking at the map. Don't post session links here: anyone could join.
+
+**Device**
+
+- Phone or computer, and its OS (e.g. iPhone 15, iOS 26; Windows 11):
+- Browser (e.g. Safari, Chrome), or installed as an app:
 
 **Screenshots**
-If applicable, add screenshots to help explain your problem.
-
-**Desktop (please complete the following information):**
-
-- OS: [e.g. iOS]
-- Browser [e.g. chrome, safari]
-- Version [e.g. 22]
-
-**Smartphone (please complete the following information):**
-
-- Device: [e.g. iPhone6]
-- OS: [e.g. iOS8.1]
-- Browser [e.g. stock browser, safari]
-- Version [e.g. 22]
-
-**Additional context**
-Add any other context about the problem here.
+If you can, add a screenshot or screen recording.

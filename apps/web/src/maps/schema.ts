@@ -45,6 +45,11 @@ const questionNameSchema = z
     .optional()
     .catch(undefined);
 
+// The keys of the questions Restore (or Undo) put this one back as a copy
+// of, under a new key, oldest first (a copy of a copy has two). Every device
+// can then tell the deleted question is back. Dropped if malformed.
+const restoredFromSchema = z.array(z.number()).optional().catch(undefined);
+
 const thermometerQuestionSchema = z
     .object({
         latA: z
@@ -71,6 +76,7 @@ const thermometerQuestionSchema = z
         collapsed: z.boolean().default(false),
         enabled: z.boolean().default(true),
         name: questionNameSchema,
+        restoredFrom: restoredFromSchema,
     })
     .transform((question) => {
         if (question.colorA === question.colorB) {
@@ -95,6 +101,7 @@ const baseQuestionSchema = z.object({
     collapsed: z.boolean().default(false),
     enabled: z.boolean().default(true),
     name: questionNameSchema,
+    restoredFrom: restoredFromSchema,
 });
 
 const getDefaultUnit = () => {
@@ -208,6 +215,7 @@ const zoneSizeChangeSchema = z.object({
     collapsed: z.boolean().default(false),
     enabled: z.boolean().default(true),
     name: questionNameSchema,
+    restoredFrom: restoredFromSchema,
 });
 
 /**

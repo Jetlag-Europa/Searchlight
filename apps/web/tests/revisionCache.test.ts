@@ -165,6 +165,90 @@ describe("kept game revisions", () => {
         await clearStoredRevisions();
     });
 
+    // A store's cleanup lists the cache's keys, and holds them up until
+    // `meanwhile` has run.
+    async function cleanUpAround(
+        store: () => Promise<void>,
+        meanwhile: () => Promise<unknown>,
+    ) {
+        const cache = await storage.open("searchlight-game-revisions-v1");
+        const keys = cache.keys.bind(cache);
+        let listing!: () => void;
+        let finishListing!: () => void;
+        const listed = new Promise<void>((r) => (listing = r));
+        const finished = new Promise<void>((r) => (finishListing = r));
+        vi.spyOn(cache, "keys").mockImplementationOnce(async () => {
+            listing();
+            await finished;
+            return keys();
+        });
+        const storing = store();
+        await listed;
+        await meanwhile();
+        finishListing();
+        await storing;
+    }
+
+    test("survive another store finishing while one cleans up", async () => {
+        await cleanUpAround(
+            () => storeRevision("game", "r1", json("one")),
+            () => storeRevision("game", "r2", json("two")),
+        );
+        expect(await readStoredRevision("game", "r1")).toBeDefined();
+        expect(await readStoredRevision("game", "r2")).toBeDefined();
+    });
+
+    test("survive another tab's store, whose index it may see late", async () => {
+        // r2's copy is in the cache, but its tab hasn't gone on yet when
+        // r1's store (in another tab) cleans up.
+        const cache = await storage.open("searchlight-game-revisions-v1");
+        const put = cache.put.bind(cache);
+        let stored!: () => void;
+        let goOn!: () => void;
+        const inCache = new Promise<void>((r) => (stored = r));
+        const resumed = new Promise<void>((r) => (goOn = r));
+        vi.spyOn(cache, "put").mockImplementationOnce(async (...args) => {
+            await put(...args);
+            stored();
+            await resumed;
+        });
+        const other = storeRevision("game", "r2", json("two"));
+        await inCache;
+        await storeRevision("game", "r1", json("one"));
+        goOn();
+        await other;
+
+        expect(await readStoredRevision("game", "r1")).toBeDefined();
+        expect(await readStoredRevision("game", "r2")).toBeDefined();
+    });
+
+    test("keep no more than that when the index can't be written", async () => {
+        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+            await storeRevision("game", `r${i}`, json(`${i}`));
+        }
+        vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+            throw new DOMException("full", "QuotaExceededError");
+        });
+        await storeRevision("game", "new", json("new"));
+
+        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
+        expect(await readStoredRevision("game", "new")).toBeDefined();
+    });
+
+    test("keep the one a session reads while a store makes room", async () => {
+        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+            await storeRevision("game", `r${i}`, json(`${i}`));
+        }
+        // Storing r5 pushes r1 out, but r1 is read (made recent) meanwhile.
+        await cleanUpAround(
+            () => storeRevision("game", "r5", json("5")),
+            () => readStoredRevision("game", "r1"),
+        );
+        expect(await readStoredRevision("game", "r1")).toBeDefined();
+        expect(await readStoredRevision("game", "r5")).toBeDefined();
+        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
+    });
+
     test("survive a full disk as a no-op", async () => {
         const cache = await storage.open("searchlight-game-revisions-v1");
         vi.spyOn(cache, "put").mockRejectedValue(
@@ -219,6 +303,24 @@ describe("loading a session's game revision", () => {
         await vi.waitFor(async () =>
             expect((await readStoredRevision("game", "r1"))?.name).toBe("fixed"),
         );
+    });
+
+    test("doesn't keep a download that finishes after another account logged in", async () => {
+        let respond!: (response: Response) => void;
+        vi.spyOn(globalThis, "fetch").mockImplementation(
+            () => new Promise<Response>((r) => (respond = r)),
+        );
+        const load = loadGameDefinition("game", "r1", "s1");
+        await vi.waitFor(() => expect(respond).toBeDefined());
+        // u1 logs out (in another tab, say), and u2 logs in.
+        local.delete("taibled-authed-user");
+        await clearStoredRevisions();
+        local.set("taibled-authed-user", "u2");
+        respond(new Response(json("u1's game")));
+        await load;
+
+        await new Promise((r) => setTimeout(r, 0));
+        expect(entries()).toHaveLength(0);
     });
 
     test("never keeps an error", async () => {

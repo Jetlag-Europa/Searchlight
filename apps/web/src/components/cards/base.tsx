@@ -32,7 +32,8 @@ import {
     SidebarGroupLabel,
     SidebarMenu,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
+import { sessionReadOnly } from "@/lib/activeSession";
 import { isLoading, questions } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 import {
@@ -44,7 +45,6 @@ import { cn } from "@/lib/utils";
 export const QuestionCard = ({
     children,
     questionKey,
-    className,
     label,
     sub,
     name,
@@ -58,7 +58,6 @@ export const QuestionCard = ({
 }: {
     children: React.ReactNode;
     questionKey: number;
-    className?: string;
     label?: string;
     sub?: string;
     name?: string;
@@ -73,6 +72,7 @@ export const QuestionCard = ({
     const [isCollapsed, setIsCollapsed] = useState(collapsed ?? false);
     const $questions = useStore(questions);
     const $isLoading = useStore(isLoading);
+    const $readOnly = useStore(sessionReadOnly);
     const copyButtonRef = useRef<HTMLButtonElement>(null);
 
     const deleteTarget = name ? `"${name}"` : "the question";
@@ -86,10 +86,17 @@ export const QuestionCard = ({
 
     return (
         <>
-            <SidebarGroup className={cn(className, enabled === false && "opacity-50")}>
+            <SidebarGroup
+                className={cn(enabled === false && "opacity-50")}
+                // For showing the card after a Restore (showQuestionCard).
+                data-question-key={questionKey}
+            >
                 <div className="relative">
                     <button
                         onClick={toggleCollapse}
+                        // Focused by Show (after a Restore).
+                        data-question-card-header
+                        aria-label={isCollapsed ? "Unfold" : "Fold"}
                         className={cn(
                             "absolute top-2 left-2 text-white border rounded-md transition-all duration-500",
                             isCollapsed && "-rotate-90",
@@ -127,15 +134,24 @@ export const QuestionCard = ({
                             isCollapsed && "max-h-0",
                         )}
                     >
-                        <SidebarMenu>
-                            {setName && (
-                                <QuestionNameInput
-                                    name={name}
-                                    onCommit={setName}
-                                />
-                            )}
-                            {children}
-                        </SidebarMenu>
+                        {/* A spectator sees the question as it is: every field
+                            and button in it is disabled. Collapsing and the
+                            share dialog stay usable. Disabled controls still
+                            get pointerdown, which opens a Radix select. */}
+                        <fieldset
+                            disabled={$readOnly}
+                            className="min-w-0 [&:disabled_*]:pointer-events-none"
+                        >
+                            <SidebarMenu>
+                                {setName && (
+                                    <QuestionNameInput
+                                        name={name}
+                                        onCommit={setName}
+                                    />
+                                )}
+                                {children}
+                            </SidebarMenu>
+                        </fieldset>
                         <div className="flex gap-2 pt-2 px-2 justify-center">
                             <Dialog>
                                 <DialogTrigger asChild>
@@ -222,49 +238,53 @@ export const QuestionCard = ({
                                     <QuestionJson questionKey={questionKey} />
                                 </DialogContent>
                             </Dialog>
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={$isLoading}
-                                    >
-                                        <VscTrash />
-                                    </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent aria-describedby={undefined}>
-                                    <AlertDialogHeader>
-                                        <AlertDialogTitle>
-                                            Are you absolutely sure?
-                                        </AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                            This will delete {deleteTarget} for
-                                            everyone in the session. You can
-                                            undo it for a few seconds.
-                                        </AlertDialogDescription>
-                                    </AlertDialogHeader>
-                                    <AlertDialogFooter>
-                                        <AlertDialogCancel>
-                                            Cancel
-                                        </AlertDialogCancel>
-                                        <AlertDialogAction
-                                            onClick={() =>
-                                                deleteQuestionsWithUndo([
-                                                    questionKey,
-                                                ])
-                                            }
+                            {!$readOnly && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={$isLoading}
                                         >
-                                            Delete Question
-                                        </AlertDialogAction>
-                                    </AlertDialogFooter>
-                                </AlertDialogContent>
-                            </AlertDialog>
+                                            <VscTrash />
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent
+                                        aria-describedby={undefined}
+                                    >
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>
+                                                Are you absolutely sure?
+                                            </AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                This will delete {deleteTarget}{" "}
+                                                for everyone in the session. You
+                                                can undo it for a few seconds.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>
+                                                Cancel
+                                            </AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={() =>
+                                                    deleteQuestionsWithUndo([
+                                                        questionKey,
+                                                    ])
+                                                }
+                                            >
+                                                Delete Question
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
                             {locked !== undefined && (
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setLocked!(!locked)}
-                                    disabled={$isLoading}
+                                    disabled={$isLoading || $readOnly}
                                 >
                                     {locked ? <LockIcon /> : <UnlockIcon />}
                                 </Button>
@@ -274,7 +294,7 @@ export const QuestionCard = ({
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setEnabled!(!enabled)}
-                                    disabled={$isLoading}
+                                    disabled={$isLoading || $readOnly}
                                 >
                                     {enabled ? <EyeIcon /> : <EyeOffIcon />}
                                 </Button>
@@ -307,8 +327,8 @@ const QuestionJson = ({ questionKey }: { questionKey: number }) => {
 
 // Saves on blur, Enter or unmount (a marker's dialog can close mid-edit), not
 // per keystroke: every saved change re-renders the map and syncs the session.
-// Never disabled: the name changes no answer, and the field would lose focus
-// whenever the map recalculates.
+// Never disabled while loading: the name changes no answer, and a disabled
+// field loses focus.
 const QuestionNameInput = ({
     name,
     onCommit,

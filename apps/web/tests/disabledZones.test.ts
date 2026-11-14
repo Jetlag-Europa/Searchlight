@@ -472,7 +472,14 @@ describe("disabled zones kept on the device before they synced", () => {
         let patches: unknown[];
 
         beforeEach(() => {
-            session = { id: "one", disabledZoneIds: [] };
+            // What a load needs to read the details as a session.
+            session = {
+                id: "one",
+                gameId: "game",
+                gameRevisionId: "rev",
+                name: "One",
+                disabledZoneIds: [],
+            };
             patches = [];
             vi.stubGlobal(
                 "fetch",

@@ -3,6 +3,12 @@ import type {
   GameImportResponse,
 } from "@searchlight/shared";
 
+import { startLoadDeadline } from "@/lib/loadDeadline";
+
+// Only for a download that has hung: the largest games take minutes on a slow
+// link, and a load stops waiting for one well before (LOAD_TIMEOUT_MS).
+const GAME_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
+
 const API_BASE = (import.meta.env?.PUBLIC_API_BASE ?? (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ?? "") as string;
 
 function buildApiUrl(pathname: string): URL {
@@ -17,6 +23,9 @@ export async function importGameDefinitionAPI(
   allowUpdate = false,
   // Only applies when the import creates the game.
   unlisted = false,
+  // With allowUpdate: the id of the revision the update was previewed
+  // against. The API refuses (409 GAME_CHANGED) if the game has changed since.
+  expectedCurrentRevisionId?: string,
 ): Promise<GameImportResponse> {
   const url = buildApiUrl("/games/import");
   if (dryRun) {
@@ -27,6 +36,9 @@ export async function importGameDefinitionAPI(
   }
   if (unlisted) {
     url.searchParams.set("unlisted", "true");
+  }
+  if (expectedCurrentRevisionId) {
+    url.searchParams.set("expectedCurrentRevisionId", expectedCurrentRevisionId);
   }
   const res = await fetch(url.toString(), {
     method: "POST",
@@ -51,18 +63,28 @@ export async function importGameDefinitionAPI(
   return res.json();
 }
 
-export async function fetchGameRevisionAPI(
-  gameId: string,
-  revision: number | string,
-  sessionId?: string,
-): Promise<GameDefinition> {
-  return (await fetchGameRevisionJSON(gameId, revision, sessionId)).definition;
-}
-
-/** A game revision, and the JSON it came as (for keeping it as is). */
+/**
+ * A game revision, and the JSON it came as (for keeping it as is). A download
+ * that hangs fails in the end, so the next load starts a new one (loads of
+ * the same revision share one).
+ */
 export async function fetchGameRevisionJSON(
   gameId: string,
   revision: number | string,
+  sessionId?: string,
+): Promise<{ definition: GameDefinition; json: string }> {
+  const deadline = startLoadDeadline(GAME_DOWNLOAD_TIMEOUT_MS);
+  try {
+    return await downloadGameRevision(gameId, revision, deadline.signal, sessionId);
+  } finally {
+    deadline.clear();
+  }
+}
+
+async function downloadGameRevision(
+  gameId: string,
+  revision: number | string,
+  signal: AbortSignal,
   sessionId?: string,
 ): Promise<{ definition: GameDefinition; json: string }> {
   const url = buildApiUrl(
@@ -73,13 +95,17 @@ export async function fetchGameRevisionJSON(
   }
   const res = await fetch(url.toString(), {
     credentials: "include",
+    signal,
   });
 
   if (!res.ok) {
     if (typeof revision === "string" && isNaN(Number(revision))) {
       const directUrl = buildApiUrl(`/games/revisions/${encodeURIComponent(revision)}`);
       if (sessionId) directUrl.searchParams.set("sessionId", sessionId);
-      const directRes = await fetch(directUrl.toString(), { credentials: "include" });
+      const directRes = await fetch(directUrl.toString(), {
+        credentials: "include",
+        signal,
+      });
       if (directRes.ok) {
         const json = await directRes.text();
         return { definition: JSON.parse(json) as GameDefinition, json };

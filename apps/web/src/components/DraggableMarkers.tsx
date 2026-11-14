@@ -5,6 +5,7 @@ import { Fragment } from "react/jsx-runtime";
 import { Marker, Tooltip } from "react-leaflet";
 
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { sessionReadOnly } from "@/lib/activeSession";
 import {
     autoSave,
     hiderMode,
@@ -20,15 +21,9 @@ import type { ICON_COLORS } from "@/maps/api";
 import { extractStationLabel } from "@/maps/geo-utils";
 
 import { LatitudeLongitude, type LocalLocation } from "./LatLngPicker";
-import {
-    MatchingQuestionComponent,
-    MeasuringQuestionComponent,
-    RadiusQuestionComponent,
-    TentacleQuestionComponent,
-    ThermometerQuestionComponent,
-} from "./QuestionCards";
+import { CardForQuestion } from "./QuestionCards";
 import { Button } from "./ui/button";
-import { SidebarMenu } from "./ui/sidebar-l";
+import { SidebarMenu } from "./ui/sidebar";
 
 let isDragging = false;
 
@@ -74,6 +69,7 @@ const ColoredMarker = ({
     const $hiderMode = useStore(hiderMode);
     const $trainStations = useStore(trainStations);
     const $autoSave = useStore(autoSave);
+    const $readOnly = useStore(sessionReadOnly);
     const hiderLocalLocations: LocalLocation[] | undefined = useMemo(
         () =>
             $trainStations.length > 0
@@ -94,7 +90,8 @@ const ColoredMarker = ({
             <Marker
                 position={[latitude, longitude]}
                 icon={color ? markerIcon(color) : undefined}
-                draggable={true}
+                // A spectator can open a marker's question, not move it.
+                draggable={!$readOnly}
                 eventHandlers={{
                     dragstart: () => {
                         isDragging = true;
@@ -149,57 +146,9 @@ const ColoredMarker = ({
                 )}
                 {$questions
                     .filter((q) => q.key === questionKey)
-                    .map((q) => {
-                        switch (q.id) {
-                            case "radius":
-                                return (
-                                    <RadiusQuestionComponent
-                                        key={q.key}
-                                        data={q.data}
-                                        questionKey={q.key}
-                                        sub={sub}
-                                    />
-                                );
-                            case "tentacles":
-                                return (
-                                    <TentacleQuestionComponent
-                                        key={q.key}
-                                        data={q.data}
-                                        questionKey={q.key}
-                                        sub={sub}
-                                    />
-                                );
-                            case "thermometer":
-                                return (
-                                    <ThermometerQuestionComponent
-                                        key={q.key}
-                                        data={q.data}
-                                        questionKey={q.key}
-                                        sub={sub}
-                                    />
-                                );
-                            case "matching":
-                                return (
-                                    <MatchingQuestionComponent
-                                        key={q.key}
-                                        data={q.data}
-                                        questionKey={q.key}
-                                        sub={sub}
-                                    />
-                                );
-                            case "measuring":
-                                return (
-                                    <MeasuringQuestionComponent
-                                        key={q.key}
-                                        data={q.data}
-                                        questionKey={q.key}
-                                        sub={sub}
-                                    />
-                                );
-                            default:
-                                return null;
-                        }
-                    })}
+                    .map((q) => (
+                        <CardForQuestion key={q.key} question={q} sub={sub} />
+                    ))}
                 {questionKey === -1 && (
                     <Button // If it's the hider mode marker
                         onClick={() => {
@@ -211,7 +160,7 @@ const ColoredMarker = ({
                         Disable
                     </Button>
                 )}
-                {!$autoSave && (
+                {!$autoSave && !$readOnly && (
                     <button
                         onClick={save}
                         className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"

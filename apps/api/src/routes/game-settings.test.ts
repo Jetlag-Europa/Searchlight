@@ -323,7 +323,6 @@ describe("PATCH /games/:gameId/settings", () => {
         name: "Edited",
         actor: {
           userId: EDITOR_ID,
-          type: "cookie",
           canCreateGames: () => false,
           canEditGames: () => true,
         },

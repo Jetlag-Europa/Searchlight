@@ -33,7 +33,6 @@ import {
     forgetAccount,
     lastUser,
     LOGIN_STARTED_KEY,
-    LOGIN_STARTED_MS,
     OFFLINE_ACCESS_MS,
     offlineAccount,
     playOfflineWhileUnreachable,
@@ -171,34 +170,16 @@ describe("starting a login", () => {
         expect(offlineAccount(T0 + 2)).toBe("u1");
     });
 
-    test("counts for 15 minutes after it started", async () => {
-        expect(LOGIN_STARTED_MS).toBe(15 * 60 * 1000);
+    test("still counts long after it started, until /me verifies an account", async () => {
         rememberUser("u1", T0);
+        // Someone else logged in a day ago and never reached /map online
+        // (or cancelled): u1's board still isn't theirs to see.
         local.set(LOGIN_STARTED_KEY, String(T0));
-        expect(offlineAccount(T0 + LOGIN_STARTED_MS - 1)).toBeNull();
+        expect(offlineAccount(T0 + DAY)).toBeNull();
         await vi.waitFor(() =>
             expect(deleted).toEqual(["searchlight-game-revisions-v1"]),
         );
-    });
-
-    test("one cancelled or failed is forgotten after that, kept games and all", async () => {
-        rememberUser("u1", T0);
-        // The login page couldn't reach the API, and the player went back.
-        local.set(LOGIN_STARTED_KEY, String(T0 + DAY));
-        expect(offlineAccount(T0 + DAY + LOGIN_STARTED_MS)).toBe("u1");
-        expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
-        expect(local.get(STORED)).toBe("u1");
-        await Promise.resolve();
-        expect(deleted).toEqual([]);
-    });
-
-    test("a mark from an older build, without a time, has expired", () => {
-        rememberUser("u1", T0);
-        local.set(LOGIN_STARTED_KEY, "1");
-        expect(offlineAccount(T0)).toBe("u1");
-        expect(local.has(LOGIN_STARTED_KEY)).toBe(false);
-        local.set(LOGIN_STARTED_KEY, "garbage");
-        expect(offlineAccount(T0)).toBe("u1");
+        expect(lastUser()).toBe("u1");
     });
 
     test("logging out forgets it too", async () => {

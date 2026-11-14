@@ -7,12 +7,17 @@ import { Label } from "@/components/ui/label";
 import {
     MENU_ITEM_CLASSNAME,
     SidebarMenuItem,
-} from "@/components/ui/sidebar-l";
+} from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { UnitSelect } from "@/components/UnitSelect";
 import { formatRadius, radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
-import { askedVariants, radarVariant } from "@/lib/askedQuestions";
+import {
+    askedVariants,
+    isRadius,
+    radarVariant,
+    storedRadarVariant,
+} from "@/lib/askedQuestions";
 import {
     autoLockQuestions,
     hiderMode,
@@ -36,12 +41,10 @@ export const RadiusQuestionComponent = ({
     data,
     questionKey,
     sub,
-    className,
 }: {
     data: RadiusQuestion;
     questionKey: number;
     sub?: string;
-    className?: string;
 }) => {
     useStore(triggerLocalRefresh);
     const $hiderMode = useStore(hiderMode);
@@ -54,7 +57,7 @@ export const RadiusQuestionComponent = ({
     const declaredIndex = declaredRadii.findIndex(
         (r) =>
             radarVariant(r.value, r.unit) ===
-            radarVariant(data.radius, data.unit),
+            storedRadarVariant(data.radius, data.unit),
     );
     // Sizes other radars asked, marked (but still offered) in the quick picks.
     const askedRadii = askedVariants($questions, "radius", questionKey);
@@ -67,7 +70,6 @@ export const RadiusQuestionComponent = ({
             name={questionName(data)}
             setName={(name) => questionModified(setQuestionName(data, name))}
             sub={sub}
-            className={className}
             collapsed={data.collapsed}
             setCollapsed={(collapsed) => {
                 data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified
@@ -85,9 +87,10 @@ export const RadiusQuestionComponent = ({
                         value={data.radius}
                         disabled={!data.drag || $isLoading}
                         onChange={(e) => {
-                            // Keep the last radius while the field is cleared.
+                            // Keep the last radius while the field is
+                            // cleared or reads zero or less.
                             const radius = parseFloat(e.target.value);
-                            if (isNaN(radius)) return;
+                            if (!isRadius(radius)) return;
                             questionModified((data.radius = radius));
                         }}
                     />

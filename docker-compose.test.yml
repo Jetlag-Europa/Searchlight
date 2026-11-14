@@ -14,6 +14,9 @@ services:
     environment:
       NODE_ENV: development
       ENABLE_TEST_AUTH: "1"
+      # The e2e user creates sessions on the seeded game, which takes an admin
+      # here: it is on no Discord server. Wins over the dev .env.
+      ADMIN_DISCORD_IDS: e2e-test-user
       FRONTEND_ORIGIN: http://127.0.0.1:8280
       DISCORD_REDIRECT_URI: http://127.0.0.1:3200/auth/discord/callback
     ports:

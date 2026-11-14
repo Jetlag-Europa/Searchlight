@@ -1,15 +1,20 @@
-import type { EventRecord } from "@searchlight/shared";
+import type {
+    EventRecord,
+    ParticipantRoleChangedEvent,
+} from "@searchlight/shared";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import {
     isStrokeTombstoned,
     recordStrokeTombstone,
 } from "@/annotations/storage/serverStore";
-import type { StrokeFeature } from "@/annotations/types";
+import { isStrokeLike } from "@/annotations/types";
 import {
     compiledGameAtom,
     filterSupportedQuestions,
 } from "@/game-definition/store";
+import { isSessionReadOnly } from "@/lib/activeSession";
+import { RETRY_MAX_MS, RETRY_MIN_MS } from "@/lib/backoffRetry";
 import type { PresenceUser } from "@/lib/context";
 import {
     connectedUsers,
@@ -24,11 +29,16 @@ import {
     getPendingEvents,
     markEventSynced,
     type QuestionsReplacePayload,
-    setBoardBase,
     setCachedSession,
 } from "@/lib/eventQueue";
-import { suppressNextHiderSave } from "@/lib/hiderSaveSuppress";
-import { suppressNextPlanningModeSave } from "@/lib/planningModeSaveSuppress";
+import {
+    resetHiderSaveSuppression,
+    suppressHiderSave,
+} from "@/lib/hiderSaveSuppress";
+import {
+    resetPlanningModeSaveSuppression,
+    suppressPlanningModeSave,
+} from "@/lib/planningModeSaveSuppress";
 import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
@@ -39,10 +49,13 @@ import {
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
 } from "@/lib/sessionState";
+import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import {
+    notifyQuestionsSaved,
     onQuestionsSaved,
     questionsSavedByEcho,
     retryPendingEvents,
+    withTimeout,
 } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -60,15 +73,10 @@ let reconnectTimer: NodeJS.Timeout | undefined;
 let onSessionUnavailable: ((status: number) => void) | undefined;
 const MAX_BUFFERED_EVENTS = 500;
 
-// Failed replays and closed streams retry with a doubling, capped delay.
-const RETRY_MIN_MS = 3_000;
-const RETRY_MAX_MS = 30_000;
+// Failed replays and closed streams retry with a doubling, capped delay
+// (RETRY_MIN_MS, RETRY_MAX_MS).
 let replayRetryDelay = RETRY_MIN_MS;
 let reconnectDelay = RETRY_MIN_MS;
-
-function isUnavailableStatus(status: number): boolean {
-    return status === 403 || status === 404;
-}
 
 // The session was deleted or this user lost access: retrying cannot help.
 function sessionUnavailable(sessionId: string, status: number): void {
@@ -109,7 +117,7 @@ function showServerQuestions(
     sequence: number,
 ): boolean {
     const unsynced = getPendingEvents(sessionId).filter(
-        (e) => e.type === "questions.replace" && e.status !== "synced",
+        (e) => e.type === "questions.replace",
     );
     if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
         console.info(
@@ -125,13 +133,22 @@ function showServerQuestions(
         console.info("[searchlight:sse] questions.replace skipped — the board has it");
         return true;
     }
-    setBoardBase(sessionId, { sequence, questions: serverList });
-    // Questions held for a decision may be settled by it, or changed again.
-    reconcileQuestionConflicts(sessionId, serverList, sequence);
     const newQs = filterSupportedQuestions(
         serverList,
         compiledGameAtom.get(),
     ) as Questions;
+    // The board and its base together: a reload before the next event (a
+    // catch-up is followed by none) shows the list made from that base.
+    const cached = getCachedSession(sessionId);
+    if (cached) {
+        setCachedSession({
+            ...cached,
+            questions: newQs,
+            serverQuestions: { sequence, questions: serverList },
+        });
+    }
+    // Questions held for a decision may be settled by it, or changed again.
+    reconcileQuestionConflicts(sessionId, serverList, sequence);
     console.info(
         "[searchlight:sse] applying questions.replace",
         newQs.length,
@@ -166,21 +183,33 @@ async function runCatchUp(): Promise<void> {
         job.generation === currentGeneration &&
         job.sessionId === currentSessionId;
     try {
-        const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
-            credentials: "include",
+        const { res, data } = await withTimeout(async (signal) => {
+            const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
+                credentials: "include",
+                signal,
+            });
+            const data = res.ok
+                ? ((await res.json()) as {
+                      questions: Array<{ payloadJson: Questions[number] }>;
+                      sequence?: unknown;
+                  })
+                : undefined;
+            return { res, data };
         });
         if (!current()) return;
-        // Gone or refused: the stream finds that out itself.
         if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
-            stopCatchUp();
-            return;
+            // Gone or refused: the stream finds that out itself. A 403 or
+            // 404 that isn't the API's (a proxy's) may pass next time.
+            const notTheApis =
+                (res.status === 403 || res.status === 404) &&
+                (await sessionUnavailableStatus(res)) === null;
+            if (!current()) return;
+            if (!notTheApis) {
+                stopCatchUp();
+                return;
+            }
         }
-        if (!res.ok) throw new Error(`questions: ${res.status}`);
-        const data = (await res.json()) as {
-            questions: Array<{ payloadJson: Questions[number] }>;
-            sequence?: unknown;
-        };
-        if (!current()) return;
+        if (!data) throw new Error(`questions: ${res.status}`);
         stopCatchUp();
         if (typeof data.sequence !== "number") return;
         // Skipped with an edit of ours still to be saved: its merge brings
@@ -212,15 +241,10 @@ onQuestionsSaved(({ sessionId, sequence }) => {
 
 function handleServerEvent(
     event: EventRecord,
-    expectedSessionId?: string,
+    targetSessionId: string,
     persist = true,
 ): void {
-    const targetSessionId = expectedSessionId ?? currentSessionId;
-    if (
-        !targetSessionId ||
-        !currentSessionId ||
-        currentSessionId !== targetSessionId
-    ) {
+    if (!currentSessionId || currentSessionId !== targetSessionId) {
         console.info(
             "[searchlight:sse] discarding event for mismatched session:",
             event.sessionId,
@@ -254,8 +278,15 @@ function handleServerEvent(
     });
 
     if (event.type === "stroke.create") {
-        const stroke = event.payloadJson as StrokeFeature;
-        const clientUuid = stroke.properties?.clientUuid;
+        const stroke = event.payloadJson;
+        if (!isStrokeLike(stroke)) {
+            console.warn(
+                "[searchlight:sse] skipping a malformed stroke:",
+                stroke,
+            );
+            return;
+        }
+        const clientUuid = stroke.properties.clientUuid;
         if (clientUuid) {
             if (isStrokeTombstoned(clientUuid)) {
                 console.info(
@@ -315,7 +346,7 @@ function handleServerEvent(
         );
     } else if (event.type === "questions.replace") {
         const unsynced = getPendingEvents(targetSessionId).filter(
-            (e) => e.type === "questions.replace" && e.status !== "synced",
+            (e) => e.type === "questions.replace",
         );
         // Our own replace can echo back before its PUT is acknowledged. The
         // echo proves it committed at this sequence, so replaces from other
@@ -344,6 +375,14 @@ function handleServerEvent(
                         questions: serverList,
                     });
                 }
+                // Saved, though its answer may never come.
+                notifyQuestionsSaved({
+                    sessionId: targetSessionId,
+                    local,
+                    saved: serverList,
+                    madeFrom: payload.base,
+                    sequence: eventSeq,
+                });
             }
         } else if (!showServerQuestions(targetSessionId, serverList, eventSeq)) {
             return;
@@ -353,6 +392,8 @@ function handleServerEvent(
             hiderLat: number | null;
             hiderLng: number | null;
         };
+        // A spectator never sees the hider (the server sends it as null).
+        if (isSessionReadOnly(targetSessionId)) return;
         if (hasPendingHiderSave(targetSessionId)) {
             console.info(
                 "[searchlight:sse] hider.update ignored — local save pending for session",
@@ -364,12 +405,12 @@ function handleServerEvent(
             hiderLat,
             hiderLng,
         });
-        suppressNextHiderSave();
-        hiderMode.set(
+        const next =
             hiderLat != null && hiderLng != null
                 ? { latitude: hiderLat, longitude: hiderLng }
-                : false,
-        );
+                : false;
+        suppressHiderSave(next);
+        hiderMode.set(next);
     } else if (event.type === "planning.toggle") {
         const { planningModeEnabled: enabled } = event.payloadJson as {
             planningModeEnabled: boolean;
@@ -382,7 +423,7 @@ function handleServerEvent(
             return;
         }
         console.info("[searchlight:sse] applying planning.toggle", enabled);
-        suppressNextPlanningModeSave();
+        suppressPlanningModeSave(enabled);
         planningModeEnabled.set(enabled);
     } else if (event.type === "zones.disabled") {
         // The whole list after the change: the board shows it with this
@@ -446,6 +487,43 @@ function handlePresenceEvent(type: string, payloadJson: unknown): void {
     }
 }
 
+// Dispatched on window when the creator makes a participant of the streamed
+// session a member or a viewer. The board reloads if it's its own user.
+export const SESSION_ROLE_CHANGED_EVENT = "session-role-changed";
+export type SessionRoleChangedDetail =
+    ParticipantRoleChangedEvent["payloadJson"] & { sessionId: string };
+
+function handleRoleChangedEvent(sessionId: string, payloadJson: unknown): void {
+    const { userId, role } =
+        payloadJson as ParticipantRoleChangedEvent["payloadJson"];
+    console.info("[searchlight:sse] participant.role-changed:", userId, role);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+        new CustomEvent<SessionRoleChangedDetail>(SESSION_ROLE_CHANGED_EVENT, {
+            detail: { sessionId, userId, role },
+        }),
+    );
+}
+
+// Dispatched on window each time the stream of a session opens. Live-only
+// events (a role change) sent before it first opened, or while it was down,
+// are lost, so the board checks the session again.
+export const SESSION_STREAM_RECONNECTED_EVENT = "session-stream-reconnected";
+export interface SessionStreamReconnectedDetail {
+    sessionId: string;
+}
+
+function streamReconnected(sessionId: string): void {
+    console.info("[searchlight:sse] stream reconnected for", sessionId);
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+        new CustomEvent<SessionStreamReconnectedDetail>(
+            SESSION_STREAM_RECONNECTED_EVENT,
+            { detail: { sessionId } },
+        ),
+    );
+}
+
 function startReplay(sessionId: string, generation: number): void {
     clearTimeout(replayRetry);
     replayRetry = undefined;
@@ -470,18 +548,26 @@ async function gapFill(
         let after = lastAppliedSequence;
         while (isCurrent()) {
             const url = `${API_BASE}/sessions/${sessionId}/events?after=${after}&limit=50`;
-            const res = await fetch(url, { credentials: "include" });
+            const { res, data } = await withTimeout(async (signal) => {
+                const res = await fetch(url, { credentials: "include", signal });
+                const data = res.ok
+                    ? ((await res.json()) as {
+                          events: EventRecord[];
+                          nextAfter: number | null;
+                      })
+                    : undefined;
+                return { res, data };
+            });
             if (!isCurrent()) return;
-            if (isUnavailableStatus(res.status)) {
-                unavailableStatus = res.status;
-                break;
+            if (!data) {
+                const unavailable = await sessionUnavailableStatus(res);
+                if (!isCurrent()) return;
+                if (unavailable !== null) {
+                    unavailableStatus = unavailable;
+                    break;
+                }
+                throw new Error(`Gap fill failed: ${res.status}`);
             }
-            if (!res.ok) throw new Error(`Gap fill failed: ${res.status}`);
-            const data = (await res.json()) as {
-                events: EventRecord[];
-                nextAfter: number | null;
-            };
-            if (!isCurrent()) return;
             if (!Array.isArray(data.events))
                 throw new Error("Invalid event page");
             for (const event of data.events) {
@@ -559,7 +645,8 @@ function drainBufferedEvents(sessionId: string, generation: number): void {
 
 /**
  * Stream live events for `sessionId`. `onUnavailable` is called, after the
- * stream has stopped, once the server answers 403 or 404 for the session.
+ * stream has stopped, once the server answers 403 or 404 for the session
+ * (see sessionUnavailableStatus).
  */
 export function startSSE(
     sessionId: string,
@@ -599,16 +686,21 @@ function scheduleReconnect(sessionId: string, generation: number): void {
         if (!isCurrent()) return;
         let res: Response | undefined;
         try {
-            res = await fetch(
-                `${API_BASE}/sessions/${sessionId}/events/cursor`,
-                { credentials: "include" },
+            res = await withTimeout((signal) =>
+                fetch(`${API_BASE}/sessions/${sessionId}/events/cursor`, {
+                    credentials: "include",
+                    signal,
+                }),
             );
         } catch (err) {
             console.warn("[searchlight:sse] reconnect check failed:", err);
         }
         if (!isCurrent()) return;
-        if (res && isUnavailableStatus(res.status)) {
-            sessionUnavailable(sessionId, res.status);
+        const unavailable =
+            res && !res.ok ? await sessionUnavailableStatus(res) : null;
+        if (!isCurrent()) return;
+        if (unavailable !== null) {
+            sessionUnavailable(sessionId, unavailable);
         } else if (res?.ok) {
             openStream(sessionId, generation);
         } else {
@@ -642,6 +734,7 @@ function openStream(sessionId: string, generation: number): void {
         // The server is reachable again: deliver edits that failed meanwhile,
         // which would otherwise keep blocking incoming updates.
         retryPendingEvents(sessionId);
+        streamReconnected(sessionId);
     };
 
     source.onmessage = (e: MessageEvent) => {
@@ -666,6 +759,11 @@ function openStream(sessionId: string, generation: number): void {
             };
             if (parsed.type.startsWith("presence.")) {
                 handlePresenceEvent(parsed.type, parsed.payloadJson);
+                return;
+            }
+            // Live only: it has no sequence and isn't replayed.
+            if (parsed.type === "participant.role-changed") {
+                handleRoleChangedEvent(sessionId, parsed.payloadJson);
                 return;
             }
             const record = parsed as unknown as EventRecord;
@@ -739,6 +837,9 @@ export function stopSSE(): void {
     replayRetryDelay = RETRY_MIN_MS;
     reconnectDelay = RETRY_MIN_MS;
     onSessionUnavailable = undefined;
+    // What the server set belongs to the stopped session's board.
+    resetHiderSaveSuppression();
+    resetPlanningModeSaveSuppression();
     replayAttempt++;
     liveEventBuffer = [];
     isGapFilling = false;

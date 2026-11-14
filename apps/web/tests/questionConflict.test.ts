@@ -29,7 +29,6 @@ import {
     discardSessionData,
     getCachedSession,
     getPendingEvents,
-    queuedQuestionsBase,
     questionsBase,
     setBoardBase,
     setCachedSession,

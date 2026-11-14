@@ -14,6 +14,31 @@ export interface StrokeProperties {
 
 export type StrokeFeature = Feature<LineString, StrokeProperties>;
 
+/**
+ * Whether a stroke from the server or this browser's copy has what drawing
+ * and erasing it read: its properties, and its points as [lng, lat]. The
+ * server keeps whatever it was sent.
+ */
+export function isStrokeLike(value: unknown): value is StrokeFeature {
+    if (typeof value !== "object" || value === null) return false;
+    const { properties, geometry } = value as {
+        properties?: unknown;
+        geometry?: { coordinates?: unknown } | null;
+    };
+    const points = geometry?.coordinates;
+    return (
+        typeof properties === "object" &&
+        properties !== null &&
+        Array.isArray(points) &&
+        points.every(
+            (point) =>
+                Array.isArray(point) &&
+                typeof point[0] === "number" &&
+                typeof point[1] === "number",
+        )
+    );
+}
+
 export const PEN_COLORS: readonly string[] = [
     "#000000",
     "#ef4444",
