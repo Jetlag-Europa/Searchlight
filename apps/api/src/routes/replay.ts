@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { getUserPermissions } from "../lib/permissions.js";
 import { resolveSession } from "../lib/session.js";
-import { assertParticipant } from "./session-content.js";
+import { hiderPositionForRole, resolveSessionAccess } from "../lib/session-access.js";
 
 // Tracker stack: what a session replay needs. The question list after every
 // change (the web app works out which questions were really asked), and, for
@@ -35,7 +35,7 @@ export async function replayRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { sessionId } = req.params as { sessionId: string };
-      const session = await assertParticipant(sessionId, user.discordId);
+      const { session, role } = await resolveSessionAccess(sessionId, user.discordId);
 
       const events = await prisma.event.findMany({
         where: { sessionId, type: "questions.replace" },
@@ -59,13 +59,16 @@ export async function replayRoutes(app: FastifyInstance) {
         if (kind === "endgame" || kind === "found") marks[kind] ??= e.serverReceivedAt.getTime();
       }
 
-      const perms = await getUserPermissions(user.discordId, session.serverId, true, req.log);
       const server = await prisma.server.findUnique({
         where: { id: session.serverId },
         select: { locationAccount: true },
       });
       const account = server?.locationAccount ?? null;
-      const canSeeLocations = perms.has("locations.view") && account !== null;
+      // Spectators never see the hider's position, so not the live locations either.
+      const canSeeLocations =
+        role !== "viewer" &&
+        account !== null &&
+        (await getUserPermissions(user.discordId, session.serverId, true, req.log)).has("locations.view");
 
       const people: {
         id: string;
@@ -109,6 +112,7 @@ export async function replayRoutes(app: FastifyInstance) {
         }
       }
 
+      const { hiderLat, hiderLng } = hiderPositionForRole(session, role);
       return {
         session: {
           id: session.id,
@@ -122,10 +126,7 @@ export async function replayRoutes(app: FastifyInstance) {
         people,
         // The session's hider location (hider mode), for finding the endgame
         // without live locations.
-        hider:
-          session.hiderLat !== null && session.hiderLng !== null
-            ? { lat: session.hiderLat, lng: session.hiderLng }
-            : null,
+        hider: hiderLat !== null && hiderLng !== null ? { lat: hiderLat, lng: hiderLng } : null,
       };
     },
   );

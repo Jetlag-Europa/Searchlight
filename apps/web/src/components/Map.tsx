@@ -52,8 +52,8 @@ import {
 import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
-import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { replayZoomToRemaining } from "@/lib/replay";
+import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
