@@ -775,6 +775,70 @@ describe("disabled zones kept on the device before they synced", () => {
             await vi.waitFor(() => expect(patches).toMatchObject([delta(["b"])]));
         });
 
+        // The board first opened on this build without the server: it
+        // shows the device's list, which a load adds to the session later.
+        describe("after a zone of theirs was enabled without the server", () => {
+            const stored = () => JSON.parse(store.get("disabledZones") ?? "{}");
+
+            beforeEach(async () => {
+                // The server applies each change it is sent.
+                session.disabledZoneIds = [];
+                const online = vi.mocked(fetch).getMockImplementation()!;
+                vi.mocked(fetch).mockImplementation(async (url, options) => {
+                    if (options?.method === "PATCH") {
+                        session.disabledZoneIds = applyZonesDelta(
+                            session.disabledZoneIds!,
+                            changeOf(options),
+                        );
+                    }
+                    return online(url, options);
+                });
+                store.set("disabledZones", JSON.stringify({ one: ["a", "b"] }));
+                setDisabledZonesBase("one", legacyDisabledZones("one"));
+                vi.mocked(fetch).mockImplementationOnce(async () => {
+                    throw new TypeError("offline");
+                });
+                saveDisabledZonesDelta("one", delta([], ["a"]));
+                await flushDisabledZonesSave("one").catch(() => {});
+                expect(disabledStations.get()).toEqual(["b"]);
+            });
+
+            it("adds the rest, not the zone enabled since", async () => {
+                expect(stored()).toEqual({ one: ["b"] });
+                // A reload, still without the server, shows the same.
+                setDisabledZonesBase("one", legacyDisabledZones("one"));
+                expect(disabledStations.get()).toEqual(["b"]);
+
+                // Back online, the load sends the enable, then adds the list.
+                await flushPendingEvents("one");
+                await loadSessionContent("one", "user");
+                await flushPendingEvents("one");
+
+                expect(session.disabledZoneIds).toEqual(["b"]);
+                expect(patches).toMatchObject([delta([], ["a"]), delta(["b"])]);
+                expect(store.has("disabledZones")).toBe(false);
+            });
+
+            it("adds nothing once every zone of theirs was enabled", async () => {
+                saveDisabledZonesDelta("one", delta([], ["b"]));
+                await flushDisabledZonesSave("one");
+                expect(store.has("disabledZones")).toBe(false);
+
+                await loadSessionContent("one", "user");
+                await flushPendingEvents("one");
+
+                expect(session.disabledZoneIds).toEqual([]);
+            });
+
+            it("still adds a zone enabled and disabled again before it was saved", async () => {
+                vi.useFakeTimers();
+                saveDisabledZonesDelta("one", delta([], ["b"]));
+                saveDisabledZonesDelta("one", delta(["b"]));
+                await vi.advanceTimersByTimeAsync(1000);
+                expect(stored()).toEqual({ one: ["b"] });
+            });
+        });
+
         it("sends nothing when the session has them all", async () => {
             session.disabledZoneIds = ["a"];
             store.set("disabledZones", JSON.stringify({ one: ["a"] }));

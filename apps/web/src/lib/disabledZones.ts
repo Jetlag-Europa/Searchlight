@@ -147,6 +147,30 @@ export function legacyDisabledZones(sessionId: string): string[] {
     return [...new Set(ids)].slice(0, MAX_DISABLED_ZONES);
 }
 
+/**
+ * The player enabled these zones on a board that may still show the device's
+ * legacy list: they leave that list, so adding it to the session later (see
+ * adoptLegacyDisabledZones) can't disable them again.
+ */
+export function enableLegacyDisabledZones(
+    sessionId: string,
+    ids: readonly string[],
+): void {
+    const entries = readLegacyEntries();
+    const kept = zoneIdList(entries?.[sessionId]);
+    const left = kept.filter((id) => !ids.includes(id));
+    if (!entries || left.length === kept.length) return;
+    if (left.length === 0) {
+        forgetLegacyDisabledZones(sessionId);
+        return;
+    }
+    writeStorage(
+        "localStorage",
+        LEGACY_DISABLED_ZONES_KEY,
+        JSON.stringify({ ...entries, [sessionId]: left }),
+    );
+}
+
 /** Drop a session's legacy disabled zones from the device. */
 export function forgetLegacyDisabledZones(sessionId: string): void {
     const entries = readLegacyEntries();

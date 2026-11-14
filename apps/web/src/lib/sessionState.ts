@@ -26,6 +26,7 @@ import {
 import {
     applyZonesDelta,
     diffZoneIds,
+    enableLegacyDisabledZones,
     forgetLegacyDisabledZones,
     isNoZonesChange,
     legacyDisabledZones,
@@ -632,6 +633,12 @@ export async function flushDisabledZonesSave(
     // Storage too full keeps it scheduled: said by queueEdit, whose Retry,
     // the next edit or the page closing queues it.
     const event = queueZonesDelta(sessionId, delta, queueEdit);
+    // The device's list from before zones synced is added to the session
+    // as it was before any change made since: a zone enabled here leaves
+    // it, however long before the list is added (see
+    // adoptLegacyDisabledZones) and whether or not this change has been
+    // sent by then.
+    enableLegacyDisabledZones(sessionId, delta.enableZoneIds);
     cancelPendingDisabledZonesSave(sessionId);
     await sendZonesDelta(event, keepalive);
 }
@@ -639,7 +646,9 @@ export async function flushDisabledZonesSave(
 // Disabled zones used to stay on the device (see legacyDisabledZones). Add
 // this device's to the session, whatever the server has: every player's old
 // list ends up on it. They are queued durably before the device's copy goes,
-// and the board shows them on top of the server's list once queued.
+// and the board shows them on top of the server's list once queued. The
+// list comes before the changes the player made on this build: it no longer
+// has the zones they enabled since (see flushDisabledZonesSave).
 function adoptLegacyDisabledZones(session: GameSessionSummary): void {
     // A server without the field would drop the save, and the zones with it.
     if (!Array.isArray(session.disabledZoneIds)) return;
