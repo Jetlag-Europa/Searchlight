@@ -1842,8 +1842,11 @@ export function SessionManager() {
                     "[searchlight:session] failed to load session content:",
                     e,
                 );
+                // The copy kept here has the zones as last heard, a change
+                // the flush above just saved included: `selected` was read
+                // before, and is only shown when nothing was kept.
                 const restoredFromCache = paintKeptCopy(selected.id);
-                showSelectedZones(restoredFromCache);
+                if (!restoredFromCache) showSelectedZones(false);
                 if (restoredFromCache) {
                     // The session is authorized, so its game may still come
                     // from the copy kept here: waited for while the load has
