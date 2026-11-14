@@ -16,6 +16,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { compiledGameAtom } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import { startCalculation } from "@/lib/calculating";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
@@ -139,6 +140,8 @@ const ZoneSidebarContent = () => {
     const map = useStore(leafletMapContext);
     const stations = useStore(trainStations);
     const $disabledStations = useStore(disabledStations);
+    // A spectator's board follows the session's disabled zones.
+    const $readOnly = useStore(sessionReadOnly);
     const $compiledGame = useStore(compiledGameAtom);
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
@@ -597,6 +600,7 @@ const ZoneSidebarContent = () => {
                                 </SidebarMenuItem>
                             )}
                             {$displayHidingZones &&
+                                !$readOnly &&
                                 stations.some((station) =>
                                     $disabledStations.includes(
                                         station.properties.properties.id,
@@ -612,7 +616,7 @@ const ZoneSidebarContent = () => {
                                         Clear Disabled
                                     </SidebarMenuItem>
                                 )}
-                            {$displayHidingZones && (
+                            {$displayHidingZones && !$readOnly && (
                                 <SidebarMenuItem
                                     className={ZONE_BUTTON_CLASSNAME}
                                     onClick={() => {

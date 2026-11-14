@@ -17,11 +17,13 @@ import {
 import { discardSessionData, getPendingEvents } from "@/lib/eventQueue";
 import {
     activeSessionId,
+    activeSessionRole,
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
 import {
     applyDisabledZonesEvent,
+    becomeSpectator,
     cancelPendingDisabledZonesSave,
     flushDisabledZonesSave,
     flushSessionSaves,
@@ -432,6 +434,67 @@ describe("the board", () => {
     });
 });
 
+describe("a read-only board", () => {
+    const SID = "zones-read-only";
+
+    beforeEach(() => {
+        activeSessionId.set(SID);
+        activeSessionRole.set(null);
+        setDisabledZonesBase(SID, ["a"]);
+    });
+
+    afterEach(() => {
+        activeSessionRole.set(null);
+        activeSessionId.set("");
+    });
+
+    it("keeps showing the session's zones when a spectator taps one", async () => {
+        activeSessionRole.set("viewer");
+        const edits: ZonesDelta[] = [];
+        const stop = onDisabledZonesEdit((d) => edits.push(d));
+        try {
+            toggleDisabledZone("b");
+            disableZones(["c"]);
+            setDisabledStations([]);
+        } finally {
+            stop();
+        }
+        expect(disabledStations.get()).toEqual(["a"]);
+        expect(edits).toEqual([]);
+        // Nor is a change saved that reached the save some other way.
+        saveDisabledZonesDelta(SID, delta(["b"]));
+        await flushDisabledZonesSave(SID);
+        expect(getPendingEvents(SID)).toEqual([]);
+        expect(requests).toEqual([]);
+        expect(disabledStations.get()).toEqual(["a"]);
+    });
+
+    it("still follows the other players' changes", () => {
+        activeSessionRole.set("viewer");
+        applyDisabledZonesEvent(SID, ["a", "b"], "zones-disabled-theirs");
+        expect(sorted(disabledStations.get())).toEqual(["a", "b"]);
+    });
+
+    it("drops a player's unsent changes once they only spectate", async () => {
+        // One queued (its send fails), one still in the debounce.
+        vi.mocked(fetch).mockImplementationOnce(async () => {
+            throw new TypeError("offline");
+        });
+        saveDisabledZonesDelta(SID, delta(["b"]));
+        await flushDisabledZonesSave(SID).catch(() => {});
+        saveDisabledZonesDelta(SID, delta(["c"]));
+        expect(sorted(disabledStations.get())).toEqual(["a", "b", "c"]);
+        expect(getPendingEvents(SID)).toHaveLength(1);
+
+        becomeSpectator(SID);
+
+        expect(getPendingEvents(SID)).toEqual([]);
+        expect(disabledStations.get()).toEqual(["a"]);
+        await flushDisabledZonesSave(SID);
+        expect(requests).toEqual([]);
+    });
+});
+
 describe("disabled zones kept on the device before they synced", () => {
     it("reads a session's valid IDs, keeping other sessions' until the key is empty", () => {
         store.set(
@@ -530,6 +593,17 @@ describe("disabled zones kept on the device before they synced", () => {
 
             expect(getPendingEvents("one")).toEqual([]);
             expect(store.has("disabledZones")).toBe(false);
+        });
+
+        it("keeps a spectator's on the device, unsent", async () => {
+            session.role = "viewer";
+            store.set("disabledZones", JSON.stringify({ one: ["a"] }));
+
+            await loadSessionContent("one", "user");
+
+            expect(getPendingEvents("one")).toEqual([]);
+            expect(patches).toEqual([]);
+            expect(store.has("disabledZones")).toBe(true);
         });
 
         it("keeps them while the server doesn't sync disabled zones", async () => {

@@ -1,6 +1,7 @@
 import { MAX_DISABLED_ZONES, MAX_ZONE_ID_LENGTH } from "@searchlight/shared";
 import { atom } from "nanostores";
 
+import { activeSessionId, isSessionReadOnly } from "@/lib/activeSession";
 import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 
 // The active session's zones disabled by hand, as the board shows them: the
@@ -33,8 +34,11 @@ export function onDisabledZonesEdit(listener: EditListener): () => void {
  * Show the zones the player chose, and save the difference to what the board
  * showed. The delta is taken right away: an update from another player
  * landing before a save is scheduled would otherwise hide the edit.
+ * Not on a read-only board (a spectator's, or one another tab took over):
+ * it shows the session's zones, and nothing changed there could be saved.
  */
 export function setDisabledStations(ids: string[]): void {
+    if (isSessionReadOnly(activeSessionId.get())) return;
     const delta = diffZoneIds(disabledStations.get(), ids);
     disabledStations.set(ids);
     if (!isNoZonesChange(delta)) editListener?.(delta);

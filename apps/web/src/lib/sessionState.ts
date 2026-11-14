@@ -546,6 +546,8 @@ export function saveDisabledZonesDelta(
     sessionId: string,
     delta: ZonesDelta,
 ): void {
+    // A spectator's edits are never saved (see setDisabledStations).
+    if (isSessionReadOnly(sessionId)) return;
     const saved = savedDisabledZones(sessionId);
     const scheduled = scheduledZones.get(sessionId);
     const board = applyZonesDelta(
@@ -578,6 +580,9 @@ export async function flushDisabledZonesSave(
 ): Promise<void> {
     const delta = scheduledZones.get(sessionId);
     if (!delta) return;
+    // A board that can't save it (another tab took the session over) keeps
+    // it waiting.
+    if (isSessionReadOnly(sessionId)) return;
     const event = queueZonesDelta(sessionId, delta);
     cancelPendingDisabledZonesSave(sessionId);
     await sendZonesDelta(event, keepalive);
@@ -590,6 +595,8 @@ export async function flushDisabledZonesSave(
 function adoptLegacyDisabledZones(session: GameSessionSummary): void {
     // A server without the field would drop the save, and the zones with it.
     if (!Array.isArray(session.disabledZoneIds)) return;
+    // A spectator's can't be saved: kept on the device, for when they can.
+    if (session.role === "viewer" || isSessionReadOnly(session.id)) return;
     const onServer = new Set(session.disabledZoneIds);
     const legacy = legacyDisabledZones(session.id).filter(
         (id) => !onServer.has(id),
@@ -631,8 +638,11 @@ export function discardSessionEdits(sessionId: string): void {
     cancelSave(questionSaves, sessionId);
     cancelSave(hiderSaves, sessionId);
     cancelSave(planningSaves, sessionId);
+    cancelPendingDisabledZonesSave(sessionId);
     discardPendingEvents(sessionId);
     if (sessionId === activeSessionId.get()) pendingEventCount.set(0);
+    // The board shows the session's zones without the dropped changes.
+    showDisabledZonesIfOnBoard(sessionId);
 }
 
 // The cached copy's role, kept in step with the server's: an offline start
