@@ -15,18 +15,23 @@ import {
     computePerQuestionRegions,
     hiderifyQuestion,
     intersectRegions,
+    standaloneRegion,
 } from "@/maps";
 import type * as GeoUtils from "@/maps/geo-utils";
 import { calculateClip } from "@/maps/geo-utils/clipGeometry";
 import { questionSchema } from "@/maps/schema";
 
 let clips = 0;
+// Intersecting with this region takes longer.
+let slowRegion: unknown;
 vi.mock("@/maps/geo-utils", async (importActual) => {
     const actual = await importActual<typeof GeoUtils>();
     return {
         ...actual,
-        requestGeometry: (request: any, options: any) => {
+        requestGeometry: async (request: any, options: any) => {
             if (request.kind === "clip" && request.within) clips++;
+            if (request.modifications === slowRegion)
+                await new Promise((resolve) => setTimeout(resolve, 20));
             return (actual.requestGeometry as any)(request, options);
         },
     };
@@ -158,6 +163,43 @@ it("keeps every region when the hider moves without changing an answer", async (
     again.forEach(({ region }, index) =>
         expect(region).toBe(first[index].region),
     );
+}, 120_000);
+
+it("gives the regions of the new answers when the hider moves far", async () => {
+    const questions = session();
+    await regionsOf(questions);
+    const answers = JSON.stringify(questions);
+    hiderMode.set({ latitude: 59.27, longitude: 17.9 });
+    for (const question of questions) await hiderifyQuestion(question);
+    expect(JSON.stringify(questions)).not.toBe(answers);
+    const regions = await computePerQuestionRegions(questions, base, false);
+    for (const { question, region } of regions)
+        expect(region).toEqual(await standaloneRegion(question, base));
+}, 120_000);
+
+it("keeps two refreshes that overlap apart", async () => {
+    const questions = session();
+    const one = await regionsOf(questions);
+    const other = await regionsOf([
+        ...questions.slice(0, 3),
+        moved(questions[3]),
+        ...questions.slice(5),
+    ]);
+    await intersectRegions(one);
+    // Both start from the same kept part, and the second finishes while the
+    // first is still at its first intersection.
+    slowRegion = one[4].region;
+    const [first, second] = await Promise.all([
+        intersectRegions([...one.slice(0, 2), ...one.slice(4)]),
+        intersectRegions(other),
+    ]);
+    slowRegion = undefined;
+    expect(first).toEqual(fromScratch([...one.slice(0, 2), ...one.slice(4)]));
+    expect(second).toEqual(fromScratch(other));
+    // What they left behind is one refresh's work, not a mix of both.
+    const next = [...other, one[4]];
+    expect(await intersectRegions(next)).toEqual(fromScratch(next));
+    expect(await intersectRegions(one)).toEqual(fromScratch(one));
 }, 120_000);
 
 it("finds the same surviving zones as testing each whole region", async () => {
