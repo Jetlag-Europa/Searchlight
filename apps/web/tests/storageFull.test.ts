@@ -59,7 +59,7 @@ import {
     editingInOtherTab,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { questions } from "@/lib/context";
+import { disabledStations, questions } from "@/lib/context";
 import {
     applyUnsyncedEvents,
     getPendingEvents,
@@ -67,9 +67,12 @@ import {
 } from "@/lib/eventQueue";
 import {
     becomeSpectator,
+    cancelPendingDisabledZonesSave,
     cancelPendingQuestionSave,
     hasScheduledQuestionSave,
+    saveDisabledZonesDelta,
     saveQuestionsDebounced,
+    setDisabledZonesBase,
 } from "@/lib/sessionState";
 import { startSSE, stopSSE } from "@/lib/sseManager";
 import { flushPendingEvents } from "@/lib/syncManager";
@@ -136,6 +139,7 @@ beforeEach(() => {
 afterEach(() => {
     stopSSE();
     cancelPendingQuestionSave();
+    cancelPendingDisabledZonesSave();
     clearStrokeTombstones();
     activeSessionId.set("");
     activeSessionRole.set(null);
@@ -317,6 +321,31 @@ test("a drawing the queue has no room for is said", async () => {
     expect(getPendingEvents(SID)).toEqual([]);
     expect(mockFetch).not.toHaveBeenCalled();
     expect(toast.error).toHaveBeenCalledWith(STORAGE_FULL, expect.anything());
+});
+
+test("a disabled zone the queue has no room for is said, and queued by Retry", async () => {
+    setDisabledZonesBase(SID, ["a"]);
+    capacity = used();
+    saveDisabledZonesDelta(SID, { disableZoneIds: ["b"], enableZoneIds: [] });
+    await vi.advanceTimersByTimeAsync(400);
+
+    expect(getPendingEvents(SID)).toEqual([]);
+    expect(toast.error).toHaveBeenCalledOnce();
+    // Still on the board, waiting.
+    expect([...disabledStations.get()].sort()).toEqual(["a", "b"]);
+    retryButton()!();
+    expect(closeToast).not.toHaveBeenCalled();
+
+    capacity = Infinity;
+    retryButton()!();
+    expect(closeToast).toHaveBeenCalledOnce();
+    expect(getPendingEvents(SID)).toMatchObject([
+        {
+            type: "zones.disabled",
+            payloadJson: { disableZoneIds: ["b"], enableZoneIds: [] },
+        },
+    ]);
+    expect([...disabledStations.get()].sort()).toEqual(["a", "b"]);
 });
 
 describe("a queue from before queues were per account", () => {

@@ -75,7 +75,8 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 function retryUnqueuedEdits(): boolean {
     const id = activeSessionId.get();
     const waiting = () =>
-        [questionSaves, hiderSaves, planningSaves].some((state) => state.pending.has(id));
+        [questionSaves, hiderSaves, planningSaves].some((state) => state.pending.has(id)) ||
+        scheduledZones.has(id);
     if (!id || !waiting()) return true;
     if (isSessionReadOnly(id)) return false;
     flushSessionSaves(id);
@@ -502,16 +503,20 @@ activeSessionId.listen((sessionId) => {
     if (disabledStations.get().length > 0) disabledStations.set([]);
 });
 
-function queueZonesDelta(sessionId: string, delta: ZonesDelta): PendingEvent {
-    const event = enqueueEvent({
+// `queue` is queueEdit for the player's own edits, which says so when
+// storage is too full to keep one.
+function queueZonesDelta(
+    sessionId: string,
+    delta: ZonesDelta,
+    queue: (event: Parameters<typeof enqueueEvent>[0]) => PendingEvent,
+): PendingEvent {
+    return queue({
         sessionId,
         type: "zones.disabled",
         payloadJson: delta,
         clientUuid: `zones-disabled-${randomUUID()}`,
         clientCreatedAt: Date.now(),
     });
-    refreshSyncCounts(sessionId);
-    return event;
 }
 
 // Deltas must reach the server in order. One queued behind an earlier
@@ -581,9 +586,11 @@ export async function flushDisabledZonesSave(
     const delta = scheduledZones.get(sessionId);
     if (!delta) return;
     // A board that can't save it (another tab took the session over) keeps
-    // it waiting.
+    // it waiting, as queueEdit's Retry does.
     if (isSessionReadOnly(sessionId)) return;
-    const event = queueZonesDelta(sessionId, delta);
+    // Storage too full keeps it scheduled: said by queueEdit, whose Retry,
+    // the next edit or the page closing queues it.
+    const event = queueZonesDelta(sessionId, delta, queueEdit);
     cancelPendingDisabledZonesSave(sessionId);
     await sendZonesDelta(event, keepalive);
 }
@@ -609,10 +616,15 @@ function adoptLegacyDisabledZones(session: GameSessionSummary): void {
         );
         let event: PendingEvent;
         try {
-            event = queueZonesDelta(session.id, {
-                disableZoneIds: legacy,
-                enableZoneIds: [],
-            });
+            event = queueZonesDelta(
+                session.id,
+                { disableZoneIds: legacy, enableZoneIds: [] },
+                (queued) => {
+                    const added = enqueueEvent(queued);
+                    refreshSyncCounts(session.id);
+                    return added;
+                },
+            );
         } catch (err) {
             // Storage is full: keep the device's copy for the next load.
             console.warn("[sessionState] failed to queue legacy disabled zones:", err);
