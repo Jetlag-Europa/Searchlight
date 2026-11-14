@@ -17,29 +17,68 @@ const PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin
 // Casual games: managing them is up to each game's creator and global admins.
 const CASUAL_PERMISSIONS = ["games.create"] as const;
 
+interface TrackerAccountStatus {
+  name: string;
+  // logged_out: Google ended the login; the tracker leaves it alone until
+  // new cookies are uploaded.
+  status: "starting" | "ok" | "error" | "logged_out";
+  error: string | null;
+  signedInAs: string | null;
+  loggedOutAt: number | null;
+  cookiesUpdatedAt: number | null;
+  people: number;
+}
+
 interface LocationAccountInfo {
   account: string | null;
-  // The tracker's accounts; null while it can't be reached.
-  accounts: { name: string; ok: boolean; error: string | null; people: number }[] | null;
+  canChoose: boolean;
+  trackerReachable: boolean;
+  status: TrackerAccountStatus | null;
+  // Every account the tracker has: global admins only.
+  accounts: TrackerAccountStatus[] | null;
+}
+
+const formatTime = (ms: number) =>
+  new Date(ms).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
+
+async function errorMessage(res: Response): Promise<string> {
+  const body = (await res.json().catch(() => null)) as { message?: string; error?: string } | null;
+  return body?.message ?? body?.error ?? `HTTP ${res.status}`;
 }
 
 // Tracker stack: the Google account whose location sharing the server's
-// sessions show. Only global admins get an answer, so others see nothing.
+// sessions show. Its admins see whether it works and can upload new cookies
+// when Google logs it out; global admins also pick the account.
 function LocationAccount({ serverId }: { serverId: string }) {
   const [info, setInfo] = useState<LocationAccountInfo | null>(null);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [cookiesOpen, setCookiesOpen] = useState(false);
+  const [cookies, setCookies] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const res = await fetch(`${API_BASE}/servers/${serverId}/location-account`, { credentials: "include" });
+    const data = res.ok ? ((await res.json()) as LocationAccountInfo) : null;
+    setInfo(data);
+    return data;
+  }, [serverId]);
 
   useEffect(() => {
-    fetch(`${API_BASE}/servers/${serverId}/location-account`, { credentials: "include" })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: LocationAccountInfo | null) => {
-        setInfo(data);
-        setDraft(data?.account ?? "");
-      })
+    load()
+      .then((data) => setDraft(data?.account ?? ""))
       .catch(() => setInfo(null));
-  }, [serverId]);
+  }, [load]);
+
+  // While the tracker tries new cookies, check back until it knows.
+  const checking = info?.status?.status === "starting";
+  useEffect(() => {
+    if (!checking) return;
+    const timer = setInterval(() => void load().catch(() => {}), 3000);
+    return () => clearInterval(timer);
+  }, [checking, load]);
 
   if (!info) return null;
 
@@ -55,7 +94,7 @@ function LocationAccount({ serverId }: { serverId: string }) {
         body: JSON.stringify({ account }),
       });
       if (!res.ok) throw new Error(res.status === 400 ? "Use lowercase letters, digits and dashes" : `HTTP ${res.status}`);
-      setInfo({ ...info, account });
+      await load();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -63,45 +102,145 @@ function LocationAccount({ serverId }: { serverId: string }) {
     }
   };
 
-  const current = info.accounts?.find((a) => a.name === info.account);
+  const upload = async () => {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const res = await fetch(`${API_BASE}/servers/${serverId}/location-account/cookies`, {
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cookies: cookies.trim() }),
+      });
+      if (!res.ok) throw new Error(await errorMessage(res));
+      // The cookies stay out of the page once they're sent.
+      setCookies("");
+      setCookiesOpen(false);
+      await load();
+    } catch (e) {
+      setUploadError((e as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const s = info.status;
+  const loggedOut = s?.status === "logged_out";
+  const broken = loggedOut || s?.status === "error";
   const status = !info.account
-    ? "Sessions on this server show no live locations."
-    : !info.accounts
+    ? info.canChoose
+      ? "Sessions on this server show no live locations."
+      : "Sessions on this server show no live locations. A global admin picks the Google account."
+    : !info.trackerReachable
       ? "The location tracker isn't running."
-      : !current
-        ? `No cookies for "${info.account}" yet: put them in secrets/accounts/${info.account}/cookies.`
-        : current.ok
-          ? `Working: ${current.people} ${current.people === 1 ? "person shares" : "people share"} their location.`
-          : `Not working: ${current.error}`;
+      : !s
+        ? `No cookies for "${info.account}" yet: upload them below.`
+        : s.status === "starting"
+          ? "Checking the login…"
+          : s.status === "ok"
+            ? `Working${s.signedInAs ? `, signed in as ${s.signedInAs}` : ""}: ${s.people} ${s.people === 1 ? "person shares" : "people share"} their location.`
+            : loggedOut
+              ? `Logged out by Google${s.loggedOutAt ? ` on ${formatTime(s.loggedOutAt)}` : ""}. The tracker stopped using this account until someone uploads new cookies.`
+              : `Not working: ${s.error}`;
+  const canUpload = Boolean(info.account) && info.trackerReachable;
 
   return (
     <div className="mb-4 rounded border border-border p-3 text-sm">
-      <label className="font-medium" htmlFor={`location-account-${serverId}`}>
-        Live locations account
-      </label>
-      <div className="mt-2 flex gap-2">
-        <input
-          id={`location-account-${serverId}`}
-          list={`location-accounts-${serverId}`}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          placeholder="none"
-          className="flex-1 rounded border border-border bg-background px-2 py-1"
-        />
-        <datalist id={`location-accounts-${serverId}`}>
-          {info.accounts?.map((a) => <option key={a.name} value={a.name} />)}
-        </datalist>
-        <button
-          onClick={save}
-          disabled={saving || draft.trim() === (info.account ?? "")}
-          className="px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-        >
-          Save
-        </button>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="font-medium">Live locations account</span>
+        {!info.canChoose && info.account && <code className="text-xs text-muted-foreground">{info.account}</code>}
       </div>
-      <p className={`mt-2 text-xs ${current && !current.ok ? "text-amber-500" : "text-muted-foreground"}`}>
-        {error ?? status} Who sees them: roles with locations.view below.
+      {info.canChoose && (
+        <div className="mt-2 flex gap-2">
+          <input
+            id={`location-account-${serverId}`}
+            aria-label="Live locations account"
+            list={`location-accounts-${serverId}`}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="none"
+            className="flex-1 rounded border border-border bg-background px-2 py-1"
+          />
+          <datalist id={`location-accounts-${serverId}`}>
+            {info.accounts?.map((a) => <option key={a.name} value={a.name} />)}
+          </datalist>
+          <button
+            onClick={save}
+            disabled={saving || draft.trim() === (info.account ?? "")}
+            className="px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+          >
+            Save
+          </button>
+        </div>
+      )}
+      <p
+        role="status"
+        className={`mt-2 text-xs ${loggedOut ? "text-destructive" : broken ? "text-amber-500" : "text-muted-foreground"}`}
+      >
+        {error ?? status}
       </p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        {s?.cookiesUpdatedAt ? `Cookies from ${formatTime(s.cookiesUpdatedAt)}. ` : ""}Who sees the locations: roles
+        with locations.view below.
+      </p>
+      {canUpload && !cookiesOpen && (
+        <button
+          onClick={() => setCookiesOpen(true)}
+          className={`mt-2 px-3 py-1 rounded text-xs ${
+            broken || !s
+              ? "bg-primary text-primary-foreground hover:bg-primary/90"
+              : "border border-border hover:bg-accent"
+          }`}
+        >
+          {broken || !s ? "Upload new cookies" : "Replace cookies"}
+        </button>
+      )}
+      {canUpload && cookiesOpen && (
+        <div className="mt-3 space-y-2">
+          <ol className="list-decimal pl-5 text-xs text-muted-foreground space-y-0.5">
+            <li>In Firefox, open a private window and log in to the Google account on google.com.</li>
+            <li>
+              With the Cookie-Editor extension (allowed in private windows), choose Export → JSON. It copies the
+              cookies.
+            </li>
+            <li>Paste them below and upload.</li>
+            <li>Close the private window. Don&apos;t click &quot;Sign out&quot;: that ends the login for the tracker too.</li>
+          </ol>
+          <textarea
+            aria-label="Cookie export (JSON)"
+            value={cookies}
+            onChange={(e) => setCookies(e.target.value)}
+            placeholder='[{"domain": ".google.com", "name": "SID", …}]'
+            rows={4}
+            spellCheck={false}
+            autoComplete="off"
+            className="w-full rounded border border-border bg-background px-2 py-1 font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            These cookies log in to the Google account. They go to the tracker only and aren&apos;t shown again.
+          </p>
+          {uploadError && <p className="text-xs text-destructive">{uploadError}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={upload}
+              disabled={uploading || !cookies.trim()}
+              className="px-3 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+            >
+              {uploading ? "Uploading…" : "Upload"}
+            </button>
+            <button
+              onClick={() => {
+                setCookiesOpen(false);
+                setCookies("");
+                setUploadError(null);
+              }}
+              className="px-3 py-1 rounded border border-border hover:bg-accent"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

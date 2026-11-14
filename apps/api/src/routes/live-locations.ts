@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
-import { fetchTracker, type TrackerAccount, type TrackerState } from "../lib/location-tracker.js";
+import { fetchTracker, putTrackerCookies, type TrackerAccount, type TrackerState } from "../lib/location-tracker.js";
 import { getUserPermissions, isAdmin } from "../lib/permissions.js";
 import { resolveSession } from "../lib/session.js";
 import { resolveSessionAccess } from "../lib/session-access.js";
@@ -156,11 +156,34 @@ export async function liveLocationRoutes(app: FastifyInstance) {
   );
 }
 
-// Under /servers. Only global admins (ADMIN_DISCORD_IDS) choose accounts:
-// a server's account decides whose locations its sessions can show.
+// Under /servers. Only global admins (ADMIN_DISCORD_IDS) choose accounts: a
+// server's account decides whose locations its sessions can show. A server's
+// admins (server.admin) see how its account is doing and can upload new
+// cookies when Google logs it out.
+
+const MAX_COOKIES_LENGTH = 200_000;
+
+function badRequest(message: string) {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
+// The server, if the user is a global admin or has server.admin on it.
+async function serverForAdmin(serverId: string, userId: string, log: FastifyInstance["log"]) {
+  const server = await prisma.server.findUnique({
+    where: { id: serverId },
+    select: { id: true, locationAccount: true },
+  });
+  if (!server) throw notFound("Server not found");
+  const globalAdmin = isAdmin(userId);
+  if (!globalAdmin && !(await getUserPermissions(userId, serverId, true, log)).has("server.admin")) {
+    throw forbidden();
+  }
+  return { server, globalAdmin };
+}
+
 export async function liveLocationServerRoutes(app: FastifyInstance) {
-  // GET /servers/:serverId/location-account — the server's account and the
-  // tracker's accounts.
+  // GET /servers/:serverId/location-account — the server's account and how
+  // it's doing; for global admins also every account the tracker has.
   app.get(
     "/:serverId/location-account",
     {
@@ -168,23 +191,72 @@ export async function liveLocationServerRoutes(app: FastifyInstance) {
         params: Type.Object({ serverId: Type.String() }),
       },
     },
-    async (req) => {
+    async (req, reply) => {
       const { user } = await resolveSession(req);
-      if (!isAdmin(user.discordId)) throw forbidden();
       const { serverId } = req.params as { serverId: string };
-      const server = await prisma.server.findUnique({
-        where: { id: serverId },
-        select: { locationAccount: true },
-      });
-      if (!server) throw notFound("Server not found");
+      const { server, globalAdmin } = await serverForAdmin(serverId, user.discordId, req.log);
 
+      reply.header("cache-control", "no-store");
       let accounts: TrackerAccount[] | null = null;
       try {
         accounts = (await fetchTracker<TrackerAccount[]>("/accounts")).body;
       } catch (err) {
         req.log.warn({ err }, "Location tracker unreachable");
       }
-      return { account: server.locationAccount, accounts };
+      return {
+        account: server.locationAccount,
+        // Whether this user may pick the account (global admins only).
+        canChoose: globalAdmin,
+        trackerReachable: accounts !== null,
+        // null: the tracker has no cookies for it (or can't be reached).
+        status: accounts?.find((a) => a.name === server.locationAccount) ?? null,
+        accounts: globalAdmin ? accounts : null,
+      };
+    },
+  );
+
+  // PUT /servers/:serverId/location-account/cookies — new cookies for the
+  // server's account (a Cookie-Editor export of the logged-in Google account).
+  // The tracker checks them, and restarts the account with them.
+  app.put(
+    "/:serverId/location-account/cookies",
+    {
+      schema: {
+        params: Type.Object({ serverId: Type.String() }),
+        body: Type.Object({
+          cookies: Type.String({ minLength: 1, maxLength: MAX_COOKIES_LENGTH }),
+        }),
+      },
+    },
+    async (req) => {
+      const { user } = await resolveSession(req);
+      const { serverId } = req.params as { serverId: string };
+      const { cookies } = req.body as { cookies: string };
+      const { server, globalAdmin } = await serverForAdmin(serverId, user.discordId, req.log);
+      const account = server.locationAccount;
+      if (!account) throw badRequest("This server has no live locations account yet: a global admin picks one");
+      // An account shared with another server: one server's admins mustn't
+      // decide whose locations the other's sessions show.
+      if (!globalAdmin) {
+        const sharing = await prisma.server.count({ where: { locationAccount: account, id: { not: serverId } } });
+        if (sharing > 0) throw forbidden("Other servers use this Google account too: ask a global admin to update it");
+      }
+
+      let res;
+      try {
+        res = await putTrackerCookies(account, cookies);
+      } catch (err) {
+        req.log.warn({ err }, "Location tracker unreachable");
+        throw trackerUnavailable();
+      }
+      if (res.status === 400) throw badRequest(res.body.error ?? "The tracker didn't take these cookies");
+      if (res.status !== 200) {
+        req.log.warn({ status: res.status }, "Location tracker refused cookies");
+        throw trackerUnavailable();
+      }
+      // Never log the cookies themselves.
+      req.log.info({ serverId, account, by: user.discordId }, "Location account cookies replaced");
+      return { ok: true };
     },
   );
 
