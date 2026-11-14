@@ -473,6 +473,46 @@ describe("PATCH /sessions/:sessionId permissions", () => {
     expect(await prisma.event.count({ where: { sessionId: SESSION_ID } })).toBe(3);
   });
 
+  // The app keeps the newest list it has heard of, whichever of a reply, a
+  // load and an event brought it: the sequence is what orders them.
+  test("the reply says which event sequence its zones are as of", async () => {
+    const change = { disableZoneIds: ["a"], zonesClientUuid: "zones-disabled-sequenced" };
+    const first = await patch(memberCookie, change);
+    expect(first.json()).toMatchObject({ disabledZoneIds: ["a"], disabledZonesSequence: 1 });
+
+    // A change that changes nothing is recorded, and answered as of its event.
+    const noop = await patch(creatorCookie, {
+      disableZoneIds: ["a"],
+      zonesClientUuid: "zones-disabled-sequenced-noop",
+    });
+    expect(noop.json()).toMatchObject({ disabledZoneIds: ["a"], disabledZonesSequence: 2 });
+
+    // A resend after another player's change: not applied again, and
+    // answered with the list as it is now, not as its own event left it.
+    await patch(creatorCookie, { enableZoneIds: ["a"], disableZoneIds: ["b"] });
+    const resend = await patch(memberCookie, change);
+    expect(resend.json()).toMatchObject({ disabledZoneIds: ["b"], disabledZonesSequence: 3 });
+    expect((await loadSession()).eventSequence).toBe(3);
+
+    // An edit to something else moves the sequence on with the same list.
+    const planning = await patch(memberCookie, { planningModeEnabled: true });
+    expect(planning.json()).toMatchObject({ disabledZoneIds: ["b"], disabledZonesSequence: 4 });
+
+    const get = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}`,
+      headers: { cookie: memberCookie },
+    });
+    expect(get.json()).toMatchObject({ disabledZoneIds: ["b"], disabledZonesSequence: 4 });
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions?serverId=${SERVER_ID}`,
+      headers: { cookie: creatorCookie },
+    });
+    const listed = list.json().sessions.find((x: { id: string }) => x.id === SESSION_ID);
+    expect(listed).toMatchObject({ disabledZoneIds: ["b"], disabledZonesSequence: 4 });
+  });
+
   test("the same change sent twice at once is applied once", async () => {
     const change = { disableZoneIds: ["a"], zonesClientUuid: "zones-disabled-twice" };
     const results = await Promise.all([patch(memberCookie, change), patch(memberCookie, change)]);

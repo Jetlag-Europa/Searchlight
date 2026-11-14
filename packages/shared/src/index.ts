@@ -210,6 +210,10 @@ export interface GameSessionSummary {
   planningModeEnabled: boolean;
   // Zones (stations) a player disabled by hand in the zone sidebar.
   disabledZoneIds: string[];
+  // The session's event sequence that list is as of: read together, so the
+  // app can tell which of two lists (a load's, a save's reply, an event's)
+  // is the newer. An API from before sends none.
+  disabledZonesSequence?: number;
   gameRevisionId: string;
   sessionRevision?: number | null;
   currentRevision?: number | null;
