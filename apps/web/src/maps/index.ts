@@ -9,6 +9,7 @@ import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 import {
     arcDistanceToPoint,
     GeometryWorkerError,
+    requestGeometry,
     SupersededError,
 } from "./geo-utils";
 import {
@@ -483,7 +484,8 @@ export async function standaloneRegion(
 
 // A question's region depends on its type and answer data, not on its name,
 // colours, collapsed or lock state (JSON drops the undefined keys). Hider mode
-// answers questions before they get here, so its answers are part of the data.
+// answers questions before they get here, so its answers are part of the data
+// and the hider's position is not an input of its own.
 export const regionData = (question: Question) => ({
     ...question.data,
     name: undefined,
@@ -510,12 +512,7 @@ export const regionData = (question: Question) => ({
 let regionCache: { inputs: unknown[]; regions: Map<string, any> } | undefined;
 
 function regionCacheFor(baseMapGeoData: unknown): Map<string, any> {
-    const inputs = [
-        baseMapGeoData,
-        compiledGameAtom.get(),
-        hiderMode.get(),
-        polyGeoJSON.get(),
-    ];
+    const inputs = [baseMapGeoData, compiledGameAtom.get(), polyGeoJSON.get()];
     if (
         !regionCache ||
         inputs.some((input, index) => input !== regionCache!.inputs[index])
@@ -580,4 +577,39 @@ export async function computePerQuestionRegions(
     if (regionCache?.regions === cache && isCurrent())
         regionCache.regions = used;
     return regions;
+}
+
+// The regions intersected in order: `upTo` is every region up to this one.
+// The region cache returns the same region for an unchanged question, so a
+// refresh starts again at the first region that changed.
+let regionChain: { region: unknown; upTo: FeatureCollection<any> }[] = [];
+
+/** The area every region leaves, or undefined without regions or when obsolete. */
+export async function intersectRegions(
+    regions: readonly { region: any }[],
+    isCurrent: () => boolean = () => true,
+): Promise<FeatureCollection<any> | undefined> {
+    let kept = 0;
+    while (
+        kept < regions.length &&
+        regionChain[kept]?.region === regions[kept].region
+    )
+        kept++;
+    const chain = regionChain.slice(0, kept);
+    for (const { region } of regions.slice(kept)) {
+        let upTo = region;
+        if (chain.length) {
+            const intersection = await requestGeometry({
+                kind: "clip",
+                mapData: chain[chain.length - 1].upTo,
+                modifications: region,
+                within: true,
+            });
+            if (!isCurrent()) return undefined;
+            upTo = turf.featureCollection(intersection ? [intersection] : []);
+        }
+        chain.push({ region, upTo });
+    }
+    regionChain = chain;
+    return chain.at(-1)?.upTo;
 }
