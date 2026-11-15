@@ -151,7 +151,7 @@ starting an API from before #85:
    sessions keep everything. Leave the `viewer` enum value alone.
 3. Start the older API.
 
-**Game ids per server** (`<sha>`, #<PR>). Older APIs expect a game's id (`Game.gameKey`) to be unique across all servers; migration `20261113120000_game_ids_per_server` replaces that unique index with one on server, owner and id. Once two games share an id, an older API picks either of them when it imports a file or looks a game up, so it may change the wrong one. Before starting an older API:
+**Game ids per server** (#138). Older APIs expect a game's id (`Game.gameKey`) to be unique across all servers; migration `20261113120000_game_ids_per_server` replaces that unique index with one on server, owner and id. Once two games share an id, an older API picks either of them when it imports a file or looks a game up, so it may change the wrong one. Before starting an older API:
 
 1. Stop the newer API.
 2. Check for shared ids. This must return no rows:
