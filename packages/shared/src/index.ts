@@ -106,13 +106,14 @@ export interface GameImportResponse {
   checksum: string;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
-  /** Set when the file's id belongs to a game that already exists. */
+  /** Set when the import updates an existing game: the one with the file's id in its scope (the server, or on Casual Games the importer's own games), or the game being replaced. */
   existing?: ExistingGameComparison;
 }
 
 /**
  * The game an import would update, compared with the file, so a file that
  * reuses another game's id by mistake can be caught before it replaces it.
+ * Also sent for POST /games/:gameId/import, for the game it replaces.
  */
 export interface ExistingGameComparison {
   name: string;

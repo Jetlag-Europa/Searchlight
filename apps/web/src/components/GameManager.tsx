@@ -95,12 +95,13 @@ function GameCard({
         : ["games.create", "games.edit", "games.delete", "server.admin"].some((p) =>
             permissions.includes(p),
         );
-    // Same check as the API; a settings edit needs a revision to build on. A
-    // Casual game's creator edits it while they hold games.create there.
-    const canEditSettings =
-        (["games.edit", "server.admin"].some((p) => permissions.includes(p)) ||
-            (casual && !!userId && game.createdById === userId && permissions.includes("games.create"))) &&
-        !!game.currentRevisionId;
+    // Same check as the API's (canUpdate in import-service.ts): games.edit or
+    // server.admin, or on Casual Games the creator while they hold games.create.
+    const canUpdate =
+        ["games.edit", "server.admin"].some((p) => permissions.includes(p)) ||
+        (casual && !!userId && game.createdById === userId && permissions.includes("games.create"));
+    // A settings edit needs a revision to build on.
+    const canEditSettings = canUpdate && !!game.currentRevisionId;
 
     const handleToggleListed = async () => {
         setError(null);
@@ -126,7 +127,7 @@ function GameCard({
     const handleExport = async () => {
         setError(null);
         try {
-            const res = await fetch(`${API_BASE}/games/${encodeURIComponent(game.gameKey)}/export`, {
+            const res = await fetch(`${API_BASE}/games/${encodeURIComponent(game.id)}/export`, {
                 credentials: "include",
             });
             if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
@@ -200,6 +201,16 @@ function GameCard({
                 )}
                 {canManage && <GameLinksDialog game={game} />}
                 {canEditSettings && <GameSettingsDialog game={game} onUpdated={onUpdated} />}
+                {canUpdate && (
+                    <Button asChild size="sm" variant="outline">
+                        <a
+                            href={`/games/import?replace=${encodeURIComponent(game.id)}`}
+                            title="Upload a new version of this game from a file. The file's ID and server are ignored: the game keeps its own."
+                        >
+                            Replace with file…
+                        </a>
+                    </Button>
+                )}
                 {(canManage || !casual) && (
                     <Button size="sm" variant="outline" onClick={handleExport}>
                         Export JSON

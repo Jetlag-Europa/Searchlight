@@ -15,10 +15,6 @@ import { registerCompression } from "../lib/compression.js";
 import { gameImportRoutes } from "./game-imports.js";
 import { sessionRoutes } from "./sessions.js";
 import { linkRoutes } from "./links.js";
-import {
-  importGameDefinition,
-  ImportForbiddenError,
-} from "../games/import-service.js";
 
 // ── Test Constants & IDs ───────────────────────────────────────────────────
 
@@ -42,12 +38,10 @@ const GAME_NO_DEF_KEY = "test-game-imports-nodef";
 const GAME_UNICODE_KEY = "test-game-imports-東京";
 const GAME_OWNER_KEY = "test-game-imports-owner";
 const GAME_LARGE_KEY = "test-game-imports-large";
-// Shaped like a generated id; used as one game's id and another game's key.
-const CUID_LIKE = "ctestgameimportsshadow001";
 
 const FIXTURE_USERS = [USER_MEMBER, USER_NO_ROLE, USER_NONMEMBER, USER_CREATOR];
 const FIXTURE_AUTHS = [AUTH_MEMBER, AUTH_NO_ROLE, AUTH_NONMEMBER, AUTH_CREATOR];
-const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, GAME_LARGE_KEY, CUID_LIKE];
+const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, GAME_LARGE_KEY];
 const FIXTURE_SERVERS = [TEST_SERVER_A, TEST_SERVER_B];
 
 async function buildTestApp(): Promise<FastifyInstance> {
@@ -716,17 +710,94 @@ describe("Game Definition Access & Revision Security", () => {
       );
     });
 
-    test("a game's id is matched before another game's identical key", async () => {
-      await createGame({ gameKey: CUID_LIKE, name: "Shadow" });
-      await createGame({ id: CUID_LIKE, gameKey: GAME_OWNER_KEY, name: "Owner" });
+    test("a game's key doesn't address it", async () => {
+      const game = await createGame({ gameKey: GAME_OWNER_KEY, name: "Owner" });
+      const cookie = signedCookie(app, AUTH_MEMBER);
+
+      const byKey = await app.inject({
+        method: "GET",
+        url: `/games/${GAME_OWNER_KEY}/revisions/1`,
+        headers: { cookie },
+      });
+      expect(byKey.statusCode).toBe(404);
+      const session = await app.inject({
+        method: "POST",
+        url: "/sessions",
+        headers: { cookie },
+        payload: { gameId: GAME_OWNER_KEY, name: "By key" },
+      });
+      expect(session.statusCode).toBe(404);
 
       const res = await app.inject({
         method: "GET",
-        url: `/games/${CUID_LIKE}/export`,
-        headers: { cookie: signedCookie(app, AUTH_MEMBER) },
+        url: `/games/${game.id}/export`,
+        headers: { cookie },
       });
       expect(res.statusCode).toBe(200);
       expect(res.json().name).toBe("Owner");
+    });
+  });
+
+  describe("Export by the file's id, for the previous web build", () => {
+    const exportByKey = (key: string) =>
+      app.inject({
+        method: "GET",
+        url: `/games/${encodeURIComponent(key)}/export`,
+        headers: { cookie: signedCookie(app, AUTH_MEMBER) },
+      });
+
+    test("works while the id names one game, and not once two games share it", async () => {
+      const one = await exportByKey(GAME_A_KEY);
+      expect(one.statusCode, one.body).toBe(200);
+      expect(one.headers["content-disposition"]).toContain(`${GAME_A_KEY}.game.json`);
+
+      const twin = await prisma.game.create({
+        data: { gameKey: GAME_A_KEY, serverId: TEST_SERVER_B, name: "Twin", size: "medium" },
+      });
+      try {
+        expect((await exportByKey(GAME_A_KEY)).statusCode).toBe(404);
+      } finally {
+        await prisma.game.delete({ where: { id: twin.id } });
+      }
+    });
+
+    test("still checks access to the game", async () => {
+      const res = await app.inject({
+        method: "GET",
+        url: `/games/${GAME_A_KEY}/export`,
+        headers: { cookie: signedCookie(app, AUTH_NONMEMBER) },
+      });
+      expect(res.statusCode).toBe(403);
+    });
+  });
+
+  describe("POST /games/:gameId/import on a server", () => {
+    const replace = (auth: string) =>
+      app.inject({
+        method: "POST",
+        url: `/games/${gameAId}/import?dryRun=true`,
+        headers: { cookie: signedCookie(app, auth) },
+        payload: importableDefinition(TEST_SERVER_B),
+      });
+
+    test("is refused for games.create alone, and for those who can't import anywhere", async () => {
+      // games.create imports new games; changing an existing one takes games.edit.
+      expect((await replace(AUTH_CREATOR)).statusCode).toBe(403);
+      expect((await replace(AUTH_MEMBER)).statusCode).toBe(403);
+      expect((await replace(AUTH_NONMEMBER)).statusCode).toBe(403);
+    });
+
+    test("previews an update of that game for games.edit, whatever server the file names", async () => {
+      const grant = await prisma.rolePermission.create({
+        data: { serverId: TEST_SERVER_A, discordRoleId: ROLE_GAME_CREATOR_ID, permission: "games.edit" },
+      });
+      try {
+        const res = await replace(AUTH_CREATOR);
+        expect(res.statusCode, res.body).toBe(200);
+        expect(res.json()).toMatchObject({ status: "updated", gameId: gameAId, gameKey: GAME_A_KEY });
+      } finally {
+        await prisma.rolePermission.delete({ where: { id: grant.id } });
+      }
     });
   });
 
@@ -793,60 +864,6 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.headers["content-encoding"]).toBe("br");
       expect(res.headers["content-disposition"]).toContain(`${GAME_LARGE_KEY}.game.json`);
       expect(JSON.parse(brotliDecompressSync(res.rawPayload).toString())).toEqual(definition);
-    });
-  });
-
-  // ── 2. Cross-Server Update Prohibition (Review Item 2) ───────────────────
-
-  describe("Item 2: Prohibit cross-server updates", () => {
-    test("importGameDefinition rejects moving existing game to a different server", async () => {
-      await expect(
-        importGameDefinition({
-          raw: {
-            id: GAME_A_KEY,
-            name: "Test Game A Move Attempt",
-            serverId: TEST_SERVER_B, // target server is B, but game exists on server A
-            map: {
-              center: [0, 0],
-              playArea: {
-                type: "FeatureCollection",
-                features: [
-                  {
-                    type: "Feature",
-                    geometry: {
-                      type: "Polygon",
-                      coordinates: [
-                        [
-                          [0, 0],
-                          [1, 0],
-                          [1, 1],
-                          [0, 1],
-                          [0, 0],
-                        ],
-                      ],
-                    },
-                  },
-                ],
-              },
-            },
-            hidingZones: {
-              features: {
-                type: "FeatureCollection",
-                features: [
-                  {
-                    type: "Feature",
-                    geometry: {
-                      type: "Point",
-                      coordinates: [0.5, 0.5],
-                    },
-                  },
-                ],
-              },
-            },
-          },
-          allowUpdate: true,
-        }),
-      ).rejects.toThrow(ImportForbiddenError);
     });
   });
 
@@ -969,7 +986,7 @@ describe("Game Definition Access & Revision Security", () => {
         url: "/sessions",
         headers: { cookie: signedCookie(app, AUTH_NONMEMBER) },
         payload: {
-          gameId: GAME_A_KEY,
+          gameId: gameAId,
           name: "Non-member Attempt",
           visibility: "private",
           gameRevisionId: gameARev2Id,

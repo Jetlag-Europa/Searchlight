@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { assertGameAccess, findGameByIdOrKey, isUnlisted } from "../lib/game-access.js";
+import { assertGameAccess, isUnlisted } from "../lib/game-access.js";
 import { forbidden, notFound } from "../lib/http-errors.js";
 import { broadcast, closeUserStreams, closeSessionStreams, toEventRecord } from "../lib/broadcaster.js";
 import {
@@ -228,8 +228,9 @@ export async function sessionRoutes(app: FastifyInstance) {
         gameRevisionId?: string;
       };
 
-      const game = await findGameByIdOrKey(gameId, {
-        currentRevision: { select: { id: true, revision: true } },
+      const game = await prisma.game.findUnique({
+        where: { id: gameId },
+        include: { currentRevision: { select: { id: true, revision: true } } },
       });
       if (!game) throw notFound("Game not found");
       // For everyone, game managers included; GET /games leaves them out too.

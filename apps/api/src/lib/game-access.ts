@@ -10,19 +10,6 @@ import {
 } from "./permissions.js";
 import { VIRTUAL_SERVER_IDS } from "./virtual-servers.js";
 
-// Routes address a game by id or gameKey. Ids are generated here but gameKeys
-// are chosen by importers, so a gameKey can equal another game's id: match the
-// id first, so an import can't capture lookups of an existing game.
-export async function findGameByIdOrKey<I extends Prisma.GameInclude = {}>(
-  idOrKey: string,
-  include?: I,
-): Promise<Prisma.GameGetPayload<{ include: I }> | null> {
-  const game =
-    (await prisma.game.findUnique({ where: { id: idOrKey }, include })) ??
-    (await prisma.game.findUnique({ where: { gameKey: idOrKey }, include }));
-  return game as Prisma.GameGetPayload<{ include: I }> | null;
-}
-
 // A game link by its token, with its game, unless it was revoked.
 export async function findActiveLink(token: string) {
   const link = await prisma.gameLink.findUnique({
