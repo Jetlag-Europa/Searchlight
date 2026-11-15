@@ -7,6 +7,7 @@ import type {
   PresenceUser,
   SessionRevisionUpgradedEvent,
   ParticipantRoleChangedEvent,
+  ZonesDisabledEvent,
 } from "@searchlight/shared";
 
 export type AnySSEEvent =
@@ -14,6 +15,7 @@ export type AnySSEEvent =
   | PresenceEvent
   | HiderUpdateEvent
   | PlanningToggleEvent
+  | ZonesDisabledEvent
   | SessionRevisionUpgradedEvent
   | ParticipantRoleChangedEvent;
 type Listener = (event: AnySSEEvent) => void;

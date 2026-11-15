@@ -15,12 +15,14 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { compiledGameAtom } from "@/game-definition/store";
+import { sessionReadOnly } from "@/lib/activeSession";
 import { startCalculation } from "@/lib/calculating";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
     animateMapMovements,
     autoZoom,
     disabledStations,
+    disableZones,
     displayHidingZones,
     displayHidingZonesStyle,
     gameDefinitionReady,
@@ -32,6 +34,7 @@ import {
     questionFinishedMapData,
     setDisabledStations,
     showZoneNames,
+    toggleDisabledZone,
     trainStations,
 } from "@/lib/context";
 import { zoneLabelMinZoom } from "@/lib/games";
@@ -136,6 +139,8 @@ const ZoneSidebarContent = () => {
     const map = useStore(leafletMapContext);
     const stations = useStore(trainStations);
     const $disabledStations = useStore(disabledStations);
+    // A spectator's board follows the session's disabled zones.
+    const $readOnly = useStore(sessionReadOnly);
     const $compiledGame = useStore(compiledGameAtom);
     const $gameDefinitionReady = useStore(gameDefinitionReady);
     const hidingZoneModeStationID = useStore(hidingZoneFocusedStationID);
@@ -593,6 +598,7 @@ const ZoneSidebarContent = () => {
                                 </SidebarMenuItem>
                             )}
                             {$displayHidingZones &&
+                                !$readOnly &&
                                 stations.some((station) =>
                                     $disabledStations.includes(
                                         station.properties.properties.id,
@@ -608,11 +614,11 @@ const ZoneSidebarContent = () => {
                                         Clear Disabled
                                     </SidebarMenuItem>
                                 )}
-                            {$displayHidingZones && (
+                            {$displayHidingZones && !$readOnly && (
                                 <SidebarMenuItem
                                     className={ZONE_BUTTON_CLASSNAME}
                                     onClick={() => {
-                                        setDisabledStations(
+                                        disableZones(
                                             stations.map(
                                                 (x) =>
                                                     x.properties.properties.id,
@@ -672,39 +678,14 @@ const ZoneSidebarContent = () => {
                                                                 return;
                                                             }
 
-                                                            if (
-                                                                $disabledStations.includes(
-                                                                    station
-                                                                        .properties
-                                                                        .properties
-                                                                        .id,
-                                                                )
-                                                            ) {
-                                                                setDisabledStations(
-                                                                    [
-                                                                        ...$disabledStations.filter(
-                                                                            (
-                                                                                x,
-                                                                            ) =>
-                                                                                x !==
-                                                                                station
-                                                                                    .properties
-                                                                                    .properties
-                                                                                    .id,
-                                                                        ),
-                                                                    ],
-                                                                );
-                                                            } else {
-                                                                setDisabledStations(
-                                                                    [
-                                                                        ...$disabledStations,
-                                                                        station
-                                                                            .properties
-                                                                            .properties
-                                                                            .id,
-                                                                    ],
-                                                                );
-                                                            }
+                                                            // The list now, not at render: another
+                                                            // player's update may have landed since.
+                                                            toggleDisabledZone(
+                                                                station
+                                                                    .properties
+                                                                    .properties
+                                                                    .id,
+                                                            );
                                                         }, 100);
                                                     }}
                                                     disabled={$isLoading}

@@ -394,6 +394,12 @@ describe("session viewers", () => {
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { hiderLat: null, hiderLng: null } },
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { planningModeEnabled: true } },
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { name: "Renamed" } },
+      {
+        method: "PATCH",
+        url: `/sessions/${SESSION_ID}`,
+        payload: { disableZoneIds: ["zone-1"], zonesClientUuid: "zones-disabled-test-sview-1" },
+      },
+      { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { enableZoneIds: ["zone-1"] } },
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: {} },
       {
         method: "POST",
@@ -430,7 +436,13 @@ describe("session viewers", () => {
     expect(patch.json().message ?? patch.body).toContain("Spectators can't change this session");
 
     const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
-    expect(session).toMatchObject({ hiderLat: 47.37, hiderLng: 8.54, planningModeEnabled: false, eventSequence: 0 });
+    expect(session).toMatchObject({
+      hiderLat: 47.37,
+      hiderLng: 8.54,
+      planningModeEnabled: false,
+      disabledZoneIds: [],
+      eventSequence: 0,
+    });
     expect(await prisma.event.count({ where: { sessionId: SESSION_ID } })).toBe(0);
     expect(await prisma.stroke.findUnique({ where: { clientUuid: "test-sview-stroke" } })).toMatchObject({
       deletedAt: null,
@@ -438,6 +450,33 @@ describe("session viewers", () => {
     expect(await prisma.stroke.count({ where: { clientUuid: "test-sview-new-stroke" } })).toBe(0);
     expect(await prisma.sessionQuestion.count({ where: { sessionId: SESSION_ID } })).toBe(0);
     expect(await participantRow(MEMBER_ID)).toMatchObject({ role: "member", revokedAt: null });
+  });
+
+  test("viewers see the zones a member disabled, in the session and in its events", async () => {
+    const disable = await app.inject({
+      method: "PATCH",
+      url: `/sessions/${SESSION_ID}`,
+      headers: as(MEMBER_ID),
+      payload: { disableZoneIds: ["zone-2", "zone-1"], zonesClientUuid: "zones-disabled-test-sview-2" },
+    });
+    expect(disable.statusCode).toBe(200);
+
+    expect((await getSession(VIEWER_ID)).json()).toMatchObject({
+      role: "viewer",
+      disabledZoneIds: ["zone-1", "zone-2"],
+    });
+    const list = await app.inject({ method: "GET", url: `/sessions?serverId=${SERVER_ID}`, headers: as(VIEWER_ID) });
+    expect(
+      list.json<{ sessions: Array<{ id: string }> }>().sessions.find((s) => s.id === SESSION_ID),
+    ).toMatchObject({ disabledZoneIds: ["zone-1", "zone-2"] });
+    const events = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/events?after=0`,
+      headers: as(VIEWER_ID),
+    });
+    expect(events.json<{ events: unknown[] }>().events).toMatchObject([
+      { type: "zones.disabled", payloadJson: { disabledZoneIds: ["zone-1", "zone-2"] } },
+    ]);
   });
 
   test("viewers read the session's content", async () => {
