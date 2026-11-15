@@ -76,6 +76,7 @@ import {
 import {
     buildQuestionsFile,
     type ImportedQuestions,
+    MAX_QUESTIONS_FILE_BYTES,
     parseQuestionsFile,
     questionsFileName,
 } from "@/lib/questionsFile";
@@ -172,7 +173,11 @@ export const OptionDrawers = () => {
         const compiled = compiledGameAtom.get();
         const replaces = importTarget();
         if (!session || !compiled || replaces === null) {
-            toast.error("The game has not loaded yet");
+            toast.error(
+                compiled
+                    ? "This session can't take an import right now"
+                    : "The game has not loaded yet",
+            );
             return;
         }
         // Keeping a held version would put it onto the imported list, and
@@ -185,6 +190,11 @@ export const OptionDrawers = () => {
             toast.error(
                 "Your last changes aren't saved yet: try again once they are",
             );
+            return;
+        }
+        // Before reading it: a file picked by mistake can be gigabytes.
+        if (file.size > MAX_QUESTIONS_FILE_BYTES) {
+            toast.error("That file is too big to import");
             return;
         }
         const result = parseQuestionsFile(
@@ -407,6 +417,9 @@ export const OptionDrawers = () => {
                                                             ?
                                                             {replaced > 0 &&
                                                                 " The replaced ones can be restored from the History."}
+                                                            {replaced > 0 &&
+                                                                !$autoSave &&
+                                                                " Auto save is off: changes you haven't saved are replaced too, and those aren't in the History."}
                                                             {imported.skipped >
                                                                 0 &&
                                                                 ` ${plural(imported.skipped)} in the file can't be used in this game and will be left out.`}

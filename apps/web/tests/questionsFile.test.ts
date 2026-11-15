@@ -43,9 +43,13 @@ const exported = (questions: unknown[], changes: object = {}) =>
 describe("questions file", () => {
     it("names the file after the session", () => {
         expect(questionsFileName(session.name)).toBe(
-            "friday-night-z-rich.questions.json",
+            "friday-night-zürich.questions.json",
         );
         expect(questionsFileName("…")).toBe("session.questions.json");
+        expect(questionsFileName("東京 26")).toBe("東京-26.questions.json");
+        expect(questionsFileName("a".repeat(400))).toBe(
+            `${"a".repeat(80)}.questions.json`,
+        );
     });
 
     it("exports the session's game, not the definition's", () => {
@@ -250,5 +254,132 @@ describe("questions file", () => {
                 "cgame1",
             ),
         ).toMatchObject({ otherGame: "" });
+    });
+
+    it("leaves out a radius the map can't buffer", () => {
+        const withRadius = (radius: number, unit = "kilometers") => ({
+            id: "radius",
+            data: { lat: 47.37, lng: 8.54, radius, unit },
+        });
+        const kept = [
+            withRadius(0.001),
+            withRadius(1, "meters"),
+            withRadius(20_000),
+            withRadius(12_000, "miles"),
+        ];
+        const result = parseQuestionsFile(
+            exported([
+                ...kept,
+                withRadius(0),
+                withRadius(5e-324),
+                withRadius(0.5, "meters"),
+                withRadius(20_001),
+                withRadius(13_000, "miles"),
+                withRadius(1e300),
+            ]),
+            game,
+            "cgame1",
+        );
+        if ("error" in result) throw new Error(result.error);
+        expect(result.skipped).toBe(6);
+        expect(result.questions.map((q) => q.data)).toMatchObject(
+            kept.map((q) => q.data),
+        );
+    });
+
+    it("leaves out drawn lines and places too many to work out", () => {
+        const measuring = {
+            questionMap: new Map([
+                ["measuring", { id: "measuring", family: "measuring" }],
+                ["matching", { id: "matching", family: "matching" }],
+            ]),
+        } as any;
+        const line = (corners: number) => ({
+            id: "measuring",
+            data: {
+                type: "custom-measure",
+                lat: 47.37,
+                lng: 8.54,
+                geo: {
+                    type: "FeatureCollection",
+                    features: [
+                        {
+                            type: "Feature",
+                            properties: {},
+                            geometry: {
+                                type: "LineString",
+                                coordinates: Array.from(
+                                    { length: corners },
+                                    (_, i) => [8 + i / 1e4, 47 + (i % 2) / 1e3],
+                                ),
+                            },
+                        },
+                    ],
+                },
+            },
+        });
+        const points = (count: number) => ({
+            id: "matching",
+            data: {
+                type: "custom-points",
+                lat: 47.37,
+                lng: 8.54,
+                geo: Array.from({ length: count }, (_, i) => ({
+                    type: "Feature",
+                    properties: { name: `p${i}` },
+                    geometry: { type: "Point", coordinates: [8 + i / 1e4, 47] },
+                })),
+            },
+        });
+        // Lines as one feature, not in a collection: the map ignores those.
+        const bare = line(2);
+        (bare.data as any).geo = bare.data.geo.features[0];
+        const result = parseQuestionsFile(
+            exported([line(500), line(501), points(1000), points(1001), bare]),
+            measuring,
+            "cgame1",
+        );
+        if ("error" in result) throw new Error(result.error);
+        expect(result.skipped).toBe(3);
+        expect(result.questions).toHaveLength(2);
+    });
+
+    it("counts the size in bytes, as the API does", () => {
+        // 400,000 characters, 1.2 MB.
+        const named = {
+            ...radius,
+            data: { ...radius.data, name: "中".repeat(400_000) },
+        };
+        expect(parseQuestionsFile(exported([named]), game, "cgame1")).toEqual({
+            error: "That file is too big to import",
+        });
+    });
+
+    it("rejects questions that are small one by one and too big together", () => {
+        // Under the limit as a file, over it with what each is saved with.
+        const many = Array.from({ length: 9_000 }, () => ({
+            id: "radius",
+            data: { lat: 1, lng: 2, radius: 3, unit: "miles" },
+        }));
+        const text = exported(many);
+        expect(new TextEncoder().encode(text).length).toBeLessThan(1_000_000);
+        expect(parseQuestionsFile(text, game, "cgame1")).toEqual({
+            error: "That file is too big to import",
+        });
+    });
+
+    it("shortens the names it shows in the confirm", () => {
+        const result = parseQuestionsFile(
+            exported([radius], {
+                sessionName: "s".repeat(5_000),
+                gameId: "other",
+                gameName: "g".repeat(5_000),
+            }),
+            game,
+            "cgame1",
+        );
+        if ("error" in result) throw new Error(result.error);
+        expect(result.sessionName).toBe("s".repeat(80));
+        expect(result.otherGame).toBe("g".repeat(80));
     });
 });

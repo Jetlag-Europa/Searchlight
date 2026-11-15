@@ -1,4 +1,5 @@
 import { type GameSessionSummary, isRecord } from "@searchlight/shared";
+import * as turf from "@turf/turf";
 
 import type { CompiledGame } from "@/game-definition/compile";
 import { isQuestionSupported } from "@/game-definition/store";
@@ -35,12 +36,26 @@ export const questionsFileName = (sessionName: string): string =>
     `${
         sessionName
             .toLowerCase()
-            .replace(/[^a-z0-9]+/g, "-")
+            // Letters and digits of any script: "東京" and "zürich" stay.
+            .replace(/[^\p{L}\p{N}]+/gu, "-")
+            .slice(0, 80)
             .replace(/^-|-$/g, "") || "session"
     }.questions.json`;
 
-// The API takes a question list of up to 1 MiB.
-const MAX_SAVED_LENGTH = 1_000_000;
+/** The API takes a question list of up to 1 MiB, counted in bytes. */
+export const MAX_QUESTIONS_FILE_BYTES = 1_000_000;
+const bytes = (text: string) => new TextEncoder().encode(text).length;
+
+// A radius outside 1 m to 20,000 km (half way round the Earth) makes the
+// buffer throw or never finish, which stops the map for every player.
+const MIN_RADIUS_KM = 0.001;
+const MAX_RADIUS_KM = 20_000;
+// Buffering drawn lines takes most of a minute at 500 corners, and never
+// ends at a few thousand; places are cheaper.
+const MAX_LINE_POSITIONS = 500;
+const MAX_PLACES = 1_000;
+// Names from the file are shown in the confirm.
+const MAX_NAME_LENGTH = 80;
 
 // How deep each geometry's coordinates nest.
 const DEPTH: Record<string, number> = {
@@ -72,33 +87,61 @@ const featureOk = (feature: unknown, types = Object.keys(DEPTH)): boolean =>
         typeof (feature.properties as { name?: unknown } | null)?.name,
     );
 
+/** How many positions a checked feature's geometry has. */
+const positionCount = (coordinates: unknown): number =>
+    !Array.isArray(coordinates)
+        ? 0
+        : typeof coordinates[0] === "number"
+          ? 1
+          : coordinates.reduce((n, c) => n + positionCount(c), 0);
+const lineLength = (features: unknown[]): number =>
+    features.reduce<number>((n, feature) => {
+        const { type, coordinates } = (
+            feature as { geometry: { type: string; coordinates: unknown } }
+        ).geometry;
+        return type.endsWith("Point") ? n : n + positionCount(coordinates);
+    }, 0);
+
 /**
- * Whether a question's places and drawn shapes are what the map and cards
- * expect. The schema takes anything there (z.any), and a wrong shape saved
- * to the session would break the board for every player.
+ * Whether a question's radius, places and drawn shapes are what the map and
+ * cards expect. The schema takes anything for the shapes (z.any) and any
+ * radius from 0 up, and a wrong one saved to the session would break the
+ * board for every player.
  */
 function shapesOk({ id, data }: Question): boolean {
-    const { type, geo, location, places } = data as Record<string, unknown>;
+    const { type, geo, location, places, radius, unit } = data as Record<
+        string,
+        unknown
+    >;
+    if (typeof radius === "number") {
+        const km = turf.convertLength(radius, unit as turf.Units, "kilometers");
+        if (!(km >= MIN_RADIUS_KM && km <= MAX_RADIUS_KM)) return false;
+    }
     if (id === "tentacles") {
+        const list = (places as unknown[] | undefined) ?? [];
         return (
             (!location || featureOk(location, ["Point"])) &&
-            ((places as unknown[] | undefined) ?? []).every((place) =>
-                featureOk(place, ["Point"]),
-            )
+            list.length <= MAX_PLACES &&
+            list.every((place) => featureOk(place, ["Point"]))
         );
     }
     if (geo == null) return true;
-    // Custom points are a list of features; a zone or lines are a feature
-    // or a collection.
+    // Custom points are a list of features, drawn lines a collection, and a
+    // zone a feature or a collection.
     if (type === "custom-points") {
-        return Array.isArray(geo) && geo.every((p) => featureOk(p, ["Point"]));
+        return (
+            Array.isArray(geo) &&
+            geo.length <= MAX_PLACES &&
+            geo.every((p) => featureOk(p, ["Point"]))
+        );
     }
-    const custom = type === "custom-zone" || type === "custom-measure";
-    if (custom && Array.isArray(geo)) return false;
+    const collection = isRecord(geo) && geo.type === "FeatureCollection";
+    if (type === "custom-measure" && !collection) return false;
+    if (type === "custom-zone" && Array.isArray(geo)) return false;
     const features = Array.isArray(geo)
         ? geo
-        : isRecord(geo) && geo.type === "FeatureCollection"
-          ? geo.features
+        : collection
+          ? (geo as { features: unknown }).features
           : [geo];
     return (
         Array.isArray(features) &&
@@ -109,9 +152,15 @@ function shapesOk({ id, data }: Question): boolean {
                     ? ["Polygon", "MultiPolygon"]
                     : undefined,
             ),
-        )
+        ) &&
+        (type !== "custom-measure" ||
+            (features.length <= MAX_PLACES &&
+                lineLength(features) <= MAX_LINE_POSITIONS))
     );
 }
+
+const name = (value: unknown): string =>
+    typeof value === "string" ? value.slice(0, MAX_NAME_LENGTH) : "";
 
 export interface ImportedQuestions {
     questions: Questions;
@@ -134,7 +183,7 @@ export function parseQuestionsFile(
     compiled: Pick<CompiledGame, "questionMap">,
     gameId: string,
 ): ImportedQuestions | { error: string } {
-    if (text.length > MAX_SAVED_LENGTH) {
+    if (bytes(text) > MAX_QUESTIONS_FILE_BYTES) {
         return { error: "That file is too big to import" };
     }
     let file: unknown;
@@ -168,23 +217,20 @@ export function parseQuestionsFile(
     if (questions.length === 0) {
         return { error: "That file has no questions for this game" };
     }
-    // Each is saved with an id and a position, about 100 characters.
+    // Each is saved with an id and a position, about 100 bytes.
     if (
-        JSON.stringify(questions).length + questions.length * 100 >
-        MAX_SAVED_LENGTH
+        bytes(JSON.stringify(questions)) + questions.length * 100 >
+        MAX_QUESTIONS_FILE_BYTES
     ) {
         return { error: "That file is too big to import" };
     }
     return {
         questions,
         skipped: file.questions.length - questions.length,
-        sessionName:
-            typeof file.sessionName === "string" ? file.sessionName : "",
+        sessionName: name(file.sessionName),
         otherGame:
             typeof file.gameId === "string" && file.gameId !== gameId
-                ? typeof file.gameName === "string"
-                    ? file.gameName
-                    : ""
+                ? name(file.gameName)
                 : null,
     };
 }
