@@ -34,7 +34,8 @@ COPY apps/api/package.json apps/api/tsconfig.json ./apps/api/
 COPY apps/api/prisma ./apps/api/prisma
 COPY packages/shared/package.json packages/shared/tsconfig.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile --prod
+# pnpm's store and the pnpm and Prisma download caches are only used by the install itself.
+RUN pnpm install --frozen-lockfile --prod && rm -rf /root/.cache /root/.local/share/pnpm/store
 
 # Copy compiled output from builder
 COPY --from=builder /app/apps/api/dist ./apps/api/dist
