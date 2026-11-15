@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Save a session's questions to a file (2026-11-15)
+
+- Options has **Export Questions**, which downloads the open session's questions as a file, and **Import Questions**, which replaces the session's questions with those from such a file, after asking. Questions the session's game doesn't have are left out, and the questions replaced can be restored from the History. Spectators can export, not import.
+- Import waits until your last changes are saved and any question that needs a decision is decided, so nothing is replaced that the History couldn't bring back.
+
 ## Pins for custom points show again (2026-11-04)
 
 - The points you place for a custom tentacle, matching or measuring question show their blue pin again, instead of a broken image.

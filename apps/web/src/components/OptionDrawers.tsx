@@ -4,13 +4,23 @@ import {
     resolveGameDefinitionId,
 } from "@searchlight/shared";
 import { ChevronDown, ChevronUp } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import { penToolbarVisible } from "@/annotations/hooks/useAnnotationStore";
 import { InviteDrawer } from "@/components/InviteDrawer";
 import { usePasteText } from "@/components/PasteFallback";
 import { ShareDrawer } from "@/components/ShareDrawer";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
     Drawer,
     DrawerContent,
@@ -22,7 +32,7 @@ import {
     activeGameDefinitionAtom,
     compiledGameAtom,
 } from "@/game-definition/store";
-import { sessionReadOnly } from "@/lib/activeSession";
+import { activeSessionData, sessionReadOnly } from "@/lib/activeSession";
 import {
     allowGooglePlusCodes,
     animateMapMovements,
@@ -42,6 +52,7 @@ import {
     hidingZoneFocusedStationID,
     permanentOverlay,
     planningModeEnabled,
+    questions,
     save,
     showGoogleTransit,
     showZoneNames,
@@ -58,6 +69,17 @@ import {
     googleModuleFailed,
     googleStandingIn,
 } from "@/lib/googleMaps";
+import {
+    questionConflicts,
+    questionDecisionsPossible,
+} from "@/lib/questionConflicts";
+import {
+    buildQuestionsFile,
+    type ImportedQuestions,
+    parseQuestionsFile,
+    questionsFileName,
+} from "@/lib/questionsFile";
+import { hasPendingQuestionSave } from "@/lib/sessionState";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
 
@@ -74,6 +96,22 @@ import {
     SidebarMenuItem,
 } from "./ui/sidebar";
 import { UnitSelect } from "./UnitSelect";
+
+const downloadJson = (fileName: string, json: string) => {
+    const url = URL.createObjectURL(
+        new Blob([json], { type: "application/json" }),
+    );
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+};
+
+const plural = (count: number) =>
+    `${count} question${count === 1 ? "" : "s"}`;
 
 export const OptionDrawers = () => {
     useStore(triggerLocalRefresh);
@@ -109,6 +147,73 @@ export const OptionDrawers = () => {
     const [isOptionsOpen, setOptionsOpen] = useState(false);
     const [isNavOpen, setNavOpen] = useState(false);
     const { readPaste, pasteDialog } = usePasteText();
+    const $session = useStore(activeSessionData);
+    // As Restore: only a board whose edits are saved takes an import.
+    const $canEdit = useStore(questionDecisionsPossible);
+    const importInput = useRef<HTMLInputElement>(null);
+    const [imported, setImported] = useState<
+        (ImportedQuestions & { replaces: string }) | null
+    >(null);
+    const replaced = questions.get().length;
+
+    // What an import replaces: the session, its game revision and the
+    // questions on the board. Null while it can't be replaced.
+    const importTarget = () => {
+        const session = activeSessionData.get();
+        if (!session || !questionDecisionsPossible.get()) return null;
+        return JSON.stringify([
+            session.id,
+            session.gameRevisionId,
+            ...questions.get().map((q) => q.key),
+        ]);
+    };
+    const readQuestionsFile = async (file: File) => {
+        const session = activeSessionData.get();
+        const compiled = compiledGameAtom.get();
+        const replaces = importTarget();
+        if (!session || !compiled || replaces === null) {
+            toast.error("The game has not loaded yet");
+            return;
+        }
+        // Keeping a held version would put it onto the imported list, and
+        // only what was saved is in the History to restore.
+        if (questionConflicts.get().length > 0) {
+            toast.error("Decide the questions that need a decision first");
+            return;
+        }
+        if (hasPendingQuestionSave(session.id)) {
+            toast.error(
+                "Your last changes aren't saved yet: try again once they are",
+            );
+            return;
+        }
+        const result = parseQuestionsFile(
+            await file.text().catch(() => ""),
+            compiled,
+            session.gameId,
+        );
+        if ("error" in result) toast.error(result.error);
+        else setImported({ ...result, replaces });
+    };
+    const importQuestions = () => {
+        if (!imported) return;
+        // The file was checked against the board as it was when picked, and
+        // the confirm said what it replaces.
+        const session = activeSessionData.get();
+        if (
+            imported.replaces !== importTarget() ||
+            questionConflicts.get().length > 0 ||
+            !session ||
+            hasPendingQuestionSave(session.id)
+        ) {
+            toast.error(
+                "The session changed meanwhile: nothing was imported",
+            );
+            return;
+        }
+        questions.set(imported.questions);
+        toast.success(`Imported ${plural(imported.questions.length)}`);
+    };
 
     return (
         <div className="flex flex-col items-end gap-2">
@@ -183,7 +288,7 @@ export const OptionDrawers = () => {
                                     </DrawerTitle>
                                 </DrawerHeader>
                                 <div className="overflow-y-scroll max-h-[40vh] flex flex-col items-center gap-4 max-w-[1000px] px-12">
-                                    <div className="flex flex-row max-[330px]:flex-col gap-4">
+                                    <div className="flex flex-row flex-wrap justify-center max-[330px]:flex-col gap-4">
                                         <Button
                                             variant="outline"
                                             onClick={() => {
@@ -203,34 +308,12 @@ export const OptionDrawers = () => {
                                                         def,
                                                     );
                                                 try {
-                                                    const blob = new Blob(
-                                                        [
-                                                            formatGameDefinitionJson(
-                                                                def,
-                                                            ),
-                                                        ],
-                                                        {
-                                                            type: "application/json",
-                                                        },
+                                                    downloadJson(
+                                                        `${gameId}.game.json`,
+                                                        formatGameDefinitionJson(
+                                                            def,
+                                                        ),
                                                     );
-                                                    const url =
-                                                        URL.createObjectURL(
-                                                            blob,
-                                                        );
-                                                    const a =
-                                                        document.createElement(
-                                                            "a",
-                                                        );
-                                                    a.href = url;
-                                                    a.download = `${gameId}.game.json`;
-                                                    document.body.appendChild(
-                                                        a,
-                                                    );
-                                                    a.click();
-                                                    document.body.removeChild(
-                                                        a,
-                                                    );
-                                                    URL.revokeObjectURL(url);
                                                     toast.success(
                                                         `Exported ${def.name || gameId} JSON`,
                                                     );
@@ -244,6 +327,109 @@ export const OptionDrawers = () => {
                                         >
                                             Export Game JSON
                                         </Button>
+                                        <Button
+                                            variant="outline"
+                                            disabled={!$session}
+                                            onClick={() => {
+                                                if (!$session) return;
+                                                if (!questions.get().length) {
+                                                    toast.error(
+                                                        "This session has no questions to export",
+                                                    );
+                                                    return;
+                                                }
+                                                downloadJson(
+                                                    questionsFileName(
+                                                        $session.name,
+                                                    ),
+                                                    JSON.stringify(
+                                                        buildQuestionsFile(
+                                                            $session,
+                                                            questions.get(),
+                                                        ),
+                                                    ),
+                                                );
+                                                toast.success(
+                                                    `Exported ${plural(questions.get().length)}`,
+                                                );
+                                            }}
+                                        >
+                                            Export Questions
+                                        </Button>
+                                        {!$readOnly && (
+                                            <Button
+                                                variant="outline"
+                                                disabled={
+                                                    !$canEdit || !$compiledGame
+                                                }
+                                                onClick={() =>
+                                                    importInput.current?.click()
+                                                }
+                                            >
+                                                Import Questions
+                                            </Button>
+                                        )}
+                                        <input
+                                            ref={importInput}
+                                            type="file"
+                                            accept=".json,application/json"
+                                            hidden
+                                            onChange={(e) => {
+                                                const file =
+                                                    e.target.files?.[0];
+                                                e.target.value = "";
+                                                if (file)
+                                                    void readQuestionsFile(
+                                                        file,
+                                                    );
+                                            }}
+                                        />
+                                        {imported && (
+                                            <AlertDialog
+                                                open
+                                                onOpenChange={() =>
+                                                    setImported(null)
+                                                }
+                                            >
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>
+                                                            Import questions?
+                                                        </AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            {replaced > 0
+                                                                ? `Replace the ${plural(replaced)} in this session with ${plural(imported.questions.length)}`
+                                                                : `Add ${plural(imported.questions.length)}`}{" "}
+                                                            from{" "}
+                                                            {imported.sessionName
+                                                                ? `“${imported.sessionName}”`
+                                                                : "this file"}
+                                                            ?
+                                                            {replaced > 0 &&
+                                                                " The replaced ones can be restored from the History."}
+                                                            {imported.skipped >
+                                                                0 &&
+                                                                ` ${plural(imported.skipped)} in the file can't be used in this game and will be left out.`}
+                                                            {imported.otherGame !==
+                                                                null &&
+                                                                ` The file was exported from another game${imported.otherGame && ` (${imported.otherGame})`}.`}
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>
+                                                            Cancel
+                                                        </AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            onClick={
+                                                                importQuestions
+                                                            }
+                                                        >
+                                                            Import Questions
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        )}
                                     </div>
                                     <Separator className="bg-slate-300 w-[280px]" />
                                     <Label>Default Unit</Label>
