@@ -287,13 +287,18 @@ describe("questions file", () => {
         );
     });
 
-    it("leaves out drawn lines and places too many to work out", () => {
-        const measuring = {
+    it("takes only as many drawn corners and places as the map can work out", () => {
+        const custom = {
             questionMap: new Map([
                 ["measuring", { id: "measuring", family: "measuring" }],
                 ["matching", { id: "matching", family: "matching" }],
             ]),
         } as any;
+        const point = (i: number) => ({
+            type: "Feature",
+            properties: { name: `p${i}` },
+            geometry: { type: "Point", coordinates: [8 + i / 1e4, 47] },
+        });
         const line = (corners: number) => ({
             id: "measuring",
             data: {
@@ -324,24 +329,48 @@ describe("questions file", () => {
                 type: "custom-points",
                 lat: 47.37,
                 lng: 8.54,
-                geo: Array.from({ length: count }, (_, i) => ({
-                    type: "Feature",
-                    properties: { name: `p${i}` },
-                    geometry: { type: "Point", coordinates: [8 + i / 1e4, 47] },
-                })),
+                geo: Array.from({ length: count }, (_, i) => point(i)),
             },
         });
+        const tentacle = (count: number) => ({
+            id: "tentacles",
+            data: {
+                locationType: "custom",
+                lat: 47.37,
+                lng: 8.54,
+                radius: 15,
+                unit: "kilometers",
+                places: Array.from({ length: count }, (_, i) => point(i)),
+            },
+        });
+        const kept = (questions: unknown[]) => {
+            const result = parseQuestionsFile(
+                exported(questions),
+                custom,
+                "cgame1",
+            );
+            if ("error" in result) throw new Error(result.error);
+            return result.questions.length;
+        };
+
+        expect(kept([line(200)])).toBe(1);
+        expect(kept([line(201), line(2)])).toBe(1);
+        // Across the file, not per question: the third is one too many.
+        expect(kept([line(100), line(100), line(2)])).toBe(2);
+        // A smaller one after it still fits.
+        expect(kept([line(150), line(100), line(50)])).toBe(2);
+
+        expect(kept([points(300)])).toBe(1);
+        expect(kept([points(301), points(1)])).toBe(1);
+        // Custom points, tentacle places and lines to measure to share it.
+        expect(kept([points(150), tentacle(149), line(2), tentacle(1)])).toBe(
+            3,
+        );
+
         // Lines as one feature, not in a collection: the map ignores those.
         const bare = line(2);
         (bare.data as any).geo = bare.data.geo.features[0];
-        const result = parseQuestionsFile(
-            exported([line(500), line(501), points(1000), points(1001), bare]),
-            measuring,
-            "cgame1",
-        );
-        if ("error" in result) throw new Error(result.error);
-        expect(result.skipped).toBe(3);
-        expect(result.questions).toHaveLength(2);
+        expect(kept([bare, line(2)])).toBe(1);
     });
 
     it("counts the size in bytes, as the API does", () => {

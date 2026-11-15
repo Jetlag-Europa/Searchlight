@@ -422,7 +422,7 @@ export const OptionDrawers = () => {
                                                                 " Auto save is off: changes you haven't saved are replaced too, and those aren't in the History."}
                                                             {imported.skipped >
                                                                 0 &&
-                                                                ` ${plural(imported.skipped)} in the file can't be used in this game and will be left out.`}
+                                                                ` ${plural(imported.skipped)} in the file can't be used here and will be left out.`}
                                                             {imported.otherGame !==
                                                                 null &&
                                                                 ` The file was exported from another game${imported.otherGame && ` (${imported.otherGame})`}.`}

@@ -50,10 +50,13 @@ const bytes = (text: string) => new TextEncoder().encode(text).length;
 // buffer throw or never finish, which stops the map for every player.
 const MIN_RADIUS_KM = 0.001;
 const MAX_RADIUS_KM = 20_000;
-// Buffering drawn lines takes most of a minute at 500 corners, and never
-// ends at a few thousand; places are cheaper.
-const MAX_LINE_POSITIONS = 500;
-const MAX_PLACES = 1_000;
+// What one file may hold across all its questions, as the map works them
+// out one after another. Buffering drawn lines that span a continent takes
+// 4 s at 200 corners, half a minute at 500 and doesn't end at a few
+// thousand. 1,000 places spread over the world take 20 s to outline or to
+// measure to; 300 take a few.
+const MAX_LINE_POSITIONS = 200;
+const MAX_PLACES = 300;
 // Names from the file are shown in the confirm.
 const MAX_NAME_LENGTH = 80;
 
@@ -102,61 +105,67 @@ const lineLength = (features: unknown[]): number =>
         return type.endsWith("Point") ? n : n + positionCount(coordinates);
     }, 0);
 
+interface Cost {
+    /** Corners of drawn lines and outlines to measure to. */
+    corners: number;
+    /** Custom places and points. */
+    places: number;
+}
+
 /**
- * Whether a question's radius, places and drawn shapes are what the map and
- * cards expect. The schema takes anything for the shapes (z.any) and any
- * radius from 0 up, and a wrong one saved to the session would break the
- * board for every player.
+ * What a question's places and drawn shapes cost the map, or null if its
+ * radius or shapes aren't what the map and cards expect. The schema takes
+ * anything for the shapes (z.any) and any radius from 0 up, and a wrong one
+ * saved to the session would break the board for every player.
  */
-function shapesOk({ id, data }: Question): boolean {
+function shapeCost({ id, data }: Question): Cost | null {
     const { type, geo, location, places, radius, unit } = data as Record<
         string,
         unknown
     >;
     if (typeof radius === "number") {
         const km = turf.convertLength(radius, unit as turf.Units, "kilometers");
-        if (!(km >= MIN_RADIUS_KM && km <= MAX_RADIUS_KM)) return false;
+        if (!(km >= MIN_RADIUS_KM && km <= MAX_RADIUS_KM)) return null;
     }
+    const points = (list: unknown[]): Cost | null =>
+        list.every((place) => featureOk(place, ["Point"]))
+            ? { corners: 0, places: list.length }
+            : null;
     if (id === "tentacles") {
-        const list = (places as unknown[] | undefined) ?? [];
-        return (
-            (!location || featureOk(location, ["Point"])) &&
-            list.length <= MAX_PLACES &&
-            list.every((place) => featureOk(place, ["Point"]))
-        );
+        return !location || featureOk(location, ["Point"])
+            ? points((places as unknown[] | undefined) ?? [])
+            : null;
     }
-    if (geo == null) return true;
+    if (geo == null) return { corners: 0, places: 0 };
     // Custom points are a list of features, drawn lines a collection, and a
     // zone a feature or a collection.
-    if (type === "custom-points") {
-        return (
-            Array.isArray(geo) &&
-            geo.length <= MAX_PLACES &&
-            geo.every((p) => featureOk(p, ["Point"]))
-        );
-    }
+    if (type === "custom-points")
+        return Array.isArray(geo) ? points(geo) : null;
     const collection = isRecord(geo) && geo.type === "FeatureCollection";
-    if (type === "custom-measure" && !collection) return false;
-    if (type === "custom-zone" && Array.isArray(geo)) return false;
+    if (type === "custom-measure" && !collection) return null;
+    if (type === "custom-zone" && Array.isArray(geo)) return null;
     const features = Array.isArray(geo)
         ? geo
         : collection
           ? (geo as { features: unknown }).features
           : [geo];
-    return (
-        Array.isArray(features) &&
-        features.every((feature) =>
+    if (
+        !Array.isArray(features) ||
+        !features.every((feature) =>
             featureOk(
                 feature,
                 type === "custom-zone"
                     ? ["Polygon", "MultiPolygon"]
                     : undefined,
             ),
-        ) &&
-        (type !== "custom-measure" ||
-            (features.length <= MAX_PLACES &&
-                lineLength(features) <= MAX_LINE_POSITIONS))
-    );
+        )
+    ) {
+        return null;
+    }
+    // Only what is measured to is buffered: a zone's outline is cheap.
+    return type === "custom-measure"
+        ? { corners: lineLength(features), places: features.length }
+        : { corners: 0, places: 0 };
 }
 
 const name = (value: unknown): string =>
@@ -164,7 +173,10 @@ const name = (value: unknown): string =>
 
 export interface ImportedQuestions {
     questions: Questions;
-    /** Questions in the file that are broken or not part of this game. */
+    /**
+     * Questions in the file that are broken, not part of this game, or more
+     * than the map can work out.
+     */
     skipped: number;
     sessionName: string;
     /** The name of the game it was exported from, if not this session's. */
@@ -202,15 +214,23 @@ export function parseQuestionsFile(
     ) {
         return { error: "That isn't a Searchlight questions file" };
     }
+    let corners = 0;
+    let places = 0;
     const questions = file.questions.flatMap((question) => {
         const parsed = questionSchema.safeParse(question);
+        if (!parsed.success || !isQuestionSupported(parsed.data, compiled)) {
+            return [];
+        }
+        const cost = shapeCost(parsed.data);
         if (
-            !parsed.success ||
-            !isQuestionSupported(parsed.data, compiled) ||
-            !shapesOk(parsed.data)
+            !cost ||
+            corners + cost.corners > MAX_LINE_POSITIONS ||
+            places + cost.places > MAX_PLACES
         ) {
             return [];
         }
+        corners += cost.corners;
+        places += cost.places;
         delete parsed.data.data.restoredFrom;
         return [{ ...parsed.data, key: newQuestionKey() }];
     });
