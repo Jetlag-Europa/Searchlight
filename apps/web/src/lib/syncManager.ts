@@ -15,9 +15,11 @@ import {
     questions,
     syncStatus,
 } from "@/lib/context";
+import { zonesDeltaOf } from "@/lib/disabledZones";
 import {
     advanceBoardBase,
     baseQuestions,
+    cacheDisabledZones,
     discardEvent,
     type EventType,
     getCachedSession,
@@ -164,6 +166,27 @@ type RejectionListener = (
     kind: Exclude<SendFailure, "retry">,
 ) => void;
 const rejectionListeners = new Set<RejectionListener>();
+/** The session's disabled zones as of `sequence`: a save's reply. */
+export interface ZonesSaved {
+    ids: string[];
+    sequence: number;
+}
+
+type SyncListener = (event: PendingEvent, zones?: ZonesSaved) => void;
+const syncListeners = new Set<SyncListener>();
+
+/**
+ * Hear about edits the server acknowledged while they were still queued
+ * (not those whose SSE echo already took them out of the queue), and about
+ * every disabled-zones change answered with the list the server then had
+ * (`zones`; an API from before sends none).
+ */
+export function onEventSynced(listener: SyncListener): () => void {
+    syncListeners.add(listener);
+    return () => {
+        syncListeners.delete(listener);
+    };
+}
 
 /**
  * Hear about edits the server refused for good. A rejected edit has already
@@ -479,7 +502,7 @@ async function sendEvent(
     event: PendingEvent,
     keepalive: boolean,
     requestSignal: () => AbortSignal,
-): Promise<QuestionsSaved | undefined> {
+): Promise<{ questions?: QuestionsSaved; zones?: ZonesSaved }> {
     const { sessionId } = event;
 
     if (event.type === "stroke.create") {
@@ -504,7 +527,7 @@ async function sendEvent(
         });
         await assertStrokeDeleted(res);
     } else if (event.type === "questions.replace") {
-        return sendQuestions(event, keepalive, requestSignal);
+        return { questions: await sendQuestions(event, keepalive, requestSignal) };
     } else if (event.type === "hider.update" || event.type === "planning.toggle") {
         const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
             method: "PATCH",
@@ -515,7 +538,47 @@ async function sendEvent(
             signal: requestSignal(),
         });
         if (!res.ok) throw await SyncRequestError.from(event.type, res);
+    } else if (event.type === "zones.disabled") {
+        // A delta (Disable All on a big game) can be large, like questions.
+        // The event's clientUuid lets the server ignore a resend.
+        const body = JSON.stringify({
+            ...zonesDeltaOf(event.payloadJson),
+            zonesClientUuid: event.clientUuid,
+        });
+        const signal = requestSignal();
+        const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+            method: "PATCH",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body,
+            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+            signal,
+        });
+        if (!res.ok) throw await SyncRequestError.from("zones.disabled", res);
+        // The session as saved: its whole list and the sequence that is as
+        // of, also when the server recognised a resend or nothing changed.
+        // A reply that can't be read (cut off, not the API's) fails the
+        // send: the change stays queued and is sent again, as a resend. Only
+        // a reply read in full and without a list is an API from before.
+        const data = (await res.json()) as
+            | { disabledZoneIds?: unknown; disabledZonesSequence?: unknown }
+            | undefined;
+        if (signal.aborted) throw signal.reason;
+        if (
+            Array.isArray(data?.disabledZoneIds) &&
+            typeof data.disabledZonesSequence === "number"
+        ) {
+            return {
+                zones: {
+                    ids: data.disabledZoneIds.filter(
+                        (id): id is string => typeof id === "string",
+                    ),
+                    sequence: data.disabledZonesSequence,
+                },
+            };
+        }
     }
+    return {};
 }
 
 // Live saves and reconnect/unload replay share one dispatcher. A second caller
@@ -699,7 +762,11 @@ async function dispatchQueuedEvent(
     };
     try {
         assertMaySend();
-        const savedQuestions = await sendEvent(event, keepalive, requestSignal);
+        const { questions: savedQuestions, zones: savedZones } = await sendEvent(
+            event,
+            keepalive,
+            requestSignal,
+        );
         // Its SSE echo can arrive first, and later replaces may already be
         // cached on top of it: only a still-queued replace updates the cache.
         const stillQueued = getPendingEvents(sessionId).some(
@@ -728,7 +795,16 @@ async function dispatchQueuedEvent(
                 lastSequence: cached?.lastSequence ?? 0,
             });
         }
+        // Kept before the change leaves the queue: saved, it must still show
+        // on a board opened from the copy kept here before the stream brings
+        // it (a reload offline, a session left meanwhile).
+        if (savedZones) {
+            cacheDisabledZones(sessionId, savedZones.ids, savedZones.sequence);
+        }
         markEventSynced(sessionId, event.localId);
+        if (stillQueued || savedZones) {
+            for (const listener of syncListeners) listener(event, savedZones);
+        }
         if (savedQuestions) notifyQuestionsSaved(savedQuestions);
     } catch (err) {
         if (!recordSendFailure(event, err)) syncStatus.set("offline");

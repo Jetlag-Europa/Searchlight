@@ -10,7 +10,7 @@ import {
     offlineUserId,
     verifiedUserId,
 } from "@/lib/activeSession";
-import { forgetDisabledZones } from "@/lib/disabledZones";
+import { forgetLegacyDisabledZones } from "@/lib/disabledZones";
 import {
     findQuestionByKey,
     placeVersion,
@@ -26,8 +26,11 @@ export type EventType =
     | "stroke.delete"
     | "questions.replace"
     | "hider.update"
-    | "planning.toggle";
+    | "planning.toggle"
+    | "zones.disabled";
 
+// zones.disabled events are deltas (see disabledZones), so unlike the
+// snapshots below each one must be sent, in order.
 export function isReplacementEventType(type: EventType): boolean {
     return (
         type === "questions.replace" ||
@@ -193,6 +196,12 @@ export interface CachedSessionState {
     strokes: StrokeFeature[];
     // What the board showed, edits not yet synced included.
     questions: Questions;
+    // The server's disabled zones, without this device's unsaved changes.
+    disabledZoneIds?: string[];
+    // The event sequence that list is as of, where the API told (see
+    // setDisabledZonesBase). It can be ahead of lastSequence: a save's reply
+    // brought the list before the stream got there.
+    disabledZonesSequence?: number;
     // The server's list the board's questions were made from (its "board
     // base"): the base of the next list queued. Moves on only when the board
     // does: a load, another player's list shown, a save of ours answered, or
@@ -553,6 +562,15 @@ export function getCachedSession(sessionId: string): CachedSessionState | null {
                 ? parsed.strokes.filter(isStrokeLike)
                 : [],
             questions: Array.isArray(parsed.questions) ? parsed.questions : [],
+            disabledZoneIds: Array.isArray(parsed.disabledZoneIds)
+                ? parsed.disabledZoneIds.filter(
+                      (id): id is string => typeof id === "string",
+                  )
+                : undefined,
+            disabledZonesSequence:
+                typeof parsed.disabledZonesSequence === "number"
+                    ? parsed.disabledZonesSequence
+                    : undefined,
             lastSyncedAt:
                 typeof parsed.lastSyncedAt === "number"
                     ? parsed.lastSyncedAt
@@ -580,6 +598,24 @@ export function setCachedSession(state: CachedSessionState): void {
             // Ignore if still failing
         }
     }
+}
+
+/**
+ * Keep the server's disabled zones as of `sequence` with the copy kept of a
+ * session, unless that copy has a later list already.
+ */
+export function cacheDisabledZones(
+    sessionId: string,
+    ids: string[],
+    sequence: number,
+): void {
+    const cached = getCachedSession(sessionId);
+    if (!cached || (cached.disabledZonesSequence ?? -1) > sequence) return;
+    setCachedSession({
+        ...cached,
+        disabledZoneIds: ids,
+        disabledZonesSequence: sequence,
+    });
 }
 
 // The same server list (whatever was decided on top of it since).
@@ -812,7 +848,7 @@ export function discardPendingEvents(sessionId: string): void {
 
 // For a session that can never sync again (deleted, or this user removed):
 // unlike cache eviction, also drop its queue, which would otherwise pin the
-// snapshot in storage forever, and its disabled zones. A deleted session
+// snapshot in storage forever, and its legacy disabled zones. A deleted session
 // takes every account's queue with it (`allAccounts`); one this account
 // lost access to only takes this account's and the unowned one, since
 // another account may still have access. Questions held for a decision go
@@ -821,7 +857,7 @@ export function discardSessionData(
     sessionId: string,
     { allAccounts = false }: { allAccounts?: boolean } = {},
 ): void {
-    forgetDisabledZones(sessionId);
+    forgetLegacyDisabledZones(sessionId);
     try {
         if (allAccounts) {
             const prefixes = [

@@ -61,6 +61,9 @@ app.addHook("onClose", async () => {
 await app.register(fastifyCors, {
   origin: env.FRONTEND_ORIGIN,
   credentials: true,
+  // Without this a browser re-asks permission (OPTIONS) before a write to the
+  // same URL after 5 s. Browsers cap it: Firefox 24 h, Chromium 2 h, Safari 10 min.
+  maxAge: 86400,
 });
 
 await registerCompression(app);

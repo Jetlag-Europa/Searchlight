@@ -53,6 +53,10 @@ import {
     sidebarContextR,
 } from "@/lib/context";
 import { deletedSessionNotice } from "@/lib/deletedSessionNotice";
+import {
+    legacyDisabledZones,
+    onDisabledZonesEdit,
+} from "@/lib/disabledZones";
 import { isSameDoubleTap } from "@/lib/doubleTap";
 import {
     applyPendingModes,
@@ -91,6 +95,7 @@ import { fetchSessionDetails, probeSession } from "@/lib/sessionProbe";
 import {
     becomeSpectator,
     cacheSessionRole,
+    cancelPendingDisabledZonesSave,
     cancelPendingHiderSave,
     cancelPendingPlanningModeSave,
     cancelPendingQuestionSave,
@@ -99,9 +104,11 @@ import {
     flushSessionSaves,
     hasScheduledQuestionSave,
     loadSessionContent,
+    saveDisabledZonesDelta,
     saveHiderModeToServer,
     savePlanningModeToServer,
     saveQuestionsDebounced,
+    setDisabledZonesBase,
 } from "@/lib/sessionState";
 import {
     SessionUnavailableError,
@@ -198,6 +205,7 @@ function cancelPendingSaves(sessionId?: string): void {
     cancelPendingQuestionSave(sessionId);
     cancelPendingHiderSave(sessionId);
     cancelPendingPlanningModeSave(sessionId);
+    cancelPendingDisabledZonesSave(sessionId);
 }
 
 // A loaded mode its save effect has already checked: the next change is the
@@ -1228,6 +1236,31 @@ export function SessionManager() {
         savePlanningModeToServer(sessionId, currentPlanningMode);
     }, [sessionId, authUserId, currentPlanningMode]);
 
+    // Save the player's own disabled zone edits (see setDisabledStations).
+    // Zones shown from the server never come through here. Offline too, on a
+    // board painted from what was kept, like the other saves: they're queued
+    // for this account and sent once /me verifies it.
+    useEffect(
+        () =>
+            onDisabledZonesEdit((delta) => {
+                const id = activeSessionId.get();
+                if (!id || !authUserId || savesBlocked()) return;
+                if (isLoadingSession()) {
+                    console.info(
+                        "[searchlight:session] disabled zones save skipped — session is loading",
+                    );
+                    return;
+                }
+                console.info("[searchlight:session] queuing disabled zones save", {
+                    sessionId: id,
+                    disable: delta.disableZoneIds.length,
+                    enable: delta.enableZoneIds.length,
+                });
+                saveDisabledZonesDelta(id, delta);
+            }),
+        [authUserId],
+    );
+
     // Spectators never see the hider: no position is kept for them, whatever
     // set it. The hider save effect skips the change, as it is read-only.
     // While a session loads, the role is still the outgoing session's.
@@ -1237,7 +1270,8 @@ export function SessionManager() {
         hiderMode.set(false);
     }, [readOnly, currentHiderMode]);
 
-    // Flush pending question, hider & planning saves when the page may close.
+    // Flush pending question, hider, planning & disabled zone saves when the
+    // page may close.
     useEffect(() => flushSavesOnPageExit(), []);
 
     // Another tab took the session over (see editSessionHere): nothing more
@@ -1358,6 +1392,17 @@ export function SessionManager() {
         strokes.set(derived.strokes);
         // The game hasn't loaded: show only what it may support.
         questions.set(filterSupportedQuestions(derived.questions, null));
+        // The server's zones as last heard, with this account's unsynced
+        // changes on top. A snapshot from before zones synced has none:
+        // this device's own then, until a load adds them to the session
+        // (see adoptLegacyDisabledZones).
+        setDisabledZonesBase(
+            id,
+            kept.disabledZoneIds ??
+                kept.session?.disabledZoneIds ??
+                legacyDisabledZones(id),
+            kept.disabledZoneIds && kept.disabledZonesSequence,
+        );
         boardPaintedFromSnapshot(id);
         return true;
     };
@@ -1635,10 +1680,27 @@ export function SessionManager() {
                 setActiveGameDefinition(null);
             }
 
+            // The zones the server sent with the session, over the kept
+            // copy's unless that has a later list (the picker's entry can be
+            // from before an event shown here). Never the outgoing
+            // session's, even offline.
+            const showSelectedZones = (painted: boolean) => {
+                if (selected.disabledZoneIds) {
+                    setDisabledZonesBase(
+                        selected.id,
+                        selected.disabledZoneIds,
+                        selected.disabledZonesSequence,
+                    );
+                } else if (!painted) {
+                    setDisabledZonesBase(selected.id, []);
+                }
+            };
+
             // The copy kept here shows under the loading overlay until the
             // server's state replaces it. Without one, clear the atoms so the
             // outgoing session's content is never published.
-            if (paintKeptCopy(selected.id)) {
+            const painted = paintKeptCopy(selected.id);
+            if (painted) {
                 console.info(
                     "[searchlight:session] painted from cache, loading server state",
                 );
@@ -1648,6 +1710,7 @@ export function SessionManager() {
                 strokes.set([]);
                 questions.set([]);
             }
+            showSelectedZones(painted);
             setLoading(true);
 
             let sessionToActivate = selected;
@@ -1752,6 +1815,13 @@ export function SessionManager() {
                     });
                 }
                 showSessionModes(refreshedSession);
+                // Not over a later list: a save of ours answered since the
+                // session was read.
+                setDisabledZonesBase(
+                    selected.id,
+                    refreshedSession.disabledZoneIds ?? [],
+                    refreshedSession.disabledZonesSequence,
+                );
                 startSSE(selected.id, (status) =>
                     forgetSession(selected.id, status),
                 );
@@ -1772,7 +1842,11 @@ export function SessionManager() {
                     "[searchlight:session] failed to load session content:",
                     e,
                 );
+                // The copy kept here has the zones as last heard, a change
+                // the flush above just saved included: `selected` was read
+                // before, and is only shown when nothing was kept.
                 const restoredFromCache = paintKeptCopy(selected.id);
+                if (!restoredFromCache) showSelectedZones(false);
                 if (restoredFromCache) {
                     // The session is authorized, so its game may still come
                     // from the copy kept here: waited for while the load has

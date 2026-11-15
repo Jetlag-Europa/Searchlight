@@ -208,11 +208,24 @@ export interface GameSessionSummary {
   hiderLat: number | null;
   hiderLng: number | null;
   planningModeEnabled: boolean;
+  // Zones (stations) a player disabled by hand in the zone sidebar.
+  disabledZoneIds: string[];
+  // The session's event sequence that list is as of: read together, so the
+  // app can tell which of two lists (a load's, a save's reply, an event's)
+  // is the newer. An API from before sends none.
+  disabledZonesSequence?: number;
   gameRevisionId: string;
   sessionRevision?: number | null;
   currentRevision?: number | null;
   hasNewerRevision?: boolean;
 }
+
+// Limits on the zone IDs one PATCH /sessions/:id may disable or enable, and
+// on the session's disabled list. Game imports don't limit zone IDs (a zone
+// without one takes its name), hence the generous length; the biggest bundled
+// games have under 500 zones, with IDs under 60 characters.
+export const MAX_ZONE_ID_LENGTH = 1000;
+export const MAX_DISABLED_ZONES = 5000;
 
 export interface SessionsResponse {
   sessions: GameSessionSummary[];
@@ -261,6 +274,12 @@ export interface HiderUpdateEvent {
 export interface PlanningToggleEvent {
   type: "planning.toggle";
   payloadJson: { planningModeEnabled: boolean };
+}
+
+// Sent whenever the session's disabled zones change, with the whole list.
+export interface ZonesDisabledEvent {
+  type: "zones.disabled";
+  payloadJson: { disabledZoneIds: string[] };
 }
 
 export interface SessionRevisionUpgradedEvent {

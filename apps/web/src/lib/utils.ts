@@ -35,3 +35,14 @@ export function formatDistance(
     }
     return `${(rounded / 1000).toFixed(3)} km`;
 }
+
+/** The first item for each key, in order. */
+export function uniqBy<T>(items: T[], key: (item: T) => unknown): T[] {
+    const seen = new Set<unknown>();
+    return items.filter((item) => {
+        const k = key(item);
+        if (seen.has(k)) return false;
+        seen.add(k);
+        return true;
+    });
+}

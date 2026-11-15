@@ -266,7 +266,7 @@ Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a regio
   - If a layer is over, and its vertices lie closer than about 50 m (borders traced point by point, as from OSM), simplify it with a topology-preserving simplifier at about 10 m tolerance. Simplifying each feature on its own opens gaps and overlaps between neighbours. Where vertices are already far apart, simplifying removes little; the checker then only notes the layer.
   - Round coordinates to 6 decimal places (about 0.1 m). Use fixed decimals, not 6 *significant* digits, which leaves about 11 m steps.
   - Keep only `name` in properties (plus `tier`/`radius` on zones).
-  - Preloaded games range from about 0.3 MB to 7 MB, and the import limit is 50 MB. The checker sizes the file as compact JSON and warns over 10 MB, fails over 50 MB.
+  - Preloaded games range from about 0.1 MB to 2 MB, and the import limit is 50 MB. The checker sizes the file as compact JSON and warns over 10 MB, fails over 50 MB.
 - Every feature should have `properties.name`, because players see it in answers and tentacle lists.
 
 ### 5.3 Standard rulebook layers

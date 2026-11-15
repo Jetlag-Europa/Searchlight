@@ -9,6 +9,13 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Options has **Export Questions**, which downloads the open session's questions as a file, and **Import Questions**, which replaces the session's questions with those from such a file, after asking. Questions the session's game doesn't have are left out, and the questions replaced can be restored from the History. Spectators can export, not import.
 - Import waits until your last changes are saved and any question that needs a decision is decided, so nothing is replaced that the History couldn't bring back.
 
+## Disabled zones sync with the session (2026-11-14)
+
+- Hiding zones disabled by hand in the zone sidebar are now saved with the session, so everyone in it sees them right away, and they're there when you open the session on another device. Before, they stayed on the device that disabled them. Players disabling or enabling different zones at the same time keep each other's changes. Zones disabled or enabled while the connection is down are sent once it's back, like other changes.
+- Zones a device disabled before this update are added to the session the next time it opens there, on top of any the session already has.
+- Spectators see the session's disabled zones and can't change them. Before, a spectator could disable zones on their own device.
+- **Upgrading:** with the web app on Cloudflare (see `DEPLOY.md`), update the API first: an older API ignores the new app's disabled-zone changes, so they don't reach other players and are gone after a reload. A device's old disabled zones wait until the API is updated.
+
 ## Pins for custom points show again (2026-11-04)
 
 - The points you place for a custom tentacle, matching or measuring question show their blue pin again, instead of a broken image.
