@@ -56,8 +56,12 @@ import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
 import { zoneScaleAfter } from "@/lib/zoneSize";
-import { computePerQuestionRegions, determinePlanningPolygon } from "@/maps";
-import { hiderifyQuestion } from "@/maps";
+import {
+    computePerQuestionRegions,
+    determinePlanningPolygon,
+    hiderifyQuestion,
+    intersectRegions,
+} from "@/maps";
 import { BLANK_GEOJSON } from "@/maps/api";
 import {
     requestGeometry,
@@ -447,27 +451,12 @@ export const Map = ({ className }: { className?: string }) => {
 
             // Standalone regions already include the base boundary. Reuse them
             // rather than evaluating every question a second time for the map.
-            if (perQuestionRegions.length) {
-                mapGeoData = perQuestionRegions[0].region;
-                for (
-                    let index = 1;
-                    index < perQuestionRegions.length;
-                    index++
-                ) {
-                    const { region } = perQuestionRegions[index];
-                    const intersection = await requestGeometry({
-                        kind: "clip",
-                        mapData: mapGeoData!,
-                        modifications: region,
-                        within: true,
-                    });
-                    if (!isCurrent()) return;
-                    mapGeoData = turf.featureCollection(
-                        intersection ? [intersection] : [],
-                    );
-                }
-            }
+            const intersected = await intersectRegions(
+                perQuestionRegions,
+                isCurrent,
+            );
             if (!isCurrent()) return;
+            if (intersected) mapGeoData = intersected;
 
             // Mask the remaining area off the main thread (same result as
             // holedMask) and keep the unmasked area for auto-zoom.

@@ -594,6 +594,7 @@ describe("active session restoration", () => {
         hiderLat: null,
         hiderLng: null,
         planningModeEnabled: false,
+        disabledZoneIds: [],
         gameRevisionId: "test-revision",
     };
 
@@ -758,6 +759,7 @@ describe("a snapshot's session details", () => {
         hiderLat: 47.37,
         hiderLng: 8.54,
         planningModeEnabled: false,
+        disabledZoneIds: [],
         gameRevisionId: "rev",
     };
     const snapshot = {

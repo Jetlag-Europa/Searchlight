@@ -4,13 +4,19 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
-## Game ids per server, and Replace with file… (2026-11-13)
+## Game ids per server, and Replace with file… (2026-11-15)
 
 - A game file's `id` now only has to be unique on its server, and on Casual Games among each creator's own games. Importing a file updates the game with that `id` on the server it is imported to. The same `id` on another server, or in another player's Casual games, is a different game, so those imports are no longer refused. When you import a file to a server other than the one it names, the import page says that this adds a new game there.
 - Each game on `/games` that you may update has **Replace with file…**. It opens the import page for that game, and the file replaces it whatever its `id` and server, with the same preview, "may be a different game" check and protection against changes made since the preview. The game keeps its own ID. Global admins use it to update another player's Casual game: importing the file themselves now makes a Casual game of their own.
 - The API addresses games by their internal id only: the `/games/<id>/…` routes no longer accept the file's `id`, so use the `gameId` an import returns. For now `GET /games/<id>/export` still accepts a file's `id` that names one game, so **Export JSON** keeps working in apps that haven't reloaded yet.
 - Exter Rotterdam 26 is no longer bundled with Searchlight. It stays as it is, its owner's like any uploaded Casual game. Casual games can't be preloaded.
 - **Upgrading:** migration `20261113120000_game_ids_per_server` replaces the unique index on `Game.gameKey` with one on server, owner and id. Back up the database before updating (`infra/backup.sh`). Going back to an older version is safe only while no two games share an id: see "Roll back" in DEPLOY.md.
+## Disabled zones sync with the session (2026-11-14)
+
+- Hiding zones disabled by hand in the zone sidebar are now saved with the session, so everyone in it sees them right away, and they're there when you open the session on another device. Before, they stayed on the device that disabled them. Players disabling or enabling different zones at the same time keep each other's changes. Zones disabled or enabled while the connection is down are sent once it's back, like other changes.
+- Zones a device disabled before this update are added to the session the next time it opens there, on top of any the session already has.
+- Spectators see the session's disabled zones and can't change them. Before, a spectator could disable zones on their own device.
+- **Upgrading:** with the web app on Cloudflare (see `DEPLOY.md`), update the API first: an older API ignores the new app's disabled-zone changes, so they don't reach other players and are gone after a reload. A device's old disabled zones wait until the API is updated.
 
 ## Pins for custom points show again (2026-11-04)
 

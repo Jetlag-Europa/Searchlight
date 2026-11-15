@@ -23,13 +23,10 @@ function tentacleVoronoiBbox(
     points: FeatureCollection<Point>,
     question: TentacleQuestion,
 ): BBox {
-    const circle = turf.buffer(turf.point([question.lng, question.lat]), question.radius * 1.15, {
+    const circle = turf.circle(turf.point([question.lng, question.lat]), question.radius * 1.15, {
         units: question.unit,
     });
-    const fc = turf.featureCollection([
-        ...points.features,
-        ...(circle ? [circle] : []),
-    ] as never);
+    const fc = turf.featureCollection([...points.features, circle] as never);
     const [a, b, c, d] = turf.bbox(fc);
     const px = (c - a) * 0.1 || 0.1;
     const py = (d - b) * 0.1 || 0.1;

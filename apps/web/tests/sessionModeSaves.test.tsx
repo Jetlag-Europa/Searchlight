@@ -250,15 +250,18 @@ import {
     verifiedUserId,
 } from "@/lib/activeSession";
 import {
+    disabledStations,
     gameDefinitionReady,
     hiderMode,
     planningModeEnabled,
     questions,
 } from "@/lib/context";
+import { toggleDisabledZone } from "@/lib/disabledZones";
 import {
     conflictsKey,
     enqueueEvent,
     getCachedSession,
+    getPendingEvents,
     setCachedSession,
 } from "@/lib/eventQueue";
 import { fetchGameCatalog, switchToGame } from "@/lib/games";
@@ -302,6 +305,7 @@ const session = (
     hiderLat: null,
     hiderLng: null,
     planningModeEnabled: false,
+    disabledZoneIds: [],
     gameRevisionId: "rev-1",
     ...overrides,
 });
@@ -485,6 +489,11 @@ beforeEach(() => {
     env.FakeEventSource.last = null;
     vi.stubGlobal("fetch", fetchMock);
     vi.mocked(flushPendingEvents).mockImplementation(async () => {});
+    // A test may leave the game loading for good.
+    vi.mocked(switchToGame).mockImplementation(async () => {
+        gameDefinitionReady.set(true);
+        return true;
+    });
     vi.mocked(loadSessionContent).mockImplementation(async (id) => ({
         strokes: [],
         questions: [],
@@ -1917,4 +1926,137 @@ describe("a list of ours answered while the session loads", () => {
             expect(saved.map((x) => x.payloadJson.key)).toEqual([1, 2]);
         });
     }
+});
+
+describe("the disabled zones a session load shows", () => {
+    // The server applies each change it is sent and answers with the session
+    // as saved, unless `answer` holds the reply back.
+    let answer: Promise<void> | undefined;
+    const sendsForReal = async () => {
+        const sync =
+            await vi.importActual<typeof import("@/lib/syncManager")>(
+                "@/lib/syncManager",
+            );
+        vi.mocked(flushPendingEvents).mockImplementation(
+            sync.flushPendingEvents,
+        );
+        fetchMock.mockImplementation(async (input, init) => {
+            const id = new URL(String(input)).pathname.match(
+                /^\/sessions\/([^/]+)$/,
+            )?.[1];
+            if (!id || init?.method !== "PATCH") return defaultFetch(input, init);
+            const body = JSON.parse(init.body as string);
+            const zones = new Set(server[id].disabledZoneIds);
+            for (const zone of body.disableZoneIds ?? []) zones.add(zone);
+            for (const zone of body.enableZoneIds ?? []) zones.delete(zone);
+            server[id] = {
+                ...server[id],
+                disabledZoneIds: [...zones],
+                disabledZonesSequence:
+                    (server[id].disabledZonesSequence ?? 0) + 1,
+            };
+            const saved = json(server[id]);
+            await answer;
+            return saved;
+        });
+    };
+    // A zone this account disabled, not sent yet.
+    const queueZone = (sessionId: string, zone: string) => {
+        verifiedUserId.set(USER);
+        enqueueEvent({
+            sessionId,
+            type: "zones.disabled",
+            clientUuid: `zones-disabled-${zone}`,
+            clientCreatedAt: 0,
+            payloadJson: { disableZoneIds: [zone], enableZoneIds: [] },
+        });
+    };
+
+    beforeEach(() => {
+        answer = undefined;
+    });
+
+    afterEach(() => disabledStations.set([]));
+
+    it("has a change the load just saved, when its content then fails to load", async () => {
+        await sendsForReal();
+        server = { a: session("a", { disabledZonesSequence: 0 }) };
+        keep(server.a);
+        queueZone("a", "z");
+        vi.mocked(loadSessionContent).mockRejectedValue(new Error("503"));
+
+        await reload("a");
+
+        // Saved, so no longer queued, and no stream is open to bring it.
+        expect(getPendingEvents("a")).toEqual([]);
+        expect(server.a.disabledZoneIds).toEqual(["z"]);
+        expect(disabledStations.get()).toEqual(["z"]);
+    });
+
+    it("has a saved change after a reload without the server, before its echo", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        await sendsForReal();
+        server = { a: session("a", { disabledZonesSequence: 0 }) };
+        keep(server.a);
+        await reload("a");
+        // Disabled on the live board, and saved.
+        await play(() => toggleDisabledZone("z"));
+        await wait(300);
+        expect(server.a.disabledZoneIds).toEqual(["z"]);
+        expect(getPendingEvents("a")).toEqual([]);
+
+        // Closed before the stream brought the change back, then opened
+        // again offline.
+        await act(async () => root?.unmount());
+        clearActiveSession();
+        verifiedUserId.set(null);
+        expect(disabledStations.get()).toEqual([]);
+        await reload("a", { offline: true });
+
+        expect(disabledStations.get()).toEqual(["z"]);
+    });
+
+    it("follow another player's change after a save answered once the load had it", async () => {
+        vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+        await sendsForReal();
+        const reply = Promise.withResolvers<void>();
+        answer = reply.promise;
+        // The server has our change as event 1, and the stream starts
+        // after it; the reply to its save is still on its way.
+        server = { a: session("a") };
+        keep(server.a);
+        setCachedSession({ ...getCachedSession("a")!, lastSequence: 1 });
+        queueZone("a", "z");
+
+        await reload("a");
+        // The load waits for the save only so long, then reads the session.
+        await wait(FLUSH_WAIT_MS + 1);
+        expect(env.FakeEventSource.last).not.toBeNull();
+        expect(disabledStations.get()).toEqual(["z"]);
+        await act(async () => reply.resolve());
+        await settle();
+        expect(getPendingEvents("a")).toEqual([]);
+        expect(disabledStations.get()).toEqual(["z"]);
+
+        // Another player enables it again, as event 2.
+        sequence = 1;
+        await serverSends("a", "zones.disabled", { disabledZoneIds: [] });
+        expect(disabledStations.get()).toEqual([]);
+    });
+
+    it("are the ones kept, not an older picker entry's, when the load fails", async () => {
+        server = { a: session("a") };
+        keep(server.a);
+        await reload("a");
+        // The picker lists the session, then another player disables a zone.
+        await click((text) => text === "change");
+        await serverSends("a", "zones.disabled", { disabledZoneIds: ["z"] });
+        expect(getCachedSession("a")?.disabledZoneIds).toEqual(["z"]);
+
+        // Picked from that list as the connection drops.
+        vi.mocked(loadSessionContent).mockRejectedValue(new Error("offline"));
+        await click((text) => text.includes("Session a"));
+
+        expect(disabledStations.get()).toEqual(["z"]);
+    });
 });

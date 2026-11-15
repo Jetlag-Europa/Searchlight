@@ -43,6 +43,8 @@ import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
+    applyDisabledZonesEvent,
+    getDisabledZonesBase,
     hasPendingHiderSave,
     hasPendingPlanningModeSave,
     hasScheduledQuestionSave,
@@ -92,10 +94,22 @@ function persistSessionCache(): void {
     if (!currentSessionId) return;
     const cached = getCachedSession(currentSessionId);
     if (!cached) return;
+    const zones = getDisabledZonesBase(currentSessionId);
+    // The copy can have a later list than this board: another tab's save was
+    // answered since. That one stays.
+    const keptZonesAreLater =
+        zones?.sequence !== undefined &&
+        cached.disabledZonesSequence !== undefined &&
+        cached.disabledZonesSequence > zones.sequence;
     setCachedSession({
         ...cached,
         strokes: strokes.get(),
         questions: questions.get(),
+        ...(zones &&
+            !keptZonesAreLater && {
+                disabledZoneIds: zones.ids,
+                disabledZonesSequence: zones.sequence,
+            }),
         lastSequence: lastAppliedSequence,
         lastSyncedAt: Date.now(),
     });
@@ -421,6 +435,26 @@ function handleServerEvent(
         console.info("[searchlight:sse] applying planning.toggle", enabled);
         suppressPlanningModeSave(enabled);
         planningModeEnabled.set(enabled);
+    } else if (event.type === "zones.disabled") {
+        // The whole list after the change: the board shows it with this
+        // device's unsaved deltas on top, so applying it never saves anything
+        // and never hides an edit of ours still on its way. Our own change's
+        // echo also takes it out of the queue, as for questions.replace.
+        const { disabledZoneIds } = event.payloadJson as {
+            disabledZoneIds: unknown;
+        };
+        if (!Array.isArray(disabledZoneIds)) return;
+        const ids = disabledZoneIds.filter(
+            (id): id is string => typeof id === "string",
+        );
+        console.info(
+            "[searchlight:sse] applying zones.disabled",
+            ids.length,
+            "zone(s)",
+        );
+        // Not over a later list: the reply to a save of ours can bring one
+        // before the stream gets there.
+        applyDisabledZonesEvent(targetSessionId, ids, event.clientUuid, eventSeq);
     } else if (event.type === "session.revision-upgraded") {
         console.info(
             "[searchlight:sse] session.revision-upgraded received",

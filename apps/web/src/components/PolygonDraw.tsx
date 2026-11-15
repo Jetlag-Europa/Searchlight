@@ -5,7 +5,6 @@ import * as turf from "@turf/turf";
 // The default import is Leaflet's own object, which leaflet-draw extends with
 // drawLocal. A namespace import is a copy made before leaflet-draw runs.
 import L from "leaflet";
-import _ from "lodash";
 import { useEffect, useRef, useState } from "react";
 import { FeatureGroup, Marker, Polygon, Polyline } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
@@ -18,6 +17,7 @@ import {
     questions,
     save,
 } from "@/lib/context";
+import { uniqBy } from "@/lib/utils";
 import { isZoneSizeChange } from "@/lib/zoneSize";
 import { lngLatToText } from "@/maps/geo-utils";
 import type {
@@ -239,7 +239,7 @@ export const PolygonDraw = () => {
             });
             const geoJSON = turf.featureCollection(geoJSONs);
 
-            question.data.places = _.uniqBy(
+            question.data.places = uniqBy(
                 geoJSON.features as CustomTentacleQuestion["places"],
                 (x) => x.geometry.coordinates.join(","),
             ); // Sometimes keys are duplicated
@@ -285,7 +285,7 @@ export const PolygonDraw = () => {
             );
             const geoJSON = turf.featureCollection(geoJSONs);
 
-            (question.data as CustomMatchingQuestion).geo = _.uniqBy(
+            (question.data as CustomMatchingQuestion).geo = uniqBy(
                 geoJSON.features as CustomTentacleQuestion["places"],
                 (x) => x.geometry.coordinates.join(","),
             ); // Sometimes keys are duplicated
@@ -310,7 +310,7 @@ export const PolygonDraw = () => {
             const geoJSON = turf.featureCollection(geoJSONs);
 
             (question.data as CustomMeasuringQuestion).geo = turf.featureCollection(
-                _.uniqBy(
+                uniqBy(
                     geoJSON.features as CustomTentacleQuestion["places"],
                     (x) => x.geometry.coordinates.join(","),
                 ),

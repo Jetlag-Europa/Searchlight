@@ -16,6 +16,7 @@ import {
     verifiedUserId,
 } from "@/lib/activeSession";
 import {
+    disabledStations,
     gameDefinitionReady,
     hiderMode,
     pendingEventCount,
@@ -23,12 +24,24 @@ import {
     questions,
 } from "@/lib/context";
 import {
+    applyZonesDelta,
+    diffZoneIds,
+    enableLegacyDisabledZones,
+    forgetLegacyDisabledZones,
+    isNoZonesChange,
+    legacyDisabledZones,
+    sameZoneIds,
+    type ZonesDelta,
+    zonesDeltaOf,
+} from "@/lib/disabledZones";
+import {
     type CachedSessionState,
     discardPendingEvents,
     enqueueEvent,
     getCachedSession,
     getPendingEvents,
     isSessionSummary,
+    markEventSynced,
     type PendingEvent,
     questionsBase,
     queuedQuestionsBase,
@@ -38,7 +51,10 @@ import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import { readError } from "@/lib/sessionUnavailable";
 import { sayStorageFull } from "@/lib/storageFull";
 import {
+    flushPendingEvents,
     latestSavedQuestionsSequence,
+    onEventRejected,
+    onEventSynced,
     refreshSyncCounts,
     sendPendingEvent,
 } from "@/lib/syncManager";
@@ -60,7 +76,8 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 function retryUnqueuedEdits(): boolean {
     const id = activeSessionId.get();
     const waiting = () =>
-        [questionSaves, hiderSaves, planningSaves].some((state) => state.pending.has(id));
+        [questionSaves, hiderSaves, planningSaves].some((state) => state.pending.has(id)) ||
+        scheduledZones.has(id);
     if (!id || !waiting()) return true;
     if (isSessionReadOnly(id)) return false;
     flushSessionSaves(id);
@@ -363,6 +380,326 @@ export function flushPlanningModeSave(
     });
 }
 
+// ── Disabled zones ───────────────────────────────────────────────────────────
+
+// The board shows the server's list (the base) with this device's changes
+// the base doesn't show yet applied on top, oldest first:
+// - queued: in the event queue, so they show after a reload too.
+// - scheduled: the edit waiting out the debounce.
+// The base follows the server: session loads, every zones.disabled event and
+// the reply to each save of ours all bring the whole list, with the event
+// sequence it is as of. The base only ever moves to a list that is not
+// older than its own (see isOlderThanBase), whichever way it came and in
+// whatever order: other players' edits show while ours are on their way, a
+// saved change of ours is in the base from its reply on, and its echo, or a
+// reply that comes after a load already had the change, changes nothing.
+// - acknowledged: only with an API from before, whose reply has no list.
+//   The saved change then stays on top until its echo or the next load.
+let zonesBase: { sessionId: string; ids: string[]; sequence?: number } | null =
+    null;
+// For zonesBase's session.
+let acknowledgedZones: Array<{ clientUuid: string; delta: ZonesDelta }> = [];
+const zonesTimers = new Map<string, ReturnType<typeof setTimeout>>();
+const scheduledZones = new Map<string, ZonesDelta>();
+
+// A synced one has left the queue.
+function isUnsyncedZonesEvent(event: PendingEvent): boolean {
+    return event.type === "zones.disabled";
+}
+
+/**
+ * The server's disabled zones for a session, as last heard, and the event
+ * sequence they are as of, if known.
+ */
+export function getDisabledZonesBase(
+    sessionId: string,
+): { ids: string[]; sequence?: number } | undefined {
+    return zonesBase?.sessionId === sessionId ? zonesBase : undefined;
+}
+
+// A list as of `sequence` is older than the one the board is made from: the
+// base has every change in it, and what came after. A list whose sequence
+// isn't known (an API from before, a copy kept by a build from before) is
+// taken as it comes.
+function isOlderThanBase(sessionId: string, sequence?: number): boolean {
+    return (
+        zonesBase?.sessionId === sessionId &&
+        zonesBase.sequence !== undefined &&
+        sequence !== undefined &&
+        sequence < zonesBase.sequence
+    );
+}
+
+// The base with the changes already sent or queued: the board without the
+// edit waiting in the debounce.
+function savedDisabledZones(sessionId: string): string[] {
+    const acknowledged =
+        zonesBase?.sessionId === sessionId
+            ? acknowledgedZones.map((entry) => entry.delta)
+            : [];
+    const queued = getPendingEvents(sessionId)
+        .filter(isUnsyncedZonesEvent)
+        .map((event) => zonesDeltaOf(event.payloadJson));
+    return [...acknowledged, ...queued].reduce(
+        applyZonesDelta,
+        getDisabledZonesBase(sessionId)?.ids ?? [],
+    );
+}
+
+/** Show a session's disabled zones: the base with our changes on top. */
+export function showDisabledZones(sessionId: string): void {
+    const saved = savedDisabledZones(sessionId);
+    const scheduled = scheduledZones.get(sessionId);
+    const ids = scheduled ? applyZonesDelta(saved, scheduled) : saved;
+    // Keep the array (and the zone layers) when nothing changed.
+    if (!sameZoneIds(disabledStations.get(), ids)) disabledStations.set(ids);
+}
+
+function showDisabledZonesIfOnBoard(sessionId: string): void {
+    if (zonesBase?.sessionId === sessionId) showDisabledZones(sessionId);
+}
+
+/**
+ * Show a session's disabled zones from the server's list as of `sequence`: a
+ * session load's, the copy kept here, a save's reply. Not over a later list
+ * the board already has for the session (a load read before a save of ours
+ * that has been answered since, a picker entry from before an event).
+ */
+export function setDisabledZonesBase(
+    sessionId: string,
+    ids: string[],
+    sequence?: number,
+): void {
+    if (!isOlderThanBase(sessionId, sequence)) {
+        zonesBase = { sessionId, ids: [...ids], sequence };
+        // Every change acknowledged before is in it.
+        acknowledgedZones = [];
+    }
+    showDisabledZones(sessionId);
+}
+
+/**
+ * A zones.disabled event: the whole list after a change, ours or another
+ * player's, as of the event's sequence. Events arrive in sequence order (see
+ * sseManager), but the base can be ahead of them (see setDisabledZonesBase).
+ */
+export function applyDisabledZonesEvent(
+    sessionId: string,
+    ids: string[],
+    clientUuid: string,
+    sequence?: number,
+): void {
+    // Our own change came back (perhaps before its reply): it's in the base.
+    const own = getPendingEvents(sessionId).find(
+        (event) => isUnsyncedZonesEvent(event) && event.clientUuid === clientUuid,
+    );
+    if (own) {
+        markEventSynced(sessionId, own.localId);
+        refreshSyncCounts(sessionId);
+    }
+    if (zonesBase?.sessionId !== sessionId) acknowledgedZones = [];
+    acknowledgedZones = acknowledgedZones.filter(
+        (entry) => entry.clientUuid !== clientUuid,
+    );
+    if (!isOlderThanBase(sessionId, sequence)) {
+        zonesBase = { sessionId, ids: [...ids], sequence };
+    }
+    showDisabledZones(sessionId);
+}
+
+// A save of ours was answered. With the list the server then had, the board
+// is made from that list (it has the change, and other players' since)
+// unless it already has a later one. The copy kept here got it before the
+// change left the queue (see dispatchQueuedEvent). An API from before
+// answers without a list: the change stays on the board until its echo.
+onEventSynced((event, saved) => {
+    if (
+        event.type !== "zones.disabled" ||
+        zonesBase?.sessionId !== event.sessionId
+    ) {
+        return;
+    }
+    if (saved) {
+        setDisabledZonesBase(event.sessionId, saved.ids, saved.sequence);
+        return;
+    }
+    acknowledgedZones.push({
+        clientUuid: event.clientUuid,
+        delta: zonesDeltaOf(event.payloadJson),
+    });
+    showDisabledZones(event.sessionId);
+});
+
+// A refused change has left the queue: stop showing it.
+onEventRejected((event) => {
+    if (event.type === "zones.disabled") {
+        showDisabledZonesIfOnBoard(event.sessionId);
+    }
+});
+
+// No session, no zones (signing out, a session that's gone).
+activeSessionId.listen((sessionId) => {
+    if (sessionId) return;
+    zonesBase = null;
+    acknowledgedZones = [];
+    if (disabledStations.get().length > 0) disabledStations.set([]);
+});
+
+// `queue` is queueEdit for the player's own edits, which says so when
+// storage is too full to keep one.
+function queueZonesDelta(
+    sessionId: string,
+    delta: ZonesDelta,
+    queue: (event: Parameters<typeof enqueueEvent>[0]) => PendingEvent,
+): PendingEvent {
+    return queue({
+        sessionId,
+        type: "zones.disabled",
+        payloadJson: delta,
+        clientUuid: `zones-disabled-${randomUUID()}`,
+        clientCreatedAt: Date.now(),
+    });
+}
+
+// Deltas must reach the server in order. One queued behind an earlier
+// unsynced delta (in flight, or failed and waiting for a retry) goes with
+// the in-order flush, which stops at a failure, instead of overtaking it.
+function sendZonesDelta(event: PendingEvent, keepalive = false): Promise<void> {
+    const behindAnother = getPendingEvents(event.sessionId).some(
+        (queued) =>
+            isUnsyncedZonesEvent(queued) && queued.localId !== event.localId,
+    );
+    return behindAnother
+        ? flushPendingEvents(event.sessionId)
+        : sendPendingEvent(event, keepalive);
+}
+
+// Forget the change not queued yet: it is replaced, or queued now.
+function unscheduleZones(sessionId: string): boolean {
+    clearTimeout(zonesTimers.get(sessionId));
+    zonesTimers.delete(sessionId);
+    return scheduledZones.delete(sessionId);
+}
+
+/**
+ * Drop the change not queued yet (waiting out the debounce, or for room in
+ * storage: see flushDisabledZonesSave). The board stops showing it: it
+ * won't be saved.
+ */
+export function cancelPendingDisabledZonesSave(sessionId?: string): void {
+    const ids = sessionId ? [sessionId] : [...zonesTimers.keys()];
+    for (const id of ids) {
+        if (unscheduleZones(id)) showDisabledZonesIfOnBoard(id);
+    }
+}
+
+/**
+ * Save a change the player made to the board. The debounced delta is what
+ * the board now differs by from the changes already saved or queued, so a
+ * zone toggled back and forth saves nothing, unless another player changed
+ * it meanwhile.
+ */
+export function saveDisabledZonesDelta(
+    sessionId: string,
+    delta: ZonesDelta,
+): void {
+    // A spectator's edits are never saved (see setDisabledStations).
+    if (isSessionReadOnly(sessionId)) return;
+    const saved = savedDisabledZones(sessionId);
+    const scheduled = scheduledZones.get(sessionId);
+    const board = applyZonesDelta(
+        scheduled ? applyZonesDelta(saved, scheduled) : saved,
+        delta,
+    );
+    const next = diffZoneIds(saved, board);
+    unscheduleZones(sessionId);
+    if (!isNoZonesChange(next)) {
+        scheduledZones.set(sessionId, next);
+        zonesTimers.set(
+            sessionId,
+            setTimeout(() => {
+                flushDisabledZonesSave(sessionId).catch((err) => {
+                    console.warn("[sessionState] failed to save disabled zones:", err);
+                });
+            }, 300),
+        );
+    }
+    showDisabledZonesIfOnBoard(sessionId);
+}
+
+/**
+ * Queue the debounced delta durably now and start sending it. Rejects, never
+ * throws, if it can't even be queued.
+ */
+export async function flushDisabledZonesSave(
+    sessionId: string,
+    keepalive = false,
+): Promise<void> {
+    const delta = scheduledZones.get(sessionId);
+    if (!delta) return;
+    // A board that can't save it (another tab took the session over) keeps
+    // it waiting, as queueEdit's Retry does.
+    if (isSessionReadOnly(sessionId)) return;
+    // Storage too full keeps it scheduled: said by queueEdit, whose Retry,
+    // the next edit or the page closing queues it.
+    const event = queueZonesDelta(sessionId, delta, queueEdit);
+    // The device's list from before zones synced is added to the session
+    // as it was before any change made since: a zone enabled here leaves
+    // it, however long before the list is added (see
+    // adoptLegacyDisabledZones) and whether or not this change has been
+    // sent by then.
+    enableLegacyDisabledZones(sessionId, delta.enableZoneIds);
+    unscheduleZones(sessionId);
+    await sendZonesDelta(event, keepalive);
+}
+
+// Disabled zones used to stay on the device (see legacyDisabledZones). Add
+// this device's to the session, whatever the server has: every player's old
+// list ends up on it. They are queued durably before the device's copy goes,
+// and the board shows them on top of the server's list once queued. The
+// list comes before the changes the player made on this build: it no longer
+// has the zones they enabled since (see flushDisabledZonesSave).
+function adoptLegacyDisabledZones(session: GameSessionSummary): void {
+    // A server without the field would drop the save, and the zones with it.
+    if (!Array.isArray(session.disabledZoneIds)) return;
+    // A spectator's can't be saved: kept on the device, for when they can.
+    if (session.role === "viewer" || isSessionReadOnly(session.id)) return;
+    const onServer = new Set(session.disabledZoneIds);
+    const legacy = legacyDisabledZones(session.id).filter(
+        (id) => !onServer.has(id),
+    );
+    if (legacy.length > 0) {
+        console.info(
+            "[sessionState] adding",
+            legacy.length,
+            "disabled zone(s) from this device to the session",
+        );
+        let event: PendingEvent;
+        try {
+            event = queueZonesDelta(
+                session.id,
+                { disableZoneIds: legacy, enableZoneIds: [] },
+                (queued) => {
+                    const added = enqueueEvent(queued);
+                    refreshSyncCounts(session.id);
+                    return added;
+                },
+            );
+        } catch (err) {
+            // Storage is full: keep the device's copy for the next load.
+            console.warn("[sessionState] failed to queue legacy disabled zones:", err);
+            return;
+        }
+        sendZonesDelta(event).catch((err) => {
+            console.warn(
+                "[sessionState] failed to save legacy disabled zones:",
+                err,
+            );
+        });
+    }
+    forgetLegacyDisabledZones(session.id);
+}
+
 // ── Read-only sessions ───────────────────────────────────────────────────────
 
 /**
@@ -373,8 +710,11 @@ export function discardSessionEdits(sessionId: string): void {
     cancelSave(questionSaves, sessionId);
     cancelSave(hiderSaves, sessionId);
     cancelSave(planningSaves, sessionId);
+    cancelPendingDisabledZonesSave(sessionId);
     discardPendingEvents(sessionId);
     if (sessionId === activeSessionId.get()) pendingEventCount.set(0);
+    // The board shows the session's zones without the dropped changes.
+    showDisabledZonesIfOnBoard(sessionId);
 }
 
 // The cached copy's role, kept in step with the server's: an offline start
@@ -447,6 +787,9 @@ export function flushSessionSaves(sessionId: string, keepalive = false): void {
     });
     flushHiderSave(sessionId, hiderMode.get(), keepalive);
     flushPlanningModeSave(sessionId, planningModeEnabled.get(), keepalive);
+    flushDisabledZonesSave(sessionId, keepalive).catch((err) => {
+        console.warn("[sessionState] failed to flush disabled zones save:", err);
+    });
 }
 
 /**
@@ -557,6 +900,14 @@ export async function loadSessionContent(
     const loadedQuestions = loadedList.questions;
     // Taken over meanwhile: the copy is the other tab's, and older than its.
     if (editingInOtherTab.get()) throw new Error("another tab took the session over");
+    // A save of ours answered while the session was being read left a later
+    // list with the copy kept here than the one read: that one stays.
+    const kept = getCachedSession(sessionId);
+    const keptZonesAreLater =
+        kept?.disabledZoneIds !== undefined &&
+        kept.disabledZonesSequence !== undefined &&
+        session.disabledZonesSequence !== undefined &&
+        kept.disabledZonesSequence > session.disabledZonesSequence;
     setCachedSession({
         sessionId,
         userId,
@@ -564,6 +915,17 @@ export async function loadSessionContent(
         session,
         strokes: loadedStrokes,
         questions: loadedQuestions,
+        ...(keptZonesAreLater
+            ? {
+                  disabledZoneIds: kept.disabledZoneIds,
+                  disabledZonesSequence: kept.disabledZonesSequence,
+              }
+            : {
+                  disabledZoneIds: Array.isArray(session.disabledZoneIds)
+                      ? session.disabledZoneIds
+                      : undefined,
+                  disabledZonesSequence: session.disabledZonesSequence,
+              }),
         // The board shows the loaded list, or the list still queued on top of
         // it, made from that list's base. The cursor was read first: it
         // never claims more than the list has.
@@ -574,6 +936,7 @@ export async function loadSessionContent(
         lastSyncedAt: Date.now(),
         lastSequence: serverCursor,
     });
+    adoptLegacyDisabledZones(session);
 
     return {
         strokes: loadedStrokes,

@@ -8,3 +8,7 @@ export function notFound(msg = "Not found") {
 export function forbidden(msg = "Forbidden") {
   return Object.assign(new Error(msg), { statusCode: 403 });
 }
+
+export function badRequest(msg = "Bad request") {
+  return Object.assign(new Error(msg), { statusCode: 400 });
+}
