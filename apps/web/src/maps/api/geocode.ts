@@ -1,4 +1,4 @@
-import _ from "lodash";
+import { uniqBy } from "@/lib/utils";
 
 import { GEOCODER_API } from "./constants";
 import { convertToLatLong } from "./geo";
@@ -30,7 +30,7 @@ export const geocode = async (
         ];
     });
 
-    return _.uniqBy(
+    return uniqBy(
         features.filter((feature) => {
             return filter ? feature.properties.osm_type === "R" : true;
         }),
