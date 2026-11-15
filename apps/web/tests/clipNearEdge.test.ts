@@ -63,9 +63,10 @@ describe("clipping where a vertex lies on the other polygon's edge", () => {
         expect(JSON.stringify([remaining, region])).toBe(before);
     });
 
-    it("still fails on a region rounding can't help", () => {
-        // Turf fails on the Infinity with the same error. Rounding must not
-        // turn it into a number and return an area for it.
+    it("still fails on a region with a coordinate that isn't a number", () => {
+        // Turf fails on these with the same error. Rounding must not turn
+        // the Infinity into a number, nor round the other coordinates until
+        // the clipper returns an area for it.
         const playArea = turf.polygon([
             [
                 [5, 49],
@@ -75,7 +76,7 @@ describe("clipping where a vertex lies on the other polygon's edge", () => {
                 [5, 49],
             ],
         ]);
-        const broken = turf.polygon([
+        const short = turf.polygon([
             [
                 [5.7, 49.8],
                 [Infinity, 49.9],
@@ -83,13 +84,18 @@ describe("clipping where a vertex lies on the other polygon's edge", () => {
                 [5.7, 49.8],
             ],
         ]);
-        expect(() =>
-            calculateClip({
-                kind: "clip",
-                mapData: turf.featureCollection([playArea]),
-                modifications: broken,
-                within: true,
-            }),
-        ).toThrow("Unable to complete output ring");
+        // As `remaining`, whose long coordinates rounding does change.
+        const long = structuredClone(remaining);
+        long.geometry.coordinates[0][0][1] = Infinity;
+        for (const broken of [short, long]) {
+            expect(() =>
+                calculateClip({
+                    kind: "clip",
+                    mapData: turf.featureCollection([playArea]),
+                    modifications: broken,
+                    within: true,
+                }),
+            ).toThrow("Unable to complete output ring");
+        }
     });
 });

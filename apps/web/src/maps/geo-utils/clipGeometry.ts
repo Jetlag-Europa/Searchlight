@@ -31,18 +31,22 @@ function robustly(
     try {
         return operation(turf.featureCollection(features));
     } catch (error) {
+        // A region with a NaN or Infinity coordinate has to keep failing:
+        // rounding its other coordinates can make the clipper finish, with
+        // an area that means nothing.
+        let finite = true;
+        for (const feature of features) {
+            turf.coordEach(feature, (coord) => {
+                if (!coord.every(Number.isFinite)) finite = false;
+            });
+        }
+        if (!finite) throw error;
         for (const precision of RETRY_PRECISIONS) {
             try {
                 return operation(
                     turf.featureCollection(
                         features.map((feature) =>
-                            // Not Turf's own copy, which goes through JSON
-                            // and so turns NaN and Infinity into 0: a
-                            // broken region has to keep failing.
-                            turf.truncate(structuredClone(feature), {
-                                precision,
-                                mutate: true,
-                            }),
+                            turf.truncate(feature, { precision }),
                         ),
                     ),
                 );
