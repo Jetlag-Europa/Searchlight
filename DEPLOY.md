@@ -173,7 +173,7 @@ starting an API from before #85:
    Leave the `ownerScope` column: older APIs ignore it.
 4. Start the older API.
 
-Going forward again, the migration is already recorded as applied, so redo its index swap and fill in the owner of Casual games created meanwhile:
+Going forward again, the migration is already recorded as applied, so `prisma migrate deploy` does nothing. Before starting the newer API, redo its index swap and fill in the owner of Casual games created meanwhile. Without it, importing an id that another server or player uses fails with 409 `CONCURRENT_IMPORT` every time, and a Casual game created on the older API gets a second copy when its creator imports it again:
 
 ```sql
 BEGIN;

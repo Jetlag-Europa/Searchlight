@@ -464,7 +464,10 @@ export function ImportPanel({
                     // A failed preview doesn't stop the import: as with the
                     // old dialog, the import reports its own errors. An id
                     // taken on that server would only be refused again, and
-                    // so would a replace whose preview failed.
+                    // so would a replace whose preview failed. A replace
+                    // also waits for a preview that names the game: the
+                    // replace route always sends it, so one without it came
+                    // from somewhere else (a mangled ?replace= address).
                     disabled={
                         (!serverId && !replaceGameId) ||
                         importing ||
@@ -473,7 +476,7 @@ export function ImportPanel({
                         previewing ||
                         needsConfirm ||
                         previewCode === "GAME_ID_TAKEN" ||
-                        (!!replaceGameId && !dryRun)
+                        (!!replaceGameId && !dryRun?.existing)
                     }
                 >
                     {replaceGameId

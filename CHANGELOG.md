@@ -11,6 +11,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - The API addresses games by their internal id only: the `/games/<id>/…` routes no longer accept the file's `id`, so use the `gameId` an import returns. For now `GET /games/<id>/export` still accepts a file's `id` that names one game, so **Export JSON** keeps working in apps that haven't reloaded yet.
 - Exter Rotterdam 26 is no longer bundled with Searchlight. It stays as it is, its owner's like any uploaded Casual game. Casual games can't be preloaded.
 - **Upgrading:** migration `20261113120000_game_ids_per_server` replaces the unique index on `Game.gameKey` with one on server, owner and id. Back up the database before updating (`infra/backup.sh`). Going back to an older version is safe only while no two games share an id: see "Roll back" in DEPLOY.md.
+
 ## Disabled zones sync with the session (2026-11-14)
 
 - Hiding zones disabled by hand in the zone sidebar are now saved with the session, so everyone in it sees them right away, and they're there when you open the session on another device. Before, they stayed on the device that disabled them. Players disabling or enabling different zones at the same time keep each other's changes. Zones disabled or enabled while the connection is down are sent once it's back, like other changes.
