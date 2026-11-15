@@ -17,10 +17,10 @@ const RETRY_PRECISIONS = [9, 8, 7, 6];
  * vertex of one input lies on an edge of the other to within floating-point
  * rounding. A chain of intersections produces that: an earlier result has
  * vertices where it cut the play area's border, and a later region has the
- * same border as one long edge. Rounding moves the vertices clear of the
- * edge, by far less than any question measures. The first rounding has
- * rescued every case seen; the coarser ones are for coordinates that are
- * already that short.
+ * same border as one long edge. Rounding moves the vertices by far less than
+ * any question measures, which is enough for the clipper to finish. The
+ * first rounding has rescued every case seen; the coarser ones are for
+ * coordinates that are already that short.
  */
 function robustly(
     operation: (
@@ -36,7 +36,13 @@ function robustly(
                 return operation(
                     turf.featureCollection(
                         features.map((feature) =>
-                            turf.truncate(feature, { precision }),
+                            // Not Turf's own copy, which goes through JSON
+                            // and so turns NaN and Infinity into 0: a
+                            // broken region has to keep failing.
+                            turf.truncate(structuredClone(feature), {
+                                precision,
+                                mutate: true,
+                            }),
                         ),
                     ),
                 );

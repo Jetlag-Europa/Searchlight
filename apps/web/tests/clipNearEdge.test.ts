@@ -51,4 +51,45 @@ describe("clipping where a vertex lies on the other polygon's edge", () => {
         const expected = turf.area(region) - turf.area(remaining);
         expect(Math.abs(turf.area(rest!) - expected)).toBeLessThan(2);
     });
+
+    it("leaves the inputs as they were", () => {
+        const before = JSON.stringify([remaining, region]);
+        calculateClip({
+            kind: "clip",
+            mapData: turf.featureCollection([remaining]),
+            modifications: region,
+            within: true,
+        });
+        expect(JSON.stringify([remaining, region])).toBe(before);
+    });
+
+    it("still fails on a region rounding can't help", () => {
+        // Turf fails on the Infinity with the same error. Rounding must not
+        // turn it into a number and return an area for it.
+        const playArea = turf.polygon([
+            [
+                [5, 49],
+                [6, 49],
+                [6, 50],
+                [5, 50],
+                [5, 49],
+            ],
+        ]);
+        const broken = turf.polygon([
+            [
+                [5.7, 49.8],
+                [Infinity, 49.9],
+                [5.8, 49.9],
+                [5.7, 49.8],
+            ],
+        ]);
+        expect(() =>
+            calculateClip({
+                kind: "clip",
+                mapData: turf.featureCollection([playArea]),
+                modifications: broken,
+                within: true,
+            }),
+        ).toThrow("Unable to complete output ring");
+    });
 });
