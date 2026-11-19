@@ -162,7 +162,10 @@ export function GameSettingsDialog({
                         <p className="text-sm font-medium leading-none">ID</p>
                         <p className="text-sm font-mono">{game.gameKey}</p>
                         <p className="text-xs text-muted-foreground">
-                            Never changes. Links, exports and file names use it.
+                            Never changes. Exports are named after it, and
+                            importing a file with this ID to this server
+                            updates this game (on Casual Games, when its
+                            creator imports it).
                         </p>
                     </div>
 

@@ -2,6 +2,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  CASUAL_SERVER_ID,
   computeGameDefinitionChecksum,
   resolveGameDefinitionId,
   validateGameDefinition,
@@ -56,6 +57,10 @@ async function main() {
     const expectedFileName = `${gameId}.game.json`;
     if (file !== expectedFileName) {
       problems.push(`file name does not match resolved gameId "${gameId}" (expected "${expectedFileName}")`);
+    }
+    // The API refuses to preload a Casual game: each one is its uploader's.
+    if (parsed.serverId === CASUAL_SERVER_ID) {
+      problems.push(`serverId "${CASUAL_SERVER_ID}": Casual games can't be preloaded; upload them instead`);
     }
     if (gameIds.has(gameId)) {
       problems.push(`DUPLICATE gameId "${gameId}"`);

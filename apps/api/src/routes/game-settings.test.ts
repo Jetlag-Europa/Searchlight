@@ -157,7 +157,8 @@ describe("PATCH /games/:gameId/settings", () => {
     }
     expect((await revisionsOf(game.id)).length).toBe(1);
 
-    const res = await patch(EDITOR_ID, game.gameKey, payload);
+    expect((await patch(EDITOR_ID, game.gameKey, payload)).statusCode).toBe(404);
+    const res = await patch(EDITOR_ID, game.id, payload);
     expect(res.statusCode).toBe(200);
     const admin = await patch(ADMIN_ID, game.id, {
       baseRevisionId: res.json().game.currentRevisionId,

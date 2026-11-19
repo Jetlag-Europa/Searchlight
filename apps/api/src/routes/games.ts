@@ -9,7 +9,6 @@ import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import {
   assertCanManageGame,
   canManageGame,
-  findGameByIdOrKey,
   isOwnCasualGame,
   isUnlisted,
 } from "../lib/game-access.js";
@@ -286,7 +285,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const { gameId } = req.params as { gameId: string };
       const { unlisted } = req.body as { unlisted: boolean };
 
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
       await assertCanManageGame(user.discordId, game, req.log);
       if (!unlisted && game.serverId === CASUAL_SERVER_ID) {
@@ -335,7 +334,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const { gameId } = req.params as { gameId: string };
       const body = req.body as GameSettingsUpdate;
 
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
       // Checked before the definition, which can be several MB, is loaded.
       const perms = await getUserPermissions(user.discordId, game.serverId, true, req.log);
@@ -402,7 +401,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };
 
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
 
       const perms = await getUserPermissions(

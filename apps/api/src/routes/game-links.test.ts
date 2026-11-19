@@ -352,9 +352,13 @@ describe("unlisted games and game links", () => {
         payload: definition("Imported"),
       });
       expect(create.statusCode, create.body).toBe(201);
-      expect((await prisma.game.findUniqueOrThrow({ where: { gameKey } })).unlisted).toBe(true);
+      const importedId = create.json().gameId;
+      expect((await prisma.game.findUniqueOrThrow({ where: { id: importedId } })).unlisted).toBe(true);
+      // Links are addressed by the game's id only.
+      const byKey = await app.inject({ method: "GET", url: `/games/${gameKey}/links`, headers: as(MANAGER_ID) });
+      expect(byKey.statusCode).toBe(404);
 
-      await prisma.game.update({ where: { gameKey }, data: { unlisted: false } });
+      await prisma.game.update({ where: { id: importedId }, data: { unlisted: false } });
       const update = await app.inject({
         method: "POST",
         url: "/games/import?unlisted=true&allowUpdate=true",
@@ -362,9 +366,9 @@ describe("unlisted games and game links", () => {
         payload: definition("Imported v2"),
       });
       expect(update.statusCode, update.body).toBe(200);
-      expect((await prisma.game.findUniqueOrThrow({ where: { gameKey } })).unlisted).toBe(false);
+      expect((await prisma.game.findUniqueOrThrow({ where: { id: importedId } })).unlisted).toBe(false);
     } finally {
-      const game = await prisma.game.findUnique({ where: { gameKey } });
+      const game = await prisma.game.findFirst({ where: { gameKey, serverId: SERVER_ID } });
       if (game) {
         await prisma.game.update({ where: { id: game.id }, data: { currentRevisionId: null } });
         await prisma.game.delete({ where: { id: game.id } });

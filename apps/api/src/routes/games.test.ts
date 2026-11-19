@@ -12,6 +12,7 @@ const AUTH_SESSION_ID = "test-games-gate-auth";
 
 const CASUAL_GAMES_ID = "home-games";
 const EU_NONGATED_KEY = "__test-eu-nongated__";
+const CASUAL_GATED_KEY = "__test-casual-gated__";
 const EU_SERVER_ID = "1190673594649415730";
 const GATE_ROLE_ID = "1514353477231312966";
 async function buildTestApp() {
@@ -44,6 +45,9 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
         await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
         await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
         await prisma.game.deleteMany({ where: { gameKey: EU_NONGATED_KEY } });
+        await prisma.game.updateMany({ where: { gameKey: CASUAL_GATED_KEY }, data: { currentRevisionId: null } });
+        await prisma.gameRevision.deleteMany({ where: { game: { gameKey: CASUAL_GATED_KEY } } });
+        await prisma.game.deleteMany({ where: { gameKey: CASUAL_GATED_KEY } });
         await prisma.user.deleteMany({ where: { discordId: USER_ID } });
 
         await prisma.user.create({
@@ -73,38 +77,24 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
             ],
             skipDuplicates: true,
         });
-        const rotterdam = await prisma.game.upsert({
-            where: { gameKey: "exter-rotterdam-2026" },
-            update: { serverId: CASUAL_GAMES_ID, unlisted: true },
-            create: {
+        // A Casual game gated on a role the user holds.
+        const gated = await prisma.game.create({
+            data: {
                 serverId: CASUAL_GAMES_ID,
                 unlisted: true,
-                name: "Exter Rotterdam 26",
-                gameKey: "exter-rotterdam-2026",
+                name: "Test Casual Gated",
+                gameKey: CASUAL_GATED_KEY,
                 size: "medium",
             },
         });
-        const rev = await prisma.gameRevision.upsert({
-            where: { gameId_revision: { gameId: rotterdam.id, revision: 1 } },
-            update: {
-                definition: {
-                    id: "exter-rotterdam-2026",
-                    name: "Exter Rotterdam 26",
-                    serverId: CASUAL_GAMES_ID,
-                    visibility: {
-                        kind: "discord-role",
-                        guildId: EU_SERVER_ID,
-                        roleId: GATE_ROLE_ID,
-                    },
-                },
-            },
-            create: {
-                gameId: rotterdam.id,
+        const rev = await prisma.gameRevision.create({
+            data: {
+                gameId: gated.id,
                 revision: 1,
                 checksum: "test-rev-checksum",
                 definition: {
-                    id: "exter-rotterdam-2026",
-                    name: "Exter Rotterdam 26",
+                    id: CASUAL_GATED_KEY,
+                    name: "Test Casual Gated",
                     serverId: CASUAL_GAMES_ID,
                     visibility: {
                         kind: "discord-role",
@@ -115,7 +105,7 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
             },
         });
         await prisma.game.update({
-            where: { id: rotterdam.id },
+            where: { id: gated.id },
             data: { currentRevisionId: rev.id },
         });
 
@@ -153,6 +143,9 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
         await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
         await prisma.gameRevision.deleteMany({ where: { game: { gameKey: EU_NONGATED_KEY } } });
         await prisma.game.deleteMany({ where: { gameKey: EU_NONGATED_KEY } });
+        await prisma.game.updateMany({ where: { gameKey: CASUAL_GATED_KEY }, data: { currentRevisionId: null } });
+        await prisma.gameRevision.deleteMany({ where: { game: { gameKey: CASUAL_GATED_KEY } } });
+        await prisma.game.deleteMany({ where: { gameKey: CASUAL_GATED_KEY } });
         await prisma.user.deleteMany({ where: { discordId: USER_ID } });
         if (app) {
             await app.close();
@@ -177,7 +170,7 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
         expect(res.statusCode).toBe(200);
         // …but its games start from game links only.
         const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
-        expect(gameKeys).not.toContain("exter-rotterdam-2026");
+        expect(gameKeys).not.toContain(CASUAL_GATED_KEY);
     });
 
     test("someone else's Casual game isn't listed with includeUnlisted either", async () => {
@@ -191,7 +184,7 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
 
         expect(res.statusCode).toBe(200);
         const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
-        expect(gameKeys).not.toContain("exter-rotterdam-2026");
+        expect(gameKeys).not.toContain(CASUAL_GATED_KEY);
     });
 
     test("non-gated games on a real server are unaffected by the gate", async () => {

@@ -26,12 +26,17 @@ export async function importGameDefinitionAPI(
   // With allowUpdate: the id of the revision the update was previewed
   // against. The API refuses (409 GAME_CHANGED) if the game has changed since.
   expectedCurrentRevisionId?: string,
+  // Replace this game (POST /games/:gameId/import), whatever the file's id
+  // and serverId; allowUpdate and unlisted don't apply there.
+  replaceGameId?: string,
 ): Promise<GameImportResponse> {
-  const url = buildApiUrl("/games/import");
+  const url = buildApiUrl(
+    replaceGameId ? `/games/${encodeURIComponent(replaceGameId)}/import` : "/games/import",
+  );
   if (dryRun) {
     url.searchParams.set("dryRun", "true");
   }
-  if (allowUpdate) {
+  if (allowUpdate && !replaceGameId) {
     url.searchParams.set("allowUpdate", "true");
   }
   if (unlisted) {

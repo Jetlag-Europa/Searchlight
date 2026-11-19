@@ -95,7 +95,7 @@ model RolePermission {
 
 model Game {
   id                String         @id @default(cuid())
-  gameKey           String         @unique
+  gameKey           String
   serverId          String
   name              String
   size              String         @default("medium") // "small" | "medium" | "large"
@@ -111,6 +111,12 @@ model Game {
   // those imported before this was recorded). On Casual Games it decides who
   // may see and change the game.
   createdById       String?
+  // With serverId, which games gameKey (the file's id) is unique among: ""
+  // on a real server, the creator's Discord id on Casual Games, where each
+  // creator's games have their own ids. "" on a Casual game whose creator
+  // isn't recorded: no import finds it; global admins replace it from the
+  // games page.
+  ownerScope        String         @default("")
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
@@ -121,6 +127,7 @@ model Game {
   currentRevision GameRevision?  @relation("CurrentGameRevision", fields: [currentRevisionId], references: [id])
   links           GameLink[]
 
+  @@unique([serverId, ownerScope, gameKey])
   @@index([serverId])
   @@index([currentRevisionId])
 }

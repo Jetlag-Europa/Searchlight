@@ -333,6 +333,8 @@ export function GameImporter() {
     const [showZones, setShowZones] = useState(true);
     const [showPlayArea, setShowPlayArea] = useState(true);
     const [showBounds, setShowBounds] = useState(true);
+    // The game to replace, from the games page's Replace with file….
+    const [replaceGameId] = useState(() => new URLSearchParams(window.location.search).get("replace"));
     const latestLoad = useRef(0);
     const panel = useRef<HTMLElement>(null);
 
@@ -576,21 +578,32 @@ export function GameImporter() {
                     >
                         ← Games
                     </a>
-                    <h1 className="text-xl font-bold">Import a game</h1>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                        Check a <code>*.game.json</code> on the map, fix what
-                        the page can, then import it. No file yet? Follow the{" "}
-                        <a
-                            href="/skills/create-game.md"
-                            target="_blank"
-                            rel="noreferrer"
-                            className="underline"
-                        >
-                            game creation guide
-                        </a>
-                        , or give it to an AI agent along with your rules doc
-                        and map links.
-                    </p>
+                    <h1 className="text-xl font-bold">
+                        {replaceGameId ? "Replace a game" : "Import a game"}
+                    </h1>
+                    {replaceGameId ? (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Check the new version on the map, fix what the
+                            page can, then replace the game with it. The
+                            file&apos;s ID and server are ignored: the game keeps
+                            its own.
+                        </p>
+                    ) : (
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Check a <code>*.game.json</code> on the map, fix what
+                            the page can, then import it. No file yet? Follow the{" "}
+                            <a
+                                href="/skills/create-game.md"
+                                target="_blank"
+                                rel="noreferrer"
+                                className="underline"
+                            >
+                                game creation guide
+                            </a>
+                            , or give it to an AI agent along with your rules doc
+                            and map links.
+                        </p>
+                    )}
                 </div>
 
                 <label
@@ -633,14 +646,22 @@ export function GameImporter() {
                             <dt className="text-muted-foreground">ID</dt>
                             <dd className="font-mono">
                                 {resolveGameDefinitionId(definition)}
+                                {replaceGameId && (
+                                    <span className="text-muted-foreground"> (ignored)</span>
+                                )}
                             </dd>
                             <dt className="text-muted-foreground">Revision</dt>
                             <dd>{definition.revision ?? "not set"}</dd>
                             <dt className="text-muted-foreground">Server</dt>
                             <dd className="break-all">
                                 {loaded?.noServer
-                                    ? "not set (picked on import)"
+                                    ? replaceGameId
+                                        ? "not set"
+                                        : "not set (picked on import)"
                                     : definition.serverId}
+                                {replaceGameId && (
+                                    <span className="text-muted-foreground"> (ignored)</span>
+                                )}
                             </dd>
                             <dt className="text-muted-foreground">
                                 Hiding zones
@@ -711,6 +732,7 @@ export function GameImporter() {
                         }
                         definition={loaded.definition}
                         noServer={loaded.noServer}
+                        replaceGameId={replaceGameId}
                     />
                 )}
 
