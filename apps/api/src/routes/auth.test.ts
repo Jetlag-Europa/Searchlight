@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
+import { Discord, type OAuth2Tokens } from "arctic";
 import Fastify from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
@@ -130,6 +131,56 @@ describe("GET /auth/discord/login", () => {
   test("ignores anything that would leave the web app", async () => {
     for (const evil of ["https://evil.example", "//evil.example", "/\\evil.example", "games"]) {
       expect(await returnToCookie(evil)).toBeUndefined();
+    }
+  });
+});
+
+describe("GET /auth/discord/callback", () => {
+  const DISCORD_ID = "100000000000000001";
+  let app: Awaited<ReturnType<typeof buildTestApp>>;
+
+  beforeAll(async () => {
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    vi.restoreAllMocks();
+    await prisma.authSession.deleteMany({ where: { userId: DISCORD_ID } });
+    await prisma.user.deleteMany({ where: { discordId: DISCORD_ID } });
+    await app.close();
+  });
+
+  // iOS Safari sometimes sends the callback twice, the second before the first
+  // response arrives. Discord accepts each code once, so both must share one exchange.
+  test("logs in both requests when the browser sends the callback twice", async () => {
+    const exchange = vi.spyOn(Discord.prototype, "validateAuthorizationCode").mockResolvedValue({
+      accessToken: () => "access",
+      refreshToken: () => "refresh",
+      accessTokenExpiresAt: () => new Date(Date.now() + 3_600_000),
+    } as unknown as OAuth2Tokens);
+    const { discord } = await import("../lib/discord-client.js");
+    vi.spyOn(discord, "getCurrentUser").mockResolvedValue({
+      id: DISCORD_ID,
+      username: "uk-user",
+      global_name: null,
+      avatar: null,
+    } as Awaited<ReturnType<typeof discord.getCurrentUser>>);
+
+    const login = await app.inject({ method: "GET", url: "/auth/discord/login" });
+    const state = login.cookies.find((c) => c.name === "oauth_state")!.value;
+    const callback = () =>
+      app.inject({
+        method: "GET",
+        url: `/auth/discord/callback?code=abc&state=${state}`,
+        headers: { cookie: `oauth_state=${state}` },
+      });
+
+    // Two at once, then one after the first exchange has finished.
+    const responses = [...(await Promise.all([callback(), callback()])), await callback()];
+    expect(exchange).toHaveBeenCalledTimes(1);
+    for (const res of responses) {
+      expect(res.statusCode).toBe(302);
+      expect(res.cookies.find((c) => c.name === "session")?.value).toBeTruthy();
     }
   });
 });

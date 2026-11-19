@@ -4,6 +4,10 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Discord login on iPhone (2026-11-19)
+
+- Logging in with Discord no longer sometimes ends on a page saying "Failed to exchange OAuth code". Safari on iPhone can open the page Discord returns to twice, and the second time failed, because Discord accepts each login only once. Both now log you in.
+
 ## Game ids per server, and Replace with file… (2026-11-15)
 
 - A game file's `id` now only has to be unique on its server, and on Casual Games among each creator's own games. Importing a file updates the game with that `id` on the server it is imported to. The same `id` on another server, or in another player's Casual games, is a different game, so those imports are no longer refused. When you import a file to a server other than the one it names, the import page says that this adds a new game there.
