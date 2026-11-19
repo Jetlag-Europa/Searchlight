@@ -1,6 +1,5 @@
-import { readdir, readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   formatGameDefinitionJson,
   type GameDefinition,
@@ -15,20 +14,16 @@ import {
 // Fixes overlapping regions in game files, as the import page does: each
 // overlap goes to the first region in the layer, and every region layer
 // without overlaps (or whose overlaps are fixed) is marked noOverlaps.
-// Arguments: *.game.json files; by default every preloaded game.
-
-const ROOT_DIR = resolve(fileURLToPath(import.meta.url), "../..");
-const PRELOADED_DIR = resolve(ROOT_DIR, "games/preloaded");
+// Arguments: the *.game.json files to fix.
 
 type Region = Parameters<typeof findRegionOverlaps>[0]["regions"][number];
 
 async function main() {
-  const files = process.argv.slice(2).length
-    ? process.argv.slice(2).map((file) => resolve(file))
-    : (await readdir(PRELOADED_DIR))
-        .filter((file) => file.endsWith(".game.json"))
-        .sort()
-        .map((file) => resolve(PRELOADED_DIR, file));
+  const files = process.argv.slice(2).map((file) => resolve(file));
+  if (!files.length) {
+    console.error("Usage: pnpm fix:region-overlaps <file.game.json>...");
+    process.exit(1);
+  }
   let failures = 0;
   for (const file of files) {
     const label = relative(process.cwd(), file);

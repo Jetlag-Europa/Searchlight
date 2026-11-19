@@ -670,7 +670,7 @@ export function GameImporter() {
                         {issues.some((i) => i.strict) && (
                             <p className="text-xs text-muted-foreground">
                                 Defects are warnings that are always data
-                                mistakes; preloaded games must have none.
+                                mistakes.
                             </p>
                         )}
                         <IssueList issues={issues} />

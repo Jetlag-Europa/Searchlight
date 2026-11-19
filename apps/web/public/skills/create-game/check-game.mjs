@@ -12,7 +12,7 @@
 // on the warnings in STRICT_CODES, which are always data defects: misplaced or
 // swapped coordinates, duplicate IDs, undecoded names, single-feature matching,
 // region layers no zone lies in, and layers marked noOverlaps whose regions
-// overlap. Searchlight's preloaded games must pass it.
+// overlap.
 //
 // It can also be imported: checkGame(definition, { fileSize }) returns
 // { errors, warnings, notes, questions }, each issue being { path, message, code }.

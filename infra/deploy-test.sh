@@ -18,8 +18,8 @@ fi
 
 docker compose up -d --build --wait --remove-orphans
 
-# The API container has migrated, created the servers and imported the games;
-# the fixtures need tsx, so they are seeded from the host.
+# The API container has migrated and created the servers; the fixtures (the
+# e2e game, user and session) need tsx, so they are seeded from the host.
 DATABASE_URL="postgresql://taibled:${POSTGRES_PASSWORD}@127.0.0.1:5435/taibled" \
   pnpm --filter @searchlight/api seed:test
 

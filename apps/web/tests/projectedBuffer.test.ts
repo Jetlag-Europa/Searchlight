@@ -25,7 +25,7 @@ import { regionLines } from "@/maps/questions/operators/geometry";
 
 const belgium = JSON.parse(
     readFileSync(
-        resolve(__dirname, "../../../games/preloaded/belgium-2026.game.json"),
+        resolve(__dirname, "fixtures/games/belgium-2026.game.json"),
         "utf8",
     ),
 );

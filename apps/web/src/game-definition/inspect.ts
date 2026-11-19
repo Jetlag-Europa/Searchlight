@@ -11,7 +11,7 @@ export interface QualityIssue {
     path: string;
     message: string;
     code?: string;
-    /** A warning the preloaded-games check (`--strict`) fails on. */
+    /** A warning `check-game.mjs --strict` fails on. */
     strict: boolean;
 }
 

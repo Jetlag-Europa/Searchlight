@@ -24,27 +24,12 @@ export interface PreloadSummary {
 /**
  * Preloads all *.game.json definitions from the specified directory.
  * File discovery is sorted alphabetically to ensure deterministic execution.
+ * Throws if the directory can't be read: it was configured, so it's a mistake.
  */
 export async function preloadGameDefinitions(
   dirPath: string,
 ): Promise<PreloadSummary> {
-  let dirents: string[];
-  try {
-    dirents = await readdir(dirPath);
-  } catch (err) {
-    // Directory might not exist yet if no games are preloaded
-    return {
-      total: 0,
-      created: 0,
-      updated: 0,
-      unchanged: 0,
-      kept: [],
-      results: [],
-      failures: [],
-    };
-  }
-
-  const gameFiles = dirents
+  const gameFiles = (await readdir(dirPath))
     .filter((name) => name.endsWith(".game.json"))
     .sort();
 

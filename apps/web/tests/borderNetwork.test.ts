@@ -39,7 +39,7 @@ describe("distance to a boundary on a layer marked noOverlaps", () => {
         readFileSync(
             resolve(
                 __dirname,
-                "../../../games/preloaded/belgium-2026.game.json",
+                "fixtures/games/belgium-2026.game.json",
             ),
             "utf8",
         ),
@@ -80,7 +80,7 @@ describe("distance to a boundary on a layer marked noOverlaps", () => {
         );
     };
 
-    it("is marked in the preloaded file", () => {
+    it("is marked in the fixture", () => {
         expect(validateGameDefinition(belgium).valid).toBe(true);
         expect(
             belgium.features!.find((layer) => layer.name === "Province")!

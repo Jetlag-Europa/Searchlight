@@ -3,9 +3,8 @@
 Searchlight ships as two Docker images plus Postgres:
 
 - **api** runs `prisma migrate deploy`, creates any Discord servers missing
-  from the database, imports every `games/preloaded/*.game.json`, then starts
-  Fastify on port 3000. A changed game becomes a new revision; running
-  sessions stay on the revision they started with. `GET /health` returns
+  from the database, imports the game files in `GAMES_PRELOAD_DIR` if that is
+  set (see [Games](#games)), then starts Fastify on port 3000. `GET /health` returns
   `{"ok":true}`. It compresses its own responses (brotli or gzip), so a proxy
   in front of it doesn't need to, but it must pass `/sessions/:id/stream`
   (live updates) through unbuffered.
@@ -188,6 +187,32 @@ curl -fsS https://<web host>/sw.js | grep -c registration.unregister   # 1: the 
 Then, in a browser that used the newer version, open the app online: an open
 page reloads into the older version, and game, invite and session links open
 their own pages again.
+
+## Games
+
+Games live in the database. They are added and updated by uploading their
+files at `/games` → **+ Import Game JSON** (see `docs/ADDING_GAMES.md`). The
+images contain no games. Older ones imported the games bundled in the repo
+(`games/preloaded`) on every start; those games stay in the database like
+uploaded ones, and nothing deletes them.
+
+To import game files on every start instead, mount a directory of
+`<gameId>.game.json` files into the api container and set `GAMES_PRELOAD_DIR`
+to its path there, e.g. in a compose overlay:
+
+```yaml
+services:
+  api:
+    environment:
+      GAMES_PRELOAD_DIR: /games
+    volumes:
+      - ./games:/games:ro
+```
+
+On start the API imports each file whose content changed since the last
+start, as a new revision (running sessions stay on the revision they started
+with); a file it can't import is logged and skipped. Removing a file deletes
+nothing. Unset, as in production, nothing is imported.
 
 ## Google Maps basemap
 

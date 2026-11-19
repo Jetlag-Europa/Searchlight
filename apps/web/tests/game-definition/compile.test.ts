@@ -21,7 +21,7 @@ import { evaluateQuestionOperator } from "@/maps/questions/operators/base";
 import type { GameDefinition } from "@searchlight/shared";
 const parisDef = JSON.parse(
   readFileSync(
-    resolve(process.cwd(), "../../games/preloaded/paris-2026.game.json"),
+    resolve(process.cwd(), "tests/fixtures/games/paris-2026.game.json"),
     "utf8",
   ),
 );

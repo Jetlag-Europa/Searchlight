@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import * as turf from "@turf/turf";
@@ -14,7 +14,7 @@ type Region = Feature<Polygon | MultiPolygon>;
 
 const belgium = JSON.parse(
     readFileSync(
-        resolve(__dirname, "../../../games/preloaded/belgium-2026.game.json"),
+        resolve(__dirname, "fixtures/games/belgium-2026.game.json"),
         "utf8",
     ),
 );
@@ -281,44 +281,4 @@ describe("removeRegionOverlaps", () => {
         );
         expect(removed / overlapping).toBeCloseTo(1, 1);
     }, 60_000);
-});
-
-describe("preloaded games", () => {
-    const dir = resolve(__dirname, "../../../games/preloaded");
-    // Overlaps are fixed with `pnpm fix:region-overlaps`.
-    it.each(readdirSync(dir).filter((file) => file.endsWith(".game.json")))(
-        "%s marks every region layer, which has no overlaps or repeated vertices",
-        (file) => {
-            const game = JSON.parse(readFileSync(resolve(dir, file), "utf8"));
-            for (const layer of game.features ?? []) {
-                const regions = layer.data.features as Region[];
-                if (
-                    !regions.length ||
-                    !regions.every((f) => f.geometry.type.endsWith("Polygon"))
-                ) {
-                    continue;
-                }
-                expect(layer.noOverlaps, layer.name).toBe(true);
-                // Zero-length edges trip Turf's distances.
-                const repeats = regions.flatMap((region) =>
-                    turf
-                        .flatten(turf.polygonToLine(region))
-                        .features.flatMap((line) =>
-                            line.geometry.coordinates.filter(
-                                ([x, y], i, ring) =>
-                                    i > 0 &&
-                                    x === ring[i - 1][0] &&
-                                    y === ring[i - 1][1],
-                            ),
-                        ),
-                );
-                expect(repeats, layer.name).toEqual([]);
-                expect(
-                    findRegionOverlaps({ regions }).pieces,
-                    layer.name,
-                ).toEqual([]);
-            }
-        },
-        30_000,
-    );
 });

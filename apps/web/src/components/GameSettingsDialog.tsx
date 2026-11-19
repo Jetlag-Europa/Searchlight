@@ -126,8 +126,7 @@ export function GameSettingsDialog({
                         Saving makes a new revision, as importing an edited file would. The new
                         name shows in game lists and links right away. Sessions already started
                         are offered the update, even for a rename; a new size applies there once
-                        their creator accepts it. For a preloaded game, the next change to its
-                        file replaces this edit.
+                        their creator accepts it.
                     </DialogDescription>
                 </DialogHeader>
 
