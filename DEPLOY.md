@@ -192,7 +192,7 @@ their own pages again.
 
 Games live in the database. They are added and updated by uploading their
 files at `/games` → **+ Import Game JSON** (see `docs/ADDING_GAMES.md`). The
-images contain no games. Older ones imported the games bundled in the repo
+images contain no games. Older images imported the games bundled in the repo
 (`games/preloaded`) on every start; those games stay in the database like
 uploaded ones, and nothing deletes them.
 

@@ -20,7 +20,7 @@ const GAME_KEY = "south-limburg-2026";
 
 async function main() {
   // Unchanged since the last seed, this leaves the game as it is.
-  await importGameDefinition({
+  const { gameId } = await importGameDefinition({
     raw: JSON.parse(await readFile(GAME_FILE, "utf8")),
     source: "preload",
   });
@@ -39,9 +39,7 @@ async function main() {
     },
   });
 
-  const game = await prisma.game.findFirst({
-    where: { gameKey: GAME_KEY },
-  });
+  const game = await prisma.game.findUnique({ where: { id: gameId } });
   if (!game || !game.currentRevisionId) {
     throw new Error(
       `Seed-test: game "${GAME_KEY}" not found or has no current revision after importing ${GAME_FILE}.`,
