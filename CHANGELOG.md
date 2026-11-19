@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Save a session's questions to a file (2026-11-15)
+
+- Options has **Export Questions**, which downloads the open session's questions as a file, and **Import Questions**, which replaces the session's questions with those from such a file, after asking. Questions the session's game doesn't have are left out, and the questions replaced can be restored from the History. Spectators can export, not import.
+- Import is refused until your last changes are saved and any question that needs a decision is decided, so nothing is replaced that the History couldn't bring back. With Auto save off, changes you haven't saved are replaced too and aren't in the History; the confirm says so.
+- A question in the file whose radius is under 1 m or over 20,000 km is left out, and so are questions past the first 200 corners of drawn lines or the first 300 custom places in the file: the map would take minutes to work those out, for every player. The confirm says how many are left out.
+
 ## Disabled zones sync with the session (2026-11-14)
 
 - Hiding zones disabled by hand in the zone sidebar are now saved with the session, so everyone in it sees them right away, and they're there when you open the session on another device. Before, they stayed on the device that disabled them. Players disabling or enabling different zones at the same time keep each other's changes. Zones disabled or enabled while the connection is down are sent once it's back, like other changes.
