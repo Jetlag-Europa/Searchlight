@@ -4,11 +4,6 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
-## Searchlight no longer ships games (2026-11-19)
-
-- The 22 games that came with Searchlight are no longer in the repo or the API image. New games are uploaded at `/games` → **+ Import Game JSON**, as before.
-- **Upgrading:** the API no longer imports any game files on start, so a new server starts with no games. Games it imported before stay in the database, unchanged, with their sessions. To import a directory of `<gameId>.game.json` files on every start, mount it into the api container and set `GAMES_PRELOAD_DIR` to its path there (see "Games" in DEPLOY.md).
-
 ## Game ids per server, and Replace with file… (2026-11-15)
 
 - A game file's `id` now only has to be unique on its server, and on Casual Games among each creator's own games. Importing a file updates the game with that `id` on the server it is imported to. The same `id` on another server, or in another player's Casual games, is a different game, so those imports are no longer refused. When you import a file to a server other than the one it names, the import page says that this adds a new game there.
