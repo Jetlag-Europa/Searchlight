@@ -2,11 +2,14 @@ import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import {
   ImportConflictError,
   ImportForbiddenError,
   importGameDefinition,
+  ImportValidationError,
+  replaceGameDefinition,
 } from "./import-service.js";
 import { preloadGameDefinitions } from "./preload.js";
 
@@ -43,6 +46,25 @@ function definition(id: string, name: string, serverId = SERVER_ID) {
   };
 }
 
+// A stub actor who may create games everywhere, and edit them if canEdit.
+const actorFor = (userId: string, canEdit = false) => ({
+  userId,
+  canCreateGames: () => true,
+  canEditGames: () => canEdit,
+});
+
+// The unique lookup of a game with this key on a real server.
+const onServer = (gameKey: string, serverId = SERVER_ID) => ({
+  serverId_ownerScope_gameKey: { serverId, ownerScope: "", gameKey },
+});
+
+// Casual Games is a fixed server: created if missing, never deleted.
+const ensureCasualServer = () =>
+  prisma.server.createMany({
+    data: [{ id: CASUAL_SERVER_ID, name: "Casual Games" }],
+    skipDuplicates: true,
+  });
+
 async function revisionsOf(gameKey: string) {
   return prisma.gameRevision.findMany({
     where: { game: { gameKey } },
@@ -68,6 +90,7 @@ describe("importGameDefinition revisions", () => {
         { id: OTHER_SERVER_ID, name: "Import Service Other" },
       ],
     });
+    await ensureCasualServer();
   });
 
   afterAll(cleanup);
@@ -81,7 +104,7 @@ describe("importGameDefinition revisions", () => {
     const again = await importGameDefinition({ raw: definition(key, "A"), allowUpdate: true });
     expect(again).toMatchObject({ status: "updated", revision: 1, checksum: a.checksum });
     const [rev1, rev2] = await revisionsOf(key);
-    const game = await prisma.game.findUniqueOrThrow({ where: { gameKey: key } });
+    const game = await prisma.game.findUniqueOrThrow({ where: onServer(key) });
     expect(game.currentRevisionId).toBe(rev1.id);
     expect(game.name).toBe("A");
 
@@ -136,16 +159,91 @@ describe("importGameDefinition revisions", () => {
     }
   });
 
-  test("rejects another server's game id without naming that server", async () => {
+  test("the same id on another server is a different game", async () => {
     const key = `${KEY_PREFIX}owned`;
-    await importGameDefinition({ raw: definition(key, "Owned") });
+    const owned = await importGameDefinition({ raw: definition(key, "Owned") });
 
-    const attempt = importGameDefinition({
-      raw: definition(key, "Hijack", OTHER_SERVER_ID),
+    const other = await importGameDefinition({
+      raw: definition(key, "Other", OTHER_SERVER_ID),
       allowUpdate: true,
     });
-    await expect(attempt).rejects.toBeInstanceOf(ImportForbiddenError);
-    await expect(attempt).rejects.not.toThrow(SERVER_ID);
+    expect(other.status).toBe("created");
+    expect(other.gameId).not.toBe(owned.gameId);
+    expect(await prisma.game.count({ where: { gameKey: key } })).toBe(2);
+
+    const game = await prisma.game.findUniqueOrThrow({
+      where: onServer(key),
+      include: { _count: { select: { revisions: true } } },
+    });
+    expect(game).toMatchObject({ name: "Owned", _count: { revisions: 1 } });
+  });
+
+  test("racing creations inside one Casual creator's scope add a revision instead of failing", async () => {
+    const key = `${KEY_PREFIX}casual-race`;
+    const user = `${KEY_PREFIX}user-a`;
+    const results = await Promise.all(
+      ["P", "Q"].map((name) =>
+        importGameDefinition({
+          raw: definition(key, name, CASUAL_SERVER_ID),
+          actor: actorFor(user),
+          allowUpdate: true,
+        }),
+      ),
+    );
+
+    expect(results.map((r) => r.status).sort()).toEqual(["created", "updated"]);
+    const games = await prisma.game.findMany({ where: { gameKey: key } });
+    expect(games).toHaveLength(1);
+    expect(games[0].ownerScope).toBe(user);
+    expect((await revisionsOf(key)).map((r) => r.revision)).toEqual([1, 2]);
+  });
+
+  test("two Casual creators can use the same id", async () => {
+    const key = `${KEY_PREFIX}casual-shared`;
+    const [userA, userB] = [`${KEY_PREFIX}user-a`, `${KEY_PREFIX}user-b`];
+    const a = await importGameDefinition({
+      raw: definition(key, "A", CASUAL_SERVER_ID),
+      actor: actorFor(userA),
+    });
+    const b = await importGameDefinition({
+      raw: definition(key, "B", CASUAL_SERVER_ID),
+      actor: actorFor(userB),
+    });
+    expect([a.status, b.status]).toEqual(["created", "created"]);
+    expect(b.gameId).not.toBe(a.gameId);
+    for (const [result, user] of [
+      [a, userA],
+      [b, userB],
+    ] as const) {
+      const game = await prisma.game.findUniqueOrThrow({ where: { id: result.gameId } });
+      expect(game).toMatchObject({ ownerScope: user, createdById: user });
+    }
+
+    const again = await importGameDefinition({
+      raw: definition(key, "A v2", CASUAL_SERVER_ID),
+      actor: actorFor(userA),
+      allowUpdate: true,
+    });
+    expect(again).toMatchObject({ status: "updated", gameId: a.gameId });
+  });
+
+  describe("replaceGameDefinition", () => {
+    // A game on SERVER_ID made by an actor-less import, as the replace route
+    // loads it.
+    async function createGame(key: string) {
+      const { gameId } = await importGameDefinition({ raw: definition(key, "Original") });
+      return prisma.game.findUniqueOrThrow({
+        where: { id: gameId },
+        select: { id: true, gameKey: true, serverId: true, createdById: true, currentRevisionId: true },
+      });
+    }
+
+    test("refuses someone who can't update the game before validating", async () => {
+      const game = await createGame(`${KEY_PREFIX}replace-forbidden`);
+      const attempt = replaceGameDefinition({ game, raw: {}, actor: actorFor("u", false) });
+      await expect(attempt).rejects.toBeInstanceOf(ImportForbiddenError);
+      await expect(attempt).rejects.not.toBeInstanceOf(ImportValidationError);
+    });
   });
 });
 
@@ -155,6 +253,7 @@ describe("preloadGameDefinitions", () => {
   beforeAll(async () => {
     await cleanup();
     await prisma.server.create({ data: { id: SERVER_ID, name: "Import Service Server" } });
+    await ensureCasualServer();
     dir = await mkdtemp(join(tmpdir(), "searchlight-preload-"));
   });
 
@@ -179,7 +278,7 @@ describe("preloadGameDefinitions", () => {
       "a-broken.game.json",
       "b-misnamed.game.json",
     ]);
-    expect(await prisma.game.findUnique({ where: { gameKey: key } })).not.toBeNull();
+    expect(await prisma.game.findUnique({ where: onServer(key) })).not.toBeNull();
   });
 
   test("fails on a directory it can't read", async () => {
@@ -197,7 +296,7 @@ describe("preloadGameDefinitions", () => {
       },
       current: () =>
         prisma.game.findUniqueOrThrow({
-          where: { gameKey: key },
+          where: onServer(key),
           include: { currentRevision: { select: { revision: true, checksum: true } } },
         }),
     };
@@ -269,5 +368,32 @@ describe("preloadGameDefinitions", () => {
       currentRevision: { revision: 1, checksum: a.results[0].checksum },
     });
     expect((await revisionsOf(key)).map((r) => r.revision)).toEqual([1, 2]);
+  });
+
+  // A preload has no actor, so a Casual file could never find its creator's
+  // game: it would add a copy on every start.
+  test("a Casual file is refused and never duplicates its creator's game", async () => {
+    const key = `${KEY_PREFIX}preload-casual`;
+    await importGameDefinition({
+      raw: definition(key, "Owned", CASUAL_SERVER_ID),
+      actor: actorFor(`${KEY_PREFIX}owner`),
+    });
+    const gameDir = await mkdtemp(join(dir, "casual-"));
+    await writeFile(
+      join(gameDir, `${key}.game.json`),
+      JSON.stringify(definition(key, "Preloaded", CASUAL_SERVER_ID)),
+    );
+
+    for (let start = 0; start < 2; start++) {
+      const summary = await preloadGameDefinitions(gameDir);
+      expect(summary.failures.map((f) => f.fileName)).toEqual([`${key}.game.json`]);
+      expect(summary.created).toBe(0);
+    }
+    const games = await prisma.game.findMany({
+      where: { gameKey: key },
+      include: { _count: { select: { revisions: true } } },
+    });
+    expect(games).toHaveLength(1);
+    expect(games[0]).toMatchObject({ name: "Owned", _count: { revisions: 1 } });
   });
 });

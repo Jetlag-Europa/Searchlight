@@ -22,7 +22,6 @@ import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import { discord } from "../lib/discord-client.js";
-import { importGameDefinition } from "../games/import-service.js";
 import { gameRoutes } from "./games.js";
 import { gameImportRoutes } from "./game-imports.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./game-links.js";
@@ -115,6 +114,8 @@ describe("Casual Games", () => {
 
   const importAs = (userId: string, def: object, query = "") =>
     app.inject({ method: "POST", url: `/games/import${query}`, headers: as(userId), payload: def });
+  const replaceAs = (userId: string, id: string, def: object, query = "") =>
+    app.inject({ method: "POST", url: `/games/${id}/import${query}`, headers: as(userId), payload: def });
 
   const listGames = async (userId: string, includeUnlisted: boolean) => {
     const query = includeUnlisted ? "&includeUnlisted=true" : "";
@@ -200,15 +201,6 @@ describe("Casual Games", () => {
       expect(res.json().code).toBe("FORBIDDEN");
     });
 
-    test("preloaded Casual games are unlisted and have no creator", async () => {
-      const result = await importGameDefinition({
-        raw: definition(`${KEY_PREFIX}preload`, "Preloaded"),
-        source: "preload",
-      });
-      const game = await prisma.game.findUniqueOrThrow({ where: { id: result.gameId } });
-      expect(game).toMatchObject({ unlisted: true, createdById: null });
-    });
-
     test("an update shows the game it would replace, also on a dry run", async () => {
       const res = await importAs(CREATOR, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true&allowUpdate=true");
       expect(res.statusCode).toBe(200);
@@ -229,13 +221,33 @@ describe("Casual Games", () => {
       ]);
     });
 
-    test("another role holder can't update the creator's game: its id is taken", async () => {
-      const res = await importAs(RIVAL, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true&allowUpdate=true");
-      expect(res.statusCode).toBe(403);
-      expect(res.json().code).toBe("GAME_ID_TAKEN");
-      expect(res.json().message).toMatch(/change "id"/);
-      expect(res.json().message).not.toContain(CREATOR);
-      expect(res.json().existing).toBeUndefined();
+    test("another role holder importing the same id gets a game of their own", async () => {
+      const preview = await importAs(RIVAL, definition(GAME_KEY, "Rival 2026"), "?dryRun=true&allowUpdate=true");
+      expect(preview.statusCode).toBe(201);
+      expect(preview.json().status).toBe("created");
+      expect(preview.json().existing).toBeUndefined();
+
+      const res = await importAs(RIVAL, definition(GAME_KEY, "Rival 2026"));
+      expect(res.statusCode).toBe(201);
+      const rivalId = res.json().gameId;
+      expect(rivalId).not.toBe(gameId);
+      expect(await prisma.game.findUniqueOrThrow({ where: { id: rivalId } })).toMatchObject({
+        createdById: RIVAL,
+        ownerScope: RIVAL,
+      });
+      const creators = await prisma.game.findUniqueOrThrow({
+        where: { id: gameId },
+        include: { currentRevision: { select: { revision: true } } },
+      });
+      expect(creators).toMatchObject({ name: "London 2026", currentRevision: { revision: 1 } });
+
+      const again = await importAs(RIVAL, definition(GAME_KEY, "Rival v2"), "?allowUpdate=true");
+      expect(again.statusCode).toBe(200);
+      expect(again.json()).toMatchObject({ status: "updated", gameId: rivalId });
+
+      await prisma.game.update({ where: { id: rivalId }, data: { currentRevisionId: null } });
+      await prisma.gameRevision.deleteMany({ where: { gameId: rivalId } });
+      await prisma.game.delete({ where: { id: rivalId } });
     });
 
     test("the creator can't update their game without the role any more", async () => {
@@ -244,11 +256,83 @@ describe("Casual Games", () => {
       expect(res.statusCode).toBe(403);
     });
 
-    test("a global admin may update anyone's Casual game", async () => {
+    test("a global admin's import of a creator's id makes the admin's own game", async () => {
       const res = await importAs(ADMIN, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true&allowUpdate=true");
+      expect(res.statusCode).toBe(201);
+      expect(res.json().status).toBe("created");
+    });
+
+    test("a global admin replaces another player's Casual game", async () => {
+      const preview = await replaceAs(ADMIN, gameId, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true");
+      expect(preview.statusCode).toBe(200);
+      expect(preview.json().status).toBe("updated");
+      expect(preview.json().existing).toMatchObject({ createdByYou: false, likelyMistake: false });
+      expect(preview.json().existing.differences).toEqual(["Created by someone else"]);
+
+      const { currentRevisionId } = preview.json().existing;
+      const res = await replaceAs(
+        ADMIN,
+        gameId,
+        definition(GAME_KEY, "London 2026 v2"),
+        `?expectedCurrentRevisionId=${currentRevisionId}`,
+      );
       expect(res.statusCode).toBe(200);
-      expect(res.json().existing).toMatchObject({ createdByYou: false, likelyMistake: false });
-      expect(res.json().existing.differences).toEqual(["Created by someone else"]);
+      expect(await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).toMatchObject({
+        createdById: CREATOR,
+        ownerScope: CREATOR,
+      });
+
+      // The creator's own import still finds it, and restores the name.
+      const back = await importAs(CREATOR, definition(GAME_KEY, "London 2026"), "?allowUpdate=true");
+      expect(back.statusCode).toBe(200);
+      expect(back.json().gameId).toBe(gameId);
+    });
+
+    test("replace is for whoever may update the game", async () => {
+      const def = definition(GAME_KEY, "London 2026 v2");
+      expect((await replaceAs(CREATOR, gameId, def, "?dryRun=true")).statusCode).toBe(200);
+      for (const userId of [RIVAL, PLAYER]) {
+        const res = await replaceAs(userId, gameId, def, "?dryRun=true");
+        expect(res.statusCode, userId).toBe(403);
+        if (userId === RIVAL) expect(res.json().code).toBe("FORBIDDEN");
+      }
+      expect((await replaceAs(CREATOR, "does-not-exist", def, "?dryRun=true")).statusCode).toBe(404);
+      await setEuRoles(CREATOR, []);
+      expect((await replaceAs(CREATOR, gameId, def, "?dryRun=true")).statusCode).toBe(403);
+    });
+
+    test("replace ignores the file's id and serverId", async () => {
+      const key = `${KEY_PREFIX}replace-target`;
+      const created = await importAs(CREATOR, definition(key, "Target 2026"));
+      expect(created.statusCode).toBe(201);
+      const targetId = created.json().gameId;
+
+      const res = await replaceAs(ADMIN, targetId, {
+        ...definition(`${KEY_PREFIX}elsewhere`, "Target 2026 v2"),
+        serverId: EU_SERVER_ID,
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json()).toMatchObject({ status: "updated", revision: 2, gameKey: key });
+
+      const target = await prisma.game.findUniqueOrThrow({
+        where: { id: targetId },
+        include: { currentRevision: { select: { definition: true } } },
+      });
+      expect(target).toMatchObject({ serverId: CASUAL_SERVER_ID, createdById: CREATOR, ownerScope: CREATOR });
+      expect(target.currentRevision?.definition).toMatchObject({ id: key, serverId: CASUAL_SERVER_ID });
+      expect(await prisma.game.count({ where: { gameKey: `${KEY_PREFIX}elsewhere` } })).toBe(0);
+    });
+
+    test("replace refuses a stale preview, from the query or the body", async () => {
+      const def = definition(GAME_KEY, "London 2026 v2");
+      const fromQuery = await replaceAs(CREATOR, gameId, def, "?expectedCurrentRevisionId=not-current");
+      const fromBody = await replaceAs(CREATOR, gameId, { game: def, expectedCurrentRevisionId: "not-current" });
+      for (const res of [fromQuery, fromBody]) {
+        expect(res.statusCode).toBe(409);
+        expect(res.json()).toMatchObject({ code: "GAME_CHANGED" });
+      }
+      const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+      expect(game.name).toBe("London 2026");
     });
 
     test("an update pinned to the previewed revision goes ahead while the game is unchanged", async () => {
@@ -276,11 +360,12 @@ describe("Casual Games", () => {
 
     test("a preview of a deleted game doesn't pin the game re-created with its id", async () => {
       const key = `${KEY_PREFIX}recreated`;
-      expect((await importAs(CREATOR, definition(key, "Recreated 2026"))).statusCode).toBe(201);
+      const created = await importAs(CREATOR, definition(key, "Recreated 2026"));
+      expect(created.statusCode).toBe(201);
       const preview = await importAs(CREATOR, definition(key, "Recreated 2026 v2"), "?dryRun=true&allowUpdate=true");
       const previewed = preview.json().existing.currentRevisionId;
 
-      const old = await prisma.game.findUniqueOrThrow({ where: { gameKey: key } });
+      const old = await prisma.game.findUniqueOrThrow({ where: { id: created.json().gameId } });
       expect((await app.inject({ method: "DELETE", url: `/games/${old.id}`, headers: as(ADMIN) })).statusCode).toBe(204);
       expect((await importAs(CREATOR, definition(key, "Recreated 2026"))).statusCode).toBe(201);
 
@@ -292,6 +377,41 @@ describe("Casual Games", () => {
       );
       expect(res.statusCode).toBe(409);
       expect(res.json().code).toBe("GAME_CHANGED");
+    });
+
+    test("a Casual game without a recorded creator is reached only by replace", async () => {
+      const key = `${KEY_PREFIX}legacy`;
+      const legacy = await prisma.game.create({
+        data: { gameKey: key, serverId: CASUAL_SERVER_ID, name: "Legacy 2026", unlisted: true },
+      });
+      const rev = await prisma.gameRevision.create({
+        data: {
+          gameId: legacy.id,
+          revision: 1,
+          formatVersion: 1,
+          definition: definition(key, "Legacy 2026"),
+          checksum: "test-casual-legacy-checksum",
+          source: "api",
+        },
+      });
+      await prisma.game.update({ where: { id: legacy.id }, data: { currentRevisionId: rev.id } });
+      expect(legacy.ownerScope).toBe("");
+
+      const own = await importAs(CREATOR, definition(key, "Legacy 2026"));
+      expect(own.statusCode).toBe(201);
+      expect(own.json()).toMatchObject({ status: "created" });
+      expect(own.json().gameId).not.toBe(legacy.id);
+      expect(await prisma.game.findUniqueOrThrow({ where: { id: legacy.id } })).toMatchObject({
+        name: "Legacy 2026",
+        currentRevisionId: rev.id,
+        createdById: null,
+      });
+
+      const legacyDef = definition(key, "Legacy 2026 v2");
+      const byAdmin = await replaceAs(ADMIN, legacy.id, legacyDef, "?dryRun=true");
+      expect(byAdmin.statusCode).toBe(200);
+      expect(byAdmin.json().status).toBe("updated");
+      expect((await replaceAs(CREATOR, legacy.id, legacyDef, "?dryRun=true")).statusCode).toBe(403);
     });
   });
 
@@ -326,8 +446,9 @@ describe("Casual Games", () => {
         ...definition(key, "Gated 2026"),
         visibility: { kind: "discord-role", guildId: EU_SERVER_ID, roleId: "test-casual-gone-role" },
       };
-      expect((await importAs(CREATOR, gated)).statusCode).toBe(201);
-      const game = await prisma.game.findUniqueOrThrow({ where: { gameKey: key } });
+      const created = await importAs(CREATOR, gated);
+      expect(created.statusCode).toBe(201);
+      const game = await prisma.game.findUniqueOrThrow({ where: { id: created.json().gameId } });
 
       expect((await listGames(CREATOR, true)).map((g) => g.gameKey)).toContain(key);
       const exportAs = (userId: string) =>

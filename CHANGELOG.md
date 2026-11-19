@@ -4,6 +4,25 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Searchlight no longer ships games (2026-11-19)
+
+- The 22 games that came with Searchlight are no longer in the repo or the API image. New games are uploaded at `/games` → **+ Import Game JSON**, as before.
+- **Upgrading:** the API no longer imports any game files on start, so a new server starts with no games. Games it imported before stay in the database, unchanged, with their sessions. To import a directory of `<gameId>.game.json` files on every start, mount it into the api container and set `GAMES_PRELOAD_DIR` to its path there (see "Games" in DEPLOY.md).
+
+## Game ids per server, and Replace with file… (2026-11-15)
+
+- A game file's `id` now only has to be unique on its server, and on Casual Games among each creator's own games. Importing a file updates the game with that `id` on the server it is imported to. The same `id` on another server, or in another player's Casual games, is a different game, so those imports are no longer refused. When you import a file to a server other than the one it names, the import page says that this adds a new game there.
+- Each game on `/games` that you may update has **Replace with file…**. It opens the import page for that game, and the file replaces it whatever its `id` and server, with the same preview, "may be a different game" check and protection against changes made since the preview. The game keeps its own ID. Global admins use it to update another player's Casual game: importing the file themselves now makes a Casual game of their own.
+- The API addresses games by their internal id only: the `/games/<id>/…` routes no longer accept the file's `id`, so use the `gameId` an import returns. For now `GET /games/<id>/export` still accepts a file's `id` that names one game, so **Export JSON** keeps working in apps that haven't reloaded yet.
+- Exter Rotterdam 26 is no longer bundled with Searchlight. It stays as it is, its owner's like any uploaded Casual game. Casual games can't be preloaded.
+- **Upgrading:** migration `20261113120000_game_ids_per_server` replaces the unique index on `Game.gameKey` with one on server, owner and id. Back up the database before updating (`infra/backup.sh`). Going back to an older version is safe only while no two games share an id: see "Roll back" in DEPLOY.md.
+
+## Save a session's questions to a file (2026-11-15)
+
+- Options has **Export Questions**, which downloads the open session's questions as a file, and **Import Questions**, which replaces the session's questions with those from such a file, after asking. Questions the session's game doesn't have are left out, and the questions replaced can be restored from the History. Spectators can export, not import.
+- Import is refused until your last changes are saved and any question that needs a decision is decided, so nothing is replaced that the History couldn't bring back. With Auto save off, changes you haven't saved are replaced too and aren't in the History; the confirm says so.
+- A question in the file whose radius is under 1 m or over 20,000 km is left out, and so are questions past the first 200 corners of drawn lines or the first 300 custom places in the file: the map would take minutes to work those out, for every player. The confirm says how many are left out.
+
 ## Disabled zones sync with the session (2026-11-14)
 
 - Hiding zones disabled by hand in the zone sidebar are now saved with the session, so everyone in it sees them right away, and they're there when you open the session on another device. Before, they stayed on the device that disabled them. Players disabling or enabling different zones at the same time keep each other's changes. Zones disabled or enabled while the connection is down are sent once it's back, like other changes.

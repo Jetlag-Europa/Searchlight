@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { assertCanManageGame, findActiveLink, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertCanManageGame, findActiveLink } from "../lib/game-access.js";
 import { notFound } from "../lib/http-errors.js";
 import { createSession } from "./sessions.js";
 
@@ -37,7 +37,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     async (req) => {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 
@@ -57,7 +57,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 
@@ -87,7 +87,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     async (req, reply) => {
       const { user } = await resolveSession(req);
       const { gameId, linkId } = req.params as { gameId: string; linkId: string };
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 

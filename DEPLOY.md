@@ -99,7 +99,7 @@ every update. Keep API changes working with it.
 
 ## Roll back
 
-Going back to an older version works like any update, except across two
+Going back to an older version works like any update, except across three
 changes that older versions can't handle.
 
 **The installable app** (`e29c68aa6`, #81; releases up to 2.0.0 are older). Once a browser has opened a version with it, it keeps that version's
@@ -149,6 +149,39 @@ starting an API from before #85:
    Spectators lose access and their links stop working. Players and their
    sessions keep everything. Leave the `viewer` enum value alone.
 3. Start the older API.
+
+**Game ids per server** (#138). Older APIs expect a game's id (`Game.gameKey`) to be unique across all servers; migration `20261113120000_game_ids_per_server` replaces that unique index with one on server, owner and id. Once two games share an id, an older API picks either of them when it imports a file or looks a game up, so it may change the wrong one. Before starting an older API:
+
+1. Stop the newer API.
+2. Check for shared ids. This must return no rows:
+
+   ```sql
+   SELECT "gameKey", count(*) FROM "Game" GROUP BY "gameKey" HAVING count(*) > 1;
+   ```
+
+   If it returns rows, give all but one game in each group a new `gameKey` by hand (`UPDATE "Game" SET "gameKey" = '<new>' WHERE id = '<id>';`). On the older version their files then import as new games. The alternative is restoring the backup taken before the update, which loses everything played since.
+3. Put the old index back, in one transaction:
+
+   ```sql
+   BEGIN;
+   CREATE UNIQUE INDEX "Game_gameKey_key" ON "Game"("gameKey");
+   DROP INDEX "Game_serverId_ownerScope_gameKey_key";
+   COMMIT;
+   ```
+
+   Leave the `ownerScope` column: older APIs ignore it.
+4. Start the older API.
+
+Going forward again, the migration is already recorded as applied, so `prisma migrate deploy` does nothing. Before starting the newer API, redo its index swap and fill in the owner of Casual games created meanwhile. Without it, importing an id that another server or player uses fails with 409 `CONCURRENT_IMPORT` every time, and so does a creator updating a Casual game made on the older API. With only the index swap redone, that creator gets a second copy of the game instead:
+
+```sql
+BEGIN;
+UPDATE "Game" SET "ownerScope" = "createdById"
+WHERE "serverId" = 'home-games' AND "createdById" IS NOT NULL AND "ownerScope" = '';
+CREATE UNIQUE INDEX "Game_serverId_ownerScope_gameKey_key" ON "Game"("serverId", "ownerScope", "gameKey");
+DROP INDEX "Game_gameKey_key";
+COMMIT;
+```
 
 ### Going back to before the installable app, with these compose files
 

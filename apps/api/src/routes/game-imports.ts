@@ -1,13 +1,15 @@
 import { Type } from "@sinclair/typebox";
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
   type ImportActor,
   ImportConflictError,
   ImportForbiddenError,
   importGameDefinition,
   ImportValidationError,
+  replaceGameDefinition,
 } from "../games/import-service.js";
-import { assertGameAccess, findGameByIdOrKey } from "../lib/game-access.js";
+import { assertGameAccess } from "../lib/game-access.js";
+import { notFound } from "../lib/http-errors.js";
 import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
@@ -24,7 +26,8 @@ const IMPORT_PERMISSIONS = ["games.create", "games.edit", "server.admin"];
 
 declare module "fastify" {
   interface FastifyRequest {
-    // Set by POST /games/import's onRequest hook.
+    // Set by the onRequest hooks of POST /games/import and
+    // POST /games/:gameId/import.
     importActor: ImportActor | null;
   }
 }
@@ -120,6 +123,49 @@ async function assertGameDefinitionAccess({
   await assertGameAccess(user.discordId, game, revisionIds, req.log);
 }
 
+// The game may come as the body, or as { game, allowUpdate, expectedCurrentRevisionId }.
+function readImportBody(body: unknown, queryRevisionId: string | undefined) {
+  const b = body as Record<string, unknown> | null | undefined;
+  const bodyRevisionId = b?.expectedCurrentRevisionId;
+  return {
+    raw: (b?.["game"] ?? b) as unknown,
+    allowUpdate: Boolean(b?.allowUpdate),
+    expectedCurrentRevisionId:
+      queryRevisionId ??
+      (typeof bodyRevisionId === "string" && bodyRevisionId ? bodyRevisionId : undefined),
+  };
+}
+
+function sendImportError(reply: FastifyReply, err: unknown) {
+  if (err instanceof ImportValidationError) {
+    return reply.status(400).send({
+      error: err.name,
+      code: err.code,
+      message: err.message,
+      errors: err.errors.slice(0, MAX_REPORTED_ISSUES),
+      warnings: err.warnings.slice(0, MAX_REPORTED_ISSUES),
+    });
+  }
+  if (err instanceof ImportConflictError) {
+    return reply.status(409).send({
+      error: err.name,
+      code: err.code,
+      message: err.message,
+      canUpdate: err.canUpdate ?? false,
+      existingRevision: err.existingRevision,
+      existing: err.existing,
+    });
+  }
+  if (err instanceof ImportForbiddenError) {
+    return reply.status(403).send({
+      error: err.name,
+      code: err.code,
+      message: err.message,
+    });
+  }
+  throw err;
+}
+
 export async function gameImportRoutes(app: FastifyInstance) {
   app.decorateRequest("importActor", null);
 
@@ -162,57 +208,70 @@ export async function gameImportRoutes(app: FastifyInstance) {
         expectedCurrentRevisionId?: string;
         unlisted?: boolean;
       };
-      const body = req.body as Record<string, unknown> | null | undefined;
-      const shouldAllowUpdate = allowUpdate || Boolean(body?.allowUpdate);
-      // Like allowUpdate, it may come with the game in the body.
-      const bodyRevisionId = body?.expectedCurrentRevisionId;
-      const pinnedRevisionId =
-        expectedCurrentRevisionId ??
-        (typeof bodyRevisionId === "string" && bodyRevisionId ? bodyRevisionId : undefined);
-      const actor = req.importActor!;
+      const body = readImportBody(req.body, expectedCurrentRevisionId);
 
       try {
         const result = await importGameDefinition({
-          raw: (body?.["game"] ?? body) as unknown,
+          raw: body.raw,
           source: "web",
-          actor,
+          actor: req.importActor!,
           dryRun,
           expectedServerId,
-          allowUpdate: shouldAllowUpdate,
-          expectedCurrentRevisionId: pinnedRevisionId,
+          allowUpdate: allowUpdate || body.allowUpdate,
+          expectedCurrentRevisionId: body.expectedCurrentRevisionId,
           unlisted,
         });
 
         const status = result.status === "created" ? 201 : 200;
         return reply.status(status).send(result);
       } catch (err) {
-        if (err instanceof ImportValidationError) {
-          return reply.status(400).send({
-            error: err.name,
-            code: err.code,
-            message: err.message,
-            errors: err.errors.slice(0, MAX_REPORTED_ISSUES),
-            warnings: err.warnings.slice(0, MAX_REPORTED_ISSUES),
-          });
-        }
-        if (err instanceof ImportConflictError) {
-          return reply.status(409).send({
-            error: err.name,
-            code: err.code,
-            message: err.message,
-            canUpdate: err.canUpdate ?? false,
-            existingRevision: err.existingRevision,
-            existing: err.existing,
-          });
-        }
-        if (err instanceof ImportForbiddenError) {
-          return reply.status(403).send({
-            error: err.name,
-            code: err.code,
-            message: err.message,
-          });
-        }
-        throw err;
+        return sendImportError(reply, err);
+      }
+    },
+  );
+
+  // POST /games/:gameId/import — replace that game's definition with the
+  // file (the body, or { game, expectedCurrentRevisionId }). The file's id and
+  // serverId are ignored: the game keeps its own. Always an update, so no
+  // allowUpdate; for whoever may update the game (see replaceGameDefinition).
+  app.post(
+    "/:gameId/import",
+    {
+      bodyLimit: MAX_GAME_IMPORT_BYTES,
+      onRequest: async (req) => {
+        req.importActor = await resolveImportActor(req);
+      },
+      schema: {
+        params: Type.Object({ gameId: Type.String() }),
+        querystring: Type.Object({
+          dryRun: Type.Optional(Type.Boolean()),
+          expectedCurrentRevisionId: Type.Optional(Type.String({ minLength: 1 })),
+        }),
+      },
+    },
+    async (req, reply) => {
+      const { gameId } = req.params as { gameId: string };
+      const { dryRun = false, expectedCurrentRevisionId } = req.query as {
+        dryRun?: boolean;
+        expectedCurrentRevisionId?: string;
+      };
+      const body = readImportBody(req.body, expectedCurrentRevisionId);
+      const game = await prisma.game.findUnique({
+        where: { id: gameId },
+        select: { id: true, gameKey: true, serverId: true, createdById: true },
+      });
+      if (!game) throw notFound("Game not found");
+      try {
+        const result = await replaceGameDefinition({
+          game,
+          raw: body.raw,
+          actor: req.importActor!,
+          dryRun,
+          expectedCurrentRevisionId: body.expectedCurrentRevisionId,
+        });
+        return reply.status(200).send(result);
+      } catch (err) {
+        return sendImportError(reply, err);
       }
     },
   );
@@ -222,9 +281,15 @@ export async function gameImportRoutes(app: FastifyInstance) {
     "/:gameId/export",
     async (req, reply) => {
       const { gameId } = req.params as { gameId: string };
-      const game = await findGameByIdOrKey(gameId, {
-        currentRevision: { select: { id: true, checksum: true } },
-      });
+      const include = { currentRevision: { select: { id: true, checksum: true } } };
+      let game = await prisma.game.findUnique({ where: { id: gameId }, include });
+      if (!game) {
+        // The web build before ids became per server exports by the file's
+        // id, and browsers keep it until reloaded: honour that while the id
+        // names one game. Remove in the release after the one with this change.
+        const byKey = await prisma.game.findMany({ where: { gameKey: gameId }, include, take: 2 });
+        if (byKey.length === 1) game = byKey[0];
+      }
 
       if (!game) {
         return reply.status(404).send({ error: "Game not found" });
@@ -319,7 +384,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
       };
       const { sessionId } = req.query as { sessionId?: string };
 
-      const game = await findGameByIdOrKey(gameId);
+      const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) {
         return reply.status(404).send({ error: "Game not found" });
       }

@@ -15,6 +15,9 @@ import { compareWithExisting } from "./compare-games.js";
 // GameRevision.revision is a PostgreSQL integer.
 const MAX_REVISION = 2_147_483_647;
 
+// What an update needs of the game it changes.
+const GAME_LOOKUP = { id: true, serverId: true, createdById: true } as const;
+
 export interface ImportActor {
   userId: string;
   canCreateGames(serverId: string): boolean | Promise<boolean>;
@@ -89,15 +92,6 @@ export class ImportForbiddenError extends Error {
   }
 }
 
-// The file's id belongs to a game the caller may not change. Which server it
-// is on, or whose it is, is none of the caller's business.
-function gameIdTaken(gameKey: string, reason = `The id "${gameKey}" is already used by another game.`) {
-  return new ImportForbiddenError(
-    `${reason} To import this file as a new game, change "id" in the file.`,
-    "GAME_ID_TAKEN",
-  );
-}
-
 interface ImportContext {
   def: GameDefinition;
   gameKey: string;
@@ -119,26 +113,26 @@ function isUniqueViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
+// Imports of a game are serialized, and losing the race to create one is
+// retried as an update, so this is a safety net: report a conflict rather
+// than leak the database error.
+function concurrentImport(err: unknown): never {
+  if (isUniqueViolation(err)) {
+    throw new ImportConflictError(
+      "The game was changed by a concurrent import. Try again.",
+      "CONCURRENT_IMPORT",
+    );
+  }
+  throw err;
+}
+
 /**
  * Validates, authorizes, and transactionally imports or updates a GameDefinition document.
  */
 export async function importGameDefinition(
   params: ImportGameDefinitionParams,
 ): Promise<GameImportResponse> {
-  try {
-    return await importDefinition(params);
-  } catch (err) {
-    // Imports of a game are serialized, and losing the race to create one is
-    // retried as an update, so this is a safety net: report a conflict rather
-    // than leak the database error.
-    if (isUniqueViolation(err)) {
-      throw new ImportConflictError(
-        "The game was changed by a concurrent import. Try again.",
-        "CONCURRENT_IMPORT",
-      );
-    }
-    throw err;
-  }
+  return importDefinition(params).catch(concurrentImport);
 }
 
 function serverNotFound(serverId: string, warnings: ValidationIssue[]): ImportValidationError {
@@ -222,6 +216,27 @@ async function importDefinition(
     throw serverNotFound(def.serverId, validation.warnings);
   }
 
+  // A file's id is unique among its scope's games: the server's, and on
+  // Casual Games the importer's own. An import with no one behind it (a
+  // preload) would make a Casual game that is nobody's.
+  const ownerScope = def.serverId === CASUAL_SERVER_ID ? actor?.userId : "";
+  if (ownerScope === undefined) {
+    throw new ImportValidationError(
+      [
+        {
+          path: "/serverId",
+          code: "CASUAL_PRELOAD",
+          message:
+            "Casual games can't be preloaded: each one belongs to whoever uploads it. Upload the file on the import page instead.",
+        },
+      ],
+      validation.warnings,
+    );
+  }
+  const inScope = {
+    serverId_ownerScope_gameKey: { serverId: def.serverId, ownerScope, gameKey },
+  };
+
   const ctx: ImportContext = {
     def,
     gameKey,
@@ -234,11 +249,9 @@ async function importDefinition(
     expectedCurrentRevisionId,
   };
 
-  // 4. Look up existing game by gameKey
-  const existingGame = await prisma.game.findUnique({
-    where: { gameKey },
-    select: { id: true, serverId: true, createdById: true },
-  });
+  // 4. Look up the game with this id in that scope. The same id elsewhere is
+  // another game.
+  const existingGame = await prisma.game.findUnique({ where: inScope, select: GAME_LOOKUP });
   if (existingGame) {
     return importRevision(ctx, existingGame);
   }
@@ -268,6 +281,7 @@ async function importDefinition(
         data: {
           gameKey,
           serverId: def.serverId,
+          ownerScope,
           name: def.name,
           size: def.size ?? "medium",
           unlisted: unlisted || def.serverId === CASUAL_SERVER_ID,
@@ -306,10 +320,7 @@ async function importDefinition(
   } catch (err) {
     // A concurrent import created the game first: import this as its revision.
     const raced = isUniqueViolation(err)
-      ? await prisma.game.findUnique({
-          where: { gameKey },
-          select: { id: true, serverId: true, createdById: true },
-        })
+      ? await prisma.game.findUnique({ where: inScope, select: GAME_LOOKUP })
       : null;
     if (!raced) throw err;
     return importRevision(ctx, raced);
@@ -317,26 +328,34 @@ async function importDefinition(
 }
 
 /**
- * Throws unless the actor may update the game. Games can't move between
- * servers. A Casual game is its creator's: they update it with games.create
- * there (their role), and only games.edit (global admins) covers anyone's.
+ * Whether the actor may update the game. A Casual game is its creator's:
+ * they update it with games.create there (their role), and only games.edit
+ * (global admins) covers anyone's. On a server it takes games.edit.
  */
+async function canUpdate(
+  actor: ImportActor | undefined,
+  game: { serverId: string; createdById: string | null },
+): Promise<boolean> {
+  if (!actor || (await actor.canEditGames(game.serverId))) return true;
+  return (
+    game.serverId === CASUAL_SERVER_ID &&
+    game.createdById !== null &&
+    game.createdById === actor.userId &&
+    (await actor.canCreateGames(game.serverId))
+  );
+}
+
 async function assertCanUpdate(
   ctx: ImportContext,
   game: { serverId: string; createdById: string | null },
 ): Promise<void> {
-  const { def, gameKey, actor } = ctx;
-  if (def.serverId !== game.serverId) throw gameIdTaken(gameKey);
-  if (!actor || (await actor.canEditGames(game.serverId))) return;
-
-  if (game.serverId === CASUAL_SERVER_ID) {
-    const ownGame = game.createdById !== null && game.createdById === actor.userId;
-    if (ownGame && (await actor.canCreateGames(game.serverId))) return;
-    throw gameIdTaken(gameKey);
-  }
-  throw gameIdTaken(
-    gameKey,
-    `A game with id "${gameKey}" already exists, and you do not have permission to edit games on this server.`,
+  if (await canUpdate(ctx.actor, game)) return;
+  // Plain imports only find games in the importer's own scope, so this is a
+  // server game: the replace route and settings edits check canUpdate first.
+  // Those who can import there see its games on /games anyway.
+  throw new ImportForbiddenError(
+    `A game with id "${ctx.gameKey}" already exists on this server, and you do not have permission to edit games there. To import this file as a new game, change "id" in the file.`,
+    "GAME_ID_TAKEN",
   );
 }
 
@@ -515,6 +534,52 @@ function gameChanged(): ImportConflictError {
     "This game was changed since this page loaded. Reload the page to see the latest.",
     "GAME_CHANGED",
   );
+}
+
+export interface ReplaceGameDefinitionParams {
+  game: { id: string; gameKey: string; serverId: string; createdById: string | null };
+  raw: unknown;
+  actor: ImportActor;
+  dryRun?: boolean;
+  // As for an import: refuse (409 GAME_CHANGED) unless this is still the
+  // game's current revision.
+  expectedCurrentRevisionId?: string;
+}
+
+/**
+ * Replaces this game's definition with a file, whatever its id and serverId:
+ * the game keeps its own, as a settings edit pins def.id. It reaches games an
+ * import of the file wouldn't, such as another player's Casual game for a
+ * global admin. Always an update, for whoever may update the game.
+ */
+export async function replaceGameDefinition(
+  params: ReplaceGameDefinitionParams,
+): Promise<GameImportResponse> {
+  const { game, raw, actor, dryRun = false, expectedCurrentRevisionId } = params;
+  // Before validating, as for an import: the report is for those who may
+  // change the game.
+  if (!(await canUpdate(actor, game))) {
+    throw new ImportForbiddenError("You do not have permission to update this game");
+  }
+  const def = { ...(raw as object), id: game.gameKey, serverId: game.serverId } as GameDefinition;
+  const validation = validateGameDefinition(def);
+  if (!validation.valid) {
+    throw new ImportValidationError(validation.errors, validation.warnings);
+  }
+  return importRevision(
+    {
+      def,
+      gameKey: game.gameKey,
+      checksum: computeGameDefinitionChecksum(def),
+      warnings: validation.warnings,
+      source: "web",
+      actor,
+      dryRun,
+      allowUpdate: true,
+      expectedCurrentRevisionId,
+    },
+    game,
+  ).catch(concurrentImport);
 }
 
 export interface UpdateGameSettingsParams {
