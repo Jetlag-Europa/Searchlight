@@ -41,7 +41,7 @@ describe("radar card radius", () => {
         setActiveGameDefinition(
             JSON.parse(
                 readFileSync(
-                    resolve("../../games/preloaded/stockholm-2026.game.json"),
+                    resolve("tests/fixtures/games/stockholm-2026.game.json"),
                     "utf8",
                 ),
             ),

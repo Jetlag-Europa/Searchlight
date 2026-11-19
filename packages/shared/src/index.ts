@@ -223,8 +223,8 @@ export interface GameSessionSummary {
 
 // Limits on the zone IDs one PATCH /sessions/:id may disable or enable, and
 // on the session's disabled list. Game imports don't limit zone IDs (a zone
-// without one takes its name), hence the generous length; the biggest bundled
-// games have under 500 zones, with IDs under 60 characters.
+// without one takes its name), hence the generous length; the biggest games
+// so far have under 500 zones, with IDs under 60 characters.
 export const MAX_ZONE_ID_LENGTH = 1000;
 export const MAX_DISABLED_ZONES = 5000;
 

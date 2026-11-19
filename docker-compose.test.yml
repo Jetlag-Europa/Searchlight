@@ -17,6 +17,9 @@ services:
       # The e2e user creates sessions on the seeded game, which takes an admin
       # here: it is on no Discord server. Wins over the dev .env.
       ADMIN_DISCORD_IDS: e2e-test-user
+      # The seed imports the e2e game; a dev .env's GAMES_PRELOAD_DIR is a host
+      # path.
+      GAMES_PRELOAD_DIR: ""
       FRONTEND_ORIGIN: http://127.0.0.1:8280
       DISCORD_REDIRECT_URI: http://127.0.0.1:3200/auth/discord/callback
     ports:

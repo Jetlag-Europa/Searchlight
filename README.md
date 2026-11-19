@@ -9,7 +9,7 @@ eliminates part of the map.
 | `apps/web` | Astro + React frontend (the map) |
 | `apps/api` | Fastify + Prisma backend: auth, games, sessions, live sync |
 | `packages/shared` | Types and the game definition schema, validator and checksum |
-| `games/preloaded` | The bundled games, one JSON definition each, imported by the API on start |
+| `games/schema` | The published JSON schema of game definitions |
 
 Running it on a server: [`DEPLOY.md`](DEPLOY.md). Adding a game:
 [`docs/ADDING_GAMES.md`](docs/ADDING_GAMES.md). Tests:
@@ -53,8 +53,11 @@ the API on <http://localhost:3000> (it applies migrations and creates the
 Discord servers first) and the web app on <http://localhost:4321>. Open the
 web app and log in.
 
-The API imports `games/preloaded/*.game.json` when it starts, so restart
-`pnpm dev` after editing a game.
+A fresh database has no games. Import one at <http://localhost:4321/games>
+→ **+ Import Game JSON**, or have the API import a directory of
+`<gameId>.game.json` files on every start: set `GAMES_PRELOAD_DIR` in `.env`,
+e.g. `GAMES_PRELOAD_DIR=../web/tests/fixtures/games` (relative to `apps/api`)
+for the five games the tests use.
 
 ### Everyday commands
 

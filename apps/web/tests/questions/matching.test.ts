@@ -14,13 +14,13 @@ import {
 import { gridAgreement, sampleGrid } from "./oracleCommon";
 import { failuresToBad, renderDebugSVG } from "./debugRender";
 
-// The real South Limburg municipalities, read from the preloaded definition and
+// The real South Limburg municipalities, read from the game definition fixture and
 // used as a player-drawn custom zone: exercises the exact point-in-zone path
 // (the Entry 34 "municipality doesn't work" class of bug) on real geometry.
-const PRELOADED = resolve(__dirname, "../../../../games/preloaded");
+const FIXTURES = resolve(__dirname, "../fixtures/games");
 
 const southLimburgGame = JSON.parse(
-    readFileSync(resolve(PRELOADED, "south-limburg-2026.game.json"), "utf8"),
+    readFileSync(resolve(FIXTURES, "south-limburg-2026.game.json"), "utf8"),
 );
 
 interface GameFeature {

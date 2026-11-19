@@ -41,7 +41,7 @@ const rotterdamJson: unknown = JSON.parse(
     readFileSync(
         resolve(
             process.cwd(),
-            "../../games/preloaded/rotterdam-2026-09.game.json",
+            "tests/fixtures/games/rotterdam-2026-09.game.json",
         ),
         "utf8",
     ),

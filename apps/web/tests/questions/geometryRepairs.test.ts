@@ -101,17 +101,17 @@ import {
     determineTentacleGeometry,
     featuresMatch,
 } from "@/maps/questions/operators/tentacle";
-const PRELOADED = resolve(__dirname, "../../../../games/preloaded");
+const FIXTURES = resolve(__dirname, "../fixtures/games");
 
 describe("Geometry Repairs & Regressions", () => {
     describe("Contradiction 1: Point identity duplicate IDs (Paris UGC fixture)", () => {
         const parisGame = JSON.parse(
-            readFileSync(resolve(PRELOADED, "paris-2026.game.json"), "utf8"),
+            readFileSync(resolve(FIXTURES, "paris-2026.game.json"), "utf8"),
         );
         const cinemaFeature = parisGame.features.find(
             (f: { name?: string }) => f.name === "Cinema",
         );
-        // The preloaded file gives every "UGC" its own ID, but imported files
+        // The fixture gives every "UGC" its own ID, but imported files
         // may still repeat IDs: give them all the one the old data shared.
         const ugcCinemas = cinemaFeature.data.features
             .filter((f: Feature<Point>) => f.properties?.name === "UGC")
@@ -209,7 +209,7 @@ describe("Geometry Repairs & Regressions", () => {
     describe("Contradiction 2: South Limburg clustered consulate Voronoi", () => {
         const slGame = JSON.parse(
             readFileSync(
-                resolve(PRELOADED, "south-limburg-2026.game.json"),
+                resolve(FIXTURES, "south-limburg-2026.game.json"),
                 "utf8",
             ),
         );

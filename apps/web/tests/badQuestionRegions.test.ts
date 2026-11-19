@@ -52,7 +52,7 @@ function loadStockholm() {
             readFileSync(
                 resolve(
                     process.cwd(),
-                    "../../games/preloaded/stockholm-2026.game.json",
+                    "tests/fixtures/games/stockholm-2026.game.json",
                 ),
                 "utf8",
             ),

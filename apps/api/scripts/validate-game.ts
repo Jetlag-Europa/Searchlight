@@ -1,39 +1,28 @@
-// Validate bundled games against canonical JSON definitions.
-// Run from apps/api:
-//   pnpm exec tsx scripts/validate-game.ts paris-2026
-//   pnpm exec tsx scripts/validate-game.ts            # validates every game
-//
-// Checks (no network): canonical game definition exists in games/preloaded;
-// valid per shared validateGameDefinition schema.
+// Validate game definition files with the server's validator, as an import
+// does (no network). Run from apps/api:
+//   pnpm validate-game path/to/paris-2026.game.json [more.game.json ...]
 
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { basename, resolve } from "node:path";
 
 import {
   resolveGameDefinitionId,
   validateGameDefinition,
 } from "@searchlight/shared";
 
-const PRELOADED_DIR = resolve(import.meta.dirname, "../../../games/preloaded");
-function validateFile(fileName: string): { name: string; gameId: string; errors: string[]; warnings: string[] } {
+// pnpm runs package scripts in apps/api; INIT_CWD is where it was called from.
+const cwd = process.env["INIT_CWD"] ?? process.cwd();
+
+function validateFile(path: string): { name: string; gameId: string; errors: string[] } {
   const errors: string[] = [];
-  const warnings: string[] = [];
+  const fileName = basename(path);
 
-  const canonicalPath = resolve(PRELOADED_DIR, fileName);
-
-  if (!existsSync(canonicalPath)) {
-    errors.push(`missing canonical game definition: games/preloaded/${fileName}`);
-    return { name: fileName, gameId: fileName, errors, warnings };
-  }
-
-  let canonicalContent = "";
   let parsed: Record<string, unknown>;
   try {
-    canonicalContent = readFileSync(canonicalPath, "utf8");
-    parsed = JSON.parse(canonicalContent);
+    parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
-    errors.push(`invalid JSON in games/preloaded/${fileName}: ${(e as Error).message}`);
-    return { name: fileName, gameId: fileName, errors, warnings };
+    errors.push(`can't read ${path}: ${(e as Error).message}`);
+    return { name: fileName, gameId: fileName, errors };
   }
 
   const result = validateGameDefinition(parsed);
@@ -42,40 +31,23 @@ function validateFile(fileName: string): { name: string; gameId: string; errors:
       errors.push(`[${err.code}] ${err.path}: ${err.message}`);
     }
   }
-  for (const warn of result.warnings) {
-    warnings.push(`[${warn.code}] ${warn.path}: ${warn.message}`);
-  }
-
 
   const gameId = resolveGameDefinitionId(parsed as { id?: string; name: string });
   const name = typeof parsed.name === "string" ? parsed.name : gameId;
-
-  for (const w of warnings) console.warn(`  ⚠ ${gameId}: ${w}`);
-  return { name, gameId, errors, warnings };
+  for (const warn of result.warnings) {
+    console.warn(`  ⚠ ${gameId}: [${warn.code}] ${warn.path}: ${warn.message}`);
+  }
+  return { name, gameId, errors };
 }
 
-const allFiles = readdirSync(PRELOADED_DIR)
-  .filter((f) => f.endsWith(".game.json"))
-  .sort();
-
-const arg = process.argv[2];
-let targetFiles = allFiles;
-
-if (arg) {
-  const normalizedArg = arg.replace(/\.game\.json$/, "");
-  targetFiles = allFiles.filter((f) => {
-    const base = f.replace(/\.game\.json$/, "");
-    return base === normalizedArg || f === arg;
-  });
-
-  if (targetFiles.length === 0) {
-    console.error(`No preloaded game matching "${arg}".`);
-    process.exit(1);
-  }
+const files = process.argv.slice(2).map((file) => resolve(cwd, file));
+if (!files.length) {
+  console.error("Usage: pnpm --filter @searchlight/api validate-game <file.game.json>...");
+  process.exit(1);
 }
 
 let failed = 0;
-for (const file of targetFiles) {
+for (const file of files) {
   const { name, gameId, errors } = validateFile(file);
   if (errors.length) {
     failed++;
@@ -90,4 +62,4 @@ if (failed) {
   console.error(`\n${failed} game(s) failed validation.`);
   process.exit(1);
 }
-console.log(`\nAll ${targetFiles.length} game(s) valid.`);
+console.log(`\nAll ${files.length} game(s) valid.`);

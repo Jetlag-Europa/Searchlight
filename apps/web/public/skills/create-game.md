@@ -266,7 +266,7 @@ Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a regio
   - If a layer is over, and its vertices lie closer than about 50 m (borders traced point by point, as from OSM), simplify it with a topology-preserving simplifier at about 10 m tolerance. Simplifying each feature on its own opens gaps and overlaps between neighbours. Where vertices are already far apart, simplifying removes little; the checker then only notes the layer.
   - Round coordinates to 6 decimal places (about 0.1 m). Use fixed decimals, not 6 *significant* digits, which leaves about 11 m steps.
   - Keep only `name` in properties (plus `tier`/`radius` on zones).
-  - Preloaded games range from about 0.1 MB to 2 MB, and the import limit is 50 MB. The checker sizes the file as compact JSON and warns over 10 MB, fails over 50 MB.
+  - Most games are about 0.1 MB to 2 MB, and the import limit is 50 MB. The checker sizes the file as compact JSON and warns over 10 MB, fails over 50 MB.
 - Every feature should have `properties.name`, because players see it in answers and tentacle lists.
 
 ### 5.3 Standard rulebook layers
@@ -346,7 +346,7 @@ node check-game.mjs --strict testville-2026.game.json
 - **WARN:** it imports but will play badly, e.g. swapped `[lat, lng]`, zones outside the play area, duplicate zone or feature IDs, names with CDATA wrappers or XML entities (`<![CDATA[…]]>`, `&amp;`), case-mismatched or numeric tiers, single-feature matching or tentacles, regions that overlap or that no zone lies in, or heavy geometry.
 - **NOTE:** worth a look but often intentional, e.g. plural-looking layer names.
 
-`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other. Preloaded games must pass it (in the Searchlight repo, see `docs/ADDING_GAMES.md`).
+`--strict` reports the warnings that are always data defects as **FAIL** and exits with an error: misplaced or swapped coordinates, duplicate zone or feature IDs, undecoded names, matching on a single feature, region layers no hiding zone lies in, and layers marked `noOverlaps` whose regions reach more than 0.5 m into each other.
 
 Output is one line per finding (`ERROR`, `WARN `, `FAIL ` or `NOTE `, then the JSON path and the message), then `<id>: N hiding zones, N layers. Questions offered:` with one line per question (kind, label and question ID, e.g. `matching     Same Arrondissement  [matching-arrondissement]`), then the totals. It exits 1 on any ERROR or FAIL. The question list is what players will see: read it back to the user.
 
@@ -363,7 +363,6 @@ To see the file on a map, the user can drop it on the import page, `https://sear
 - **Who can import:** permissions come from Discord roles. A server admin grants them on `/admin`: click **Manage Roles** on the server, then tick `games.create` and `games.edit` for the role game devs hold. The change applies within a minute. Without them on any server, `/games` shows no import button. For Casual Games, a Searchlight admin opens the **Casual Games** card and ticks only **Create Casual games**, for one of JetLag EU's roles.
   - Responses: `201` created; `200` updated or `unchanged`; `400` with `errors[]` (at most 100; `message` gives the total); `401` when not signed in; `403` for a missing permission, or an `id` already used on that server by a game you can't edit (`GAME_ID_TAKEN`; change `id`); `409` if the game exists and `allowUpdate` isn't set, or with `GAME_CHANGED` if it changed since `expectedCurrentRevisionId`.
   - The body limit is 50 MB. The checker sizes the file both as compact JSON and as it is on disk; post it compact (`JSON.stringify(game)`, as the import page does) if only its indentation takes it over.
-- **Preloaded (Searchlight repo maintainers):** save the file as `games/preloaded/<id>.game.json` (the file name must equal the `id`) and follow `docs/ADDING_GAMES.md`. On start the API applies each file whose content changed since the last start; an upload made since an unchanged file was applied stays current. Casual Games (`home-games`) files can't be preloaded: upload them.
 - **Revisions:** every import with new content creates a new revision. Running sessions stay on the revision they started with. Content identical to the current revision is reported as `unchanged`; content identical to an older revision re-activates that revision (reported as `updated` with its number) instead of creating a new one.
 - **Export:**
   - Web: **Export JSON** on `/games` (the current revision), or **Export Game JSON** under Options in the map's left drawer (the revision being played, which in a session started before an update is its pinned revision).

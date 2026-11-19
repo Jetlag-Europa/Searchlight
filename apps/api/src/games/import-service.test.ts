@@ -281,6 +281,10 @@ describe("preloadGameDefinitions", () => {
     expect(await prisma.game.findUnique({ where: onServer(key) })).not.toBeNull();
   });
 
+  test("fails on a directory it can't read", async () => {
+    await expect(preloadGameDefinitions(join(dir, "missing"))).rejects.toThrow("ENOENT");
+  });
+
   // A directory holding only the given game's file; start(name) writes it
   // with that name and preloads, like an API start.
   async function preloadDir(key: string) {

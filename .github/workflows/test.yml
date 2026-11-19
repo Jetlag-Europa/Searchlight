@@ -85,9 +85,6 @@ jobs:
             - name: API tests
               run: pnpm --filter @searchlight/api test
 
-            - name: Preloaded games
-              run: pnpm verify:preloaded-games
-
             - name: Game JSON schema
               run: pnpm check:game-schema
 

@@ -40,4 +40,7 @@ export const env = {
   // Preview deployments only: when set, enables /auth/dev-login, which logs in as
   // any Discord user ID given this token. NEVER set in prod.
   DEV_LOGIN_TOKEN: devLoginToken(),
+  // Optional: a directory of *.game.json files the API imports on start (see
+  // apps/api/src/games/preload.ts). Unset, as in prod, imports nothing.
+  GAMES_PRELOAD_DIR: process.env["GAMES_PRELOAD_DIR"] ?? "",
 };

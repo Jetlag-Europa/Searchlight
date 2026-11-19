@@ -10,9 +10,7 @@ import { errorHandler } from "./lib/error-handler.js";
 import { rejectCrossOriginWrites } from "./lib/origin-check.js";
 import { registerCompression } from "./lib/compression.js";
 import { registerSessionRenewal } from "./lib/session.js";
-import { existsSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { preloadGameDefinitions } from "./games/preload.js";
 import { authRoutes } from "./routes/auth.js";
 import { meRoute } from "./routes/me.js";
@@ -121,24 +119,17 @@ for (const signal of ["SIGTERM", "SIGINT"] as const) {
   });
 }
 
-const __dir = dirname(fileURLToPath(import.meta.url));
-const preloadCandidateDirs = [
-  resolve(process.cwd(), "games/preloaded"),
-  resolve(process.cwd(), "../../games/preloaded"),
-  resolve(__dir, "../../games/preloaded"),
-  resolve(__dir, "../../../games/preloaded"),
-];
-const activePreloadDir = preloadCandidateDirs.find((d) => existsSync(d));
-if (activePreloadDir) {
+if (env.GAMES_PRELOAD_DIR) {
+  const preloadDir = resolve(env.GAMES_PRELOAD_DIR);
   try {
-    const summary = await preloadGameDefinitions(activePreloadDir);
+    const summary = await preloadGameDefinitions(preloadDir);
     for (const { fileName, error } of summary.failures) {
       app.log.error({ err: error, file: fileName }, "Failed to preload game definition; skipped");
     }
     for (const { fileName, revision } of summary.kept) {
       app.log.warn(
         { file: fileName, revision },
-        `games/preloaded/${fileName} is unchanged since the last start, but revision ${revision} was made current since; keeping ${revision}`,
+        `${fileName} is unchanged since the last start, but revision ${revision} was made current since; keeping ${revision}`,
       );
     }
     app.log.info(
@@ -149,11 +140,12 @@ if (activePreloadDir) {
         unchanged: summary.unchanged,
         kept: summary.kept.length,
         failed: summary.failures.length,
+        dir: preloadDir,
       },
       "Preloaded game definitions",
     );
   } catch (err) {
-    app.log.error({ err }, "Failed to preload game definitions");
+    app.log.error({ err, dir: preloadDir }, "Failed to preload game definitions");
   }
 }
 
