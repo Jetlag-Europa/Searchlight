@@ -109,12 +109,15 @@ const ringOk = (ring: unknown): boolean => {
         return false;
     }
     let area2 = 0;
+    let scale = 0;
     for (let i = 1; i < ring.length; i++) {
-        area2 +=
+        const term =
             (ring[i - 1][0] - first[0]) * (ring[i][1] - first[1]) -
             (ring[i][0] - first[0]) * (ring[i - 1][1] - first[1]);
+        area2 += term;
+        scale += Math.abs(term);
     }
-    return area2 !== 0;
+    return scale > 0 && Math.abs(area2) > scale * 1e-12;
 };
 
 const polygonOk = (rings: unknown): boolean =>

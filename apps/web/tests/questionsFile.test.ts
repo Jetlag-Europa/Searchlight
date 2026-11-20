@@ -458,11 +458,13 @@ describe("questions file", () => {
                 ]), // diagonal collinear ring
                 zone([
                     [8.5, 47.3],
-                    [8.6, 47.3],
-                    [8.6, 47.4],
-                    [8.6, 47.3],
+                    [8.501, 47.3],
+                    [8.501, 47.301],
+                    [8.6, 47.31],
+                    [8.501, 47.301],
+                    [8.501, 47.3],
                     [8.5, 47.3],
-                ]), // retraced zero-area ring
+                ]), // retraced zero-area ring with floating-point residue
                 line([[8.5, 47.3]]), // 1-point line
                 zone([
                     [400, 47.3],
