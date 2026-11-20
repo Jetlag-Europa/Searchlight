@@ -136,6 +136,7 @@ const slug = (s) => String(s).toLowerCase().normalize("NFD")
   .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const UNITS = ["meters", "kilometers", "miles"];
+const GAME_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 // Names copied out of KML/XML/HTML without decoding them.
 const ESCAPED_NAME = /<!\[CDATA\[|\]\]>|&(amp|lt|gt|quot|apos|#\d+);/;
 // Heuristic: the last word ends in a plain "s" (Districts, Museums), but not
@@ -199,19 +200,32 @@ export function checkGame(def, { fileSize } = {}) {
 
   // ── Structure (what the server validator rejects) ──────────────────────────
 
+  if (!isObj(def)) {
+    err("/", "root must be a JSON object");
+    return { errors, warnings, notes, questions: [], zoneCount: 0, layerCount: 0 };
+  }
+
   const ROOT_KEYS = ["$schema", "id", "revision", "name", "serverId", "size", "visibility",
     "unit", "map", "hidingZones", "radars", "thermometer", "features"];
   for (const key of Object.keys(def)) {
     if (!ROOT_KEYS.includes(key)) err(`/${key}`, "unknown root property");
   }
+  if (def.$schema !== undefined && typeof def.$schema !== "string") err("/$schema", "must be a string");
   if (typeof def.name !== "string" || !def.name || def.name.length > 120) {
     err("/name", "required string, 1-120 characters");
   }
   if (typeof def.serverId !== "string" || !def.serverId) err("/serverId", "required string");
-  if (def.id !== undefined && (typeof def.id !== "string" || !def.id)) err("/id", "must be a non-empty string");
-  if ((def.id ?? slug(def.name ?? "")).length < 2) err("/id", "id (or slug of name) must be at least 2 characters");
-  if (def.revision !== undefined && !(Number.isInteger(def.revision) && def.revision >= 1)) {
-    err("/revision", "must be an integer >= 1 (or leave it out)");
+  if (def.id !== undefined) {
+    if (typeof def.id !== "string" || !GAME_ID.test(def.id)) {
+      err("/id", "must be a lowercase slug (a-z, 0-9, single hyphens)");
+    } else if (def.id.length < 2) {
+      err("/id", "id (or slug of name) must be at least 2 characters");
+    }
+  } else if (slug(def.name ?? "").length < 2) {
+    err("/id", "id (or slug of name) must be at least 2 characters");
+  }
+  if (def.revision !== undefined && !(Number.isInteger(def.revision) && def.revision >= 1 && def.revision <= 2147483647)) {
+    err("/revision", "must be an integer from 1 to 2147483647 (or leave it out)");
   }
   if (def.size !== undefined && !["small", "medium", "large"].includes(def.size)) err("/size", "small | medium | large");
   if (def.unit !== undefined && !UNITS.includes(def.unit)) err("/unit", UNITS.join(" | "));
@@ -303,11 +317,17 @@ export function checkGame(def, { fileSize } = {}) {
   }
   const playArea = checkCollection(def.map?.playArea, ["Polygon", "MultiPolygon"], "/map/playArea");
   if (!isObj(def.hidingZones)) err("/hidingZones", "required object");
-  const hz = def.hidingZones ?? {};
+  const hz = isObj(def.hidingZones) ? def.hidingZones : {};
   if (hz.radius !== undefined && !(typeof hz.radius === "number" && hz.radius > 0)) err("/hidingZones/radius", "positive number");
   if (hz.unit !== undefined && !UNITS.includes(hz.unit)) err("/hidingZones/unit", UNITS.join(" | "));
-  for (const [tier, r] of Object.entries(hz.tierOverrides ?? {})) {
-    if (!tier || !(typeof r === "number" && r > 0)) err(`/hidingZones/tierOverrides/${tier}`, "positive number");
+  if (hz.tierOverrides !== undefined) {
+    if (!isObj(hz.tierOverrides)) {
+      err("/hidingZones/tierOverrides", "must be an object mapping tier names to positive numbers");
+    } else {
+      for (const [tier, r] of Object.entries(hz.tierOverrides)) {
+        if (!(Number.isFinite(r) && r > 0)) err(`/hidingZones/tierOverrides/${tier}`, "positive number");
+      }
+    }
   }
   const zones = checkCollection(hz.features, ["Point", "Polygon", "MultiPolygon"], "/hidingZones/features");
 
@@ -397,8 +417,26 @@ export function checkGame(def, { fileSize } = {}) {
 
   if (errors.length === 0) {
     if (ESCAPED_NAME.test(def.name)) warn("/name", `${JSON.stringify(def.name)} contains a CDATA wrapper or XML/HTML entity; decode it`, "escaped-name");
+    const MAP_KEYS = ["center", "bounds", "playArea"];
+    const HIDING_ZONES_KEYS = ["radius", "unit", "tierOverrides", "features"];
+    const VISIBILITY_KEYS = def.visibility?.kind === "discord-role" ? ["kind", "guildId", "roleId"] : ["kind"];
+    for (const [obj, allowed, prefix] of [
+      [def.map, MAP_KEYS, "/map"],
+      [hz, HIDING_ZONES_KEYS, "/hidingZones"],
+      ...(def.visibility ? [[def.visibility, VISIBILITY_KEYS, "/visibility"]] : []),
+    ]) {
+      for (const key of Object.keys(obj)) {
+        if (!allowed.includes(key)) {
+          warn(`${prefix}/${key}`, `unknown property (ignored by the server; allowed: ${allowed.join(", ")})`, "unknown-property");
+        }
+      }
+    }
     if (def.unit !== undefined && def.unit !== (hz.unit ?? "meters")) {
       warn("/unit", `root unit "${def.unit}" overrides hidingZones.unit "${hz.unit ?? "meters"}": radius ${hz.radius ?? 400} is read as ${hz.radius ?? 400} ${def.unit}. Set only hidingZones.unit`, "root-unit");
+    }
+    const effectiveUnit = def.unit ?? hz.unit ?? "meters";
+    if (hz.radius === undefined && (effectiveUnit === "kilometers" || effectiveUnit === "miles")) {
+      warn("/hidingZones/radius", `omitted while unit is "${effectiveUnit}": defaults to 400 ${effectiveUnit}; set hidingZones.radius explicitly`, "default-radius-large-unit");
     }
     if (def.radars === undefined) note("/radars", "omitted: the game has no radar questions (a game offers only what it declares)", "no-radars");
     if (def.thermometer === undefined) note("/thermometer", "omitted: the game has no thermometer questions", "no-thermometer");
@@ -437,13 +475,13 @@ export function checkGame(def, { fileSize } = {}) {
         if (typeof tier !== "string") {
           warn(`${p}/properties/tier`, `tier ${JSON.stringify(tier)} is a ${typeof tier}; tiers must be strings, like the tierOverrides keys`, "tier-not-string");
         }
-        usedTiers.add(String(tier));
+        if (tier !== "") usedTiers.add(String(tier));
       }
       const r = f.properties?.radius;
       const validRadius = (typeof r === "number" && r > 0) ||
         (isObj(r) && typeof r.value === "number" && r.value > 0 && UNITS.includes(r.unit));
       if (r !== undefined && !validRadius) {
-        warn(`${p}/properties/radius`, `per-zone radius must be a positive number in the game unit, or {"value": n, "unit": "${UNITS.join("|")}"}; the zone gets the base radius`, "invalid-zone-radius");
+        warn(`${p}/properties/radius`, `per-zone radius must be a positive number in the game unit, or {"value": n, "unit": "${UNITS.join("|")}"}; the zone gets its tier radius, else the base radius`, "invalid-zone-radius");
       }
       const pt = pointOf(f);
       if (pt && playArea.length && !inPlayArea(pt)) outside.push(name ?? id ?? i);
@@ -640,7 +678,17 @@ function main(args, { readFileSync, statSync }) {
     console.error("usage: node check-game.mjs [--strict] <file.game.json>");
     process.exit(2);
   }
-  const def = JSON.parse(readFileSync(file, "utf8"));
+  const raw = readFileSync(file, "utf8");
+  let def;
+  try {
+    def = JSON.parse(raw);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    console.log(`ERROR /: invalid JSON (${message})`);
+    const failed = strict ? " (0 fail under --strict)" : "";
+    console.log(`\n1 error(s), 0 warning(s)${failed}, 0 note(s)`);
+    process.exit(1);
+  }
   const { errors, warnings, notes, questions, zoneCount, layerCount } = checkGame(def, { fileSize: statSync(file).size });
   const failures = strict ? warnings.filter((w) => STRICT_CODES.has(w.code)) : [];
 

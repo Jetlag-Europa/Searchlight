@@ -80,7 +80,9 @@ export async function readKmlFolders(path) {
  * stderr) rather than placed at [0, 0].
  */
 export function readCsv(path) {
-  const rows = parseCsv(readFileSync(path, "utf8").replace(/^\uFEFF/, ""));
+  const text = readFileSync(path, "utf8").replace(/^\uFEFF/, "");
+  const rows = text.trim() ? parseCsv(text) : [];
+  if (!rows.length) throw new Error(`${path}: CSV file is empty`);
   const header = rows.shift().map((h) => h.trim());
   const find = (...names) => header.findIndex((h) => names.includes(h.toLowerCase()));
   const latCol = find("lat", "latitude");
