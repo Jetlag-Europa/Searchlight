@@ -14,6 +14,10 @@ const discordOAuth = new Discord(
 
 const SCOPES = ["identify"];
 
+// OAuth code → its token exchange, kept for 10 seconds after it settles. Short, since
+// anyone with the callback URL can replay it during that time.
+const codeExchanges = new Map<string, ReturnType<Discord["validateAuthorizationCode"]>>();
+
 function avatarUrlFor(discordId: string, avatar: string | null): string {
   return avatar
     ? `https://cdn.discordapp.com/avatars/${discordId}/${avatar}.png`
@@ -127,10 +131,26 @@ export async function authRoutes(app: FastifyInstance) {
       reply.clearCookie("oauth_state", { path: "/" });
       reply.clearCookie("oauth_return_to", { path: "/" });
 
+      // iOS Safari sometimes sends the callback twice, the second request before the
+      // first response arrives, and shows the second response. Discord accepts a code
+      // only once, so a repeat shares the first exchange instead of failing.
+      // Keyed by state too, so a leaked code alone can't be replayed.
+      const key = `${code} ${state}`;
+      let exchange = codeExchanges.get(key);
+      if (!exchange) {
+        exchange = discordOAuth.validateAuthorizationCode(code, null);
+        codeExchanges.set(key, exchange);
+        exchange.then(
+          () => setTimeout(() => codeExchanges.delete(key), 10_000).unref(),
+          () => codeExchanges.delete(key),
+        );
+      }
+
       let tokens;
       try {
-        tokens = await discordOAuth.validateAuthorizationCode(code, null);
-      } catch {
+        tokens = await exchange;
+      } catch (err) {
+        req.log.warn({ err }, "Discord OAuth code exchange failed");
         return reply.status(400).send("Failed to exchange OAuth code");
       }
 
