@@ -65,6 +65,8 @@ export function ImportPanel({
 }) {
     const userId = useStore(verifiedUserId);
     const [servers, setServers] = useState<ServerOption[] | null>(null);
+    const [serversError, setServersError] = useState<string | null>(null);
+    const [serversRefresh, setServersRefresh] = useState(0);
     // The file's own server comes first, as it did in the import dialog,
     // then the one the games page sent the user here for.
     const [serverId, setServerId] = useState<string>(
@@ -92,17 +94,31 @@ export function ImportPanel({
     // Load once AuthGuard has verified the login.
     useEffect(() => {
         if (!userId || replaceGameId) return;
+        let cancelled = false;
+        setServersError(null);
         fetch(`${API_BASE}/servers`, { credentials: "include" })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((data) => {
+            .then(async (r) => {
+                if (!r.ok) {
+                    if (!cancelled) {
+                        setServersError(`Couldn't load your servers (${r.status})`);
+                    }
+                    return;
+                }
+                const data = await r.json();
+                if (cancelled) return;
                 const importable = (
                     (data?.servers ?? []) as ServerOption[]
                 ).filter(canImportTo);
                 setServers(importable);
                 setServerId((current) => current || importable[0]?.id || "");
             })
-            .catch(() => setServers([]));
-    }, [userId]);
+            .catch(() => {
+                if (!cancelled) setServersError("Couldn't load your servers");
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [userId, replaceGameId, serversRefresh]);
 
     // A replace keeps the game's server, whatever the file says.
     const toSend = replaceGameId ? definition : { ...definition, serverId };
@@ -114,7 +130,7 @@ export function ImportPanel({
     useEffect(() => {
         setImported(null);
         setConfirmReplace(false);
-        if (!serverId && !replaceGameId) return;
+        if (!userId || (!serverId && !replaceGameId)) return;
         const run = ++latestDryRun.current;
         setDryRun(null);
         setError(null);
@@ -137,7 +153,7 @@ export function ImportPanel({
                 if (run === latestDryRun.current) setPreviewing(false);
             });
         // toSend changes with definition and serverId.
-    }, [definition, serverId, previewRefresh]);
+    }, [userId, definition, serverId, replaceGameId, previewRefresh]);
 
     const casual = serverId === CASUAL_SERVER_ID;
     const updating = dryRun?.status === "updated";
@@ -229,7 +245,24 @@ export function ImportPanel({
                 )}
             </div>
 
-            {replaceGameId ? null : servers === null ? (
+            {replaceGameId ? null : serversError ? (
+                <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-destructive">{serversError}</p>
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                            setServersRefresh((n) => n + 1);
+                            if (serverId && !dryRun && !previewing) {
+                                setPreviewRefresh((n) => n + 1);
+                            }
+                        }}
+                    >
+                        Retry
+                    </Button>
+                </div>
+            ) : servers === null ? (
                 <p className="text-xs text-muted-foreground">
                     Loading your servers…
                 </p>
@@ -436,7 +469,7 @@ export function ImportPanel({
 
             {/* A replace has no server to change, so nothing else would
                 redo a preview that failed. */}
-            {replaceGameId && !dryRun && !previewing && !imported && (
+            {replaceGameId && userId && !dryRun && !previewing && !imported && (
                 <Button
                     variant="outline"
                     className="w-full"
@@ -469,6 +502,7 @@ export function ImportPanel({
                     // another came from another route (a mangled ?replace=
                     // address reaches the plain import).
                     disabled={
+                        !userId ||
                         (!serverId && !replaceGameId) ||
                         importing ||
                         busy ||

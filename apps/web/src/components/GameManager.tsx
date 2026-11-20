@@ -241,18 +241,34 @@ function ServerSection({
     const [games, setGames] = useState<Game[] | null>(null);
     const [stats, setStats] = useState<Map<string, GameStats>>(new Map());
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [loadAttempt, setLoadAttempt] = useState(0);
 
     useEffect(() => {
+        let cancelled = false;
+        setLoading(true);
+        setError(null);
         fetch(gamesUrl(server.id), { credentials: "include" })
             .then(async (res) => {
-                if (!res.ok) { setGames([]); onGamesLoaded?.(0); return; }
+                if (!res.ok) {
+                    if (!cancelled) setError(`Couldn't load games (${res.status})`);
+                    return;
+                }
                 const data: GamesResponse = await res.json();
+                if (cancelled) return;
                 setGames(data.games);
                 onGamesLoaded?.(data.games.length);
             })
-            .catch(() => { setGames([]); onGamesLoaded?.(0); })
-            .finally(() => setLoading(false));
-    }, [server.id]);
+            .catch(() => {
+                if (!cancelled) setError("Couldn't load games (network error)");
+            })
+            .finally(() => {
+                if (!cancelled) setLoading(false);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [server.id, loadAttempt]);
 
     useEffect(() => {
         if (!isServerAdmin) return;
@@ -262,7 +278,7 @@ function ServerSection({
                 if (data) setStats(new Map(data.stats.map((s) => [s.gameId, s])));
             })
             .catch(() => {});
-    }, [server.id, isServerAdmin]);
+    }, [server.id, isServerAdmin, loadAttempt]);
 
 
     // A Casual creator who lost the role still manages the games they made.
@@ -278,6 +294,19 @@ function ServerSection({
             )}
 
             {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
+
+            {error && (
+                <div className="flex items-center gap-3 mb-3">
+                    <p className="text-sm text-destructive">{error}</p>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLoadAttempt((n) => n + 1)}
+                    >
+                        Retry
+                    </Button>
+                </div>
+            )}
 
             {games !== null && (
                 <div className="space-y-2 mb-3">
@@ -349,7 +378,7 @@ export function GameManager() {
         <div>
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-border">
                 <div>
-                    <h1 className="text-xl font-bold">Games & Maps</h1>
+                    <h2 className="text-xl font-bold">Games & Maps</h2>
                     <p className="text-xs text-muted-foreground mt-1">
                         Import or export versioned game definitions as JSON, or manage server maps.
                     </p>
