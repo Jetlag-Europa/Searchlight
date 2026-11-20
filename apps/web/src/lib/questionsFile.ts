@@ -1,5 +1,6 @@
 import { type GameSessionSummary, isRecord } from "@searchlight/shared";
 import * as turf from "@turf/turf";
+import { orient2d } from "robust-predicates";
 
 import type { CompiledGame } from "@/game-definition/compile";
 import { isQuestionSupported } from "@/game-definition/store";
@@ -88,10 +89,30 @@ const ringOk = (ring: unknown): boolean => {
     const first = ring[0];
     const last = ring[ring.length - 1];
     if (first[0] !== last[0] || first[1] !== last[1]) return false;
-    // Reject zero-area rings (repeated or collinear vertices).
+    const second = ring.find((p) => p[0] !== first[0] || p[1] !== first[1]);
+    if (!second) return false;
+    // Exact collinearity test (avoids floating-point cancellation on diagonal
+    // collinear rings) plus vertex-shifted shoelace area for retraced rings.
+    if (
+        !ring.some(
+            (p) =>
+                orient2d(
+                    first[0],
+                    first[1],
+                    second[0],
+                    second[1],
+                    p[0],
+                    p[1],
+                ) !== 0,
+        )
+    ) {
+        return false;
+    }
     let area2 = 0;
     for (let i = 1; i < ring.length; i++) {
-        area2 += ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1];
+        area2 +=
+            (ring[i - 1][0] - first[0]) * (ring[i][1] - first[1]) -
+            (ring[i][0] - first[0]) * (ring[i - 1][1] - first[1]);
     }
     return area2 !== 0;
 };

@@ -423,6 +423,12 @@ describe("questions file", () => {
         const result = parseQuestionsFile(
             exported([
                 zone(validRing),
+                zone([
+                    [179.8, 47.3],
+                    [179.8 + 1e-7, 47.3],
+                    [179.8, 47.3 + 1e-7],
+                    [179.8, 47.3],
+                ]), // small valid triangle near antimeridian
                 line([
                     [8.5, 47.3],
                     [8.6, 47.4],
@@ -445,11 +451,18 @@ describe("questions file", () => {
                     [8.5, 47.3],
                 ]), // degenerate ring
                 zone([
+                    [8.501, 47.3],
+                    [8.516625, 47.346875],
+                    [8.53225, 47.39375],
+                    [8.501, 47.3],
+                ]), // diagonal collinear ring
+                zone([
                     [8.5, 47.3],
                     [8.6, 47.3],
-                    [8.7, 47.3],
+                    [8.6, 47.4],
+                    [8.6, 47.3],
                     [8.5, 47.3],
-                ]), // collinear zero-area ring
+                ]), // retraced zero-area ring
                 line([[8.5, 47.3]]), // 1-point line
                 zone([
                     [400, 47.3],
@@ -466,8 +479,8 @@ describe("questions file", () => {
             "cgame1",
         );
         if ("error" in result) throw new Error(result.error);
-        expect(result.questions).toHaveLength(3);
-        expect(result.skipped).toBe(7);
+        expect(result.questions).toHaveLength(4);
+        expect(result.skipped).toBe(8);
     });
 
     it("counts the size in bytes, as the API does", () => {
