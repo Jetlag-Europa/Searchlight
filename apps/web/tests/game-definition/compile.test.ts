@@ -17,6 +17,7 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
 });
 
 import { compileGameDefinition } from "@/game-definition/compile";
+import { featuresReaching } from "@/maps/geo-utils/bufferReach";
 import { evaluateQuestionOperator } from "@/maps/questions/operators/base";
 import type { GameDefinition } from "@searchlight/shared";
 const parisDef = JSON.parse(
@@ -366,5 +367,213 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(names("matching-foo-bar")).toEqual(["A1", "A2"]);
   });
 
+  it("resolves per-zone radii once and falls back cleanly on invalid metadata", () => {
+    const point = (id: string, properties: Record<string, unknown>) => ({
+      type: "Feature",
+      id,
+      geometry: { type: "Point", coordinates: [10, 50] },
+      properties: { name: id, ...properties },
+    });
 
+    const compiled = compileGameDefinition({
+      id: "radius-resolution",
+      name: "Radius resolution",
+      serverId: "home-games",
+      map: {
+        center: [10, 50],
+        playArea: { type: "FeatureCollection", features: [] },
+      },
+      hidingZones: {
+        radius: 0.5,
+        unit: "kilometers",
+        tierOverrides: { "1": 0.75, Outer: 1.2 },
+        features: {
+          type: "FeatureCollection",
+          features: [
+            point("valid-num", { radius: 0.25 }),
+            point("valid-obj", { radius: { value: 300, unit: "meters" } }),
+            point("str-radius", { radius: "600", tier: "Outer" }),
+            point("str-val", { radius: { value: "500", unit: "meters" }, tier: "Outer" }),
+            point("bad-unit", { radius: { value: 500, unit: "m" } }),
+            point("neg-radius", { radius: -500, tier: 1 }),
+            point("zero-radius", { radius: 0 }),
+            point("numeric-tier", { tier: 1 }),
+            point("proto-tier", { tier: "toString" }),
+          ],
+        },
+      },
+    } as unknown as GameDefinition);
+
+    const expected: Record<string, { value: number; unit: string }> = {
+      "valid-num": { value: 0.25, unit: "kilometers" },
+      "valid-obj": { value: 300, unit: "meters" },
+      "str-radius": { value: 1.2, unit: "kilometers" },
+      "str-val": { value: 1.2, unit: "kilometers" },
+      "bad-unit": { value: 0.5, unit: "kilometers" },
+      "neg-radius": { value: 0.75, unit: "kilometers" },
+      "zero-radius": { value: 0.5, unit: "kilometers" },
+      "numeric-tier": { value: 0.75, unit: "kilometers" },
+      "proto-tier": { value: 0.5, unit: "kilometers" },
+    };
+
+    for (const station of compiled.hidingZones.stations!) {
+      expect(station.radius).toEqual(expected[String(station.id)]);
+      expect(compiled.hidingZones.getRadius(station.id, station.tier)).toEqual(
+        expected[String(station.id)],
+      );
+    }
+    expect(compiled.hidingZones.getRadius("unknown", "toString")).toEqual({
+      value: 0.5,
+      unit: "kilometers",
+    });
+    expect(compiled.hidingZones.getRadius("unknown", "1")).toEqual({
+      value: 0.75,
+      unit: "kilometers",
+    });
+  });
+
+  it("strips untrusted 3D and stale bbox metadata from compiled GeoJSON without mutating definition", () => {
+    const playAreaGeom = {
+      type: "Polygon" as const,
+      coordinates: [[[9.8, 53.4], [10.2, 53.4], [10.2, 53.7], [9.8, 53.7], [9.8, 53.4]]],
+    };
+    const regionAGeom = {
+      type: "Polygon" as const,
+      coordinates: [[[9.85, 53.54], [9.95, 53.54], [9.95, 53.60], [9.85, 53.60], [9.85, 53.54]]],
+    };
+    const regionBGeom = {
+      type: "Polygon" as const,
+      coordinates: [[[9.95, 53.54], [10.05, 53.54], [10.05, 53.60], [9.95, 53.60], [9.95, 53.54]]],
+    };
+    const zoneGeom = {
+      type: "Polygon" as const,
+      coordinates: [[[10.1, 53.6], [10.3, 53.6], [10.3, 53.8], [10.1, 53.8], [10.1, 53.6]]],
+    };
+
+    const makeDef = (withBbox: boolean) => ({
+      id: "bbox-test",
+      name: "Bbox Test",
+      serverId: "home-games",
+      map: {
+        center: [10, 53.55] as [number, number],
+        playArea: {
+          type: "FeatureCollection",
+          ...(withBbox ? { bbox: [9.8, 53.4, 0, 10.2, 53.7, 50] } : {}),
+          features: [
+            {
+              type: "Feature",
+              ...(withBbox ? { bbox: [9.8, 53.4, 0, 10.2, 53.7, 50] } : {}),
+              geometry: {
+                ...playAreaGeom,
+                ...(withBbox ? { bbox: [9.8, 53.4, 0, 10.2, 53.7, 50] } : {}),
+              },
+              properties: {},
+            },
+          ],
+        },
+      },
+      hidingZones: {
+        radius: 400,
+        unit: "meters",
+        features: {
+          type: "FeatureCollection",
+          ...(withBbox ? { bbox: [0, 0, 1, 1] } : {}),
+          features: [
+            {
+              type: "Feature",
+              id: "zone-poly",
+              ...(withBbox ? { bbox: [10.1, 53.6, 0, 10.3, 53.8, 100] } : {}),
+              geometry: {
+                ...zoneGeom,
+                ...(withBbox ? { bbox: [10.1, 53.6, 0, 10.3, 53.8, 100] } : {}),
+              },
+              properties: { name: "Zone Poly" },
+            },
+          ],
+        },
+      },
+      features: [
+        {
+          name: "Districts",
+          enabledFor: ["matching", "measuring"],
+          data: {
+            type: "FeatureCollection",
+            ...(withBbox ? { bbox: [0, 0, 1, 1] } : {}),
+            features: [
+              {
+                type: "Feature",
+                id: "district-a",
+                ...(withBbox ? { bbox: [9.85, 53.54, 0, 9.95, 53.60, 25] } : {}),
+                geometry: {
+                  ...regionAGeom,
+                  ...(withBbox ? { bbox: [9.85, 53.54, 0, 9.95, 53.60, 25] } : {}),
+                },
+                properties: { name: "District A" },
+              },
+              {
+                type: "Feature",
+                id: "district-b",
+                ...(withBbox ? { bbox: [0, 0, 1, 1] } : {}),
+                geometry: {
+                  ...regionBGeom,
+                  ...(withBbox ? { bbox: [0, 0, 1, 1] } : {}),
+                },
+                properties: { name: "District B" },
+              },
+            ],
+          },
+        },
+      ],
+    });
+
+    const cleanDef = makeDef(false);
+    const bboxDef = makeDef(true);
+    const originalSnapshot = structuredClone(bboxDef);
+
+    const compiledClean = compileGameDefinition(cleanDef as unknown as GameDefinition);
+    const compiledWithBbox = compileGameDefinition(bboxDef as unknown as GameDefinition);
+
+    // Auto-bounds match coordinate-derived bounds identically
+    expect(compiledWithBbox.bounds).toEqual(compiledClean.bounds);
+
+    // Point-in-polygon containment works on playArea, feature layer, and polygon hiding zone
+    expect(
+      turf.booleanPointInPolygon(turf.point([9.9, 53.56]), compiledWithBbox.playArea.features[0]),
+    ).toBe(true);
+    const layerFeatures = compiledWithBbox.datasets["layer-0"].features.features;
+    expect(turf.booleanPointInPolygon(turf.point([9.9, 53.56]), layerFeatures[0])).toBe(true);
+    expect(turf.booleanPointInPolygon(turf.point([10.0, 53.56]), layerFeatures[1])).toBe(true);
+    expect(
+      turf.booleanPointInPolygon(
+        turf.point([10.2, 53.7]),
+        compiledWithBbox.hidingZones.stations![0].area!,
+      ),
+    ).toBe(true);
+
+    // Measuring candidate prefilter produces identical candidates
+    const cleanReaching = featuresReaching(
+      compiledClean.datasets["layer-0"].features.features,
+      turf.bbox(compiledClean.playArea),
+      1,
+    );
+    const bboxReaching = featuresReaching(
+      layerFeatures,
+      turf.bbox(compiledWithBbox.playArea),
+      1,
+    );
+    expect(bboxReaching).toEqual([0, 1]);
+    expect(bboxReaching).toEqual(cleanReaching);
+
+    // compiled.definition keeps the original object and all bbox metadata untouched
+    expect(compiledWithBbox.definition).toBe(bboxDef);
+    expect(compiledWithBbox.definition).toEqual(originalSnapshot);
+
+    // Explicit map.bounds is preserved untouched
+    const explicitBounds: [number, number, number, number] = [9.0, 53.0, 11.0, 54.0];
+    const withExplicitBounds = compileGameDefinition({
+      ...bboxDef,
+      map: { ...bboxDef.map, bounds: explicitBounds },
+    } as unknown as GameDefinition);
+    expect(withExplicitBounds.bounds).toEqual(explicitBounds);
+  });
 });

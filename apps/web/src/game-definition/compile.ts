@@ -1,12 +1,19 @@
 import {
   deriveFeatureQuestionId,
   type DistanceRadius,
+  type DistanceUnit,
   type GameDefinition,
   type QuestionDefinition,
   resolveGameDefinitionId,
 } from "@searchlight/shared";
 import * as turf from "@turf/turf";
-import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
+import type {
+  Feature,
+  FeatureCollection,
+  Geometry,
+  MultiPolygon,
+  Polygon,
+} from "geojson";
 
 export interface CompiledHidingZone {
   id: string | number;
@@ -17,7 +24,6 @@ export interface CompiledHidingZone {
   /** A polygon zone's own area. A station's zone is a circle of `radius`. */
   area?: Polygon | MultiPolygon;
   radius: DistanceRadius;
-  explicitRadius?: number;
 }
 
 export interface CompiledGame {
@@ -57,6 +63,77 @@ export function detectFeatureGeometry(feat: any): "polygons" | "lines" | "points
   return "points";
 }
 
+const isPositiveFinite = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const isDistanceUnit = (unit: unknown): unit is DistanceUnit =>
+  unit === "meters" || unit === "kilometers" || unit === "miles";
+
+function parseZoneRadius(
+  raw: unknown,
+  defaultUnit: DistanceUnit,
+): DistanceRadius | undefined {
+  if (isPositiveFinite(raw)) {
+    return { value: raw, unit: defaultUnit };
+  }
+  if (raw && typeof raw === "object") {
+    const candidate = raw as { value?: unknown; unit?: unknown };
+    if (isPositiveFinite(candidate.value) && isDistanceUnit(candidate.unit)) {
+      return { value: candidate.value, unit: candidate.unit };
+    }
+  }
+  return undefined;
+}
+
+function withoutBbox<T extends { bbox?: unknown }>(
+  value: T,
+  overrides?: Partial<T>,
+): T {
+  const copy = { ...value, ...overrides };
+  delete copy.bbox;
+  return copy;
+}
+
+function stripGeometryBbox(geometry: Geometry): Geometry {
+  if (!geometry || typeof geometry !== "object") return geometry;
+  if (geometry.type === "GeometryCollection") {
+    let changed = Object.hasOwn(geometry, "bbox");
+    const geometries = Array.isArray(geometry.geometries)
+      ? geometry.geometries.map((child) => {
+          const cleaned = stripGeometryBbox(child);
+          if (cleaned !== child) changed = true;
+          return cleaned;
+        })
+      : geometry.geometries;
+    if (!changed) return geometry;
+    return withoutBbox(geometry, { geometries });
+  }
+  return Object.hasOwn(geometry, "bbox") ? withoutBbox(geometry) : geometry;
+}
+
+function stripFeatureBbox<T extends Feature>(feature: T): T {
+  if (!feature || typeof feature !== "object") return feature;
+  const geometry = feature.geometry
+    ? stripGeometryBbox(feature.geometry)
+    : feature.geometry;
+  if (!Object.hasOwn(feature, "bbox") && geometry === feature.geometry) {
+    return feature;
+  }
+  return withoutBbox(feature, { geometry } as Partial<T>);
+}
+
+function stripFeatureCollectionBbox<T extends FeatureCollection>(fc: T): T {
+  if (!fc || typeof fc !== "object" || !Array.isArray(fc.features)) return fc;
+  let changed = Object.hasOwn(fc, "bbox");
+  const features = fc.features.map((feature) => {
+    const cleaned = stripFeatureBbox(feature);
+    if (cleaned !== feature) changed = true;
+    return cleaned;
+  });
+  if (!changed) return fc;
+  return withoutBbox(fc, { features } as Partial<T>);
+}
+
 export function compileGameDefinition(
   definition: GameDefinition,
 ): CompiledGame {
@@ -67,10 +144,29 @@ export function compileGameDefinition(
   const baseRadius: DistanceRadius = { value: baseRadiusValue, unit };
   const tierOverrides = definition.hidingZones?.tierOverrides ?? {};
 
+  const resolveTierRadius = (
+    tier: string | number | undefined,
+  ): DistanceRadius | undefined => {
+    if (tier == null) return undefined;
+    const key = String(tier);
+    if (!key || !Object.hasOwn(tierOverrides, key)) return undefined;
+    const value = tierOverrides[key];
+    return isPositiveFinite(value) ? { value, unit } : undefined;
+  };
+
+  // Strip untrusted bbox metadata from runtime GeoJSON so Turf always computes
+  // bounds from coordinates, while keeping `definition` untouched for export/checksums.
+  const playArea = stripFeatureCollectionBbox(
+    definition.map.playArea as FeatureCollection<Polygon | MultiPolygon>,
+  );
+
   // 1. Process Hiding Zones
   const perZoneRadiusMap = new Map<string | number, DistanceRadius>();
   const stations: CompiledHidingZone[] = [];
-  const rawFeatures = (definition.hidingZones?.features as any)?.features || [];
+  const hidingZoneFeatures = stripFeatureCollectionBbox(
+    definition.hidingZones?.features as FeatureCollection,
+  );
+  const rawFeatures = hidingZoneFeatures?.features || [];
 
   // Unnamed zones are numbered among their own kind, so a game's areas don't
   // renumber its stations.
@@ -89,16 +185,12 @@ export function compileGameDefinition(
     const rawTier = feat.properties?.tier;
     const tier = rawTier == null ? undefined : String(rawTier);
 
-    let effectiveRadius = baseRadius;
-    let explicitRadius: number | undefined;
-    if (feat.properties?.radius) {
-      const r = feat.properties.radius;
-      effectiveRadius = typeof r === "number" ? { value: r, unit } : r;
-      explicitRadius = typeof r === "number" ? r : typeof r?.value === "number" ? r.value : undefined;
-      perZoneRadiusMap.set(zId, effectiveRadius);
-    } else if (tier && tierOverrides[tier]) {
-      effectiveRadius = { value: tierOverrides[tier], unit };
+    const explicitRadius = parseZoneRadius(feat.properties?.radius, unit);
+    if (explicitRadius) {
+      perZoneRadiusMap.set(zId, explicitRadius);
     }
+    const effectiveRadius =
+      explicitRadius ?? resolveTierRadius(tier) ?? baseRadius;
 
     if (feat.geometry?.type === "Point") {
       stationCount++;
@@ -108,7 +200,6 @@ export function compileGameDefinition(
         tier,
         coordinates: feat.geometry.coordinates as [number, number],
         radius: effectiveRadius,
-        ...(explicitRadius !== undefined ? { explicitRadius } : {}),
       });
     } else if (isArea) {
       areaCount++;
@@ -117,7 +208,7 @@ export function compileGameDefinition(
         name,
         tier,
         coordinates: turf.pointOnFeature(feat).geometry.coordinates as [number, number],
-        area: feat.geometry,
+        area: feat.geometry as Polygon | MultiPolygon,
         radius: effectiveRadius,
       });
     }
@@ -126,12 +217,8 @@ export function compileGameDefinition(
   const getRadius = (
     zoneId: string | number,
     tier?: string,
-  ): DistanceRadius => {
-    const override = perZoneRadiusMap.get(zoneId);
-    if (override) return override;
-    if (tier && tierOverrides[tier]) return { value: tierOverrides[tier], unit };
-    return baseRadius;
-  };
+  ): DistanceRadius =>
+    perZoneRadiusMap.get(zoneId) ?? resolveTierRadius(tier) ?? baseRadius;
 
   // 2. Build Datasets from features. Each layer is keyed by its position, since
   // differently named layers can share a slug.
@@ -141,7 +228,7 @@ export function compileGameDefinition(
     if (feat.data) {
       datasets[datasetId(index)] = {
         kind: "inline",
-        features: feat.data,
+        features: stripFeatureCollectionBbox(feat.data as FeatureCollection),
         noOverlaps: feat.noOverlaps === true,
       };
     }
@@ -270,8 +357,8 @@ export function compileGameDefinition(
       maxLat = Math.max(maxLat, north);
     };
     // The play area, which the map starts as, and every zone.
-    if (definition.map.playArea?.features?.length) {
-      extend(turf.bbox(definition.map.playArea as FeatureCollection));
+    if (playArea?.features?.length) {
+      extend(turf.bbox(playArea));
     }
     for (const s of stations) {
       extend(s.area ? turf.bbox(s.area) : [...s.coordinates, ...s.coordinates]);
@@ -287,10 +374,10 @@ export function compileGameDefinition(
     size,
     center: definition.map.center,
     bounds,
-    playArea: definition.map.playArea as FeatureCollection<Polygon | MultiPolygon>,
+    playArea,
     hidingZones: {
       kind: stations.some((s) => !s.area) ? "points" : "polygons",
-      features: definition.hidingZones?.features as FeatureCollection,
+      features: hidingZoneFeatures,
       stations,
       baseRadius,
       getRadius,

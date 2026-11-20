@@ -229,3 +229,80 @@ it("compares zone lists by their objects, in any order", () => {
     // An equal but new zone is a change.
     expect(sameZones([a, b], [c, b])).toBe(false);
 });
+
+it("draws circles from resolved radii and ignores invalid per-zone metadata", () => {
+    const station = (id: string, properties: Record<string, unknown>) => ({
+        type: "Feature",
+        id,
+        geometry: { type: "Point", coordinates: [10, 50] },
+        properties: { name: id, ...properties },
+    });
+
+    const compiled = compileGameDefinition({
+        id: "invalid-radii",
+        name: "Invalid Radii",
+        serverId: "home-games",
+        map: {
+            center: [10, 50],
+            playArea: { type: "FeatureCollection", features: [] },
+        },
+        hidingZones: {
+            radius: 0.5,
+            unit: "kilometers",
+            tierOverrides: { "1": 0.8, tram: 0.3 },
+            features: {
+                type: "FeatureCollection",
+                features: [
+                    station("valid-num", { radius: 0.2 }),
+                    station("valid-obj", { radius: { value: 250, unit: "meters" } }),
+                    station("bad-str", { radius: "600" }),
+                    station("bad-val", {
+                        radius: { value: "500", unit: "meters" },
+                        tier: "tram",
+                    }),
+                    station("bad-unit", { radius: { value: 500, unit: "m" } }),
+                    station("bad-neg", { radius: -500, tier: 1 }),
+                    station("bad-zero", { radius: 0 }),
+                    station("proto-tier", { tier: "toString" }),
+                    {
+                        type: "Feature",
+                        id: "poly-zone",
+                        bbox: [10.2, 50.2, 0, 10.4, 50.4, 100],
+                        geometry: {
+                            ...district,
+                            bbox: [10.2, 50.2, 0, 10.4, 50.4, 100],
+                        },
+                        properties: { name: "District", radius: "600" },
+                    },
+                ],
+            },
+        },
+    } as unknown as GameDefinition);
+
+    const circles = hidingZoneCircles(compiled);
+    const byId = new Map(
+        circles.map((circle) => [circle.properties.properties.id, circle]),
+    );
+    const radiusMeters = (id: string) =>
+        turf.distance(
+            [10, 50],
+            (byId.get(id)!.geometry as Polygon).coordinates[0][0],
+            { units: "meters" },
+        );
+
+    expect(radiusMeters("valid-num")).toBeCloseTo(200, 0);
+    expect(radiusMeters("valid-obj")).toBeCloseTo(250, 0);
+    expect(radiusMeters("bad-str")).toBeCloseTo(500, 0);
+    expect(radiusMeters("bad-val")).toBeCloseTo(300, 0);
+    expect(radiusMeters("bad-unit")).toBeCloseTo(500, 0);
+    expect(radiusMeters("bad-neg")).toBeCloseTo(800, 0);
+    expect(radiusMeters("bad-zero")).toBeCloseTo(500, 0);
+    expect(radiusMeters("proto-tier")).toBeCloseTo(500, 0);
+
+    const polyZone = byId.get("poly-zone")!;
+    expect(polyZone.geometry).toEqual(district);
+    expect("bbox" in polyZone.geometry).toBe(false);
+    expect(
+        turf.booleanPointInPolygon(turf.point([10.3, 50.3]), polyZone),
+    ).toBe(true);
+});
