@@ -1,8 +1,14 @@
-import { Value } from "@sinclair/typebox/value";
+import {
+  Value,
+  type ValueError,
+  type ValueErrorIterator,
+  ValueErrorType,
+} from "@sinclair/typebox/value";
 import {
   deriveFeatureQuestionId,
   type GameDefinition,
   GameDefinitionSchema,
+  PositionSchema,
   resolveGameDefinitionId,
 } from "./schema.js";
 
@@ -16,6 +22,171 @@ export interface ValidationResult {
   valid: boolean;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
+}
+
+// Cap inner-error scans so a multi-MB 3D KML geometry doesn't materialize
+// tens of thousands of vertex errors just to report the first deepest one.
+const MAX_UNION_INNER_ERRORS = 64;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function pathDepth(path: string): number {
+  return path ? path.split("/").length : 0;
+}
+
+function formatSchemaErrorMessage(err: ValueError): string {
+  if (
+    err.type === ValueErrorType.TupleLength &&
+    (err.schema === PositionSchema ||
+      (err.schema["minItems"] === 2 && err.schema["maxItems"] === 2))
+  ) {
+    return "position must be [lng, lat] (no altitude)";
+  }
+  return err.message;
+}
+
+function pickDeepestError(iter: ValueErrorIterator | undefined): ValueError | undefined {
+  if (!iter) return undefined;
+  let best: ValueError | undefined;
+  let bestDepth = -1;
+  let seen = 0;
+  for (const inner of iter) {
+    const depth = pathDepth(inner.path);
+    if (depth > bestDepth) {
+      best = inner;
+      bestDepth = depth;
+    }
+    if (++seen >= MAX_UNION_INNER_ERRORS) break;
+  }
+  return best;
+}
+
+function getLiteralDiscriminator(
+  anyOf: Record<string, unknown>[],
+  prop: string,
+): string[] | null {
+  const values: string[] = [];
+  for (const variant of anyOf) {
+    const props = variant["properties"];
+    if (!isPlainObject(props)) return null;
+    const field = props[prop];
+    if (!isPlainObject(field) || typeof field["const"] !== "string") return null;
+    values.push(field["const"]);
+  }
+  return values.length > 0 ? values : null;
+}
+
+function unpackUnionError(err: ValueError): ValidationIssue {
+  const path = err.path || "/";
+  const rawAnyOf = (err.schema as { anyOf?: unknown }).anyOf;
+  const anyOf = Array.isArray(rawAnyOf) ? (rawAnyOf as Record<string, unknown>[]) : [];
+
+  // All-literal unions (e.g. unit, size, enabledFor items)
+  if (anyOf.length > 0 && anyOf.every((v) => isPlainObject(v) && "const" in v)) {
+    const allowed = anyOf.map((v) => String(v["const"])).join(", ");
+    return {
+      path,
+      code: "SCHEMA_VALIDATION_ERROR",
+      message: `must be one of ${allowed}`,
+    };
+  }
+
+  // Geometry unions (playArea, hidingZones, features[i].data)
+  const geometryTypes = getLiteralDiscriminator(anyOf, "type");
+  if (geometryTypes) {
+    const actualType = isPlainObject(err.value) ? err.value["type"] : undefined;
+    if (actualType === "MultiPoint") {
+      return {
+        path,
+        code: "UNSUPPORTED_GEOMETRY_TYPE",
+        message: "MultiPoint geometry is not supported",
+      };
+    }
+    const matchedIdx = typeof actualType === "string" ? geometryTypes.indexOf(actualType) : -1;
+    if (matchedIdx !== -1) {
+      const inner = pickDeepestError(err.errors[matchedIdx]);
+      if (inner) {
+        return {
+          path: inner.path || path,
+          code: "SCHEMA_VALIDATION_ERROR",
+          message: formatSchemaErrorMessage(inner),
+        };
+      }
+    }
+    const allowed = geometryTypes.join(", ");
+    return {
+      path,
+      code: "SCHEMA_VALIDATION_ERROR",
+      message:
+        typeof actualType === "string" && actualType.length > 0
+          ? `Unsupported geometry type "${actualType}"; must be one of ${allowed}`
+          : `Geometry type must be one of ${allowed}`,
+    };
+  }
+
+  // Visibility union
+  const visibilityKinds = getLiteralDiscriminator(anyOf, "kind");
+  if (visibilityKinds) {
+    const actualKind = isPlainObject(err.value) ? err.value["kind"] : undefined;
+    const matchedIdx = typeof actualKind === "string" ? visibilityKinds.indexOf(actualKind) : -1;
+    if (matchedIdx !== -1) {
+      const inner = pickDeepestError(err.errors[matchedIdx]);
+      if (inner) {
+        return {
+          path: inner.path || path,
+          code: "SCHEMA_VALIDATION_ERROR",
+          message: formatSchemaErrorMessage(inner),
+        };
+      }
+    }
+    const accepted = '{ kind: "server-members" } or { kind: "discord-role", guildId, roleId }';
+    return {
+      path,
+      code: "SCHEMA_VALIDATION_ERROR",
+      message:
+        typeof actualKind === "string" && actualKind.length > 0
+          ? `Unsupported visibility kind "${actualKind}"; must be ${accepted}`
+          : `Visibility must be ${accepted}`,
+    };
+  }
+
+  // Radars union (boolean | positive number[])
+  if (err.path === "/radars") {
+    if (Array.isArray(err.value) && err.value.length > 0) {
+      const arrayIdx = anyOf.findIndex((v) => isPlainObject(v) && v["type"] === "array");
+      const inner = arrayIdx !== -1 ? pickDeepestError(err.errors[arrayIdx]) : undefined;
+      if (inner) {
+        return {
+          path: inner.path || path,
+          code: "SCHEMA_VALIDATION_ERROR",
+          message: formatSchemaErrorMessage(inner),
+        };
+      }
+    }
+    return {
+      path,
+      code: "SCHEMA_VALIDATION_ERROR",
+      message: "Radars must be a boolean or a non-empty array of positive numbers",
+    };
+  }
+
+  // Simple type unions (e.g. feature id: string | number, properties: object | null)
+  if (anyOf.length > 0 && anyOf.every((v) => isPlainObject(v) && typeof v["type"] === "string")) {
+    const types = anyOf.map((v) => String(v["type"])).join(" or ");
+    return {
+      path,
+      code: "SCHEMA_VALIDATION_ERROR",
+      message: `Expected ${types}`,
+    };
+  }
+
+  return {
+    path,
+    code: "SCHEMA_VALIDATION_ERROR",
+    message: err.message,
+  };
 }
 
 function validateClosedRings(
@@ -77,34 +248,27 @@ export function validateGameDefinition(raw: unknown): ValidationResult {
   const errors: ValidationIssue[] = [];
   const warnings: ValidationIssue[] = [];
 
-
   // 1. Structural schema validation via TypeBox
   const schemaErrors = [...Value.Errors(GameDefinitionSchema, raw)];
   if (schemaErrors.length > 0) {
+    const seenMissingFeatureData = new Set<string>();
     for (const err of schemaErrors) {
       if (err.path.match(/^\/features\/\d+\/data$/) && err.value === undefined) {
-        errors.push({
-          path: err.path,
-          code: "MISSING_FEATURE_DATA",
-          message: "Feature must provide embedded GeoJSON data",
-        });
-      } else if (
-        err.value === "MultiPoint" ||
-        (typeof err.value === "object" &&
-          err.value !== null &&
-          "type" in err.value &&
-          err.value.type === "MultiPoint")
-      ) {
-        errors.push({
-          path: err.path,
-          code: "UNSUPPORTED_GEOMETRY_TYPE",
-          message: "MultiPoint geometry is not supported",
-        });
+        if (!seenMissingFeatureData.has(err.path)) {
+          seenMissingFeatureData.add(err.path);
+          errors.push({
+            path: err.path,
+            code: "MISSING_FEATURE_DATA",
+            message: "Feature must provide embedded GeoJSON data",
+          });
+        }
+      } else if (err.type === ValueErrorType.Union) {
+        errors.push(unpackUnionError(err));
       } else {
         errors.push({
           path: err.path || "/",
           code: "SCHEMA_VALIDATION_ERROR",
-          message: err.message,
+          message: formatSchemaErrorMessage(err),
         });
       }
     }
@@ -119,7 +283,7 @@ export function validateGameDefinition(raw: unknown): ValidationResult {
     errors.push({
       path: "/id",
       code: "INVALID_GAME_ID",
-      message: "Game must have a valid non-empty id or name",
+      message: "Game id (or slug derived from name) must be at least 2 characters",
     });
   }
 
@@ -166,8 +330,24 @@ export function validateGameDefinition(raw: unknown): ValidationResult {
       }
       names.add(feat.name);
 
+      const seenKinds = new Set<string>();
+      const reportedDuplicateKinds = new Set<string>();
+
       // Validate question IDs generated by this feature
       for (const kind of feat.enabledFor) {
+        if (seenKinds.has(kind)) {
+          if (!reportedDuplicateKinds.has(kind)) {
+            reportedDuplicateKinds.add(kind);
+            errors.push({
+              path: `/features/${idx}/enabledFor`,
+              code: "DUPLICATE_ENABLED_FOR",
+              message: `Feature "${feat.name}" lists "${kind}" more than once in enabledFor`,
+            });
+          }
+          continue;
+        }
+        seenKinds.add(kind);
+
         const qId = deriveFeatureQuestionId(kind, feat.name);
         const prefix = `${kind}-`;
         const slug = qId.slice(prefix.length);

@@ -561,6 +561,12 @@ export async function replaceGameDefinition(
   if (!(await canUpdate(actor, game))) {
     throw new ImportForbiddenError("You do not have permission to update this game");
   }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new ImportValidationError(
+      [{ path: "/", code: "SCHEMA_VALIDATION_ERROR", message: "Expected object" }],
+      [],
+    );
+  }
   const def = { ...(raw as object), id: game.gameKey, serverId: game.serverId } as GameDefinition;
   const validation = validateGameDefinition(def);
   if (!validation.valid) {

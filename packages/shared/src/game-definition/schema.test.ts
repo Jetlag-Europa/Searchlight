@@ -376,4 +376,367 @@ describe("Game Definition Validation", () => {
       ),
     ).toBe(true);
   });
+
+  it("reports allowed values for all-literal union errors (unit, size, enabledFor)", () => {
+    const badUnit = validateGameDefinition({ ...getSampleDefinition(), unit: "km" });
+    expect(badUnit.valid).toBe(false);
+    expect(badUnit.errors).toEqual([
+      {
+        path: "/unit",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "must be one of meters, kilometers, miles",
+      },
+    ]);
+
+    const badSize = validateGameDefinition({ ...getSampleDefinition(), size: "huge" });
+    expect(badSize.valid).toBe(false);
+    expect(badSize.errors).toEqual([
+      {
+        path: "/size",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "must be one of small, medium, large",
+      },
+    ]);
+
+    const def = getSampleDefinition();
+    const badEnabledFor = validateGameDefinition({
+      ...def,
+      features: [{ ...def.features![0], enabledFor: ["radius"] }],
+    });
+    expect(badEnabledFor.valid).toBe(false);
+    expect(badEnabledFor.errors).toEqual([
+      {
+        path: "/features/0/enabledFor/0",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "must be one of matching, measuring, tentacle",
+      },
+    ]);
+  });
+
+  it("reports actionable position error for 3D KML coordinates", () => {
+    const def = getSampleDefinition();
+    const inPlayArea = validateGameDefinition({
+      ...def,
+      map: {
+        ...def.map,
+        playArea: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [2.1, 48.7, 100],
+                    [2.2, 48.7, 100],
+                    [2.2, 48.8, 100],
+                    [2.1, 48.7, 100],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      },
+    });
+    expect(inPlayArea.valid).toBe(false);
+    expect(inPlayArea.errors).toEqual([
+      {
+        path: "/map/playArea/features/0/geometry/coordinates/0/0",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "position must be [lng, lat] (no altitude)",
+      },
+    ]);
+
+    const inHidingZone = validateGameDefinition({
+      ...def,
+      hidingZones: {
+        ...def.hidingZones,
+        features: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [2.35, 48.85, 42] },
+            },
+          ],
+        },
+      },
+    });
+    expect(inHidingZone.valid).toBe(false);
+    expect(inHidingZone.errors).toEqual([
+      {
+        path: "/hidingZones/features/features/0/geometry/coordinates",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "position must be [lng, lat] (no altitude)",
+      },
+    ]);
+
+    const inCenter = validateGameDefinition({
+      ...def,
+      map: { ...def.map, center: [2.35, 48.85, 42] },
+    });
+    expect(inCenter.valid).toBe(false);
+    expect(inCenter.errors).toEqual([
+      {
+        path: "/map/center",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "position must be [lng, lat] (no altitude)",
+      },
+    ]);
+
+    const inFeatureLine = validateGameDefinition({
+      ...def,
+      features: [
+        {
+          name: "Rail",
+          enabledFor: ["measuring"],
+          data: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: {
+                  type: "LineString",
+                  coordinates: [
+                    [2.1, 48.7, 10],
+                    [2.2, 48.8, 10],
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(inFeatureLine.valid).toBe(false);
+    expect(inFeatureLine.errors).toEqual([
+      {
+        path: "/features/0/data/features/0/geometry/coordinates/0",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "position must be [lng, lat] (no altitude)",
+      },
+    ]);
+  });
+
+  it("reports allowed geometry types for disallowed geometry variants while preserving MultiPoint", () => {
+    const def = getSampleDefinition();
+
+    const lineInHidingZones = validateGameDefinition({
+      ...def,
+      hidingZones: {
+        ...def.hidingZones,
+        features: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "LineString", coordinates: [[2.3, 48.8], [2.4, 48.9]] },
+            },
+          ],
+        },
+      },
+    });
+    expect(lineInHidingZones.valid).toBe(false);
+    expect(lineInHidingZones.errors).toEqual([
+      {
+        path: "/hidingZones/features/features/0/geometry",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: 'Unsupported geometry type "LineString"; must be one of Point, Polygon, MultiPolygon',
+      },
+    ]);
+
+    const geomCollection = validateGameDefinition({
+      ...def,
+      map: {
+        ...def.map,
+        playArea: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "GeometryCollection", geometries: [] },
+            },
+          ],
+        },
+      },
+    });
+    expect(geomCollection.valid).toBe(false);
+    expect(geomCollection.errors).toEqual([
+      {
+        path: "/map/playArea/features/0/geometry",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: 'Unsupported geometry type "GeometryCollection"; must be one of Polygon, MultiPolygon',
+      },
+    ]);
+
+    const nullGeometry = validateGameDefinition({
+      ...def,
+      hidingZones: {
+        ...def.hidingZones,
+        features: {
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: null }],
+        },
+      },
+    });
+    expect(nullGeometry.valid).toBe(false);
+    expect(nullGeometry.errors).toEqual([
+      {
+        path: "/hidingZones/features/features/0/geometry",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "Geometry type must be one of Point, Polygon, MultiPolygon",
+      },
+    ]);
+
+    const multiPoint = validateGameDefinition({
+      ...def,
+      features: [
+        {
+          name: "Points",
+          enabledFor: ["matching"],
+          data: {
+            type: "FeatureCollection",
+            features: [
+              {
+                type: "Feature",
+                geometry: { type: "MultiPoint", coordinates: [[2.3, 48.8]] },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    expect(multiPoint.valid).toBe(false);
+    expect(multiPoint.errors).toEqual([
+      {
+        path: "/features/0/data/features/0/geometry",
+        code: "UNSUPPORTED_GEOMETRY_TYPE",
+        message: "MultiPoint geometry is not supported",
+      },
+    ]);
+
+    // Non-geometry field carrying "MultiPoint" should not misreport as UNSUPPORTED_GEOMETRY_TYPE
+    const multiPointUnit = validateGameDefinition({ ...def, unit: "MultiPoint" });
+    expect(multiPointUnit.valid).toBe(false);
+    expect(multiPointUnit.errors).toEqual([
+      {
+        path: "/unit",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "must be one of meters, kilometers, miles",
+      },
+    ]);
+  });
+
+  it("reports actionable errors for visibility and radars unions", () => {
+    const def = getSampleDefinition();
+
+    const badVisKind = validateGameDefinition({ ...def, visibility: { kind: "public" } });
+    expect(badVisKind.valid).toBe(false);
+    expect(badVisKind.errors[0].path).toBe("/visibility");
+    expect(badVisKind.errors[0].message).toContain('"public"');
+    expect(badVisKind.errors[0].message).toContain("server-members");
+    expect(badVisKind.errors[0].message).toContain("discord-role");
+
+    const badVisMissingRole = validateGameDefinition({
+      ...def,
+      visibility: { kind: "discord-role", guildId: "123" },
+    });
+    expect(badVisMissingRole.valid).toBe(false);
+    expect(badVisMissingRole.errors).toEqual([
+      {
+        path: "/visibility/roleId",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "Expected required property",
+      },
+    ]);
+
+    const badVisNonObject = validateGameDefinition({ ...def, visibility: "public" });
+    expect(badVisNonObject.valid).toBe(false);
+    expect(badVisNonObject.errors[0].path).toBe("/visibility");
+    expect(badVisNonObject.errors[0].message).toContain("server-members");
+
+    const badRadarsString = validateGameDefinition({ ...def, radars: "yes" });
+    expect(badRadarsString.valid).toBe(false);
+    expect(badRadarsString.errors[0].path).toBe("/radars");
+    expect(badRadarsString.errors[0].message).toContain("boolean");
+    expect(badRadarsString.errors[0].message).toContain("positive numbers");
+
+    const badRadarsEmpty = validateGameDefinition({ ...def, radars: [] });
+    expect(badRadarsEmpty.valid).toBe(false);
+    expect(badRadarsEmpty.errors[0].path).toBe("/radars");
+    expect(badRadarsEmpty.errors[0].message).toContain("non-empty array");
+
+    const badRadarsNegative = validateGameDefinition({ ...def, radars: [400, -5] });
+    expect(badRadarsNegative.valid).toBe(false);
+    expect(badRadarsNegative.errors).toEqual([
+      {
+        path: "/radars/1",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "Expected number to be greater than 0",
+      },
+    ]);
+  });
+
+  it("deduplicates MISSING_FEATURE_DATA per feature path", () => {
+    const def = getSampleDefinition();
+    const result = validateGameDefinition({
+      ...def,
+      features: [{ name: "Broken Feature", enabledFor: ["matching"] }],
+    });
+    expect(result.valid).toBe(false);
+    const missingDataErrors = result.errors.filter((e) => e.code === "MISSING_FEATURE_DATA");
+    expect(missingDataErrors).toEqual([
+      {
+        path: "/features/0/data",
+        code: "MISSING_FEATURE_DATA",
+        message: "Feature must provide embedded GeoJSON data",
+      },
+    ]);
+  });
+
+  it("mentions the 2-character minimum in INVALID_GAME_ID for short or non-ASCII derived ids", () => {
+    const shortId = validateGameDefinition({ ...getSampleDefinition(), id: "a" });
+    expect(shortId.valid).toBe(false);
+    expect(shortId.errors).toEqual([
+      {
+        path: "/id",
+        code: "INVALID_GAME_ID",
+        message: expect.stringMatching(/at least 2 characters/i),
+      },
+    ]);
+
+    const defNoId = getSampleDefinition();
+    delete defNoId.id;
+    const emptyDerived = validateGameDefinition({ ...defNoId, name: "東京" });
+    expect(emptyDerived.valid).toBe(false);
+    expect(emptyDerived.errors).toEqual([
+      {
+        path: "/id",
+        code: "INVALID_GAME_ID",
+        message: expect.stringMatching(/at least 2 characters/i),
+      },
+    ]);
+  });
+
+  it("reports duplicate entries in features[i].enabledFor at /features/i/enabledFor instead of self-collision", () => {
+    const def = getSampleDefinition();
+    def.features = [
+      {
+        name: "Museums",
+        enabledFor: ["matching", "matching", "matching"],
+        data: { type: "FeatureCollection", features: [] },
+      },
+    ];
+    const result = validateGameDefinition(def);
+    expect(result.valid).toBe(false);
+    expect(result.errors).toEqual([
+      {
+        path: "/features/0/enabledFor",
+        code: "DUPLICATE_ENABLED_FOR",
+        message: 'Feature "Museums" lists "matching" more than once in enabledFor',
+      },
+    ]);
+  });
 });
