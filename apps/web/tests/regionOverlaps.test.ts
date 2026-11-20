@@ -61,6 +61,14 @@ describe("findRegionOverlaps", () => {
         });
         expect(overlaps.pieces).toEqual([]);
         expect(overlaps.hairlines).toBe(1);
+
+        // Near-threshold ~0.4 m sliver must still classify as a hairline.
+        const hairlineDeg = 0.4 / (111_195 * Math.cos((50.5 * Math.PI) / 180));
+        const nearThreshold = findRegionOverlaps({
+            regions: [box(0, 1 + hairlineDeg, "a"), box(1, 2, "b")],
+        });
+        expect(nearThreshold.pieces).toEqual([]);
+        expect(nearThreshold.hairlines).toBe(1);
     });
 
     it("measures a spike by how far it reaches, however small", () => {
@@ -171,6 +179,100 @@ describe("findRegionOverlaps", () => {
             regions: [box(0, 2, "outer"), box(0.5, 1, "inner", 50.2, 50.4)],
         });
         expect(overlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+    });
+
+    it("detects identical rectangles as overlapping and hides the later one", () => {
+        const regions = [box(0, 1, "a"), box(0, 1, "b")];
+        const overlaps = findRegionOverlaps({ regions });
+        expect(overlaps.hairlines).toBe(0);
+        expect(overlaps.pieces).toHaveLength(1);
+        expect(overlaps.pieces[0]).toMatchObject({ first: 0, second: 1 });
+        expect(overlaps.pieces[0].width).toBeGreaterThan(70_000);
+        expect(overlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+        expect(() => removeRegionOverlaps({ regions })).toThrow(
+            /Region 2 lies entirely inside/,
+        );
+    });
+
+    it("detects identical concave polygons and polygons with holes", () => {
+        // Concave U-shape whose center of mass lies outside the polygon.
+        const u = local([
+            [0, 0],
+            [3, 0],
+            [3, 3],
+            [2, 3],
+            [2, 1],
+            [1, 1],
+            [1, 3],
+            [0, 3],
+        ]);
+        const uOverlaps = findRegionOverlaps({ regions: [u, structuredClone(u)] });
+        expect(uOverlaps.hairlines).toBe(0);
+        expect(uOverlaps.pieces).toHaveLength(1);
+        expect(uOverlaps.pieces[0].width).toBeGreaterThan(50);
+        expect(uOverlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+
+        // Donut whose center of mass lies inside its hole.
+        const donut = local(
+            [
+                [0, 0],
+                [4, 0],
+                [4, 4],
+                [0, 4],
+            ],
+            [
+                [1, 1],
+                [1, 3],
+                [3, 3],
+                [3, 1],
+            ],
+        );
+        const donutOverlaps = findRegionOverlaps({
+            regions: [donut, structuredClone(donut)],
+        });
+        expect(donutOverlaps.hairlines).toBe(0);
+        expect(donutOverlaps.pieces).toHaveLength(1);
+        expect(donutOverlaps.pieces[0].width).toBeGreaterThan(50);
+        expect(donutOverlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+    });
+
+    it("detects identical narrow strips and concave arms wider than the hairline threshold", () => {
+        // ~0.8 m wide strip: its center is only ~0.4 m from each border (< 0.5 m),
+        // yet the strip itself is 0.8 m wide (>= 0.5 m) and fully hides the copy.
+        const mLon = 1 / (111_195 * Math.cos((50.5 * Math.PI) / 180));
+        const mLat = 1 / 111_195;
+        const regions = [
+            box(1, 1 + 0.8 * mLon, "a", 50.5, 50.501),
+            box(1, 1 + 0.8 * mLon, "b", 50.5, 50.501),
+        ];
+        const overlaps = findRegionOverlaps({ regions });
+        expect(overlaps.hairlines).toBe(0);
+        expect(overlaps.pieces).toHaveLength(1);
+        expect(overlaps.pieces[0].width).toBeGreaterThanOrEqual(0.5);
+        expect(overlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+
+        // Identical concave L-shape with 0.6 m arms (centerOfMass is outside,
+        // and triangle centroids sit only 0.2 m from the border; incenter reaches 0.3 m -> 0.6 m).
+        const arm = 0.6;
+        const span = 10;
+        const lShape = turf.polygon([
+            [
+                [0, 0],
+                [span, 0],
+                [span, arm],
+                [arm, arm],
+                [arm, span],
+                [0, span],
+                [0, 0],
+            ].map(([x, y]) => [1 + x * mLon, 50.5 + y * mLat]),
+        ]) as Region;
+        const lOverlaps = findRegionOverlaps({
+            regions: [lShape, structuredClone(lShape)],
+        });
+        expect(lOverlaps.hairlines).toBe(0);
+        expect(lOverlaps.pieces).toHaveLength(1);
+        expect(lOverlaps.pieces[0].width).toBeGreaterThanOrEqual(0.5);
+        expect(lOverlaps.hidden).toEqual([{ region: 1, by: [0] }]);
     });
 });
 
