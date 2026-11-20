@@ -60,31 +60,83 @@ const MAX_PLACES = 300;
 // Names from the file are shown in the confirm.
 const MAX_NAME_LENGTH = 80;
 
-// How deep each geometry's coordinates nest.
-const DEPTH: Record<string, number> = {
-    Point: 0,
-    MultiPoint: 1,
-    LineString: 1,
-    MultiLineString: 2,
-    Polygon: 2,
-    MultiPolygon: 3,
+const GEOMETRY_TYPES = [
+    "Point",
+    "MultiPoint",
+    "LineString",
+    "MultiLineString",
+    "Polygon",
+    "MultiPolygon",
+] as const;
+
+const positionOk = (pos: unknown): pos is number[] =>
+    Array.isArray(pos) &&
+    pos.length >= 2 &&
+    pos.every((n) => typeof n === "number" && Number.isFinite(n)) &&
+    pos[0] >= -180 &&
+    pos[0] <= 180 &&
+    pos[1] >= -90 &&
+    pos[1] <= 90;
+
+const lineOk = (line: unknown): boolean =>
+    Array.isArray(line) && line.length >= 2 && line.every(positionOk);
+
+const ringOk = (ring: unknown): boolean => {
+    if (!Array.isArray(ring) || ring.length < 4 || !ring.every(positionOk)) {
+        return false;
+    }
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    return (
+        first[0] === last[0] &&
+        first[1] === last[1] &&
+        new Set(ring.slice(0, -1).map(([x, y]) => `${x},${y}`)).size >= 3
+    );
 };
-const coordinatesOk = (coordinates: unknown, depth: number): boolean =>
-    Array.isArray(coordinates) &&
-    (depth === 0
-        ? coordinates.length >= 2 &&
-          coordinates.every((n) => typeof n === "number")
-        : coordinates.length > 0 &&
-          coordinates.every((c) => coordinatesOk(c, depth - 1)));
-const featureOk = (feature: unknown, types = Object.keys(DEPTH)): boolean =>
+
+const polygonOk = (rings: unknown): boolean =>
+    Array.isArray(rings) && rings.length > 0 && rings.every(ringOk);
+
+const geometryOk = (type: unknown, coordinates: unknown): boolean => {
+    switch (type) {
+        case "Point":
+            return positionOk(coordinates);
+        case "MultiPoint":
+            return (
+                Array.isArray(coordinates) &&
+                coordinates.length > 0 &&
+                coordinates.every(positionOk)
+            );
+        case "LineString":
+            return lineOk(coordinates);
+        case "MultiLineString":
+            return (
+                Array.isArray(coordinates) &&
+                coordinates.length > 0 &&
+                coordinates.every(lineOk)
+            );
+        case "Polygon":
+            return polygonOk(coordinates);
+        case "MultiPolygon":
+            return (
+                Array.isArray(coordinates) &&
+                coordinates.length > 0 &&
+                coordinates.every(polygonOk)
+            );
+        default:
+            return false;
+    }
+};
+
+const featureOk = (
+    feature: unknown,
+    types: readonly string[] = GEOMETRY_TYPES,
+): boolean =>
     isRecord(feature) &&
     feature.type === "Feature" &&
     isRecord(feature.geometry) &&
     types.includes(feature.geometry.type as string) &&
-    coordinatesOk(
-        feature.geometry.coordinates,
-        DEPTH[feature.geometry.type as string],
-    ) &&
+    geometryOk(feature.geometry.type, feature.geometry.coordinates) &&
     // A place's name is shown as text.
     ["string", "number", "undefined"].includes(
         typeof (feature.properties as { name?: unknown } | null)?.name,

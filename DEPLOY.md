@@ -346,7 +346,7 @@ docker compose up -d
 ```
 
 **Start over** with an empty database: back up, then `docker compose down -v`
-and `docker compose up -d`. The API recreates the schema, servers and games; users
+and `docker compose up -d`. The API recreates the schema and servers; users
 log in again and role mappings changed in the admin UI are lost.
 
 ## Production

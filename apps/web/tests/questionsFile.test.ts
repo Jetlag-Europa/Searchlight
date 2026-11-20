@@ -373,6 +373,90 @@ describe("questions file", () => {
         expect(kept([bare, line(2)])).toBe(1);
     });
 
+    it("leaves out malformed polygons, lines and out-of-range coordinates", () => {
+        const custom = {
+            questionMap: new Map([
+                ["measuring", { id: "measuring", family: "measuring" }],
+                ["matching", { id: "matching", family: "matching" }],
+            ]),
+        } as any;
+        const zone = (ring: number[][]) => ({
+            id: "matching",
+            data: {
+                type: "custom-zone",
+                lat: 47.37,
+                lng: 8.54,
+                geo: {
+                    type: "Feature",
+                    properties: {},
+                    geometry: { type: "Polygon", coordinates: [ring] },
+                },
+            },
+        });
+        const line = (coords: number[][]) => ({
+            id: "measuring",
+            data: {
+                type: "custom-measure",
+                lat: 47.37,
+                lng: 8.54,
+                geo: {
+                    type: "FeatureCollection",
+                    features: [
+                        {
+                            type: "Feature",
+                            properties: {},
+                            geometry: { type: "LineString", coordinates: coords },
+                        },
+                    ],
+                },
+            },
+        });
+        const validRing = [
+            [8.5, 47.3],
+            [8.6, 47.3],
+            [8.6, 47.4],
+            [8.5, 47.3],
+        ];
+        const result = parseQuestionsFile(
+            exported([
+                zone(validRing),
+                line([
+                    [8.5, 47.3],
+                    [8.6, 47.4],
+                ]),
+                zone([[8.5, 47.3]]), // 1-point ring
+                zone([
+                    [8.5, 47.3],
+                    [8.6, 47.3],
+                    [8.6, 47.4],
+                    [8.5, 47.4],
+                ]), // unclosed ring
+                zone([
+                    [8.5, 47.3],
+                    [8.5, 47.3],
+                    [8.5, 47.3],
+                    [8.5, 47.3],
+                ]), // degenerate ring
+                line([[8.5, 47.3]]), // 1-point line
+                zone([
+                    [200, 47.3],
+                    [8.6, 47.3],
+                    [8.6, 47.4],
+                    [200, 47.3],
+                ]), // longitude out of range
+                line([
+                    [8.5, 95],
+                    [8.6, 47.4],
+                ]), // latitude out of range
+            ]),
+            custom,
+            "cgame1",
+        );
+        if ("error" in result) throw new Error(result.error);
+        expect(result.questions).toHaveLength(2);
+        expect(result.skipped).toBe(6);
+    });
+
     it("counts the size in bytes, as the API does", () => {
         // 400,000 characters, 1.2 MB.
         const named = {

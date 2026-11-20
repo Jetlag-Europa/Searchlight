@@ -11,6 +11,7 @@ import {
     onDisabledZonesEdit,
     sameZoneIds,
     setDisabledStations,
+    setZoneDisabled,
     toggleDisabledZone,
     type ZonesDelta,
 } from "@/lib/disabledZones";
@@ -123,6 +124,27 @@ describe("the player's edits", () => {
             toggleDisabledZone("a");
             expect(disabledStations.get()).toEqual(["b", "c"]);
             expect(edits).toEqual([delta(["c"]), delta([], ["a"])]);
+        } finally {
+            stop();
+        }
+    });
+
+    it("setZoneDisabled does not undo a concurrent identical change", () => {
+        const edits: ZonesDelta[] = [];
+        const stop = onDisabledZonesEdit((d) => edits.push(d));
+        try {
+            // Player clicked to disable "a", then another player's disable of
+            // "a" landed before the click handler applied it.
+            disabledStations.set(["a"]);
+            setZoneDisabled("a", true);
+            expect(disabledStations.get()).toEqual(["a"]);
+            expect(edits).toEqual([]);
+
+            // Explicit disable / enable still applies when state differs.
+            setZoneDisabled("b", true);
+            setZoneDisabled("a", false);
+            expect(disabledStations.get()).toEqual(["b"]);
+            expect(edits).toEqual([delta(["b"]), delta([], ["a"])]);
         } finally {
             stop();
         }

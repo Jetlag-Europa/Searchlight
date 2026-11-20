@@ -44,14 +44,18 @@ export function setDisabledStations(ids: string[]): void {
     if (!isNoZonesChange(delta)) editListener?.(delta);
 }
 
+/** Disable or enable one zone against the board's current list. */
+export function setZoneDisabled(id: string, disabled: boolean): void {
+    const current = disabledStations.get();
+    if (current.includes(id) === disabled) return;
+    setDisabledStations(
+        disabled ? [...current, id] : current.filter((x) => x !== id),
+    );
+}
+
 /** Disable a zone, or enable it again, against the board's current list. */
 export function toggleDisabledZone(id: string): void {
-    const current = disabledStations.get();
-    setDisabledStations(
-        current.includes(id)
-            ? current.filter((x) => x !== id)
-            : [...current, id],
-    );
+    setZoneDisabled(id, !disabledStations.get().includes(id));
 }
 
 /**
