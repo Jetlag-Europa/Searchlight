@@ -15,7 +15,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { compiledGameAtom } from "@/game-definition/store";
-import { sessionReadOnly } from "@/lib/activeSession";
+import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { startCalculation } from "@/lib/calculating";
 import { sidebarContextR as SidebarContext } from "@/lib/context";
 import {
@@ -33,8 +33,8 @@ import {
     perQuestionMapData,
     questionFinishedMapData,
     setDisabledStations,
+    setZoneDisabled,
     showZoneNames,
-    toggleDisabledZone,
     trainStations,
 } from "@/lib/context";
 import { zoneLabelMinZoom } from "@/lib/games";
@@ -669,6 +669,16 @@ const ZoneSidebarContent = () => {
                                                     onSelect={async () => {
                                                         if (!map) return;
 
+                                                        const id =
+                                                            station.properties
+                                                                .properties.id;
+                                                        const disable =
+                                                            !disabledStations
+                                                                .get()
+                                                                .includes(id);
+                                                        const sessionId =
+                                                            activeSessionId.get();
+
                                                         setTimeout(() => {
                                                             if (
                                                                 buttonJustClicked
@@ -677,14 +687,19 @@ const ZoneSidebarContent = () => {
                                                                     false;
                                                                 return;
                                                             }
+                                                            if (
+                                                                activeSessionId.get() !==
+                                                                sessionId
+                                                            ) {
+                                                                return;
+                                                            }
 
-                                                            // The list now, not at render: another
-                                                            // player's update may have landed since.
-                                                            toggleDisabledZone(
-                                                                station
-                                                                    .properties
-                                                                    .properties
-                                                                    .id,
+                                                            // Apply what the player chose at click time against
+                                                            // the current list, so a concurrent update making
+                                                            // the same change isn't undone.
+                                                            setZoneDisabled(
+                                                                id,
+                                                                disable,
                                                             );
                                                         }, 100);
                                                     }}

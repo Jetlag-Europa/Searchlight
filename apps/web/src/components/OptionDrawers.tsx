@@ -73,6 +73,7 @@ import {
     questionConflicts,
     questionDecisionsPossible,
 } from "@/lib/questionConflicts";
+import { sameQuestionList } from "@/lib/questionMerge";
 import {
     buildQuestionsFile,
     type ImportedQuestions,
@@ -83,6 +84,7 @@ import {
 import { hasPendingQuestionSave } from "@/lib/sessionState";
 import { cn } from "@/lib/utils";
 import { extractStationLabel } from "@/maps/geo-utils";
+import type { Questions } from "@/maps/schema";
 
 import { LatitudeLongitude, type LocalLocation } from "./LatLngPicker";
 import { Button } from "./ui/button";
@@ -153,25 +155,35 @@ export const OptionDrawers = () => {
     const $canEdit = useStore(questionDecisionsPossible);
     const importInput = useRef<HTMLInputElement>(null);
     const [imported, setImported] = useState<
-        (ImportedQuestions & { replaces: string }) | null
+        | (ImportedQuestions & {
+              replaces: {
+                  sessionId: string;
+                  gameRevisionId: string;
+                  questions: Questions;
+              };
+          })
+        | null
     >(null);
     const replaced = questions.get().length;
 
-    // What an import replaces: the session, its game revision and the
-    // questions on the board. Null while it can't be replaced.
-    const importTarget = () => {
+    // What an import replaces: the session, its game revision and a snapshot
+    // of the questions on the board (compared with sameQuestionList so
+    // in-place edits are caught while reordered JSONB keys aren't). Null while
+    // it can't be replaced.
+    const importTarget = (clone = false) => {
         const session = activeSessionData.get();
         if (!session || !questionDecisionsPossible.get()) return null;
-        return JSON.stringify([
-            session.id,
-            session.gameRevisionId,
-            ...questions.get().map((q) => q.key),
-        ]);
+        const current = questions.get();
+        return {
+            sessionId: session.id,
+            gameRevisionId: session.gameRevisionId,
+            questions: clone ? structuredClone(current) : current,
+        };
     };
     const readQuestionsFile = async (file: File) => {
         const session = activeSessionData.get();
         const compiled = compiledGameAtom.get();
-        const replaces = importTarget();
+        const replaces = importTarget(true);
         if (!session || !compiled || replaces === null) {
             toast.error(
                 compiled
@@ -210,8 +222,12 @@ export const OptionDrawers = () => {
         // The file was checked against the board as it was when picked, and
         // the confirm said what it replaces.
         const session = activeSessionData.get();
+        const current = importTarget();
         if (
-            imported.replaces !== importTarget() ||
+            !current ||
+            current.sessionId !== imported.replaces.sessionId ||
+            current.gameRevisionId !== imported.replaces.gameRevisionId ||
+            !sameQuestionList(current.questions, imported.replaces.questions) ||
             questionConflicts.get().length > 0 ||
             !session ||
             hasPendingQuestionSave(session.id)

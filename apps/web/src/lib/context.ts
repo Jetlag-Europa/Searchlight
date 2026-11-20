@@ -178,6 +178,7 @@ export {
     disabledStations,
     disableZones,
     setDisabledStations,
+    setZoneDisabled,
     toggleDisabledZone,
 } from "@/lib/disabledZones";
 export const autoSave = persistentAtom<boolean>("autoSave", true, {
