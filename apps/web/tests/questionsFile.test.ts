@@ -405,7 +405,10 @@ describe("questions file", () => {
                         {
                             type: "Feature",
                             properties: {},
-                            geometry: { type: "LineString", coordinates: coords },
+                            geometry: {
+                                type: "LineString",
+                                coordinates: coords,
+                            },
                         },
                     ],
                 },
@@ -424,6 +427,10 @@ describe("questions file", () => {
                     [8.5, 47.3],
                     [8.6, 47.4],
                 ]),
+                line([
+                    [179.8, 47.3],
+                    [180.2, 47.4],
+                ]), // antimeridian-crossing Leaflet line
                 zone([[8.5, 47.3]]), // 1-point ring
                 zone([
                     [8.5, 47.3],
@@ -437,12 +444,18 @@ describe("questions file", () => {
                     [8.5, 47.3],
                     [8.5, 47.3],
                 ]), // degenerate ring
+                zone([
+                    [8.5, 47.3],
+                    [8.6, 47.3],
+                    [8.7, 47.3],
+                    [8.5, 47.3],
+                ]), // collinear zero-area ring
                 line([[8.5, 47.3]]), // 1-point line
                 zone([
-                    [200, 47.3],
+                    [400, 47.3],
                     [8.6, 47.3],
                     [8.6, 47.4],
-                    [200, 47.3],
+                    [400, 47.3],
                 ]), // longitude out of range
                 line([
                     [8.5, 95],
@@ -453,8 +466,8 @@ describe("questions file", () => {
             "cgame1",
         );
         if ("error" in result) throw new Error(result.error);
-        expect(result.questions).toHaveLength(2);
-        expect(result.skipped).toBe(6);
+        expect(result.questions).toHaveLength(3);
+        expect(result.skipped).toBe(7);
     });
 
     it("counts the size in bytes, as the API does", () => {

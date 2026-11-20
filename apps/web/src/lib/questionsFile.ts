@@ -69,14 +69,14 @@ const GEOMETRY_TYPES = [
     "MultiPolygon",
 ] as const;
 
+// Leaflet can draw across the antimeridian without wrapping longitude (e.g.
+// 179.8° to 180.2°), so allow ±360° longitude while bounding latitude to ±90°.
 const positionOk = (pos: unknown): pos is number[] =>
     Array.isArray(pos) &&
     pos.length >= 2 &&
     pos.every((n) => typeof n === "number" && Number.isFinite(n)) &&
-    pos[0] >= -180 &&
-    pos[0] <= 180 &&
-    pos[1] >= -90 &&
-    pos[1] <= 90;
+    Math.abs(pos[0]) <= 360 &&
+    Math.abs(pos[1]) <= 90;
 
 const lineOk = (line: unknown): boolean =>
     Array.isArray(line) && line.length >= 2 && line.every(positionOk);
@@ -87,11 +87,13 @@ const ringOk = (ring: unknown): boolean => {
     }
     const first = ring[0];
     const last = ring[ring.length - 1];
-    return (
-        first[0] === last[0] &&
-        first[1] === last[1] &&
-        new Set(ring.slice(0, -1).map(([x, y]) => `${x},${y}`)).size >= 3
-    );
+    if (first[0] !== last[0] || first[1] !== last[1]) return false;
+    // Reject zero-area rings (repeated or collinear vertices).
+    let area2 = 0;
+    for (let i = 1; i < ring.length; i++) {
+        area2 += ring[i - 1][0] * ring[i][1] - ring[i][0] * ring[i - 1][1];
+    }
+    return area2 !== 0;
 };
 
 const polygonOk = (rings: unknown): boolean =>

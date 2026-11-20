@@ -61,7 +61,6 @@ import {
     triggerLocalRefresh,
     warningAlarm,
 } from "@/lib/context";
-import { getCachedSession } from "@/lib/eventQueue";
 import {
     GOOGLE_MAP_TYPES,
     googleMapsAvailable,
@@ -158,17 +157,16 @@ export const OptionDrawers = () => {
     >(null);
     const replaced = questions.get().length;
 
-    // What an import replaces: the session, its game revision, the server's
-    // question sequence and the questions on the board (contents, not just
-    // keys, so an in-place edit from another player while the confirm is open
-    // is caught). Null while it can't be replaced.
+    // What an import replaces: the session, its game revision and the
+    // questions on the board (contents, not just keys, so an in-place edit
+    // from another player while the confirm is open is caught). Null while
+    // it can't be replaced.
     const importTarget = () => {
         const session = activeSessionData.get();
         if (!session || !questionDecisionsPossible.get()) return null;
         return JSON.stringify([
             session.id,
             session.gameRevisionId,
-            getCachedSession(session.id)?.serverQuestions?.sequence ?? null,
             questions.get(),
         ]);
     };
