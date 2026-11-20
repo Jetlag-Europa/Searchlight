@@ -129,7 +129,7 @@ function readImportBody(body: unknown, queryRevisionId: string | undefined) {
   const bodyRevisionId = b?.expectedCurrentRevisionId;
   return {
     raw: (b?.["game"] ?? b) as unknown,
-    allowUpdate: Boolean(b?.allowUpdate),
+    allowUpdate: b?.allowUpdate === true,
     expectedCurrentRevisionId:
       queryRevisionId ??
       (typeof bodyRevisionId === "string" && bodyRevisionId ? bodyRevisionId : undefined),

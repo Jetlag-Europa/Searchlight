@@ -38,10 +38,11 @@ const GAME_NO_DEF_KEY = "test-game-imports-nodef";
 const GAME_UNICODE_KEY = "test-game-imports-東京";
 const GAME_OWNER_KEY = "test-game-imports-owner";
 const GAME_LARGE_KEY = "test-game-imports-large";
+const GAME_MISSING_KEY = "test-game-imports-missing";
 
 const FIXTURE_USERS = [USER_MEMBER, USER_NO_ROLE, USER_NONMEMBER, USER_CREATOR];
 const FIXTURE_AUTHS = [AUTH_MEMBER, AUTH_NO_ROLE, AUTH_NONMEMBER, AUTH_CREATOR];
-const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, GAME_LARGE_KEY];
+const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, GAME_LARGE_KEY, GAME_MISSING_KEY];
 const FIXTURE_SERVERS = [TEST_SERVER_A, TEST_SERVER_B];
 
 async function buildTestApp(): Promise<FastifyInstance> {
@@ -446,6 +447,54 @@ describe("Game Definition Access & Revision Security", () => {
       expect(getGuildMember).not.toHaveBeenCalledWith("home-games", expect.anything(), expect.anything());
       getGuildMember.mockReset();
       getGuildMember.mockResolvedValue(null);
+    });
+
+    test("only accepts a boolean true for body allowUpdate", async () => {
+      const grant = await prisma.rolePermission.create({
+        data: { serverId: TEST_SERVER_A, discordRoleId: ROLE_GAME_CREATOR_ID, permission: "games.edit" },
+      });
+      const def = { ...importableDefinition(TEST_SERVER_A), id: GAME_A_KEY };
+      try {
+        for (const allowUpdate of ["false", "true", 1, false]) {
+          const res = await app.inject({
+            method: "POST",
+            url: "/games/import?dryRun=true",
+            headers: { cookie: signedCookie(app, AUTH_CREATOR) },
+            payload: { game: def, allowUpdate },
+          });
+          expect(res.statusCode, `allowUpdate=${JSON.stringify(allowUpdate)}`).toBe(409);
+          expect(res.json().code).toBe("GAME_EXISTS");
+        }
+
+        const allowed = await app.inject({
+          method: "POST",
+          url: "/games/import?dryRun=true",
+          headers: { cookie: signedCookie(app, AUTH_CREATOR) },
+          payload: { game: def, allowUpdate: true },
+        });
+        expect(allowed.statusCode, allowed.body).toBe(200);
+        expect(allowed.json().status).toBe("updated");
+      } finally {
+        await prisma.rolePermission.delete({ where: { id: grant.id } });
+      }
+    });
+
+    test("returns 409 GAME_CHANGED when expectedCurrentRevisionId targets a missing game", async () => {
+      const def = { ...importableDefinition(TEST_SERVER_A), id: GAME_MISSING_KEY };
+      for (const url of [
+        "/games/import?dryRun=true&expectedCurrentRevisionId=rev-gone",
+        "/games/import?expectedCurrentRevisionId=rev-gone",
+      ]) {
+        const res = await app.inject({
+          method: "POST",
+          url,
+          headers: { cookie: signedCookie(app, AUTH_CREATOR) },
+          payload: def,
+        });
+        expect(res.statusCode, url).toBe(409);
+        expect(res.json().code).toBe("GAME_CHANGED");
+      }
+      expect(await prisma.game.findFirst({ where: { gameKey: GAME_MISSING_KEY } })).toBeNull();
     });
   });
 
