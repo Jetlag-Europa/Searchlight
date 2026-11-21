@@ -427,7 +427,7 @@ export function checkGame(def, { fileSize } = {}) {
     ]) {
       for (const key of Object.keys(obj)) {
         if (!allowed.includes(key)) {
-          warn(`${prefix}/${key}`, `unknown property (ignored by the server; allowed: ${allowed.join(", ")})`, "unknown-property");
+          warn(`${prefix}/${key}`, `unknown property (ignored by the app; allowed: ${allowed.join(", ")})`, "unknown-property");
         }
       }
     }

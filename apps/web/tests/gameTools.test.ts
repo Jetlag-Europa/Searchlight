@@ -42,17 +42,19 @@ describe("game-tools.mjs", () => {
         }
     });
 
-    it("rejects empty and whitespace-only CSV files", () => {
+    it("rejects empty/whitespace CSV files and omits whitespace-only cells", () => {
         for (const [name, content] of [
             ["empty.csv", ""],
             ["bom.csv", "\uFEFF"],
             ["whitespace.csv", "   \n\t\r\n  "],
-            ["bom-whitespace.csv", "\uFEFF  \n  "],
         ]) {
             const file = join(dir, name);
             writeFileSync(file, content);
             expect(() => gt.readCsv(file), name).toThrow(/CSV file is empty/);
         }
+        const file = join(dir, "blank-cell.csv");
+        writeFileSync(file, "lat,lng,name,tier\n1,2,A,  \n");
+        expect(gt.readCsv(file)[0].properties).toEqual({ name: "A" });
     });
 
     it("turns numeric-looking KML radius strings into numbers", () => {

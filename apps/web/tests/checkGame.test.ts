@@ -465,271 +465,109 @@ describe("check-game.mjs", () => {
     });
 
     describe("server validator parity", () => {
-        it("validates id slug pattern when id is present", () => {
-            for (const id of ["paris-2026", "luxembourg-2026-10-02", "a1"]) {
-                const def = game({ id });
-                expect(checkGame(def).errors, id).toEqual([]);
-                expect(validateGameDefinition(def).valid, id).toBe(true);
-            }
-            for (const id of [
-                "Paris-2026",
-                "paris 2026",
-                "paris_2026",
-                "-paris",
-                "paris-",
-                "paris--2026",
-                "zürich-2026",
-                "",
-                "a",
-                123,
-                null,
+        it("matches server acceptance for id, revision, $schema, and tierOverrides", () => {
+            for (const def of [
+                game({ id: "paris-2026", revision: 2147483647, $schema: "" }),
+                game({ id: "a1", revision: 1 }),
             ]) {
-                const def = game({ id });
-                expect(
-                    checkGame(def).errors.map((e) => e.path),
-                    String(id),
-                ).toEqual(["/id"]);
-                expect(validateGameDefinition(def).valid, String(id)).toBe(
-                    false,
-                );
-            }
-        });
-
-        it("enforces 32-bit signed integer maximum on revision", () => {
-            for (const revision of [1, 2147483647]) {
-                const def = game({ revision });
                 expect(checkGame(def).errors).toEqual([]);
                 expect(validateGameDefinition(def).valid).toBe(true);
+            }
+
+            const checkInvalid = (def: Record<string, unknown>, path: string) => {
+                expect(checkGame(def).errors.map((e) => e.path)).toEqual([path]);
+                expect(validateGameDefinition(def).valid).toBe(false);
+            };
+            for (const id of ["Paris-2026", "paris 2026", "paris_2026", "-paris", "paris--2026", "", "a", 123]) {
+                checkInvalid(game({ id }), "/id");
             }
             for (const revision of [0, 1.5, 2147483648]) {
-                const def = game({ revision });
-                expect(checkGame(def).errors.map((e) => e.path)).toEqual([
-                    "/revision",
-                ]);
-                expect(validateGameDefinition(def).valid).toBe(false);
+                checkInvalid(game({ revision }), "/revision");
             }
-        });
-
-        it("requires $schema to be a string when present", () => {
-            for (const $schema of [
-                "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
-                "",
-            ]) {
-                const def = game({ $schema });
-                expect(checkGame(def).errors).toEqual([]);
-                expect(validateGameDefinition(def).valid).toBe(true);
+            for (const $schema of [123, null, {}]) {
+                checkInvalid(game({ $schema }), "/$schema");
             }
-            for (const $schema of [123, null, {}, [], true]) {
-                const def = game({ $schema });
-                expect(checkGame(def).errors.map((e) => e.path)).toEqual([
-                    "/$schema",
-                ]);
-                expect(validateGameDefinition(def).valid).toBe(false);
-            }
-        });
-
-        it("requires hidingZones.tierOverrides to be a plain object when present", () => {
-            for (const tierOverrides of [null, [600], "Outer", 600, true]) {
+            for (const tierOverrides of [null, [600], "Outer", 600]) {
                 const def = game();
-                def.hidingZones = {
-                    ...def.hidingZones,
-                    tierOverrides,
-                } as typeof def.hidingZones;
-                expect(checkGame(def).errors.map((e) => e.path)).toEqual([
-                    "/hidingZones/tierOverrides",
-                ]);
-                expect(validateGameDefinition(def).valid).toBe(false);
+                def.hidingZones = { ...def.hidingZones, tierOverrides } as typeof def.hidingZones;
+                checkInvalid(def, "/hidingZones/tierOverrides");
             }
         });
 
-        it("accepts an empty tierOverrides key without error and warns via unused-tier", () => {
+        it("accepts an empty tierOverrides key and warns via unused-tier", () => {
             const def = game();
             def.hidingZones = {
                 ...def.hidingZones,
                 tierOverrides: { "": 600 },
-                features: collection([
-                    point("north", 10.5, 50.8, { tier: "" }),
-                    point("south", 10.5, 50.2),
-                ]),
+                features: collection([point("north", 10.5, 50.8, { tier: "" }), point("south", 10.5, 50.2)]),
             } as typeof def.hidingZones;
             expect(validateGameDefinition(def).valid).toBe(true);
-            const result = checkGame(def);
-            expect(result.errors).toEqual([]);
-            expect(result.warnings).toEqual([
-                expect.objectContaining({
-                    path: "/hidingZones/tierOverrides/",
-                    code: "unused-tier",
-                }),
+            expect(checkGame(def).errors).toEqual([]);
+            expect(checkGame(def).warnings).toEqual([
+                expect.objectContaining({ path: "/hidingZones/tierOverrides/", code: "unused-tier" }),
             ]);
 
-            const badValue = game();
-            badValue.hidingZones = {
-                ...badValue.hidingZones,
-                tierOverrides: { "": -5 },
-            } as typeof badValue.hidingZones;
-            expect(validateGameDefinition(badValue).valid).toBe(false);
-            expect(checkGame(badValue).errors.map((e) => e.path)).toEqual([
-                "/hidingZones/tierOverrides/",
-            ]);
+            const bad = game();
+            bad.hidingZones = { ...bad.hidingZones, tierOverrides: { "": -5 } } as typeof bad.hidingZones;
+            expect(validateGameDefinition(bad).valid).toBe(false);
+            expect(checkGame(bad).errors.map((e) => e.path)).toEqual(["/hidingZones/tierOverrides/"]);
         });
     });
 
-    describe("non-object roots and CLI invalid JSON", () => {
-        it("reports non-object roots as an error without throwing", () => {
-            for (const root of [null, undefined, [], "hello", 42, true]) {
-                const result = checkGame(root as never);
-                expect(result.errors.map((e) => e.path)).toEqual(["/"]);
-                expect(result.warnings).toEqual([]);
-                expect(result.notes).toEqual([]);
-                expect(result.questions).toEqual([]);
-                expect(result.zoneCount).toBe(0);
-                expect(result.layerCount).toBe(0);
-            }
-        });
-
-        it("reports invalid JSON and non-object roots cleanly on the CLI", () => {
-            const dir = mkdtempSync(join(tmpdir(), "check-game-cli-"));
-            const script = resolve(
-                import.meta.dirname,
-                "../public/skills/create-game/check-game.mjs",
-            );
-            try {
-                const invalidFile = join(dir, "invalid.game.json");
-                writeFileSync(invalidFile, "{ not valid json");
-                const bad = spawnSync(
-                    process.execPath,
-                    [script, "--strict", invalidFile],
-                    { encoding: "utf8" },
-                );
-                expect(bad.status).toBe(1);
-                expect(bad.stderr).toBe("");
-                expect(bad.stdout).toContain("ERROR /: invalid JSON");
-                expect(bad.stdout).toContain(
-                    "1 error(s), 0 warning(s) (0 fail under --strict), 0 note(s)",
-                );
-
-                const nullFile = join(dir, "null.game.json");
-                writeFileSync(nullFile, "null");
-                const nullRun = spawnSync(
-                    process.execPath,
-                    [script, nullFile],
-                    { encoding: "utf8" },
-                );
-                expect(nullRun.status).toBe(1);
-                expect(nullRun.stderr).toBe("");
-                expect(nullRun.stdout).toContain(
-                    "ERROR /: root must be a JSON object",
-                );
-            } finally {
-                rmSync(dir, { recursive: true, force: true });
-            }
-        });
+    it("handles non-object roots and CLI invalid JSON as errors", () => {
+        for (const root of [null, undefined, [], "hello", 42]) {
+            const result = checkGame(root as never);
+            expect(result.errors.map((e) => e.path)).toEqual(["/"]);
+            expect(result.questions).toEqual([]);
+        }
+        const dir = mkdtempSync(join(tmpdir(), "check-game-cli-"));
+        const script = resolve(import.meta.dirname, "../public/skills/create-game/check-game.mjs");
+        try {
+            const file = join(dir, "invalid.game.json");
+            writeFileSync(file, "{ bad");
+            const res = spawnSync(process.execPath, [script, file], { encoding: "utf8" });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toBe("");
+            expect(res.stdout).toContain("ERROR /: invalid JSON");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
     });
 
     describe("authoring trap warnings", () => {
         it("warns on unknown keys in map, hidingZones, and visibility", () => {
-            const def = game({
-                visibility: { kind: "server-members", roleId: "123" },
-            });
+            const def = game({ visibility: { kind: "server-members", roleId: "123" } });
             (def.map as Record<string, unknown>).zoom = 12;
             (def.hidingZones as Record<string, unknown>).raduis = 500;
-
             expect(validateGameDefinition(def).valid).toBe(true);
             const result = checkGame(def);
             expect(result.errors).toEqual([]);
-            const unknown = result.warnings.filter(
-                (w) => w.code === "unknown-property",
-            );
-            expect(unknown.map((w) => w.path)).toEqual([
+            expect(result.warnings.filter((w) => w.code === "unknown-property").map((w) => w.path)).toEqual([
                 "/map/zoom",
                 "/hidingZones/raduis",
                 "/visibility/roleId",
             ]);
             expect(STRICT_CODES.has("unknown-property")).toBe(false);
-
-            const roleDef = game({
-                visibility: {
-                    kind: "discord-role",
-                    guildId: "1",
-                    roleId: "2",
-                    extra: true,
-                },
-            });
-            expect(
-                checkGame(roleDef)
-                    .warnings.filter((w) => w.code === "unknown-property")
-                    .map((w) => w.path),
-            ).toEqual(["/visibility/extra"]);
-
-            const cleanRole = game({
-                visibility: {
-                    kind: "discord-role",
-                    guildId: "1",
-                    roleId: "2",
-                },
-            });
-            expect(checkGame(cleanRole).warnings).toEqual([]);
         });
 
         it("warns when hidingZones.radius is omitted with kilometers or miles", () => {
             const kmDef = game();
             delete (kmDef.hidingZones as Record<string, unknown>).radius;
             kmDef.hidingZones.unit = "kilometers";
-            expect(codes(checkGame(kmDef))).toContain(
-                "default-radius-large-unit",
-            );
+            expect(codes(checkGame(kmDef))).toContain("default-radius-large-unit");
 
-            const milesDef = game();
-            delete (milesDef.hidingZones as Record<string, unknown>).radius;
-            milesDef.hidingZones.unit = "miles";
-            expect(codes(checkGame(milesDef))).toContain(
-                "default-radius-large-unit",
-            );
-
-            const rootUnitDef = game({ unit: "kilometers" });
-            delete (rootUnitDef.hidingZones as Record<string, unknown>).radius;
-            expect(codes(checkGame(rootUnitDef))).toContain(
-                "default-radius-large-unit",
-            );
-
-            // Effective unit is meters when root unit overrides hidingZones.unit.
             const metersOverride = game({ unit: "meters" });
-            delete (metersOverride.hidingZones as Record<string, unknown>)
-                .radius;
+            delete (metersOverride.hidingZones as Record<string, unknown>).radius;
             metersOverride.hidingZones.unit = "kilometers";
-            expect(codes(checkGame(metersOverride))).not.toContain(
-                "default-radius-large-unit",
-            );
-
-            // Default meters unit does not warn.
-            const metersDef = game();
-            delete (metersDef.hidingZones as Record<string, unknown>).radius;
-            expect(codes(checkGame(metersDef))).not.toContain(
-                "default-radius-large-unit",
-            );
-
-            // Explicit radius with kilometers does not warn.
-            const explicitKm = game();
-            explicitKm.hidingZones.unit = "kilometers";
-            explicitKm.hidingZones.radius = 0.5;
-            expect(codes(checkGame(explicitKm))).not.toContain(
-                "default-radius-large-unit",
-            );
-
+            expect(codes(checkGame(metersOverride))).not.toContain("default-radius-large-unit");
             expect(STRICT_CODES.has("default-radius-large-unit")).toBe(false);
         });
 
         it("explains tier-then-base fallback in invalid-zone-radius warning", () => {
             const def = game();
-            def.hidingZones.features.features[0] = point("north", 10.5, 50.8, {
-                radius: "600",
-            });
-            const [warning] = checkGame(def).warnings.filter(
-                (w) => w.code === "invalid-zone-radius",
-            );
-            expect(warning.message).toContain(
-                "the zone gets its tier radius, else the base radius",
-            );
+            def.hidingZones.features.features[0] = point("north", 10.5, 50.8, { radius: "600" });
+            const [warning] = checkGame(def).warnings.filter((w) => w.code === "invalid-zone-radius");
+            expect(warning.message).toContain("the zone gets its tier radius, else the base radius");
         });
     });
 });

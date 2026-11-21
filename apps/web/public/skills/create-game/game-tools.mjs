@@ -101,8 +101,9 @@ export function readCsv(path) {
     }
     const properties = {};
     header.forEach((h, i) => {
-      if (i !== latCol && i !== lngCol && row[i] !== undefined && row[i] !== "") {
-        properties[h] = row[i].trim();
+      const value = row[i]?.trim();
+      if (i !== latCol && i !== lngCol && value) {
+        properties[h] = value;
       }
     });
     features.push({ type: "Feature", geometry: { type: "Point", coordinates: [lng, lat] }, properties });
