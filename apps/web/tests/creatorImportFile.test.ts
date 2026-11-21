@@ -6,6 +6,7 @@ import {
     type CreatorGeometryLayer,
 } from "@/lib/creator/assemble";
 import {
+    buildSurroundingPlayArea,
     detectFolderSplitFields,
     importedFeaturesToPlayArea,
     importedFeaturesToStations,
@@ -15,6 +16,7 @@ import {
     parseKmlText,
     SPLIT_BY_STYLE_KEY,
     splitFeaturesByField,
+    unionPolygonsToPlayArea,
 } from "@/lib/creator/importFile";
 
 describe("parseCsvText", () => {
@@ -220,8 +222,14 @@ describe("parseJsonImportText", () => {
         expect(mergedPolys[0].name).toBe("District A");
         expect(mergedPolys[0].geometry.type).toBe("MultiPolygon");
 
-        const pa = importedFeaturesToPlayArea(res.folders[0].features);
-        expect(pa?.features).toHaveLength(2);
+        const paMerged = importedFeaturesToPlayArea(res.folders[0].features);
+        expect(paMerged?.features).toHaveLength(1);
+        expect(paMerged?.features[0].geometry.type).toBe("MultiPolygon");
+
+        const paSeparate = importedFeaturesToPlayArea(res.folders[0].features, {
+            union: false,
+        });
+        expect(paSeparate?.features).toHaveLength(2);
     });
 
     it("detects a full Searchlight .game.json and assembles geometryLayers cleanly", () => {
@@ -507,5 +515,55 @@ describe("parseKmlText", () => {
             SPLIT_BY_STYLE_KEY,
         );
         expect(byStyle).toHaveLength(3);
+    });
+});
+
+describe("play area generation helpers", () => {
+    it("unions touching polygons into a single outer boundary", () => {
+        const merged = unionPolygonsToPlayArea(
+            [
+                {
+                    type: "Polygon",
+                    coordinates: [
+                        [
+                            [5.0, 52.0],
+                            [5.2, 52.0],
+                            [5.2, 52.2],
+                            [5.0, 52.2],
+                            [5.0, 52.0],
+                        ],
+                    ],
+                },
+                {
+                    type: "Polygon",
+                    coordinates: [
+                        [
+                            [5.2, 52.0],
+                            [5.4, 52.0],
+                            [5.4, 52.2],
+                            [5.2, 52.2],
+                            [5.2, 52.0],
+                        ],
+                    ],
+                },
+            ],
+            "Provinces",
+        );
+        expect(merged?.features).toHaveLength(1);
+        expect(merged?.features[0].geometry.type).toBe("Polygon");
+        expect(merged?.features[0].properties?.name).toBe("Provinces");
+    });
+
+    it("generates a buffered play area surrounding stations and features", () => {
+        const pa = buildSurroundingPlayArea(
+            [
+                [4.9, 52.37], // Amsterdam
+                [4.48, 51.92], // Rotterdam
+                [5.12, 52.09], // Utrecht
+            ],
+            2,
+        );
+        expect(pa?.features).toHaveLength(1);
+        expect(pa?.features[0].geometry.type).toBe("Polygon");
     });
 });

@@ -808,8 +808,66 @@ function isValidPlayAreaPolygon(
     return true;
 }
 
+export function unionPolygonsToPlayArea(
+    geometries: readonly (
+        | Extract<GeoJsonGeometry, { type: "Polygon" }>
+        | Extract<GeoJsonGeometry, { type: "MultiPolygon" }>
+    )[],
+    name = "Play Area",
+): PlayAreaFeatureCollection | null {
+    const valid = geometries.filter(isValidPlayAreaPolygon);
+    if (valid.length === 0) return null;
+
+    if (valid.length >= 2) {
+        try {
+            const fc = turf.featureCollection(
+                valid.map((g) => ({
+                    type: "Feature" as const,
+                    geometry: g,
+                    properties: {},
+                })),
+            );
+            const merged = turf.union(fc);
+            if (
+                merged &&
+                (merged.geometry.type === "Polygon" ||
+                    merged.geometry.type === "MultiPolygon")
+            ) {
+                const truncated = turf.truncate(merged, { precision: 6 });
+                return {
+                    type: "FeatureCollection",
+                    features: [
+                        {
+                            type: "Feature",
+                            geometry: truncated.geometry as
+                                | Extract<GeoJsonGeometry, { type: "Polygon" }>
+                                | Extract<
+                                      GeoJsonGeometry,
+                                      { type: "MultiPolygon" }
+                                  >,
+                            properties: { name },
+                        },
+                    ],
+                };
+            }
+        } catch {
+            // Fall back to keeping individual polygons if union fails on messy topology.
+        }
+    }
+
+    return {
+        type: "FeatureCollection",
+        features: valid.map((g) => ({
+            type: "Feature",
+            geometry: g,
+            properties: { name },
+        })),
+    };
+}
+
 export function importedFeaturesToPlayArea(
     features: readonly ImportedRawFeature[],
+    options: { union?: boolean; name?: string } = {},
 ): PlayAreaFeatureCollection | null {
     const polys = features.filter(
         (f) =>
@@ -821,6 +879,18 @@ export function importedFeaturesToPlayArea(
             ),
     );
     if (polys.length === 0) return null;
+    if (options.union !== false && polys.length >= 2) {
+        const merged = unionPolygonsToPlayArea(
+            polys.map(
+                (f) =>
+                    f.geometry as
+                        | Extract<GeoJsonGeometry, { type: "Polygon" }>
+                        | Extract<GeoJsonGeometry, { type: "MultiPolygon" }>,
+            ),
+            options.name ?? "Play Area",
+        );
+        if (merged) return merged;
+    }
     return {
         type: "FeatureCollection",
         features: polys.map((f) => ({
@@ -830,6 +900,116 @@ export function importedFeaturesToPlayArea(
                 | Extract<GeoJsonGeometry, { type: "MultiPolygon" }>,
             properties: { name: f.name },
         })),
+    };
+}
+
+/**
+ * Generates a play area polygon surrounding all provided coordinates with a
+ * smooth outer buffer margin (convex hull + buffer, falling back to a buffered
+ * bounding box for <3 or collinear points).
+ */
+export function buildSurroundingPlayArea(
+    coords: readonly Position[],
+    marginKm: number,
+    name = "Generated Play Area",
+): PlayAreaFeatureCollection | null {
+    const valid = coords.filter(
+        ([lng, lat]) =>
+            Number.isFinite(lng) &&
+            Number.isFinite(lat) &&
+            Math.abs(lng) <= 180 &&
+            Math.abs(lat) <= 90,
+    );
+    if (valid.length === 0) return null;
+
+    const safeMargin = Math.max(0.2, Number.isFinite(marginKm) ? marginKm : 2);
+    const pointFc = turf.featureCollection(valid.map((p) => turf.point(p)));
+
+    let base: ReturnType<typeof turf.convex> | ReturnType<typeof turf.bboxPolygon> =
+        null;
+    if (valid.length >= 3) {
+        try {
+            base = turf.convex(pointFc);
+        } catch {
+            base = null;
+        }
+    }
+    if (!base) {
+        if (valid.length === 1) {
+            const bufferedPt = turf.buffer(turf.point(valid[0]), safeMargin, {
+                units: "kilometers",
+                steps: 24,
+            });
+            if (!bufferedPt) return null;
+            const truncated = turf.truncate(bufferedPt, { precision: 6 });
+            return {
+                type: "FeatureCollection",
+                features: [
+                    {
+                        type: "Feature",
+                        geometry: truncated.geometry as
+                            | Extract<GeoJsonGeometry, { type: "Polygon" }>
+                            | Extract<
+                                  GeoJsonGeometry,
+                                  { type: "MultiPolygon" }
+                              >,
+                        properties: { name },
+                    },
+                ],
+            };
+        }
+        const [w, s, e, n] = turf.bbox(pointFc);
+        // Handle degenerate line / duplicate points by buffering a LineString or bbox.
+        if (w === e || s === n) {
+            const line = turf.lineString(valid as Position[]);
+            const bufferedLine = turf.buffer(line, safeMargin, {
+                units: "kilometers",
+                steps: 16,
+            });
+            if (!bufferedLine) return null;
+            const truncated = turf.truncate(bufferedLine, { precision: 6 });
+            return {
+                type: "FeatureCollection",
+                features: [
+                    {
+                        type: "Feature",
+                        geometry: truncated.geometry as
+                            | Extract<GeoJsonGeometry, { type: "Polygon" }>
+                            | Extract<
+                                  GeoJsonGeometry,
+                                  { type: "MultiPolygon" }
+                              >,
+                        properties: { name },
+                    },
+                ],
+            };
+        }
+        base = turf.bboxPolygon([w, s, e, n]);
+    }
+
+    const buffered = turf.buffer(base, safeMargin, {
+        units: "kilometers",
+        steps: 16,
+    });
+    if (
+        !buffered ||
+        (buffered.geometry.type !== "Polygon" &&
+            buffered.geometry.type !== "MultiPolygon")
+    ) {
+        return null;
+    }
+    const truncated = turf.truncate(buffered, { precision: 6 });
+    return {
+        type: "FeatureCollection",
+        features: [
+            {
+                type: "Feature",
+                geometry: truncated.geometry as
+                    | Extract<GeoJsonGeometry, { type: "Polygon" }>
+                    | Extract<GeoJsonGeometry, { type: "MultiPolygon" }>,
+                properties: { name },
+            },
+        ],
     };
 }
 

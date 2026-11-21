@@ -46,6 +46,7 @@ import { toast } from "react-toastify";
 import { CreatorImportPanel } from "@/components/CreatorImportPanel";
 import { CreatorLayersList } from "@/components/CreatorLayersList";
 import { CreatorOsmFetchPanel } from "@/components/CreatorOsmFetchPanel";
+import { PlayAreaTools } from "@/components/PlayAreaTools";
 import { StationFileImporter } from "@/components/StationFileImporter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1251,6 +1252,17 @@ export function GameCreator() {
                                     )}
                                 </div>
 
+                                <PlayAreaTools
+                                    stations={stations}
+                                    layers={layers}
+                                    onSetPlayArea={(nextArea, name) => {
+                                        setPlayAreaAndFit(nextArea);
+                                        if (name && !gameName.trim()) {
+                                            setGameName(name);
+                                        }
+                                    }}
+                                />
+
                                 {interactionMode === "draw-area" && (
                                     <div className="rounded-lg border border-primary/40 bg-primary/10 p-3 text-xs">
                                         <p className="font-medium">
@@ -1432,7 +1444,6 @@ export function GameCreator() {
                             <Button
                                 type="button"
                                 className="w-full"
-                                disabled={!playArea}
                                 onClick={() => setStep("stations")}
                             >
                                 Next: Stations →
