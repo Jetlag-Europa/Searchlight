@@ -658,7 +658,7 @@ export function checkGame(def, { fileSize } = {}) {
       if (!noOverlaps || family !== "polygons") continue;
       const inside = cornersInsideOthers(feats);
       if (inside.count) {
-        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) on its regions' borders lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
+        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) of its regions lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
       }
     }
 

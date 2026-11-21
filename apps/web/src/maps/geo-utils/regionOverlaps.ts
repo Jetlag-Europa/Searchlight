@@ -240,20 +240,21 @@ function overlapPieces(a: Region, b: Region) {
         width: reach(piece.geometry, [a, b]),
         geometry: piece.geometry,
     }));
-    // Identical regions share every border point so reach() returns 0; don't
-    // drop an overlap that covers an entire region as a hairline.
-    const coversWhole =
+    // Identical or near-identical regions share nearly every border point so
+    // reach() stays below HAIRLINE_WIDTH; don't drop an overlap that covers
+    // more than half of either region as a hairline.
+    const coversMost =
         pieces.some((p) => p.width < HAIRLINE_WIDTH) &&
         (() => {
             const total = pieces.reduce((sum, p) => sum + p.area, 0);
             return (
                 total >= HAIRLINE_AREA &&
-                Math.min(turf.area(a), turf.area(b)) - total < HAIRLINE_AREA
+                2 * total > Math.min(turf.area(a), turf.area(b))
             );
         })();
     return pieces.map((piece) => ({
         ...piece,
-        hairline: !coversWhole && piece.width < HAIRLINE_WIDTH,
+        hairline: !coversMost && piece.width < HAIRLINE_WIDTH,
     }));
 }
 

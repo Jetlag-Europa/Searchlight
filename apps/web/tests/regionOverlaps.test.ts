@@ -193,6 +193,22 @@ describe("findRegionOverlaps", () => {
         );
     });
 
+    it("detects near-identical squares offset by 0.2 m as overlapping", () => {
+        const mLon = 1 / (111_195 * Math.cos((50.5 * Math.PI) / 180));
+        const mLat = 1 / 111_195;
+        const sizeLon = 1000 * mLon;
+        const sizeLat = 1000 * mLat;
+        const shiftLon = 0.2 * mLon;
+        const regions = [
+            box(1, 1 + sizeLon, "a", 50.5, 50.5 + sizeLat),
+            box(1 + shiftLon, 1 + sizeLon + shiftLon, "b", 50.5, 50.5 + sizeLat),
+        ];
+        const overlaps = findRegionOverlaps({ regions });
+        expect(overlaps.hairlines).toBe(0);
+        expect(overlaps.pieces).toHaveLength(1);
+        expect(overlaps.pieces[0]).toMatchObject({ first: 0, second: 1 });
+    });
+
     it("detects identical concave polygons and polygons with holes", () => {
         const u = local([
             [0, 0],

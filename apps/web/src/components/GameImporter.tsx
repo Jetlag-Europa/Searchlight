@@ -160,9 +160,11 @@ const serialize = (definition: GameDefinition, indent: string) =>
         : JSON.stringify(definition);
 
 async function inspectFile(file: File): Promise<Loaded> {
-    let text: string;
+    let text: string | undefined;
+    let parsed: any;
     try {
         text = await file.text();
+        parsed = JSON.parse(text);
     } catch (err: unknown) {
         const message =
             err instanceof Error && err.message
@@ -174,8 +176,8 @@ async function inspectFile(file: File): Promise<Loaded> {
             errors: [
                 {
                     path: "/",
-                    code: "read",
-                    message: `Couldn't read file: ${message}`,
+                    code: text === undefined ? "read" : "json",
+                    message: `${text === undefined ? "Couldn't read file" : "Not JSON"}: ${message}`,
                 },
             ],
             issues: [],
@@ -183,32 +185,10 @@ async function inspectFile(file: File): Promise<Loaded> {
             compiled: null,
             noServer: false,
             changed: false,
-            indent: "",
+            indent: text === undefined ? "" : indentOf(text),
         };
     }
     const indent = indentOf(text);
-    let parsed: any;
-    try {
-        parsed = JSON.parse(text);
-    } catch (err: any) {
-        return {
-            fileName: file.name,
-            fileSize: file.size,
-            errors: [
-                {
-                    path: "/",
-                    code: "json",
-                    message: `Not JSON: ${err.message}`,
-                },
-            ],
-            issues: [],
-            definition: null,
-            compiled: null,
-            noServer: false,
-            changed: false,
-            indent,
-        };
-    }
     // The import step fills in the server picked there.
     let noServer = false;
     if (parsed && typeof parsed === "object" && !parsed.serverId) {
