@@ -872,9 +872,7 @@ describe("maps dispatch and hider regression suite", () => {
             compiled.hidingZones.stations?.map((station) => station.name),
         ).toContain("'s-Gravelandseweg");
         for (const station of compiled.hidingZones.stations!) {
-            expect(
-                compiled.hidingZones.getRadius(station.id, station.tier),
-            ).toEqual({
+            expect(station.radius).toEqual({
                 value: 300,
                 unit: "meters",
             });

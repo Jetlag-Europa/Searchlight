@@ -7,13 +7,7 @@ import {
   resolveGameDefinitionId,
 } from "@searchlight/shared";
 import * as turf from "@turf/turf";
-import type {
-  Feature,
-  FeatureCollection,
-  Geometry,
-  MultiPolygon,
-  Polygon,
-} from "geojson";
+import type { FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 export interface CompiledHidingZone {
   id: string | number;
@@ -40,7 +34,6 @@ export interface CompiledGame {
     stations?: CompiledHidingZone[];
     /** The game-wide radius, before tier and per-zone overrides. */
     baseRadius: DistanceRadius;
-    getRadius: (zoneId: string | number, tier?: string) => DistanceRadius;
   };
   datasets: Record<string, any>;
   questions: QuestionDefinition[];
@@ -85,55 +78,6 @@ function parseZoneRadius(
   return undefined;
 }
 
-function withoutBbox<T extends { bbox?: unknown }>(
-  value: T,
-  overrides?: Partial<T>,
-): T {
-  const copy = { ...value, ...overrides };
-  delete copy.bbox;
-  return copy;
-}
-
-function stripGeometryBbox(geometry: Geometry): Geometry {
-  if (!geometry || typeof geometry !== "object") return geometry;
-  if (geometry.type === "GeometryCollection") {
-    let changed = Object.hasOwn(geometry, "bbox");
-    const geometries = Array.isArray(geometry.geometries)
-      ? geometry.geometries.map((child) => {
-          const cleaned = stripGeometryBbox(child);
-          if (cleaned !== child) changed = true;
-          return cleaned;
-        })
-      : geometry.geometries;
-    if (!changed) return geometry;
-    return withoutBbox(geometry, { geometries });
-  }
-  return Object.hasOwn(geometry, "bbox") ? withoutBbox(geometry) : geometry;
-}
-
-function stripFeatureBbox<T extends Feature>(feature: T): T {
-  if (!feature || typeof feature !== "object") return feature;
-  const geometry = feature.geometry
-    ? stripGeometryBbox(feature.geometry)
-    : feature.geometry;
-  if (!Object.hasOwn(feature, "bbox") && geometry === feature.geometry) {
-    return feature;
-  }
-  return withoutBbox(feature, { geometry } as Partial<T>);
-}
-
-function stripFeatureCollectionBbox<T extends FeatureCollection>(fc: T): T {
-  if (!fc || typeof fc !== "object" || !Array.isArray(fc.features)) return fc;
-  let changed = Object.hasOwn(fc, "bbox");
-  const features = fc.features.map((feature) => {
-    const cleaned = stripFeatureBbox(feature);
-    if (cleaned !== feature) changed = true;
-    return cleaned;
-  });
-  if (!changed) return fc;
-  return withoutBbox(fc, { features } as Partial<T>);
-}
-
 export function compileGameDefinition(
   definition: GameDefinition,
 ): CompiledGame {
@@ -145,28 +89,16 @@ export function compileGameDefinition(
   const tierOverrides = definition.hidingZones?.tierOverrides ?? {};
 
   const resolveTierRadius = (
-    tier: string | number | undefined,
+    tier: string | undefined,
   ): DistanceRadius | undefined => {
-    if (tier == null) return undefined;
-    const key = String(tier);
-    if (!key || !Object.hasOwn(tierOverrides, key)) return undefined;
-    const value = tierOverrides[key];
+    if (!tier || !Object.hasOwn(tierOverrides, tier)) return undefined;
+    const value = tierOverrides[tier];
     return isPositiveFinite(value) ? { value, unit } : undefined;
   };
 
-  // Strip untrusted bbox metadata from runtime GeoJSON so Turf always computes
-  // bounds from coordinates, while keeping `definition` untouched for export/checksums.
-  const playArea = stripFeatureCollectionBbox(
-    definition.map.playArea as FeatureCollection<Polygon | MultiPolygon>,
-  );
-
   // 1. Process Hiding Zones
-  const perZoneRadiusMap = new Map<string | number, DistanceRadius>();
   const stations: CompiledHidingZone[] = [];
-  const hidingZoneFeatures = stripFeatureCollectionBbox(
-    definition.hidingZones?.features as FeatureCollection,
-  );
-  const rawFeatures = hidingZoneFeatures?.features || [];
+  const rawFeatures = (definition.hidingZones?.features as any)?.features || [];
 
   // Unnamed zones are numbered among their own kind, so a game's areas don't
   // renumber its stations.
@@ -185,12 +117,10 @@ export function compileGameDefinition(
     const rawTier = feat.properties?.tier;
     const tier = rawTier == null ? undefined : String(rawTier);
 
-    const explicitRadius = parseZoneRadius(feat.properties?.radius, unit);
-    if (explicitRadius) {
-      perZoneRadiusMap.set(zId, explicitRadius);
-    }
     const effectiveRadius =
-      explicitRadius ?? resolveTierRadius(tier) ?? baseRadius;
+      parseZoneRadius(feat.properties?.radius, unit) ??
+      resolveTierRadius(tier) ??
+      baseRadius;
 
     if (feat.geometry?.type === "Point") {
       stationCount++;
@@ -208,17 +138,11 @@ export function compileGameDefinition(
         name,
         tier,
         coordinates: turf.pointOnFeature(feat).geometry.coordinates as [number, number],
-        area: feat.geometry as Polygon | MultiPolygon,
+        area: feat.geometry,
         radius: effectiveRadius,
       });
     }
   }
-
-  const getRadius = (
-    zoneId: string | number,
-    tier?: string,
-  ): DistanceRadius =>
-    perZoneRadiusMap.get(zoneId) ?? resolveTierRadius(tier) ?? baseRadius;
 
   // 2. Build Datasets from features. Each layer is keyed by its position, since
   // differently named layers can share a slug.
@@ -228,7 +152,7 @@ export function compileGameDefinition(
     if (feat.data) {
       datasets[datasetId(index)] = {
         kind: "inline",
-        features: stripFeatureCollectionBbox(feat.data as FeatureCollection),
+        features: feat.data,
         noOverlaps: feat.noOverlaps === true,
       };
     }
@@ -357,11 +281,11 @@ export function compileGameDefinition(
       maxLat = Math.max(maxLat, north);
     };
     // The play area, which the map starts as, and every zone.
-    if (playArea?.features?.length) {
-      extend(turf.bbox(playArea));
+    if (definition.map.playArea?.features?.length) {
+      extend(turf.bbox(definition.map.playArea as FeatureCollection, { recompute: true }));
     }
     for (const s of stations) {
-      extend(s.area ? turf.bbox(s.area) : [...s.coordinates, ...s.coordinates]);
+      extend(s.area ? turf.bbox(s.area, { recompute: true }) : [...s.coordinates, ...s.coordinates]);
     }
     const margin = 0.05;
     bounds = [minLng - margin, minLat - margin, maxLng + margin, maxLat + margin];
@@ -374,13 +298,12 @@ export function compileGameDefinition(
     size,
     center: definition.map.center,
     bounds,
-    playArea,
+    playArea: definition.map.playArea as FeatureCollection<Polygon | MultiPolygon>,
     hidingZones: {
       kind: stations.some((s) => !s.area) ? "points" : "polygons",
-      features: hidingZoneFeatures,
+      features: definition.hidingZones?.features as FeatureCollection,
       stations,
       baseRadius,
-      getRadius,
     },
     datasets,
     questions,
