@@ -1985,7 +1985,11 @@ export function GameCreator() {
                                 />
                             )}
 
-                            {featureSubTab === "import" && (
+                            <div
+                                className={
+                                    featureSubTab === "import" ? "" : "hidden"
+                                }
+                            >
                                 <CreatorImportPanel
                                     existingLayerSlugs={existingLayerSlugs}
                                     geometryLayerCount={layers.length}
@@ -2025,13 +2029,15 @@ export function GameCreator() {
                                                 ),
                                             );
                                         }
-                                        setFeatureSubTab("layers");
                                     }}
                                     onLoadGameDefinition={
                                         handleLoadExistingGame
                                     }
+                                    onDoneImporting={() =>
+                                        setFeatureSubTab("layers")
+                                    }
                                 />
-                            )}
+                            </div>
 
                             {featureSubTab === "osm" && (
                                 <CreatorOsmFetchPanel

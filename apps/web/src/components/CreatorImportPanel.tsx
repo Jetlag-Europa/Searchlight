@@ -38,6 +38,7 @@ interface Props {
     onImportStations: (stations: CreatorPointItem[], replace: boolean) => void;
     onAddGeometryLayers: (layers: CreatorGeometryLayer[]) => void;
     onLoadGameDefinition: (def: GameDefinition) => void;
+    onDoneImporting?: () => void;
 }
 
 interface SplitGroupDraft {
@@ -61,12 +62,16 @@ export function CreatorImportPanel({
     onImportStations,
     onAddGeometryLayers,
     onLoadGameDefinition,
+    onDoneImporting,
 }: Props) {
     const [dragOver, setDragOver] = useState(false);
     const [parsed, setParsed] = useState<
         (ParsedImportFile & { fileName: string }) | null
     >(null);
     const [folderIndex, setFolderIndex] = useState(0);
+    const [importedFolders, setImportedFolders] = useState<Set<number>>(
+        () => new Set(),
+    );
     const [layerName, setLayerName] = useState("");
     const [family, setFamily] = useState<GeometryFamily>("points");
     const [mergeByName, setMergeByName] = useState(true);
@@ -151,6 +156,7 @@ export function CreatorImportPanel({
             return;
         }
         setParsed({ ...result, fileName: file.name });
+        setImportedFolders(new Set());
         if (result.kind === "folders") {
             selectFolder(result, 0);
         }
@@ -224,6 +230,7 @@ export function CreatorImportPanel({
             vertexCount: sumFeatureVertices(items),
         };
         onAddGeometryLayers([layer]);
+        setImportedFolders((prev) => new Set(prev).add(folderIndex));
         toast.success(
             `Added "${trimmed}" (${items.length} ${family} feature${items.length === 1 ? "" : "s"})`,
         );
@@ -305,6 +312,7 @@ export function CreatorImportPanel({
             return;
         }
         onAddGeometryLayers(newLayers);
+        setImportedFolders((prev) => new Set(prev).add(folderIndex));
         toast.success(
             `Added ${newLayers.length} layer${newLayers.length === 1 ? "" : "s"} from "${activeFolder.name}"`,
         );
@@ -421,6 +429,7 @@ export function CreatorImportPanel({
                             >
                                 {parsed.folders.map((folder, idx) => (
                                     <option key={idx} value={idx}>
+                                        {importedFolders.has(idx) ? "✓ " : ""}
                                         {folder.name} ({folder.features.length})
                                     </option>
                                 ))}
@@ -466,6 +475,9 @@ export function CreatorImportPanel({
                                             ? activeFolder.name
                                             : undefined,
                                     );
+                                    setImportedFolders((prev) =>
+                                        new Set(prev).add(folderIndex),
+                                    );
                                     toast.success("Play area updated from file");
                                 }}
                             >
@@ -483,6 +495,9 @@ export function CreatorImportPanel({
                                             activeFolder.features,
                                         );
                                         onImportStations(pts, false);
+                                        setImportedFolders((prev) =>
+                                            new Set(prev).add(folderIndex),
+                                        );
                                         toast.success(
                                             `Added ${pts.length} station${pts.length === 1 ? "" : "s"}`,
                                         );
@@ -499,6 +514,9 @@ export function CreatorImportPanel({
                                             activeFolder.features,
                                         );
                                         onImportStations(pts, true);
+                                        setImportedFolders((prev) =>
+                                            new Set(prev).add(folderIndex),
+                                        );
                                         toast.success(
                                             `Replaced stations with ${pts.length} pin${pts.length === 1 ? "" : "s"}`,
                                         );
@@ -596,13 +614,25 @@ export function CreatorImportPanel({
                                         </span>
                                     </label>
                                 )}
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    onClick={handleAddSingleLayer}
-                                >
-                                    Add to My Layers
-                                </Button>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        onClick={handleAddSingleLayer}
+                                    >
+                                        Add to My Layers
+                                    </Button>
+                                    {importedFolders.size > 0 &&
+                                        onDoneImporting && (
+                                            <button
+                                                type="button"
+                                                onClick={onDoneImporting}
+                                                className="text-xs font-medium text-primary hover:underline"
+                                            >
+                                                View My Layers →
+                                            </button>
+                                        )}
+                                </div>
                             </>
                         ) : (
                             <>
@@ -658,16 +688,28 @@ export function CreatorImportPanel({
                                         </div>
                                     ))}
                                 </div>
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={selectedSplitCount === 0}
-                                    onClick={handleAddSplitLayers}
-                                >
-                                    Add {selectedSplitCount} selected layer
-                                    {selectedSplitCount === 1 ? "" : "s"} to My
-                                    Layers
-                                </Button>
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={selectedSplitCount === 0}
+                                        onClick={handleAddSplitLayers}
+                                    >
+                                        Add {selectedSplitCount} selected layer
+                                        {selectedSplitCount === 1 ? "" : "s"} to
+                                        My Layers
+                                    </Button>
+                                    {importedFolders.size > 0 &&
+                                        onDoneImporting && (
+                                            <button
+                                                type="button"
+                                                onClick={onDoneImporting}
+                                                className="text-xs font-medium text-primary hover:underline"
+                                            >
+                                                View My Layers →
+                                            </button>
+                                        )}
+                                </div>
                             </>
                         )}
                     </div>
