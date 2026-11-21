@@ -33,6 +33,13 @@ import {
   LINE_LAYER_PRESETS,
   type PoiCategoryPreset,
 } from "@/lib/creator/presets";
+import {
+  fetchAdminRegionsFromQlever,
+  fetchLineLayerFromQlever,
+  fetchPoiLayerFromQlever,
+  osmFilterToSparqlPatterns,
+  QLEVER_WEB_UI_URL,
+} from "@/lib/creator/qlever";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -61,6 +68,7 @@ export function CreatorOsmFetchPanel({
   onUpsertLayer,
 }: Props) {
   const hasPlayArea = Boolean(playArea && playArea.features.length > 0);
+  const [osmEngine, setOsmEngine] = useState<"qlever" | "overpass">("qlever");
 
   // ── POI fetch state (per-layer fetch so heavy tags never block others) ───
   const [notableByPreset, setNotableByPreset] = useState<Record<string, boolean>>(() => {
@@ -73,6 +81,16 @@ export function CreatorOsmFetchPanel({
   const [fetchingPoiId, setFetchingPoiId] = useState<string | null>(null);
   const [poiStatus, setPoiStatus] = useState<string | null>(null);
   const [poiError, setPoiError] = useState<string | null>(null);
+  const lastPoiRequestRef = useRef<{
+    id: string;
+    name: string;
+    osmFilter: string;
+    notableOnly: boolean;
+    color: string;
+    icon?: FeatureIcon;
+    enabledFor: readonly ("matching" | "measuring" | "tentacle")[];
+    kmlGroup?: string;
+  } | null>(null);
 
   // Custom POI form
   const [customPoiName, setCustomPoiName] = useState("");
@@ -324,51 +342,69 @@ export function CreatorOsmFetchPanel({
     return null;
   };
 
-  const fetchSinglePoi = async ({
-    id,
-    name,
-    osmFilter,
-    notableOnly,
-    color,
-    icon,
-    enabledFor,
-    kmlGroup,
-  }: {
-    id: string;
-    name: string;
-    osmFilter: string;
-    notableOnly: boolean;
-    color: string;
-    icon?: FeatureIcon;
-    enabledFor: readonly ("matching" | "measuring" | "tentacle")[];
-    kmlGroup?: string;
-  }) => {
+  const fetchSinglePoi = async (
+    req: {
+      id: string;
+      name: string;
+      osmFilter: string;
+      notableOnly: boolean;
+      color: string;
+      icon?: FeatureIcon;
+      enabledFor: readonly ("matching" | "measuring" | "tentacle")[];
+      kmlGroup?: string;
+    },
+    engineOverride?: "qlever" | "overpass",
+  ) => {
+    const { id, name, osmFilter, notableOnly, color, icon, enabledFor, kmlGroup } = req;
     if (!hasPlayArea || !playArea) {
       setPoiError("Set a play area in Step 1 first.");
       return;
     }
+    lastPoiRequestRef.current = req;
+    const requestedEngine = engineOverride ?? osmEngine;
+    const useQlever = requestedEngine === "qlever" && osmFilterToSparqlPatterns(osmFilter) !== null;
+
     poiAbortRef.current?.abort();
     const controller = new AbortController();
     poiAbortRef.current = controller;
     const areaGen = playAreaGenRef.current;
     setPoiError(null);
     setFetchingPoiId(id);
-    setPoiStatus(`Querying OpenStreetMap for ${name}…`);
+    setPoiStatus(
+      useQlever ? `Querying QLever for ${name}…` : `Querying OpenStreetMap for ${name}…`,
+    );
 
     try {
-      const result = await fetchPoiLayersFromOsm({
-        layers: [{ id, name, osmFilter, notableOnly }],
-        playArea,
-        bufferKm: poiBufferKm,
-        preferEnglishName,
-        customEndpoint: customEndpoint.trim() || undefined,
-        signal: controller.signal,
-        onStatus: (msg) => {
-          if (playAreaGenRef.current === areaGen) setPoiStatus(msg);
-        },
-      });
+      const rawPts = useQlever
+        ? (
+            await fetchPoiLayerFromQlever({
+              id,
+              name,
+              osmFilter,
+              notableOnly,
+              playArea,
+              bufferKm: poiBufferKm,
+              preferEnglishName,
+              signal: controller.signal,
+              onStatus: (msg) => {
+                if (playAreaGenRef.current === areaGen) setPoiStatus(msg);
+              },
+            })
+          ).items
+        : ((
+            await fetchPoiLayersFromOsm({
+              layers: [{ id, name, osmFilter, notableOnly }],
+              playArea,
+              bufferKm: poiBufferKm,
+              preferEnglishName,
+              customEndpoint: customEndpoint.trim() || undefined,
+              signal: controller.signal,
+              onStatus: (msg) => {
+                if (playAreaGenRef.current === areaGen) setPoiStatus(msg);
+              },
+            })
+          ).byLayerId[id] ?? []);
       if (playAreaGenRef.current !== areaGen) return;
-      const rawPts = result.byLayerId[id] ?? [];
       if (rawPts.length === 0) {
         setPoiError(
           `No matching OpenStreetMap places found for "${name}"${notableOnly ? " (try unchecking Notable only)" : ""}.`,
@@ -461,7 +497,7 @@ export function CreatorOsmFetchPanel({
     setCustomPoiFilter("");
   };
 
-  const handleFetchRegions = async () => {
+  const handleFetchRegions = async (engineOverride?: "qlever" | "overpass") => {
     if (!hasPlayArea || !playArea) {
       setRegionError("Set a play area in Step 1 first.");
       return;
@@ -472,25 +508,42 @@ export function CreatorOsmFetchPanel({
       return;
     }
 
+    const activeEngine = engineOverride ?? osmEngine;
     regionAbortRef.current?.abort();
     const controller = new AbortController();
     regionAbortRef.current = controller;
     const areaGen = playAreaGenRef.current;
     setRegionError(null);
-    setRegionBusy(`Querying OpenStreetMap for admin_level=${adminLevel}…`);
+    setRegionBusy(
+      activeEngine === "qlever"
+        ? `Querying QLever for admin_level=${adminLevel}…`
+        : `Querying OpenStreetMap for admin_level=${adminLevel}…`,
+    );
 
     try {
-      const result = await fetchAdminRegionsFromOsm({
-        adminLevel,
-        playArea,
-        toleranceMeters: regionTolerance,
-        preferEnglishName,
-        customEndpoint: customEndpoint.trim() || undefined,
-        signal: controller.signal,
-        onStatus: (msg) => {
-          if (playAreaGenRef.current === areaGen) setRegionBusy(msg);
-        },
-      });
+      const result =
+        activeEngine === "qlever"
+          ? await fetchAdminRegionsFromQlever({
+              adminLevel,
+              playArea,
+              toleranceMeters: regionTolerance,
+              preferEnglishName,
+              signal: controller.signal,
+              onStatus: (msg) => {
+                if (playAreaGenRef.current === areaGen) setRegionBusy(msg);
+              },
+            })
+          : await fetchAdminRegionsFromOsm({
+              adminLevel,
+              playArea,
+              toleranceMeters: regionTolerance,
+              preferEnglishName,
+              customEndpoint: customEndpoint.trim() || undefined,
+              signal: controller.signal,
+              onStatus: (msg) => {
+                if (playAreaGenRef.current === areaGen) setRegionBusy(msg);
+              },
+            });
       if (playAreaGenRef.current !== areaGen) return;
       if (result.items.length === 0) {
         setRegionError(
@@ -533,7 +586,7 @@ export function CreatorOsmFetchPanel({
     }
   };
 
-  const handleFetchLines = async () => {
+  const handleFetchLines = async (engineOverride?: "qlever" | "overpass") => {
     if (!hasPlayArea || !playArea) {
       setLineError("Set a play area in Step 1 first.");
       return;
@@ -556,28 +609,49 @@ export function CreatorOsmFetchPanel({
       osmFilter = preset.osmFilter;
     }
 
+    const requestedEngine = engineOverride ?? osmEngine;
+    const useQlever = requestedEngine === "qlever" && osmFilterToSparqlPatterns(osmFilter) !== null;
+
     lineAbortRef.current?.abort();
     const controller = new AbortController();
     lineAbortRef.current = controller;
     const areaGen = playAreaGenRef.current;
     setLineError(null);
-    setLineBusy(`Querying OpenStreetMap for ${lineName.trim()}…`);
+    setLineBusy(
+      useQlever
+        ? `Querying QLever for ${lineName.trim()}…`
+        : `Querying OpenStreetMap for ${lineName.trim()}…`,
+    );
 
     try {
-      const result = await fetchLineLayerFromOsm({
-        layerName: lineName.trim(),
-        osmFilter,
-        playArea,
-        bufferKm: poiBufferKm,
-        toleranceMeters: lineTolerance,
-        groupByName: lineGroupByName,
-        preferEnglishName,
-        customEndpoint: customEndpoint.trim() || undefined,
-        signal: controller.signal,
-        onStatus: (msg) => {
-          if (playAreaGenRef.current === areaGen) setLineBusy(msg);
-        },
-      });
+      const result = useQlever
+        ? await fetchLineLayerFromQlever({
+            layerName: lineName.trim(),
+            osmFilter,
+            playArea,
+            bufferKm: poiBufferKm,
+            toleranceMeters: lineTolerance,
+            groupByName: lineGroupByName,
+            preferEnglishName,
+            signal: controller.signal,
+            onStatus: (msg) => {
+              if (playAreaGenRef.current === areaGen) setLineBusy(msg);
+            },
+          })
+        : await fetchLineLayerFromOsm({
+            layerName: lineName.trim(),
+            osmFilter,
+            playArea,
+            bufferKm: poiBufferKm,
+            toleranceMeters: lineTolerance,
+            groupByName: lineGroupByName,
+            preferEnglishName,
+            customEndpoint: customEndpoint.trim() || undefined,
+            signal: controller.signal,
+            onStatus: (msg) => {
+              if (playAreaGenRef.current === areaGen) setLineBusy(msg);
+            },
+          });
       if (playAreaGenRef.current !== areaGen) return;
       if (result.items.length === 0) {
         setLineError(`No matching OSM ways found for "${lineName.trim()}" in this area.`);
@@ -626,6 +700,53 @@ export function CreatorOsmFetchPanel({
         </div>
       )}
 
+      {/* OSM Query Engine toggle */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">OSM query engine</Label>
+        <div className="grid grid-cols-2 gap-1.5">
+          <button
+            type="button"
+            onClick={() => setOsmEngine("qlever")}
+            className={cn(
+              "rounded-md border px-2.5 py-1.5 text-left transition-colors",
+              osmEngine === "qlever"
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border bg-background/50 text-muted-foreground hover:bg-accent/40",
+            )}
+          >
+            <div className="text-xs font-semibold">QLever (Fast)</div>
+            <div className="text-[11px] text-muted-foreground">OSM Planet SPARQL (~1s)</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => setOsmEngine("overpass")}
+            className={cn(
+              "rounded-md border px-2.5 py-1.5 text-left transition-colors",
+              osmEngine === "overpass"
+                ? "border-primary bg-primary/10 text-foreground"
+                : "border-border bg-background/50 text-muted-foreground hover:bg-accent/40",
+            )}
+          >
+            <div className="text-xs font-semibold">Overpass</div>
+            <div className="text-[11px] text-muted-foreground">Classic mirrors &amp; custom QL</div>
+          </button>
+        </div>
+        {osmEngine === "qlever" && (
+          <p className="text-[11px] text-muted-foreground">
+            Powered by{" "}
+            <a
+              href={QLEVER_WEB_UI_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline hover:text-foreground"
+            >
+              QLever OSM Planet
+            </a>{" "}
+            (University of Freiburg). Switch to Overpass anytime if needed.
+          </p>
+        )}
+      </div>
+
       {/* OSM POIs — individual per-layer fetch */}
       <section className="space-y-2.5">
         <div className="flex items-end justify-between gap-2">
@@ -667,7 +788,25 @@ export function CreatorOsmFetchPanel({
             </button>
           </div>
         )}
-        {poiError && <p className="text-xs text-destructive">{poiError}</p>}
+        {poiError && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-destructive">{poiError}</p>
+            {osmEngine === "qlever" && !fetchingPoiId && lastPoiRequestRef.current && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => {
+                  const req = lastPoiRequestRef.current;
+                  if (req) void fetchSinglePoi(req, "overpass");
+                }}
+              >
+                Retry with Overpass
+              </Button>
+            )}
+          </div>
+        )}
 
         <div className="divide-y divide-border rounded-lg border border-border bg-background/40">
           <div className="flex items-center justify-between gap-2 bg-muted/30 px-2.5 py-1 text-[11px] text-muted-foreground">
@@ -930,7 +1069,22 @@ export function CreatorOsmFetchPanel({
           )}
         </div>
         {regionBusy && <p className="text-xs text-muted-foreground">{regionBusy}</p>}
-        {regionError && <p className="text-xs text-destructive">{regionError}</p>}
+        {regionError && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-destructive">{regionError}</p>
+            {osmEngine === "qlever" && !regionBusy && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => void handleFetchRegions("overpass")}
+              >
+                Retry with Overpass
+              </Button>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Line Layers */}
@@ -1060,7 +1214,22 @@ export function CreatorOsmFetchPanel({
           )}
         </div>
         {lineBusy && <p className="text-xs text-muted-foreground">{lineBusy}</p>}
-        {lineError && <p className="text-xs text-destructive">{lineError}</p>}
+        {lineError && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-destructive">{lineError}</p>
+            {osmEngine === "qlever" && !lineBusy && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => void handleFetchLines("overpass")}
+              >
+                Retry with Overpass
+              </Button>
+            )}
+          </div>
+        )}
       </section>
 
       {/* Inspect / Edit Raw Overpass QL */}
