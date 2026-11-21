@@ -878,7 +878,8 @@ export function SessionPickerOverlay({
 
                 <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
                     <p className="min-w-0 text-xs text-muted-foreground">
-                        Local play — saved only in this browser, works offline.
+                        Local sessions stay in this browser and can&apos;t be
+                        shared or resumed on another device.
                     </p>
                     <Button
                         asChild

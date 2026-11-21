@@ -422,7 +422,7 @@ export function LocalSessionManager() {
             if (gen !== openGenerationRef.current) return false;
             if (!saved) {
                 toast.error(
-                    "Couldn't save your current session — stayed here so your edits aren't lost.",
+                    "Couldn't save your current session. Stayed here so your edits aren't lost.",
                     { toastId: "local-switch-blocked" },
                 );
                 return false;
@@ -1238,8 +1238,9 @@ export function LocalSessionManager() {
                                         file here
                                     </p>
                                     <p className="text-xs text-muted-foreground">
-                                        Everything stays on this device — works
-                                        offline once loaded.
+                                        Everything stays in this browser.
+                                        Sessions can&apos;t be shared or resumed
+                                        on another device.
                                     </p>
                                     <Button
                                         type="button"

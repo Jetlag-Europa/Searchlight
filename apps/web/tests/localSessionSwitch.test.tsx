@@ -437,7 +437,7 @@ describe("LocalSessionManager save flush and session switching", () => {
             "session-b",
         );
         expect(toastMocks.error).toHaveBeenCalledWith(
-            expect.stringContaining("stayed here so your edits aren't lost"),
+            expect.stringContaining("Stayed here so your edits aren't lost"),
             expect.objectContaining({ toastId: "local-switch-blocked" }),
         );
     });
@@ -536,7 +536,7 @@ describe("LocalSessionManager save flush and session switching", () => {
             "session-b",
         );
         expect(toastMocks.error).toHaveBeenCalledWith(
-            expect.stringContaining("stayed here so your edits aren't lost"),
+            expect.stringContaining("Stayed here so your edits aren't lost"),
             expect.objectContaining({ toastId: "local-switch-blocked" }),
         );
     });
