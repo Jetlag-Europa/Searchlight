@@ -493,16 +493,25 @@ const family = (f) =>
 
 /**
  * One question layer. enabledFor: any of "matching", "measuring", "tentacle".
+ * Optional `options` may pass `color`, `icon`, `kmlFolder`, or `noOverlaps`.
  * Throws if the features mix geometry families, which the import rejects.
  */
-export function layer(name, enabledFor, features) {
+export function layer(name, enabledFor, features, options = {}) {
   const families = new Set(requireFeatures(features, `layer("${name}")`).map(family));
   if (families.size > 1) {
     throw new Error(
       `layer("${name}"): mixes ${[...families].join(" and ")}; a layer holds one geometry family, so filter the features by geometry.type`,
     );
   }
-  return { name, enabledFor, data: collection(features) };
+  return {
+    name,
+    enabledFor,
+    ...(options?.noOverlaps !== undefined && { noOverlaps: options.noOverlaps }),
+    ...(options?.color !== undefined && { color: options.color }),
+    ...(options?.icon !== undefined && { icon: options.icon }),
+    ...(options?.kmlFolder !== undefined && { kmlFolder: options.kmlFolder }),
+    data: collection(features),
+  };
 }
 
 /** [west, south, east, north] of the features. Throws if there are none. */

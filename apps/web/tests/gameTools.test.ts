@@ -91,6 +91,20 @@ describe("game-tools.mjs", () => {
     expect(() => gt.layer("Park", ["matching"], features)).toThrow(/mixes points and polygons/);
     const parks = features.filter((f: any) => f.geometry.type === "Point");
     expect(gt.layer("Park", ["matching"], parks).data.features).toHaveLength(1);
+    expect(
+      gt.layer("Park", ["matching"], parks, {
+        color: "#22c55e",
+        icon: "park",
+        kmlFolder: "POIs",
+      }),
+    ).toEqual({
+      name: "Park",
+      enabledFor: ["matching"],
+      color: "#22c55e",
+      icon: "park",
+      kmlFolder: "POIs",
+      data: { type: "FeatureCollection", features: parks },
+    });
   });
 
   it("builds download URLs from Google My Maps and Docs links", () => {
