@@ -40,6 +40,7 @@ import {
     activeSessionId,
     activeSessionRole,
     editingInOtherTab,
+    STORED_USER_KEY,
 } from "@/lib/activeSession";
 import {
     activeLocalSession,
@@ -86,6 +87,7 @@ import {
     acquireLocalSessionLock,
     releaseLocalSessionLock,
 } from "@/lib/localTabLock";
+import { readStorage } from "@/lib/safeStorage";
 
 const API_BASE = (import.meta.env.PUBLIC_API_BASE ?? "") as string;
 const SAVE_DEBOUNCE_MS = 200;
@@ -734,6 +736,11 @@ export function LocalSessionManager() {
     const sessionsUsingDeleteGame = deleteGameTarget
         ? sessions.filter((s) => s.gameId === deleteGameTarget.id).length
         : 0;
+    const hasSignedInAccount = Boolean(
+        readStorage("localStorage", STORED_USER_KEY),
+    );
+    const onlineHref = hasSignedInAccount ? "/map" : "/";
+    const onlineLabel = hasSignedInAccount ? "Online sessions" : "Sign in";
 
     return (
         <>
@@ -746,10 +753,10 @@ export function LocalSessionManager() {
                     <span className="font-medium">Local only</span>
                     <span className="text-muted-foreground">·</span>
                     <a
-                        href="/"
+                        href={onlineHref}
                         className="text-primary hover:underline"
                     >
-                        Sign in
+                        {onlineLabel}
                     </a>
                 </div>
             </StatusChip>
@@ -954,11 +961,9 @@ export function LocalSessionManager() {
                                         Back to board
                                     </Button>
                                 )}
-                                <a href="/">
-                                    <Button size="sm" variant="ghost">
-                                        Sign in
-                                    </Button>
-                                </a>
+                                <Button asChild size="sm" variant="ghost">
+                                    <a href={onlineHref}>{onlineLabel}</a>
+                                </Button>
                             </div>
                         </div>
 
