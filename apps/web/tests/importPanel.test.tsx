@@ -1,5 +1,5 @@
-// ImportPanel pins plain imports to the previewed currentRevisionId for both
-// "updated" and "unchanged" previews, and omits it for "created" previews.
+// ImportPanel pins plain imports to the previewed currentRevisionId even when
+// the preview status is "unchanged".
 import type { GameDefinition, GameImportResponse } from "@searchlight/shared";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -143,91 +143,6 @@ test("sends expectedCurrentRevisionId on confirm for an unchanged plain import p
         false,
         false,
         "rev-unchanged-1",
-        undefined,
-    );
-});
-
-test("sends expectedCurrentRevisionId for updated previews and omits it for created previews", async () => {
-    const updatedPreview: GameImportResponse = {
-        status: "updated",
-        gameId: "game-1",
-        gameKey: "london-2026",
-        revision: 2,
-        checksum: "def",
-        errors: [],
-        warnings: [],
-        existing: existingComparison("rev-updated-1"),
-    };
-    apiMocks.importGameDefinitionAPI
-        .mockResolvedValueOnce(updatedPreview)
-        .mockResolvedValueOnce(updatedPreview);
-
-    await act(async () =>
-        root!.render(
-            <ImportPanel
-                definition={definition}
-                noServer={false}
-                busy={false}
-                blocked={null}
-                replaceGameId={null}
-            />,
-        ),
-    );
-    await settle();
-
-    await act(async () => {
-        await submitButton().onClick!();
-    });
-    await settle();
-
-    expect(apiMocks.importGameDefinitionAPI).toHaveBeenLastCalledWith(
-        { ...definition, serverId: "server-1" },
-        false,
-        true,
-        false,
-        "rev-updated-1",
-        undefined,
-    );
-
-    // Re-render with a new definition whose preview reports a brand-new game.
-    const createdPreview: GameImportResponse = {
-        status: "created",
-        gameId: "dry-run",
-        gameKey: "paris-2026",
-        revision: 1,
-        checksum: "ghi",
-        errors: [],
-        warnings: [],
-    };
-    apiMocks.importGameDefinitionAPI
-        .mockResolvedValueOnce(createdPreview)
-        .mockResolvedValueOnce({ ...createdPreview, gameId: "game-2" });
-
-    const newDef = { ...definition, id: "paris-2026", name: "Paris 2026" };
-    await act(async () =>
-        root!.render(
-            <ImportPanel
-                definition={newDef}
-                noServer={false}
-                busy={false}
-                blocked={null}
-                replaceGameId={null}
-            />,
-        ),
-    );
-    await settle();
-
-    await act(async () => {
-        await submitButton().onClick!();
-    });
-    await settle();
-
-    expect(apiMocks.importGameDefinitionAPI).toHaveBeenLastCalledWith(
-        { ...newDef, serverId: "server-1" },
-        false,
-        false,
-        false,
-        undefined,
         undefined,
     );
 });

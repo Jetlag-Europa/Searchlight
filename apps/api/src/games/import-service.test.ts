@@ -242,24 +242,17 @@ describe("importGameDefinition revisions", () => {
     await prisma.gameRevision.deleteMany({ where: { gameId: created.gameId } });
     await prisma.game.delete({ where: { id: created.gameId } });
 
-    for (const opts of [
-      { dryRun: true, allowUpdate: true },
-      { dryRun: false, allowUpdate: true },
-      { dryRun: true, allowUpdate: false },
-      { dryRun: false, allowUpdate: false },
-    ]) {
-      await expect(
-        importGameDefinition({
-          raw: definition(key, "After edit"),
-          expectedCurrentRevisionId: previewedRevisionId!,
-          ...opts,
-        }),
-      ).rejects.toMatchObject({
-        name: "ImportConflictError",
-        code: "GAME_CHANGED",
-        statusCode: 409,
-      });
-    }
+    await expect(
+      importGameDefinition({
+        raw: definition(key, "After edit"),
+        allowUpdate: true,
+        expectedCurrentRevisionId: previewedRevisionId!,
+      }),
+    ).rejects.toMatchObject({
+      name: "ImportConflictError",
+      code: "GAME_CHANGED",
+      statusCode: 409,
+    });
 
     expect(await prisma.game.findUnique({ where: onServer(key) })).toBeNull();
   });

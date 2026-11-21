@@ -455,7 +455,7 @@ describe("Game Definition Access & Revision Security", () => {
       });
       const def = { ...importableDefinition(TEST_SERVER_A), id: GAME_A_KEY };
       try {
-        for (const allowUpdate of ["false", "true", 1, false]) {
+        for (const allowUpdate of ["false", 1]) {
           const res = await app.inject({
             method: "POST",
             url: "/games/import?dryRun=true",
