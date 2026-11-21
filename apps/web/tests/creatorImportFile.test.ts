@@ -1,0 +1,425 @@
+import { validateGameDefinition } from "@searchlight/shared";
+import { afterEach, describe, expect, it } from "vitest";
+
+import {
+    assembleGameDefinition,
+    type CreatorGeometryLayer,
+} from "@/lib/creator/assemble";
+import {
+    importedFeaturesToPlayArea,
+    importedFeaturesToStations,
+    mergeImportedByName,
+    parseCsvText,
+    parseJsonImportText,
+    parseKmlText,
+} from "@/lib/creator/importFile";
+
+describe("parseCsvText", () => {
+    it("parses quoted fields, UTF-8 BOM, lat/lng aliases, and tier while skipping invalid rows", () => {
+        const csv = [
+            '\uFEFF"Name",Latitude,Longitude,Tier',
+            '"Zürich, HB",47.3779,8.5402,Center',
+            'Stadelhofen,47.3667,8.5485,',
+            'BadRow,not-a-number,8.54,',
+            'OutOfRange,99.5,8.54,',
+        ].join("\r\n");
+
+        const result = parseCsvText(csv, "stops.csv");
+        expect(result.ok).toBe(true);
+        if (!result.ok || result.kind !== "folders") return;
+        expect(result.format).toBe("csv");
+        expect(result.folders).toHaveLength(1);
+        expect(result.folders[0].name).toBe("stops");
+        expect(result.folders[0].counts).toEqual({
+            points: 2,
+            lines: 0,
+            polygons: 0,
+        });
+
+        const stations = importedFeaturesToStations(result.folders[0].features);
+        expect(stations).toHaveLength(2);
+        expect(stations[0]).toMatchObject({
+            name: "Zürich, HB",
+            lat: 47.3779,
+            lng: 8.5402,
+            tier: "Center",
+        });
+        expect(stations[1]).toMatchObject({
+            name: "Stadelhofen",
+            tier: undefined,
+        });
+    });
+
+    it("rejects CSV missing coordinate columns or having unclosed quotes", () => {
+        expect(parseCsvText("name,city\nA,B").ok).toBe(false);
+        const unclosed = parseCsvText(
+            'name,lat,lng\nFirst,47.37,8.54\n"Second,47.38,8.55\nThird,47.39,8.56',
+        );
+        expect(unclosed.ok).toBe(false);
+        if (!unclosed.ok) {
+            expect(unclosed.error).toContain("unclosed quote");
+        }
+    });
+});
+
+describe("parseJsonImportText", () => {
+    it("rejects non-numeric JSON coordinates, bow-tie play areas, and formats invalid .game.json errors", () => {
+        const badCoords = parseJsonImportText(
+            JSON.stringify({
+                type: "Feature",
+                properties: { name: "Bogus" },
+                geometry: { type: "Point", coordinates: [null, ""] },
+            }),
+        );
+        expect(badCoords.ok).toBe(false);
+
+        const bowtie = parseJsonImportText(
+            JSON.stringify({
+                type: "Feature",
+                properties: { name: "Bowtie" },
+                geometry: {
+                    type: "Polygon",
+                    coordinates: [
+                        [
+                            [0, 0],
+                            [1, 1],
+                            [1, 0],
+                            [0, 1],
+                            [0, 0],
+                        ],
+                    ],
+                },
+            }),
+        );
+        expect(bowtie.ok).toBe(true);
+        if (bowtie.ok && bowtie.kind === "folders") {
+            expect(importedFeaturesToPlayArea(bowtie.folders[0].features)).toBeNull();
+        }
+
+        const badGame = parseJsonImportText(
+            JSON.stringify({
+                name: "Broken",
+                map: { center: "not-coords", playArea: { type: "FeatureCollection", features: [] } },
+                hidingZones: { radius: 400, unit: "meters", features: { type: "FeatureCollection", features: [] } },
+            }),
+        );
+        expect(badGame.ok).toBe(false);
+        if (!badGame.ok) {
+            expect(badGame.error).not.toContain("[object Object]");
+            expect(badGame.error).toContain("/map/center");
+        }
+    });
+    it("normalizes FeatureCollections, MultiPoints, unclosed polygons, and GeometryCollections", () => {
+        const geojson = JSON.stringify({
+            type: "FeatureCollection",
+            features: [
+                {
+                    type: "Feature",
+                    properties: { name: "Twin Stops" },
+                    geometry: {
+                        type: "MultiPoint",
+                        coordinates: [
+                            [8.54, 47.37],
+                            [8.55, 47.38],
+                        ],
+                    },
+                },
+                {
+                    type: "Feature",
+                    properties: { name: "District A" },
+                    geometry: {
+                        type: "Polygon",
+                        // Intentionally unclosed ring — parser should auto-close it
+                        coordinates: [
+                            [
+                                [8.5, 47.35],
+                                [8.55, 47.35],
+                                [8.55, 47.4],
+                                [8.5, 47.4],
+                            ],
+                        ],
+                    },
+                },
+                {
+                    type: "Feature",
+                    properties: { name: "District A" },
+                    geometry: {
+                        type: "Polygon",
+                        coordinates: [
+                            [
+                                [8.56, 47.35],
+                                [8.59, 47.35],
+                                [8.59, 47.4],
+                                [8.56, 47.4],
+                                [8.56, 47.35],
+                            ],
+                        ],
+                    },
+                },
+            ],
+        });
+
+        const res = parseJsonImportText(geojson, "map.geojson");
+        expect(res.ok).toBe(true);
+        if (!res.ok || res.kind !== "folders") return;
+        expect(res.folders[0].counts).toEqual({
+            points: 2,
+            lines: 0,
+            polygons: 2,
+        });
+
+        const mergedPolys = mergeImportedByName(
+            res.folders[0].features,
+            "polygons",
+        );
+        expect(mergedPolys).toHaveLength(1);
+        expect(mergedPolys[0].name).toBe("District A");
+        expect(mergedPolys[0].geometry.type).toBe("MultiPolygon");
+
+        const pa = importedFeaturesToPlayArea(res.folders[0].features);
+        expect(pa?.features).toHaveLength(2);
+    });
+
+    it("detects a full Searchlight .game.json and assembles geometryLayers cleanly", () => {
+        const geoLayer: CreatorGeometryLayer = {
+            id: "regions-1",
+            name: "District",
+            family: "polygons",
+            // Intentionally include "tentacle" to verify assembleGameDefinition strips it on non-point layers
+            enabledFor: ["matching", "measuring", "tentacle"],
+            color: "#8b5cf6",
+            selected: true,
+            noOverlaps: true,
+            sourceLabel: "OSM admin_level=9",
+            vertexCount: 5,
+            items: [
+                {
+                    uid: "d-1",
+                    name: "Kreis 1",
+                    enabled: true,
+                    geometry: {
+                        type: "Polygon",
+                        coordinates: [
+                            [
+                                [8.53, 47.36],
+                                [8.55, 47.36],
+                                [8.55, 47.38],
+                                [8.53, 47.38],
+                                [8.53, 47.36],
+                            ],
+                        ],
+                    },
+                },
+            ],
+        };
+
+        const def = assembleGameDefinition({
+            name: "Zurich With Regions",
+            size: "small",
+            unit: "meters",
+            hidingRadius: 400,
+            tierOverrides: {},
+            radars: [250, 500],
+            thermometer: true,
+            playArea: {
+                type: "FeatureCollection",
+                features: [
+                    {
+                        type: "Feature",
+                        geometry: {
+                            type: "Polygon",
+                            coordinates: [
+                                [
+                                    [8.5, 47.35],
+                                    [8.58, 47.35],
+                                    [8.58, 47.41],
+                                    [8.5, 47.41],
+                                    [8.5, 47.35],
+                                ],
+                            ],
+                        },
+                        properties: { name: "Zurich" },
+                    },
+                ],
+            },
+            stations: [
+                {
+                    uid: "s1",
+                    name: "HB",
+                    lat: 47.3779,
+                    lng: 8.5402,
+                    enabled: true,
+                },
+            ],
+            layers: [],
+            geometryLayers: [geoLayer],
+        });
+
+        expect(validateGameDefinition(def).valid).toBe(true);
+        expect(def.features).toHaveLength(1);
+        expect(def.features?.[0].enabledFor).toEqual(["matching", "measuring"]);
+        expect(def.features?.[0].noOverlaps).toBe(true);
+
+        const parsed = parseJsonImportText(
+            JSON.stringify(def),
+            "zurich.game.json",
+        );
+        expect(parsed.ok).toBe(true);
+        if (!parsed.ok) return;
+        expect(parsed.kind).toBe("game-definition");
+        if (parsed.kind === "game-definition") {
+            expect(parsed.definition.name).toBe("Zurich With Regions");
+            expect(parsed.definition.features).toHaveLength(1);
+        }
+    });
+});
+
+describe("parseKmlText", () => {
+    const originalDomParser = globalThis.DOMParser;
+
+    afterEach(() => {
+        if (originalDomParser === undefined) {
+            delete (globalThis as { DOMParser?: typeof DOMParser }).DOMParser;
+        } else {
+            globalThis.DOMParser = originalDomParser;
+        }
+    });
+
+    it("parses multi-folder KML with points, polygons with holes, and ExtendedData", () => {
+        // Minimal XML DOM stub for Node Vitest environment matching DOMParser contract used by parseKmlText.
+        type StubEl = {
+            localName: string;
+            children: StubEl[];
+            textContent: string;
+            getAttribute: (name: string) => string | null;
+            getElementsByTagName: (tag: string) => StubEl[];
+        };
+        const mk = (
+            localName: string,
+            {
+                attrs = {},
+                text = "",
+                children = [],
+            }: {
+                attrs?: Record<string, string>;
+                text?: string;
+                children?: StubEl[];
+            } = {},
+        ): StubEl => ({
+            localName,
+            children,
+            textContent: text,
+            getAttribute: (n) => attrs[n] ?? null,
+            getElementsByTagName: () => [],
+        });
+
+        const fakeDoc = {
+            documentElement: mk("kml", {
+                children: [
+                    mk("Document", {
+                        children: [
+                            mk("Folder", {
+                                children: [
+                                    mk("name", { text: "Stations" }),
+                                    mk("Placemark", {
+                                        children: [
+                                            mk("name", { text: "Central" }),
+                                            mk("ExtendedData", {
+                                                children: [
+                                                    mk("Data", {
+                                                        attrs: { name: "tier" },
+                                                        children: [
+                                                            mk("value", {
+                                                                text: "Inner",
+                                                            }),
+                                                        ],
+                                                    }),
+                                                ],
+                                            }),
+                                            mk("Point", {
+                                                children: [
+                                                    mk("coordinates", {
+                                                        text: "8.5402,47.3779,0",
+                                                    }),
+                                                ],
+                                            }),
+                                        ],
+                                    }),
+                                ],
+                            }),
+                            mk("Folder", {
+                                children: [
+                                    mk("name", { text: "Districts" }),
+                                    mk("Placemark", {
+                                        children: [
+                                            mk("name", { text: "Old Town" }),
+                                            mk("Polygon", {
+                                                children: [
+                                                    mk("outerBoundaryIs", {
+                                                        children: [
+                                                            mk("LinearRing", {
+                                                                children: [
+                                                                    mk(
+                                                                        "coordinates",
+                                                                        {
+                                                                            text: "8.53,47.36 8.55,47.36 8.55,47.38 8.53,47.38 8.53,47.36",
+                                                                        },
+                                                                    ),
+                                                                ],
+                                                            }),
+                                                        ],
+                                                    }),
+                                                    mk("innerBoundaryIs", {
+                                                        children: [
+                                                            mk("LinearRing", {
+                                                                children: [
+                                                                    mk(
+                                                                        "coordinates",
+                                                                        {
+                                                                            text: "8.535,47.365 8.54,47.365 8.54,47.37 8.535,47.37",
+                                                                        },
+                                                                    ),
+                                                                ],
+                                                            }),
+                                                        ],
+                                                    }),
+                                                ],
+                                            }),
+                                        ],
+                                    }),
+                                ],
+                            }),
+                        ],
+                    }),
+                ],
+            }),
+            getElementsByTagName: () => [],
+        };
+
+        (globalThis as unknown as { DOMParser: unknown }).DOMParser = class {
+            parseFromString() {
+                return fakeDoc;
+            }
+        };
+
+        const res = parseKmlText("<kml/>");
+        expect(res.ok).toBe(true);
+        if (!res.ok || res.kind !== "folders") return;
+        expect(res.format).toBe("kml");
+        expect(res.folders.map((f) => f.name)).toEqual([
+            "Stations",
+            "Districts",
+        ]);
+        expect(res.folders[0].features[0]).toMatchObject({
+            name: "Central",
+            tier: "Inner",
+            family: "points",
+        });
+        expect(res.folders[1].features[0].geometry.type).toBe("Polygon");
+        if (res.folders[1].features[0].geometry.type === "Polygon") {
+            expect(
+                res.folders[1].features[0].geometry.coordinates,
+            ).toHaveLength(2);
+        }
+    });
+});

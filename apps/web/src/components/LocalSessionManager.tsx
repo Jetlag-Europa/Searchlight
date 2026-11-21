@@ -1016,6 +1016,9 @@ export function LocalSessionManager() {
                                         Back to board
                                     </Button>
                                 )}
+                                <Button asChild size="sm" variant="secondary">
+                                    <a href="/create">Create map</a>
+                                </Button>
                                 <Button asChild size="sm" variant="ghost">
                                     <a href={onlineHref}>{onlineLabel}</a>
                                 </Button>

@@ -1,0 +1,351 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+    buildValidatedDrawnPlayArea,
+    dedupePointItems,
+    expandBoundsKm,
+    fetchPoiLayersFromOsm,
+    fetchStationsFromOsm,
+    matchesOsmPredicates,
+    parseSimpleOsmFilter,
+    rectanglePlayArea,
+    searchPlaces,
+    validateCustomOsmFilter,
+} from "@/lib/creator/overpass";
+
+afterEach(() => {
+    vi.restoreAllMocks();
+});
+
+describe("OSM tag filter parser & validator", () => {
+    it("parses and evaluates compound Overpass tag filters", () => {
+        const airport = parseSimpleOsmFilter('["aeroway"="aerodrome"]["iata"]')!;
+        expect(airport).not.toBeNull();
+        expect(
+            matchesOsmPredicates(
+                { aeroway: "aerodrome", iata: "ZRH", name: "Zurich" },
+                airport,
+            ),
+        ).toBe(true);
+        expect(
+            matchesOsmPredicates({ aeroway: "aerodrome", name: "Airfield" }, airport),
+        ).toBe(false);
+
+        const rail = parseSimpleOsmFilter(
+            '["railway"="station"]["station"!="subway"][!"disused"]',
+        )!;
+        expect(
+            matchesOsmPredicates({ railway: "station", name: "HB" }, rail),
+        ).toBe(true);
+        expect(
+            matchesOsmPredicates(
+                { railway: "station", station: "subway", name: "Metro" },
+                rail,
+            ),
+        ).toBe(false);
+        expect(
+            matchesOsmPredicates(
+                { railway: "station", disused: "yes", name: "Old" },
+                rail,
+            ),
+        ).toBe(false);
+    });
+
+    it("matches Overpass regex filters as substrings unless anchored", () => {
+        const sub = parseSimpleOsmFilter('["name"~"Central"]')!;
+        expect(matchesOsmPredicates({ name: "Central Station" }, sub)).toBe(
+            true,
+        );
+        const anchored = parseSimpleOsmFilter('["name"~"^Central$"]')!;
+        expect(
+            matchesOsmPredicates({ name: "Central Station" }, anchored),
+        ).toBe(false);
+        expect(matchesOsmPredicates({ name: "Central" }, anchored)).toBe(true);
+    });
+
+    it("rejects Overpass QL injection or malformed filters", () => {
+        expect(validateCustomOsmFilter('["historic"="castle"]').ok).toBe(true);
+        expect(
+            validateCustomOsmFilter('["tourism"="museum"];out;').ok,
+        ).toBe(false);
+        expect(validateCustomOsmFilter("tourism=museum").ok).toBe(false);
+        expect(validateCustomOsmFilter("").ok).toBe(false);
+    });
+});
+
+describe("dedupePointItems", () => {
+    it("merges same-name stations within dedupe distance and keeps distant ones", () => {
+        const { items, mergedCount } = dedupePointItems(
+            [
+                {
+                    uid: "1",
+                    name: "Zürich HB",
+                    lng: 8.5402,
+                    lat: 47.3779,
+                    enabled: true,
+                },
+                {
+                    uid: "2",
+                    name: "Zurich HB",
+                    lng: 8.5408,
+                    lat: 47.3782, // ~55 m away, same normalized name
+                    enabled: true,
+                },
+                {
+                    uid: "3",
+                    name: "Zurich HB",
+                    lng: 8.56,
+                    lat: 47.39, // > 1.5 km away
+                    enabled: true,
+                },
+                {
+                    uid: "4",
+                    name: "Different Name Same Spot",
+                    lng: 8.54025,
+                    lat: 47.37792, // ~5 m away
+                    enabled: true,
+                },
+            ],
+            { sameNameMeters: 250, nearCoordMeters: 25 },
+        );
+
+        expect(mergedCount).toBe(2);
+        expect(items.map((i) => i.uid)).toEqual(["1", "3"]);
+    });
+});
+
+describe("fetchStationsFromOsm & fetchPoiLayersFromOsm", () => {
+    const playArea = rectanglePlayArea([8.5, 47.35, 8.6, 47.42], "Zurich");
+
+    it("filters outside stations, prefers nodes over ways, and merges duplicates", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(
+                JSON.stringify({
+                    elements: [
+                        // Outside play area
+                        {
+                            type: "node",
+                            id: 1,
+                            lon: 8.4,
+                            lat: 47.38,
+                            tags: { name: "Outside Stop" },
+                        },
+                        // Way + Node for same station inside play area
+                        {
+                            type: "way",
+                            id: 2,
+                            center: { lon: 8.5406, lat: 47.3781 },
+                            tags: { name: "Main Station" },
+                        },
+                        {
+                            type: "node",
+                            id: 3,
+                            lon: 8.5402,
+                            lat: 47.3779,
+                            tags: { name: "Main Station" },
+                        },
+                        {
+                            type: "node",
+                            id: 4,
+                            lon: 8.55,
+                            lat: 47.39,
+                            tags: { name: "North Stop" },
+                        },
+                    ],
+                }),
+                { status: 200 },
+            ),
+        );
+
+        const result = await fetchStationsFromOsm({
+            filters: ['["railway"="station"]'],
+            playArea,
+            dedupeMeters: 250,
+        });
+
+        expect(result.outsideCount).toBe(1);
+        expect(result.mergedCount).toBe(1);
+        expect(result.stations.map((s) => [s.name, s.osmId])).toEqual([
+            ["Main Station", "node/3"],
+            ["North Stop", "node/4"],
+        ]);
+    });
+
+    it("fetches multiple POI layers in a single batched Overpass query and respects notableOnly", async () => {
+        const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(
+                JSON.stringify({
+                    elements: [
+                        {
+                            type: "node",
+                            id: 10,
+                            lon: 8.54,
+                            lat: 47.37,
+                            tags: {
+                                tourism: "museum",
+                                name: "Kunsthaus",
+                                wikidata: "Q123",
+                            },
+                        },
+                        {
+                            type: "node",
+                            id: 11,
+                            lon: 8.55,
+                            lat: 47.38,
+                            tags: {
+                                tourism: "museum",
+                                name: "Tiny Plaque Museum",
+                            },
+                        },
+                        {
+                            type: "way",
+                            id: 12,
+                            center: { lon: 8.53, lat: 47.36 },
+                            tags: {
+                                amenity: "hospital",
+                                name: "University Hospital",
+                            },
+                        },
+                    ],
+                }),
+                { status: 200 },
+            ),
+        );
+
+        const result = await fetchPoiLayersFromOsm({
+            layers: [
+                {
+                    id: "museum",
+                    name: "Museum",
+                    osmFilter: '["tourism"="museum"]',
+                    notableOnly: true,
+                },
+                {
+                    id: "hospital",
+                    name: "Hospital",
+                    osmFilter: '["amenity"="hospital"]',
+                    notableOnly: false,
+                },
+            ],
+            playArea,
+            bufferKm: 2,
+        });
+
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
+        expect(result.byLayerId.museum.map((m) => m.name)).toEqual([
+            "Kunsthaus",
+        ]);
+        expect(result.byLayerId.hospital.map((h) => h.name)).toEqual([
+            "University Hospital",
+        ]);
+    });
+
+    it("expands bounds symmetrically and clamps to world bounds", () => {
+        const expanded = expandBoundsKm([8.5, 47.35, 8.6, 47.42], 2);
+        expect(expanded[0]).toBeLessThan(8.5);
+        expect(expanded[1]).toBeLessThan(47.35);
+        expect(expanded[2]).toBeGreaterThan(8.6);
+        expect(expanded[3]).toBeGreaterThan(47.42);
+    });
+
+    it("deduplicates non-Latin station names and high-latitude stations accurately", () => {
+        const tokyo = dedupePointItems(
+            [
+                { uid: "1", name: "東京", lat: 35.6812, lng: 139.7671, enabled: true },
+                { uid: "2", name: "東京", lat: 35.6822, lng: 139.7671, enabled: true },
+            ],
+            { sameNameMeters: 250 },
+        );
+        expect(tokyo.items).toHaveLength(1);
+        expect(tokyo.mergedCount).toBe(1);
+
+        // At 65°N, 0.035° longitude is ~1,645 m — must merge under 2,000 m.
+        const nordic = dedupePointItems(
+            [
+                { uid: "1", name: "Town", lat: 65.0, lng: 25.0, enabled: true },
+                { uid: "2", name: "Town", lat: 65.0, lng: 25.035, enabled: true },
+            ],
+            { sameNameMeters: 2000 },
+        );
+        expect(nordic.items).toHaveLength(1);
+    });
+});
+
+describe("searchPlaces", () => {
+    it("parses Nominatim polygon_geojson and boundingbox fallback results", async () => {
+        vi.spyOn(globalThis, "fetch").mockResolvedValue(
+            new Response(
+                JSON.stringify([
+                    {
+                        place_id: 1,
+                        osm_type: "relation",
+                        osm_id: 100,
+                        name: "Zurich",
+                        display_name: "Zurich, Switzerland",
+                        type: "administrative",
+                        geojson: {
+                            type: "Polygon",
+                            coordinates: [
+                                [
+                                    [8.45, 47.32],
+                                    [8.62, 47.32],
+                                    [8.62, 47.43],
+                                    [8.45, 47.43],
+                                    [8.45, 47.32],
+                                ],
+                            ],
+                        },
+                    },
+                    {
+                        place_id: 2,
+                        name: "Small Village",
+                        display_name: "Small Village",
+                        boundingbox: ["47.3", "47.32", "8.4", "8.42"],
+                    },
+                ]),
+                { status: 200 },
+            ),
+        );
+
+        const results = await searchPlaces("Zurich");
+        expect(results).toHaveLength(2);
+        expect(results[0].name).toBe("Zurich");
+        expect(results[0].playArea.features[0].geometry.type).toBe("Polygon");
+        expect(results[1].name).toBe("Small Village");
+        expect(results[1].bounds).toEqual([8.4, 47.3, 8.42, 47.32]);
+    });
+});
+
+describe("buildValidatedDrawnPlayArea", () => {
+    it("accepts a simple polygon and rejects collinear or self-intersecting rings", () => {
+        const good = buildValidatedDrawnPlayArea([
+            [47.35, 8.5],
+            [47.35, 8.6],
+            [47.42, 8.6],
+            [47.42, 8.5],
+        ]);
+        expect(good.ok).toBe(true);
+
+        const collinear = buildValidatedDrawnPlayArea([
+            [47.35, 8.5],
+            [47.36, 8.51],
+            [47.37, 8.52],
+        ]);
+        expect(collinear).toMatchObject({
+            ok: false,
+            error: expect.stringContaining("straight line"),
+        });
+
+        // Bow-tie self-intersection
+        const bowtie = buildValidatedDrawnPlayArea([
+            [47.35, 8.5],
+            [47.42, 8.6],
+            [47.35, 8.6],
+            [47.42, 8.5],
+        ]);
+        expect(bowtie).toMatchObject({
+            ok: false,
+            error: expect.stringContaining("cross each other"),
+        });
+    });
+});

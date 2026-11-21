@@ -118,6 +118,9 @@ export default defineConfig({
                     // Files for AI agents and tools, not for the app
                     "skills/**",
                     "schemas/**",
+                    // Map creator needs live Overpass/Nominatim access, so keep
+                    // it out of the offline PWA precache.
+                    "create/**",
                 ],
                 // Above Workbox's 2 MB default: ArcGIS's projection engine
                 // WASM is 2.8 MB.

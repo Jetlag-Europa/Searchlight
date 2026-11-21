@@ -1,0 +1,12 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import { GameCreator } from "@/components/GameCreator";
+---
+
+<Layout>
+    <!--
+        Client-side OpenStreetMap game creator: runs fully in the browser
+        without requiring Discord sign-in or calling Searchlight's API.
+    -->
+    <GameCreator client:only="react" />
+</Layout>

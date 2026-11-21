@@ -40,14 +40,22 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             </p>
 
             <div class="flex flex-col items-center gap-2 border-t border-white/10 pt-6 w-full">
-                <a
-                    href="/local"
-                    class="flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
-                >
-                    Play locally without signing in
-                </a>
+                <div class="flex flex-wrap items-center justify-center gap-2.5 w-full">
+                    <a
+                        href="/local"
+                        class="flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
+                    >
+                        Play locally without signing in
+                    </a>
+                    <a
+                        href="/create"
+                        class="flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
+                    >
+                        Create a map
+                    </a>
+                </div>
                 <p class="text-xs text-white/50">
-                    Load a <code class="text-white/70">.game.json</code> file or URL on this device — unsynced and private to your browser.
+                    Build a game map from OpenStreetMap or load a <code class="text-white/70">.game.json</code> file locally — no account required.
                 </p>
             </div>
         </div>
