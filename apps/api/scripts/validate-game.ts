@@ -6,6 +6,7 @@ import { readFileSync } from "node:fs";
 import { basename, resolve } from "node:path";
 
 import {
+  type GameDefinition,
   resolveGameDefinitionId,
   validateGameDefinition,
 } from "@searchlight/shared";
@@ -17,7 +18,7 @@ function validateFile(path: string): { name: string; gameId: string; errors: str
   const errors: string[] = [];
   const fileName = basename(path);
 
-  let parsed: Record<string, unknown>;
+  let parsed: unknown;
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (e) {
@@ -32,8 +33,16 @@ function validateFile(path: string): { name: string; gameId: string; errors: str
     }
   }
 
-  const gameId = resolveGameDefinitionId(parsed as { id?: string; name: string });
-  const name = typeof parsed.name === "string" ? parsed.name : gameId;
+  const obj =
+    typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  const gameId = result.valid
+    ? resolveGameDefinitionId(parsed as GameDefinition)
+    : typeof obj?.id === "string" && obj.id
+      ? obj.id
+      : fileName;
+  const name = typeof obj?.name === "string" && obj.name ? obj.name : fileName;
   for (const warn of result.warnings) {
     console.warn(`  ⚠ ${gameId}: [${warn.code}] ${warn.path}: ${warn.message}`);
   }

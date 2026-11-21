@@ -274,6 +274,23 @@ describe("importGameDefinition revisions", () => {
       await expect(attempt).rejects.toBeInstanceOf(ImportForbiddenError);
       await expect(attempt).rejects.not.toBeInstanceOf(ImportValidationError);
     });
+
+    test("returns a clean 400 ImportValidationError at / for non-object bodies", async () => {
+      const game = await createGame(`${KEY_PREFIX}replace-non-obj`);
+      for (const raw of ["hello", [1, 2], null]) {
+        try {
+          await replaceGameDefinition({ game, raw, actor: actorFor("u", true) });
+          expect.unreachable(`expected ImportValidationError for ${JSON.stringify(raw)}`);
+        } catch (err) {
+          expect(err).toBeInstanceOf(ImportValidationError);
+          const validationErr = err as ImportValidationError;
+          expect(validationErr.statusCode).toBe(400);
+          expect(validationErr.errors).toEqual([
+            { path: "/", code: "SCHEMA_VALIDATION_ERROR", message: "Expected object" },
+          ]);
+        }
+      }
+    });
   });
 });
 
