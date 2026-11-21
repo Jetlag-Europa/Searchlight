@@ -2,7 +2,6 @@ import { useStore } from "@nanostores/react";
 import {
     CASUAL_SERVER_ID,
     type Game,
-    type GameDefinition,
     type GamesResponse,
     type GameStats,
     type GameStatsResponse,
@@ -132,10 +131,8 @@ function GameCard({
                 credentials: "include",
             });
             if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
-            const data = (await res.json()) as GameDefinition;
-            const blob = new Blob([formatGameExportJson(data, game.gameKey)], {
-                type: "application/json",
-            });
+            const data = await res.json();
+            const blob = new Blob([formatGameExportJson(data, game.gameKey)], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
