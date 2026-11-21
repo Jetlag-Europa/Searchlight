@@ -23,9 +23,8 @@ export interface OverlapPiece {
     area: number;
     /**
      * How far the piece reaches into the regions in meters: the furthest
-     * any of its corners, edge midpoints, or interior lies from the border of
-     * the region it reaches into (or the diameter of an inscribed disk when
-     * both borders coincide). A sliver's width, a spike's length.
+     * any of its corners, or middles of its edges, lies from the border of
+     * the region it reaches into. A sliver's width, a spike's length.
      */
     width: number;
     geometry: Polygon;
@@ -190,10 +189,9 @@ function distanceToBorder(pt: Position, region: Region): number {
 
 /**
  * How far a piece of two regions' overlap reaches into them, as
- * OverlapPiece's width. Points on the piece's outline catch slivers and
- * spikes; strictly interior points catch overlaps whose outline coincides
- * with both regions' borders (such as identical regions), where the disk of
- * radius min(da, db) fits inside the piece so its width is at least 2 * min.
+ * OverlapPiece's width. Each point of the piece's outline is on one
+ * region's border, so the further of its distances to the two borders is
+ * how deep it lies inside the other.
  */
 function reach(piece: Polygon, regions: [Region, Region]): number {
     let deepest = 0;
@@ -212,60 +210,6 @@ function reach(piece: Polygon, regions: [Region, Region]): number {
             }
         });
     }
-
-    const measureInterior = (pt: Position) => {
-        if (!turf.booleanPointInPolygon(pt, piece, { ignoreBoundary: true })) {
-            return;
-        }
-        const da = distanceToBorder(pt, regions[0]);
-        const db = distanceToBorder(pt, regions[1]);
-        deepest = Math.max(deepest, da, db, 2 * Math.min(da, db));
-    };
-
-    const feature = turf.feature(piece);
-    measureInterior(turf.centerOfMass(feature).geometry.coordinates);
-    if (deepest < HAIRLINE_WIDTH) {
-        // Concave shapes and polygons with holes can put centerOfMass outside
-        // or in a thin stem; check the thickest and largest triangles too.
-        let bestInradius = 0;
-        let bestArea = 0;
-        let inradiusPt: Position | null = null;
-        let areaPt: Position | null = null;
-        for (const tri of turf.tesselate(feature).features) {
-            const [p0, p1, p2] = tri.geometry.coordinates[0];
-            const k = Math.cos((((p0[1] + p1[1] + p2[1]) / 3) * Math.PI) / 180);
-            const dx1 = (p1[0] - p0[0]) * k;
-            const dy1 = p1[1] - p0[1];
-            const dx2 = (p2[0] - p0[0]) * k;
-            const dy2 = p2[1] - p0[1];
-            const dx3 = (p2[0] - p1[0]) * k;
-            const dy3 = p2[1] - p1[1];
-            const len0 = Math.hypot(dx3, dy3);
-            const len1 = Math.hypot(dx2, dy2);
-            const len2 = Math.hypot(dx1, dy1);
-            const twiceArea = Math.abs(dx1 * dy2 - dy1 * dx2);
-            const perimeter = len0 + len1 + len2;
-            if (!twiceArea || !perimeter) continue;
-            const inradius = twiceArea / perimeter;
-            if (inradius > bestInradius) {
-                bestInradius = inradius;
-                inradiusPt = [
-                    (len0 * p0[0] + len1 * p1[0] + len2 * p2[0]) / perimeter,
-                    (len0 * p0[1] + len1 * p1[1] + len2 * p2[1]) / perimeter,
-                ];
-            }
-            if (twiceArea > bestArea) {
-                bestArea = twiceArea;
-                areaPt = [
-                    (p0[0] + p1[0] + p2[0]) / 3,
-                    (p0[1] + p1[1] + p2[1]) / 3,
-                ];
-            }
-        }
-        if (inradiusPt) measureInterior(inradiusPt);
-        if (areaPt && areaPt !== inradiusPt) measureInterior(areaPt);
-    }
-
     return deepest;
 }
 
@@ -290,15 +234,28 @@ function overlapPieces(a: Region, b: Region) {
         turf.featureCollection([clippedA, clippedB]),
     );
     if (!overlap) return [];
-    return turf.flatten(overlap).features.map((piece) => ({
+    const pieces = turf.flatten(overlap).features.map((piece) => ({
         area: turf.area(piece),
         // To the whole regions' borders: the box's sides aren't borders.
         width: reach(piece.geometry, [a, b]),
         geometry: piece.geometry,
     }));
+    // Identical regions share every border point so reach() returns 0; don't
+    // drop an overlap that covers an entire region as a hairline.
+    const coversWhole =
+        pieces.some((p) => p.width < HAIRLINE_WIDTH) &&
+        (() => {
+            const total = pieces.reduce((sum, p) => sum + p.area, 0);
+            return (
+                total >= HAIRLINE_AREA &&
+                Math.min(turf.area(a), turf.area(b)) - total < HAIRLINE_AREA
+            );
+        })();
+    return pieces.map((piece) => ({
+        ...piece,
+        hairline: !coversWhole && piece.width < HAIRLINE_WIDTH,
+    }));
 }
-
-const isHairline = ({ width }: { width: number }) => width < HAIRLINE_WIDTH;
 
 /** Where the layer's regions overlap, and which are covered entirely. */
 export function findRegionOverlaps({
@@ -313,11 +270,11 @@ export function findRegionOverlaps({
         const by: number[] = [];
         for (let first = 0; first < second; first++) {
             if (!boxesMeet(boxes[first], boxes[second])) continue;
-            for (const piece of overlapPieces(
+            for (const { hairline, ...piece } of overlapPieces(
                 regions[first],
                 regions[second],
             )) {
-                if (isHairline(piece)) {
+                if (hairline) {
                     hairlines++;
                     continue;
                 }
@@ -348,7 +305,8 @@ function removeOverlapsOf(regions: Region[], index: number): Region | null {
     const box = boxOf(left);
     for (let earlier = 0; earlier < index && left; earlier++) {
         if (!boxesMeet(boxOf(regions[earlier]), box)) continue;
-        if (overlapPieces(left, regions[earlier]).every(isHairline)) continue;
+        if (overlapPieces(left, regions[earlier]).every((p) => p.hairline))
+            continue;
         left = turf.difference(
             turf.featureCollection([left, regions[earlier]]),
         );

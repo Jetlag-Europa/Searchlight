@@ -1,7 +1,7 @@
 import type { GameDefinition } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import type { BBox, Feature, MultiPolygon, Polygon } from "geojson";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -111,26 +111,18 @@ export function RegionOverlapsPanel({
             ),
         [definition],
     );
-    const [checkState, setCheckState] = useState<{
-        for: LayerCheck[];
-        checks: LayerCheck[];
-    }>(() => ({ for: initial, checks: initial }));
-    const checks = checkState.for === initial ? checkState.checks : initial;
+    const [checks, setChecks] = useState<LayerCheck[]>(initial);
     const [picked, setPicked] = useState<Set<number>>(new Set());
     const [shown, setShown] = useState<number | null>(null);
     const [fixing, setFixing] = useState(false);
     const [fixError, setFixError] = useState<string | null>(null);
-    // Bumped on mount, definition change, and unmount so stale worker results
-    // from checks, fix, or unmark are discarded.
-    const runRef = useRef(0);
 
     // Each layer is checked in the geometry worker, one after another.
     useEffect(() => {
-        const run = ++runRef.current;
-        setCheckState({ for: initial, checks: initial });
+        let current = true;
+        setChecks(initial);
         setPicked(new Set());
         setShown(null);
-        setFixing(false);
         setFixError(null);
         onHighlight(null);
         (async () => {
@@ -148,18 +140,11 @@ export function RegionOverlapsPanel({
                 } catch (err: unknown) {
                     update = { error: errorMessage(err) };
                 }
-                if (run !== runRef.current) return;
-                setCheckState((prev) =>
-                    prev.for === initial
-                        ? {
-                              for: initial,
-                              checks: prev.checks.map((c) =>
-                                  c.index === layer.index
-                                      ? { ...c, ...update }
-                                      : c,
-                              ),
-                          }
-                        : prev,
+                if (!current) return;
+                setChecks((prev) =>
+                    prev.map((c) =>
+                        c.index === layer.index ? { ...c, ...update } : c,
+                    ),
                 );
                 // Offer every layer that can be fixed or marked.
                 if (update.result && !update.result.hidden.length) {
@@ -170,7 +155,7 @@ export function RegionOverlapsPanel({
             }
         })();
         return () => {
-            runRef.current++;
+            current = false;
         };
         // zones follow the definition.
     }, [initial]);
@@ -183,14 +168,20 @@ export function RegionOverlapsPanel({
     const wrongMarks = checks
         .filter(wrongMark)
         .map((check) => check.name);
-    const wrongMarksKey = JSON.stringify(wrongMarks);
+    const wrongMarksKey = wrongMarks.join("\n");
     const checkingMarks = checks.some(
         (check) => check.flagged && !check.result && !check.error,
     );
     useEffect(() => {
-        onWrongMarks(checkingMarks ? null : wrongMarks);
-        // Report per loaded definition, and whenever the blocked list or checking state changes.
-    }, [initial, wrongMarksKey, checkingMarks]);
+        onWrongMarks(
+            checkingMarks
+                ? null
+                : wrongMarksKey
+                  ? wrongMarksKey.split("\n")
+                  : [],
+        );
+        // The names are the dependency, not the array's identity.
+    }, [wrongMarksKey, checkingMarks]);
 
     if (!initial.length) return null;
 
@@ -213,7 +204,6 @@ export function RegionOverlapsPanel({
     };
 
     const fix = async () => {
-        const run = runRef.current;
         setFixing(true);
         setFixError(null);
         try {
@@ -227,21 +217,18 @@ export function RegionOverlapsPanel({
                           regions: check.regions,
                       })
                     : check.regions;
-                if (run !== runRef.current) return;
                 features[check.index] = markNoOverlaps(layer, regions);
             }
-            if (run !== runRef.current) return;
             await onFix({ ...definition, features });
         } catch (err: unknown) {
-            if (run === runRef.current) setFixError(errorMessage(err));
+            setFixError(errorMessage(err));
         } finally {
-            if (run === runRef.current) setFixing(false);
+            setFixing(false);
         }
     };
 
     /** Takes the noOverlaps mark off a layer. */
     const unmark = async (check: LayerCheck) => {
-        const run = runRef.current;
         setFixing(true);
         setFixError(null);
         try {
@@ -251,9 +238,9 @@ export function RegionOverlapsPanel({
             features[check.index] = layer;
             await onFix({ ...definition, features });
         } catch (err: unknown) {
-            if (run === runRef.current) setFixError(errorMessage(err));
+            setFixError(errorMessage(err));
         } finally {
-            if (run === runRef.current) setFixing(false);
+            setFixing(false);
         }
     };
 

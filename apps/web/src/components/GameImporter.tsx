@@ -735,16 +735,8 @@ export function GameImporter() {
                         definition={loaded.definition}
                         zones={zones}
                         onFix={(fixed) => applyFix(fixed, loadCount, loaded)}
-                        onHighlight={(next) => {
-                            if (loadCount === latestLoad.current) {
-                                setHighlight(next);
-                            }
-                        }}
-                        onWrongMarks={(marks) => {
-                            if (loadCount === latestLoad.current) {
-                                setWrongMarks(marks);
-                            }
-                        }}
+                        onHighlight={setHighlight}
+                        onWrongMarks={setWrongMarks}
                     />
                 )}
 
