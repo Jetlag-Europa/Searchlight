@@ -1149,7 +1149,7 @@ export function CreatorOsmFetchPanel({
         {showAdvancedOsm && (
           <div className="mt-2">
             <Input
-              placeholder="Default: maps.mail.ru → overpass-api.de → private.coffee"
+              placeholder="Default: overpass-api.de → private.coffee → kumi.systems"
               value={customEndpoint}
               onChange={(e) => setCustomEndpoint(e.target.value)}
               className="h-8 text-xs"

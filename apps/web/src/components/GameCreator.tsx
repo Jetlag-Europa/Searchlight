@@ -55,6 +55,7 @@ import {
   buildValidatedDrawnPlayArea,
   type CreatorPointItem,
   fetchStationsFromOsm,
+  fetchStationsFromTransitous,
   type PlaceSearchResult,
   rectanglePlayArea,
   searchPlaces,
@@ -63,11 +64,14 @@ import {
 } from "@/lib/creator/overpass";
 import {
   type GameScale,
-  getStationPreset,
+  getOsmFiltersForStationTypes,
+  getTransitousModesForStationTypes,
   inferLayerColor,
   inferLayerIcon,
   SCALE_PRESETS,
-  type StationPresetId,
+  type StationSource,
+  type StationTypeId,
+  stationTypesFromLegacyPreset,
 } from "@/lib/creator/presets";
 import { MAX_LOCAL_GAME_BYTES } from "@/lib/localGameLoader";
 import {
@@ -135,10 +139,11 @@ export function GameCreator() {
   const [placeError, setPlaceError] = useState<string | null>(null);
 
   // ── Step 2: Stations (Hiding Zones) ──────────────────────────────────────
-  const [stationPreset, setStationPreset] = useState<StationPresetId>(
-    SCALE_PRESETS[DEFAULT_SCALE].stationPreset,
-  );
-  const [customStationFilter, setCustomStationFilter] = useState('["railway"="station"]');
+  const [stationSource, setStationSource] = useState<StationSource>("transitous");
+  const [stationTypes, setStationTypes] = useState<StationTypeId[]>([
+    ...SCALE_PRESETS[DEFAULT_SCALE].stationTypes,
+  ]);
+  const [customStationFilter, setCustomStationFilter] = useState("");
   const [dedupeMeters, setDedupeMeters] = useState(250);
   const [preferEnglishName, setPreferEnglishName] = useState(false);
   const [stations, setStations] = useState<CreatorPointItem[]>([]);
@@ -251,7 +256,7 @@ export function GameCreator() {
     setRadarMode("custom");
     setRadarsText(preset.radars.join(", "));
     setThermometer(preset.thermometer);
-    setStationPreset(preset.stationPreset);
+    setStationTypes([...preset.stationTypes]);
     setPoiBufferKm(preset.poiBufferKm);
   };
 
@@ -364,36 +369,59 @@ export function GameCreator() {
     if (!hasPlayAreaGeometry || !playArea) return "";
     const bounds = tryPlayAreaBounds(playArea);
     if (!bounds) return "";
-    if (stationPreset === "custom") {
-      const check = validateCustomOsmFilter(customStationFilter);
+    const filters = getOsmFiltersForStationTypes(stationTypes);
+    const trimmedCustom = customStationFilter.trim();
+    if (trimmedCustom) {
+      const check = validateCustomOsmFilter(trimmedCustom);
       if (!check.ok) return "";
-      return buildStationOverpassQuery([check.filter], bounds);
+      filters.push(check.filter);
     }
-    return buildStationOverpassQuery(getStationPreset(stationPreset).osmFilters, bounds);
-  }, [hasPlayAreaGeometry, playArea, stationPreset, customStationFilter]);
+    if (filters.length === 0) return "";
+    return buildStationOverpassQuery(filters, bounds);
+  }, [hasPlayAreaGeometry, playArea, stationTypes, customStationFilter]);
 
   useEffect(() => {
     setStationRawQuery(null);
-  }, [playArea, stationPreset, customStationFilter]);
+  }, [playArea, stationTypes, customStationFilter]);
 
-  // ── Fetch stations from OSM ──────────────────────────────────────────────
-  const handleFetchStations = async () => {
+  const handleToggleStationType = useCallback((id: StationTypeId, checked: boolean) => {
+    setStationTypes((prev) =>
+      checked ? (prev.includes(id) ? prev : [...prev, id]) : prev.filter((t) => t !== id),
+    );
+  }, []);
+
+  // ── Fetch stations (Transitous GTFS or OpenStreetMap) ────────────────────
+  const handleFetchStations = async (sourceOverride?: StationSource) => {
     if (!hasPlayAreaGeometry || !playArea) {
       setStationError("Set a play area in Step 1 first.");
       return;
     }
-    const trimmedRawQuery = stationRawQuery?.trim() || undefined;
-    let filters: readonly string[] = [];
-    if (!trimmedRawQuery) {
-      if (stationPreset === "custom") {
-        const check = validateCustomOsmFilter(customStationFilter);
+    const activeSource = sourceOverride ?? stationSource;
+    const trimmedRawQuery =
+      activeSource === "osm" ? stationRawQuery?.trim() || undefined : undefined;
+    let osmFilters: string[] = [];
+    let transitousModes: string[] = [];
+
+    if (activeSource === "transitous") {
+      transitousModes = getTransitousModesForStationTypes(stationTypes);
+      if (transitousModes.length === 0) {
+        setStationError("Select at least one transit type to fetch.");
+        return;
+      }
+    } else if (!trimmedRawQuery) {
+      osmFilters = getOsmFiltersForStationTypes(stationTypes);
+      const trimmedCustom = customStationFilter.trim();
+      if (trimmedCustom) {
+        const check = validateCustomOsmFilter(trimmedCustom);
         if (!check.ok) {
           setStationError(check.error);
           return;
         }
-        filters = [check.filter];
-      } else {
-        filters = getStationPreset(stationPreset).osmFilters;
+        osmFilters.push(check.filter);
+      }
+      if (osmFilters.length === 0) {
+        setStationError("Select at least one transit type or enter a custom OSM tag filter.");
+        return;
       }
     }
 
@@ -402,25 +430,41 @@ export function GameCreator() {
     stationAbortRef.current = controller;
     const areaGen = playAreaGenRef.current;
     setStationError(null);
-    setStationBusy("Querying OpenStreetMap for stations…");
+    setStationBusy(
+      activeSource === "transitous"
+        ? "Querying Transitous (GTFS) for stations…"
+        : "Querying OpenStreetMap for stations…",
+    );
 
     try {
-      const result = await fetchStationsFromOsm({
-        filters,
-        playArea,
-        dedupeMeters,
-        preferEnglishName,
-        customEndpoint: customEndpoint.trim() || undefined,
-        rawQueryOverride: trimmedRawQuery,
-        signal: controller.signal,
-        onStatus: (msg) => {
-          if (playAreaGenRef.current === areaGen) setStationBusy(msg);
-        },
-      });
+      const result =
+        activeSource === "transitous"
+          ? await fetchStationsFromTransitous({
+              modes: transitousModes,
+              playArea,
+              dedupeMeters,
+              preferEnglishName,
+              signal: controller.signal,
+              onStatus: (msg) => {
+                if (playAreaGenRef.current === areaGen) setStationBusy(msg);
+              },
+            })
+          : await fetchStationsFromOsm({
+              filters: osmFilters,
+              playArea,
+              dedupeMeters,
+              preferEnglishName,
+              customEndpoint: customEndpoint.trim() || undefined,
+              rawQueryOverride: trimmedRawQuery,
+              signal: controller.signal,
+              onStatus: (msg) => {
+                if (playAreaGenRef.current === areaGen) setStationBusy(msg);
+              },
+            });
       if (playAreaGenRef.current !== areaGen) return;
       setStations((prev) => {
         // Keep manually placed stations and preserve user curation
-        // (edited name, tier, enabled) on matching OSM stations across refetches.
+        // (edited name, tier, enabled) on matching fetched stations across refetches.
         const manual = prev.filter((s) => s.custom);
         const prevByOsmId = new Map<string, CreatorPointItem>();
         for (const s of prev) {
@@ -444,7 +488,9 @@ export function GameCreator() {
         });
         return [...manual, ...merged];
       });
-      const parts = [`Found ${result.stations.length} stations`];
+      const parts = [
+        `Found ${result.stations.length} station${result.stations.length === 1 ? "" : "s"} (${activeSource === "transitous" ? "Transitous" : "OSM"})`,
+      ];
       if (result.mergedCount > 0) {
         parts.push(`merged ${result.mergedCount} duplicates`);
       }
@@ -460,7 +506,11 @@ export function GameCreator() {
         return;
       }
       setStationError(
-        err instanceof Error ? err.message : "Failed to fetch stations from OpenStreetMap.",
+        err instanceof Error
+          ? err.message
+          : activeSource === "transitous"
+            ? "Failed to fetch stations from Transitous."
+            : "Failed to fetch stations from OpenStreetMap.",
       );
     } finally {
       if (stationAbortRef.current === controller) {
@@ -1235,7 +1285,8 @@ export function GameCreator() {
       thermometer,
       playArea,
       preservedMetadata,
-      stationPreset,
+      stationSource,
+      stationTypes,
       customStationFilter,
       dedupeMeters,
       preferEnglishName,
@@ -1263,7 +1314,8 @@ export function GameCreator() {
     thermometer,
     playArea,
     preservedMetadata,
-    stationPreset,
+    stationSource,
+    stationTypes,
     customStationFilter,
     dedupeMeters,
     preferEnglishName,
@@ -1309,8 +1361,13 @@ export function GameCreator() {
         setPlayArea(saved.playArea);
         setPlayAreaVersion((v) => v + 1);
         setPreservedMetadata(saved.preservedMetadata);
-        setStationPreset(saved.stationPreset);
-        setCustomStationFilter(saved.customStationFilter);
+        setStationSource(saved.stationSource ?? "transitous");
+        setStationTypes(
+          Array.isArray(saved.stationTypes)
+            ? saved.stationTypes
+            : stationTypesFromLegacyPreset(saved.stationPreset, saved.scale),
+        );
+        setCustomStationFilter(saved.stationTypes ? (saved.customStationFilter ?? "") : "");
         setDedupeMeters(saved.dedupeMeters);
         setPreferEnglishName(saved.preferEnglishName);
         setStations(saved.stations);
@@ -1434,8 +1491,9 @@ export function GameCreator() {
     setPlaceQuery("");
     setPlaceResults([]);
     setPlaceError(null);
-    setStationPreset(SCALE_PRESETS[DEFAULT_SCALE].stationPreset);
-    setCustomStationFilter('["railway"="station"]');
+    setStationSource("transitous");
+    setStationTypes([...SCALE_PRESETS[DEFAULT_SCALE].stationTypes]);
+    setCustomStationFilter("");
     setDedupeMeters(250);
     setPreferEnglishName(false);
     setStations([]);
@@ -1625,8 +1683,10 @@ export function GameCreator() {
             <CreatorStationsStep
               playArea={playArea}
               hasPlayAreaGeometry={hasPlayAreaGeometry}
-              stationPreset={stationPreset}
-              setStationPreset={setStationPreset}
+              stationSource={stationSource}
+              setStationSource={setStationSource}
+              stationTypes={stationTypes}
+              onToggleStationType={handleToggleStationType}
               customStationFilter={customStationFilter}
               setCustomStationFilter={setCustomStationFilter}
               dedupeMeters={dedupeMeters}

@@ -7,7 +7,12 @@ import type {
 
 import type { CreatorGeometryLayer, PreservedGameMetadata } from "@/lib/creator/assemble";
 import type { CreatorPointItem } from "@/lib/creator/overpass";
-import type { GameScale, StationPresetId } from "@/lib/creator/presets";
+import type {
+  GameScale,
+  StationPresetId,
+  StationSource,
+  StationTypeId,
+} from "@/lib/creator/presets";
 
 const DB_NAME = "searchlight-creator-handoff-v1";
 const STORE_NAME = "draft";
@@ -35,7 +40,9 @@ export interface CreatorWorkspaceDraft {
   thermometer: boolean;
   playArea: PlayAreaFeatureCollection | null;
   preservedMetadata: PreservedGameMetadata | null;
-  stationPreset: StationPresetId;
+  stationSource?: StationSource;
+  stationTypes?: StationTypeId[];
+  stationPreset?: StationPresetId;
   customStationFilter: string;
   dedupeMeters: number;
   preferEnglishName: boolean;

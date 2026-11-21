@@ -13,14 +13,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { CreatorPointItem } from "@/lib/creator/overpass";
-import { getStationPreset, STATION_PRESETS, type StationPresetId } from "@/lib/creator/presets";
+import { STATION_TYPES, type StationSource, type StationTypeId } from "@/lib/creator/presets";
 import { cn } from "@/lib/utils";
 
 interface Props {
   playArea: PlayAreaFeatureCollection | null;
   hasPlayAreaGeometry: boolean;
-  stationPreset: StationPresetId;
-  setStationPreset: (id: StationPresetId) => void;
+  stationSource: StationSource;
+  setStationSource: (source: StationSource) => void;
+  stationTypes: StationTypeId[];
+  onToggleStationType: (id: StationTypeId, checked: boolean) => void;
   customStationFilter: string;
   setCustomStationFilter: (val: string) => void;
   dedupeMeters: number;
@@ -35,7 +37,7 @@ interface Props {
   stationBusy: string | null;
   stationError: string | null;
   stationSummary: string | null;
-  handleFetchStations: () => Promise<void>;
+  handleFetchStations: (sourceOverride?: StationSource) => Promise<void>;
   onAbortStationFetch: () => void;
   stations: CreatorPointItem[];
   setStations: React.Dispatch<React.SetStateAction<CreatorPointItem[]>>;
@@ -66,8 +68,10 @@ interface Props {
 export function CreatorStationsStep({
   playArea,
   hasPlayAreaGeometry,
-  stationPreset,
-  setStationPreset,
+  stationSource,
+  setStationSource,
+  stationTypes,
+  onToggleStationType,
   customStationFilter,
   setCustomStationFilter,
   dedupeMeters,
@@ -118,38 +122,106 @@ export function CreatorStationsStep({
       )}
 
       <section className="space-y-3">
+        {/* Source switcher */}
         <div className="space-y-1.5">
-          <Label htmlFor="creator-station-preset" className="text-xs">
-            Transit stop preset
-          </Label>
-          <select
-            id="creator-station-preset"
-            value={stationPreset}
-            onChange={(e) => setStationPreset(e.target.value as StationPresetId)}
-            className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-          >
-            {STATION_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-          <p className="text-xs text-muted-foreground">
-            {getStationPreset(stationPreset).description}
-          </p>
+          <Label className="text-xs">Station source</Label>
+          <div className="grid grid-cols-2 gap-1.5">
+            <button
+              type="button"
+              onClick={() => setStationSource("transitous")}
+              className={cn(
+                "rounded-md border px-2.5 py-2 text-left transition-colors",
+                stationSource === "transitous"
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border bg-background/50 text-muted-foreground hover:bg-accent/40",
+              )}
+            >
+              <div className="text-xs font-semibold">Transitous (GTFS)</div>
+              <div className="text-[11px] text-muted-foreground">Fast (~0.2s), scheduled stops</div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStationSource("osm")}
+              className={cn(
+                "rounded-md border px-2.5 py-2 text-left transition-colors",
+                stationSource === "osm"
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "border-border bg-background/50 text-muted-foreground hover:bg-accent/40",
+              )}
+            >
+              <div className="text-xs font-semibold">OpenStreetMap</div>
+              <div className="text-[11px] text-muted-foreground">Overpass &amp; custom tags</div>
+            </button>
+          </div>
+          {stationSource === "transitous" && (
+            <p className="text-[11px] text-muted-foreground">
+              Public transit schedules aggregated by{" "}
+              <a
+                href="https://transitous.org/sources/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground"
+              >
+                Transitous
+              </a>
+              . Works across Europe and many global regions.
+            </p>
+          )}
         </div>
 
-        {stationPreset === "custom" && (
+        {/* Multi-select transit types */}
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-xs">Transit types</Label>
+            <span className="text-[11px] text-muted-foreground">
+              {stationTypes.length} selected
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {STATION_TYPES.map((opt) => {
+              const checked = stationTypes.includes(opt.id);
+              const checkboxId = `creator-station-type-${opt.id}`;
+              return (
+                <label
+                  key={opt.id}
+                  htmlFor={checkboxId}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-2 rounded-md border px-2.5 py-1.5 transition-colors",
+                    checked
+                      ? "border-primary/60 bg-primary/10"
+                      : "border-border bg-background/40 hover:bg-accent/40",
+                  )}
+                >
+                  <Checkbox
+                    id={checkboxId}
+                    checked={checked}
+                    className="mt-0.5"
+                    onCheckedChange={(v) => onToggleStationType(opt.id, v === true)}
+                  />
+                  <div className="min-w-0 leading-tight">
+                    <div className="text-xs font-medium">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground">{opt.hint}</div>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {stationSource === "osm" && (
           <div className="space-y-1">
-            <Label htmlFor="creator-custom-station-filter" className="text-xs">
-              Custom OSM tag filter
+            <Label
+              htmlFor="creator-custom-station-filter"
+              className="text-xs text-muted-foreground"
+            >
+              Extra OSM tag filter (optional)
             </Label>
             <Input
               id="creator-custom-station-filter"
               value={customStationFilter}
               onChange={(e) => setCustomStationFilter(e.target.value)}
-              placeholder='["amenity"="ferry_terminal"]'
-              className="font-mono text-xs"
+              placeholder='e.g. ["railway"="monorail"]'
+              className="h-8 font-mono text-xs"
             />
           </div>
         )}
@@ -182,59 +254,73 @@ export function CreatorStationsStep({
           </div>
         </div>
 
-        <div className="space-y-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() => setShowStationQuery((v) => !v)}
-              className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
-            >
-              <Code2 className="h-3.5 w-3.5" />
-              <span>{showStationQuery ? "▾" : "▸"} Inspect / edit Overpass query</span>
-              {stationRawQuery !== null && (
-                <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
-                  edited
-                </span>
-              )}
-            </button>
-            {showStationQuery && stationRawQuery !== null && (
+        {stationSource === "osm" && (
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setStationRawQuery(null)}
-                className="text-[11px] text-primary hover:underline"
+                onClick={() => setShowStationQuery((v) => !v)}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
               >
-                Reset to preset
+                <Code2 className="h-3.5 w-3.5" />
+                <span>{showStationQuery ? "▾" : "▸"} Inspect / edit Overpass query</span>
+                {stationRawQuery !== null && (
+                  <span className="rounded bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                    edited
+                  </span>
+                )}
               </button>
+              {showStationQuery && stationRawQuery !== null && (
+                <button
+                  type="button"
+                  onClick={() => setStationRawQuery(null)}
+                  className="text-[11px] text-primary hover:underline"
+                >
+                  Reset to selected types
+                </button>
+              )}
+            </div>
+            {showStationQuery && (
+              <div className="space-y-1">
+                <textarea
+                  rows={5}
+                  spellCheck={false}
+                  disabled={!hasPlayAreaGeometry}
+                  value={stationRawQuery ?? generatedStationQuery}
+                  onChange={(e) => setStationRawQuery(e.target.value)}
+                  placeholder="Set a play area in Step 1 to generate the Overpass QL query."
+                  className="w-full rounded-md border border-input bg-background p-2 font-mono text-[11px] leading-relaxed outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Edit the Overpass QL directly to tweak tags or add clauses. Returned points are
+                  still clipped to your play area and deduplicated.
+                </p>
+              </div>
             )}
           </div>
-          {showStationQuery && (
-            <div className="space-y-1">
-              <textarea
-                rows={5}
-                spellCheck={false}
-                disabled={!hasPlayAreaGeometry}
-                value={stationRawQuery ?? generatedStationQuery}
-                onChange={(e) => setStationRawQuery(e.target.value)}
-                placeholder="Set a play area in Step 1 to generate the Overpass QL query."
-                className="w-full rounded-md border border-input bg-background p-2 font-mono text-[11px] leading-relaxed outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Edit the Overpass QL directly to tweak tags or add clauses. Returned points are
-                still clipped to your play area and deduplicated.
-              </p>
-            </div>
-          )}
-        </div>
+        )}
 
         <div className="flex gap-2">
           <Button
             type="button"
             className="flex-1"
-            disabled={!hasPlayAreaGeometry || Boolean(stationBusy)}
+            disabled={
+              !hasPlayAreaGeometry ||
+              Boolean(stationBusy) ||
+              (stationSource === "transitous"
+                ? stationTypes.length === 0
+                : stationTypes.length === 0 &&
+                  !customStationFilter.trim() &&
+                  !stationRawQuery?.trim())
+            }
             onClick={() => void handleFetchStations()}
           >
             <RefreshCw className={cn("mr-1.5 h-4 w-4", stationBusy && "animate-spin")} />
-            {stationBusy ? "Fetching…" : "Fetch stations from OSM"}
+            {stationBusy
+              ? "Fetching…"
+              : stationSource === "transitous"
+                ? "Fetch stations (Transitous)"
+                : "Fetch stations (OpenStreetMap)"}
           </Button>
           {stationBusy && (
             <Button type="button" variant="outline" onClick={onAbortStationFetch}>
@@ -244,9 +330,43 @@ export function CreatorStationsStep({
         </div>
 
         {stationBusy && <p className="text-xs text-muted-foreground">{stationBusy}</p>}
-        {stationError && <p className="text-xs text-destructive">{stationError}</p>}
+        {stationError && (
+          <div className="space-y-1.5">
+            <p className="text-xs text-destructive">{stationError}</p>
+            {stationSource === "transitous" && !stationBusy && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setStationSource("osm");
+                  void handleFetchStations("osm");
+                }}
+              >
+                Try OpenStreetMap instead
+              </Button>
+            )}
+          </div>
+        )}
         {stationSummary && !stationBusy && (
-          <p className="text-xs text-emerald-500">{stationSummary}</p>
+          <div className="space-y-1.5">
+            <p className="text-xs text-emerald-500">{stationSummary}</p>
+            {stationSource === "transitous" && stations.length === 0 && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setStationSource("osm");
+                  void handleFetchStations("osm");
+                }}
+              >
+                No GTFS coverage here? Try OpenStreetMap
+              </Button>
+            )}
+          </div>
         )}
       </section>
 

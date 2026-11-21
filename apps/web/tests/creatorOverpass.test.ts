@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildBatchedPoiOverpassQuery,
+  buildStationOverpassQuery,
   buildValidatedDrawnPlayArea,
   dedupePointItems,
   DEFAULT_OVERPASS_ENDPOINTS,
@@ -9,13 +10,19 @@ import {
   fetchPoiLayersFromOsm,
   fetchRawPoiQueryFromOsm,
   fetchStationsFromOsm,
+  fetchStationsFromTransitous,
   matchesOsmPredicates,
   parseSimpleOsmFilter,
   rectanglePlayArea,
   runOverpassQuery,
   searchPlaces,
+  TRANSITOUS_STOPS_URL,
   validateCustomOsmFilter,
 } from "@/lib/creator/overpass";
+import {
+  getOsmFiltersForStationTypes,
+  getTransitousModesForStationTypes,
+} from "@/lib/creator/presets";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -411,5 +418,113 @@ describe("buildValidatedDrawnPlayArea", () => {
       ok: false,
       error: expect.stringContaining("cross each other"),
     });
+  });
+});
+
+describe("Transitous GTFS station fetching & station types", () => {
+  const playArea = rectanglePlayArea([8.5, 47.35, 8.6, 47.42], "Zurich");
+
+  it("maps multi-selected station types to Transitous modes and fast node-only Overpass queries", () => {
+    const modes = getTransitousModesForStationTypes(["rail", "suburban", "metro", "ferry"]);
+    expect(modes).toEqual([
+      "HIGHSPEED_RAIL",
+      "LONG_DISTANCE",
+      "NIGHT_RAIL",
+      "REGIONAL_RAIL",
+      "SUBURBAN",
+      "SUBWAY",
+      "FERRY",
+    ]);
+
+    const filters = getOsmFiltersForStationTypes(["metro", "ferry"]);
+    const ql = buildStationOverpassQuery(filters, [8.5, 47.35, 8.6, 47.42]);
+    expect(ql).toContain("[timeout:25]");
+    expect(ql).toContain('node["railway"="station"]["station"="subway"]');
+    expect(ql).toContain('node["amenity"="ferry_terminal"]');
+    expect(ql).toContain("out qt;");
+    expect(ql).not.toContain("nwr");
+  });
+
+  it("fetches grouped mode-filtered stops from Transitous, clips to play area, and prefers mixed-case high-importance names", async () => {
+    const calledUrls: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      calledUrls.push(String(input));
+      return new Response(
+        JSON.stringify([
+          // Outside play area
+          {
+            name: "Outside Station",
+            stopId: "ext-1",
+            lat: 47.38,
+            lon: 8.4,
+            importance: 0.05,
+            modes: ["REGIONAL_RAIL"],
+          },
+          // Cross-feed duplicate with ALL-CAPS name first
+          {
+            name: "ZUERICH HB",
+            stopId: "it-8503000",
+            lat: 47.378,
+            lon: 8.54,
+            importance: 0.0734,
+            modes: ["LONG_DISTANCE"],
+          },
+          // Canonical mixed-case name at same hub
+          {
+            name: "Zürich HB",
+            stopId: "ch-8503000",
+            lat: 47.37805,
+            lon: 8.5401,
+            importance: 0.0734,
+            modes: ["REGIONAL_RAIL", "SUBURBAN"],
+          },
+          {
+            name: "Zürich Stadelhofen",
+            stopId: "ch-8503003",
+            lat: 47.3667,
+            lon: 8.5485,
+            importance: 0.02,
+            modes: ["SUBURBAN"],
+          },
+        ]),
+        { status: 200 },
+      );
+    });
+
+    const result = await fetchStationsFromTransitous({
+      modes: ["REGIONAL_RAIL", "SUBURBAN"],
+      playArea,
+      dedupeMeters: 250,
+      preferEnglishName: true,
+    });
+
+    expect(calledUrls).toHaveLength(1);
+    const parsed = new URL(calledUrls[0]);
+    expect(`${parsed.origin}${parsed.pathname}`).toBe(TRANSITOUS_STOPS_URL);
+    expect(parsed.searchParams.get("grouped")).toBe("true");
+    expect(parsed.searchParams.get("modes")).toBe("REGIONAL_RAIL,SUBURBAN");
+    expect(parsed.searchParams.get("language")).toBe("en");
+    expect(parsed.searchParams.get("min")).toBe("47.35,8.5");
+    expect(parsed.searchParams.get("max")).toBe("47.42,8.6");
+
+    expect(result.outsideCount).toBe(1);
+    expect(result.mergedCount).toBe(1);
+    expect(result.stations.map((s) => [s.name, s.osmId])).toEqual([
+      ["Zürich HB", "transitous:ch-8503000"],
+      ["Zürich Stadelhofen", "transitous:ch-8503003"],
+    ]);
+  });
+
+  it("returns an actionable error on Transitous 422 too many stops", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "too many stops" }), { status: 422 }),
+    );
+
+    await expect(
+      fetchStationsFromTransitous({
+        modes: ["BUS"],
+        playArea,
+      }),
+    ).rejects.toThrow(/Too many stops.*OpenStreetMap/i);
   });
 });

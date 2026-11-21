@@ -4,10 +4,12 @@ import type { MultiPolygon, Polygon } from "geojson";
 import { orient2d } from "robust-predicates";
 
 export const DEFAULT_OVERPASS_ENDPOINTS = [
-  "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
   "https://overpass-api.de/api/interpreter",
   "https://overpass.private.coffee/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
 ] as const;
+
+export const TRANSITOUS_STOPS_URL = "https://api.transitous.org/api/v6/map/stops";
 
 export const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
 
@@ -502,7 +504,7 @@ export async function runOverpassQuery(
       signal?.addEventListener("abort", onCallerAbort, { once: true });
       const timeoutMatch = query.match(/\[timeout:(\d+)\]/i);
       const attemptTimeoutMs =
-        (timeoutMatch ? Math.min(Number(timeoutMatch[1]), 90) : 30) * 1000 + 8000;
+        (timeoutMatch ? Math.min(Number(timeoutMatch[1]), 60) : 25) * 1000 + 5000;
       const timer = setTimeout(() => {
         timedOut = true;
         attemptAbort.abort();
@@ -667,8 +669,173 @@ function pointInPlayArea(lng: number, lat: number, playArea: PlayAreaFeatureColl
 export function buildStationOverpassQuery(filters: readonly string[], bounds: Bounds): string {
   const [w, s, e, n] = bounds;
   const bbox = `${s},${w},${n},${e}`;
-  const clauses = filters.map((f) => `  nwr${f}["name"](${bbox});`).join("\n");
-  return `[out:json][timeout:90];\n(\n${clauses}\n);\nout center tags;`;
+  const clauses = filters.map((f) => `  node${f}["name"](${bbox});`).join("\n");
+  return `[out:json][timeout:25];\n(\n${clauses}\n);\nout qt;`;
+}
+
+interface TransitousStop {
+  name?: string;
+  stopId?: string;
+  lat?: number;
+  lon?: number;
+  importance?: number;
+  modes?: string[];
+}
+
+function isAllCapsName(name: string): boolean {
+  const letters = name.replace(/[^\p{L}]/gu, "");
+  return letters.length >= 4 && letters === letters.toUpperCase();
+}
+
+/**
+ * Fetches grouped GTFS transit stations from Transitous (MOTIS v6) with
+ * server-side mode filtering, clips them to the play area polygon, and
+ * deduplicates overlapping cross-feed hubs (preferring higher importance and
+ * mixed-case names).
+ */
+export async function fetchStationsFromTransitous({
+  modes,
+  playArea,
+  dedupeMeters = 250,
+  preferEnglishName = false,
+  signal,
+  onStatus,
+}: {
+  modes: readonly string[];
+  playArea: PlayAreaFeatureCollection;
+  dedupeMeters?: number;
+  preferEnglishName?: boolean;
+  signal?: AbortSignal;
+  onStatus?: (message: string) => void;
+}): Promise<StationFetchResult> {
+  if (modes.length === 0) {
+    throw new Error("Select at least one transit type to fetch.");
+  }
+  const [w, s, e, n] = playAreaBounds(playArea);
+  const params = new URLSearchParams({
+    min: `${s},${w}`,
+    max: `${n},${e}`,
+    grouped: "true",
+    modes: modes.join(","),
+  });
+  if (preferEnglishName) {
+    params.set("language", "en");
+  }
+
+  onStatus?.("Querying Transitous (GTFS) for stations…");
+
+  const attemptAbort = new AbortController();
+  let timedOut = false;
+  const onCallerAbort = () => attemptAbort.abort();
+  if (signal?.aborted) {
+    throw new DOMException("Aborted", "AbortError");
+  }
+  signal?.addEventListener("abort", onCallerAbort, { once: true });
+  const timer = setTimeout(() => {
+    timedOut = true;
+    attemptAbort.abort();
+  }, 20_000);
+
+  let rawStops: TransitousStop[];
+  try {
+    const res = await fetch(`${TRANSITOUS_STOPS_URL}?${params.toString()}`, {
+      method: "GET",
+      mode: "cors",
+      credentials: "omit",
+      headers: { Accept: "application/json" },
+      signal: attemptAbort.signal,
+    });
+    if (res.status === 422) {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      if (body?.error && /too many/i.test(body.error)) {
+        throw new Error(
+          "Too many stops in this area for Transitous. Try unchecking Bus or Tram, shrinking the play area, or switching to OpenStreetMap.",
+        );
+      }
+      throw new Error(`Transitous rejected this area: ${body?.error || "HTTP 422"}`);
+    }
+    if (!res.ok) {
+      throw new Error(`Transitous request failed (HTTP ${res.status}). Try OpenStreetMap instead.`);
+    }
+    const data = (await res.json()) as unknown;
+    if (!Array.isArray(data)) {
+      throw new Error("Unexpected response from Transitous. Try OpenStreetMap instead.");
+    }
+    rawStops = data as TransitousStop[];
+  } catch (err: unknown) {
+    if (signal?.aborted) {
+      throw err instanceof DOMException ? err : new DOMException("Aborted", "AbortError");
+    }
+    if (timedOut) {
+      throw new Error("Transitous timed out after 20s. Try again or switch to OpenStreetMap.");
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", onCallerAbort);
+  }
+
+  const inside: Array<CreatorPointItem & { importance: number }> = [];
+  let outsideCount = 0;
+  for (let i = 0; i < rawStops.length; i++) {
+    const stop = rawStops[i];
+    const name = stop.name?.trim();
+    const lat = stop.lat;
+    const lon = stop.lon;
+    if (!name || typeof lat !== "number" || typeof lon !== "number") continue;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+    const lng = round6(lon);
+    const lat6 = round6(lat);
+    if (!pointInPlayArea(lng, lat6, playArea)) {
+      outsideCount++;
+      continue;
+    }
+    const stopKey = stop.stopId?.trim() || `${lat6},${lng},${i}`;
+    inside.push({
+      uid: `st-tr-${stopKey}`,
+      name,
+      lng,
+      lat: lat6,
+      enabled: true,
+      osmId: `transitous:${stopKey}`,
+      importance:
+        typeof stop.importance === "number" && Number.isFinite(stop.importance)
+          ? stop.importance
+          : 0,
+    });
+  }
+
+  // Prefer mixed-case names and higher GTFS importance when deduplicating
+  // international hubs that appear across multiple national feeds (e.g.
+  // "Zürich HB" from SBB vs "ZUERICH HB" from Trenitalia).
+  inside.sort((a, b) => {
+    const impDiff = Math.round((b.importance - a.importance) * 1000);
+    if (impDiff !== 0) return impDiff;
+    const capsDiff = Number(isAllCapsName(a.name)) - Number(isAllCapsName(b.name));
+    if (capsDiff !== 0) return capsDiff;
+    return a.name.localeCompare(b.name);
+  });
+
+  const stripped: CreatorPointItem[] = inside.map(({ uid, name, lng, lat, enabled, osmId }) => ({
+    uid,
+    name,
+    lng,
+    lat,
+    enabled,
+    osmId,
+  }));
+  const { items, mergedCount } = dedupePointItems(stripped, {
+    sameNameMeters: dedupeMeters,
+    nearCoordMeters: 35,
+  });
+  items.sort((a, b) => a.name.localeCompare(b.name));
+
+  return {
+    stations: items,
+    mergedCount,
+    outsideCount,
+    endpoint: TRANSITOUS_STOPS_URL,
+  };
 }
 
 /**

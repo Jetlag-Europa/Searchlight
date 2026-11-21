@@ -2,6 +2,20 @@ import type { DistanceUnit, FeatureEnabledFor, FeatureIcon } from "@searchlight/
 
 export type GameScale = "small" | "medium" | "large";
 
+export type StationSource = "transitous" | "osm";
+
+export type StationTypeId = "rail" | "suburban" | "metro" | "tram" | "ferry" | "cable" | "bus";
+
+export interface StationTypeOption {
+  id: StationTypeId;
+  label: string;
+  hint: string;
+  /** MOTIS / Transitous `modes` values for server-side filtering. */
+  transitousModes: readonly string[];
+  /** Overpass node tag filter clauses when fetching from OpenStreetMap. */
+  osmFilters: readonly string[];
+}
+
 export type StationPresetId =
   | "rail-metro"
   | "rail-only"
@@ -13,7 +27,7 @@ export interface StationPreset {
   id: StationPresetId;
   label: string;
   description: string;
-  /** One or more Overpass nwr filter clauses (unioned inside the play area bbox). */
+  /** One or more Overpass filter clauses (unioned inside the play area bbox). */
   osmFilters: readonly string[];
 }
 
@@ -43,9 +57,74 @@ export interface ScalePreset {
   hidingRadius: number;
   radars: readonly number[];
   thermometer: boolean;
+  stationTypes: readonly StationTypeId[];
   stationPreset: StationPresetId;
   poiBufferKm: number;
 }
+
+export const STATION_TYPES: readonly StationTypeOption[] = [
+  {
+    id: "rail",
+    label: "Train / Rail",
+    hint: "Regional, InterCity, high-speed",
+    transitousModes: ["HIGHSPEED_RAIL", "LONG_DISTANCE", "NIGHT_RAIL", "REGIONAL_RAIL"],
+    osmFilters: [
+      '["railway"="station"]["station"!="subway"]["station"!="light_rail"]["station"!="tram"]["station"!="monorail"]["disused"!="yes"]["abandoned"!="yes"]',
+      '["railway"="halt"]["disused"!="yes"]["abandoned"!="yes"]',
+    ],
+  },
+  {
+    id: "suburban",
+    label: "S-Bahn / Suburban",
+    hint: "S-Bahn, RER, Overground",
+    transitousModes: ["SUBURBAN"],
+    osmFilters: [
+      '["railway"="station"]["station"="light_rail"]["disused"!="yes"]["abandoned"!="yes"]',
+      '["railway"="station"]["station"="commuter"]["disused"!="yes"]["abandoned"!="yes"]',
+    ],
+  },
+  {
+    id: "metro",
+    label: "Metro / Subway",
+    hint: "Underground, U-Bahn, Tube",
+    transitousModes: ["SUBWAY"],
+    osmFilters: ['["railway"="station"]["station"="subway"]["disused"!="yes"]["abandoned"!="yes"]'],
+  },
+  {
+    id: "tram",
+    label: "Tram / Light rail",
+    hint: "Streetcar & tram stops",
+    transitousModes: ["TRAM"],
+    osmFilters: [
+      '["railway"="tram_stop"]["disused"!="yes"]["abandoned"!="yes"]',
+      '["railway"="station"]["station"="tram"]["disused"!="yes"]["abandoned"!="yes"]',
+    ],
+  },
+  {
+    id: "ferry",
+    label: "Ferry",
+    hint: "Ferry terminals & piers",
+    transitousModes: ["FERRY"],
+    osmFilters: ['["amenity"="ferry_terminal"]["disused"!="yes"]["abandoned"!="yes"]'],
+  },
+  {
+    id: "cable",
+    label: "Funicular / Cable",
+    hint: "Mountain & aerial lifts",
+    transitousModes: ["FUNICULAR", "AERIAL_LIFT"],
+    osmFilters: ['["aerialway"="station"]["disused"!="yes"]["abandoned"!="yes"]'],
+  },
+  {
+    id: "bus",
+    label: "Bus",
+    hint: "Very dense on large areas",
+    transitousModes: ["BUS"],
+    osmFilters: [
+      '["highway"="bus_stop"]["disused"!="yes"]["abandoned"!="yes"]',
+      '["amenity"="bus_station"]["disused"!="yes"]["abandoned"!="yes"]',
+    ],
+  },
+];
 
 export const STATION_PRESETS: readonly StationPreset[] = [
   {
@@ -225,6 +304,7 @@ export const SCALE_PRESETS: Record<GameScale, ScalePreset> = {
     hidingRadius: 250,
     radars: [150, 250, 500, 1000],
     thermometer: true,
+    stationTypes: ["rail", "suburban", "metro", "tram"],
     stationPreset: "rail-metro-tram",
     poiBufferKm: 1,
   },
@@ -236,6 +316,7 @@ export const SCALE_PRESETS: Record<GameScale, ScalePreset> = {
     hidingRadius: 400,
     radars: [250, 400, 800, 1500, 3000],
     thermometer: true,
+    stationTypes: ["rail", "suburban", "metro"],
     stationPreset: "rail-metro",
     poiBufferKm: 2,
   },
@@ -247,6 +328,7 @@ export const SCALE_PRESETS: Record<GameScale, ScalePreset> = {
     hidingRadius: 1000,
     radars: [500, 1000, 2500, 5000, 10000],
     thermometer: true,
+    stationTypes: ["rail", "suburban"],
     stationPreset: "rail-only",
     poiBufferKm: 5,
   },
@@ -533,4 +615,42 @@ export const LINE_LAYER_PRESETS: readonly LineLayerPreset[] = [
 
 export function getStationPreset(id: StationPresetId): StationPreset {
   return STATION_PRESETS.find((preset) => preset.id === id) ?? STATION_PRESETS[0];
+}
+
+export function getTransitousModesForStationTypes(types: readonly StationTypeId[]): string[] {
+  const modes = new Set<string>();
+  for (const opt of STATION_TYPES) {
+    if (types.includes(opt.id)) {
+      for (const m of opt.transitousModes) modes.add(m);
+    }
+  }
+  return [...modes];
+}
+
+export function getOsmFiltersForStationTypes(types: readonly StationTypeId[]): string[] {
+  const filters = new Set<string>();
+  for (const opt of STATION_TYPES) {
+    if (types.includes(opt.id)) {
+      for (const f of opt.osmFilters) filters.add(f);
+    }
+  }
+  return [...filters];
+}
+
+export function stationTypesFromLegacyPreset(
+  preset: StationPresetId | undefined,
+  fallbackScale: GameScale = "medium",
+): StationTypeId[] {
+  switch (preset) {
+    case "rail-only":
+      return ["rail", "suburban"];
+    case "rail-metro":
+      return ["rail", "suburban", "metro"];
+    case "rail-metro-tram":
+      return ["rail", "suburban", "metro", "tram"];
+    case "metro-only":
+      return ["metro"];
+    default:
+      return [...SCALE_PRESETS[fallbackScale].stationTypes];
+  }
 }
