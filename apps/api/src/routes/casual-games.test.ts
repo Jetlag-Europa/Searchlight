@@ -73,7 +73,15 @@ function definition(id: string, name: string, bounds = [-0.5, 51.3, 0.3, 51.7]) 
             type: "Feature",
             geometry: {
               type: "Polygon",
-              coordinates: [[[west, south], [east, south], [east, north], [west, north], [west, south]]],
+              coordinates: [
+                [
+                  [west, south],
+                  [east, south],
+                  [east, north],
+                  [west, north],
+                  [west, south],
+                ],
+              ],
             },
           },
         ],
@@ -115,7 +123,12 @@ describe("Casual Games", () => {
   const importAs = (userId: string, def: object, query = "") =>
     app.inject({ method: "POST", url: `/games/import${query}`, headers: as(userId), payload: def });
   const replaceAs = (userId: string, id: string, def: object, query = "") =>
-    app.inject({ method: "POST", url: `/games/${id}/import${query}`, headers: as(userId), payload: def });
+    app.inject({
+      method: "POST",
+      url: `/games/${id}/import${query}`,
+      headers: as(userId),
+      payload: def,
+    });
 
   const listGames = async (userId: string, includeUnlisted: boolean) => {
     const query = includeUnlisted ? "&includeUnlisted=true" : "";
@@ -153,12 +166,19 @@ describe("Casual Games", () => {
         },
       });
       const auth = await prisma.authSession.create({
-        data: { id: `${discordId}-auth`, userId: discordId, expiresAt: new Date(Date.now() + 86_400_000) },
+        data: {
+          id: `${discordId}-auth`,
+          userId: discordId,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
       });
       cookies[discordId] = `session=${app.signCookie(auth.id)}`;
     }
 
-    await prisma.server.createMany({ data: [{ id: EU_SERVER_ID, name: "JetLag EU" }], skipDuplicates: true });
+    await prisma.server.createMany({
+      data: [{ id: EU_SERVER_ID, name: "JetLag EU" }],
+      skipDuplicates: true,
+    });
     await prisma.server.upsert({
       where: { id: CASUAL_SERVER_ID },
       update: { managementGuildId: EU_SERVER_ID },
@@ -192,21 +212,39 @@ describe("Casual Games", () => {
   describe("importing", () => {
     test("a holder of the mapped JetLag EU role creates unlisted games, recorded as theirs", async () => {
       const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
-      expect(game).toMatchObject({ serverId: CASUAL_SERVER_ID, unlisted: true, createdById: CREATOR });
+      expect(game).toMatchObject({
+        serverId: CASUAL_SERVER_ID,
+        unlisted: true,
+        createdById: CREATOR,
+      });
     });
 
     test("someone without the role can't import there", async () => {
-      const res = await importAs(PLAYER, definition(`${KEY_PREFIX}player`, "Player Game"), "?dryRun=true");
+      const res = await importAs(
+        PLAYER,
+        definition(`${KEY_PREFIX}player`, "Player Game"),
+        "?dryRun=true",
+      );
       expect(res.statusCode).toBe(403);
       expect(res.json().code).toBe("FORBIDDEN");
     });
 
     test("an update shows the game it would replace, also on a dry run", async () => {
-      const res = await importAs(CREATOR, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true&allowUpdate=true");
+      const res = await importAs(
+        CREATOR,
+        definition(GAME_KEY, "London 2026 v2"),
+        "?dryRun=true&allowUpdate=true",
+      );
       expect(res.statusCode).toBe(200);
       expect(res.json()).toMatchObject({
         status: "updated",
-        existing: { name: "London 2026", revision: 1, createdByYou: true, likelyMistake: false, differences: [] },
+        existing: {
+          name: "London 2026",
+          revision: 1,
+          createdByYou: true,
+          likelyMistake: false,
+          differences: [],
+        },
       });
     });
 
@@ -222,7 +260,11 @@ describe("Casual Games", () => {
     });
 
     test("another role holder importing the same id gets a game of their own", async () => {
-      const preview = await importAs(RIVAL, definition(GAME_KEY, "Rival 2026"), "?dryRun=true&allowUpdate=true");
+      const preview = await importAs(
+        RIVAL,
+        definition(GAME_KEY, "Rival 2026"),
+        "?dryRun=true&allowUpdate=true",
+      );
       expect(preview.statusCode).toBe(201);
       expect(preview.json().status).toBe("created");
       expect(preview.json().existing).toBeUndefined();
@@ -252,18 +294,31 @@ describe("Casual Games", () => {
 
     test("the creator can't update their game without the role any more", async () => {
       await setEuRoles(CREATOR, []);
-      const res = await importAs(CREATOR, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true&allowUpdate=true");
+      const res = await importAs(
+        CREATOR,
+        definition(GAME_KEY, "London 2026 v2"),
+        "?dryRun=true&allowUpdate=true",
+      );
       expect(res.statusCode).toBe(403);
     });
 
     test("a global admin's import of a creator's id makes the admin's own game", async () => {
-      const res = await importAs(ADMIN, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true&allowUpdate=true");
+      const res = await importAs(
+        ADMIN,
+        definition(GAME_KEY, "London 2026 v2"),
+        "?dryRun=true&allowUpdate=true",
+      );
       expect(res.statusCode).toBe(201);
       expect(res.json().status).toBe("created");
     });
 
     test("a global admin replaces another player's Casual game", async () => {
-      const preview = await replaceAs(ADMIN, gameId, definition(GAME_KEY, "London 2026 v2"), "?dryRun=true");
+      const preview = await replaceAs(
+        ADMIN,
+        gameId,
+        definition(GAME_KEY, "London 2026 v2"),
+        "?dryRun=true",
+      );
       expect(preview.statusCode).toBe(200);
       expect(preview.json().status).toBe("updated");
       expect(preview.json().existing).toMatchObject({ createdByYou: false, likelyMistake: false });
@@ -283,7 +338,11 @@ describe("Casual Games", () => {
       });
 
       // The creator's own import still finds it, and restores the name.
-      const back = await importAs(CREATOR, definition(GAME_KEY, "London 2026"), "?allowUpdate=true");
+      const back = await importAs(
+        CREATOR,
+        definition(GAME_KEY, "London 2026"),
+        "?allowUpdate=true",
+      );
       expect(back.statusCode).toBe(200);
       expect(back.json().gameId).toBe(gameId);
     });
@@ -296,7 +355,9 @@ describe("Casual Games", () => {
         expect(res.statusCode, userId).toBe(403);
         if (userId === RIVAL) expect(res.json().code).toBe("FORBIDDEN");
       }
-      expect((await replaceAs(CREATOR, "does-not-exist", def, "?dryRun=true")).statusCode).toBe(404);
+      expect((await replaceAs(CREATOR, "does-not-exist", def, "?dryRun=true")).statusCode).toBe(
+        404,
+      );
       await setEuRoles(CREATOR, []);
       expect((await replaceAs(CREATOR, gameId, def, "?dryRun=true")).statusCode).toBe(403);
     });
@@ -318,15 +379,30 @@ describe("Casual Games", () => {
         where: { id: targetId },
         include: { currentRevision: { select: { definition: true } } },
       });
-      expect(target).toMatchObject({ serverId: CASUAL_SERVER_ID, createdById: CREATOR, ownerScope: CREATOR });
-      expect(target.currentRevision?.definition).toMatchObject({ id: key, serverId: CASUAL_SERVER_ID });
+      expect(target).toMatchObject({
+        serverId: CASUAL_SERVER_ID,
+        createdById: CREATOR,
+        ownerScope: CREATOR,
+      });
+      expect(target.currentRevision?.definition).toMatchObject({
+        id: key,
+        serverId: CASUAL_SERVER_ID,
+      });
       expect(await prisma.game.count({ where: { gameKey: `${KEY_PREFIX}elsewhere` } })).toBe(0);
     });
 
     test("replace refuses a stale preview, from the query or the body", async () => {
       const def = definition(GAME_KEY, "London 2026 v2");
-      const fromQuery = await replaceAs(CREATOR, gameId, def, "?expectedCurrentRevisionId=not-current");
-      const fromBody = await replaceAs(CREATOR, gameId, { game: def, expectedCurrentRevisionId: "not-current" });
+      const fromQuery = await replaceAs(
+        CREATOR,
+        gameId,
+        def,
+        "?expectedCurrentRevisionId=not-current",
+      );
+      const fromBody = await replaceAs(CREATOR, gameId, {
+        game: def,
+        expectedCurrentRevisionId: "not-current",
+      });
       for (const res of [fromQuery, fromBody]) {
         expect(res.statusCode).toBe(409);
         expect(res.json()).toMatchObject({ code: "GAME_CHANGED" });
@@ -339,17 +415,31 @@ describe("Casual Games", () => {
       const def = definition(GAME_KEY, "London 2026 v2");
       const preview = await importAs(CREATOR, def, "?dryRun=true&allowUpdate=true");
       const { currentRevisionId } = preview.json().existing;
-      expect(currentRevisionId).toBe((await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).currentRevisionId);
+      expect(currentRevisionId).toBe(
+        (await prisma.game.findUniqueOrThrow({ where: { id: gameId } })).currentRevisionId,
+      );
 
-      const res = await importAs(CREATOR, def, `?dryRun=true&allowUpdate=true&expectedCurrentRevisionId=${currentRevisionId}`);
+      const res = await importAs(
+        CREATOR,
+        def,
+        `?dryRun=true&allowUpdate=true&expectedCurrentRevisionId=${currentRevisionId}`,
+      );
       expect(res.statusCode).toBe(200);
       expect(res.json().status).toBe("updated");
     });
 
     test("an update pinned to another revision is refused, from the query or the body", async () => {
       const def = definition(GAME_KEY, "London 2026 v2");
-      const fromQuery = await importAs(CREATOR, def, "?allowUpdate=true&expectedCurrentRevisionId=not-current");
-      const fromBody = await importAs(CREATOR, { game: def, allowUpdate: true, expectedCurrentRevisionId: "not-current" });
+      const fromQuery = await importAs(
+        CREATOR,
+        def,
+        "?allowUpdate=true&expectedCurrentRevisionId=not-current",
+      );
+      const fromBody = await importAs(CREATOR, {
+        game: def,
+        allowUpdate: true,
+        expectedCurrentRevisionId: "not-current",
+      });
       for (const res of [fromQuery, fromBody]) {
         expect(res.statusCode).toBe(409);
         expect(res.json()).toMatchObject({ code: "GAME_CHANGED" });
@@ -362,11 +452,18 @@ describe("Casual Games", () => {
       const key = `${KEY_PREFIX}recreated`;
       const created = await importAs(CREATOR, definition(key, "Recreated 2026"));
       expect(created.statusCode).toBe(201);
-      const preview = await importAs(CREATOR, definition(key, "Recreated 2026 v2"), "?dryRun=true&allowUpdate=true");
+      const preview = await importAs(
+        CREATOR,
+        definition(key, "Recreated 2026 v2"),
+        "?dryRun=true&allowUpdate=true",
+      );
       const previewed = preview.json().existing.currentRevisionId;
 
       const old = await prisma.game.findUniqueOrThrow({ where: { id: created.json().gameId } });
-      expect((await app.inject({ method: "DELETE", url: `/games/${old.id}`, headers: as(ADMIN) })).statusCode).toBe(204);
+      expect(
+        (await app.inject({ method: "DELETE", url: `/games/${old.id}`, headers: as(ADMIN) }))
+          .statusCode,
+      ).toBe(204);
       expect((await importAs(CREATOR, definition(key, "Recreated 2026"))).statusCode).toBe(201);
 
       // Both are revision 1; only the id tells them apart.
@@ -444,7 +541,11 @@ describe("Casual Games", () => {
       const key = `${KEY_PREFIX}gated`;
       const gated = {
         ...definition(key, "Gated 2026"),
-        visibility: { kind: "discord-role", guildId: EU_SERVER_ID, roleId: "test-casual-gone-role" },
+        visibility: {
+          kind: "discord-role",
+          guildId: EU_SERVER_ID,
+          roleId: "test-casual-gone-role",
+        },
       };
       const created = await importAs(CREATOR, gated);
       expect(created.statusCode).toBe(201);
@@ -459,7 +560,11 @@ describe("Casual Games", () => {
 
     test("the creator keeps access to their game after losing the role", async () => {
       await setEuRoles(CREATOR, []);
-      const res = await app.inject({ method: "GET", url: `/games/${gameId}/export`, headers: as(CREATOR) });
+      const res = await app.inject({
+        method: "GET",
+        url: `/games/${gameId}/export`,
+        headers: as(CREATOR),
+      });
       expect(res.statusCode).toBe(200);
     });
   });
@@ -486,9 +591,17 @@ describe("Casual Games", () => {
         payload: { unlisted: true },
       });
       expect(patch.statusCode).toBe(403);
-      const links = await app.inject({ method: "POST", url: `/games/${gameId}/links`, headers: as(RIVAL) });
+      const links = await app.inject({
+        method: "POST",
+        url: `/games/${gameId}/links`,
+        headers: as(RIVAL),
+      });
       expect(links.statusCode).toBe(403);
-      const del = await app.inject({ method: "DELETE", url: `/games/${gameId}`, headers: as(RIVAL) });
+      const del = await app.inject({
+        method: "DELETE",
+        url: `/games/${gameId}`,
+        headers: as(RIVAL),
+      });
       expect(del.statusCode).toBe(403);
     });
 
@@ -521,11 +634,18 @@ describe("Casual Games", () => {
       });
       const admin = await rename(ADMIN, "Settings 2026 By Admin");
       expect(admin.statusCode).toBe(200);
-      expect(admin.json().game).toMatchObject({ name: "Settings 2026 By Admin", createdById: CREATOR });
+      expect(admin.json().game).toMatchObject({
+        name: "Settings 2026 By Admin",
+        createdById: CREATOR,
+      });
     });
 
     test("the creator can't delete their game; that's for global admins", async () => {
-      const res = await app.inject({ method: "DELETE", url: `/games/${gameId}`, headers: as(CREATOR) });
+      const res = await app.inject({
+        method: "DELETE",
+        url: `/games/${gameId}`,
+        headers: as(CREATOR),
+      });
       expect(res.statusCode).toBe(403);
     });
 
@@ -538,7 +658,11 @@ describe("Casual Games", () => {
       });
       expect(direct.statusCode).toBe(403);
 
-      const link = await app.inject({ method: "POST", url: `/games/${gameId}/links`, headers: as(CREATOR) });
+      const link = await app.inject({
+        method: "POST",
+        url: `/games/${gameId}/links`,
+        headers: as(CREATOR),
+      });
       expect(link.statusCode).toBe(201);
       const session = await app.inject({
         method: "POST",
@@ -559,7 +683,9 @@ describe("Casual Games", () => {
 
     test("Casual is listed for role holders, with games.create only", async () => {
       const casual = (await listServers(RIVAL)).find((s) => s.id === CASUAL_SERVER_ID);
-      expect(casual).toEqual(expect.objectContaining({ permissions: ["games.create"], isMember: true }));
+      expect(casual).toEqual(
+        expect.objectContaining({ permissions: ["games.create"], isMember: true }),
+      );
     });
 
     test("Casual stays listed for a creator of Casual games without the role", async () => {
@@ -574,12 +700,24 @@ describe("Casual Games", () => {
 
     test("the role routes use the management guild's roles, for global admins only", async () => {
       mockGetGuildRoles.mockClear();
-      const res = await app.inject({ method: "GET", url: `/servers/${CASUAL_SERVER_ID}/roles`, headers: as(ADMIN) });
+      const res = await app.inject({
+        method: "GET",
+        url: `/servers/${CASUAL_SERVER_ID}/roles`,
+        headers: as(ADMIN),
+      });
       expect(res.statusCode).toBe(200);
-      expect(mockGetGuildRoles).toHaveBeenCalledWith(EU_SERVER_ID, expect.anything(), expect.anything());
+      expect(mockGetGuildRoles).toHaveBeenCalledWith(
+        EU_SERVER_ID,
+        expect.anything(),
+        expect.anything(),
+      );
       expect(res.json().roles.map((r: { id: string }) => r.id)).toEqual([CREATOR_ROLE]);
 
-      const creator = await app.inject({ method: "GET", url: `/servers/${CASUAL_SERVER_ID}/roles`, headers: as(CREATOR) });
+      const creator = await app.inject({
+        method: "GET",
+        url: `/servers/${CASUAL_SERVER_ID}/roles`,
+        headers: as(CREATOR),
+      });
       expect(creator.statusCode).toBe(403);
     });
 

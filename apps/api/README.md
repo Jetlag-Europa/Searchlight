@@ -21,12 +21,12 @@ Setup is in the [root README](../../README.md); configuration is the root
 `dev`, `prisma`, `seed` and `seed:test` read the root `.env`; variables already
 set in the environment win.
 
-| Script | What it does |
-| --- | --- |
-| `dev` | Apply migrations, create missing Discord servers, then run with hot reload |
-| `prisma <args>` | The Prisma CLI, e.g. `prisma migrate dev --name <change>` |
-| `seed` | Create the Discord servers and default role mappings, resetting server names and restoring revoked mappings (`--missing-only`: only add missing servers) |
-| `seed:test` | e2e fixtures: imports South Limburg 2026 from `apps/web/tests/fixtures/games`, then the test user and a session on it |
-| `test` | Route tests against a real, migrated Postgres |
-| `validate-game <file>...` | The game definition validator on the given `*.game.json` files |
-| `seed:prod` | The compiled `seed` inside the Docker image |
+| Script                    | What it does                                                                                                                                             |
+| ------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `dev`                     | Apply migrations, create missing Discord servers, then run with hot reload                                                                               |
+| `prisma <args>`           | The Prisma CLI, e.g. `prisma migrate dev --name <change>`                                                                                                |
+| `seed`                    | Create the Discord servers and default role mappings, resetting server names and restoring revoked mappings (`--missing-only`: only add missing servers) |
+| `seed:test`               | e2e fixtures: imports South Limburg 2026 from `apps/web/tests/fixtures/games`, then the test user and a session on it                                    |
+| `test`                    | Route tests against a real, migrated Postgres                                                                                                            |
+| `validate-game <file>...` | The game definition validator on the given `*.game.json` files                                                                                           |
+| `seed:prod`               | The compiled `seed` inside the Docker image                                                                                                              |

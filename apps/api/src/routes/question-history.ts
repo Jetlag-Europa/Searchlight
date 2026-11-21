@@ -77,19 +77,29 @@ const listWithoutBulk = Prisma.sql`
 
 // The questions of a list read with listWithoutBulk, in saved order, or null
 // when it isn't one. Notes where each question was read.
-function questionsOf(listText: string | null, sequence: number, origins: WeakMap<object, Origin>): unknown[] | null {
+function questionsOf(
+  listText: string | null,
+  sequence: number,
+  origins: WeakMap<object, Origin>,
+): unknown[] | null {
   if (listText === null) return null;
   try {
     const list = JSON.parse(listText) as unknown;
     if (!Array.isArray(list)) return null;
     return list
       .filter(
-        (q): q is { ordinal?: unknown; payloadJson?: unknown; index?: unknown } => typeof q === "object" && q !== null,
+        (q): q is { ordinal?: unknown; payloadJson?: unknown; index?: unknown } =>
+          typeof q === "object" && q !== null,
       )
-      .map((q, i) => ({ ordinal: typeof q.ordinal === "number" ? q.ordinal : i, question: q.payloadJson, index: q.index }))
+      .map((q, i) => ({
+        ordinal: typeof q.ordinal === "number" ? q.ordinal : i,
+        question: q.payloadJson,
+        index: q.index,
+      }))
       .sort((a, b) => a.ordinal - b.ordinal)
       .map(({ question, index }) => {
-        if (isRecord(question) && typeof index === "number") origins.set(question, { sequence, index });
+        if (isRecord(question) && typeof index === "number")
+          origins.set(question, { sequence, index });
         return question;
       });
   } catch {
@@ -99,9 +109,14 @@ function questionsOf(listText: string | null, sequence: number, origins: WeakMap
 
 // Read as text, by place, so the questions are what was stored. Null when
 // it isn't there.
-async function readInFull(sessionId: string, wanted: { origin: Origin }[]): Promise<(string | null)[]> {
+async function readInFull(
+  sessionId: string,
+  wanted: { origin: Origin }[],
+): Promise<(string | null)[]> {
   if (wanted.length === 0) return [];
-  const places = JSON.stringify(wanted.map(({ origin }, n) => ({ n, sequence: origin.sequence, i: origin.index })));
+  const places = JSON.stringify(
+    wanted.map(({ origin }, n) => ({ n, sequence: origin.sequence, i: origin.index })),
+  );
   const rows = await prisma.$queryRaw<{ n: number; value: string | null }[]>`
     SELECT w.n, (e."payloadJson"->'questions'->w.i->'payloadJson')::text AS "value"
     FROM jsonb_to_recordset(${places}::jsonb) AS w(n int, sequence int, i int)
@@ -137,7 +152,12 @@ const entrySchema = Type.Object({
 // The session's saves after `filter` (on "Event"), newest or oldest first, at
 // most `count`: who saved, when, and how large it is as stored, which is
 // known without reading it.
-function readSaves(sessionId: string, filter: Prisma.Sql, first: "newest" | "oldest", count: number) {
+function readSaves(
+  sessionId: string,
+  filter: Prisma.Sql,
+  first: "newest" | "oldest",
+  count: number,
+) {
   const order = first === "newest" ? Prisma.sql`DESC` : Prisma.sql`ASC`;
   return prisma.$queryRaw<ReplaceRow[]>`
     SELECT e."sequence", e."userId", u."displayName", e."serverReceivedAt",
@@ -173,7 +193,8 @@ function withinBudget<T>(rows: T[], size: (row: T) => number, budget: number): n
 }
 
 const storedSize = (row: ReplaceRow) => row.stored;
-const readSize = (lists: Lists) => (row: ReplaceRow) => Buffer.byteLength(lists.get(row.sequence) ?? "");
+const readSize = (lists: Lists) => (row: ReplaceRow) =>
+  Buffer.byteLength(lists.get(row.sequence) ?? "");
 
 // What each save changed, newest first. `saves` are oldest first; `baseline`
 // is the save before the first of them, if any.
@@ -186,7 +207,8 @@ async function historyEntries(
   canRestore: boolean,
 ): Promise<QuestionHistoryEntry[]> {
   const origins = new WeakMap<object, Origin>();
-  const listOf = (save: ReplaceRow) => questionsOf(read.get(save.sequence) ?? null, save.sequence, origins);
+  const listOf = (save: ReplaceRow) =>
+    questionsOf(read.get(save.sequence) ?? null, save.sequence, origins);
   const first = (baseline && listOf(baseline)) || [];
   const lists = saves.map(listOf);
 
@@ -276,12 +298,25 @@ export async function questionHistoryRoutes(app: FastifyInstance) {
       const limit = query.limit ?? DEFAULT_LIMIT;
 
       if (query.after !== undefined) {
-        const rows = await readSaves(sessionId, Prisma.sql`AND e."sequence" > ${query.after}`, "oldest", limit + 1);
-        if (rows.length > limit || withinBudget(rows, storedSize, pageStoredBudget.bytes) < rows.length) {
+        const rows = await readSaves(
+          sessionId,
+          Prisma.sql`AND e."sequence" > ${query.after}`,
+          "oldest",
+          limit + 1,
+        );
+        if (
+          rows.length > limit ||
+          withinBudget(rows, storedSize, pageStoredBudget.bytes) < rows.length
+        ) {
           return { entries: [], nextBefore: null, newest: null, more: true };
         }
         if (rows.length === 0) return { entries: [], nextBefore: null, newest: null };
-        const [baseline] = await readSaves(sessionId, Prisma.sql`AND e."sequence" <= ${query.after}`, "newest", 1);
+        const [baseline] = await readSaves(
+          sessionId,
+          Prisma.sql`AND e."sequence" <= ${query.after}`,
+          "newest",
+          1,
+        );
         const lists = await readLists(sessionId, baseline ? [baseline, ...rows] : rows);
         if (withinBudget(rows, readSize(lists), pageByteBudget.bytes) < rows.length) {
           return { entries: [], nextBefore: null, newest: null, more: true };
@@ -296,11 +331,15 @@ export async function questionHistoryRoutes(app: FastifyInstance) {
       // One more than the page: the save before the page's oldest is what
       // that one is compared with. Only the saves within what's stored are
       // read, with the one before them.
-      const beforeClause = query.before === undefined ? Prisma.empty : Prisma.sql`AND e."sequence" < ${query.before}`;
+      const beforeClause =
+        query.before === undefined ? Prisma.empty : Prisma.sql`AND e."sequence" < ${query.before}`;
       const rows = await readSaves(sessionId, beforeClause, "newest", limit + 1);
       const fit = withinBudget(rows.slice(0, limit), storedSize, pageStoredBudget.bytes);
       const lists = await readLists(sessionId, rows.slice(0, fit + 1));
-      const page = rows.slice(0, withinBudget(rows.slice(0, fit), readSize(lists), pageByteBudget.bytes));
+      const page = rows.slice(
+        0,
+        withinBudget(rows.slice(0, fit), readSize(lists), pageByteBudget.bytes),
+      );
       const baseline = rows[page.length];
       return {
         entries: await historyEntries(sessionId, [...page].reverse(), lists, baseline, canRestore),

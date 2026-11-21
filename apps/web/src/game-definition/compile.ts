@@ -62,10 +62,7 @@ const isPositiveFinite = (value: unknown): value is number =>
 const isDistanceUnit = (unit: unknown): unit is DistanceUnit =>
   unit === "meters" || unit === "kilometers" || unit === "miles";
 
-function parseZoneRadius(
-  raw: unknown,
-  defaultUnit: DistanceUnit,
-): DistanceRadius | undefined {
+function parseZoneRadius(raw: unknown, defaultUnit: DistanceUnit): DistanceRadius | undefined {
   if (isPositiveFinite(raw)) {
     return { value: raw, unit: defaultUnit };
   }
@@ -78,9 +75,7 @@ function parseZoneRadius(
   return undefined;
 }
 
-export function compileGameDefinition(
-  definition: GameDefinition,
-): CompiledGame {
+export function compileGameDefinition(definition: GameDefinition): CompiledGame {
   const gameId = resolveGameDefinitionId(definition);
   const size = definition.size ?? "medium";
   const unit = definition.unit ?? definition.hidingZones?.unit ?? "meters";
@@ -88,15 +83,10 @@ export function compileGameDefinition(
   const baseRadius: DistanceRadius = { value: baseRadiusValue, unit };
   const tierOverrides = definition.hidingZones?.tierOverrides ?? {};
 
-  const resolveTierRadius = (
-    tier: string | undefined,
-  ): DistanceRadius | undefined => {
+  const resolveTierRadius = (tier: string | undefined): DistanceRadius | undefined => {
     // Not Object.hasOwn: Safari 14 and Chrome 87, which the build targets,
     // don't have it.
-    if (
-      !tier ||
-      !Object.prototype.hasOwnProperty.call(tierOverrides, tier)
-    ) {
+    if (!tier || !Object.prototype.hasOwnProperty.call(tierOverrides, tier)) {
       return undefined;
     }
     const value = tierOverrides[tier];
@@ -113,8 +103,7 @@ export function compileGameDefinition(
   let areaCount = 0;
 
   for (const feat of rawFeatures) {
-    const isArea =
-      feat.geometry?.type === "Polygon" || feat.geometry?.type === "MultiPolygon";
+    const isArea = feat.geometry?.type === "Polygon" || feat.geometry?.type === "MultiPolygon";
     const ordinal = (isArea ? areaCount : stationCount) + 1;
     const zId =
       feat.id ?? feat.properties?.name ?? (isArea ? `area-${ordinal}` : `zone-${ordinal}`);
@@ -125,9 +114,7 @@ export function compileGameDefinition(
     const tier = rawTier == null ? undefined : String(rawTier);
 
     const effectiveRadius =
-      parseZoneRadius(feat.properties?.radius, unit) ??
-      resolveTierRadius(tier) ??
-      baseRadius;
+      parseZoneRadius(feat.properties?.radius, unit) ?? resolveTierRadius(tier) ?? baseRadius;
 
     if (feat.geometry?.type === "Point") {
       stationCount++;
@@ -183,9 +170,10 @@ export function compileGameDefinition(
     questions.push({
       id: "radius",
       family: "radius",
-      label: radii.length > 1
-        ? `Radar: any radius (presets ${presets})`
-        : `Radar: any radius (starts at ${presets})`,
+      label:
+        radii.length > 1
+          ? `Radar: any radius (presets ${presets})`
+          : `Radar: any radius (starts at ${presets})`,
       defaults: { radii, within: true },
       evaluator: { operator: "radius" },
     });
@@ -210,14 +198,10 @@ export function compileGameDefinition(
 
       if (feat.enabledFor.includes("matching")) {
         let operator = "nearest-feature-match";
-        let label = /^nearest\b/i.test(feat.name)
-          ? feat.name
-          : `Nearest ${feat.name}`;
+        let label = /^nearest\b/i.test(feat.name) ? feat.name : `Nearest ${feat.name}`;
         if (geomKind === "polygons") {
           operator = "containing-region-match";
-          label = /^same\b/i.test(feat.name)
-            ? feat.name
-            : `Same ${feat.name}`;
+          label = /^same\b/i.test(feat.name) ? feat.name : `Same ${feat.name}`;
         }
 
         questions.push({
@@ -254,9 +238,7 @@ export function compileGameDefinition(
       }
 
       if (feat.enabledFor.includes("tentacle") && geomKind === "points") {
-        const label = /^tentacles?\b/i.test(feat.name)
-          ? feat.name
-          : `Tentacles: ${feat.name}`;
+        const label = /^tentacles?\b/i.test(feat.name) ? feat.name : `Tentacles: ${feat.name}`;
         questions.push({
           id: deriveFeatureQuestionId("tentacle", feat.name),
           family: "tentacle",
@@ -278,8 +260,10 @@ export function compileGameDefinition(
   let bounds = definition.map.bounds;
   if (!bounds) {
     let [minLng, maxLng, minLat, maxLat] = [
-      definition.map.center[0], definition.map.center[0],
-      definition.map.center[1], definition.map.center[1],
+      definition.map.center[0],
+      definition.map.center[0],
+      definition.map.center[1],
+      definition.map.center[1],
     ];
     const extend = ([west, south, east, north]: number[]) => {
       minLng = Math.min(minLng, west);
@@ -292,7 +276,9 @@ export function compileGameDefinition(
       extend(turf.bbox(definition.map.playArea as FeatureCollection, { recompute: true }));
     }
     for (const s of stations) {
-      extend(s.area ? turf.bbox(s.area, { recompute: true }) : [...s.coordinates, ...s.coordinates]);
+      extend(
+        s.area ? turf.bbox(s.area, { recompute: true }) : [...s.coordinates, ...s.coordinates],
+      );
     }
     const margin = 0.05;
     bounds = [minLng - margin, minLat - margin, maxLng + margin, maxLat + margin];
@@ -323,9 +309,7 @@ export function compileGameDefinition(
  * `radars` entries, or the base hiding radius for `radars: true`. Empty when
  * the game declares no radar.
  */
-export function radarRadii(
-  compiled: Pick<CompiledGame, "questionMap">,
-): DistanceRadius[] {
+export function radarRadii(compiled: Pick<CompiledGame, "questionMap">): DistanceRadius[] {
   const radar = compiled.questionMap.get("radius");
   return (radar?.defaults?.radii as DistanceRadius[] | undefined) ?? [];
 }

@@ -39,7 +39,16 @@ const nextUp = (x: number) => {
 const radius = (key: number, data: Record<string, unknown> = {}) => ({
   id: "radius",
   key,
-  data: { lat: 52.37, lng: 4.89, radius: 2, unit: "kilometers", within: true, drag: true, collapsed: false, ...data },
+  data: {
+    lat: 52.37,
+    lng: 4.89,
+    radius: 2,
+    unit: "kilometers",
+    within: true,
+    drag: true,
+    collapsed: false,
+    ...data,
+  },
 });
 
 async function buildTestApp() {
@@ -77,7 +86,11 @@ describe("GET /sessions/:sessionId/questions/history", () => {
       userId,
       JSON.stringify({
         replacementId: randomUUID(),
-        questions: questions.map((payloadJson, ordinal) => ({ clientUuid: randomUUID(), ordinal, payloadJson })),
+        questions: questions.map((payloadJson, ordinal) => ({
+          clientUuid: randomUUID(),
+          ordinal,
+          payloadJson,
+        })),
       }),
     );
   }
@@ -127,7 +140,13 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     });
     await prisma.server.create({ data: { id: SERVER_ID, name: "History Server" } });
     await prisma.game.create({
-      data: { id: GAME_ID, serverId: SERVER_ID, name: "History Game", gameKey: "qhist-game", size: "medium" },
+      data: {
+        id: GAME_ID,
+        serverId: SERVER_ID,
+        name: "History Game",
+        gameKey: "qhist-game",
+        size: "medium",
+      },
     });
     const rev = await prisma.gameRevision.create({
       data: {
@@ -176,7 +195,10 @@ describe("GET /sessions/:sessionId/questions/history", () => {
   });
 
   test("401 without a cookie, 404 for an unknown session, 403 for a stranger", async () => {
-    const anonymous = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/questions/history` });
+    const anonymous = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/questions/history`,
+    });
     expect(anonymous.statusCode).toBe(401);
 
     const unknown = await app.inject({
@@ -213,7 +235,11 @@ describe("GET /sessions/:sessionId/questions/history", () => {
         { sessionId: SESSION_ID, userId: USER3_ID, role: "member", acceptedAt: new Date() },
       ],
     });
-    const zone = { id: "matching", key: K2, data: { type: "custom-zone", name: "Park", geo: { type: "Point", coordinates: [4, 52] } } };
+    const zone = {
+      id: "matching",
+      key: K2,
+      data: { type: "custom-zone", name: "Park", geo: { type: "Point", coordinates: [4, 52] } },
+    };
     await save(USER1_ID, [radius(K1), zone]);
     await save(USER1_ID, [radius(K1)]);
 
@@ -222,7 +248,14 @@ describe("GET /sessions/:sessionId/questions/history", () => {
       expect(res.statusCode).toBe(200);
       return res.json<QuestionHistoryResponse>().entries[0].changes[0];
     };
-    expect(await removal(USER3_ID)).toEqual({ kind: "removed", key: K2, id: "matching", index: 1, typeIndex: 1, question: zone });
+    expect(await removal(USER3_ID)).toEqual({
+      kind: "removed",
+      key: K2,
+      id: "matching",
+      index: 1,
+      typeIndex: 1,
+      question: zone,
+    });
     expect(await removal(USER2_ID)).toEqual({
       kind: "removed",
       key: K2,
@@ -250,7 +283,14 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     expect(answered.sequence).toBeGreaterThan(added.sequence);
     expect(answered).toMatchObject({ userId: USER2_ID, displayName: "History User 2" });
     expect(answered.changes).toEqual([
-      expect.objectContaining({ kind: "changed", key: K1, id: "radius", index: 0, typeIndex: 1, fields: ["within"] }),
+      expect.objectContaining({
+        kind: "changed",
+        key: K1,
+        id: "radius",
+        index: 0,
+        typeIndex: 1,
+        fields: ["within"],
+      }),
     ]);
     expect(added).toMatchObject({ userId: USER1_ID, displayName: "History User 1" });
     expect(added.changes).toEqual([expect.objectContaining({ kind: "added", key: K1 })]);
@@ -268,8 +308,15 @@ describe("GET /sessions/:sessionId/questions/history", () => {
   });
 
   test("a removal carries the full question and the order before it", async () => {
-    const geo = { type: "FeatureCollection", features: [{ type: "Feature", geometry: null, properties: { n: 1 } }] };
-    const zone = { id: "matching", key: K2, data: { type: "custom-zone", geo, same: true, lat: 1, lng: 2 } };
+    const geo = {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", geometry: null, properties: { n: 1 } }],
+    };
+    const zone = {
+      id: "matching",
+      key: K2,
+      data: { type: "custom-zone", geo, same: true, lat: 1, lng: 2 },
+    };
     await save(USER1_ID, [radius(K1), zone, radius(K3)]);
     await save(USER1_ID, [radius(K1), radius(K3)]);
 
@@ -290,7 +337,10 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     await save(USER1_ID, [radius(K1, { radius: 4 }), radius(K2)]);
 
     const first = await entries("?limit=2");
-    expect(first.entries.map((e) => e.changes.map((c) => c.kind))).toEqual([["changed"], ["added"]]);
+    expect(first.entries.map((e) => e.changes.map((c) => c.kind))).toEqual([
+      ["changed"],
+      ["added"],
+    ]);
     expect(first.nextBefore).toBe(first.entries[1].sequence);
 
     const second = await entries(`?limit=2&before=${first.nextBefore}`);
@@ -333,7 +383,11 @@ describe("GET /sessions/:sessionId/questions/history", () => {
   });
 
   test("a removal reads the question at its place, whatever the entry holds", async () => {
-    const zone = { id: "matching", key: K2, data: { type: "custom-zone", geo: { type: "Point", coordinates: [4, 52] } } };
+    const zone = {
+      id: "matching",
+      key: K2,
+      data: { type: "custom-zone", geo: { type: "Point", coordinates: [4, 52] } },
+    };
     const entry = (payloadJson: unknown, ordinal: number, extra = {}) => ({
       clientUuid: randomUUID(),
       ordinal,
@@ -343,12 +397,17 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     // An entry stored with an "index" of its own.
     await insertReplace(
       USER1_ID,
-      JSON.stringify({ replacementId: "a", questions: [entry(radius(K1), 0), entry(zone, 1, { index: 7 })] }),
+      JSON.stringify({
+        replacementId: "a",
+        questions: [entry(radius(K1), 0), entry(zone, 1, { index: 7 })],
+      }),
     );
     await save(USER1_ID, [radius(K1)]);
 
     const [removal] = (await entries()).entries;
-    expect(removal.changes).toEqual([{ kind: "removed", key: K2, id: "matching", index: 1, typeIndex: 1, question: zone }]);
+    expect(removal.changes).toEqual([
+      { kind: "removed", key: K2, id: "matching", index: 1, typeIndex: 1, question: zone },
+    ]);
   });
 
   test("a kicked player's changes keep their name", async () => {
@@ -426,7 +485,11 @@ describe("GET /sessions/:sessionId/questions/history", () => {
         headers: { cookie: cookies[USER1_ID] },
         payload: {
           replacementId: randomUUID(),
-          questions: questions.map((payloadJson, ordinal) => ({ clientUuid: randomUUID(), ordinal, payloadJson })),
+          questions: questions.map((payloadJson, ordinal) => ({
+            clientUuid: randomUUID(),
+            ordinal,
+            payloadJson,
+          })),
         },
       });
       expect(res.statusCode).toBe(204);
@@ -465,11 +528,19 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     expect(first.newest).toBe(first.entries[0].sequence);
 
     // Nothing new.
-    expect(await entries(`?after=${first.newest}`)).toEqual({ entries: [], nextBefore: null, newest: null });
+    expect(await entries(`?after=${first.newest}`)).toEqual({
+      entries: [],
+      nextBefore: null,
+      newest: null,
+    });
 
     // A fold changes nothing, but moves the cursor on.
     const fold = await save(USER1_ID, [radius(K1, { collapsed: true })]);
-    expect(await entries(`?after=${first.newest}`)).toEqual({ entries: [], nextBefore: null, newest: fold });
+    expect(await entries(`?after=${first.newest}`)).toEqual({
+      entries: [],
+      nextBefore: null,
+      newest: fold,
+    });
 
     await save(USER1_ID, [radius(K1, { collapsed: true, within: false })]);
     const last = await save(USER1_ID, [radius(K1, { collapsed: true, within: false }), radius(K2)]);
@@ -489,7 +560,12 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     const start = await save(USER1_ID, [radius(K1)]);
     await save(USER1_ID, [radius(K1, { radius: 3 })]);
     await save(USER1_ID, [radius(K1, { radius: 4 })]);
-    expect(await entries(`?after=${start}&limit=1`)).toEqual({ entries: [], nextBefore: null, newest: null, more: true });
+    expect(await entries(`?after=${start}&limit=1`)).toEqual({
+      entries: [],
+      nextBefore: null,
+      newest: null,
+      more: true,
+    });
     expect((await entries(`?after=${start}&limit=2`)).entries).toHaveLength(2);
 
     pageByteBudget.bytes = 1;
@@ -508,7 +584,10 @@ describe("GET /sessions/:sessionId/questions/history", () => {
     // every save. Coordinates with 17 digits, as computed ones have.
     const boundary = Array.from({ length: 5000 }, (_, i) => {
       const angle = (i / 5000) * 2 * Math.PI;
-      return [4.89 + 0.1 * Math.cos(angle) + i * 1e-9 + 1 / 3e7, 52.37 + 0.1 * Math.sin(angle) + 1 / 7e7];
+      return [
+        4.89 + 0.1 * Math.cos(angle) + i * 1e-9 + 1 / 3e7,
+        52.37 + 0.1 * Math.sin(angle) + 1 / 7e7,
+      ];
     });
     const zoneWith = (ring: number[][], key = K2) => ({
       id: "matching",
@@ -518,7 +597,9 @@ describe("GET /sessions/:sessionId/questions/history", () => {
         same: true,
         geo: {
           type: "FeatureCollection",
-          features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } }],
+          features: [
+            { type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring] } },
+          ],
         },
       },
     });
@@ -553,7 +634,10 @@ describe("GET /sessions/:sessionId/questions/history", () => {
           ["added", K1, undefined],
         ],
       ]);
-      expect(body.entries[0].changes[0]).toMatchObject({ before: { geo: { omitted: true } }, after: { geo: { omitted: true } } });
+      expect(body.entries[0].changes[0]).toMatchObject({
+        before: { geo: { omitted: true } },
+        after: { geo: { omitted: true } },
+      });
     });
 
     test("a removed zone carries its whole boundary, to put back", async () => {

@@ -6,10 +6,10 @@
 const suppressed = new WeakSet<object>();
 
 export function suppressQuestionSave<T extends object>(questions: T): T {
-    suppressed.add(questions);
-    return questions;
+  suppressed.add(questions);
+  return questions;
 }
 
 export function isQuestionSaveSuppressed(questions: object): boolean {
-    return suppressed.has(questions);
+  return suppressed.has(questions);
 }

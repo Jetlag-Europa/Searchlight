@@ -48,7 +48,11 @@ describe("registerCompression", () => {
   });
 
   test("leaves responses under 1 KB alone", async () => {
-    const res = await app.inject({ method: "GET", url: "/small", headers: { "accept-encoding": "br" } });
+    const res = await app.inject({
+      method: "GET",
+      url: "/small",
+      headers: { "accept-encoding": "br" },
+    });
     expect(res.headers["content-encoding"]).toBeUndefined();
     expect(res.json()).toEqual({ ok: true });
   });

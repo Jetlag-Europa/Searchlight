@@ -5,7 +5,12 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, isUnlisted } from "../lib/game-access.js";
 import { badRequest, forbidden, notFound } from "../lib/http-errors.js";
-import { broadcast, closeUserStreams, closeSessionStreams, toEventRecord } from "../lib/broadcaster.js";
+import {
+  broadcast,
+  closeUserStreams,
+  closeSessionStreams,
+  toEventRecord,
+} from "../lib/broadcaster.js";
 import {
   assertCanWrite,
   hiderPositionForRole,
@@ -25,10 +30,9 @@ function conflict(msg: string) {
 
 const nullableNumber = Type.Unsafe<number | null>({ type: ["number", "null"] });
 
-const zoneIdList = Type.Array(
-  Type.String({ minLength: 1, maxLength: MAX_ZONE_ID_LENGTH }),
-  { maxItems: MAX_DISABLED_ZONES },
-);
+const zoneIdList = Type.Array(Type.String({ minLength: 1, maxLength: MAX_ZONE_ID_LENGTH }), {
+  maxItems: MAX_DISABLED_ZONES,
+});
 
 // Total characters of a session's disabled zone IDs: it is sent whole with
 // every change, so keep it well under a request's limits.
@@ -76,7 +80,11 @@ async function assertUpgradeAccess(
   }
   await assertGameAccess(
     userId,
-    { serverId: session.serverId, unlisted: session.game.unlisted, createdById: session.game.createdById },
+    {
+      serverId: session.serverId,
+      unlisted: session.game.unlisted,
+      createdById: session.game.createdById,
+    },
     [revisionId],
     logger,
   );
@@ -147,9 +155,7 @@ export async function createSession({
     gameRevisionId: session.gameRevisionId,
     sessionRevision: revision.revision,
     currentRevision: game.currentRevision?.revision ?? null,
-    hasNewerRevision: Boolean(
-      game.currentRevisionId && revision.id !== game.currentRevisionId,
-    ),
+    hasNewerRevision: Boolean(game.currentRevisionId && revision.id !== game.currentRevisionId),
   };
 }
 
@@ -207,8 +213,7 @@ export async function sessionRoutes(app: FastifyInstance) {
             sessionRevision: s.gameRevision.revision,
             currentRevision: s.game.currentRevision?.revision ?? null,
             hasNewerRevision: Boolean(
-              s.game.currentRevisionId &&
-                s.gameRevisionId !== s.game.currentRevisionId,
+              s.game.currentRevisionId && s.gameRevisionId !== s.game.currentRevisionId,
             ),
           };
         }),
@@ -226,16 +231,19 @@ export async function sessionRoutes(app: FastifyInstance) {
           name: Type.String({ minLength: 1 }),
           // Sessions become shared when the creator makes a join link, so
           // the web app no longer sends this; older clients still may.
-          visibility: Type.Optional(
-            Type.Union([Type.Literal("private"), Type.Literal("shared")]),
-          ),
+          visibility: Type.Optional(Type.Union([Type.Literal("private"), Type.Literal("shared")])),
           gameRevisionId: Type.Optional(Type.String({ minLength: 1 })),
         }),
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
-      const { gameId, name, visibility = "private", gameRevisionId } = req.body as {
+      const {
+        gameId,
+        name,
+        visibility = "private",
+        gameRevisionId,
+      } = req.body as {
         gameId: string;
         name: string;
         visibility?: "private" | "shared";
@@ -369,10 +377,9 @@ export async function sessionRoutes(app: FastifyInstance) {
 
       const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (!isCreator) {
-        throw Object.assign(
-          new Error("Only the session creator can upgrade the game revision"),
-          { statusCode: 403 },
-        );
+        throw Object.assign(new Error("Only the session creator can upgrade the game revision"), {
+          statusCode: 403,
+        });
       }
 
       // Upgrading shares the game's current revision with every participant,
@@ -387,83 +394,84 @@ export async function sessionRoutes(app: FastifyInstance) {
         gameRevisionId: string;
         eventToBroadcast: Event | null;
       };
-      type UpgradeAttempt =
-        | UpgradeResult
-        | { status: "revision-changed"; gameRevisionId: string };
+      type UpgradeAttempt = UpgradeResult | { status: "revision-changed"; gameRevisionId: string };
 
-      const attemptUpgrade = () => prisma.$transaction(async (tx): Promise<UpgradeAttempt> => {
-        const [lockedSession] = await tx.$queryRaw<Array<{ id: string; gameRevisionId: string; eventSequence: number }>>`
+      const attemptUpgrade = () =>
+        prisma.$transaction(async (tx): Promise<UpgradeAttempt> => {
+          const [lockedSession] = await tx.$queryRaw<
+            Array<{ id: string; gameRevisionId: string; eventSequence: number }>
+          >`
           SELECT id, "gameRevisionId", "eventSequence"
           FROM "GameSession"
           WHERE id = ${sessionId}
           FOR UPDATE
         `;
-        if (!lockedSession) throw notFound("Session not found");
+          if (!lockedSession) throw notFound("Session not found");
 
-        // Resolve the target only after serializing session transitions. A request
-        // delayed before the lock must not apply an obsolete published revision.
-        const game = await tx.game.findUnique({
-          where: { id: session.gameId },
-          include: { currentRevision: { select: { id: true, revision: true } } },
-        });
-        if (!game?.currentRevision) {
-          throw notFound("No current revision found for this game");
-        }
-        const targetRevision = game.currentRevision;
-        if (targetRevision.id !== checkedRevisionId) {
-          // Published while this request waited for the lock. Its access
-          // check can call Discord, so it runs after the lock is released.
-          return { status: "revision-changed", gameRevisionId: targetRevision.id };
-        }
+          // Resolve the target only after serializing session transitions. A request
+          // delayed before the lock must not apply an obsolete published revision.
+          const game = await tx.game.findUnique({
+            where: { id: session.gameId },
+            include: { currentRevision: { select: { id: true, revision: true } } },
+          });
+          if (!game?.currentRevision) {
+            throw notFound("No current revision found for this game");
+          }
+          const targetRevision = game.currentRevision;
+          if (targetRevision.id !== checkedRevisionId) {
+            // Published while this request waited for the lock. Its access
+            // check can call Discord, so it runs after the lock is released.
+            return { status: "revision-changed", gameRevisionId: targetRevision.id };
+          }
 
-        if (lockedSession.gameRevisionId === targetRevision.id) {
+          if (lockedSession.gameRevisionId === targetRevision.id) {
+            return {
+              status: "already-current",
+              previousRevision: targetRevision.revision,
+              newRevision: targetRevision.revision,
+              gameRevisionId: targetRevision.id,
+              eventToBroadcast: null,
+            };
+          }
+
+          const previousRevision = await tx.gameRevision.findUniqueOrThrow({
+            where: { id: lockedSession.gameRevisionId },
+            select: { revision: true },
+          });
+
+          const nextSequence = (lockedSession.eventSequence ?? 0) + 1;
+          await tx.gameSession.update({
+            where: { id: sessionId },
+            data: {
+              gameRevisionId: targetRevision.id,
+              eventSequence: nextSequence,
+            },
+          });
+
+          const event = await tx.event.create({
+            data: {
+              sessionId,
+              userId: user.discordId,
+              sequence: nextSequence,
+              type: "session.revision-upgraded",
+              payloadJson: {
+                sessionId,
+                gameRevisionId: targetRevision.id,
+                revision: targetRevision.revision,
+              },
+              clientUuid: `session-revision-upgraded-${sessionId}-${nextSequence}`,
+              clientCreatedAt: new Date(),
+            },
+          });
+
           return {
-            status: "already-current",
-            previousRevision: targetRevision.revision,
+            status: "upgraded",
+            previousRevision: previousRevision.revision,
             newRevision: targetRevision.revision,
             gameRevisionId: targetRevision.id,
-            eventToBroadcast: null,
+            eventToBroadcast: event,
           };
-        }
-
-        const previousRevision = await tx.gameRevision.findUniqueOrThrow({
-          where: { id: lockedSession.gameRevisionId },
-          select: { revision: true },
         });
-
-        const nextSequence = (lockedSession.eventSequence ?? 0) + 1;
-        await tx.gameSession.update({
-          where: { id: sessionId },
-          data: {
-            gameRevisionId: targetRevision.id,
-            eventSequence: nextSequence,
-          },
-        });
-
-        const event = await tx.event.create({
-          data: {
-            sessionId,
-            userId: user.discordId,
-            sequence: nextSequence,
-            type: "session.revision-upgraded",
-            payloadJson: {
-              sessionId,
-              gameRevisionId: targetRevision.id,
-              revision: targetRevision.revision,
-            },
-            clientUuid: `session-revision-upgraded-${sessionId}-${nextSequence}`,
-            clientCreatedAt: new Date(),
-          },
-        });
-
-        return {
-          status: "upgraded",
-          previousRevision: previousRevision.revision,
-          newRevision: targetRevision.revision,
-          gameRevisionId: targetRevision.id,
-          eventToBroadcast: event,
-        };
-      });
 
       let upgradeResult = await attemptUpgrade();
       for (let retries = 0; upgradeResult.status === "revision-changed"; retries++) {
@@ -502,29 +510,32 @@ export async function sessionRoutes(app: FastifyInstance) {
     {
       schema: {
         params: Type.Object({ sessionId: Type.String() }),
-        body: Type.Object({
-          name: Type.Optional(Type.String({ minLength: 1 })),
-          visibility: Type.Optional(
-            Type.Union([Type.Literal("private"), Type.Literal("shared")]),
-          ),
-          // One type list, not a union: Ajv coerces types, so a union's first
-          // branch would turn a cleared position (null) into 0, or a 0 into
-          // null. With a list it coerces only values neither type matches.
-          hiderLat: Type.Optional(nullableNumber),
-          hiderLng: Type.Optional(nullableNumber),
-          planningModeEnabled: Type.Optional(Type.Boolean()),
-          // Zones to add to and remove from the session's disabled zones.
-          // Players edit the set one zone at a time, so changes, not the
-          // whole list, let concurrent edits and retries all apply.
-          disableZoneIds: Type.Optional(zoneIdList),
-          enableZoneIds: Type.Optional(zoneIdList),
-          // The app's ID for the change, stored as its event's clientUuid:
-          // a resend (lost reply, another tab) is recognised and ignored, and
-          // the app knows its own change when it comes back over SSE.
-          zonesClientUuid: Type.Optional(
-            Type.String({ pattern: "^zones-disabled-[A-Za-z0-9-]{1,100}$" }),
-          ),
-        }, { additionalProperties: false }),
+        body: Type.Object(
+          {
+            name: Type.Optional(Type.String({ minLength: 1 })),
+            visibility: Type.Optional(
+              Type.Union([Type.Literal("private"), Type.Literal("shared")]),
+            ),
+            // One type list, not a union: Ajv coerces types, so a union's first
+            // branch would turn a cleared position (null) into 0, or a 0 into
+            // null. With a list it coerces only values neither type matches.
+            hiderLat: Type.Optional(nullableNumber),
+            hiderLng: Type.Optional(nullableNumber),
+            planningModeEnabled: Type.Optional(Type.Boolean()),
+            // Zones to add to and remove from the session's disabled zones.
+            // Players edit the set one zone at a time, so changes, not the
+            // whole list, let concurrent edits and retries all apply.
+            disableZoneIds: Type.Optional(zoneIdList),
+            enableZoneIds: Type.Optional(zoneIdList),
+            // The app's ID for the change, stored as its event's clientUuid:
+            // a resend (lost reply, another tab) is recognised and ignored, and
+            // the app knows its own change when it comes back over SSE.
+            zonesClientUuid: Type.Optional(
+              Type.String({ pattern: "^zones-disabled-[A-Za-z0-9-]{1,100}$" }),
+            ),
+          },
+          { additionalProperties: false },
+        ),
       },
     },
     async (req) => {
@@ -557,162 +568,169 @@ export async function sessionRoutes(app: FastifyInstance) {
         throw badRequest("A zone can't be both disabled and enabled");
       }
 
-      const { updated, eventsToBroadcast } = await prisma.$transaction(async (tx) => {
-        const [locked] = await tx.$queryRaw<Array<{
-          id: string;
-          eventSequence: number;
-          hiderLat: number | null;
-          hiderLng: number | null;
-          planningModeEnabled: boolean;
-          disabledZoneIds: string[];
-        }>>`
+      const { updated, eventsToBroadcast } = await prisma
+        .$transaction(async (tx) => {
+          const [locked] = await tx.$queryRaw<
+            Array<{
+              id: string;
+              eventSequence: number;
+              hiderLat: number | null;
+              hiderLng: number | null;
+              planningModeEnabled: boolean;
+              disabledZoneIds: string[];
+            }>
+          >`
           SELECT id, "eventSequence", "hiderLat", "hiderLng", "planningModeEnabled", "disabledZoneIds"
           FROM "GameSession"
           WHERE id = ${sessionId}
           FOR UPDATE
         `;
-        if (!locked) throw notFound("Session not found");
+          if (!locked) throw notFound("Session not found");
 
-        let curSequence = locked.eventSequence ?? 0;
-        const events: Event[] = [];
+          let curSequence = locked.eventSequence ?? 0;
+          const events: Event[] = [];
 
-        const hiderRequested = body.hiderLat !== undefined || body.hiderLng !== undefined;
-        const newHiderLat = body.hiderLat !== undefined ? body.hiderLat : locked.hiderLat;
-        const newHiderLng = body.hiderLng !== undefined ? body.hiderLng : locked.hiderLng;
-        const hiderChanged = hiderRequested && (newHiderLat !== locked.hiderLat || newHiderLng !== locked.hiderLng);
+          const hiderRequested = body.hiderLat !== undefined || body.hiderLng !== undefined;
+          const newHiderLat = body.hiderLat !== undefined ? body.hiderLat : locked.hiderLat;
+          const newHiderLng = body.hiderLng !== undefined ? body.hiderLng : locked.hiderLng;
+          const hiderChanged =
+            hiderRequested && (newHiderLat !== locked.hiderLat || newHiderLng !== locked.hiderLng);
 
-        const planningRequested = body.planningModeEnabled !== undefined;
-        const newPlanning = planningRequested ? body.planningModeEnabled : locked.planningModeEnabled;
-        const planningChanged = planningRequested && newPlanning !== locked.planningModeEnabled;
+          const planningRequested = body.planningModeEnabled !== undefined;
+          const newPlanning = planningRequested
+            ? body.planningModeEnabled
+            : locked.planningModeEnabled;
+          const planningChanged = planningRequested && newPlanning !== locked.planningModeEnabled;
 
-        // A change already applied (its event exists) is not applied again:
-        // in between, another player may have undone part of it.
-        const zonesClientUuid = body.zonesClientUuid ?? `zones-disabled-${randomUUID()}`;
-        let zonesAlreadyApplied = false;
-        if (body.zonesClientUuid !== undefined) {
-          const existing = await tx.event.findUnique({ where: { clientUuid: zonesClientUuid } });
-          if (existing) {
-            if (existing.sessionId !== sessionId || existing.type !== "zones.disabled") {
-              throw conflict("The zones change ID belongs to another change");
+          // A change already applied (its event exists) is not applied again:
+          // in between, another player may have undone part of it.
+          const zonesClientUuid = body.zonesClientUuid ?? `zones-disabled-${randomUUID()}`;
+          let zonesAlreadyApplied = false;
+          if (body.zonesClientUuid !== undefined) {
+            const existing = await tx.event.findUnique({ where: { clientUuid: zonesClientUuid } });
+            if (existing) {
+              if (existing.sessionId !== sessionId || existing.type !== "zones.disabled") {
+                throw conflict("The zones change ID belongs to another change");
+              }
+              zonesAlreadyApplied = true;
             }
-            zonesAlreadyApplied = true;
           }
-        }
 
-        // Set operations under the row lock: edits from several players all
-        // apply. Stored deduplicated and sorted.
-        const oldDisabledZoneIds = [...locked.disabledZoneIds].sort();
-        const disabledZones = new Set(oldDisabledZoneIds);
-        if (!zonesAlreadyApplied) {
-          for (const id of body.disableZoneIds ?? []) disabledZones.add(id);
-          for (const id of enabling) disabledZones.delete(id);
-        }
-        const newDisabledZoneIds = [...disabledZones].sort();
-        const disabledZonesChanged =
-          newDisabledZoneIds.length !== oldDisabledZoneIds.length ||
-          newDisabledZoneIds.some((id, i) => id !== oldDisabledZoneIds[i]);
-        if (disabledZonesChanged && (
-          newDisabledZoneIds.length > MAX_DISABLED_ZONES ||
-          newDisabledZoneIds.reduce((sum, id) => sum + id.length, 0) > MAX_DISABLED_ZONE_CHARS
-        )) {
-          throw badRequest("The session has too many disabled zones");
-        }
+          // Set operations under the row lock: edits from several players all
+          // apply. Stored deduplicated and sorted.
+          const oldDisabledZoneIds = [...locked.disabledZoneIds].sort();
+          const disabledZones = new Set(oldDisabledZoneIds);
+          if (!zonesAlreadyApplied) {
+            for (const id of body.disableZoneIds ?? []) disabledZones.add(id);
+            for (const id of enabling) disabledZones.delete(id);
+          }
+          const newDisabledZoneIds = [...disabledZones].sort();
+          const disabledZonesChanged =
+            newDisabledZoneIds.length !== oldDisabledZoneIds.length ||
+            newDisabledZoneIds.some((id, i) => id !== oldDisabledZoneIds[i]);
+          if (
+            disabledZonesChanged &&
+            (newDisabledZoneIds.length > MAX_DISABLED_ZONES ||
+              newDisabledZoneIds.reduce((sum, id) => sum + id.length, 0) > MAX_DISABLED_ZONE_CHARS)
+          ) {
+            throw badRequest("The session has too many disabled zones");
+          }
 
-        if (hiderChanged) {
-          curSequence += 1;
-          const hiderEvent = await tx.event.create({
-            data: {
-              sessionId,
-              userId: user.discordId,
-              sequence: curSequence,
-              type: "hider.update",
-              payloadJson: { hiderLat: newHiderLat, hiderLng: newHiderLng },
-              clientUuid: `hider-update-${sessionId}-${curSequence}`,
-              clientCreatedAt: new Date(),
-            },
-          });
-          events.push(hiderEvent);
-        }
-
-        if (planningChanged) {
-          curSequence += 1;
-          const planningEvent = await tx.event.create({
-            data: {
-              sessionId,
-              userId: user.discordId,
-              sequence: curSequence,
-              type: "planning.toggle",
-              payloadJson: { planningModeEnabled: newPlanning },
-              clientUuid: `planning-toggle-${sessionId}-${curSequence}`,
-              clientCreatedAt: new Date(),
-            },
-          });
-          events.push(planningEvent);
-        }
-
-        // A change with an ID is recorded even if it changed nothing (another
-        // player made it first): a resend is then still recognised, and the
-        // app sees it come back over SSE.
-        const recordZonesChange = !zonesAlreadyApplied && (
-          disabledZonesChanged || body.zonesClientUuid !== undefined
-        );
-        if (recordZonesChange) {
-          curSequence += 1;
-          const zonesEvent = await tx.event.create({
-            data: {
-              sessionId,
-              userId: user.discordId,
-              sequence: curSequence,
-              type: "zones.disabled",
-              payloadJson: { disabledZoneIds: newDisabledZoneIds },
-              clientUuid: zonesClientUuid,
-              clientCreatedAt: new Date(),
-            },
-          });
-          events.push(zonesEvent);
-        }
-
-        // Copy only the fields this route owns; never spread the request body
-        // into the update, or a caller could overwrite creatorId, serverId, etc.
-        const updateData: Record<string, unknown> = {};
-        if (body.name !== undefined) updateData.name = body.name;
-        if (body.visibility !== undefined) updateData.visibility = body.visibility;
-        if (body.hiderLat !== undefined) updateData.hiderLat = body.hiderLat;
-        if (body.hiderLng !== undefined) updateData.hiderLng = body.hiderLng;
-        if (body.planningModeEnabled !== undefined) {
-          updateData.planningModeEnabled = body.planningModeEnabled;
-        }
-        if (disabledZonesChanged) {
-          updateData.disabledZoneIds = newDisabledZoneIds;
-        }
-        if (curSequence !== locked.eventSequence) {
-          updateData.eventSequence = curSequence;
-        }
-
-        const updatedSession = await tx.gameSession.update({
-          where: { id: sessionId },
-          data: updateData,
-          include: {
-            game: {
-              select: {
-                name: true,
-                currentRevisionId: true,
-                currentRevision: { select: { revision: true } },
+          if (hiderChanged) {
+            curSequence += 1;
+            const hiderEvent = await tx.event.create({
+              data: {
+                sessionId,
+                userId: user.discordId,
+                sequence: curSequence,
+                type: "hider.update",
+                payloadJson: { hiderLat: newHiderLat, hiderLng: newHiderLng },
+                clientUuid: `hider-update-${sessionId}-${curSequence}`,
+                clientCreatedAt: new Date(),
               },
-            },
-            gameRevision: { select: { revision: true } },
-          },
-        });
+            });
+            events.push(hiderEvent);
+          }
 
-        return { updated: updatedSession, eventsToBroadcast: events };
-      }).catch((err: unknown) => {
-        // The row lock orders resends to one session; the same change ID
-        // sent to two sessions at once loses the race here.
-        if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
-          throw conflict("The zones change ID belongs to another change");
-        }
-        throw err;
-      });
+          if (planningChanged) {
+            curSequence += 1;
+            const planningEvent = await tx.event.create({
+              data: {
+                sessionId,
+                userId: user.discordId,
+                sequence: curSequence,
+                type: "planning.toggle",
+                payloadJson: { planningModeEnabled: newPlanning },
+                clientUuid: `planning-toggle-${sessionId}-${curSequence}`,
+                clientCreatedAt: new Date(),
+              },
+            });
+            events.push(planningEvent);
+          }
+
+          // A change with an ID is recorded even if it changed nothing (another
+          // player made it first): a resend is then still recognised, and the
+          // app sees it come back over SSE.
+          const recordZonesChange =
+            !zonesAlreadyApplied && (disabledZonesChanged || body.zonesClientUuid !== undefined);
+          if (recordZonesChange) {
+            curSequence += 1;
+            const zonesEvent = await tx.event.create({
+              data: {
+                sessionId,
+                userId: user.discordId,
+                sequence: curSequence,
+                type: "zones.disabled",
+                payloadJson: { disabledZoneIds: newDisabledZoneIds },
+                clientUuid: zonesClientUuid,
+                clientCreatedAt: new Date(),
+              },
+            });
+            events.push(zonesEvent);
+          }
+
+          // Copy only the fields this route owns; never spread the request body
+          // into the update, or a caller could overwrite creatorId, serverId, etc.
+          const updateData: Record<string, unknown> = {};
+          if (body.name !== undefined) updateData.name = body.name;
+          if (body.visibility !== undefined) updateData.visibility = body.visibility;
+          if (body.hiderLat !== undefined) updateData.hiderLat = body.hiderLat;
+          if (body.hiderLng !== undefined) updateData.hiderLng = body.hiderLng;
+          if (body.planningModeEnabled !== undefined) {
+            updateData.planningModeEnabled = body.planningModeEnabled;
+          }
+          if (disabledZonesChanged) {
+            updateData.disabledZoneIds = newDisabledZoneIds;
+          }
+          if (curSequence !== locked.eventSequence) {
+            updateData.eventSequence = curSequence;
+          }
+
+          const updatedSession = await tx.gameSession.update({
+            where: { id: sessionId },
+            data: updateData,
+            include: {
+              game: {
+                select: {
+                  name: true,
+                  currentRevisionId: true,
+                  currentRevision: { select: { revision: true } },
+                },
+              },
+              gameRevision: { select: { revision: true } },
+            },
+          });
+
+          return { updated: updatedSession, eventsToBroadcast: events };
+        })
+        .catch((err: unknown) => {
+          // The row lock orders resends to one session; the same change ID
+          // sent to two sessions at once loses the race here.
+          if (typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+            throw conflict("The zones change ID belongs to another change");
+          }
+          throw err;
+        });
 
       for (const e of eventsToBroadcast) {
         broadcast(sessionId, toEventRecord(e));
@@ -803,9 +821,12 @@ export async function sessionRoutes(app: FastifyInstance) {
     {
       schema: {
         params: Type.Object({ sessionId: Type.String(), userId: Type.String() }),
-        body: Type.Object({
-          role: Type.Union([Type.Literal("member"), Type.Literal("viewer")]),
-        }, { additionalProperties: false }),
+        body: Type.Object(
+          {
+            role: Type.Union([Type.Literal("member"), Type.Literal("viewer")]),
+          },
+          { additionalProperties: false },
+        ),
       },
     },
     async (req) => {
@@ -818,7 +839,8 @@ export async function sessionRoutes(app: FastifyInstance) {
 
       const { session, isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (!isCreator) throw forbidden("Only the creator can change participants' roles");
-      if (targetUserId === session.creatorId) throw forbidden("Cannot change the session creator's role");
+      if (targetUserId === session.creatorId)
+        throw forbidden("Cannot change the session creator's role");
 
       const target = await prisma.sessionParticipant.findUnique({
         where: { sessionId_userId: { sessionId, userId: targetUserId } },
@@ -842,7 +864,10 @@ export async function sessionRoutes(app: FastifyInstance) {
       });
       closeUserStreams(sessionId, targetUserId);
 
-      req.log.info({ sessionId, userId: targetUserId, role }, "[sessions] participant role changed");
+      req.log.info(
+        { sessionId, userId: targetUserId, role },
+        "[sessions] participant role changed",
+      );
       return { userId: targetUserId, role };
     },
   );
@@ -921,7 +946,10 @@ export async function sessionRoutes(app: FastifyInstance) {
       // join and view: promote to shared if private. Both are live, so they
       // need no snapshot.
       if (session.visibility === "private") {
-        await prisma.gameSession.update({ where: { id: sessionId }, data: { visibility: "shared" } });
+        await prisma.gameSession.update({
+          where: { id: sessionId },
+          data: { visibility: "shared" },
+        });
       }
       const link = await prisma.sessionLink.create({
         data: { token, sessionId, createdById: user.discordId, linkType },

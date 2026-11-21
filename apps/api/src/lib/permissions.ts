@@ -74,7 +74,9 @@ async function virtualServerPermissions(
     return new Set();
   }
   return new Set(
-    server.rolePermissions.filter((rp) => roles.includes(rp.discordRoleId)).map((rp) => rp.permission),
+    server.rolePermissions
+      .filter((rp) => roles.includes(rp.discordRoleId))
+      .map((rp) => rp.permission),
   );
 }
 
@@ -138,7 +140,9 @@ export async function hasPermissionOnSomeServer(
 
   const serverIds = [
     ...memberships.map((membership) => membership.serverId),
-    ...virtualServers.filter((server) => cachedGuilds.has(server.managementGuildId!)).map((server) => server.id),
+    ...virtualServers
+      .filter((server) => cachedGuilds.has(server.managementGuildId!))
+      .map((server) => server.id),
   ];
   for (const serverId of serverIds) {
     try {
@@ -214,7 +218,9 @@ function fetchAndCacheMembership(
   const key = `${userId}:${serverId}`;
   let pending = pendingLookups.get(key);
   if (!pending) {
-    pending = lookUpAndCacheMembership(userId, serverId, logger).finally(() => pendingLookups.delete(key));
+    pending = lookUpAndCacheMembership(userId, serverId, logger).finally(() =>
+      pendingLookups.delete(key),
+    );
     pendingLookups.set(key, pending);
   }
   return pending;
@@ -292,7 +298,10 @@ export async function getListingAccess(
   }
 
   const { isMember, roles } = await getListingMembership(userId, serverId, recheck, logger);
-  return { isMember, permissions: isMember ? await permissionsForRoles(serverId, roles) : new Set() };
+  return {
+    isMember,
+    permissions: isMember ? await permissionsForRoles(serverId, roles) : new Set(),
+  };
 }
 
 async function getListingMembership(

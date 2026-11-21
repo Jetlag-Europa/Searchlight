@@ -1,9 +1,6 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { relative, resolve } from "node:path";
-import {
-  formatGameDefinitionJson,
-  type GameDefinition,
-} from "../packages/shared/src/index.js";
+import { formatGameDefinitionJson, type GameDefinition } from "../packages/shared/src/index.js";
 // The import page's overlap fixer, so files fixed here match fixes made there.
 import {
   findRegionOverlaps,
@@ -33,9 +30,7 @@ async function main() {
       const regions = layer.data.features as Region[];
       const isRegionLayer =
         regions.length > 0 &&
-        regions.every(
-          (f) => f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon",
-        );
+        regions.every((f) => f.geometry.type === "Polygon" || f.geometry.type === "MultiPolygon");
       if (!isRegionLayer) return layer;
       const overlaps = findRegionOverlaps({ regions });
       if (overlaps.hidden.length) {

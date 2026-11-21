@@ -32,9 +32,7 @@ declare module "fastify" {
   }
 }
 
-export async function resolveImportActor(
-  req: FastifyRequest,
-): Promise<ImportActor> {
+export async function resolveImportActor(req: FastifyRequest): Promise<ImportActor> {
   // Session cookie auth
   const { user } = await resolveSession(req);
   // Turn away users who can't import anywhere before the body is parsed; the
@@ -59,9 +57,7 @@ export async function resolveImportActor(
 // and If-None-Match may list several tags.
 function matchesETag(ifNoneMatch: string | undefined, etag: string): boolean {
   if (!ifNoneMatch) return false;
-  return ifNoneMatch
-    .split(",")
-    .some((tag) => tag.trim().replace(/^W\//, "") === etag);
+  return ifNoneMatch.split(",").some((tag) => tag.trim().replace(/^W\//, "") === etag);
 }
 
 // RFC 6266: the quoted filename must be plain ASCII, so non-ASCII names go in
@@ -277,54 +273,51 @@ export async function gameImportRoutes(app: FastifyInstance) {
   );
 
   // GET /games/:gameId/export
-  app.get(
-    "/:gameId/export",
-    async (req, reply) => {
-      const { gameId } = req.params as { gameId: string };
-      const include = { currentRevision: { select: { id: true, checksum: true } } };
-      let game = await prisma.game.findUnique({ where: { id: gameId }, include });
-      if (!game) {
-        // The web build before ids became per server exports by the file's
-        // id, and browsers keep it until reloaded: honour that while the id
-        // names one game. Remove in the release after the one with this change.
-        const byKey = await prisma.game.findMany({ where: { gameKey: gameId }, include, take: 2 });
-        if (byKey.length === 1) game = byKey[0];
-      }
+  app.get("/:gameId/export", async (req, reply) => {
+    const { gameId } = req.params as { gameId: string };
+    const include = { currentRevision: { select: { id: true, checksum: true } } };
+    let game = await prisma.game.findUnique({ where: { id: gameId }, include });
+    if (!game) {
+      // The web build before ids became per server exports by the file's
+      // id, and browsers keep it until reloaded: honour that while the id
+      // names one game. Remove in the release after the one with this change.
+      const byKey = await prisma.game.findMany({ where: { gameKey: gameId }, include, take: 2 });
+      if (byKey.length === 1) game = byKey[0];
+    }
 
-      if (!game) {
-        return reply.status(404).send({ error: "Game not found" });
-      }
+    if (!game) {
+      return reply.status(404).send({ error: "Game not found" });
+    }
 
-      const revision = game.currentRevision;
-      if (!revision) {
-        return reply.status(404).send({ error: "Game definition not found" });
-      }
+    const revision = game.currentRevision;
+    if (!revision) {
+      return reply.status(404).send({ error: "Game definition not found" });
+    }
 
-      await assertGameDefinitionAccess({
-        req,
-        game,
-        revisionIds: [revision.id],
-      });
+    await assertGameDefinitionAccess({
+      req,
+      game,
+      revisionIds: [revision.id],
+    });
 
-      const etag = `"${revision.checksum}"`;
-      if (matchesETag(req.headers["if-none-match"], etag)) {
-        return reply.status(304).send();
-      }
+    const etag = `"${revision.checksum}"`;
+    if (matchesETag(req.headers["if-none-match"], etag)) {
+      return reply.status(304).send();
+    }
 
-      const definition = await loadDefinition(revision.id);
-      if (!definition) {
-        return reply.status(404).send({ error: "Game definition not found" });
-      }
+    const definition = await loadDefinition(revision.id);
+    if (!definition) {
+      return reply.status(404).send({ error: "Game definition not found" });
+    }
 
-      // Compact JSON: pretty-printing made definitions ~4.5x larger on the
-      // wire. Downloads are re-formatted client-side.
-      return reply
-        .header("Content-Type", "application/json; charset=utf-8")
-        .header("ETag", etag)
-        .header("Content-Disposition", attachmentDisposition(`${game.gameKey}.game.json`))
-        .send(JSON.stringify(definition));
-    },
-  );
+    // Compact JSON: pretty-printing made definitions ~4.5x larger on the
+    // wire. Downloads are re-formatted client-side.
+    return reply
+      .header("Content-Type", "application/json; charset=utf-8")
+      .header("ETag", etag)
+      .header("Content-Disposition", attachmentDisposition(`${game.gameKey}.game.json`))
+      .send(JSON.stringify(definition));
+  });
 
   // GET /games/revisions/:revisionId
   app.get(

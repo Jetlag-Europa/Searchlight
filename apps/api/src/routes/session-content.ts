@@ -172,10 +172,16 @@ export async function sessionContentRoutes(app: FastifyInstance) {
 
       if (transactionResult.eventToBroadcast) {
         const e = transactionResult.eventToBroadcast;
-        req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.create event saved, broadcasting");
+        req.log.info(
+          { sessionId, eventId: e.id, clientUuid, sequence: e.sequence },
+          "[events] stroke.create event saved, broadcasting",
+        );
         broadcast(sessionId, toEventRecord(e));
       } else {
-        req.log.info({ sessionId, clientUuid }, "[events] stroke already exists, skipping event write and broadcast");
+        req.log.info(
+          { sessionId, clientUuid },
+          "[events] stroke already exists, skipping event write and broadcast",
+        );
       }
 
       return reply.status(201).send({
@@ -285,10 +291,16 @@ export async function sessionContentRoutes(app: FastifyInstance) {
 
       if (eventToBroadcast) {
         const e = eventToBroadcast;
-        req.log.info({ sessionId, eventId: e.id, clientUuid, sequence: e.sequence }, "[events] stroke.delete event saved, broadcasting");
+        req.log.info(
+          { sessionId, eventId: e.id, clientUuid, sequence: e.sequence },
+          "[events] stroke.delete event saved, broadcasting",
+        );
         broadcast(sessionId, toEventRecord(e));
       } else {
-        req.log.info({ sessionId, clientUuid }, "[events] stroke delete already processed, skipping broadcast");
+        req.log.info(
+          { sessionId, clientUuid },
+          "[events] stroke delete already processed, skipping broadcast",
+        );
       }
 
       return reply.status(204).send();
@@ -353,7 +365,11 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await resolveSessionAccess(sessionId, user.discordId);
 
-      const { after, until = 2147483647, keys: keysParam } = req.query as {
+      const {
+        after,
+        until = 2147483647,
+        keys: keysParam,
+      } = req.query as {
         after: number;
         until?: number;
         keys: string;
@@ -441,7 +457,11 @@ export async function sessionContentRoutes(app: FastifyInstance) {
       const { sessionId } = req.params as { sessionId: string };
       await resolveSessionWriter(sessionId, user.discordId);
 
-      const { questions: incoming, replacementId, baseSequence } = req.body as {
+      const {
+        questions: incoming,
+        replacementId,
+        baseSequence,
+      } = req.body as {
         questions: Array<{ clientUuid: string; ordinal: number; payloadJson: unknown }>;
         replacementId: string;
         baseSequence?: number;
@@ -526,7 +546,13 @@ export async function sessionContentRoutes(app: FastifyInstance) {
           return { ...event, payloadJson: eventPayload as object };
         });
       } catch (err: unknown) {
-        if (replacementId && typeof err === "object" && err !== null && "code" in err && err.code === "P2002") {
+        if (
+          replacementId &&
+          typeof err === "object" &&
+          err !== null &&
+          "code" in err &&
+          err.code === "P2002"
+        ) {
           const existingEvent = await prisma.event.findUnique({
             where: { clientUuid: `questions-replace-${replacementId}` },
           });
@@ -546,16 +572,24 @@ export async function sessionContentRoutes(app: FastifyInstance) {
 
       if (eventToBroadcast) {
         const e = eventToBroadcast;
-        req.log.info({ sessionId, eventId: e.id, replacementId, sequence: e.sequence }, "[events] questions.replace event saved, broadcasting");
+        req.log.info(
+          { sessionId, eventId: e.id, replacementId, sequence: e.sequence },
+          "[events] questions.replace event saved, broadcasting",
+        );
         broadcast(sessionId, toEventRecord(e));
       } else {
-        req.log.info({ sessionId, replacementId }, "[events] questions.replace duplicate skipped broadcast");
+        req.log.info(
+          { sessionId, replacementId },
+          "[events] questions.replace duplicate skipped broadcast",
+        );
       }
 
       if (baseSequence === undefined) return reply.status(204).send();
       // `duplicate`: this list was saved before (a retry whose first answer
       // was lost); nothing changed now.
-      return reply.status(200).send({ sequence: savedSequence, ...(duplicate ? { duplicate } : {}) });
+      return reply
+        .status(200)
+        .send({ sequence: savedSequence, ...(duplicate ? { duplicate } : {}) });
     },
   );
 }

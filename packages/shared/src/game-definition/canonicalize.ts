@@ -56,12 +56,10 @@ function sha256Utf8(str: string): string {
         w[i] = (w[i - 16] + s0 + w[i - 7] + s1) | 0;
       }
 
-      const s0 =
-        rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
+      const s0 = rightRotate(hash[0], 2) ^ rightRotate(hash[0], 13) ^ rightRotate(hash[0], 22);
       const maj = (hash[0] & hash[1]) ^ (hash[0] & hash[2]) ^ (hash[1] & hash[2]);
       const t2 = (s0 + maj) | 0;
-      const s1 =
-        rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
+      const s1 = rightRotate(hash[4], 6) ^ rightRotate(hash[4], 11) ^ rightRotate(hash[4], 25);
       const ch = (hash[4] & hash[5]) ^ (~hash[4] & hash[6]);
       const t1 = (hash[7] + s1 + ch + k[i] + w[i]) | 0;
 
@@ -93,9 +91,7 @@ function sha256Utf8(str: string): string {
 /**
  * Normalizes defaults on game definition prior to hashing.
  */
-export function materializeCanonicalDefaults(
-  definition: GameDefinition,
-): GameDefinition {
+export function materializeCanonicalDefaults(definition: GameDefinition): GameDefinition {
   const cloned: GameDefinition = JSON.parse(JSON.stringify(definition));
   const id = resolveGameDefinitionId(cloned);
   cloned.id = id;

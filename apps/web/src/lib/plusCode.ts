@@ -4,9 +4,9 @@
  * none). A short code needs the locality to be resolved.
  */
 export function splitPlusCode(input: string): {
-    code: string;
-    locality: string;
+  code: string;
+  locality: string;
 } {
-    const [, code, locality] = input.trim().match(/^([^\s,]*)[\s,]*(.*)$/s)!;
-    return { code, locality: locality.replace(/\s+/g, " ") };
+  const [, code, locality] = input.trim().match(/^([^\s,]*)[\s,]*(.*)$/s)!;
+  return { code, locality: locality.replace(/\s+/g, " ") };
 }

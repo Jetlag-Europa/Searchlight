@@ -4,12 +4,12 @@ import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 // GET /servers lists every server, so other test files' servers fail the
 // lookup: a cached membership on one would stop that file deleting it.
 vi.mock("../lib/discord-client.js", () => ({
-    discord: {
-        getGuildMember: vi.fn(async (serverId: string) => {
-            if (!serverId.startsWith("test-servers-")) throw new Error("Not this file's server");
-            return serverId === "test-servers-member" ? { roles: [], nick: null } : null;
-        }),
-    },
+  discord: {
+    getGuildMember: vi.fn(async (serverId: string) => {
+      if (!serverId.startsWith("test-servers-")) throw new Error("Not this file's server");
+      return serverId === "test-servers-member" ? { roles: [], nick: null } : null;
+    }),
+  },
 }));
 
 import Fastify from "fastify";
@@ -32,155 +32,173 @@ const GAME_ID = "test-servers-game";
 const SESSION_ID = "test-servers-session-1";
 
 async function buildTestApp() {
-    const app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
-    await app.register(fastifyCookie, { secret: process.env["SESSION_COOKIE_SECRET"]! });
-    await app.register(serverRoutes, { prefix: "/servers" });
-    await app.ready();
-    return app;
+  const app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
+  await app.register(fastifyCookie, { secret: process.env["SESSION_COOKIE_SECRET"]! });
+  await app.register(serverRoutes, { prefix: "/servers" });
+  await app.ready();
+  return app;
 }
 
 function signedCookie(app: Awaited<ReturnType<typeof buildTestApp>>, value: string) {
-    return `session=${app.signCookie(value)}`;
+  return `session=${app.signCookie(value)}`;
 }
 
 async function cleanup() {
-    await prisma.gameSession.deleteMany({ where: { id: SESSION_ID } });
-    await prisma.gameRevision.deleteMany({ where: { gameId: GAME_ID } });
-    await prisma.game.deleteMany({ where: { id: GAME_ID } });
-    await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
-    await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
-    await prisma.server.deleteMany({ where: { id: { in: TEST_SERVER_IDS } } });
-    await prisma.user.deleteMany({ where: { discordId: USER_ID } });
+  await prisma.gameSession.deleteMany({ where: { id: SESSION_ID } });
+  await prisma.gameRevision.deleteMany({ where: { gameId: GAME_ID } });
+  await prisma.game.deleteMany({ where: { id: GAME_ID } });
+  await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
+  await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+  await prisma.server.deleteMany({ where: { id: { in: TEST_SERVER_IDS } } });
+  await prisma.user.deleteMany({ where: { discordId: USER_ID } });
 }
 
 describe("GET /servers", () => {
-    let app: Awaited<ReturnType<typeof buildTestApp>>;
+  let app: Awaited<ReturnType<typeof buildTestApp>>;
 
-    beforeAll(async () => {
-        await cleanup();
+  beforeAll(async () => {
+    await cleanup();
 
-        await prisma.user.create({
-            data: {
-                discordId: USER_ID,
-                username: "servers-virtual",
-                displayName: "Servers Virtual",
-                avatarUrl: "https://example.com/a.png",
-                discordAccessToken: "tok",
-                discordRefreshToken: "ref",
-                discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
-            },
-        });
-        await prisma.authSession.create({
-            data: { id: AUTH_SESSION_ID, userId: USER_ID, expiresAt: new Date(Date.now() + 86_400_000) },
-        });
-        await prisma.server.createMany({
-            data: [{ id: CASUAL_GAMES_ID, name: "Casual Games" }],
-            skipDuplicates: true,
-        });
-        await prisma.server.createMany({
-            data: [
-                { id: MEMBER_SERVER_ID, name: "Member Server" },
-                { id: OTHER_SERVER_ID, name: "Other Server" },
-                { id: SESSION_SERVER_ID, name: "Session Server" },
-            ],
-        });
-
-        // A session on a server the user isn't in, as started from a game link.
-        await prisma.game.create({
-            data: { id: GAME_ID, serverId: SESSION_SERVER_ID, name: "Linked Game", gameKey: GAME_ID, size: "medium" },
-        });
-        const rev = await prisma.gameRevision.create({
-            data: { gameId: GAME_ID, revision: 1, checksum: "test-servers-rev", definition: {} },
-        });
-        await prisma.gameSession.create({
-            data: {
-                id: SESSION_ID,
-                gameId: GAME_ID,
-                serverId: SESSION_SERVER_ID,
-                creatorId: USER_ID,
-                name: "Linked Session",
-                visibility: "private",
-                gameRevisionId: rev.id,
-            },
-        });
-
-        app = await buildTestApp();
+    await prisma.user.create({
+      data: {
+        discordId: USER_ID,
+        username: "servers-virtual",
+        displayName: "Servers Virtual",
+        avatarUrl: "https://example.com/a.png",
+        discordAccessToken: "tok",
+        discordRefreshToken: "ref",
+        discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+    await prisma.authSession.create({
+      data: { id: AUTH_SESSION_ID, userId: USER_ID, expiresAt: new Date(Date.now() + 86_400_000) },
+    });
+    await prisma.server.createMany({
+      data: [{ id: CASUAL_GAMES_ID, name: "Casual Games" }],
+      skipDuplicates: true,
+    });
+    await prisma.server.createMany({
+      data: [
+        { id: MEMBER_SERVER_ID, name: "Member Server" },
+        { id: OTHER_SERVER_ID, name: "Other Server" },
+        { id: SESSION_SERVER_ID, name: "Session Server" },
+      ],
     });
 
-    afterAll(async () => {
-        await cleanup();
-        if (app) {
-            await app.close();
-        }
+    // A session on a server the user isn't in, as started from a game link.
+    await prisma.game.create({
+      data: {
+        id: GAME_ID,
+        serverId: SESSION_SERVER_ID,
+        name: "Linked Game",
+        gameKey: GAME_ID,
+        size: "medium",
+      },
+    });
+    const rev = await prisma.gameRevision.create({
+      data: { gameId: GAME_ID, revision: 1, checksum: "test-servers-rev", definition: {} },
+    });
+    await prisma.gameSession.create({
+      data: {
+        id: SESSION_ID,
+        gameId: GAME_ID,
+        serverId: SESSION_SERVER_ID,
+        creatorId: USER_ID,
+        name: "Linked Session",
+        visibility: "private",
+        gameRevisionId: rev.id,
+      },
     });
 
-    async function listServers(query = "") {
-        const res = await app.inject({
-            method: "GET",
-            url: `/servers${query}`,
-            headers: { cookie: signedCookie(app, AUTH_SESSION_ID) },
-        });
-        expect(res.statusCode).toBe(200);
-        return res.json().servers as { id: string; permissions: string[]; isMember: boolean }[];
+    app = await buildTestApp();
+  });
+
+  afterAll(async () => {
+    await cleanup();
+    if (app) {
+      await app.close();
     }
+  });
 
-    test("leaves out Casual Games for a user without sessions or permissions there", async () => {
-        const ids = (await listServers()).map((s) => s.id);
-        expect(ids).not.toContain(CASUAL_GAMES_ID);
-        // It has no guild to look up.
-        expect(mockGetMember).not.toHaveBeenCalledWith(CASUAL_GAMES_ID, expect.anything(), expect.anything());
+  async function listServers(query = "") {
+    const res = await app.inject({
+      method: "GET",
+      url: `/servers${query}`,
+      headers: { cookie: signedCookie(app, AUTH_SESSION_ID) },
     });
+    expect(res.statusCode).toBe(200);
+    return res.json().servers as { id: string; permissions: string[]; isMember: boolean }[];
+  }
 
-    test("lists servers the user is in and leaves out the ones they aren't", async () => {
-        const ids = (await listServers()).map((s) => s.id);
-        expect(ids).toContain(MEMBER_SERVER_ID);
-        expect(ids).not.toContain(OTHER_SERVER_ID);
+  test("leaves out Casual Games for a user without sessions or permissions there", async () => {
+    const ids = (await listServers()).map((s) => s.id);
+    expect(ids).not.toContain(CASUAL_GAMES_ID);
+    // It has no guild to look up.
+    expect(mockGetMember).not.toHaveBeenCalledWith(
+      CASUAL_GAMES_ID,
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  test("lists servers the user is in and leaves out the ones they aren't", async () => {
+    const ids = (await listServers()).map((s) => s.id);
+    expect(ids).toContain(MEMBER_SERVER_ID);
+    expect(ids).not.toContain(OTHER_SERVER_ID);
+  });
+
+  test("lists a server the user isn't in when they have a session there, as a non-member", async () => {
+    const servers = await listServers();
+    expect(servers.find((s) => s.id === MEMBER_SERVER_ID)!.isMember).toBe(true);
+    const sessionServer = servers.find((s) => s.id === SESSION_SERVER_ID);
+    expect(sessionServer).toMatchObject({ isMember: false, permissions: [] });
+  });
+
+  test("keeps a server with the user's sessions listed when Discord can't be reached", async () => {
+    await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+    const answerMembership = mockGetMember.getMockImplementation();
+    mockGetMember.mockRejectedValue(new Error("Discord unavailable"));
+    try {
+      const ids = (await listServers()).map((s) => s.id);
+      expect(ids).toContain(SESSION_SERVER_ID);
+      expect(ids).not.toContain(MEMBER_SERVER_ID);
+      expect(ids).not.toContain(OTHER_SERVER_ID);
+    } finally {
+      mockGetMember.mockImplementation(answerMembership!);
+    }
+  });
+
+  test("recheck=true lists a server the user joined since it was last checked", async () => {
+    await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+    await listServers();
+    await prisma.serverMembershipCache.updateMany({
+      where: { userId: USER_ID },
+      data: { cachedAt: new Date(Date.now() - 2 * 60 * 1000) },
     });
-
-    test("lists a server the user isn't in when they have a session there, as a non-member", async () => {
-        const servers = await listServers();
-        expect(servers.find((s) => s.id === MEMBER_SERVER_ID)!.isMember).toBe(true);
-        const sessionServer = servers.find((s) => s.id === SESSION_SERVER_ID);
-        expect(sessionServer).toMatchObject({ isMember: false, permissions: [] });
+    const answerMembership = mockGetMember.getMockImplementation();
+    mockGetMember.mockReset();
+    mockGetMember.mockImplementation(async (serverId: string) => {
+      if (!TEST_SERVER_IDS.includes(serverId)) throw new Error("Not this file's server");
+      return { roles: [], nick: null };
     });
+    try {
+      expect((await listServers()).map((s) => s.id)).not.toContain(OTHER_SERVER_ID);
+      expect(mockGetMember).not.toHaveBeenCalledWith(
+        OTHER_SERVER_ID,
+        expect.anything(),
+        expect.anything(),
+      );
 
-    test("keeps a server with the user's sessions listed when Discord can't be reached", async () => {
-        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
-        const answerMembership = mockGetMember.getMockImplementation();
-        mockGetMember.mockRejectedValue(new Error("Discord unavailable"));
-        try {
-            const ids = (await listServers()).map((s) => s.id);
-            expect(ids).toContain(SESSION_SERVER_ID);
-            expect(ids).not.toContain(MEMBER_SERVER_ID);
-            expect(ids).not.toContain(OTHER_SERVER_ID);
-        } finally {
-            mockGetMember.mockImplementation(answerMembership!);
-        }
-    });
-
-    test("recheck=true lists a server the user joined since it was last checked", async () => {
-        await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
-        await listServers();
-        await prisma.serverMembershipCache.updateMany({
-            where: { userId: USER_ID },
-            data: { cachedAt: new Date(Date.now() - 2 * 60 * 1000) },
-        });
-        const answerMembership = mockGetMember.getMockImplementation();
-        mockGetMember.mockReset();
-        mockGetMember.mockImplementation(async (serverId: string) => {
-            if (!TEST_SERVER_IDS.includes(serverId)) throw new Error("Not this file's server");
-            return { roles: [], nick: null };
-        });
-        try {
-            expect((await listServers()).map((s) => s.id)).not.toContain(OTHER_SERVER_ID);
-            expect(mockGetMember).not.toHaveBeenCalledWith(OTHER_SERVER_ID, expect.anything(), expect.anything());
-
-            expect((await listServers("?recheck=true")).map((s) => s.id)).toContain(OTHER_SERVER_ID);
-            // Only the servers the user wasn't in: the member server is still cached.
-            expect(mockGetMember).not.toHaveBeenCalledWith(MEMBER_SERVER_ID, expect.anything(), expect.anything());
-            expect(mockGetMember).toHaveBeenCalledWith(OTHER_SERVER_ID, USER_ID, expect.anything());
-        } finally {
-            mockGetMember.mockImplementation(answerMembership!);
-        }
-    });
+      expect((await listServers("?recheck=true")).map((s) => s.id)).toContain(OTHER_SERVER_ID);
+      // Only the servers the user wasn't in: the member server is still cached.
+      expect(mockGetMember).not.toHaveBeenCalledWith(
+        MEMBER_SERVER_ID,
+        expect.anything(),
+        expect.anything(),
+      );
+      expect(mockGetMember).toHaveBeenCalledWith(OTHER_SERVER_ID, USER_ID, expect.anything());
+    } finally {
+      mockGetMember.mockImplementation(answerMembership!);
+    }
+  });
 });

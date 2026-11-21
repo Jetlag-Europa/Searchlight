@@ -17,23 +17,20 @@ export const TEST_SESSION_ID = "e2e-session";
  * session cookie is stored in the browser context and sent on later app/API
  * calls. Returns once the cookie is set.
  */
-export async function testLogin(
-    page: Page,
-    discordId: string = TEST_USER_ID,
-): Promise<void> {
-    const res = await page.request.post(`${API_BASE}/auth/test-login`, {
-        data: { discordId },
-    });
-    expect(res.ok(), `test-login failed: ${res.status()}`).toBeTruthy();
+export async function testLogin(page: Page, discordId: string = TEST_USER_ID): Promise<void> {
+  const res = await page.request.post(`${API_BASE}/auth/test-login`, {
+    data: { discordId },
+  });
+  expect(res.ok(), `test-login failed: ${res.status()}`).toBeTruthy();
 }
 
 /** Resolves when `window.__searchlight` is installed (the Map component has mounted). */
 export async function waitForTestHook(page: Page): Promise<void> {
-    await page.waitForFunction(
-        () => typeof (window as unknown as { __searchlight?: unknown }).__searchlight !== "undefined",
-        undefined,
-        { timeout: 30_000 },
-    );
+  await page.waitForFunction(
+    () => typeof (window as unknown as { __searchlight?: unknown }).__searchlight !== "undefined",
+    undefined,
+    { timeout: 30_000 },
+  );
 }
 
 export const test = base;

@@ -1,7 +1,9 @@
 function devLoginToken(): string {
   const val = process.env["DEV_LOGIN_TOKEN"] ?? "";
   if (val && val.length < 32) {
-    throw new Error("DEV_LOGIN_TOKEN must be at least 32 characters (or unset to disable dev login)");
+    throw new Error(
+      "DEV_LOGIN_TOKEN must be at least 32 characters (or unset to disable dev login)",
+    );
   }
   return val;
 }

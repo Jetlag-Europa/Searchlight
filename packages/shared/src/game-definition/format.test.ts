@@ -34,7 +34,13 @@ function polygonGame(): GameDefinition {
       bounds: [3.9, 51.9, 4.7, 52.2],
       playArea: {
         type: "FeatureCollection",
-        features: [{ type: "Feature", properties: {}, geometry: { type: "Polygon", coordinates: [ring(4.3, 52.05, 500)] } }],
+        features: [
+          {
+            type: "Feature",
+            properties: {},
+            geometry: { type: "Polygon", coordinates: [ring(4.3, 52.05, 500)] },
+          },
+        ],
       },
     },
     hidingZones: {
@@ -51,7 +57,15 @@ function polygonGame(): GameDefinition {
     radars: [400],
     thermometer: true,
     features: [
-      { name: "Municipality", enabledFor: ["matching"], noOverlaps: true, data: { type: "FeatureCollection", features: Array.from({ length: 20 }, (_, i) => region(i)) } },
+      {
+        name: "Municipality",
+        enabledFor: ["matching"],
+        noOverlaps: true,
+        data: {
+          type: "FeatureCollection",
+          features: Array.from({ length: 20 }, (_, i) => region(i)),
+        },
+      },
     ],
   };
 }
@@ -71,7 +85,13 @@ describe("formatGameDefinitionJson", () => {
   it("indents the structure and puts each coordinates array on one line", () => {
     const text = formatGameDefinitionJson({
       map: { center: [4.3, 52.05] },
-      geometry: { type: "LineString", coordinates: [[4, 52], [4.1, 52.1]] },
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [4, 52],
+          [4.1, 52.1],
+        ],
+      },
     });
     expect(text).toBe(
       [
@@ -95,7 +115,11 @@ describe("formatGameDefinitionJson", () => {
   it("puts negative and exponent coordinates on one line", () => {
     // West of Greenwich and south of the equator, plus what JSON writes
     // for tiny numbers.
-    const coordinates = [[-8.611, 41.149], [-0.1276, -51.5], [1e-7, 2.5e-7]];
+    const coordinates = [
+      [-8.611, 41.149],
+      [-0.1276, -51.5],
+      [1e-7, 2.5e-7],
+    ];
     expect(formatGameDefinitionJson({ geometry: { type: "LineString", coordinates } })).toBe(
       '{\n  "geometry": {\n    "type": "LineString",\n    "coordinates": [[-8.611,41.149],[-0.1276,-51.5],[1e-7,2.5e-7]]\n  }\n}\n',
     );
@@ -117,7 +141,9 @@ describe("formatGameDefinitionJson", () => {
     const text = formatGameDefinitionJson(odd);
     expect(text).toBe(`${JSON.stringify(odd, null, 2)}\n`);
     expect(JSON.parse(text)).toEqual(JSON.parse(JSON.stringify(odd)));
-    expect(formatGameDefinitionJson({ empty: { coordinates: [] } })).toBe('{\n  "empty": {\n    "coordinates": []\n  }\n}\n');
+    expect(formatGameDefinitionJson({ empty: { coordinates: [] } })).toBe(
+      '{\n  "empty": {\n    "coordinates": []\n  }\n}\n',
+    );
   });
 
   it("indents in full a game whose text holds a NUL, in a key or a value", () => {

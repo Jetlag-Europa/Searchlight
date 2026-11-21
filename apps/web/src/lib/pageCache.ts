@@ -8,11 +8,11 @@
  * ("map/index.html" → "/map/", "index.html" → "/"); other files keep theirs.
  */
 export function precacheUrl(file: string): string {
-    if (file === "index.html") return "/";
-    if (file.endsWith("/index.html")) {
-        return `/${file.slice(0, -"index.html".length)}`;
-    }
-    return file;
+  if (file === "index.html") return "/";
+  if (file.endsWith("/index.html")) {
+    return `/${file.slice(0, -"index.html".length)}`;
+  }
+  return file;
 }
 
 /**
@@ -21,6 +21,6 @@ export function precacheUrl(file: string): string {
  * `/map/?x`), so both are dropped to the form precacheUrl gives.
  */
 export function pageCacheKey(url: URL): string {
-    const path = url.pathname.replace(/\/index\.html$/, "/");
-    return path.endsWith("/") ? path : `${path}/`;
+  const path = url.pathname.replace(/\/index\.html$/, "/");
+  return path.endsWith("/") ? path : `${path}/`;
 }

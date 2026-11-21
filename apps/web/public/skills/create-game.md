@@ -21,15 +21,15 @@ Two helper scripts (Node 18+) live next to this guide, in the repo at `apps/web/
 5. **Import** (section 8). The import page previews the file first, and the API has `?dryRun=true`.
 6. **Report back:** zone count, features per layer, the question list `check-game.mjs` printed, and anything you dropped, merged or assumed.
 
-| Input | Goes to | Source |
-|---|---|---|
-| Game name and date | `name`, `id` | user |
-| Discord server | `serverId` | user (known IDs in section 3) |
-| Play area outline | `map.playArea` | user file. If there is none, ask which boundary to use |
-| Hiding zones (usually stations) | `hidingZones.features` | user file |
-| Hiding radius and per-tier radii | `hidingZones.radius`, `tierOverrides` | user, or the game's rules |
-| Radar sizes, thermometer yes/no | `radars`, `thermometer` | user, or the game's rules |
-| Question layers and which kinds each allows | `features[]` | user files. For standard POI categories without data, offer to fetch them from OSM (section 6) |
+| Input                                       | Goes to                               | Source                                                                                         |
+| ------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Game name and date                          | `name`, `id`                          | user                                                                                           |
+| Discord server                              | `serverId`                            | user (known IDs in section 3)                                                                  |
+| Play area outline                           | `map.playArea`                        | user file. If there is none, ask which boundary to use                                         |
+| Hiding zones (usually stations)             | `hidingZones.features`                | user file                                                                                      |
+| Hiding radius and per-tier radii            | `hidingZones.radius`, `tierOverrides` | user, or the game's rules                                                                      |
+| Radar sizes, thermometer yes/no             | `radars`, `thermometer`               | user, or the game's rules                                                                      |
+| Question layers and which kinds each allows | `features[]`                          | user files. For standard POI categories without data, offer to fetch them from OSM (section 6) |
 
 ### 1.1 Starting from a game announcement
 
@@ -48,16 +48,16 @@ The KML holds the whole map, one folder per My Maps layer. If a download returns
 
 **Fill the fields from the announcement and rules:**
 
-| Field | Where it comes from |
-|---|---|
-| `name`, `id` | The game's city and date, e.g. "Hide + Seek: Sheffield (17th October)" gives `"Sheffield 17-10"` and `sheffield-2026`. |
-| `serverId` | The Discord server the announcement was posted in (section 3). Ask if you don't know it. A mention like `<@&1546157665368145941>` is a *role* ID, not a server. Use it for `visibility` only if the user wants the game restricted to that role. |
-| `size` | "a small/medium/large game". |
-| `hidingZones.radius` | The rules. If they don't state it, measure the map's drawn zone circles with `gt.circleRadius()` and take the most common value (circles cut at the play-area edge come out smaller). Otherwise ask. |
-| `tierOverrides` | Only when the map draws differently sized circles per stop style or folder, or the rules give per-mode radii. |
-| `radars` | The rules' radar list, converted to the game unit (`1 km` gives `1000`). A "Custom" entry needs nothing, since radii stay editable. |
-| `thermometer` | `true` if the rules list any thermometer. The file holds no thermometer distances: players place both ends in the app. |
-| `features` | The rules' matching/measuring table and tentacle list (below). |
+| Field                | Where it comes from                                                                                                                                                                                                                              |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `name`, `id`         | The game's city and date, e.g. "Hide + Seek: Sheffield (17th October)" gives `"Sheffield 17-10"` and `sheffield-2026`.                                                                                                                           |
+| `serverId`           | The Discord server the announcement was posted in (section 3). Ask if you don't know it. A mention like `<@&1546157665368145941>` is a _role_ ID, not a server. Use it for `visibility` only if the user wants the game restricted to that role. |
+| `size`               | "a small/medium/large game".                                                                                                                                                                                                                     |
+| `hidingZones.radius` | The rules. If they don't state it, measure the map's drawn zone circles with `gt.circleRadius()` and take the most common value (circles cut at the play-area edge come out smaller). Otherwise ask.                                             |
+| `tierOverrides`      | Only when the map draws differently sized circles per stop style or folder, or the rules give per-mode radii.                                                                                                                                    |
+| `radars`             | The rules' radar list, converted to the game unit (`1 km` gives `1000`). A "Custom" entry needs nothing, since radii stay editable.                                                                                                              |
+| `thermometer`        | `true` if the rules list any thermometer. The file holds no thermometer distances: players place both ends in the app.                                                                                                                           |
+| `features`           | The rules' matching/measuring table and tentacle list (below).                                                                                                                                                                                   |
 
 **Map the rules' feature table to layers.** Rules usually list the rulebook categories, each with a source:
 
@@ -68,14 +68,14 @@ The KML holds the whole map, one folder per My Maps layer. If a download returns
 
 Name each layer after its rulebook category, in the singular. The question kinds follow the rulebook unless the rules restrict them, e.g. "Rail line (Measuring Only)":
 
-| Rulebook category | `matching` | `measuring` | `tentacle` |
-|---|:-:|:-:|:-:|
-| 1st and 2nd administrative division | yes | yes (border) | |
-| 3rd and 4th administrative division | yes | | |
-| Commercial airport | yes | yes | |
-| Rail station, high-speed or rail line, international border, coastline, body of water | | yes | |
-| Mountain, park, amusement park, zoo, aquarium, golf course, museum, cinema, hospital, library, foreign consulate | yes | yes | only if the rules list it under tentacles |
-| Landmass | yes (region polygons) | | |
+| Rulebook category                                                                                                |      `matching`       | `measuring`  |                `tentacle`                 |
+| ---------------------------------------------------------------------------------------------------------------- | :-------------------: | :----------: | :---------------------------------------: |
+| 1st and 2nd administrative division                                                                              |          yes          | yes (border) |                                           |
+| 3rd and 4th administrative division                                                                              |          yes          |              |                                           |
+| Commercial airport                                                                                               |          yes          |     yes      |                                           |
+| Rail station, high-speed or rail line, international border, coastline, body of water                            |                       |     yes      |                                           |
+| Mountain, park, amusement park, zoo, aquarium, golf course, museum, cinema, hospital, library, foreign consulate |          yes          |     yes      | only if the rules list it under tentacles |
+| Landmass                                                                                                         | yes (region polygons) |              |                                           |
 
 Transit line, station name length, street/path, photo questions and curses have no data-driven version in Searchlight. Leave them out.
 
@@ -102,11 +102,24 @@ Transit line, station name length, street/path, photo questions and curses have 
     "bounds": [2.15, 48.75, 2.55, 48.95],
     "playArea": {
       "type": "FeatureCollection",
-      "features": [{
-        "type": "Feature",
-        "geometry": { "type": "Polygon", "coordinates": [[[2.15, 48.75], [2.55, 48.75], [2.55, 48.95], [2.15, 48.95], [2.15, 48.75]]] },
-        "properties": { "name": "Paris" }
-      }]
+      "features": [
+        {
+          "type": "Feature",
+          "geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [2.15, 48.75],
+                [2.55, 48.75],
+                [2.55, 48.95],
+                [2.15, 48.95],
+                [2.15, 48.75]
+              ]
+            ]
+          },
+          "properties": { "name": "Paris" }
+        }
+      ]
     }
   },
   "hidingZones": {
@@ -116,8 +129,18 @@ Transit line, station name length, street/path, photo questions and curses have 
     "features": {
       "type": "FeatureCollection",
       "features": [
-        { "type": "Feature", "id": "gare-du-nord", "geometry": { "type": "Point", "coordinates": [2.355312, 48.880912] }, "properties": { "name": "Gare du Nord", "tier": "Outer" } },
-        { "type": "Feature", "id": "chatelet", "geometry": { "type": "Point", "coordinates": [2.347, 48.8584] }, "properties": { "name": "Châtelet" } }
+        {
+          "type": "Feature",
+          "id": "gare-du-nord",
+          "geometry": { "type": "Point", "coordinates": [2.355312, 48.880912] },
+          "properties": { "name": "Gare du Nord", "tier": "Outer" }
+        },
+        {
+          "type": "Feature",
+          "id": "chatelet",
+          "geometry": { "type": "Point", "coordinates": [2.347, 48.8584] },
+          "properties": { "name": "Châtelet" }
+        }
       ]
     }
   },
@@ -127,26 +150,106 @@ Transit line, station name length, street/path, photo questions and curses have 
     {
       "name": "Museum",
       "enabledFor": ["matching", "measuring", "tentacle"],
-      "data": { "type": "FeatureCollection", "features": [
-        { "type": "Feature", "id": "louvre", "geometry": { "type": "Point", "coordinates": [2.3376, 48.8606] }, "properties": { "name": "Louvre" } },
-        { "type": "Feature", "id": "orsay", "geometry": { "type": "Point", "coordinates": [2.3266, 48.86] }, "properties": { "name": "Musée d'Orsay" } }
-      ] }
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "louvre",
+            "geometry": { "type": "Point", "coordinates": [2.3376, 48.8606] },
+            "properties": { "name": "Louvre" }
+          },
+          {
+            "type": "Feature",
+            "id": "orsay",
+            "geometry": { "type": "Point", "coordinates": [2.3266, 48.86] },
+            "properties": { "name": "Musée d'Orsay" }
+          }
+        ]
+      }
     },
     {
       "name": "Arrondissement",
       "enabledFor": ["matching", "measuring"],
-      "data": { "type": "FeatureCollection", "features": [
-        { "type": "Feature", "id": "west", "geometry": { "type": "Polygon", "coordinates": [[[2.15, 48.75], [2.35, 48.75], [2.35, 48.95], [2.15, 48.95], [2.15, 48.75]]] }, "properties": { "name": "West" } },
-        { "type": "Feature", "id": "east", "geometry": { "type": "Polygon", "coordinates": [[[2.35, 48.75], [2.55, 48.75], [2.55, 48.95], [2.35, 48.95], [2.35, 48.75]]] }, "properties": { "name": "East" } }
-      ] }
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "west",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [2.15, 48.75],
+                  [2.35, 48.75],
+                  [2.35, 48.95],
+                  [2.15, 48.95],
+                  [2.15, 48.75]
+                ]
+              ]
+            },
+            "properties": { "name": "West" }
+          },
+          {
+            "type": "Feature",
+            "id": "east",
+            "geometry": {
+              "type": "Polygon",
+              "coordinates": [
+                [
+                  [2.35, 48.75],
+                  [2.55, 48.75],
+                  [2.55, 48.95],
+                  [2.35, 48.95],
+                  [2.35, 48.75]
+                ]
+              ]
+            },
+            "properties": { "name": "East" }
+          }
+        ]
+      }
     },
     {
       "name": "High-Speed Line",
       "enabledFor": ["matching", "measuring"],
-      "data": { "type": "FeatureCollection", "features": [
-        { "type": "Feature", "id": "lgv-nord", "geometry": { "type": "MultiLineString", "coordinates": [[[2.35, 48.88], [2.4, 49.0]], [[2.4, 49.0], [2.5, 49.1]]] }, "properties": { "name": "LGV Nord" } },
-        { "type": "Feature", "id": "lgv-sud-est", "geometry": { "type": "LineString", "coordinates": [[2.37, 48.84], [2.45, 48.75], [2.6, 48.6]] }, "properties": { "name": "LGV Sud-Est" } }
-      ] }
+      "data": {
+        "type": "FeatureCollection",
+        "features": [
+          {
+            "type": "Feature",
+            "id": "lgv-nord",
+            "geometry": {
+              "type": "MultiLineString",
+              "coordinates": [
+                [
+                  [2.35, 48.88],
+                  [2.4, 49.0]
+                ],
+                [
+                  [2.4, 49.0],
+                  [2.5, 49.1]
+                ]
+              ]
+            },
+            "properties": { "name": "LGV Nord" }
+          },
+          {
+            "type": "Feature",
+            "id": "lgv-sud-est",
+            "geometry": {
+              "type": "LineString",
+              "coordinates": [
+                [2.37, 48.84],
+                [2.45, 48.75],
+                [2.6, 48.6]
+              ]
+            },
+            "properties": { "name": "LGV Sud-Est" }
+          }
+        ]
+      }
     }
   ]
 }
@@ -158,34 +261,34 @@ These questions are offered: radar at any radius (presets 400 m and 600 m), ther
 
 The import rejects unknown properties, both at the root and in each layer. Positions are always `[longitude, latitude]` with exactly two numbers, never an altitude.
 
-| Field | Required | Default | What it does |
-|---|---|---|---|
-| `$schema` | no | | `https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json` gives editors validation. |
-| `id` | no | slug of `name` | The game's permanent key: lowercase letters and digits, separated by single hyphens. It only has to be unique on its server (on Casual Games, among your own games). Importing a file with the same `id` to the same server updates that game; on another server it is a different game. Use `<city>-<year>`, or `<city>-<yyyy-mm-dd>` when a city hosts several games. Don't change it after the first import. |
-| `revision` | no | | Leave it out. The server numbers revisions itself. |
-| `name` | yes | | Shown in the game picker, at most 120 characters. Convention: `"City DD-MM"`, e.g. `"Paris 15-08"`. |
-| `serverId` | yes | | The Discord server the game belongs to (table below). The server must already be registered in Searchlight. A game never moves to another server: importing the file to another server creates a separate game there. |
-| `size` | no | `"medium"` | Sets the zoom level from which station names are drawn: `large` from 11 (region or country), `medium` from 13 (city), `small` from 17 (district). |
-| `visibility` | no | `{"kind":"server-members"}` | Or `{"kind":"discord-role","guildId":"…","roleId":"…"}` to restrict the game to one role. |
-| `unit` | no | | Avoid it. Set `hidingZones.unit` instead (section 4). |
-| `map.center` | yes | | `[lng, lat]`. Use the play area's centre. |
-| `map.bounds` | no | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`, west ≤ east and south ≤ north. The map opens on this box. Set it to the play area's bbox plus a small margin: matching cells are computed over a box covering it, so a box much larger than the play area only slows matching down. |
-| `map.playArea` | yes | | A FeatureCollection of Polygon/MultiPolygon features. It is the starting map: everything outside it is eliminated from the start. |
-| `hidingZones` | yes | | Section 4. |
-| `radars`, `thermometer` | no | **off** | Section 5.1. |
-| `features` | no | none | Question layers, section 5.2. |
+| Field                   | Required | Default                                       | What it does                                                                                                                                                                                                                                                                                                                                                                                                    |
+| ----------------------- | -------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `$schema`               | no       |                                               | `https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json` gives editors validation.                                                                                                                                                                                                                                                                                                         |
+| `id`                    | no       | slug of `name`                                | The game's permanent key: lowercase letters and digits, separated by single hyphens. It only has to be unique on its server (on Casual Games, among your own games). Importing a file with the same `id` to the same server updates that game; on another server it is a different game. Use `<city>-<year>`, or `<city>-<yyyy-mm-dd>` when a city hosts several games. Don't change it after the first import. |
+| `revision`              | no       |                                               | Leave it out. The server numbers revisions itself.                                                                                                                                                                                                                                                                                                                                                              |
+| `name`                  | yes      |                                               | Shown in the game picker, at most 120 characters. Convention: `"City DD-MM"`, e.g. `"Paris 15-08"`.                                                                                                                                                                                                                                                                                                             |
+| `serverId`              | yes      |                                               | The Discord server the game belongs to (table below). The server must already be registered in Searchlight. A game never moves to another server: importing the file to another server creates a separate game there.                                                                                                                                                                                           |
+| `size`                  | no       | `"medium"`                                    | Sets the zoom level from which station names are drawn: `large` from 11 (region or country), `medium` from 13 (city), `small` from 17 (district).                                                                                                                                                                                                                                                               |
+| `visibility`            | no       | `{"kind":"server-members"}`                   | Or `{"kind":"discord-role","guildId":"…","roleId":"…"}` to restrict the game to one role.                                                                                                                                                                                                                                                                                                                       |
+| `unit`                  | no       |                                               | Avoid it. Set `hidingZones.unit` instead (section 4).                                                                                                                                                                                                                                                                                                                                                           |
+| `map.center`            | yes      |                                               | `[lng, lat]`. Use the play area's centre.                                                                                                                                                                                                                                                                                                                                                                       |
+| `map.bounds`            | no       | from `center`, the play area and zones ±0.05° | `[west, south, east, north]`, west ≤ east and south ≤ north. The map opens on this box. Set it to the play area's bbox plus a small margin: matching cells are computed over a box covering it, so a box much larger than the play area only slows matching down.                                                                                                                                               |
+| `map.playArea`          | yes      |                                               | A FeatureCollection of Polygon/MultiPolygon features. It is the starting map: everything outside it is eliminated from the start.                                                                                                                                                                                                                                                                               |
+| `hidingZones`           | yes      |                                               | Section 4.                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `radars`, `thermometer` | no       | **off**                                       | Section 5.1.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `features`              | no       | none                                          | Question layers, section 5.2.                                                                                                                                                                                                                                                                                                                                                                                   |
 
 Known `serverId` values:
 
-| Server | `serverId` |
-|---|---|
-| JetLag EU (continental Europe) | `1190673594649415730` |
-| JetLag UK | `1059625399979606166` |
-| JetLag BNL (Benelux) | `1369664929975767120` |
-| JetLag DE | `1333139120507064350` |
-| JetLag CH | `1458858559952523305` |
-| JetLag Nordics | `1376560872029290708` |
-| Casual Games (games outside the JetLag servers) | `home-games` |
+| Server                                          | `serverId`            |
+| ----------------------------------------------- | --------------------- |
+| JetLag EU (continental Europe)                  | `1190673594649415730` |
+| JetLag UK                                       | `1059625399979606166` |
+| JetLag BNL (Benelux)                            | `1369664929975767120` |
+| JetLag DE                                       | `1333139120507064350` |
+| JetLag CH                                       | `1458858559952523305` |
+| JetLag Nordics                                  | `1376560872029290708` |
+| Casual Games (games outside the JetLag servers) | `home-games`          |
 
 A game dev imports into the Discord server where their role has game permissions (section 8). Casual Games has no Discord server of its own: a role on JetLag EU grants creating Casual games (section 8).
 
@@ -210,13 +313,13 @@ The Add Question buttons for radar and thermometer are disabled when the game do
 
 ### 5.1 Radar and thermometer
 
-| Field | Value | Result |
-|---|---|---|
-| `radars` | omitted or `false` | no radar questions |
-| | `true` | radar enabled. A new radar starts at the base hiding radius (`hidingZones.radius`). |
-| | `[400, 600]` | radar enabled. A new radar, from Add Question or the map's right-click menu, starts at the first radius, and the radar card offers every listed radius as a quick pick (shown as "500 m", "2 km"). List the radii the rules use, e.g. the rules' radar list, or by convention the base radius plus each tier radius. |
-| `thermometer` | omitted or `false` | no thermometer |
-| | `true` | thermometer enabled |
+| Field         | Value              | Result                                                                                                                                                                                                                                                                                                               |
+| ------------- | ------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `radars`      | omitted or `false` | no radar questions                                                                                                                                                                                                                                                                                                   |
+|               | `true`             | radar enabled. A new radar starts at the base hiding radius (`hidingZones.radius`).                                                                                                                                                                                                                                  |
+|               | `[400, 600]`       | radar enabled. A new radar, from Add Question or the map's right-click menu, starts at the first radius, and the radar card offers every listed radius as a quick pick (shown as "500 m", "2 km"). List the radii the rules use, e.g. the rules' radar list, or by convention the base radius plus each tier radius. |
+| `thermometer` | omitted or `false` | no thermometer                                                                                                                                                                                                                                                                                                       |
+|               | `true`             | thermometer enabled                                                                                                                                                                                                                                                                                                  |
 
 Radar radii are positive numbers in the game unit (section 4). They are starting values, not limits: the radius stays editable on the radar card.
 
@@ -226,11 +329,11 @@ Write both fields explicitly in every game, even when the value is `false`.
 
 Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a region layer may have a fourth, `"noOverlaps": true`. `data` is an embedded FeatureCollection. All features in one layer must share one geometry family. Don't set `noOverlaps` yourself: Searchlight's import page checks each region layer and, with **Fix overlaps and mark** (or **Mark … noOverlaps** when there is nothing to fix), fixes and marks it before importing.
 
-| Layer geometry | `matching` | `measuring` | `tentacle` |
-|---|---|---|---|
-| **Point** (sites) | **Nearest {name}**: do seeker and hider have the same nearest site? Each point owns its Voronoi cell. | **Distance to {name}**: is the hider closer to their nearest site than the seeker is to theirs? | **Tentacles: {name}**: of the sites within the radius the seeker picks, which is the hider's nearest? |
-| **LineString / MultiLineString** | **Nearest {name}**: is the same line nearest to both? Each *feature* is one line. | **Distance to {name}**: compares the distance to the nearest line in the layer. | not allowed |
-| **Polygon / MultiPolygon** (regions) | **Same {name}**: are they in the same region? "Outside every region" counts as its own answer. | **Distance to {name} Boundary**: compares each player's distance to the boundary of the region *they* are in (outside every region: the nearest region's boundary). | not allowed |
+| Layer geometry                       | `matching`                                                                                            | `measuring`                                                                                                                                                         | `tentacle`                                                                                            |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| **Point** (sites)                    | **Nearest {name}**: do seeker and hider have the same nearest site? Each point owns its Voronoi cell. | **Distance to {name}**: is the hider closer to their nearest site than the seeker is to theirs?                                                                     | **Tentacles: {name}**: of the sites within the radius the seeker picks, which is the hider's nearest? |
+| **LineString / MultiLineString**     | **Nearest {name}**: is the same line nearest to both? Each _feature_ is one line.                     | **Distance to {name}**: compares the distance to the nearest line in the layer.                                                                                     | not allowed                                                                                           |
+| **Polygon / MultiPolygon** (regions) | **Same {name}**: are they in the same region? "Outside every region" counts as its own answer.        | **Distance to {name} Boundary**: compares each player's distance to the boundary of the region _they_ are in (outside every region: the nearest region's boundary). | not allowed                                                                                           |
 
 **Labels and IDs come from `name`.**
 
@@ -259,12 +362,12 @@ Each layer has three properties: `{ "name", "enabledFor", "data" }`, and a regio
 - **Matching on a single feature** always gets the same answer. Use `measuring` only for one-off sites (the only airport, the only zoo) and single lines (one coastline, one border).
 - **One feature per real-world line.** Matching treats each feature as its own line, so merge the segments of one line into one MultiLineString. A layer of 500 rail segments asks "nearest segment?".
 - **Matching regions should tile the play area without overlaps.** Where regions overlap, the first in file order wins, and zones outside every region form an extra "outside" answer. Searchlight's import page finds overlaps, shows what fixing them changes, and fixes them (giving each overlap to the first region) before importing; tell the user to download the fixed file it offers.
-- **No separate boundary line layer is needed.** When regions don't overlap, the boundary of the region a player is in is also the nearest boundary of *any* region (a straight line to another region's boundary has to cross the player's own first), and a player outside every region is measured to the nearest region's boundary. So "Distance to {name} Boundary" already measures to the nearest region boundary, as a line layer of the same boundaries would. Once a region layer is marked `noOverlaps`, the app answers it with one buffer around the whole boundary network, which is fast. If you add a line layer anyway (e.g. `"Borough Boundary"` next to the `"Borough"` region layer), both are labelled "Distance to Borough Boundary", so enable measuring on only one of them.
+- **No separate boundary line layer is needed.** When regions don't overlap, the boundary of the region a player is in is also the nearest boundary of _any_ region (a straight line to another region's boundary has to cross the player's own first), and a player outside every region is measured to the nearest region's boundary. So "Distance to {name} Boundary" already measures to the nearest region boundary, as a line layer of the same boundaries would. Once a region layer is marked `noOverlaps`, the app answers it with one buffer around the whole boundary network, which is fast. If you add a line layer anyway (e.g. `"Borough Boundary"` next to the `"Borough"` region layer), both are labelled "Distance to Borough Boundary", so enable measuring on only one of them.
 - **Include sites just outside the play area.** The nearest museum to a hider near the edge may be across the border, so take POIs from the play area's bbox plus a few km.
 - **Keep geometry light:**
   - Keep each layer measured to, and each line layer matched on, well under 20,000 vertices in all, and each region matched on under 20,000 by itself: matching on regions only ever works with the one region a seeker is in.
   - If a layer is over, and its vertices lie closer than about 50 m (borders traced point by point, as from OSM), simplify it with a topology-preserving simplifier at about 10 m tolerance. Simplifying each feature on its own opens gaps and overlaps between neighbours. Where vertices are already far apart, simplifying removes little; the checker then only notes the layer.
-  - Round coordinates to 6 decimal places (about 0.1 m). Use fixed decimals, not 6 *significant* digits, which leaves about 11 m steps.
+  - Round coordinates to 6 decimal places (about 0.1 m). Use fixed decimals, not 6 _significant_ digits, which leaves about 11 m steps.
   - Keep only `name` in properties (plus `tier`/`radius` on zones).
   - Most games are about 0.1 MB to 2 MB, and the import limit is 50 MB. The checker sizes the file as compact JSON and warns over 10 MB, fails over 50 MB.
 - Every feature should have `properties.name`, because players see it in answers and tentacle lists.
@@ -281,22 +384,22 @@ Put `game-tools.mjs` in a working directory. For KML, install the parser there:
 npm i @tmcw/togeojson@7.1.2 @xmldom/xmldom@0.9.12
 ```
 
-| Helper | Use |
-|---|---|
-| `readKmlFolders(path)` | KML (unzip KMZ first, it's a zip around `doc.kml`). Returns a `Map` from top-level folder name to features; Google My Maps layers are folders. Nested folders belong to their top-level folder, and placemarks outside any folder are under `"(root)"`. `ExtendedData` becomes string properties (e.g. `tier`, `radius`). `get()` returns `undefined` for a mistyped folder name, which `normalize()` and `bbox()` reject with an error. |
-| `readGeoJson(path)` | A FeatureCollection, Feature or bare geometry, returned as features. |
-| `readCsv(path)` | Header row with `lat`/`latitude` and `lng`/`lon`/`long`/`longitude`. Other columns become properties (e.g. `name`, `tier`, `category`). Quoted fields are handled. Rows with a blank or non-numeric lat or lng are skipped, and the count is printed. |
-| `overpassPoints(OSM_TAGS.museum, bbox)` | Named OSM sites in a bbox, as Points. `OSM_TAGS` covers the rulebook categories (airport means `aeroway=aerodrome` with an IATA code). Ask the user before using OSM, review the results with them, and run one query at a time against the public endpoint. |
-| `normalize(features, { keep })` | **Always run this.** It drops altitude, rounds to 6 decimals, closes rings, removes degenerate parts, splits MultiPoint, merges KML MultiGeometry (`GeometryCollection`) into MultiLineString/MultiPolygon, and keeps only the `keep` properties (default `["name"]`). A numeric-looking `radius` string becomes a number. A `GeometryCollection` that mixes families (a pin plus a shape) becomes one feature per family: filter by `geometry.type` before building a layer. |
-| `normalize(features, { name: "WD26NM" })` | Reads the name from another property when the placemark name is a placeholder. `normalize()` also strips CDATA and decodes entities in every kept string (`decodeText()`). |
-| `dedupePoints(features)` | Drops repeated coordinates. |
-| `mergeByName(features)` | Merges lines or regions that share a name into one MultiLineString or MultiPolygon. |
-| `groupBy(features, key)` | A `Map` from a property's value to its features, e.g. `groupBy(kml.get("POIs"), "styleUrl")` to split a mixed My Maps layer. |
-| `circleRadius(feature)` | Radius in meters of a circle drawn as a Polygon or closed LineString. |
-| `myMapsKmlUrl(link)`, `googleDocTextUrl(link)` | Download URLs for a Google My Maps link (KML) and a Google Docs link (plain text). |
-| `withIds(features, fallback)` | Assigns unique slug IDs from names. |
-| `layer(name, enabledFor, features)`, `collection(features)`, `bbox(features)`, `center(bbox)` | Assemble the file. `layer()` throws if the features mix geometry families. |
-| `formatGame(game)` | The file's text: indented, with each `coordinates` array on one line. `JSON.stringify(game, null, 2)` puts every number on its own line, making the file about 4.5x larger. |
+| Helper                                                                                        | Use                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| --------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `readKmlFolders(path)`                                                                        | KML (unzip KMZ first, it's a zip around `doc.kml`). Returns a `Map` from top-level folder name to features; Google My Maps layers are folders. Nested folders belong to their top-level folder, and placemarks outside any folder are under `"(root)"`. `ExtendedData` becomes string properties (e.g. `tier`, `radius`). `get()` returns `undefined` for a mistyped folder name, which `normalize()` and `bbox()` reject with an error.                                      |
+| `readGeoJson(path)`                                                                           | A FeatureCollection, Feature or bare geometry, returned as features.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `readCsv(path)`                                                                               | Header row with `lat`/`latitude` and `lng`/`lon`/`long`/`longitude`. Other columns become properties (e.g. `name`, `tier`, `category`). Quoted fields are handled. Rows with a blank or non-numeric lat or lng are skipped, and the count is printed.                                                                                                                                                                                                                         |
+| `overpassPoints(OSM_TAGS.museum, bbox)`                                                       | Named OSM sites in a bbox, as Points. `OSM_TAGS` covers the rulebook categories (airport means `aeroway=aerodrome` with an IATA code). Ask the user before using OSM, review the results with them, and run one query at a time against the public endpoint.                                                                                                                                                                                                                  |
+| `normalize(features, { keep })`                                                               | **Always run this.** It drops altitude, rounds to 6 decimals, closes rings, removes degenerate parts, splits MultiPoint, merges KML MultiGeometry (`GeometryCollection`) into MultiLineString/MultiPolygon, and keeps only the `keep` properties (default `["name"]`). A numeric-looking `radius` string becomes a number. A `GeometryCollection` that mixes families (a pin plus a shape) becomes one feature per family: filter by `geometry.type` before building a layer. |
+| `normalize(features, { name: "WD26NM" })`                                                     | Reads the name from another property when the placemark name is a placeholder. `normalize()` also strips CDATA and decodes entities in every kept string (`decodeText()`).                                                                                                                                                                                                                                                                                                    |
+| `dedupePoints(features)`                                                                      | Drops repeated coordinates.                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `mergeByName(features)`                                                                       | Merges lines or regions that share a name into one MultiLineString or MultiPolygon.                                                                                                                                                                                                                                                                                                                                                                                           |
+| `groupBy(features, key)`                                                                      | A `Map` from a property's value to its features, e.g. `groupBy(kml.get("POIs"), "styleUrl")` to split a mixed My Maps layer.                                                                                                                                                                                                                                                                                                                                                  |
+| `circleRadius(feature)`                                                                       | Radius in meters of a circle drawn as a Polygon or closed LineString.                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `myMapsKmlUrl(link)`, `googleDocTextUrl(link)`                                                | Download URLs for a Google My Maps link (KML) and a Google Docs link (plain text).                                                                                                                                                                                                                                                                                                                                                                                            |
+| `withIds(features, fallback)`                                                                 | Assigns unique slug IDs from names.                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| `layer(name, enabledFor, features)`, `collection(features)`, `bbox(features)`, `center(bbox)` | Assemble the file. `layer()` throws if the features mix geometry families.                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `formatGame(game)`                                                                            | The file's text: indented, with each `coordinates` array on one line. `JSON.stringify(game, null, 2)` puts every number on its own line, making the file about 4.5x larger.                                                                                                                                                                                                                                                                                                   |
 
 ```js
 // build-game.mjs (run: node build-game.mjs)
@@ -308,7 +411,9 @@ const playArea = gt.normalize(kml.get("Play area"));
 const zones = gt.withIds(gt.normalize(kml.get("Stations"), { keep: ["name", "tier"] }), "zone");
 const bounds = gt.bbox(playArea);
 const margin = [bounds[0] - 0.05, bounds[1] - 0.05, bounds[2] + 0.05, bounds[3] + 0.05];
-const museums = gt.withIds(gt.dedupePoints(gt.normalize(await gt.overpassPoints(gt.OSM_TAGS.museum, margin))));
+const museums = gt.withIds(
+  gt.dedupePoints(gt.normalize(await gt.overpassPoints(gt.OSM_TAGS.museum, margin))),
+);
 
 const game = {
   $schema: "https://searchlight.jetlageuropa.org/schemas/game-definition.v1.schema.json",
@@ -317,13 +422,22 @@ const game = {
   serverId: "home-games",
   size: "medium",
   map: { center: gt.center(bounds), bounds, playArea: gt.collection(playArea) },
-  hidingZones: { radius: 400, unit: "meters", tierOverrides: { Outer: 600 }, features: gt.collection(zones) },
+  hidingZones: {
+    radius: 400,
+    unit: "meters",
+    tierOverrides: { Outer: 600 },
+    features: gt.collection(zones),
+  },
   radars: [400, 600],
   thermometer: true,
   features: [
     gt.layer("Museum", ["matching", "measuring", "tentacle"], museums),
     gt.layer("District", ["matching", "measuring"], gt.withIds(gt.normalize(kml.get("Districts")))),
-    gt.layer("Rail Line", ["matching", "measuring"], gt.withIds(gt.normalize(kml.get("Rail lines")))),
+    gt.layer(
+      "Rail Line",
+      ["matching", "measuring"],
+      gt.withIds(gt.normalize(kml.get("Rail lines"))),
+    ),
   ],
 };
 writeFileSync(`${game.id}.game.json`, gt.formatGame(game));

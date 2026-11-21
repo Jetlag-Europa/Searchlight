@@ -7,24 +7,20 @@ import type { SessionLinkType } from "@searchlight/shared";
 
 export async function linkRoutes(app: FastifyInstance) {
   // GET /links/:token — public, no auth required
-  app.get(
-    "/:token",
-    { schema: { params: Type.Object({ token: Type.String() }) } },
-    async (req) => {
-      const { token } = req.params as { token: string };
-      const link = await prisma.sessionLink.findUnique({
-        where: { token },
-        include: { session: { include: { game: { select: { name: true } } } } },
-      });
-      if (!link || link.revokedAt) return { valid: false };
-      return {
-        valid: true,
-        sessionName: link.session.name,
-        gameName: link.session.game.name,
-        linkType: link.linkType as SessionLinkType,
-      };
-    },
-  );
+  app.get("/:token", { schema: { params: Type.Object({ token: Type.String() }) } }, async (req) => {
+    const { token } = req.params as { token: string };
+    const link = await prisma.sessionLink.findUnique({
+      where: { token },
+      include: { session: { include: { game: { select: { name: true } } } } },
+    });
+    if (!link || link.revokedAt) return { valid: false };
+    return {
+      valid: true,
+      sessionName: link.session.name,
+      gameName: link.session.game.name,
+      linkType: link.linkType as SessionLinkType,
+    };
+  });
 
   // POST /links/:token/redeem — authenticated
   app.post(
@@ -86,7 +82,10 @@ export async function linkRoutes(app: FastifyInstance) {
           }
           return created;
         });
-        req.log.info({ token, newSessionId: newSession.id, userId: user.discordId }, "[links] fork link redeemed");
+        req.log.info(
+          { token, newSessionId: newSession.id, userId: user.discordId },
+          "[links] fork link redeemed",
+        );
         return reply.status(200).send({ sessionId: newSession.id, linkType: "fork" });
       }
 

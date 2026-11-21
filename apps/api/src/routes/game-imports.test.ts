@@ -42,7 +42,14 @@ const GAME_MISSING_KEY = "test-game-imports-missing";
 
 const FIXTURE_USERS = [USER_MEMBER, USER_NO_ROLE, USER_NONMEMBER, USER_CREATOR];
 const FIXTURE_AUTHS = [AUTH_MEMBER, AUTH_NO_ROLE, AUTH_NONMEMBER, AUTH_CREATOR];
-const FIXTURE_GAMES = [GAME_A_KEY, GAME_NO_DEF_KEY, GAME_UNICODE_KEY, GAME_OWNER_KEY, GAME_LARGE_KEY, GAME_MISSING_KEY];
+const FIXTURE_GAMES = [
+  GAME_A_KEY,
+  GAME_NO_DEF_KEY,
+  GAME_UNICODE_KEY,
+  GAME_OWNER_KEY,
+  GAME_LARGE_KEY,
+  GAME_MISSING_KEY,
+];
 const FIXTURE_SERVERS = [TEST_SERVER_A, TEST_SERVER_B];
 
 async function buildTestApp(): Promise<FastifyInstance> {
@@ -76,7 +83,15 @@ function importableDefinition(serverId: string) {
             type: "Feature",
             geometry: {
               type: "Polygon",
-              coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+              coordinates: [
+                [
+                  [0, 0],
+                  [1, 0],
+                  [1, 1],
+                  [0, 1],
+                  [0, 0],
+                ],
+              ],
             },
           },
         ],
@@ -210,7 +225,11 @@ describe("Game Definition Access & Revision Security", () => {
       data: [
         { id: AUTH_MEMBER, userId: USER_MEMBER, expiresAt: new Date(Date.now() + 86_400_000) },
         { id: AUTH_NO_ROLE, userId: USER_NO_ROLE, expiresAt: new Date(Date.now() + 86_400_000) },
-        { id: AUTH_NONMEMBER, userId: USER_NONMEMBER, expiresAt: new Date(Date.now() + 86_400_000) },
+        {
+          id: AUTH_NONMEMBER,
+          userId: USER_NONMEMBER,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
         { id: AUTH_CREATOR, userId: USER_CREATOR, expiresAt: new Date(Date.now() + 86_400_000) },
       ],
     });
@@ -399,7 +418,17 @@ describe("Game Definition Access & Revision Security", () => {
 
     test("caps the validation errors it returns", async () => {
       const def = importableDefinition(TEST_SERVER_A);
-      const openRing = { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1]]] };
+      const openRing = {
+        type: "Polygon",
+        coordinates: [
+          [
+            [0, 0],
+            [1, 0],
+            [1, 1],
+            [0, 1],
+          ],
+        ],
+      };
       def.hidingZones.features.features = Array.from({ length: 150 }, () => ({
         type: "Feature",
         geometry: openRing,
@@ -444,14 +473,22 @@ describe("Game Definition Access & Revision Security", () => {
       });
       expect(res.statusCode).toBe(403);
       // The virtual server's id is no Discord guild id.
-      expect(getGuildMember).not.toHaveBeenCalledWith("home-games", expect.anything(), expect.anything());
+      expect(getGuildMember).not.toHaveBeenCalledWith(
+        "home-games",
+        expect.anything(),
+        expect.anything(),
+      );
       getGuildMember.mockReset();
       getGuildMember.mockResolvedValue(null);
     });
 
     test("only accepts a boolean true for body allowUpdate", async () => {
       const grant = await prisma.rolePermission.create({
-        data: { serverId: TEST_SERVER_A, discordRoleId: ROLE_GAME_CREATOR_ID, permission: "games.edit" },
+        data: {
+          serverId: TEST_SERVER_A,
+          discordRoleId: ROLE_GAME_CREATOR_ID,
+          permission: "games.edit",
+        },
       });
       const def = { ...importableDefinition(TEST_SERVER_A), id: GAME_A_KEY };
       try {
@@ -838,12 +875,20 @@ describe("Game Definition Access & Revision Security", () => {
 
     test("previews an update of that game for games.edit, whatever server the file names", async () => {
       const grant = await prisma.rolePermission.create({
-        data: { serverId: TEST_SERVER_A, discordRoleId: ROLE_GAME_CREATOR_ID, permission: "games.edit" },
+        data: {
+          serverId: TEST_SERVER_A,
+          discordRoleId: ROLE_GAME_CREATOR_ID,
+          permission: "games.edit",
+        },
       });
       try {
         const res = await replace(AUTH_CREATOR);
         expect(res.statusCode, res.body).toBe(200);
-        expect(res.json()).toMatchObject({ status: "updated", gameId: gameAId, gameKey: GAME_A_KEY });
+        expect(res.json()).toMatchObject({
+          status: "updated",
+          gameId: gameAId,
+          gameKey: GAME_A_KEY,
+        });
       } finally {
         await prisma.rolePermission.delete({ where: { id: grant.id } });
       }
@@ -859,12 +904,20 @@ describe("Game Definition Access & Revision Security", () => {
       id: GAME_LARGE_KEY,
       name: "Large Game",
       serverId: TEST_SERVER_A,
-      stations: Array.from({ length: 200 }, (_, i) => ({ id: `station-${i}`, name: `Station ${i}` })),
+      stations: Array.from({ length: 200 }, (_, i) => ({
+        id: `station-${i}`,
+        name: `Station ${i}`,
+      })),
     };
 
     beforeAll(async () => {
       const game = await prisma.game.create({
-        data: { gameKey: GAME_LARGE_KEY, serverId: TEST_SERVER_A, name: "Large Game", size: "medium" },
+        data: {
+          gameKey: GAME_LARGE_KEY,
+          serverId: TEST_SERVER_A,
+          name: "Large Game",
+          size: "medium",
+        },
       });
       const rev = await prisma.gameRevision.create({
         data: { gameId: game.id, revision: 1, checksum, definition },
@@ -875,7 +928,11 @@ describe("Game Definition Access & Revision Security", () => {
     });
 
     const get = (url: string, headers: Record<string, string> = {}) =>
-      app.inject({ method: "GET", url, headers: { cookie: signedCookie(app, AUTH_MEMBER), ...headers } });
+      app.inject({
+        method: "GET",
+        url,
+        headers: { cookie: signedCookie(app, AUTH_MEMBER), ...headers },
+      });
     const revisionUrls = () => [`/games/revisions/${revisionId}`, `/games/${gameId}/revisions/1`];
 
     test("revisions are sent with brotli or gzip when accepted, with the same ETag and body", async () => {
@@ -901,7 +958,10 @@ describe("Game Definition Access & Revision Security", () => {
 
     test("a compressed revision revalidates, also with the weak ETag a proxy makes of it", async () => {
       for (const url of revisionUrls()) {
-        const res = await get(url, { "accept-encoding": "br, gzip", "if-none-match": `W/"${checksum}"` });
+        const res = await get(url, {
+          "accept-encoding": "br, gzip",
+          "if-none-match": `W/"${checksum}"`,
+        });
         expect(res.statusCode, url).toBe(304);
         expect(res.rawPayload.length, url).toBe(0);
       }
@@ -1078,7 +1138,11 @@ describe("Game Definition Access & Revision Security", () => {
         headers: { cookie: signedCookie(app, AUTH_MEMBER) },
       });
       expect(res.statusCode).toBe(200);
-      expect(res.json()).toMatchObject({ status: "upgraded", newRevision: 2, gameRevisionId: gameARev2Id });
+      expect(res.json()).toMatchObject({
+        status: "upgraded",
+        newRevision: 2,
+        gameRevisionId: gameARev2Id,
+      });
     });
 
     test("upgrade-revision returns 403 when the creator cannot access the current revision", async () => {

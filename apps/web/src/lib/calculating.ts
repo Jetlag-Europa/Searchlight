@@ -26,21 +26,18 @@ export const showCalculating = atom<boolean>(false);
 export const resultsPending = atom<boolean>(false);
 
 function update() {
-    resultsPending.set(running.size > 0);
-    if (running.size) {
-        clearTimeout(endTimer);
-        endTimer = undefined;
-        showTimer ??= setTimeout(
-            () => showCalculating.set(true),
-            SHOW_AFTER_MS,
-        );
-    } else {
-        endTimer ??= setTimeout(() => {
-            clearTimeout(showTimer);
-            showTimer = endTimer = undefined;
-            showCalculating.set(false);
-        }, HANDOVER_MS);
-    }
+  resultsPending.set(running.size > 0);
+  if (running.size) {
+    clearTimeout(endTimer);
+    endTimer = undefined;
+    showTimer ??= setTimeout(() => showCalculating.set(true), SHOW_AFTER_MS);
+  } else {
+    endTimer ??= setTimeout(() => {
+      clearTimeout(showTimer);
+      showTimer = endTimer = undefined;
+      showCalculating.set(false);
+    }, HANDOVER_MS);
+  }
 }
 
 /**
@@ -49,12 +46,12 @@ function update() {
  * an obsolete one still finishing its work no longer counts.
  */
 export function startCalculation(source: string): () => void {
-    const token = Symbol(source);
-    running.set(source, token);
+  const token = Symbol(source);
+  running.set(source, token);
+  update();
+  return () => {
+    if (running.get(source) !== token) return;
+    running.delete(source);
     update();
-    return () => {
-        if (running.get(source) !== token) return;
-        running.delete(source);
-        update();
-    };
+  };
 }

@@ -67,7 +67,8 @@ export async function resolveSession(req: FastifyRequest): Promise<{ user: Resol
   if (!session) throw unauthorized(req, "no_session_row");
   if (session.expiresAt < new Date()) throw unauthorized(req, "expired");
 
-  if (session.expiresAt.getTime() - Date.now() < RENEW_WHEN_LEFT_MS) dueForRenewal.set(req, session.id);
+  if (session.expiresAt.getTime() - Date.now() < RENEW_WHEN_LEFT_MS)
+    dueForRenewal.set(req, session.id);
 
   return { user: session.user };
 }

@@ -1,61 +1,49 @@
-import type {
-    EventRecord,
-    ParticipantRoleChangedEvent,
-} from "@searchlight/shared";
+import type { EventRecord, ParticipantRoleChangedEvent } from "@searchlight/shared";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
-import {
-    isStrokeTombstoned,
-    recordStrokeTombstone,
-} from "@/annotations/storage/serverStore";
+import { isStrokeTombstoned, recordStrokeTombstone } from "@/annotations/storage/serverStore";
 import { isStrokeLike } from "@/annotations/types";
-import {
-    compiledGameAtom,
-    filterSupportedQuestions,
-} from "@/game-definition/store";
+import { compiledGameAtom, filterSupportedQuestions } from "@/game-definition/store";
 import { isSessionReadOnly } from "@/lib/activeSession";
 import { RETRY_MAX_MS, RETRY_MIN_MS } from "@/lib/backoffRetry";
 import type { PresenceUser } from "@/lib/context";
 import {
-    connectedUsers,
-    hiderMode,
-    planningModeEnabled,
-    questions,
-    syncStatus,
+  connectedUsers,
+  hiderMode,
+  planningModeEnabled,
+  questions,
+  syncStatus,
 } from "@/lib/context";
 import {
-    advanceBoardBase,
-    getCachedSession,
-    getPendingEvents,
-    markEventSynced,
-    type QuestionsReplacePayload,
-    setCachedSession,
+  advanceBoardBase,
+  getCachedSession,
+  getPendingEvents,
+  markEventSynced,
+  type QuestionsReplacePayload,
+  setCachedSession,
 } from "@/lib/eventQueue";
+import { resetHiderSaveSuppression, suppressHiderSave } from "@/lib/hiderSaveSuppress";
 import {
-    resetHiderSaveSuppression,
-    suppressHiderSave,
-} from "@/lib/hiderSaveSuppress";
-import {
-    resetPlanningModeSaveSuppression,
-    suppressPlanningModeSave,
+  resetPlanningModeSaveSuppression,
+  suppressPlanningModeSave,
 } from "@/lib/planningModeSaveSuppress";
 import { reconcileQuestionConflicts } from "@/lib/questionConflicts";
 import { sameQuestionList } from "@/lib/questionMerge";
 import { suppressQuestionSave } from "@/lib/questionSaveSuppress";
 import {
-    applyDisabledZonesEvent,
-    getDisabledZonesBase,
-    hasPendingHiderSave,
-    hasPendingPlanningModeSave,
-    hasScheduledQuestionSave,
+  applyDisabledZonesEvent,
+  getDisabledZonesBase,
+  hasPendingHiderSave,
+  hasPendingPlanningModeSave,
+  hasScheduledQuestionSave,
 } from "@/lib/sessionState";
 import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import {
-    notifyQuestionsSaved,
-    onQuestionsSaved,
-    questionsSavedByEcho,
-    retryPendingEvents,
-    withTimeout,
+  notifyQuestionsSaved,
+  onQuestionsSaved,
+  questionsSavedByEcho,
+  retryPendingEvents,
+  withTimeout,
 } from "@/lib/syncManager";
 import type { Questions } from "@/maps/schema";
 
@@ -80,39 +68,35 @@ let reconnectDelay = RETRY_MIN_MS;
 
 // The session was deleted or this user lost access: retrying cannot help.
 function sessionUnavailable(sessionId: string, status: number): void {
-    console.warn(
-        "[searchlight:sse] session",
-        sessionId,
-        "is unavailable (" + status + "), stopping",
-    );
-    const notify = onSessionUnavailable;
-    stopSSE();
-    notify?.(status);
+  console.warn("[searchlight:sse] session", sessionId, "is unavailable (" + status + "), stopping");
+  const notify = onSessionUnavailable;
+  stopSSE();
+  notify?.(status);
 }
 
 function persistSessionCache(): void {
-    if (!currentSessionId) return;
-    const cached = getCachedSession(currentSessionId);
-    if (!cached) return;
-    const zones = getDisabledZonesBase(currentSessionId);
-    // The copy can have a later list than this board: another tab's save was
-    // answered since. That one stays.
-    const keptZonesAreLater =
-        zones?.sequence !== undefined &&
-        cached.disabledZonesSequence !== undefined &&
-        cached.disabledZonesSequence > zones.sequence;
-    setCachedSession({
-        ...cached,
-        strokes: strokes.get(),
-        questions: questions.get(),
-        ...(zones &&
-            !keptZonesAreLater && {
-                disabledZoneIds: zones.ids,
-                disabledZonesSequence: zones.sequence,
-            }),
-        lastSequence: lastAppliedSequence,
-        lastSyncedAt: Date.now(),
-    });
+  if (!currentSessionId) return;
+  const cached = getCachedSession(currentSessionId);
+  if (!cached) return;
+  const zones = getDisabledZonesBase(currentSessionId);
+  // The copy can have a later list than this board: another tab's save was
+  // answered since. That one stays.
+  const keptZonesAreLater =
+    zones?.sequence !== undefined &&
+    cached.disabledZonesSequence !== undefined &&
+    cached.disabledZonesSequence > zones.sequence;
+  setCachedSession({
+    ...cached,
+    strokes: strokes.get(),
+    questions: questions.get(),
+    ...(zones &&
+      !keptZonesAreLater && {
+        disabledZoneIds: zones.ids,
+        disabledZonesSequence: zones.sequence,
+      }),
+    lastSequence: lastAppliedSequence,
+    lastSyncedAt: Date.now(),
+  });
 }
 
 /**
@@ -121,51 +105,38 @@ function persistSessionCache(): void {
  * is merged when that is (returns false), or the board is made from it or
  * a later one already.
  */
-function showServerQuestions(
-    sessionId: string,
-    serverList: Questions,
-    sequence: number,
-): boolean {
-    const unsynced = getPendingEvents(sessionId).filter(
-        (e) => e.type === "questions.replace",
-    );
-    if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
-        console.info(
-            "[searchlight:sse] questions.replace skipped — local edit not yet saved",
-            unsynced.length,
-            "pending",
-        );
-        return false;
-    }
-    if ((getCachedSession(sessionId)?.serverQuestions?.sequence ?? -1) >= sequence) {
-        // The board is made from this list or a later one already (a late
-        // echo of a save of ours that was answered).
-        console.info("[searchlight:sse] questions.replace skipped — the board has it");
-        return true;
-    }
-    const newQs = filterSupportedQuestions(
-        serverList,
-        compiledGameAtom.get(),
-    ) as Questions;
-    // The board and its base together: a reload before the next event (a
-    // catch-up is followed by none) shows the list made from that base.
-    const cached = getCachedSession(sessionId);
-    if (cached) {
-        setCachedSession({
-            ...cached,
-            questions: newQs,
-            serverQuestions: { sequence, questions: serverList },
-        });
-    }
-    // Questions held for a decision may be settled by it, or changed again.
-    reconcileQuestionConflicts(sessionId, serverList, sequence);
+function showServerQuestions(sessionId: string, serverList: Questions, sequence: number): boolean {
+  const unsynced = getPendingEvents(sessionId).filter((e) => e.type === "questions.replace");
+  if (unsynced.length > 0 || hasScheduledQuestionSave(sessionId)) {
     console.info(
-        "[searchlight:sse] applying questions.replace",
-        newQs.length,
-        "question(s)",
+      "[searchlight:sse] questions.replace skipped — local edit not yet saved",
+      unsynced.length,
+      "pending",
     );
-    questions.set(suppressQuestionSave(newQs));
+    return false;
+  }
+  if ((getCachedSession(sessionId)?.serverQuestions?.sequence ?? -1) >= sequence) {
+    // The board is made from this list or a later one already (a late
+    // echo of a save of ours that was answered).
+    console.info("[searchlight:sse] questions.replace skipped — the board has it");
     return true;
+  }
+  const newQs = filterSupportedQuestions(serverList, compiledGameAtom.get()) as Questions;
+  // The board and its base together: a reload before the next event (a
+  // catch-up is followed by none) shows the list made from that base.
+  const cached = getCachedSession(sessionId);
+  if (cached) {
+    setCachedSession({
+      ...cached,
+      questions: newQs,
+      serverQuestions: { sequence, questions: serverList },
+    });
+  }
+  // Questions held for a decision may be settled by it, or changed again.
+  reconcileQuestionConflicts(sessionId, serverList, sequence);
+  console.info("[searchlight:sse] applying questions.replace", newQs.length, "question(s)");
+  questions.set(suppressQuestionSave(newQs));
+  return true;
 }
 
 // A save of ours was answered at a sequence the stream has gone past: lists
@@ -177,344 +148,302 @@ function showServerQuestions(
 // shows, so an edit made before then merges with the server's list rather
 // than overwriting it.
 let catchUp:
-    | { sessionId: string; generation: number; delay: number; timer?: NodeJS.Timeout }
-    | undefined;
+  | { sessionId: string; generation: number; delay: number; timer?: NodeJS.Timeout }
+  | undefined;
 
 function stopCatchUp(): void {
-    clearTimeout(catchUp?.timer);
-    catchUp = undefined;
+  clearTimeout(catchUp?.timer);
+  catchUp = undefined;
 }
 
 async function runCatchUp(): Promise<void> {
-    const job = catchUp;
-    if (!job) return;
-    const current = () =>
-        catchUp === job &&
-        job.generation === currentGeneration &&
-        job.sessionId === currentSessionId;
-    try {
-        const { res, data } = await withTimeout(async (signal) => {
-            const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
-                credentials: "include",
-                signal,
-            });
-            const data = res.ok
-                ? ((await res.json()) as {
-                      questions: Array<{ payloadJson: Questions[number] }>;
-                      sequence?: unknown;
-                  })
-                : undefined;
-            return { res, data };
-        });
-        if (!current()) return;
-        if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
-            // Gone or refused: the stream finds that out itself. A 403 or
-            // 404 that isn't the API's (a proxy's) may pass next time.
-            const notTheApis =
-                (res.status === 403 || res.status === 404) &&
-                (await sessionUnavailableStatus(res)) === null;
-            if (!current()) return;
-            if (!notTheApis) {
-                stopCatchUp();
-                return;
-            }
-        }
-        if (!data) throw new Error(`questions: ${res.status}`);
+  const job = catchUp;
+  if (!job) return;
+  const current = () =>
+    catchUp === job && job.generation === currentGeneration && job.sessionId === currentSessionId;
+  try {
+    const { res, data } = await withTimeout(async (signal) => {
+      const res = await fetch(`${API_BASE}/sessions/${job.sessionId}/questions`, {
+        credentials: "include",
+        signal,
+      });
+      const data = res.ok
+        ? ((await res.json()) as {
+            questions: Array<{ payloadJson: Questions[number] }>;
+            sequence?: unknown;
+          })
+        : undefined;
+      return { res, data };
+    });
+    if (!current()) return;
+    if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+      // Gone or refused: the stream finds that out itself. A 403 or
+      // 404 that isn't the API's (a proxy's) may pass next time.
+      const notTheApis =
+        (res.status === 403 || res.status === 404) &&
+        (await sessionUnavailableStatus(res)) === null;
+      if (!current()) return;
+      if (!notTheApis) {
         stopCatchUp();
-        if (typeof data.sequence !== "number") return;
-        // Skipped with an edit of ours still to be saved: its merge brings
-        // the server's list in.
-        showServerQuestions(
-            job.sessionId,
-            data.questions.map((q) => q.payloadJson),
-            data.sequence,
-        );
-    } catch (err) {
-        if (!current()) return;
-        console.warn("[searchlight:sse] couldn't read the questions to catch up:", err);
-        const delay = job.delay;
-        job.delay = Math.min(delay * 2, RETRY_MAX_MS);
-        job.timer = setTimeout(() => void runCatchUp(), delay);
+        return;
+      }
     }
+    if (!data) throw new Error(`questions: ${res.status}`);
+    stopCatchUp();
+    if (typeof data.sequence !== "number") return;
+    // Skipped with an edit of ours still to be saved: its merge brings
+    // the server's list in.
+    showServerQuestions(
+      job.sessionId,
+      data.questions.map((q) => q.payloadJson),
+      data.sequence,
+    );
+  } catch (err) {
+    if (!current()) return;
+    console.warn("[searchlight:sse] couldn't read the questions to catch up:", err);
+    const delay = job.delay;
+    job.delay = Math.min(delay * 2, RETRY_MAX_MS);
+    job.timer = setTimeout(() => void runCatchUp(), delay);
+  }
 }
 
 onQuestionsSaved(({ sessionId, sequence }) => {
-    if (sequence === undefined || sessionId !== currentSessionId) return;
-    if (sequence >= lastAppliedSequence) return;
-    // One at a time: a read running (or waiting to run again) catches up
-    // with this too.
-    if (catchUp?.sessionId === sessionId && catchUp.generation === currentGeneration) return;
-    stopCatchUp();
-    catchUp = { sessionId, generation: currentGeneration, delay: RETRY_MIN_MS };
-    void runCatchUp();
+  if (sequence === undefined || sessionId !== currentSessionId) return;
+  if (sequence >= lastAppliedSequence) return;
+  // One at a time: a read running (or waiting to run again) catches up
+  // with this too.
+  if (catchUp?.sessionId === sessionId && catchUp.generation === currentGeneration) return;
+  stopCatchUp();
+  catchUp = { sessionId, generation: currentGeneration, delay: RETRY_MIN_MS };
+  void runCatchUp();
 });
 
-function handleServerEvent(
-    event: EventRecord,
-    targetSessionId: string,
-    persist = true,
-): void {
-    if (!currentSessionId || currentSessionId !== targetSessionId) {
-        console.info(
-            "[searchlight:sse] discarding event for mismatched session:",
-            event.sessionId,
-            "active:",
-            currentSessionId,
-        );
-        return;
-    }
-    if (event.sessionId !== targetSessionId) {
-        console.warn(
-            "[searchlight:sse] discarding event from another session",
-            event.sessionId,
-        );
-        return;
-    }
-    if (
-        !Number.isSafeInteger(event.sequence) ||
-        event.sequence <= lastAppliedSequence
-    ) {
-        return;
-    }
-    lastAppliedSequence = event.sequence;
-    const eventSeq = event.sequence;
+function handleServerEvent(event: EventRecord, targetSessionId: string, persist = true): void {
+  if (!currentSessionId || currentSessionId !== targetSessionId) {
+    console.info(
+      "[searchlight:sse] discarding event for mismatched session:",
+      event.sessionId,
+      "active:",
+      currentSessionId,
+    );
+    return;
+  }
+  if (event.sessionId !== targetSessionId) {
+    console.warn("[searchlight:sse] discarding event from another session", event.sessionId);
+    return;
+  }
+  if (!Number.isSafeInteger(event.sequence) || event.sequence <= lastAppliedSequence) {
+    return;
+  }
+  lastAppliedSequence = event.sequence;
+  const eventSeq = event.sequence;
 
-    console.info("[searchlight:sse] received event", {
-        id: event.id,
-        type: event.type,
-        sequence: eventSeq,
-        clientUuid: event.clientUuid,
-        userId: event.userId,
-    });
+  console.info("[searchlight:sse] received event", {
+    id: event.id,
+    type: event.type,
+    sequence: eventSeq,
+    clientUuid: event.clientUuid,
+    userId: event.userId,
+  });
 
-    if (event.type === "stroke.create") {
-        const stroke = event.payloadJson;
-        if (!isStrokeLike(stroke)) {
-            console.warn(
-                "[searchlight:sse] skipping a malformed stroke:",
-                stroke,
-            );
-            return;
-        }
-        const clientUuid = stroke.properties.clientUuid;
-        if (clientUuid) {
-            if (isStrokeTombstoned(clientUuid)) {
-                console.info(
-                    "[searchlight:sse] stroke.create skipped — tombstone exists:",
-                    clientUuid,
-                );
-                return;
-            }
-            const pending = currentSessionId
-                ? getPendingEvents(currentSessionId)
-                : [];
-            const hasPendingDelete = pending.some(
-                (e) =>
-                    e.type === "stroke.delete" &&
-                    (e.payloadJson as { clientUuid: string })?.clientUuid ===
-                        clientUuid,
-            );
-            if (hasPendingDelete) {
-                console.info(
-                    "[searchlight:sse] stroke.create skipped — local pending delete exists:",
-                    clientUuid,
-                );
-                return;
-            }
-        }
-        const current = strokes.get();
-        const isDup = !!current.find(
-            (s) => s.properties.clientUuid === stroke.properties.clientUuid,
-        );
-        if (!isDup) {
-            console.info(
-                "[searchlight:sse] applying stroke.create",
-                stroke.properties.clientUuid,
-                `(${current.length} → ${current.length + 1} strokes)`,
-            );
-            strokes.set([...current, stroke]);
-        } else {
-            console.info(
-                "[searchlight:sse] stroke.create is a duplicate, skipping",
-                stroke.properties.clientUuid,
-            );
-        }
-    } else if (event.type === "stroke.delete") {
-        const { clientUuid } = event.payloadJson as { clientUuid: string };
-        if (clientUuid) {
-            recordStrokeTombstone(clientUuid);
-        }
-        const before = strokes.get().length;
-        strokes.set(
-            strokes.get().filter((s) => s.properties.clientUuid !== clientUuid),
-        );
-        const after = strokes.get().length;
+  if (event.type === "stroke.create") {
+    const stroke = event.payloadJson;
+    if (!isStrokeLike(stroke)) {
+      console.warn("[searchlight:sse] skipping a malformed stroke:", stroke);
+      return;
+    }
+    const clientUuid = stroke.properties.clientUuid;
+    if (clientUuid) {
+      if (isStrokeTombstoned(clientUuid)) {
+        console.info("[searchlight:sse] stroke.create skipped — tombstone exists:", clientUuid);
+        return;
+      }
+      const pending = currentSessionId ? getPendingEvents(currentSessionId) : [];
+      const hasPendingDelete = pending.some(
+        (e) =>
+          e.type === "stroke.delete" &&
+          (e.payloadJson as { clientUuid: string })?.clientUuid === clientUuid,
+      );
+      if (hasPendingDelete) {
         console.info(
-            "[searchlight:sse] applying stroke.delete",
-            clientUuid,
-            `(${before} → ${after} strokes)`,
+          "[searchlight:sse] stroke.create skipped — local pending delete exists:",
+          clientUuid,
         );
-    } else if (event.type === "questions.replace") {
-        const unsynced = getPendingEvents(targetSessionId).filter(
-            (e) => e.type === "questions.replace",
-        );
-        // Our own replace can echo back before its PUT is acknowledged. The
-        // echo proves it committed at this sequence, so replaces from other
-        // players committed after it must apply rather than be skipped. The
-        // echo itself is not applied: the board already shows that list, or a
-        // newer edit that is still on its way.
-        const own = unsynced.find((e) => e.clientUuid === event.clientUuid);
-        const serverList = (
-            event.payloadJson as {
-                questions: Array<{ payloadJson: Questions[number] }>;
-            }
-        ).questions.map((question) => question.payloadJson);
-        if (own) {
-            markEventSynced(targetSessionId, own.localId);
-            const payload = own.payloadJson as QuestionsReplacePayload;
-            const local = payload.questions.map((question) => question.payloadJson);
-            if (payload.merged) {
-                // The board doesn't show the other side's changes yet: show
-                // the merged list, as its answer would (it may never come).
-                questionsSavedByEcho(targetSessionId, payload, serverList, eventSeq);
-            } else {
-                // The board's base moves on.
-                if (sameQuestionList(local, serverList)) {
-                    advanceBoardBase(targetSessionId, payload.base, {
-                        sequence: eventSeq,
-                        questions: serverList,
-                    });
-                }
-                // Saved, though its answer may never come.
-                notifyQuestionsSaved({
-                    sessionId: targetSessionId,
-                    local,
-                    saved: serverList,
-                    madeFrom: payload.base,
-                    sequence: eventSeq,
-                });
-            }
-        } else if (!showServerQuestions(targetSessionId, serverList, eventSeq)) {
-            return;
-        }
-    } else if (event.type === "hider.update") {
-        const { hiderLat, hiderLng } = event.payloadJson as {
-            hiderLat: number | null;
-            hiderLng: number | null;
-        };
-        // A spectator never sees the hider (the server sends it as null).
-        if (isSessionReadOnly(targetSessionId)) return;
-        if (hasPendingHiderSave(targetSessionId)) {
-            console.info(
-                "[searchlight:sse] hider.update ignored — local save pending for session",
-                targetSessionId,
-            );
-            return;
-        }
-        console.info("[searchlight:sse] applying hider.update", {
-            hiderLat,
-            hiderLng,
-        });
-        const next =
-            hiderLat != null && hiderLng != null
-                ? { latitude: hiderLat, longitude: hiderLng }
-                : false;
-        suppressHiderSave(next);
-        hiderMode.set(next);
-    } else if (event.type === "planning.toggle") {
-        const { planningModeEnabled: enabled } = event.payloadJson as {
-            planningModeEnabled: boolean;
-        };
-        if (hasPendingPlanningModeSave(targetSessionId)) {
-            console.info(
-                "[searchlight:sse] planning.toggle ignored — local save pending for session",
-                targetSessionId,
-            );
-            return;
-        }
-        console.info("[searchlight:sse] applying planning.toggle", enabled);
-        suppressPlanningModeSave(enabled);
-        planningModeEnabled.set(enabled);
-    } else if (event.type === "zones.disabled") {
-        // The whole list after the change: the board shows it with this
-        // device's unsaved deltas on top, so applying it never saves anything
-        // and never hides an edit of ours still on its way. Our own change's
-        // echo also takes it out of the queue, as for questions.replace.
-        const { disabledZoneIds } = event.payloadJson as {
-            disabledZoneIds: unknown;
-        };
-        if (!Array.isArray(disabledZoneIds)) return;
-        const ids = disabledZoneIds.filter(
-            (id): id is string => typeof id === "string",
-        );
-        console.info(
-            "[searchlight:sse] applying zones.disabled",
-            ids.length,
-            "zone(s)",
-        );
-        // Not over a later list: the reply to a save of ours can bring one
-        // before the stream gets there.
-        applyDisabledZonesEvent(targetSessionId, ids, event.clientUuid, eventSeq);
-    } else if (event.type === "session.revision-upgraded") {
-        console.info(
-            "[searchlight:sse] session.revision-upgraded received",
-            event.payloadJson,
-        );
-        if (typeof window !== "undefined") {
-            window.dispatchEvent(
-                new CustomEvent("session-revision-upgraded", {
-                    detail: event.payloadJson,
-                }),
-            );
-        }
+        return;
+      }
+    }
+    const current = strokes.get();
+    const isDup = !!current.find((s) => s.properties.clientUuid === stroke.properties.clientUuid);
+    if (!isDup) {
+      console.info(
+        "[searchlight:sse] applying stroke.create",
+        stroke.properties.clientUuid,
+        `(${current.length} → ${current.length + 1} strokes)`,
+      );
+      strokes.set([...current, stroke]);
     } else {
-        console.warn("[searchlight:sse] unknown event type:", event.type);
+      console.info(
+        "[searchlight:sse] stroke.create is a duplicate, skipping",
+        stroke.properties.clientUuid,
+      );
     }
+  } else if (event.type === "stroke.delete") {
+    const { clientUuid } = event.payloadJson as { clientUuid: string };
+    if (clientUuid) {
+      recordStrokeTombstone(clientUuid);
+    }
+    const before = strokes.get().length;
+    strokes.set(strokes.get().filter((s) => s.properties.clientUuid !== clientUuid));
+    const after = strokes.get().length;
+    console.info(
+      "[searchlight:sse] applying stroke.delete",
+      clientUuid,
+      `(${before} → ${after} strokes)`,
+    );
+  } else if (event.type === "questions.replace") {
+    const unsynced = getPendingEvents(targetSessionId).filter(
+      (e) => e.type === "questions.replace",
+    );
+    // Our own replace can echo back before its PUT is acknowledged. The
+    // echo proves it committed at this sequence, so replaces from other
+    // players committed after it must apply rather than be skipped. The
+    // echo itself is not applied: the board already shows that list, or a
+    // newer edit that is still on its way.
+    const own = unsynced.find((e) => e.clientUuid === event.clientUuid);
+    const serverList = (
+      event.payloadJson as {
+        questions: Array<{ payloadJson: Questions[number] }>;
+      }
+    ).questions.map((question) => question.payloadJson);
+    if (own) {
+      markEventSynced(targetSessionId, own.localId);
+      const payload = own.payloadJson as QuestionsReplacePayload;
+      const local = payload.questions.map((question) => question.payloadJson);
+      if (payload.merged) {
+        // The board doesn't show the other side's changes yet: show
+        // the merged list, as its answer would (it may never come).
+        questionsSavedByEcho(targetSessionId, payload, serverList, eventSeq);
+      } else {
+        // The board's base moves on.
+        if (sameQuestionList(local, serverList)) {
+          advanceBoardBase(targetSessionId, payload.base, {
+            sequence: eventSeq,
+            questions: serverList,
+          });
+        }
+        // Saved, though its answer may never come.
+        notifyQuestionsSaved({
+          sessionId: targetSessionId,
+          local,
+          saved: serverList,
+          madeFrom: payload.base,
+          sequence: eventSeq,
+        });
+      }
+    } else if (!showServerQuestions(targetSessionId, serverList, eventSeq)) {
+      return;
+    }
+  } else if (event.type === "hider.update") {
+    const { hiderLat, hiderLng } = event.payloadJson as {
+      hiderLat: number | null;
+      hiderLng: number | null;
+    };
+    // A spectator never sees the hider (the server sends it as null).
+    if (isSessionReadOnly(targetSessionId)) return;
+    if (hasPendingHiderSave(targetSessionId)) {
+      console.info(
+        "[searchlight:sse] hider.update ignored — local save pending for session",
+        targetSessionId,
+      );
+      return;
+    }
+    console.info("[searchlight:sse] applying hider.update", {
+      hiderLat,
+      hiderLng,
+    });
+    const next =
+      hiderLat != null && hiderLng != null ? { latitude: hiderLat, longitude: hiderLng } : false;
+    suppressHiderSave(next);
+    hiderMode.set(next);
+  } else if (event.type === "planning.toggle") {
+    const { planningModeEnabled: enabled } = event.payloadJson as {
+      planningModeEnabled: boolean;
+    };
+    if (hasPendingPlanningModeSave(targetSessionId)) {
+      console.info(
+        "[searchlight:sse] planning.toggle ignored — local save pending for session",
+        targetSessionId,
+      );
+      return;
+    }
+    console.info("[searchlight:sse] applying planning.toggle", enabled);
+    suppressPlanningModeSave(enabled);
+    planningModeEnabled.set(enabled);
+  } else if (event.type === "zones.disabled") {
+    // The whole list after the change: the board shows it with this
+    // device's unsaved deltas on top, so applying it never saves anything
+    // and never hides an edit of ours still on its way. Our own change's
+    // echo also takes it out of the queue, as for questions.replace.
+    const { disabledZoneIds } = event.payloadJson as {
+      disabledZoneIds: unknown;
+    };
+    if (!Array.isArray(disabledZoneIds)) return;
+    const ids = disabledZoneIds.filter((id): id is string => typeof id === "string");
+    console.info("[searchlight:sse] applying zones.disabled", ids.length, "zone(s)");
+    // Not over a later list: the reply to a save of ours can bring one
+    // before the stream gets there.
+    applyDisabledZonesEvent(targetSessionId, ids, event.clientUuid, eventSeq);
+  } else if (event.type === "session.revision-upgraded") {
+    console.info("[searchlight:sse] session.revision-upgraded received", event.payloadJson);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("session-revision-upgraded", {
+          detail: event.payloadJson,
+        }),
+      );
+    }
+  } else {
+    console.warn("[searchlight:sse] unknown event type:", event.type);
+  }
 
-    if (persist) persistSessionCache();
+  if (persist) persistSessionCache();
 }
 
 function handlePresenceEvent(type: string, payloadJson: unknown): void {
-    if (type === "presence.snapshot") {
-        const { users } = payloadJson as { users: PresenceUser[] };
-        console.info(
-            "[searchlight:sse] presence.snapshot:",
-            users.length,
-            "user(s)",
-        );
-        connectedUsers.set(users);
-    } else if (type === "presence.join") {
-        const user = payloadJson as PresenceUser;
-        const current = connectedUsers.get();
-        if (!current.find((u) => u.userId === user.userId)) {
-            console.info("[searchlight:sse] presence.join:", user.displayName);
-            connectedUsers.set([...current, user]);
-        }
-    } else if (type === "presence.leave") {
-        const { userId } = payloadJson as { userId: string };
-        console.info("[searchlight:sse] presence.leave:", userId);
-        connectedUsers.set(
-            connectedUsers.get().filter((u) => u.userId !== userId),
-        );
+  if (type === "presence.snapshot") {
+    const { users } = payloadJson as { users: PresenceUser[] };
+    console.info("[searchlight:sse] presence.snapshot:", users.length, "user(s)");
+    connectedUsers.set(users);
+  } else if (type === "presence.join") {
+    const user = payloadJson as PresenceUser;
+    const current = connectedUsers.get();
+    if (!current.find((u) => u.userId === user.userId)) {
+      console.info("[searchlight:sse] presence.join:", user.displayName);
+      connectedUsers.set([...current, user]);
     }
+  } else if (type === "presence.leave") {
+    const { userId } = payloadJson as { userId: string };
+    console.info("[searchlight:sse] presence.leave:", userId);
+    connectedUsers.set(connectedUsers.get().filter((u) => u.userId !== userId));
+  }
 }
 
 // Dispatched on window when the creator makes a participant of the streamed
 // session a member or a viewer. The board reloads if it's its own user.
 export const SESSION_ROLE_CHANGED_EVENT = "session-role-changed";
-export type SessionRoleChangedDetail =
-    ParticipantRoleChangedEvent["payloadJson"] & { sessionId: string };
+export type SessionRoleChangedDetail = ParticipantRoleChangedEvent["payloadJson"] & {
+  sessionId: string;
+};
 
 function handleRoleChangedEvent(sessionId: string, payloadJson: unknown): void {
-    const { userId, role } =
-        payloadJson as ParticipantRoleChangedEvent["payloadJson"];
-    console.info("[searchlight:sse] participant.role-changed:", userId, role);
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(
-        new CustomEvent<SessionRoleChangedDetail>(SESSION_ROLE_CHANGED_EVENT, {
-            detail: { sessionId, userId, role },
-        }),
-    );
+  const { userId, role } = payloadJson as ParticipantRoleChangedEvent["payloadJson"];
+  console.info("[searchlight:sse] participant.role-changed:", userId, role);
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<SessionRoleChangedDetail>(SESSION_ROLE_CHANGED_EVENT, {
+      detail: { sessionId, userId, role },
+    }),
+  );
 }
 
 // Dispatched on window each time the stream of a session opens. Live-only
@@ -522,137 +451,120 @@ function handleRoleChangedEvent(sessionId: string, payloadJson: unknown): void {
 // are lost, so the board checks the session again.
 export const SESSION_STREAM_RECONNECTED_EVENT = "session-stream-reconnected";
 export interface SessionStreamReconnectedDetail {
-    sessionId: string;
+  sessionId: string;
 }
 
 function streamReconnected(sessionId: string): void {
-    console.info("[searchlight:sse] stream reconnected for", sessionId);
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(
-        new CustomEvent<SessionStreamReconnectedDetail>(
-            SESSION_STREAM_RECONNECTED_EVENT,
-            { detail: { sessionId } },
-        ),
-    );
+  console.info("[searchlight:sse] stream reconnected for", sessionId);
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent<SessionStreamReconnectedDetail>(SESSION_STREAM_RECONNECTED_EVENT, {
+      detail: { sessionId },
+    }),
+  );
 }
 
 function startReplay(sessionId: string, generation: number): void {
-    clearTimeout(replayRetry);
-    replayRetry = undefined;
-    isGapFilling = true;
-    void gapFill(sessionId, generation, ++replayAttempt);
+  clearTimeout(replayRetry);
+  replayRetry = undefined;
+  isGapFilling = true;
+  void gapFill(sessionId, generation, ++replayAttempt);
 }
 
-async function gapFill(
-    sessionId: string,
-    generation: number,
-    attempt: number,
-): Promise<void> {
-    const isCurrent = () =>
-        currentGeneration === generation &&
-        currentSessionId === sessionId &&
-        replayAttempt === attempt;
-    if (!isCurrent()) return;
+async function gapFill(sessionId: string, generation: number, attempt: number): Promise<void> {
+  const isCurrent = () =>
+    currentGeneration === generation && currentSessionId === sessionId && replayAttempt === attempt;
+  if (!isCurrent()) return;
 
-    let complete = false;
-    let unavailableStatus: number | undefined;
-    try {
-        let after = lastAppliedSequence;
-        while (isCurrent()) {
-            const url = `${API_BASE}/sessions/${sessionId}/events?after=${after}&limit=50`;
-            const { res, data } = await withTimeout(async (signal) => {
-                const res = await fetch(url, { credentials: "include", signal });
-                const data = res.ok
-                    ? ((await res.json()) as {
-                          events: EventRecord[];
-                          nextAfter: number | null;
-                      })
-                    : undefined;
-                return { res, data };
-            });
-            if (!isCurrent()) return;
-            if (!data) {
-                const unavailable = await sessionUnavailableStatus(res);
-                if (!isCurrent()) return;
-                if (unavailable !== null) {
-                    unavailableStatus = unavailable;
-                    break;
-                }
-                throw new Error(`Gap fill failed: ${res.status}`);
-            }
-            if (!Array.isArray(data.events))
-                throw new Error("Invalid event page");
-            for (const event of data.events) {
-                handleServerEvent(event, sessionId, false);
-            }
-            // Persist once per page, not once per stroke in a long replay.
-            persistSessionCache();
-            if (data.nextAfter === null) {
-                complete = true;
-                break;
-            }
-            if (
-                !Number.isSafeInteger(data.nextAfter) ||
-                data.nextAfter <= after ||
-                data.events.length === 0
-            ) {
-                throw new Error("Invalid event page cursor");
-            }
-            after = data.nextAfter;
+  let complete = false;
+  let unavailableStatus: number | undefined;
+  try {
+    let after = lastAppliedSequence;
+    while (isCurrent()) {
+      const url = `${API_BASE}/sessions/${sessionId}/events?after=${after}&limit=50`;
+      const { res, data } = await withTimeout(async (signal) => {
+        const res = await fetch(url, { credentials: "include", signal });
+        const data = res.ok
+          ? ((await res.json()) as {
+              events: EventRecord[];
+              nextAfter: number | null;
+            })
+          : undefined;
+        return { res, data };
+      });
+      if (!isCurrent()) return;
+      if (!data) {
+        const unavailable = await sessionUnavailableStatus(res);
+        if (!isCurrent()) return;
+        if (unavailable !== null) {
+          unavailableStatus = unavailable;
+          break;
         }
-    } catch (error) {
-        if (isCurrent())
-            console.warn("[searchlight:sse] gap fill error:", error);
+        throw new Error(`Gap fill failed: ${res.status}`);
+      }
+      if (!Array.isArray(data.events)) throw new Error("Invalid event page");
+      for (const event of data.events) {
+        handleServerEvent(event, sessionId, false);
+      }
+      // Persist once per page, not once per stroke in a long replay.
+      persistSessionCache();
+      if (data.nextAfter === null) {
+        complete = true;
+        break;
+      }
+      if (
+        !Number.isSafeInteger(data.nextAfter) ||
+        data.nextAfter <= after ||
+        data.events.length === 0
+      ) {
+        throw new Error("Invalid event page cursor");
+      }
+      after = data.nextAfter;
     }
-    if (!isCurrent()) return;
-    if (unavailableStatus !== undefined) {
-        sessionUnavailable(sessionId, unavailableStatus);
-    } else if (complete) {
-        replayRetryDelay = RETRY_MIN_MS;
-        syncStatus.set("live");
-        isGapFilling = false;
-        drainBufferedEvents(sessionId, generation);
-    } else {
-        syncStatus.set("offline");
-        const delay = replayRetryDelay;
-        replayRetryDelay = Math.min(delay * 2, RETRY_MAX_MS);
-        replayRetry = setTimeout(() => {
-            if (isCurrent()) startReplay(sessionId, generation);
-        }, delay);
-    }
+  } catch (error) {
+    if (isCurrent()) console.warn("[searchlight:sse] gap fill error:", error);
+  }
+  if (!isCurrent()) return;
+  if (unavailableStatus !== undefined) {
+    sessionUnavailable(sessionId, unavailableStatus);
+  } else if (complete) {
+    replayRetryDelay = RETRY_MIN_MS;
+    syncStatus.set("live");
+    isGapFilling = false;
+    drainBufferedEvents(sessionId, generation);
+  } else {
+    syncStatus.set("offline");
+    const delay = replayRetryDelay;
+    replayRetryDelay = Math.min(delay * 2, RETRY_MAX_MS);
+    replayRetry = setTimeout(() => {
+      if (isCurrent()) startReplay(sessionId, generation);
+    }, delay);
+  }
 }
 
 function drainBufferedEvents(sessionId: string, generation: number): void {
-    if (liveEventBuffer.length === 0) return;
-    const buffered = liveEventBuffer.splice(0, liveEventBuffer.length);
-    buffered.sort((a, b) => a.sequence - b.sequence);
-    console.info(
-        "[searchlight:sse] draining",
-        buffered.length,
-        "buffered live event(s)",
-    );
-    for (let index = 0; index < buffered.length; index++) {
-        if (currentGeneration !== generation || currentSessionId !== sessionId)
-            return;
-        const event = buffered[index];
-        if (event.sequence > lastAppliedSequence + 1) {
-            // The stream got ahead of durable replay. Keep the gap buffered
-            // rather than skipping an earlier question or stroke mutation.
-            liveEventBuffer = buffered.slice(index);
-            isGapFilling = true;
-            syncStatus.set("offline");
-            replayRetry = setTimeout(() => {
-                if (
-                    currentGeneration === generation &&
-                    currentSessionId === sessionId
-                ) {
-                    startReplay(sessionId, generation);
-                }
-            }, 3000);
-            return;
+  if (liveEventBuffer.length === 0) return;
+  const buffered = liveEventBuffer.splice(0, liveEventBuffer.length);
+  buffered.sort((a, b) => a.sequence - b.sequence);
+  console.info("[searchlight:sse] draining", buffered.length, "buffered live event(s)");
+  for (let index = 0; index < buffered.length; index++) {
+    if (currentGeneration !== generation || currentSessionId !== sessionId) return;
+    const event = buffered[index];
+    if (event.sequence > lastAppliedSequence + 1) {
+      // The stream got ahead of durable replay. Keep the gap buffered
+      // rather than skipping an earlier question or stroke mutation.
+      liveEventBuffer = buffered.slice(index);
+      isGapFilling = true;
+      syncStatus.set("offline");
+      replayRetry = setTimeout(() => {
+        if (currentGeneration === generation && currentSessionId === sessionId) {
+          startReplay(sessionId, generation);
         }
-        handleServerEvent(event, sessionId);
+      }, 3000);
+      return;
     }
+    handleServerEvent(event, sessionId);
+  }
 }
 
 /**
@@ -660,26 +572,19 @@ function drainBufferedEvents(sessionId: string, generation: number): void {
  * stream has stopped, once the server answers 403 or 404 for the session
  * (see sessionUnavailableStatus).
  */
-export function startSSE(
-    sessionId: string,
-    onUnavailable?: (status: number) => void,
-): void {
-    console.info("[searchlight:sse] startSSE called for session", sessionId);
-    stopSSE();
-    const generation = ++currentGeneration;
-    currentSessionId = sessionId;
-    onSessionUnavailable = onUnavailable;
+export function startSSE(sessionId: string, onUnavailable?: (status: number) => void): void {
+  console.info("[searchlight:sse] startSSE called for session", sessionId);
+  stopSSE();
+  const generation = ++currentGeneration;
+  currentSessionId = sessionId;
+  onSessionUnavailable = onUnavailable;
 
-    const cached = getCachedSession(sessionId);
-    lastAppliedSequence =
-        typeof cached?.lastSequence === "number" ? cached.lastSequence : 0;
-    isGapFilling = false;
-    liveEventBuffer = [];
-    console.info(
-        "[searchlight:sse] lastAppliedSequence from cache:",
-        lastAppliedSequence,
-    );
-    openStream(sessionId, generation);
+  const cached = getCachedSession(sessionId);
+  lastAppliedSequence = typeof cached?.lastSequence === "number" ? cached.lastSequence : 0;
+  isGapFilling = false;
+  liveEventBuffer = [];
+  console.info("[searchlight:sse] lastAppliedSequence from cache:", lastAppliedSequence);
+  openStream(sessionId, generation);
 }
 
 // An EventSource gives up for good, without saying why, once a reconnect gets
@@ -687,176 +592,151 @@ export function startSSE(
 // session is still there, then open a new stream that resumes from the last
 // applied sequence.
 function scheduleReconnect(sessionId: string, generation: number): void {
-    const isCurrent = () =>
-        currentGeneration === generation && currentSessionId === sessionId;
-    const delay = reconnectDelay;
-    reconnectDelay = Math.min(delay * 2, RETRY_MAX_MS);
-    console.info("[searchlight:sse] stream closed, reconnecting in", delay, "ms");
-    clearTimeout(reconnectTimer);
-    reconnectTimer = setTimeout(async () => {
-        reconnectTimer = undefined;
-        if (!isCurrent()) return;
-        let res: Response | undefined;
-        try {
-            res = await withTimeout((signal) =>
-                fetch(`${API_BASE}/sessions/${sessionId}/events/cursor`, {
-                    credentials: "include",
-                    signal,
-                }),
-            );
-        } catch (err) {
-            console.warn("[searchlight:sse] reconnect check failed:", err);
-        }
-        if (!isCurrent()) return;
-        const unavailable =
-            res && !res.ok ? await sessionUnavailableStatus(res) : null;
-        if (!isCurrent()) return;
-        if (unavailable !== null) {
-            sessionUnavailable(sessionId, unavailable);
-        } else if (res?.ok) {
-            openStream(sessionId, generation);
-        } else {
-            scheduleReconnect(sessionId, generation);
-        }
-    }, delay);
+  const isCurrent = () => currentGeneration === generation && currentSessionId === sessionId;
+  const delay = reconnectDelay;
+  reconnectDelay = Math.min(delay * 2, RETRY_MAX_MS);
+  console.info("[searchlight:sse] stream closed, reconnecting in", delay, "ms");
+  clearTimeout(reconnectTimer);
+  reconnectTimer = setTimeout(async () => {
+    reconnectTimer = undefined;
+    if (!isCurrent()) return;
+    let res: Response | undefined;
+    try {
+      res = await withTimeout((signal) =>
+        fetch(`${API_BASE}/sessions/${sessionId}/events/cursor`, {
+          credentials: "include",
+          signal,
+        }),
+      );
+    } catch (err) {
+      console.warn("[searchlight:sse] reconnect check failed:", err);
+    }
+    if (!isCurrent()) return;
+    const unavailable = res && !res.ok ? await sessionUnavailableStatus(res) : null;
+    if (!isCurrent()) return;
+    if (unavailable !== null) {
+      sessionUnavailable(sessionId, unavailable);
+    } else if (res?.ok) {
+      openStream(sessionId, generation);
+    } else {
+      scheduleReconnect(sessionId, generation);
+    }
+  }, delay);
 }
 
 function openStream(sessionId: string, generation: number): void {
-    const url = `${API_BASE}/sessions/${sessionId}/stream`;
-    console.info("[searchlight:sse] opening EventSource →", url);
+  const url = `${API_BASE}/sessions/${sessionId}/stream`;
+  console.info("[searchlight:sse] opening EventSource →", url);
 
-    const source = new EventSource(url, { withCredentials: true });
-    eventSource = source;
+  const source = new EventSource(url, { withCredentials: true });
+  eventSource = source;
 
-    source.onopen = () => {
-        if (
-            source !== eventSource ||
-            currentGeneration !== generation ||
-            currentSessionId !== sessionId
-        ) {
-            return;
-        }
-        console.info(
-            "[searchlight:sse] connection opened, readyState:",
-            source.readyState,
-        );
-        reconnectDelay = RETRY_MIN_MS;
-        syncStatus.set("live");
+  source.onopen = () => {
+    if (
+      source !== eventSource ||
+      currentGeneration !== generation ||
+      currentSessionId !== sessionId
+    ) {
+      return;
+    }
+    console.info("[searchlight:sse] connection opened, readyState:", source.readyState);
+    reconnectDelay = RETRY_MIN_MS;
+    syncStatus.set("live");
+    startReplay(sessionId, generation);
+    // The server is reachable again: deliver edits that failed meanwhile,
+    // which would otherwise keep blocking incoming updates.
+    retryPendingEvents(sessionId);
+    streamReconnected(sessionId);
+  };
+
+  source.onmessage = (e: MessageEvent) => {
+    if (
+      source !== eventSource ||
+      currentGeneration !== generation ||
+      currentSessionId !== sessionId
+    ) {
+      console.info("[searchlight:sse] message ignored — obsolete EventSource");
+      return;
+    }
+    console.info("[searchlight:sse] raw message received, length:", (e.data as string).length);
+    try {
+      const parsed = JSON.parse(e.data as string) as {
+        type: string;
+        payloadJson: unknown;
+      };
+      if (parsed.type.startsWith("presence.")) {
+        handlePresenceEvent(parsed.type, parsed.payloadJson);
+        return;
+      }
+      // Live only: it has no sequence and isn't replayed.
+      if (parsed.type === "participant.role-changed") {
+        handleRoleChangedEvent(sessionId, parsed.payloadJson);
+        return;
+      }
+      const record = parsed as unknown as EventRecord;
+      const seq =
+        "sequence" in record && typeof record.sequence === "number" ? record.sequence : undefined;
+
+      if (isGapFilling) {
+        if (liveEventBuffer.length >= MAX_BUFFERED_EVENTS) liveEventBuffer.shift();
+        liveEventBuffer.push(record);
+        return;
+      }
+      if (typeof seq === "number" && seq > lastAppliedSequence + 1) {
+        liveEventBuffer.push(record);
         startReplay(sessionId, generation);
-        // The server is reachable again: deliver edits that failed meanwhile,
-        // which would otherwise keep blocking incoming updates.
-        retryPendingEvents(sessionId);
-        streamReconnected(sessionId);
-    };
+        return;
+      }
 
-    source.onmessage = (e: MessageEvent) => {
-        if (
-            source !== eventSource ||
-            currentGeneration !== generation ||
-            currentSessionId !== sessionId
-        ) {
-            console.info(
-                "[searchlight:sse] message ignored — obsolete EventSource",
-            );
-            return;
-        }
-        console.info(
-            "[searchlight:sse] raw message received, length:",
-            (e.data as string).length,
-        );
-        try {
-            const parsed = JSON.parse(e.data as string) as {
-                type: string;
-                payloadJson: unknown;
-            };
-            if (parsed.type.startsWith("presence.")) {
-                handlePresenceEvent(parsed.type, parsed.payloadJson);
-                return;
-            }
-            // Live only: it has no sequence and isn't replayed.
-            if (parsed.type === "participant.role-changed") {
-                handleRoleChangedEvent(sessionId, parsed.payloadJson);
-                return;
-            }
-            const record = parsed as unknown as EventRecord;
-            const seq =
-                "sequence" in record && typeof record.sequence === "number"
-                    ? record.sequence
-                    : undefined;
+      handleServerEvent(record, sessionId);
+    } catch (err) {
+      console.warn("[searchlight:sse] failed to parse SSE message:", err, "raw:", e.data);
+    }
+  };
 
-            if (isGapFilling) {
-                if (liveEventBuffer.length >= MAX_BUFFERED_EVENTS)
-                    liveEventBuffer.shift();
-                liveEventBuffer.push(record);
-                return;
-            }
-            if (typeof seq === "number" && seq > lastAppliedSequence + 1) {
-                liveEventBuffer.push(record);
-                startReplay(sessionId, generation);
-                return;
-            }
-
-            handleServerEvent(record, sessionId);
-        } catch (err) {
-            console.warn(
-                "[searchlight:sse] failed to parse SSE message:",
-                err,
-                "raw:",
-                e.data,
-            );
-        }
-    };
-
-    source.onerror = (e) => {
-        if (
-            source !== eventSource ||
-            currentGeneration !== generation ||
-            currentSessionId !== sessionId
-        ) {
-            return;
-        }
-        console.warn(
-            "[searchlight:sse] connection error, readyState:",
-            source.readyState,
-            e,
-        );
-        // The next onopen starts a fresh replay attempt.
-        if (syncStatus.get() === "live") {
-            syncStatus.set("synced");
-            console.info("[searchlight:sse] status reverted to synced");
-        }
-        if (source.readyState === EventSource.CLOSED) {
-            scheduleReconnect(sessionId, generation);
-        }
-    };
+  source.onerror = (e) => {
+    if (
+      source !== eventSource ||
+      currentGeneration !== generation ||
+      currentSessionId !== sessionId
+    ) {
+      return;
+    }
+    console.warn("[searchlight:sse] connection error, readyState:", source.readyState, e);
+    // The next onopen starts a fresh replay attempt.
+    if (syncStatus.get() === "live") {
+      syncStatus.set("synced");
+      console.info("[searchlight:sse] status reverted to synced");
+    }
+    if (source.readyState === EventSource.CLOSED) {
+      scheduleReconnect(sessionId, generation);
+    }
+  };
 }
 
 export function stopSSE(): void {
-    currentGeneration++;
-    if (eventSource) {
-        console.info(
-            "[searchlight:sse] stopSSE — closing EventSource for session",
-            currentSessionId,
-        );
-        eventSource.close();
-        eventSource = null;
-    }
-    clearTimeout(replayRetry);
-    replayRetry = undefined;
-    stopCatchUp();
-    clearTimeout(reconnectTimer);
-    reconnectTimer = undefined;
-    replayRetryDelay = RETRY_MIN_MS;
-    reconnectDelay = RETRY_MIN_MS;
-    onSessionUnavailable = undefined;
-    // What the server set belongs to the stopped session's board.
-    resetHiderSaveSuppression();
-    resetPlanningModeSaveSuppression();
-    replayAttempt++;
-    liveEventBuffer = [];
-    isGapFilling = false;
-    if (syncStatus.get() === "live") syncStatus.set("synced");
-    connectedUsers.set([]);
-    currentSessionId = null;
-    lastAppliedSequence = 0;
+  currentGeneration++;
+  if (eventSource) {
+    console.info("[searchlight:sse] stopSSE — closing EventSource for session", currentSessionId);
+    eventSource.close();
+    eventSource = null;
+  }
+  clearTimeout(replayRetry);
+  replayRetry = undefined;
+  stopCatchUp();
+  clearTimeout(reconnectTimer);
+  reconnectTimer = undefined;
+  replayRetryDelay = RETRY_MIN_MS;
+  reconnectDelay = RETRY_MIN_MS;
+  onSessionUnavailable = undefined;
+  // What the server set belongs to the stopped session's board.
+  resetHiderSaveSuppression();
+  resetPlanningModeSaveSuppression();
+  replayAttempt++;
+  liveEventBuffer = [];
+  isGapFilling = false;
+  if (syncStatus.get() === "live") syncStatus.set("synced");
+  connectedUsers.set([]);
+  currentSessionId = null;
+  lastAppliedSequence = 0;
 }

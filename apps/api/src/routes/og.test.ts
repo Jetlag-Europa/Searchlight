@@ -50,7 +50,10 @@ const definition = {
       features: [
         { type: "Feature", geometry: { type: "Point", coordinates: [4.3, 50.75] } },
         { type: "Feature", geometry: { type: "Point", coordinates: [4.5, 50.95] } },
-        { type: "Feature", geometry: { type: "Polygon", coordinates: [square(4.25, 50.72, 4.3, 50.76)] } },
+        {
+          type: "Feature",
+          geometry: { type: "Polygon", coordinates: [square(4.25, 50.72, 4.3, 50.76)] },
+        },
       ],
     },
   },
@@ -151,7 +154,10 @@ describe("link previews", () => {
   });
 
   test("the token is escaped where the page repeats it", async () => {
-    const res = await app.inject({ method: "GET", url: `/og/play?token=${encodeURIComponent('"><script>')}` });
+    const res = await app.inject({
+      method: "GET",
+      url: `/og/play?token=${encodeURIComponent('"><script>')}`,
+    });
     expect(res.body).not.toContain("<script>");
     expect(meta(res.body, "og:url")).toBe("http://localhost/play?token=%22%3E%3Cscript%3E");
   });
@@ -192,7 +198,10 @@ describe("gameMapSvg", () => {
 
   test("fits the play area inside the image", () => {
     const svg = gameMapSvg(definition)!;
-    const numbers = [...svg.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map(([, x, y]) => [Number(x), Number(y)]);
+    const numbers = [...svg.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map(([, x, y]) => [
+      Number(x),
+      Number(y),
+    ]);
     for (const [x, y] of numbers) {
       expect(x).toBeGreaterThanOrEqual(0);
       expect(x).toBeLessThanOrEqual(1200);
@@ -215,7 +224,10 @@ describe("gameMapPng", () => {
     expect(await gameMapPng("test-og-cache", load)).toBe(first);
     expect(load).toHaveBeenCalledTimes(1);
 
-    const failing = vi.fn().mockRejectedValueOnce(new Error("db down")).mockResolvedValue(definition);
+    const failing = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("db down"))
+      .mockResolvedValue(definition);
     await expect(gameMapPng("test-og-retry", failing)).rejects.toThrow("db down");
     expect(await gameMapPng("test-og-retry", failing)).toBeInstanceOf(Buffer);
     expect(failing).toHaveBeenCalledTimes(2);

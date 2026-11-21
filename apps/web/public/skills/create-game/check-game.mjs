@@ -36,15 +36,17 @@ export const STRICT_CODES = new Set([
 // Overlaps narrower than this (meters) are rounding between borders traced
 // from the same data, as the import page's overlap check treats them.
 const HAIRLINE = 0.5;
-const METERS_PER_DEGREE = 6371008.8 * Math.PI / 180;
+const METERS_PER_DEGREE = (6371008.8 * Math.PI) / 180;
 
 /** Whether a point is inside a polygon's rings (holes taken out). */
 function inRings(pt, polygon) {
   let inside = false;
   for (const ring of polygon) {
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i], [xj, yj] = ring[j];
-      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+      const [xi, yi] = ring[i],
+        [xj, yj] = ring[j];
+      if (yi > pt[1] !== yj > pt[1] && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi)
+        inside = !inside;
     }
   }
   return inside;
@@ -52,12 +54,14 @@ function inRings(pt, polygon) {
 
 /** Whether a point lies within `limit` meters of an edge of the rings. */
 function nearEdge(pt, rings, limit) {
-  const k = Math.cos(pt[1] * Math.PI / 180);
+  const k = Math.cos((pt[1] * Math.PI) / 180);
   const toXY = ([x, y]) => [(x - pt[0]) * k * METERS_PER_DEGREE, (y - pt[1]) * METERS_PER_DEGREE];
   for (const ring of rings) {
     for (let i = 1; i < ring.length; i++) {
-      const [ax, ay] = toXY(ring[i - 1]), [bx, by] = toXY(ring[i]);
-      const dx = bx - ax, dy = by - ay;
+      const [ax, ay] = toXY(ring[i - 1]),
+        [bx, by] = toXY(ring[i]);
+      const dx = bx - ax,
+        dy = by - ay;
       const t = dx || dy ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / (dx * dx + dy * dy))) : 0;
       if (Math.hypot(ax + t * dx, ay + t * dy) <= limit) return true;
     }
@@ -68,7 +72,8 @@ function nearEdge(pt, rings, limit) {
 /** A point strictly inside a polygon (accounting for holes), or null. */
 function interiorPoint(polygon) {
   const ys = [...new Set(polygon.flat().map(([, y]) => y))].sort((a, b) => a - b);
-  let bestGap = 0, y = 0;
+  let bestGap = 0,
+    y = 0;
   for (let i = 1; i < ys.length; i++) {
     if (ys[i] - ys[i - 1] > bestGap) {
       bestGap = ys[i] - ys[i - 1];
@@ -79,12 +84,14 @@ function interiorPoint(polygon) {
   const xs = [];
   for (const ring of polygon) {
     for (let i = 1; i < ring.length; i++) {
-      const [x1, y1] = ring[i - 1], [x2, y2] = ring[i];
-      if ((y1 > y) !== (y2 > y)) xs.push(x1 + ((x2 - x1) * (y - y1)) / (y2 - y1));
+      const [x1, y1] = ring[i - 1],
+        [x2, y2] = ring[i];
+      if (y1 > y !== y2 > y) xs.push(x1 + ((x2 - x1) * (y - y1)) / (y2 - y1));
     }
   }
   xs.sort((a, b) => a - b);
-  let best = 0, x = null;
+  let best = 0,
+    x = null;
   for (let i = 0; i + 1 < xs.length; i += 2) {
     if (xs[i + 1] - xs[i] > best) {
       best = xs[i + 1] - xs[i];
@@ -102,23 +109,37 @@ function interiorPoint(polygon) {
  */
 function cornersInsideOthers(feats) {
   const regions = feats.map((f) => {
-    const polygons = f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
+    const polygons =
+      f.geometry.type === "Polygon" ? [f.geometry.coordinates] : f.geometry.coordinates;
     const rings = polygons.flat();
     const box = [Infinity, Infinity, -Infinity, -Infinity];
     for (const [x, y] of rings.flat()) {
-      box[0] = Math.min(box[0], x); box[1] = Math.min(box[1], y);
-      box[2] = Math.max(box[2], x); box[3] = Math.max(box[3], y);
+      box[0] = Math.min(box[0], x);
+      box[1] = Math.min(box[1], y);
+      box[2] = Math.max(box[2], x);
+      box[3] = Math.max(box[3], y);
     }
     const corners = new Set(rings.flat().map(([x, y]) => `${x},${y}`));
     return { name: f.properties?.name ?? "(unnamed)", polygons, rings, box, corners };
   });
-  let count = 0, example = null;
+  let count = 0,
+    example = null;
   regions.forEach((region, r) => {
     // Each point with the corners it lies on or between, plus an interior point.
     const points = [
-      ...region.rings.flatMap((ring) => ring.flatMap((pt, i) => (i
-        ? [{ pt: [(ring[i - 1][0] + pt[0]) / 2, (ring[i - 1][1] + pt[1]) / 2], ends: [ring[i - 1], pt] }, { pt, ends: [pt] }]
-        : [{ pt, ends: [pt] }]))),
+      ...region.rings.flatMap((ring) =>
+        ring.flatMap((pt, i) =>
+          i
+            ? [
+                {
+                  pt: [(ring[i - 1][0] + pt[0]) / 2, (ring[i - 1][1] + pt[1]) / 2],
+                  ends: [ring[i - 1], pt],
+                },
+                { pt, ends: [pt] },
+              ]
+            : [{ pt, ends: [pt] }],
+        ),
+      ),
       ...region.polygons.flatMap((polygon) => {
         const pt = interiorPoint(polygon);
         return pt ? [{ pt, ends: [] }] : [];
@@ -127,7 +148,14 @@ function cornersInsideOthers(feats) {
     for (const { pt, ends } of points) {
       for (let o = 0; o < regions.length; o++) {
         const other = regions[o];
-        if (o === r || pt[0] < other.box[0] || pt[0] > other.box[2] || pt[1] < other.box[1] || pt[1] > other.box[3]) continue;
+        if (
+          o === r ||
+          pt[0] < other.box[0] ||
+          pt[0] > other.box[2] ||
+          pt[1] < other.box[1] ||
+          pt[1] > other.box[3]
+        )
+          continue;
         // A corner, or an edge, the two regions share is on its border.
         if (ends.length && ends.every(([x, y]) => other.corners.has(`${x},${y}`))) continue;
         if (!other.polygons.some((polygon) => inRings(pt, polygon))) continue;
@@ -151,14 +179,16 @@ const DENSE_EDGE = 50;
 
 /** The mean length in meters of the edges of lines' or rings' coordinates. */
 function meanEdge(coordinates) {
-  let length = 0, edges = 0;
+  let length = 0,
+    edges = 0;
   const walk = (c) => {
     if (typeof c?.[0]?.[0] === "number") {
       for (let i = 1; i < c.length; i++) {
-        const [x1, y1] = c[i - 1], [x2, y2] = c[i];
+        const [x1, y1] = c[i - 1],
+          [x2, y2] = c[i];
         // Equirectangular: exact enough for edges of a few kilometers.
-        const k = Math.cos(((y1 + y2) / 2) * Math.PI / 180);
-        length += 6371008.8 * Math.PI / 180 * Math.hypot((x2 - x1) * k, y2 - y1);
+        const k = Math.cos((((y1 + y2) / 2) * Math.PI) / 180);
+        length += ((6371008.8 * Math.PI) / 180) * Math.hypot((x2 - x1) * k, y2 - y1);
         edges++;
       }
     } else if (Array.isArray(c)) c.forEach(walk);
@@ -167,8 +197,13 @@ function meanEdge(coordinates) {
   return edges ? length / edges : 0;
 }
 
-const slug = (s) => String(s).toLowerCase().normalize("NFD")
-  .replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+const slug = (s) =>
+  String(s)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
 const isObj = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
 const UNITS = ["meters", "kilometers", "miles"];
 const GAME_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -182,11 +217,17 @@ const looksPlural = (name) => /^[a-z]+[^\W\d_isu]s$/i.test(name.trim().split(/\s
 export function questionLabel(name, kind, family) {
   if (kind === "matching") {
     return family === "polygons"
-      ? (/^same\b/i.test(name) ? name : `Same ${name}`)
-      : (/^nearest\b/i.test(name) ? name : `Nearest ${name}`);
+      ? /^same\b/i.test(name)
+        ? name
+        : `Same ${name}`
+      : /^nearest\b/i.test(name)
+        ? name
+        : `Nearest ${name}`;
   }
   if (kind === "measuring") {
-    return family === "polygons" && !/boundary|border/i.test(name) ? `Distance to ${name} Boundary` : `Distance to ${name}`;
+    return family === "polygons" && !/boundary|border/i.test(name)
+      ? `Distance to ${name} Boundary`
+      : `Distance to ${name}`;
   }
   return /^tentacles?\b/i.test(name) ? name : `Tentacles: ${name}`;
 }
@@ -240,12 +281,26 @@ export function checkGame(def, { fileSize } = {}) {
     return { errors, warnings, notes, questions: [], zoneCount: 0, layerCount: 0 };
   }
 
-  const ROOT_KEYS = ["$schema", "id", "revision", "name", "serverId", "size", "visibility",
-    "unit", "map", "hidingZones", "radars", "thermometer", "features"];
+  const ROOT_KEYS = [
+    "$schema",
+    "id",
+    "revision",
+    "name",
+    "serverId",
+    "size",
+    "visibility",
+    "unit",
+    "map",
+    "hidingZones",
+    "radars",
+    "thermometer",
+    "features",
+  ];
   for (const key of Object.keys(def)) {
     if (!ROOT_KEYS.includes(key)) err(`/${key}`, "unknown root property");
   }
-  if (def.$schema !== undefined && typeof def.$schema !== "string") err("/$schema", "must be a string");
+  if (def.$schema !== undefined && typeof def.$schema !== "string")
+    err("/$schema", "must be a string");
   if (typeof def.name !== "string" || !def.name || def.name.length > 120) {
     err("/name", "required string, 1-120 characters");
   }
@@ -259,27 +314,55 @@ export function checkGame(def, { fileSize } = {}) {
   } else if (slug(def.name ?? "").length < 2) {
     err("/id", "id (or slug of name) must be at least 2 characters");
   }
-  if (def.revision !== undefined && !(Number.isInteger(def.revision) && def.revision >= 1 && def.revision <= 2147483647)) {
+  if (
+    def.revision !== undefined &&
+    !(Number.isInteger(def.revision) && def.revision >= 1 && def.revision <= 2147483647)
+  ) {
     err("/revision", "must be an integer from 1 to 2147483647 (or leave it out)");
   }
-  if (def.size !== undefined && !["small", "medium", "large"].includes(def.size)) err("/size", "small | medium | large");
+  if (def.size !== undefined && !["small", "medium", "large"].includes(def.size))
+    err("/size", "small | medium | large");
   if (def.unit !== undefined && !UNITS.includes(def.unit)) err("/unit", UNITS.join(" | "));
   if (def.visibility !== undefined) {
     const v = def.visibility;
-    if (!isObj(v) || !(v.kind === "server-members" ||
-        (v.kind === "discord-role" && typeof v.guildId === "string" && v.guildId &&
-         typeof v.roleId === "string" && v.roleId))) {
-      err("/visibility", '{"kind":"server-members"} or {"kind":"discord-role","guildId":"...","roleId":"..."}');
+    if (
+      !isObj(v) ||
+      !(
+        v.kind === "server-members" ||
+        (v.kind === "discord-role" &&
+          typeof v.guildId === "string" &&
+          v.guildId &&
+          typeof v.roleId === "string" &&
+          v.roleId)
+      )
+    ) {
+      err(
+        "/visibility",
+        '{"kind":"server-members"} or {"kind":"discord-role","guildId":"...","roleId":"..."}',
+      );
     }
   }
-  if (def.thermometer !== undefined && typeof def.thermometer !== "boolean") err("/thermometer", "must be boolean");
-  if (def.radars !== undefined && typeof def.radars !== "boolean" &&
-      !(Array.isArray(def.radars) && def.radars.length && def.radars.every((r) => typeof r === "number" && r > 0))) {
+  if (def.thermometer !== undefined && typeof def.thermometer !== "boolean")
+    err("/thermometer", "must be boolean");
+  if (
+    def.radars !== undefined &&
+    typeof def.radars !== "boolean" &&
+    !(
+      Array.isArray(def.radars) &&
+      def.radars.length &&
+      def.radars.every((r) => typeof r === "number" && r > 0)
+    )
+  ) {
     err("/radars", "boolean or non-empty array of positive numbers");
   }
 
   function checkPosition(p, path) {
-    if (!Array.isArray(p) || p.length !== 2 || typeof p[0] !== "number" || typeof p[1] !== "number") {
+    if (
+      !Array.isArray(p) ||
+      p.length !== 2 ||
+      typeof p[0] !== "number" ||
+      typeof p[1] !== "number"
+    ) {
       err(path, "position must be exactly [lng, lat] (no altitude)");
       return false;
     }
@@ -290,22 +373,31 @@ export function checkGame(def, { fileSize } = {}) {
     return true;
   }
   function checkRings(rings, path) {
-    if (!Array.isArray(rings) || rings.length === 0) return err(path, "polygon needs at least one ring");
+    if (!Array.isArray(rings) || rings.length === 0)
+      return err(path, "polygon needs at least one ring");
     rings.forEach((r, i) => {
-      if (!Array.isArray(r) || r.length < 4) return err(`${path}/${i}`, "ring needs at least 4 positions");
+      if (!Array.isArray(r) || r.length < 4)
+        return err(`${path}/${i}`, "ring needs at least 4 positions");
       if (!r.every((p, j) => checkPosition(p, `${path}/${i}/${j}`))) return;
-      const a = r[0], b = r[r.length - 1];
-      if (a[0] !== b[0] || a[1] !== b[1]) err(`${path}/${i}`, "ring not closed (first position must equal last)");
+      const a = r[0],
+        b = r[r.length - 1];
+      if (a[0] !== b[0] || a[1] !== b[1])
+        err(`${path}/${i}`, "ring not closed (first position must equal last)");
     });
   }
   function checkLine(coords, path) {
-    if (!Array.isArray(coords) || coords.length < 2) return err(path, "line needs at least 2 positions");
+    if (!Array.isArray(coords) || coords.length < 2)
+      return err(path, "line needs at least 2 positions");
     coords.forEach((p, j) => checkPosition(p, `${path}/${j}`));
   }
   function checkGeometry(g, allowed, path) {
     if (!isObj(g) || !allowed.includes(g.type)) {
-      const extra = g?.type === "MultiPoint" ? " (split MultiPoint into separate Points)"
-        : g?.type === "GeometryCollection" ? " (merge parts into Multi* or split into features)" : "";
+      const extra =
+        g?.type === "MultiPoint"
+          ? " (split MultiPoint into separate Points)"
+          : g?.type === "GeometryCollection"
+            ? " (merge parts into Multi* or split into features)"
+            : "";
       return err(path, `geometry must be one of ${allowed.join(", ")}; got ${g?.type}${extra}`);
     }
     const c = g.coordinates;
@@ -328,8 +420,10 @@ export function checkGame(def, { fileSize } = {}) {
     fc.features.forEach((f, i) => {
       const p = `${path}/features/${i}`;
       if (!isObj(f) || f.type !== "Feature") return err(p, 'must be {"type":"Feature",...}');
-      if (f.id !== undefined && typeof f.id !== "string" && typeof f.id !== "number") err(`${p}/id`, "string or number");
-      if (f.properties !== undefined && f.properties !== null && !isObj(f.properties)) err(`${p}/properties`, "object or null");
+      if (f.id !== undefined && typeof f.id !== "string" && typeof f.id !== "number")
+        err(`${p}/id`, "string or number");
+      if (f.properties !== undefined && f.properties !== null && !isObj(f.properties))
+        err(`${p}/properties`, "object or null");
       checkGeometry(f.geometry, allowed, `${p}/geometry`);
     });
     return fc.features.filter((f) => isObj(f?.geometry) && allowed.includes(f.geometry.type));
@@ -340,11 +434,18 @@ export function checkGame(def, { fileSize } = {}) {
   checkPosition(center, "/map/center");
   const bounds = def.map?.bounds;
   if (bounds !== undefined) {
-    if (!Array.isArray(bounds) || bounds.length !== 4 || !bounds.every((n) => typeof n === "number")) {
+    if (
+      !Array.isArray(bounds) ||
+      bounds.length !== 4 ||
+      !bounds.every((n) => typeof n === "number")
+    ) {
       err("/map/bounds", "[west, south, east, north]");
     } else {
       if (bounds.some((n, i) => Math.abs(n) > (i % 2 ? 90 : 180))) {
-        err("/map/bounds", `[${bounds}] out of range; bounds are [west, south, east, north] in degrees`);
+        err(
+          "/map/bounds",
+          `[${bounds}] out of range; bounds are [west, south, east, north] in degrees`,
+        );
       }
       if (bounds[0] > bounds[2]) err("/map/bounds", "west > east");
       if (bounds[1] > bounds[3]) err("/map/bounds", "south > north");
@@ -353,62 +454,101 @@ export function checkGame(def, { fileSize } = {}) {
   const playArea = checkCollection(def.map?.playArea, ["Polygon", "MultiPolygon"], "/map/playArea");
   if (!isObj(def.hidingZones)) err("/hidingZones", "required object");
   const hz = isObj(def.hidingZones) ? def.hidingZones : {};
-  if (hz.radius !== undefined && !(typeof hz.radius === "number" && hz.radius > 0)) err("/hidingZones/radius", "positive number");
-  if (hz.unit !== undefined && !UNITS.includes(hz.unit)) err("/hidingZones/unit", UNITS.join(" | "));
+  if (hz.radius !== undefined && !(typeof hz.radius === "number" && hz.radius > 0))
+    err("/hidingZones/radius", "positive number");
+  if (hz.unit !== undefined && !UNITS.includes(hz.unit))
+    err("/hidingZones/unit", UNITS.join(" | "));
   if (hz.tierOverrides !== undefined) {
     if (!isObj(hz.tierOverrides)) {
       err("/hidingZones/tierOverrides", "must be an object mapping tier names to positive numbers");
     } else {
       for (const [tier, r] of Object.entries(hz.tierOverrides)) {
-        if (!(Number.isFinite(r) && r > 0)) err(`/hidingZones/tierOverrides/${tier}`, "positive number");
+        if (!(Number.isFinite(r) && r > 0))
+          err(`/hidingZones/tierOverrides/${tier}`, "positive number");
       }
     }
   }
-  const zones = checkCollection(hz.features, ["Point", "Polygon", "MultiPolygon"], "/hidingZones/features");
+  const zones = checkCollection(
+    hz.features,
+    ["Point", "Polygon", "MultiPolygon"],
+    "/hidingZones/features",
+  );
 
   const LAYER_KEYS = ["name", "enabledFor", "noOverlaps", "data"];
   const KINDS = ["matching", "measuring", "tentacle"];
   const layers = Array.isArray(def.features) ? def.features : [];
-  if (def.features !== undefined && !Array.isArray(def.features)) err("/features", "must be an array");
+  if (def.features !== undefined && !Array.isArray(def.features))
+    err("/features", "must be an array");
   const questionIds = new Map();
   const layerNames = new Set();
   const layerSlugs = new Map();
   const layerInfo = layers.map((layer, i) => {
     const p = `/features/${i}`;
     for (const key of Object.keys(layer ?? {})) {
-      if (!LAYER_KEYS.includes(key)) err(`${p}/${key}`, "unknown layer property (layers take only name, enabledFor, noOverlaps, data)");
+      if (!LAYER_KEYS.includes(key))
+        err(
+          `${p}/${key}`,
+          "unknown layer property (layers take only name, enabledFor, noOverlaps, data)",
+        );
     }
-    if (layer?.noOverlaps !== undefined && typeof layer.noOverlaps !== "boolean") err(`${p}/noOverlaps`, "must be true or false");
+    if (layer?.noOverlaps !== undefined && typeof layer.noOverlaps !== "boolean")
+      err(`${p}/noOverlaps`, "must be true or false");
     const name = typeof layer?.name === "string" ? layer.name : "";
     if (!name) err(`${p}/name`, "required non-empty string");
-    else if (layerNames.has(name)) err(`${p}/name`, `duplicate layer name "${name}"; every layer needs its own name`);
+    else if (layerNames.has(name))
+      err(`${p}/name`, `duplicate layer name "${name}"; every layer needs its own name`);
     layerNames.add(name);
     const kinds = Array.isArray(layer?.enabledFor) ? layer.enabledFor : [];
     if (!kinds.length || !kinds.every((k) => KINDS.includes(k))) {
       err(`${p}/enabledFor`, `non-empty array of ${KINDS.join(", ")}`);
     }
-    if (layer?.data === undefined) err(`${p}/data`, "missing: layers must embed a GeoJSON FeatureCollection");
-    const feats = layer?.data === undefined ? []
-      : checkCollection(layer.data, ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"], `${p}/data`);
-    const families = new Set(feats.map((f) =>
-      f.geometry.type === "Point" ? "points" : f.geometry.type.includes("Line") ? "lines" : "polygons"));
-    if (families.size > 1) err(`${p}/data`, `mixes ${[...families].join(" and ")}; one geometry family per layer`);
+    if (layer?.data === undefined)
+      err(`${p}/data`, "missing: layers must embed a GeoJSON FeatureCollection");
+    const feats =
+      layer?.data === undefined
+        ? []
+        : checkCollection(
+            layer.data,
+            ["Point", "LineString", "MultiLineString", "Polygon", "MultiPolygon"],
+            `${p}/data`,
+          );
+    const families = new Set(
+      feats.map((f) =>
+        f.geometry.type === "Point"
+          ? "points"
+          : f.geometry.type.includes("Line")
+            ? "lines"
+            : "polygons",
+      ),
+    );
+    if (families.size > 1)
+      err(`${p}/data`, `mixes ${[...families].join(" and ")}; one geometry family per layer`);
     const family = [...families][0] ?? "points";
     if (kinds.includes("tentacle") && feats.length && !families.has("points")) {
       err(`${p}/enabledFor`, "tentacle needs a Point layer");
     }
     if (layer?.noOverlaps === true && feats.length && family !== "polygons") {
-      warn(`${p}/noOverlaps`, "only region (Polygon) layers can be marked noOverlaps; it does nothing here", "no-overlaps-not-regions");
+      warn(
+        `${p}/noOverlaps`,
+        "only region (Polygon) layers can be marked noOverlaps; it does nothing here",
+        "no-overlaps-not-regions",
+      );
     }
     const s = slug(name);
-    if (name && !s) err(`${p}/name`, `"${name}" has no letters or digits to build a question ID from`);
+    if (name && !s)
+      err(`${p}/name`, `"${name}" has no letters or digits to build a question ID from`);
     for (const kind of kinds) {
       const qid = `${kind}-${s}`;
-      if (s && questionIds.has(qid)) err(`${p}/name`, `question ID "${qid}" collides with layer "${questionIds.get(qid)}"`);
+      if (s && questionIds.has(qid))
+        err(`${p}/name`, `question ID "${qid}" collides with layer "${questionIds.get(qid)}"`);
       questionIds.set(qid, name);
     }
     if (s && layerSlugs.has(s) && layerSlugs.get(s) !== name) {
-      warn(`${p}/name`, `"${name}" and "${layerSlugs.get(s)}" share the slug "${s}", so a question kind enabled on both gets the same ID; give each layer a distinct name`, "shared-slug");
+      warn(
+        `${p}/name`,
+        `"${name}" and "${layerSlugs.get(s)}" share the slug "${s}", so a question kind enabled on both gets the same ID; give each layer a distinct name`,
+        "shared-slug",
+      );
     }
     if (s && !layerSlugs.has(s)) layerSlugs.set(s, name);
     return { name, kinds, feats, family, path: p, noOverlaps: layer?.noOverlaps === true };
@@ -419,42 +559,68 @@ export function checkGame(def, { fileSize } = {}) {
   function inRing(pt, ring) {
     let inside = false;
     for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
-      const [xi, yi] = ring[i], [xj, yj] = ring[j];
-      if ((yi > pt[1]) !== (yj > pt[1]) && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi) inside = !inside;
+      const [xi, yi] = ring[i],
+        [xj, yj] = ring[j];
+      if (yi > pt[1] !== yj > pt[1] && pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi)
+        inside = !inside;
     }
     return inside;
   }
-  const inPolygon = (pt, rings) => inRing(pt, rings[0]) && !rings.slice(1).some((h) => inRing(pt, h));
+  const inPolygon = (pt, rings) =>
+    inRing(pt, rings[0]) && !rings.slice(1).some((h) => inRing(pt, h));
   function contains(geom, pt) {
     try {
       if (geom.type === "Polygon") return inPolygon(pt, geom.coordinates);
-      if (geom.type === "MultiPolygon") return geom.coordinates.some((rings) => inPolygon(pt, rings));
-    } catch { /* malformed geometry is already an error */ }
+      if (geom.type === "MultiPolygon")
+        return geom.coordinates.some((rings) => inPolygon(pt, rings));
+    } catch {
+      /* malformed geometry is already an error */
+    }
     return false;
   }
   const inPlayArea = (pt) => playArea.some((f) => contains(f.geometry, pt));
-  const countPositions = (c) => (typeof c?.[0] === "number" ? 1 : Array.isArray(c) ? c.reduce((n, x) => n + countPositions(x), 0) : 0);
+  const countPositions = (c) =>
+    typeof c?.[0] === "number"
+      ? 1
+      : Array.isArray(c)
+        ? c.reduce((n, x) => n + countPositions(x), 0)
+        : 0;
   function bboxOf(c, b = [Infinity, Infinity, -Infinity, -Infinity]) {
     if (typeof c?.[0] === "number") {
-      b[0] = Math.min(b[0], c[0]); b[1] = Math.min(b[1], c[1]);
-      b[2] = Math.max(b[2], c[0]); b[3] = Math.max(b[3], c[1]);
+      b[0] = Math.min(b[0], c[0]);
+      b[1] = Math.min(b[1], c[1]);
+      b[2] = Math.max(b[2], c[0]);
+      b[3] = Math.max(b[3], c[1]);
     } else if (Array.isArray(c)) c.forEach((x) => bboxOf(x, b));
     return b;
   }
   const swap = (c) => (typeof c?.[0] === "number" ? [c[1], c[0]] : c.map(swap));
-  const tooPrecise = (c) => (typeof c?.[0] === "number"
-    ? c.some((n) => String(n).split(".")[1]?.length > 6)
-    : Array.isArray(c) && c.some(tooPrecise));
-  const pointOf = (f) => f.geometry.type === "Point" ? f.geometry.coordinates : null;
-  const escapedNames = (feats) => feats.map((f) => f.properties?.name)
-    .filter((n) => typeof n === "string" && ESCAPED_NAME.test(n));
-  const escapedHint = (names) => `${names.length} name(s) contain CDATA wrappers or XML/HTML entities (${names.slice(0, 3).map((n) => JSON.stringify(n)).join(", ")}${names.length > 3 ? ", ..." : ""}); decode them`;
+  const tooPrecise = (c) =>
+    typeof c?.[0] === "number"
+      ? c.some((n) => String(n).split(".")[1]?.length > 6)
+      : Array.isArray(c) && c.some(tooPrecise);
+  const pointOf = (f) => (f.geometry.type === "Point" ? f.geometry.coordinates : null);
+  const escapedNames = (feats) =>
+    feats
+      .map((f) => f.properties?.name)
+      .filter((n) => typeof n === "string" && ESCAPED_NAME.test(n));
+  const escapedHint = (names) =>
+    `${names.length} name(s) contain CDATA wrappers or XML/HTML entities (${names
+      .slice(0, 3)
+      .map((n) => JSON.stringify(n))
+      .join(", ")}${names.length > 3 ? ", ..." : ""}); decode them`;
 
   if (errors.length === 0) {
-    if (ESCAPED_NAME.test(def.name)) warn("/name", `${JSON.stringify(def.name)} contains a CDATA wrapper or XML/HTML entity; decode it`, "escaped-name");
+    if (ESCAPED_NAME.test(def.name))
+      warn(
+        "/name",
+        `${JSON.stringify(def.name)} contains a CDATA wrapper or XML/HTML entity; decode it`,
+        "escaped-name",
+      );
     const MAP_KEYS = ["center", "bounds", "playArea"];
     const HIDING_ZONES_KEYS = ["radius", "unit", "tierOverrides", "features"];
-    const VISIBILITY_KEYS = def.visibility?.kind === "discord-role" ? ["kind", "guildId", "roleId"] : ["kind"];
+    const VISIBILITY_KEYS =
+      def.visibility?.kind === "discord-role" ? ["kind", "guildId", "roleId"] : ["kind"];
     for (const [obj, allowed, prefix] of [
       [def.map, MAP_KEYS, "/map"],
       [hz, HIDING_ZONES_KEYS, "/hidingZones"],
@@ -462,35 +628,70 @@ export function checkGame(def, { fileSize } = {}) {
     ]) {
       for (const key of Object.keys(obj)) {
         if (!allowed.includes(key)) {
-          warn(`${prefix}/${key}`, `unknown property (ignored by the app; allowed: ${allowed.join(", ")})`, "unknown-property");
+          warn(
+            `${prefix}/${key}`,
+            `unknown property (ignored by the app; allowed: ${allowed.join(", ")})`,
+            "unknown-property",
+          );
         }
       }
     }
     if (def.unit !== undefined && def.unit !== (hz.unit ?? "meters")) {
-      warn("/unit", `root unit "${def.unit}" overrides hidingZones.unit "${hz.unit ?? "meters"}": radius ${hz.radius ?? 400} is read as ${hz.radius ?? 400} ${def.unit}. Set only hidingZones.unit`, "root-unit");
+      warn(
+        "/unit",
+        `root unit "${def.unit}" overrides hidingZones.unit "${hz.unit ?? "meters"}": radius ${hz.radius ?? 400} is read as ${hz.radius ?? 400} ${def.unit}. Set only hidingZones.unit`,
+        "root-unit",
+      );
     }
     const effectiveUnit = def.unit ?? hz.unit ?? "meters";
     if (hz.radius === undefined && (effectiveUnit === "kilometers" || effectiveUnit === "miles")) {
-      warn("/hidingZones/radius", `omitted while unit is "${effectiveUnit}": defaults to 400 ${effectiveUnit}; set hidingZones.radius explicitly`, "default-radius-large-unit");
+      warn(
+        "/hidingZones/radius",
+        `omitted while unit is "${effectiveUnit}": defaults to 400 ${effectiveUnit}; set hidingZones.radius explicitly`,
+        "default-radius-large-unit",
+      );
     }
-    if (def.radars === undefined) note("/radars", "omitted: the game has no radar questions (a game offers only what it declares)", "no-radars");
-    if (def.thermometer === undefined) note("/thermometer", "omitted: the game has no thermometer questions", "no-thermometer");
-    if (!playArea.length) warn("/map/playArea", "has no features: nothing is playable", "empty-play-area");
+    if (def.radars === undefined)
+      note(
+        "/radars",
+        "omitted: the game has no radar questions (a game offers only what it declares)",
+        "no-radars",
+      );
+    if (def.thermometer === undefined)
+      note("/thermometer", "omitted: the game has no thermometer questions", "no-thermometer");
+    if (!playArea.length)
+      warn("/map/playArea", "has no features: nothing is playable", "empty-play-area");
     const areaBox = playArea.length ? bboxOf(playArea.map((f) => f.geometry.coordinates)) : null;
     const outsideBox = (p, b) => p[0] < b[0] || p[0] > b[2] || p[1] < b[1] || p[1] > b[3];
     if (areaBox && Array.isArray(center) && outsideBox(center, areaBox)) {
-      warn("/map/center", `[${center}] lies outside the play area's bbox [${areaBox}]; use the play area's centre`, "center-outside-play-area");
+      warn(
+        "/map/center",
+        `[${center}] lies outside the play area's bbox [${areaBox}]; use the play area's centre`,
+        "center-outside-play-area",
+      );
     }
-    if (areaBox && bounds?.length === 4 && (bounds[2] - bounds[0] > 3 * (areaBox[2] - areaBox[0]) + 1 ||
-        bounds[3] - bounds[1] > 3 * (areaBox[3] - areaBox[1]) + 1)) {
-      warn("/map/bounds", `[${bounds}] is far larger than the play area's bbox [${areaBox}]; use that bbox plus a small margin`, "bounds-too-large");
+    if (
+      areaBox &&
+      bounds?.length === 4 &&
+      (bounds[2] - bounds[0] > 3 * (areaBox[2] - areaBox[0]) + 1 ||
+        bounds[3] - bounds[1] > 3 * (areaBox[3] - areaBox[1]) + 1)
+    ) {
+      warn(
+        "/map/bounds",
+        `[${bounds}] is far larger than the play area's bbox [${areaBox}]; use that bbox plus a small margin`,
+        "bounds-too-large",
+      );
     }
 
     // Hiding zones
     if (!zones.length) warn("/hidingZones/features", "no hiding zones", "no-zones");
     const polyZones = zones.filter((f) => f.geometry.type !== "Point");
     if (polyZones.length) {
-      warn("/hidingZones/features", `${polyZones.length} Polygon/MultiPolygon zone(s): the app uses each as its own area (no radius or tier applies), and these checks can't tell whether they lie inside the play area`, "polygon-zones");
+      warn(
+        "/hidingZones/features",
+        `${polyZones.length} Polygon/MultiPolygon zone(s): the app uses each as its own area (no radius or tier applies), and these checks can't tell whether they lie inside the play area`,
+        "polygon-zones",
+      );
     }
     const pointZones = zones.filter(pointOf);
     const zoneIds = new Map();
@@ -500,61 +701,106 @@ export function checkGame(def, { fileSize } = {}) {
     zones.forEach((f, i) => {
       const p = `/hidingZones/features/features/${i}`;
       const name = f.properties?.name;
-      if (typeof name !== "string" || !name.trim()) warn(p, "no properties.name; the zone list will show a generic name", "unnamed-zone");
+      if (typeof name !== "string" || !name.trim())
+        warn(p, "no properties.name; the zone list will show a generic name", "unnamed-zone");
       const id = f.id ?? name;
-      if (id === undefined) warn(p, "no id and no name; give every zone a unique id", "missing-zone-id");
-      else if (zoneIds.has(String(id))) warn(p, `zone id "${id}" repeats ${zoneIds.get(String(id))}; zone ids must be unique`, "duplicate-zone-id");
+      if (id === undefined)
+        warn(p, "no id and no name; give every zone a unique id", "missing-zone-id");
+      else if (zoneIds.has(String(id)))
+        warn(
+          p,
+          `zone id "${id}" repeats ${zoneIds.get(String(id))}; zone ids must be unique`,
+          "duplicate-zone-id",
+        );
       else zoneIds.set(String(id), p);
       const tier = f.properties?.tier;
       if (tier !== undefined && tier !== null) {
         if (typeof tier !== "string") {
-          warn(`${p}/properties/tier`, `tier ${JSON.stringify(tier)} is a ${typeof tier}; tiers must be strings, like the tierOverrides keys`, "tier-not-string");
+          warn(
+            `${p}/properties/tier`,
+            `tier ${JSON.stringify(tier)} is a ${typeof tier}; tiers must be strings, like the tierOverrides keys`,
+            "tier-not-string",
+          );
         }
         if (tier !== "") usedTiers.add(String(tier));
       }
       const r = f.properties?.radius;
-      const validRadius = (typeof r === "number" && r > 0) ||
+      const validRadius =
+        (typeof r === "number" && r > 0) ||
         (isObj(r) && typeof r.value === "number" && r.value > 0 && UNITS.includes(r.unit));
       if (r !== undefined && !validRadius) {
-        warn(`${p}/properties/radius`, `per-zone radius must be a positive number in the game unit, or {"value": n, "unit": "${UNITS.join("|")}"}; the zone gets its tier radius, else the base radius`, "invalid-zone-radius");
+        warn(
+          `${p}/properties/radius`,
+          `per-zone radius must be a positive number in the game unit, or {"value": n, "unit": "${UNITS.join("|")}"}; the zone gets its tier radius, else the base radius`,
+          "invalid-zone-radius",
+        );
       }
       const pt = pointOf(f);
       if (pt && playArea.length && !inPlayArea(pt)) outside.push(name ?? id ?? i);
     });
     const escapedZones = escapedNames(zones);
-    if (escapedZones.length) warn("/hidingZones/features", escapedHint(escapedZones), "escaped-name");
+    if (escapedZones.length)
+      warn("/hidingZones/features", escapedHint(escapedZones), "escaped-name");
     for (const tier of Object.keys(tiers)) {
       if (usedTiers.has(tier)) continue;
       const near = [...usedTiers].find((t) => t.toLowerCase() === tier.toLowerCase());
-      warn(`/hidingZones/tierOverrides/${tier}`, near !== undefined
-        ? `no zone has tier "${tier}", but zones use "${near}"; tiers are case-sensitive, so those zones get the base radius`
-        : "no zone has this tier", "unused-tier");
+      warn(
+        `/hidingZones/tierOverrides/${tier}`,
+        near !== undefined
+          ? `no zone has tier "${tier}", but zones use "${near}"; tiers are case-sensitive, so those zones get the base radius`
+          : "no zone has this tier",
+        "unused-tier",
+      );
     }
     if (outside.length) {
       let hint = "";
       if (outside.length === pointZones.length) {
-        const swappedArea = playArea.map((f) => ({ ...f.geometry, coordinates: swap(f.geometry.coordinates) }));
+        const swappedArea = playArea.map((f) => ({
+          ...f.geometry,
+          coordinates: swap(f.geometry.coordinates),
+        }));
         const pts = pointZones.map(pointOf);
-        if (pts.some((pt) => swappedArea.some((g) => contains(g, pt)))) hint = " (the play area's coordinates look swapped: [lat, lng] instead of [lng, lat])";
-        else if (pts.some((pt) => inPlayArea([pt[1], pt[0]]))) hint = " (the zones' coordinates look swapped: [lat, lng] instead of [lng, lat])";
+        if (pts.some((pt) => swappedArea.some((g) => contains(g, pt))))
+          hint = " (the play area's coordinates look swapped: [lat, lng] instead of [lng, lat])";
+        else if (pts.some((pt) => inPlayArea([pt[1], pt[0]])))
+          hint = " (the zones' coordinates look swapped: [lat, lng] instead of [lng, lat])";
       }
-      warn("/hidingZones/features", `${outside.length} zone(s) outside the play area${hint}: ${outside.slice(0, 5).join(", ")}${outside.length > 5 ? ", ..." : ""}`, "zones-outside-play-area");
+      warn(
+        "/hidingZones/features",
+        `${outside.length} zone(s) outside the play area${hint}: ${outside.slice(0, 5).join(", ")}${outside.length > 5 ? ", ..." : ""}`,
+        "zones-outside-play-area",
+      );
     }
 
     // Layers
     for (const { name, kinds, feats, family, path, noOverlaps } of layerInfo) {
       const label = `${path} "${name}"`;
-      if (ESCAPED_NAME.test(name)) warn(label, "layer name contains a CDATA wrapper or XML/HTML entity; decode it", "escaped-name");
+      if (ESCAPED_NAME.test(name))
+        warn(
+          label,
+          "layer name contains a CDATA wrapper or XML/HTML entity; decode it",
+          "escaped-name",
+        );
       if (looksPlural(name)) {
-        note(label, `looks plural, and players see "${questionLabel(name, kinds[0], family)}"; name layers in the singular`, "plural-layer-name");
+        note(
+          label,
+          `looks plural, and players see "${questionLabel(name, kinds[0], family)}"; name layers in the singular`,
+          "plural-layer-name",
+        );
       }
       if (!feats.length) {
         warn(label, "empty layer; its questions will do nothing", "empty-layer");
         continue;
       }
-      const unnamed = feats.filter((f) => typeof f.properties?.name !== "string" || !f.properties.name.trim()).length;
+      const unnamed = feats.filter(
+        (f) => typeof f.properties?.name !== "string" || !f.properties.name.trim(),
+      ).length;
       if (unnamed) {
-        (kinds.includes("matching") || kinds.includes("tentacle") ? warn : note)(label, `${unnamed} feature(s) without properties.name; players see the layer name instead`, "unnamed-features");
+        (kinds.includes("matching") || kinds.includes("tentacle") ? warn : note)(
+          label,
+          `${unnamed} feature(s) without properties.name; players see the layer name instead`,
+          "unnamed-features",
+        );
       }
       const escaped = escapedNames(feats);
       if (escaped.length) warn(label, escapedHint(escaped), "escaped-name");
@@ -566,8 +812,15 @@ export function checkGame(def, { fileSize } = {}) {
         ids.add(String(f.id));
       }
       if (repeatedIds.size) {
-        const shown = [...repeatedIds].slice(0, 5).map((id) => `"${id}"`).join(", ");
-        warn(label, `${repeatedIds.size} feature id(s) repeat within the layer (${shown}${repeatedIds.size > 5 ? ", ..." : ""}); feature ids must be unique per layer`, "duplicate-feature-id");
+        const shown = [...repeatedIds]
+          .slice(0, 5)
+          .map((id) => `"${id}"`)
+          .join(", ");
+        warn(
+          label,
+          `${repeatedIds.size} feature id(s) repeat within the layer (${shown}${repeatedIds.size > 5 ? ", ..." : ""}); feature ids must be unique per layer`,
+          "duplicate-feature-id",
+        );
       }
       // What vertices cost depends on the questions: measuring buffers every
       // border or line, and matching on lines splits the map between them
@@ -578,8 +831,13 @@ export function checkGame(def, { fileSize } = {}) {
         const heavy = [];
         const spaced = [];
         const total = countPositions(feats.map((f) => f.geometry.coordinates));
-        if (total > VERTEX_BUDGET && (kinds.includes("measuring") || (family === "lines" && kinds.includes("matching")))) {
-          heavy.push(`${total} vertices, all used for ${kinds.includes("measuring") ? "measuring" : "matching"}`);
+        if (
+          total > VERTEX_BUDGET &&
+          (kinds.includes("measuring") || (family === "lines" && kinds.includes("matching")))
+        ) {
+          heavy.push(
+            `${total} vertices, all used for ${kinds.includes("measuring") ? "measuring" : "matching"}`,
+          );
           spaced.push(...feats.map((f) => f.geometry.coordinates));
         }
         if (family === "polygons" && kinds.includes("matching")) {
@@ -590,24 +848,42 @@ export function checkGame(def, { fileSize } = {}) {
           }
           if (largest.n > VERTEX_BUDGET) {
             const regionName = largest.feature.properties?.name;
-            heavy.push(`region ${typeof regionName === "string" ? `"${regionName}"` : "(unnamed)"} alone has ${largest.n} vertices, used for matching`);
+            heavy.push(
+              `region ${typeof regionName === "string" ? `"${regionName}"` : "(unnamed)"} alone has ${largest.n} vertices, used for matching`,
+            );
             if (!spaced.length) spaced.push(largest.feature.geometry.coordinates);
           }
         }
         if (heavy.length) {
           const edge = meanEdge(spaced);
           if (edge < DENSE_EDGE) {
-            warn(label, `${heavy.join("; ")}, about ${Math.round(edge)} m apart; simplify it with a topology-preserving simplifier at about 10 m tolerance (simplifying each feature on its own opens gaps and overlaps between neighbours)`, "heavy-geometry");
+            warn(
+              label,
+              `${heavy.join("; ")}, about ${Math.round(edge)} m apart; simplify it with a topology-preserving simplifier at about 10 m tolerance (simplifying each feature on its own opens gaps and overlaps between neighbours)`,
+              "heavy-geometry",
+            );
           } else {
-            note(label, `${heavy.join("; ")}, but they are already about ${Math.round(edge)} m apart, so simplifying would remove little; expect these questions to take a while`, "heavy-geometry");
+            note(
+              label,
+              `${heavy.join("; ")}, but they are already about ${Math.round(edge)} m apart, so simplifying would remove little; expect these questions to take a while`,
+              "heavy-geometry",
+            );
           }
         }
       }
       if (kinds.includes("matching") && feats.length < 2) {
-        warn(label, "matching on a single feature always answers the same way; enable measuring only", "single-feature-matching");
+        warn(
+          label,
+          "matching on a single feature always answers the same way; enable measuring only",
+          "single-feature-matching",
+        );
       }
       if (kinds.includes("tentacle") && family === "points" && feats.length < 2) {
-        warn(label, "tentacles on a single site only reveal whether the hider is within the radius of it; enable measuring only", "single-feature-tentacle");
+        warn(
+          label,
+          "tentacles on a single site only reveal whether the hider is within the radius of it; enable measuring only",
+          "single-feature-tentacle",
+        );
       }
       if (family === "points") {
         const seen = new Set();
@@ -617,10 +893,22 @@ export function checkGame(def, { fileSize } = {}) {
           if (seen.has(k)) dup++;
           seen.add(k);
         }
-        if (dup) warn(label, `${dup} point(s) repeat another point's coordinates; dedupe them`, "duplicate-points");
-        if (playArea.length && !feats.some((f) => inPlayArea(f.geometry.coordinates)) &&
-            feats.some((f) => inPlayArea(swap(f.geometry.coordinates)))) {
-          warn(label, "no point lies inside the play area, but swapped they do: write positions as [lng, lat]", "layer-coordinates-swapped");
+        if (dup)
+          warn(
+            label,
+            `${dup} point(s) repeat another point's coordinates; dedupe them`,
+            "duplicate-points",
+          );
+        if (
+          playArea.length &&
+          !feats.some((f) => inPlayArea(f.geometry.coordinates)) &&
+          feats.some((f) => inPlayArea(swap(f.geometry.coordinates)))
+        ) {
+          warn(
+            label,
+            "no point lies inside the play area, but swapped they do: write positions as [lng, lat]",
+            "layer-coordinates-swapped",
+          );
         }
       }
       if (family !== "points" && kinds.includes("matching")) {
@@ -631,22 +919,41 @@ export function checkGame(def, { fileSize } = {}) {
         }
         const repeated = [...names].filter(([, c]) => c > 1).map(([n]) => n);
         if (repeated.length) {
-          warn(label, `matching treats each feature as its own ${family === "lines" ? "line" : "region"}, but names repeat (${repeated.slice(0, 5).join(", ")}); merge each into one Multi${family === "lines" ? "LineString" : "Polygon"} feature`, "repeated-names");
+          warn(
+            label,
+            `matching treats each feature as its own ${family === "lines" ? "line" : "region"}, but names repeat (${repeated.slice(0, 5).join(", ")}); merge each into one Multi${family === "lines" ? "LineString" : "Polygon"} feature`,
+            "repeated-names",
+          );
         }
       }
       if (family === "polygons" && pointZones.length) {
-        let none = 0, many = 0;
+        let none = 0,
+          many = 0;
         for (const z of pointZones) {
           const n = feats.filter((f) => contains(f.geometry, pointOf(z))).length;
           if (n === 0) none++;
           if (n > 1) many++;
         }
         if (none === pointZones.length) {
-          warn(label, "no hiding zone lies in any of its regions, so every player gets the same answer (swapped coordinates?); for features nobody stands in, such as water, use a line or point layer", "zones-outside-all-regions");
+          warn(
+            label,
+            "no hiding zone lies in any of its regions, so every player gets the same answer (swapped coordinates?); for features nobody stands in, such as water, use a line or point layer",
+            "zones-outside-all-regions",
+          );
         } else if (kinds.includes("matching")) {
           // A layer marked noOverlaps gets the stricter check below instead.
-          if (many && !noOverlaps) warn(label, `${many} hiding zone centre(s) fall in more than one region; regions overlap (the first in file order wins)`, "overlapping-regions");
-          if (none) note(label, `${none} hiding zone centre(s) fall in no region; "outside every region" becomes its own answer`, "zones-outside-regions");
+          if (many && !noOverlaps)
+            warn(
+              label,
+              `${many} hiding zone centre(s) fall in more than one region; regions overlap (the first in file order wins)`,
+              "overlapping-regions",
+            );
+          if (none)
+            note(
+              label,
+              `${none} hiding zone centre(s) fall in no region; "outside every region" becomes its own answer`,
+              "zones-outside-regions",
+            );
         }
       }
     }
@@ -658,13 +965,23 @@ export function checkGame(def, { fileSize } = {}) {
       if (!noOverlaps || family !== "polygons") continue;
       const inside = cornersInsideOthers(feats);
       if (inside.count) {
-        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) of its regions lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
+        warn(
+          `${path} "${name}"`,
+          `marked noOverlaps, but ${inside.count} point(s) of its regions lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`,
+          "no-overlaps-overlapping",
+        );
       }
     }
 
-    const precise = [def.map?.playArea, hz.features, ...layers.map((l) => l.data)]
-      .some((fc) => fc?.features?.some((f) => tooPrecise(f.geometry?.coordinates)));
-    if (precise) note("/", "coordinates carry more than 6 decimals (~0.1 m); rounding to 6 shrinks the file", "too-precise");
+    const precise = [def.map?.playArea, hz.features, ...layers.map((l) => l.data)].some((fc) =>
+      fc?.features?.some((f) => tooPrecise(f.geometry?.coordinates)),
+    );
+    if (precise)
+      note(
+        "/",
+        "coordinates carry more than 6 decimals (~0.1 m); rounding to 6 shrinks the file",
+        "too-precise",
+      );
   }
 
   // ── Questions offered ──────────────────────────────────────────────────────
@@ -672,17 +989,31 @@ export function checkGame(def, { fileSize } = {}) {
   const questions = [];
   if (errors.length === 0) {
     // Worded like the app's: any radius, with the declared radii as presets.
-    const radii = Array.isArray(def.radars) ? [...new Set(def.radars)] : def.radars === true ? [hz.radius ?? 400] : [];
+    const radii = Array.isArray(def.radars)
+      ? [...new Set(def.radars)]
+      : def.radars === true
+        ? [hz.radius ?? 400]
+        : [];
     if (radii.length) {
       const unit = def.unit ?? hz.unit ?? "meters";
       const presets = radii.map((r) => formatRadius(r, unit)).join(", ");
-      questions.push({ kind: "radar", label: radii.length > 1 ? `any radius (presets ${presets})` : `any radius (starts at ${presets})` });
+      questions.push({
+        kind: "radar",
+        label:
+          radii.length > 1
+            ? `any radius (presets ${presets})`
+            : `any radius (starts at ${presets})`,
+      });
     }
     if (def.thermometer === true) questions.push({ kind: "thermometer", label: "" });
     for (const { name, kinds, family } of layerInfo) {
       for (const kind of kinds) {
         if (kind === "tentacle" && family !== "points") continue;
-        questions.push({ kind, label: questionLabel(name, kind, family), id: `${kind}-${slug(name)}` });
+        questions.push({
+          kind,
+          label: questionLabel(name, kind, family),
+          id: `${kind}-${slug(name)}`,
+        });
       }
     }
   }
@@ -694,12 +1025,23 @@ export function checkGame(def, { fileSize } = {}) {
   const mb = utf8Length(JSON.stringify(def)) / MB;
   const fileMb = (fileSize ?? 0) / MB;
   if (mb > IMPORT_LIMIT_MB) {
-    err("/", `${mb.toFixed(1)} MB as compact JSON, over the ${IMPORT_LIMIT_MB} MB import limit; simplify boundaries and drop unused properties`);
+    err(
+      "/",
+      `${mb.toFixed(1)} MB as compact JSON, over the ${IMPORT_LIMIT_MB} MB import limit; simplify boundaries and drop unused properties`,
+    );
   } else if (mb > 10) {
-    warn("/", `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit ${IMPORT_LIMIT_MB} MB)`, "large-file");
+    warn(
+      "/",
+      `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit ${IMPORT_LIMIT_MB} MB)`,
+      "large-file",
+    );
   }
   if (fileMb > IMPORT_LIMIT_MB && mb <= IMPORT_LIMIT_MB) {
-    warn("/", `${fileMb.toFixed(1)} MB as formatted, over the API's ${IMPORT_LIMIT_MB} MB import limit; post it without indentation (the import page does)`, "formatted-over-limit");
+    warn(
+      "/",
+      `${fileMb.toFixed(1)} MB as formatted, over the API's ${IMPORT_LIMIT_MB} MB import limit; post it without indentation (the import page does)`,
+      "formatted-over-limit",
+    );
   }
   return { errors, warnings, notes, questions, zoneCount: zones.length, layerCount: layers.length };
 }
@@ -724,11 +1066,14 @@ function main(args, { readFileSync, statSync }) {
     console.log(`\n1 error(s), 0 warning(s)${failed}, 0 note(s)`);
     process.exit(1);
   }
-  const { errors, warnings, notes, questions, zoneCount, layerCount } = checkGame(def, { fileSize: statSync(file).size });
+  const { errors, warnings, notes, questions, zoneCount, layerCount } = checkGame(def, {
+    fileSize: statSync(file).size,
+  });
   const failures = strict ? warnings.filter((w) => STRICT_CODES.has(w.code)) : [];
 
   for (const e of errors) console.log(`ERROR ${e.path}: ${e.message}`);
-  for (const w of warnings) console.log(`${failures.includes(w) ? "FAIL " : "WARN "} ${w.path}: ${w.message}`);
+  for (const w of warnings)
+    console.log(`${failures.includes(w) ? "FAIL " : "WARN "} ${w.path}: ${w.message}`);
   for (const n of notes) console.log(`NOTE  ${n.path}: ${n.message}`);
   if (errors.length === 0) {
     const gameId = def.id ?? slug(def.name);
@@ -738,7 +1083,9 @@ function main(args, { readFileSync, statSync }) {
     }
   }
   const failed = strict ? ` (${failures.length} fail under --strict)` : "";
-  console.log(`\n${errors.length} error(s), ${warnings.length} warning(s)${failed}, ${notes.length} note(s)`);
+  console.log(
+    `\n${errors.length} error(s), ${warnings.length} warning(s)${failed}, ${notes.length} note(s)`,
+  );
   process.exit(errors.length || failures.length ? 1 : 0);
 }
 
@@ -747,7 +1094,10 @@ const NODE_FS = "node:fs";
 const NODE_URL = "node:url";
 const script = globalThis.process?.argv?.[1];
 if (script) {
-  Promise.all([import(/* @vite-ignore */ NODE_FS), import(/* @vite-ignore */ NODE_URL)]).then(([fs, url]) => {
-    if (import.meta.url === url.pathToFileURL(fs.realpathSync(script)).href) main(process.argv.slice(2), fs);
-  });
+  Promise.all([import(/* @vite-ignore */ NODE_FS), import(/* @vite-ignore */ NODE_URL)]).then(
+    ([fs, url]) => {
+      if (import.meta.url === url.pathToFileURL(fs.realpathSync(script)).href)
+        main(process.argv.slice(2), fs);
+    },
+  );
 }

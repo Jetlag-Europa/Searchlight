@@ -17,6 +17,7 @@ The authoring guide is the game creation skill, `apps/web/public/skills/create-g
    `check-game.mjs --strict` fails on anything the import would reject and on the warnings that are always data defects, and prints the question list players will see.
 
    To see the file on a map, drop it on the import page, `/games/import` (see [below](#games-uploaded-by-game-devs)); it saves nothing until you click import.
+
 3. Import it on the import page, as below. Locally (`pnpm dev`, see the [README](../README.md)), you can instead have the API import it on every start (see [Preloading](#preloading)).
 4. In the browser, switch to the game and confirm the play area, the hiding-zone count and radii, and that each question in the check's list appears and evaluates.
 

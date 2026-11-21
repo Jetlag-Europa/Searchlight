@@ -8,36 +8,26 @@ import PresetsDialog from "@/components/PresetsDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import {
-    MENU_ITEM_CLASSNAME,
-    SidebarMenuItem,
-} from "@/components/ui/sidebar";
+import { MENU_ITEM_CLASSNAME, SidebarMenuItem } from "@/components/ui/sidebar";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { compiledGameAtom } from "@/game-definition/store";
 import { askedHints } from "@/lib/askedQuestions";
 import {
-    autoLockQuestions,
-    customInitPreference,
-    drawingQuestionKey,
-    hiderMode,
-    isLoading,
-    questionModified,
-    questions,
-    resetScopedLoading,
-    setScopedLoading,
-    triggerLocalRefresh,
+  autoLockQuestions,
+  customInitPreference,
+  drawingQuestionKey,
+  hiderMode,
+  isLoading,
+  questionModified,
+  questions,
+  resetScopedLoading,
+  setScopedLoading,
+  triggerLocalRefresh,
 } from "@/lib/context";
-import {
-    defaultQuestionLabel,
-    questionName,
-    setQuestionName,
-} from "@/lib/questionNames";
+import { defaultQuestionLabel, questionName, setQuestionName } from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import { matchingTarget } from "@/maps";
-import {
-    customSwitchStart,
-    determineMatchingBoundary,
-} from "@/maps/questions/matching";
+import { customSwitchStart, determineMatchingBoundary } from "@/maps/questions/matching";
 import type { MatchingQuestion } from "@/maps/schema";
 
 import { AnswerSplitPreview } from "./answerSplit";
@@ -45,255 +35,223 @@ import { QuestionCard } from "./base";
 
 /** The name of the closest thing to the pin. */
 function useClosestName(data: MatchingQuestion) {
-    const compiled = useStore(compiledGameAtom);
-    const enabled = data.enabled ?? true;
-    // Drawing custom points edits `geo` in place, so compare by value.
-    const inputs = JSON.stringify([
-        data.type,
-        data.lat,
-        data.lng,
-        data.type === "custom-points" ? data.geo : null,
-        enabled,
-    ]);
-    return React.useMemo(
-        () => (enabled ? matchingTarget(data) : undefined),
-        [inputs, compiled],
-    );
+  const compiled = useStore(compiledGameAtom);
+  const enabled = data.enabled ?? true;
+  // Drawing custom points edits `geo` in place, so compare by value.
+  const inputs = JSON.stringify([
+    data.type,
+    data.lat,
+    data.lng,
+    data.type === "custom-points" ? data.geo : null,
+    enabled,
+  ]);
+  return React.useMemo(() => (enabled ? matchingTarget(data) : undefined), [inputs, compiled]);
 }
 
 export const MatchingQuestionComponent = ({
-    data,
-    questionKey,
-    sub,
+  data,
+  questionKey,
+  sub,
 }: {
-    data: MatchingQuestion;
-    questionKey: number;
-    sub?: string;
+  data: MatchingQuestion;
+  questionKey: number;
+  sub?: string;
 }) => {
-    useStore(triggerLocalRefresh);
-    const $hiderMode = useStore(hiderMode);
-    const $questions = useStore(questions);
-    const $drawingQuestionKey = useStore(drawingQuestionKey);
-    const $isLoading = useStore(isLoading);
-    const $customInitPref = useStore(customInitPreference);
-    const compiled = useStore(compiledGameAtom);
-    const compiledMatching =
-        compiled?.questions.filter((q) => q.family === "matching") ?? [];
-    const [customDialogOpen, setCustomDialogOpen] = React.useState(false);
-    const [pendingCustomType, setPendingCustomType] = React.useState<
-        "custom-zone" | "custom-points" | null
-    >(null);
-    const prefillSeqRef = React.useRef(0);
-    const prefillScope = React.useMemo(() => Symbol("matching-prefill"), []);
-    const closest = useClosestName(data);
+  useStore(triggerLocalRefresh);
+  const $hiderMode = useStore(hiderMode);
+  const $questions = useStore(questions);
+  const $drawingQuestionKey = useStore(drawingQuestionKey);
+  const $isLoading = useStore(isLoading);
+  const $customInitPref = useStore(customInitPreference);
+  const compiled = useStore(compiledGameAtom);
+  const compiledMatching = compiled?.questions.filter((q) => q.family === "matching") ?? [];
+  const [customDialogOpen, setCustomDialogOpen] = React.useState(false);
+  const [pendingCustomType, setPendingCustomType] = React.useState<
+    "custom-zone" | "custom-points" | null
+  >(null);
+  const prefillSeqRef = React.useRef(0);
+  const prefillScope = React.useMemo(() => Symbol("matching-prefill"), []);
+  const closest = useClosestName(data);
 
-    React.useEffect(() => {
-        return () => {
-            prefillSeqRef.current++;
-            resetScopedLoading(prefillScope);
-        };
-    }, [prefillScope]);
-
-    const label = defaultQuestionLabel($questions, questionKey);
-
-    // Starts a custom question blank or, copying custom points into a custom
-    // zone, as the seeker's cell (see customSwitchStart).
-    const switchToCustom = async (
-        type: "custom-zone" | "custom-points",
-        copy: boolean,
-    ) => {
-        const currentSeq = ++prefillSeqRef.current;
-        let geo: unknown;
-        if (copy) {
-            setScopedLoading(prefillScope, true);
-            try {
-                geo = await determineMatchingBoundary(data);
-            } catch (error) {
-                console.error("Could not copy the question:", error);
-            } finally {
-                setScopedLoading(prefillScope, false);
-            }
-            if (prefillSeqRef.current !== currentSeq) return;
-        }
-        if (geo === undefined) {
-            toast.info(
-                type === "custom-zone"
-                    ? "Please draw the zone on the map."
-                    : "Please draw the points on the map.",
-            );
-        }
-        (data as { geo?: unknown }).geo =
-            geo ?? (type === "custom-zone" ? undefined : []);
-        questionModified((data.type = type));
+  React.useEffect(() => {
+    return () => {
+      prefillSeqRef.current++;
+      resetScopedLoading(prefillScope);
     };
+  }, [prefillScope]);
 
-    let questionSpecific = <></>;
+  const label = defaultQuestionLabel($questions, questionKey);
 
-    switch (data.type) {
-        case "custom-zone":
-        case "custom-points":
-            if (data.drag) {
-                questionSpecific = (
-                    <>
-                        <p className="px-2 mb-1 text-center text-orange-500">
-                            To modify the matching{" "}
-                            {data.type === "custom-zone" ? "zones" : "points"},
-                            enable it:
-                            <Checkbox
-                                className="mx-1 my-1"
-                                checked={$drawingQuestionKey === questionKey}
-                                onCheckedChange={(checked) => {
-                                    if (checked) {
-                                        drawingQuestionKey.set(questionKey);
-                                    } else {
-                                        drawingQuestionKey.set(-1);
-                                    }
-                                }}
-                                disabled={$isLoading}
-                            />
-                            and use the buttons at the bottom left of the map.
-                        </p>
-                        <div className="flex justify-center mb-2">
-                            <PresetsDialog
-                                data={data}
-                                presetTypeHint={data.type}
-                            />
-                        </div>
-                    </>
-                );
-            }
+  // Starts a custom question blank or, copying custom points into a custom
+  // zone, as the seeker's cell (see customSwitchStart).
+  const switchToCustom = async (type: "custom-zone" | "custom-points", copy: boolean) => {
+    const currentSeq = ++prefillSeqRef.current;
+    let geo: unknown;
+    if (copy) {
+      setScopedLoading(prefillScope, true);
+      try {
+        geo = await determineMatchingBoundary(data);
+      } catch (error) {
+        console.error("Could not copy the question:", error);
+      } finally {
+        setScopedLoading(prefillScope, false);
+      }
+      if (prefillSeqRef.current !== currentSeq) return;
     }
+    if (geo === undefined) {
+      toast.info(
+        type === "custom-zone"
+          ? "Please draw the zone on the map."
+          : "Please draw the points on the map.",
+      );
+    }
+    (data as { geo?: unknown }).geo = geo ?? (type === "custom-zone" ? undefined : []);
+    questionModified((data.type = type));
+  };
 
-    return (
-        <QuestionCard
-            questionKey={questionKey}
-            label={label}
-            name={questionName(data)}
-            setName={(name) => questionModified(setQuestionName(data, name))}
-            sub={compiled?.questionMap.get(data.type)?.label ?? sub}
-            collapsed={data.collapsed}
-            setCollapsed={(collapsed) => {
-                data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified
-            }}
-            locked={!data.drag}
-            setLocked={(locked) => questionModified((data.drag = !locked))}
-            enabled={data.enabled ?? true}
-            setEnabled={(v) => questionModified((data.enabled = v))}
-        >
-            <CustomInitDialog
-                open={customDialogOpen}
-                onOpenChange={setCustomDialogOpen}
-                onBlank={async () => {
-                    if (!pendingCustomType) return;
-                    await switchToCustom(pendingCustomType, false);
-                    setCustomDialogOpen(false);
+  let questionSpecific = <></>;
+
+  switch (data.type) {
+    case "custom-zone":
+    case "custom-points":
+      if (data.drag) {
+        questionSpecific = (
+          <>
+            <p className="px-2 mb-1 text-center text-orange-500">
+              To modify the matching {data.type === "custom-zone" ? "zones" : "points"}, enable it:
+              <Checkbox
+                className="mx-1 my-1"
+                checked={$drawingQuestionKey === questionKey}
+                onCheckedChange={(checked) => {
+                  if (checked) {
+                    drawingQuestionKey.set(questionKey);
+                  } else {
+                    drawingQuestionKey.set(-1);
+                  }
                 }}
-                onPrefill={async () => {
-                    if (!pendingCustomType) return;
-                    await switchToCustom(pendingCustomType, true);
-                    setCustomDialogOpen(false);
-                }}
-            />
-            <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
-                <Select
-                    trigger="Matching Type"
-                    options={Object.fromEntries(
-                        compiledMatching.map((q) => [q.id, q.label]),
-                    )}
-                    hints={askedHints($questions, "matching", questionKey)}
-                    groups={{
-                        Custom: {
-                            disabled: false,
-                            options: {
-                                "custom-points": "Custom Points",
-                                "custom-zone": "Custom Zone",
-                            },
-                        },
-                    }}
-                    value={data.type}
-                    onValueChange={async (value) => {
-                        if (
-                            value === "custom-zone" ||
-                            value === "custom-points"
-                        ) {
-                            const start = customSwitchStart(
-                                data.type,
-                                value,
-                                $customInitPref,
-                            );
-                            if (start === "ask") {
-                                setPendingCustomType(value);
-                                setCustomDialogOpen(true);
-                                return;
-                            }
-                            await switchToCustom(value, start === "copy");
-                            return;
-                        }
-
-                        // A copy still in progress mustn't override this.
-                        prefillSeqRef.current++;
-                        questionModified((data.type = value));
-                    }}
-                    disabled={!data.drag || $isLoading}
-                />
-            </SidebarMenuItem>
-            {questionSpecific}
-
-            {data.type !== "custom-zone" && (
-                <LatitudeLongitude
-                    latitude={data.lat}
-                    longitude={data.lng}
-                    colorName={data.color}
-                    onChange={(lat, lng) => {
-                        if (lat !== null) {
-                            data.lat = lat;
-                        }
-                        if (lng !== null) {
-                            data.lng = lng;
-                        }
-                        if (autoLockQuestions.get()) data.drag = false;
-                        questionModified();
-                    }}
-                    disabled={!data.drag || $isLoading}
-                />
-            )}
-            {closest && (
-                <p className="px-2 text-sm text-muted-foreground">
-                    Closest:{" "}
-                    <span className="font-medium text-foreground">
-                        {closest}
-                    </span>
-                </p>
-            )}
-            <div className="flex gap-2 items-center p-2">
-                <Label
-                    className={cn(
-                        "font-semibold text-lg",
-                        $isLoading && "text-muted-foreground",
-                    )}
-                >
-                    Result
-                </Label>
-                <ToggleGroup
-                    className="grow"
-                    type="single"
-                    value={data.same ? "same" : "different"}
-                    onValueChange={(value) => {
-                        if (value === "same") {
-                            questionModified((data.same = true));
-                        } else if (value === "different") {
-                            questionModified((data.same = false));
-                        }
-                    }}
-                    disabled={!!$hiderMode || !data.drag || $isLoading}
-                >
-                    <ToggleGroupItem value="different">
-                        Different
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="same">Same</ToggleGroupItem>
-                </ToggleGroup>
+                disabled={$isLoading}
+              />
+              and use the buttons at the bottom left of the map.
+            </p>
+            <div className="flex justify-center mb-2">
+              <PresetsDialog data={data} presetTypeHint={data.type} />
             </div>
-            <AnswerSplitPreview questionKey={questionKey} data={data} />
-        </QuestionCard>
-    );
+          </>
+        );
+      }
+  }
+
+  return (
+    <QuestionCard
+      questionKey={questionKey}
+      label={label}
+      name={questionName(data)}
+      setName={(name) => questionModified(setQuestionName(data, name))}
+      sub={compiled?.questionMap.get(data.type)?.label ?? sub}
+      collapsed={data.collapsed}
+      setCollapsed={(collapsed) => {
+        data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified
+      }}
+      locked={!data.drag}
+      setLocked={(locked) => questionModified((data.drag = !locked))}
+      enabled={data.enabled ?? true}
+      setEnabled={(v) => questionModified((data.enabled = v))}
+    >
+      <CustomInitDialog
+        open={customDialogOpen}
+        onOpenChange={setCustomDialogOpen}
+        onBlank={async () => {
+          if (!pendingCustomType) return;
+          await switchToCustom(pendingCustomType, false);
+          setCustomDialogOpen(false);
+        }}
+        onPrefill={async () => {
+          if (!pendingCustomType) return;
+          await switchToCustom(pendingCustomType, true);
+          setCustomDialogOpen(false);
+        }}
+      />
+      <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
+        <Select
+          trigger="Matching Type"
+          options={Object.fromEntries(compiledMatching.map((q) => [q.id, q.label]))}
+          hints={askedHints($questions, "matching", questionKey)}
+          groups={{
+            Custom: {
+              disabled: false,
+              options: {
+                "custom-points": "Custom Points",
+                "custom-zone": "Custom Zone",
+              },
+            },
+          }}
+          value={data.type}
+          onValueChange={async (value) => {
+            if (value === "custom-zone" || value === "custom-points") {
+              const start = customSwitchStart(data.type, value, $customInitPref);
+              if (start === "ask") {
+                setPendingCustomType(value);
+                setCustomDialogOpen(true);
+                return;
+              }
+              await switchToCustom(value, start === "copy");
+              return;
+            }
+
+            // A copy still in progress mustn't override this.
+            prefillSeqRef.current++;
+            questionModified((data.type = value));
+          }}
+          disabled={!data.drag || $isLoading}
+        />
+      </SidebarMenuItem>
+      {questionSpecific}
+
+      {data.type !== "custom-zone" && (
+        <LatitudeLongitude
+          latitude={data.lat}
+          longitude={data.lng}
+          colorName={data.color}
+          onChange={(lat, lng) => {
+            if (lat !== null) {
+              data.lat = lat;
+            }
+            if (lng !== null) {
+              data.lng = lng;
+            }
+            if (autoLockQuestions.get()) data.drag = false;
+            questionModified();
+          }}
+          disabled={!data.drag || $isLoading}
+        />
+      )}
+      {closest && (
+        <p className="px-2 text-sm text-muted-foreground">
+          Closest: <span className="font-medium text-foreground">{closest}</span>
+        </p>
+      )}
+      <div className="flex gap-2 items-center p-2">
+        <Label className={cn("font-semibold text-lg", $isLoading && "text-muted-foreground")}>
+          Result
+        </Label>
+        <ToggleGroup
+          className="grow"
+          type="single"
+          value={data.same ? "same" : "different"}
+          onValueChange={(value) => {
+            if (value === "same") {
+              questionModified((data.same = true));
+            } else if (value === "different") {
+              questionModified((data.same = false));
+            }
+          }}
+          disabled={!!$hiderMode || !data.drag || $isLoading}
+        >
+          <ToggleGroupItem value="different">Different</ToggleGroupItem>
+          <ToggleGroupItem value="same">Same</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <AnswerSplitPreview questionKey={questionKey} data={data} />
+    </QuestionCard>
+  );
 };

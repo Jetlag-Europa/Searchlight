@@ -19,12 +19,11 @@ export interface QuestionEvaluationContext {
 /**
  * Dispatches declarative operator evaluation for a compiled question definition.
  */
-export async function evaluateQuestionOperator(
-  context: QuestionEvaluationContext,
-): Promise<any> {
+export async function evaluateQuestionOperator(context: QuestionEvaluationContext): Promise<any> {
   const { questionDef, datasets, data, mapGeoData, requestKey } = context;
   if (!mapGeoData) return mapGeoData;
-  if (mapGeoData.type === "FeatureCollection" && mapGeoData.features.length === 0) return mapGeoData;
+  if (mapGeoData.type === "FeatureCollection" && mapGeoData.features.length === 0)
+    return mapGeoData;
 
   switch (questionDef.family) {
     case "radius":

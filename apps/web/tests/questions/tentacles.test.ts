@@ -9,329 +9,295 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // as its radius test — so we swap in the turf equivalent and keep the real
 // Voronoi / union / intersect code (the actual subject) untouched.
 vi.mock("@/maps/geo-utils", async (importActual) => {
-    const actual = await importActual<typeof import("@/maps/geo-utils")>();
-    return {
-        ...actual,
-        arcBuffer: async (
-            fc: FeatureCollection<Point>,
-            radius: number,
-            unit: turf.Units,
-        ) => turf.buffer(fc.features[0], radius, { units: unit }),
-    };
+  const actual = await importActual<typeof import("@/maps/geo-utils")>();
+  return {
+    ...actual,
+    arcBuffer: async (fc: FeatureCollection<Point>, radius: number, unit: turf.Units) =>
+      turf.buffer(fc.features[0], radius, { units: unit }),
+  };
 });
 
 import { hiderMode } from "@/lib/context";
-import {
-    geoSpatialVoronoi,
-    geoSpatialVoronoiSafe,
-} from "@/maps/geo-utils/voronoi";
-import {
-    adjustPerTentacle,
-    hiderifyTentacles,
-} from "@/maps/questions/tentacles";
+import { geoSpatialVoronoi, geoSpatialVoronoiSafe } from "@/maps/geo-utils/voronoi";
+import { adjustPerTentacle, hiderifyTentacles } from "@/maps/questions/tentacles";
 
 import {
-    oracleVerdict,
-    sampleGrid,
-    sitesWithinRadius,
-    type TentacleScenario,
+  oracleVerdict,
+  sampleGrid,
+  sitesWithinRadius,
+  type TentacleScenario,
 } from "./tentacleOracle";
 
 // A point Feature with a name, the shape the tentacle code expects in `places`.
 function poi(name: string, lng: number, lat: number): Feature<Point> {
-    return turf.point([lng, lat], { name });
+  return turf.point([lng, lat], { name });
 }
 
 // A rectangular game boundary [minLng, minLat, maxLng, maxLat].
 function boundary(
-    minLng: number,
-    minLat: number,
-    maxLng: number,
-    maxLat: number,
+  minLng: number,
+  minLat: number,
+  maxLng: number,
+  maxLat: number,
 ): Feature<Polygon> {
-    return turf.polygon([
-        [
-            [minLng, minLat],
-            [maxLng, minLat],
-            [maxLng, maxLat],
-            [minLng, maxLat],
-            [minLng, minLat],
-        ],
-    ]);
+  return turf.polygon([
+    [
+      [minLng, minLat],
+      [maxLng, minLat],
+      [maxLng, maxLat],
+      [minLng, maxLat],
+      [minLng, minLat],
+    ],
+  ]);
 }
 
 // Build the inner TentacleQuestion data object for a scenario, with player-drawn
 // (custom) locations.
 function customTentacleQuestion(s: TentacleScenario) {
-    const answerPoi = s.places.find((p) => p.properties?.name === s.answerName);
-    return {
-        id: "tentacles",
-        key: "test-tentacle",
-        drag: true as const,
-        enabled: true,
-        locationType: "custom" as const,
-        radius: s.radius,
-        unit: s.unit,
-        lat: s.seeker[1],
-        lng: s.seeker[0],
-        places: s.places,
-        location: answerPoi ?? {
-            type: "Feature" as const,
-            geometry: { type: "Point" as const, coordinates: s.seeker },
-            properties: { name: s.answerName },
-        },
-    };
+  const answerPoi = s.places.find((p) => p.properties?.name === s.answerName);
+  return {
+    id: "tentacles",
+    key: "test-tentacle",
+    drag: true as const,
+    enabled: true,
+    locationType: "custom" as const,
+    radius: s.radius,
+    unit: s.unit,
+    lat: s.seeker[1],
+    lng: s.seeker[0],
+    places: s.places,
+    location: answerPoi ?? {
+      type: "Feature" as const,
+      geometry: { type: "Point" as const, coordinates: s.seeker },
+      properties: { name: s.answerName },
+    },
+  };
 }
 
 async function maskFor(s: TentacleScenario) {
-    // adjustPerTentacle takes the inner question data and the base map data,
-    // which is a FeatureCollection (safeUnion folds it before intersecting).
-    return adjustPerTentacle(
-        customTentacleQuestion(s) as never,
-        turf.featureCollection([s.base]),
-    );
+  // adjustPerTentacle takes the inner question data and the base map data,
+  // which is a FeatureCollection (safeUnion folds it before intersecting).
+  return adjustPerTentacle(customTentacleQuestion(s) as never, turf.featureCollection([s.base]));
 }
 
 // Run the grid oracle: every clearly-decidable sample point must agree with the
 // real mask. Returns counts so tests can assert the scenario actually exercised
 // both outcomes (guards against a vacuous pass).
-async function checkAgainstOracle(
-    s: TentacleScenario,
-    steps = 28,
-    edgeMarginFrac = 0.08,
-) {
-    const mask = (await maskFor(s)) as Feature<Polygon> | null;
-    // Skip points near radius/Voronoi edges: the radius circle and the cells are
-    // drawn as polygons, which stray slightly from the oracle's true circle and
-    // geodesic bisectors, so near-edge points can legitimately disagree by a
-    // sliver. The margin is a fraction of the radius.
-    const edgeMargin = s.radius * edgeMarginFrac;
+async function checkAgainstOracle(s: TentacleScenario, steps = 28, edgeMarginFrac = 0.08) {
+  const mask = (await maskFor(s)) as Feature<Polygon> | null;
+  // Skip points near radius/Voronoi edges: the radius circle and the cells are
+  // drawn as polygons, which stray slightly from the oracle's true circle and
+  // geodesic bisectors, so near-edge points can legitimately disagree by a
+  // sliver. The margin is a fraction of the radius.
+  const edgeMargin = s.radius * edgeMarginFrac;
 
-    let survives = 0;
-    let eliminated = 0;
-    let ambiguous = 0;
-    const failures: string[] = [];
+  let survives = 0;
+  let eliminated = 0;
+  let ambiguous = 0;
+  const failures: string[] = [];
 
-    for (const pt of sampleGrid(s, steps)) {
-        const verdict = oracleVerdict(s, pt, edgeMargin);
-        if (verdict === "ambiguous") {
-            ambiguous++;
-            continue;
-        }
-        const inMask =
-            mask !== null && turf.booleanPointInPolygon(pt, mask);
-        if (verdict === "survives") {
-            survives++;
-            if (!inMask)
-                failures.push(
-                    `expected SURVIVE but masked out: ${pt.geometry.coordinates}`,
-                );
-        } else {
-            eliminated++;
-            if (inMask)
-                failures.push(
-                    `expected ELIMINATE but kept: ${pt.geometry.coordinates}`,
-                );
-        }
+  for (const pt of sampleGrid(s, steps)) {
+    const verdict = oracleVerdict(s, pt, edgeMargin);
+    if (verdict === "ambiguous") {
+      ambiguous++;
+      continue;
     }
+    const inMask = mask !== null && turf.booleanPointInPolygon(pt, mask);
+    if (verdict === "survives") {
+      survives++;
+      if (!inMask) failures.push(`expected SURVIVE but masked out: ${pt.geometry.coordinates}`);
+    } else {
+      eliminated++;
+      if (inMask) failures.push(`expected ELIMINATE but kept: ${pt.geometry.coordinates}`);
+    }
+  }
 
-    return { mask, survives, eliminated, ambiguous, failures };
+  return { mask, survives, eliminated, ambiguous, failures };
 }
 
 afterEach(() => hiderMode.set(false));
 
 describe("adjustPerTentacle — well-separated POIs (spherical Voronoi)", () => {
-    // Seeker in canton Zürich; three POIs a few km apart so the spherical
-    // Voronoi is non-degenerate. Answer = the western POI "A".
-    // Three POIs ~450-670 m from the seeker, with a small 0.8 km radius: every
-    // grid point tested for *cell membership* lies within 0.8 km of the seeker,
-    // while points further out are eliminated by the radius circle. (The tight
-    // radius used to keep the grid where the old Mercator-reprojected cells were
-    // accurate; the cells are now exact on the sphere, which the 6 km test below
-    // checks across a much wider area.)
-    const scenario: TentacleScenario = {
-        seeker: [8.54, 47.37],
-        radius: 0.8,
-        unit: "kilometers",
-        answerName: "A",
-        places: [
-            poi("A", 8.534, 47.37), // west
-            poi("B", 8.546, 47.37), // east
-            poi("C", 8.54, 47.376), // north
-        ],
-        base: boundary(8.525, 47.362, 8.555, 47.38),
+  // Seeker in canton Zürich; three POIs a few km apart so the spherical
+  // Voronoi is non-degenerate. Answer = the western POI "A".
+  // Three POIs ~450-670 m from the seeker, with a small 0.8 km radius: every
+  // grid point tested for *cell membership* lies within 0.8 km of the seeker,
+  // while points further out are eliminated by the radius circle. (The tight
+  // radius used to keep the grid where the old Mercator-reprojected cells were
+  // accurate; the cells are now exact on the sphere, which the 6 km test below
+  // checks across a much wider area.)
+  const scenario: TentacleScenario = {
+    seeker: [8.54, 47.37],
+    radius: 0.8,
+    unit: "kilometers",
+    answerName: "A",
+    places: [
+      poi("A", 8.534, 47.37), // west
+      poi("B", 8.546, 47.37), // east
+      poi("C", 8.54, 47.376), // north
+    ],
+    base: boundary(8.525, 47.362, 8.555, 47.38),
+  };
+
+  it("all three POIs are within the seeker's radius (scenario sanity)", () => {
+    expect(sitesWithinRadius(scenario)).toHaveLength(3);
+  });
+
+  it("masked region agrees with the independent oracle on every clear point", async () => {
+    // A generous ~160 m edge margin (0.20 × 0.8 km), kept from the
+    // Mercator era; the test below holds the cells to a far tighter one.
+    const r = await checkAgainstOracle(scenario, 32, 0.2);
+    expect(r.failures).toEqual([]);
+    // The scenario must genuinely test both outcomes, else a no-op passes.
+    expect(r.survives).toBeGreaterThan(10);
+    expect(r.eliminated).toBeGreaterThan(10);
+  });
+
+  it("agrees with the oracle up to 10 cm from an edge across a 6 km radius", async () => {
+    // The base lies wholly inside the radius, so every grid point, up to
+    // ~5 km from the POIs, is tested for cell membership.
+    const wide: TentacleScenario = {
+      ...scenario,
+      radius: 6,
+      base: boundary(8.49, 47.34, 8.59, 47.4),
     };
+    const r = await checkAgainstOracle(wide, 40, 0.0001 / wide.radius);
+    expect(r.failures).toEqual([]);
+    expect(r.survives).toBeGreaterThan(100);
+    expect(r.eliminated).toBeGreaterThan(100);
+  });
 
-    it("all three POIs are within the seeker's radius (scenario sanity)", () => {
-        expect(sitesWithinRadius(scenario)).toHaveLength(3);
+  it("never exceeds the base boundary or the radius circle (invariants)", async () => {
+    const mask = (await maskFor(scenario)) as Feature<Polygon> | null;
+    expect(mask).not.toBeNull();
+    // Area can only shrink.
+    expect(turf.area(mask!)).toBeLessThanOrEqual(turf.area(scenario.base));
+    // Every vertex of the mask lies within (radius + slack) of the seeker.
+    const seeker = turf.point(scenario.seeker);
+    turf.coordEach(mask!, (c) => {
+      const d = turf.distance(seeker, turf.point(c as [number, number]), {
+        units: scenario.unit,
+      });
+      expect(d).toBeLessThanOrEqual(scenario.radius * 1.02);
     });
-
-    it("masked region agrees with the independent oracle on every clear point", async () => {
-        // A generous ~160 m edge margin (0.20 × 0.8 km), kept from the
-        // Mercator era; the test below holds the cells to a far tighter one.
-        const r = await checkAgainstOracle(scenario, 32, 0.2);
-        expect(r.failures).toEqual([]);
-        // The scenario must genuinely test both outcomes, else a no-op passes.
-        expect(r.survives).toBeGreaterThan(10);
-        expect(r.eliminated).toBeGreaterThan(10);
-    });
-
-    it("agrees with the oracle up to 10 cm from an edge across a 6 km radius", async () => {
-        // The base lies wholly inside the radius, so every grid point, up to
-        // ~5 km from the POIs, is tested for cell membership.
-        const wide: TentacleScenario = {
-            ...scenario,
-            radius: 6,
-            base: boundary(8.49, 47.34, 8.59, 47.4),
-        };
-        const r = await checkAgainstOracle(wide, 40, 0.0001 / wide.radius);
-        expect(r.failures).toEqual([]);
-        expect(r.survives).toBeGreaterThan(100);
-        expect(r.eliminated).toBeGreaterThan(100);
-    });
-
-    it("never exceeds the base boundary or the radius circle (invariants)", async () => {
-        const mask = (await maskFor(scenario)) as Feature<Polygon> | null;
-        expect(mask).not.toBeNull();
-        // Area can only shrink.
-        expect(turf.area(mask!)).toBeLessThanOrEqual(turf.area(scenario.base));
-        // Every vertex of the mask lies within (radius + slack) of the seeker.
-        const seeker = turf.point(scenario.seeker);
-        turf.coordEach(mask!, (c) => {
-            const d = turf.distance(seeker, turf.point(c as [number, number]), {
-                units: scenario.unit,
-            });
-            expect(d).toBeLessThanOrEqual(scenario.radius * 1.02);
-        });
-    });
+  });
 });
 
 describe("adjustPerTentacle — tightly-clustered POIs", () => {
-    // Three POIs within ~150 m, the consulate-cluster case from Entry 35 that
-    // broke the old Mercator-reprojected spherical Voronoi (a site fell outside
-    // its own cell) and forced geoSpatialVoronoiSafe's planar fallback. The
-    // spherical cells are now exact, so we assert they are sound themselves, the
-    // mask is valid, near the cluster the correct cell wins, and even far from
-    // it, where the runner-up POI is only metres further, the oracle agrees.
-    const seeker: [number, number] = [8.54, 47.37];
-    const places = [
-        poi("P1", 8.5398, 47.3698), // SW
-        poi("P2", 8.5404, 47.3698), // SE
-        poi("P3", 8.5401, 47.3704), // N
-    ];
-    const scenario: TentacleScenario = {
-        seeker,
-        radius: 6,
-        unit: "kilometers",
-        answerName: "P3",
-        places,
-        base: boundary(8.5, 47.35, 8.58, 47.39),
-    };
+  // Three POIs within ~150 m, the consulate-cluster case from Entry 35 that
+  // broke the old Mercator-reprojected spherical Voronoi (a site fell outside
+  // its own cell) and forced geoSpatialVoronoiSafe's planar fallback. The
+  // spherical cells are now exact, so we assert they are sound themselves, the
+  // mask is valid, near the cluster the correct cell wins, and even far from
+  // it, where the runner-up POI is only metres further, the oracle agrees.
+  const seeker: [number, number] = [8.54, 47.37];
+  const places = [
+    poi("P1", 8.5398, 47.3698), // SW
+    poi("P2", 8.5404, 47.3698), // SE
+    poi("P3", 8.5401, 47.3704), // N
+  ];
+  const scenario: TentacleScenario = {
+    seeker,
+    radius: 6,
+    unit: "kilometers",
+    answerName: "P3",
+    places,
+    base: boundary(8.5, 47.35, 8.58, 47.39),
+  };
 
-    it("every site lies in its own cell, spherical and safe alike", () => {
-        const fc = turf.featureCollection(places);
-        // The soundness check geoSpatialVoronoiSafe applies before it would
-        // fall back: every site falls inside its own spherical cell.
-        const spherical = geoSpatialVoronoi(fc);
-        const everySiteInOwnCell = spherical.features.every((f) => {
-            const site = (f.properties as { site?: Feature<Point> }).site;
-            return site
-                ? turf.booleanPointInPolygon(site, f as Feature<Polygon>)
-                : false;
-        });
-        expect(everySiteInOwnCell).toBe(true);
-
-        // The safe variant keeps them: every site lands in its own cell.
-        const bbox = turf.bbox(
-            turf.buffer(turf.point(seeker), scenario.radius * 1.2, {
-                units: "kilometers",
-            })!,
-        );
-        const safe = geoSpatialVoronoiSafe(fc, bbox);
-        for (const site of places) {
-            const owning = safe.features.find((f) =>
-                turf.booleanPointInPolygon(site, f as Feature<Polygon>),
-            );
-            expect(
-                (owning?.properties as { site?: Feature<Point> })?.site
-                    ?.properties?.name,
-            ).toBe(site.properties?.name);
-        }
+  it("every site lies in its own cell, spherical and safe alike", () => {
+    const fc = turf.featureCollection(places);
+    // The soundness check geoSpatialVoronoiSafe applies before it would
+    // fall back: every site falls inside its own spherical cell.
+    const spherical = geoSpatialVoronoi(fc);
+    const everySiteInOwnCell = spherical.features.every((f) => {
+      const site = (f.properties as { site?: Feature<Point> }).site;
+      return site ? turf.booleanPointInPolygon(site, f as Feature<Polygon>) : false;
     });
+    expect(everySiteInOwnCell).toBe(true);
 
-    it("produces a valid mask within the base and radius", async () => {
-        const mask = (await maskFor(scenario)) as Feature<Polygon> | null;
-        expect(mask).not.toBeNull();
-        expect(turf.area(mask!)).toBeGreaterThan(0);
-        expect(turf.area(mask!)).toBeLessThanOrEqual(turf.area(scenario.base));
-        const seekerPt = turf.point(seeker);
-        turf.coordEach(mask!, (c) => {
-            const d = turf.distance(seekerPt, turf.point(c as [number, number]), {
-                units: "kilometers",
-            });
-            expect(d).toBeLessThanOrEqual(scenario.radius * 1.02);
-        });
-    });
+    // The safe variant keeps them: every site lands in its own cell.
+    const bbox = turf.bbox(
+      turf.buffer(turf.point(seeker), scenario.radius * 1.2, {
+        units: "kilometers",
+      })!,
+    );
+    const safe = geoSpatialVoronoiSafe(fc, bbox);
+    for (const site of places) {
+      const owning = safe.features.find((f) =>
+        turf.booleanPointInPolygon(site, f as Feature<Polygon>),
+      );
+      expect((owning?.properties as { site?: Feature<Point> })?.site?.properties?.name).toBe(
+        site.properties?.name,
+      );
+    }
+  });
 
-    it("agrees with the oracle up to 10 cm from an edge across the base", async () => {
-        // The base lies wholly inside the radius, so the radius edge never
-        // decides a grid point.
-        const r = await checkAgainstOracle(
-            scenario,
-            40,
-            0.0001 / scenario.radius,
-        );
-        expect(r.failures).toEqual([]);
-        expect(r.survives).toBeGreaterThan(100);
-        expect(r.eliminated).toBeGreaterThan(100);
+  it("produces a valid mask within the base and radius", async () => {
+    const mask = (await maskFor(scenario)) as Feature<Polygon> | null;
+    expect(mask).not.toBeNull();
+    expect(turf.area(mask!)).toBeGreaterThan(0);
+    expect(turf.area(mask!)).toBeLessThanOrEqual(turf.area(scenario.base));
+    const seekerPt = turf.point(seeker);
+    turf.coordEach(mask!, (c) => {
+      const d = turf.distance(seekerPt, turf.point(c as [number, number]), {
+        units: "kilometers",
+      });
+      expect(d).toBeLessThanOrEqual(scenario.radius * 1.02);
     });
+  });
 
-    it("keeps a hider just north of the cluster (P3's side), drops one to the south", async () => {
-        const mask = (await maskFor(scenario)) as Feature<Polygon> | null;
-        expect(mask).not.toBeNull();
-        // A point clearly on P3's (northern) side of the cluster survives…
-        const north = turf.point([8.5401, 47.385]);
-        expect(turf.booleanPointInPolygon(north, mask!)).toBe(true);
-        // …and one clearly on the southern side (nearest P1/P2) is eliminated.
-        const south = turf.point([8.5401, 47.355]);
-        expect(turf.booleanPointInPolygon(south, mask!)).toBe(false);
-    });
+  it("agrees with the oracle up to 10 cm from an edge across the base", async () => {
+    // The base lies wholly inside the radius, so the radius edge never
+    // decides a grid point.
+    const r = await checkAgainstOracle(scenario, 40, 0.0001 / scenario.radius);
+    expect(r.failures).toEqual([]);
+    expect(r.survives).toBeGreaterThan(100);
+    expect(r.eliminated).toBeGreaterThan(100);
+  });
+
+  it("keeps a hider just north of the cluster (P3's side), drops one to the south", async () => {
+    const mask = (await maskFor(scenario)) as Feature<Polygon> | null;
+    expect(mask).not.toBeNull();
+    // A point clearly on P3's (northern) side of the cluster survives…
+    const north = turf.point([8.5401, 47.385]);
+    expect(turf.booleanPointInPolygon(north, mask!)).toBe(true);
+    // …and one clearly on the southern side (nearest P1/P2) is eliminated.
+    const south = turf.point([8.5401, 47.355]);
+    expect(turf.booleanPointInPolygon(south, mask!)).toBe(false);
+  });
 });
 
 describe("hiderifyTentacles — resolves the hider's POI", () => {
-    const base = boundary(8.44, 47.31, 8.66, 47.45);
-    const places = [
-        poi("A", 8.5, 47.372),
-        poi("B", 8.585, 47.372),
-        poi("C", 8.545, 47.405),
-    ];
-    const baseQuestion = {
-        id: "tentacles",
-        key: "test",
-        drag: true as const,
-        enabled: true,
-        locationType: "custom" as const,
-        radius: 6,
-        unit: "kilometers" as const,
-        lat: 47.37,
-        lng: 8.54,
-        places,
-        location: false as const,
-        base,
-    };
+  const base = boundary(8.44, 47.31, 8.66, 47.45);
+  const places = [poi("A", 8.5, 47.372), poi("B", 8.585, 47.372), poi("C", 8.545, 47.405)];
+  const baseQuestion = {
+    id: "tentacles",
+    key: "test",
+    drag: true as const,
+    enabled: true,
+    locationType: "custom" as const,
+    radius: 6,
+    unit: "kilometers" as const,
+    lat: 47.37,
+    lng: 8.54,
+    places,
+    location: false as const,
+    base,
+  };
 
-    it("sets location to the POI whose Voronoi cell holds the hider", async () => {
-        // Hider sits right on top of POI B → B's cell.
-        hiderMode.set({ latitude: 47.372, longitude: 8.585 } as never);
-        const out = await hiderifyTentacles({ ...baseQuestion } as never);
-        expect(out.location).not.toBe(false);
-        expect((out.location as Feature<Point>).properties?.name).toBe("B");
-    });
+  it("sets location to the POI whose Voronoi cell holds the hider", async () => {
+    // Hider sits right on top of POI B → B's cell.
+    hiderMode.set({ latitude: 47.372, longitude: 8.585 } as never);
+    const out = await hiderifyTentacles({ ...baseQuestion } as never);
+    expect(out.location).not.toBe(false);
+    expect((out.location as Feature<Point>).properties?.name).toBe("B");
+  });
 
-    it("sets location to false when the hider is outside the radius", async () => {
-        // ~30 km east of the seeker, well beyond the 6 km radius.
-        hiderMode.set({ latitude: 47.37, longitude: 8.94 } as never);
-        const out = await hiderifyTentacles({ ...baseQuestion } as never);
-        expect(out.location).toBe(false);
-    });
+  it("sets location to false when the hider is outside the radius", async () => {
+    // ~30 km east of the seeker, well beyond the 6 km radius.
+    hiderMode.set({ latitude: 47.37, longitude: 8.94 } as never);
+    const out = await hiderifyTentacles({ ...baseQuestion } as never);
+    expect(out.location).toBe(false);
+  });
 });

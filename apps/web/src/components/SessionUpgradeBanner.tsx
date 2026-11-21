@@ -33,10 +33,16 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 export async function loadRevision(sessionId: string, revision: number, gameRevisionId: string) {
   const current = activeSessionData.get();
   if (current?.id !== sessionId || activeSessionId.get() !== sessionId) return;
-  const loaded = await switchToGame({ id: current.gameId }, { revisionId: gameRevisionId, sessionId });
+  const loaded = await switchToGame(
+    { id: current.gameId },
+    { revisionId: gameRevisionId, sessionId },
+  );
   const latest = activeSessionData.get();
   if (latest?.id !== sessionId || activeSessionId.get() !== sessionId) return;
-  if (!loaded) throw new Error("The revision was updated, but the game board could not load. Refresh the page to try again.");
+  if (!loaded)
+    throw new Error(
+      "The revision was updated, but the game board could not load. Refresh the page to try again.",
+    );
   // The creator's own upgrade also arrives as an event; both share one load.
   if (latest.gameRevisionId === gameRevisionId) return;
   // Upgrades always move to the game's current revision. That can have a
@@ -64,8 +70,14 @@ export function SessionUpgradeBanner() {
     setError(null);
     setUpdating(false);
     const handleUpgrade = (event: Event) => {
-      const detail = (event as CustomEvent<{ sessionId: string; revision: number; gameRevisionId: string }>).detail;
-      if (detail?.sessionId !== session?.id || activeSessionData.get()?.gameRevisionId === detail.gameRevisionId) return;
+      const detail = (
+        event as CustomEvent<{ sessionId: string; revision: number; gameRevisionId: string }>
+      ).detail;
+      if (
+        detail?.sessionId !== session?.id ||
+        activeSessionData.get()?.gameRevisionId === detail.gameRevisionId
+      )
+        return;
       setUpdating(true);
       loadRevision(detail.sessionId, detail.revision, detail.gameRevisionId)
         .catch((err: Error) => setError(err.message))
@@ -97,31 +109,54 @@ export function SessionUpgradeBanner() {
   if (!session || (!session.hasNewerRevision && !updating && !error)) return null;
 
   return (
-    <section aria-label="Session game revision" aria-busy={updating}
-      className="shrink-0 border-b bg-background px-3 py-2 text-foreground sm:px-4">
+    <section
+      aria-label="Session game revision"
+      aria-busy={updating}
+      className="shrink-0 border-b bg-background px-3 py-2 text-foreground sm:px-4"
+    >
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 items-center gap-2.5">
-          {updating ? <Loader2 aria-hidden="true" className="size-4 shrink-0 animate-spin text-muted-foreground" />
-            : <RefreshCw aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />}
+          {updating ? (
+            <Loader2
+              aria-hidden="true"
+              className="size-4 shrink-0 animate-spin text-muted-foreground"
+            />
+          ) : (
+            <RefreshCw aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          )}
           <div className="text-xs">
-            <p className="font-medium" role="status">{updating ? "Updating game board…" : error ? "Game update needs attention" : "Game update available"}</p>
+            <p className="font-medium" role="status">
+              {updating
+                ? "Updating game board…"
+                : error
+                  ? "Game update needs attention"
+                  : "Game update available"}
+            </p>
             <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-muted-foreground">
               <span>Session revision {session.sessionRevision ?? "unknown"}</span>
-              {session.hasNewerRevision && <>
-                <ArrowRight aria-hidden="true" className="size-3" />
-                <span>Available revision {session.currentRevision}</span>
-              </>}
+              {session.hasNewerRevision && (
+                <>
+                  <ArrowRight aria-hidden="true" className="size-3" />
+                  <span>Available revision {session.currentRevision}</span>
+                </>
+              )}
             </p>
           </div>
         </div>
         {error && !session.hasNewerRevision ? (
-          <Button size="sm" variant="outline" onClick={() => window.location.reload()}>Refresh page</Button>
+          <Button size="sm" variant="outline" onClick={() => window.location.reload()}>
+            Refresh page
+          </Button>
         ) : offline ? (
-          <p className="text-xs text-muted-foreground">The game board can be updated once the server can be reached.</p>
+          <p className="text-xs text-muted-foreground">
+            The game board can be updated once the server can be reached.
+          </p>
         ) : session.role === "creator" ? (
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button size="sm" variant="outline" disabled={updating}>Review update</Button>
+              <Button size="sm" variant="outline" disabled={updating}>
+                Review update
+              </Button>
             </AlertDialogTrigger>
             <AlertDialogContent className="max-w-[calc(100vw-2rem)] rounded-lg sm:max-w-lg">
               <AlertDialogHeader>
@@ -130,9 +165,9 @@ export function SessionUpgradeBanner() {
                   Move from revision {session.sessionRevision ?? "unknown"} to the latest revision
                   (currently {session.currentRevision}) for everyone in this session.
                   <span className="mt-3 block">
-                    Your session is not restarted. Drawings, hider location, and planning mode
-                    stay in place. Map results may change, and questions no longer supported
-                    by the updated game may be removed.
+                    Your session is not restarted. Drawings, hider location, and planning mode stay
+                    in place. Map results may change, and questions no longer supported by the
+                    updated game may be removed.
                   </span>
                 </AlertDialogDescription>
               </AlertDialogHeader>
@@ -143,10 +178,16 @@ export function SessionUpgradeBanner() {
             </AlertDialogContent>
           </AlertDialog>
         ) : !updating ? (
-          <p className="text-xs text-muted-foreground">Only the session creator can update the game board.</p>
+          <p className="text-xs text-muted-foreground">
+            Only the session creator can update the game board.
+          </p>
         ) : null}
       </div>
-      {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-2 text-xs text-destructive">
+          {error}
+        </p>
+      )}
     </section>
   );
 }

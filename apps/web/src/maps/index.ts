@@ -7,88 +7,77 @@ import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
 import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 
 import {
-    arcDistanceToPoint,
-    GeometryWorkerError,
-    requestGeometry,
-    SupersededError,
+  arcDistanceToPoint,
+  GeometryWorkerError,
+  requestGeometry,
+  SupersededError,
 } from "./geo-utils";
+import { adjustPerMatching, hiderifyMatching, matchingPlanningPolygon } from "./questions/matching";
 import {
-    adjustPerMatching,
-    hiderifyMatching,
-    matchingPlanningPolygon,
-} from "./questions/matching";
-import {
-    adjustPerMeasuring,
-    determineMeasuringBoundary,
-    hiderifyMeasuring,
-    measuringPlanningPolygon,
+  adjustPerMeasuring,
+  determineMeasuringBoundary,
+  hiderifyMeasuring,
+  measuringPlanningPolygon,
 } from "./questions/measuring";
 import { evaluateQuestionOperator } from "./questions/operators/base";
 import {
-    containingRegion,
-    geometrySource,
-    nearestLine,
-    regionLines,
+  containingRegion,
+  geometrySource,
+  nearestLine,
+  regionLines,
 } from "./questions/operators/geometry";
 import { determineMatchingGeometry } from "./questions/operators/matching";
 import {
-    determineMeasuringGeometry,
-    determineMeasuringTargets,
-    isEmptyBuffer,
-    type MeasuredDistance,
-    measureToTargets,
+  determineMeasuringGeometry,
+  determineMeasuringTargets,
+  isEmptyBuffer,
+  type MeasuredDistance,
+  measureToTargets,
 } from "./questions/operators/measuring";
 import {
-    determineTentacleGeometry,
-    featuresMatch,
-    hasTentacleRadius,
+  determineTentacleGeometry,
+  featuresMatch,
+  hasTentacleRadius,
 } from "./questions/operators/tentacle";
+import { adjustPerRadius, hiderifyRadius, radiusPlanningPolygon } from "./questions/radius";
 import {
-    adjustPerRadius,
-    hiderifyRadius,
-    radiusPlanningPolygon,
-} from "./questions/radius";
-import {
-    adjustPerTentacle,
-    hiderifyTentacles,
-    tentaclesPlanningPolygon,
+  adjustPerTentacle,
+  hiderifyTentacles,
+  tentaclesPlanningPolygon,
 } from "./questions/tentacles";
-import {
-    hiderifyThermometer,
-    thermometerPlanningPolygon,
-} from "./questions/thermometer";
+import { hiderifyThermometer, thermometerPlanningPolygon } from "./questions/thermometer";
 import type {
-    CustomMatchingQuestion,
-    MatchingQuestion,
-    MeasuringQuestion,
-    Question,
-    Questions,
-    TentacleQuestion,
+  CustomMatchingQuestion,
+  MatchingQuestion,
+  MeasuringQuestion,
+  Question,
+  Questions,
+  TentacleQuestion,
 } from "./schema";
 
 interface CompiledFeatureQuestionData {
-    lat: number;
-    lng: number;
-    same?: boolean;
-    hiderCloser?: boolean;
-    location?: Feature<Point> | false;
-    radius?: number;
-    unit?: DistanceUnit;
+  lat: number;
+  lng: number;
+  same?: boolean;
+  hiderCloser?: boolean;
+  location?: Feature<Point> | false;
+  radius?: number;
+  unit?: DistanceUnit;
 }
 
 export function resolveCompiledQuestion(question: any, compiled: any): any {
-    if (!compiled || !question) return undefined;
-    const family = question.id === "tentacles" ? "tentacle" : question.id;
-    // Radar and thermometer questions carry no definition ID: a game compiles
-    // at most one of each, under the family's name.
-    const id =
-        family === "radius" || family === "thermometer"
-            ? family
-            : family === "tentacle"
-              ? question.data?.locationType
-              : question.data?.type;
-    const definition = compiled.questionMap.get(id ?? question.id);
-    return definition?.family === family ? definition : undefined;
+  if (!compiled || !question) return undefined;
+  const family = question.id === "tentacles" ? "tentacle" : question.id;
+  // Radar and thermometer questions carry no definition ID: a game compiles
+  // at most one of each, under the family's name.
+  const id =
+    family === "radius" || family === "thermometer"
+      ? family
+      : family === "tentacle"
+        ? question.data?.locationType
+        : question.data?.type;
+  const definition = compiled.questionMap.get(id ?? question.id);
+  return definition?.family === family ? definition : undefined;
 }
 
 /**
@@ -97,139 +86,121 @@ export function resolveCompiledQuestion(question: any, compiled: any): any {
  * each measure to their own.
  */
 const measuringTargetsAt = (
-    questionDef: QuestionDefinition,
-    datasets: Record<string, unknown>,
-    data: object,
-    lat: number,
-    lng: number,
+  questionDef: QuestionDefinition,
+  datasets: Record<string, unknown>,
+  data: object,
+  lat: number,
+  lng: number,
 ) =>
-    determineMeasuringTargets({
-        evaluator: questionDef.evaluator,
-        datasets,
-        data: { ...data, lat, lng },
-    });
+  determineMeasuringTargets({
+    evaluator: questionDef.evaluator,
+    datasets,
+    data: { ...data, lat, lng },
+  });
 
 async function hiderifyCompiledQuestion(
-    question: { data: CompiledFeatureQuestionData },
-    questionDef: QuestionDefinition,
-    datasets: Record<string, unknown>,
-    hiderPos: { latitude: number; longitude: number },
+  question: { data: CompiledFeatureQuestionData },
+  questionDef: QuestionDefinition,
+  datasets: Record<string, unknown>,
+  hiderPos: { latitude: number; longitude: number },
 ) {
-    const { data } = question;
-    const evaluator = questionDef.evaluator;
-    const source = geometrySource(evaluator, datasets, {});
-    if (!source) return;
-    const seekerPt = turf.point([data.lng, data.lat]);
-    const hiderPt = turf.point([hiderPos.longitude, hiderPos.latitude]);
+  const { data } = question;
+  const evaluator = questionDef.evaluator;
+  const source = geometrySource(evaluator, datasets, {});
+  if (!source) return;
+  const seekerPt = turf.point([data.lng, data.lat]);
+  const hiderPt = turf.point([hiderPos.longitude, hiderPos.latitude]);
 
-    if (questionDef.family === "matching") {
-        if (evaluator.operator === "containing-region-match") {
-            data.same =
-                containingRegion(source.regions, seekerPt) ===
-                containingRegion(source.regions, hiderPt);
-        } else if (evaluator.operator === "nearest-feature-match") {
-            if (source.lines.length) {
-                const nearest = nearestLine(source.lines, seekerPt);
-                data.same =
-                    nearest !== undefined &&
-                    nearest === nearestLine(source.lines, hiderPt);
-            } else if (source.points.length) {
-                const points = turf.featureCollection(source.points);
-                data.same = featuresMatch(
-                    turf.nearestPoint(seekerPt, points),
-                    turf.nearestPoint(hiderPt, points),
-                );
-            }
-        }
-    } else if (questionDef.family === "measuring") {
-        // Answer with the geodetic distance the map's buffers are built from.
-        // Turf's spherical distance differs by up to about 0.5%, enough to put
-        // a hider near the buffer edge on the wrong side of it.
-        const distance = async (lat: number, lng: number) => {
-            const targets = await measuringTargetsAt(
-                questionDef,
-                datasets,
-                data,
-                lat,
-                lng,
-            );
-            if (!targets?.features.length) return Infinity;
-            return arcDistanceToPoint(targets, lat, lng, "miles");
-        };
-        data.hiderCloser =
-            (await distance(hiderPos.latitude, hiderPos.longitude)) <
-            (await distance(data.lat, data.lng));
-    } else if (questionDef.family === "tentacle") {
-        if (!hasTentacleRadius(data)) return;
-        // Answer from the circle and sites the map is clipped with.
-        const { circle, points } = await determineTentacleGeometry({
-            evaluator,
-            datasets,
-            data: data as TentacleQuestion,
-        });
-        if (!turf.booleanPointInPolygon(hiderPt, circle) || !points.length) {
-            data.location = false;
-            return;
-        }
-        const nearest = turf.nearestPoint(
-            hiderPt,
-            turf.featureCollection(points),
+  if (questionDef.family === "matching") {
+    if (evaluator.operator === "containing-region-match") {
+      data.same =
+        containingRegion(source.regions, seekerPt) === containingRegion(source.regions, hiderPt);
+    } else if (evaluator.operator === "nearest-feature-match") {
+      if (source.lines.length) {
+        const nearest = nearestLine(source.lines, seekerPt);
+        data.same = nearest !== undefined && nearest === nearestLine(source.lines, hiderPt);
+      } else if (source.points.length) {
+        const points = turf.featureCollection(source.points);
+        data.same = featuresMatch(
+          turf.nearestPoint(seekerPt, points),
+          turf.nearestPoint(hiderPt, points),
         );
-        data.location = {
-            type: "Feature",
-            geometry: nearest.geometry,
-            id: nearest.id,
-            properties: {
-                ...nearest.properties,
-                name:
-                    nearest.properties?.name ??
-                    (nearest.id != null ? String(nearest.id) : ""),
-            },
-        };
+      }
     }
+  } else if (questionDef.family === "measuring") {
+    // Answer with the geodetic distance the map's buffers are built from.
+    // Turf's spherical distance differs by up to about 0.5%, enough to put
+    // a hider near the buffer edge on the wrong side of it.
+    const distance = async (lat: number, lng: number) => {
+      const targets = await measuringTargetsAt(questionDef, datasets, data, lat, lng);
+      if (!targets?.features.length) return Infinity;
+      return arcDistanceToPoint(targets, lat, lng, "miles");
+    };
+    data.hiderCloser =
+      (await distance(hiderPos.latitude, hiderPos.longitude)) <
+      (await distance(data.lat, data.lng));
+  } else if (questionDef.family === "tentacle") {
+    if (!hasTentacleRadius(data)) return;
+    // Answer from the circle and sites the map is clipped with.
+    const { circle, points } = await determineTentacleGeometry({
+      evaluator,
+      datasets,
+      data: data as TentacleQuestion,
+    });
+    if (!turf.booleanPointInPolygon(hiderPt, circle) || !points.length) {
+      data.location = false;
+      return;
+    }
+    const nearest = turf.nearestPoint(hiderPt, turf.featureCollection(points));
+    data.location = {
+      type: "Feature",
+      geometry: nearest.geometry,
+      id: nearest.id,
+      properties: {
+        ...nearest.properties,
+        name: nearest.properties?.name ?? (nearest.id != null ? String(nearest.id) : ""),
+      },
+    };
+  }
 }
 
 /** Lets a question's newer positions supersede its older geometry work. */
 const requestKeyFor = (question: { key?: number }) =>
-    question.key === undefined ? undefined : `question:${question.key}`;
+  question.key === undefined ? undefined : `question:${question.key}`;
 
 async function determinePlanningPolygonCompiled(
-    question: { key?: number; data: CompiledFeatureQuestionData },
-    questionDef: QuestionDefinition,
-    datasets: Record<string, unknown>,
+  question: { key?: number; data: CompiledFeatureQuestionData },
+  questionDef: QuestionDefinition,
+  datasets: Record<string, unknown>,
 ) {
-    const params = {
-        evaluator: questionDef.evaluator,
-        datasets,
-        data: question.data,
-    };
-    if (questionDef.family === "matching") {
-        const geometry = await determineMatchingGeometry(params);
-        return geometry ? regionLines(geometry.region) : null;
-    }
-    if (questionDef.family === "measuring") {
-        // Shares the buffer the map is clipped with (the same boundary).
-        const geometry = await determineMeasuringGeometry({
-            ...params,
-            mapGeoData: polyGeoJSON.get() ?? mapGeoJSON.get(),
-            requestKey: requestKeyFor(question),
-        });
-        return geometry && !isEmptyBuffer(geometry)
-            ? regionLines(geometry)
-            : null;
-    }
-    if (questionDef.family === "tentacle") {
-        if (!hasTentacleRadius(question.data)) return null;
-        const { circle, cells } = await determineTentacleGeometry({
-            ...params,
-            data: question.data as TentacleQuestion,
-        });
-        const regions = cells.features.length ? cells.features : [circle];
-        return turf.featureCollection(
-            regions.flatMap((region) => regionLines(region).features),
-        );
-    }
-    return null;
+  const params = {
+    evaluator: questionDef.evaluator,
+    datasets,
+    data: question.data,
+  };
+  if (questionDef.family === "matching") {
+    const geometry = await determineMatchingGeometry(params);
+    return geometry ? regionLines(geometry.region) : null;
+  }
+  if (questionDef.family === "measuring") {
+    // Shares the buffer the map is clipped with (the same boundary).
+    const geometry = await determineMeasuringGeometry({
+      ...params,
+      mapGeoData: polyGeoJSON.get() ?? mapGeoJSON.get(),
+      requestKey: requestKeyFor(question),
+    });
+    return geometry && !isEmptyBuffer(geometry) ? regionLines(geometry) : null;
+  }
+  if (questionDef.family === "tentacle") {
+    if (!hasTentacleRadius(question.data)) return null;
+    const { circle, cells } = await determineTentacleGeometry({
+      ...params,
+      data: question.data as TentacleQuestion,
+    });
+    const regions = cells.features.length ? cells.features : [circle];
+    return turf.featureCollection(regions.flatMap((region) => regionLines(region).features));
+  }
+  return null;
 }
 export * from "./geo-utils";
 
@@ -239,90 +210,81 @@ export * from "./geo-utils";
  * the game decides which questions it supports.
  */
 function questionStatus(question: any): "ready" | "pending" | "unsupported" {
-    const compiled = compiledGameAtom.get();
-    if (!compiled) return "pending";
-    return isQuestionSupported(question, compiled) ? "ready" : "unsupported";
+  const compiled = compiledGameAtom.get();
+  if (!compiled) return "pending";
+  return isQuestionSupported(question, compiled) ? "ready" : "unsupported";
 }
 
 export const hiderifyQuestion = async (question: Question) => {
-    if (question.data.enabled === false) return null;
-    if (isZoneSizeChange(question)) return question;
-    if (question.data.drag) {
-        if (questionStatus(question) !== "ready") return question;
-        const compiled = compiledGameAtom.get()!;
-        const questionDef = resolveCompiledQuestion(question, compiled);
-        if (questionDef) {
-            if (question.id === "radius") {
-                question.data = hiderifyRadius(question.data);
-                return question;
-            }
-            if (question.id === "thermometer") {
-                question.data = await hiderifyThermometer(question.data);
-                return question;
-            }
-            const $hiderMode = hiderMode.get();
-            if ($hiderMode !== false) {
-                await hiderifyCompiledQuestion(
-                    question,
-                    questionDef,
-                    compiled.datasets,
-                    $hiderMode,
-                );
-            }
-            return question;
-        }
-
-        // Player-drawn custom questions aren't in the game's question map.
-        switch (question.id) {
-            case "tentacles":
-                question.data = await hiderifyTentacles(question.data);
-                break;
-            case "matching":
-                question.data = await hiderifyMatching(question.data);
-                break;
-            case "measuring":
-                question.data = await hiderifyMeasuring(question.data);
-                break;
-        }
+  if (question.data.enabled === false) return null;
+  if (isZoneSizeChange(question)) return question;
+  if (question.data.drag) {
+    if (questionStatus(question) !== "ready") return question;
+    const compiled = compiledGameAtom.get()!;
+    const questionDef = resolveCompiledQuestion(question, compiled);
+    if (questionDef) {
+      if (question.id === "radius") {
+        question.data = hiderifyRadius(question.data);
+        return question;
+      }
+      if (question.id === "thermometer") {
+        question.data = await hiderifyThermometer(question.data);
+        return question;
+      }
+      const $hiderMode = hiderMode.get();
+      if ($hiderMode !== false) {
+        await hiderifyCompiledQuestion(question, questionDef, compiled.datasets, $hiderMode);
+      }
+      return question;
     }
 
-    return question;
+    // Player-drawn custom questions aren't in the game's question map.
+    switch (question.id) {
+      case "tentacles":
+        question.data = await hiderifyTentacles(question.data);
+        break;
+      case "matching":
+        question.data = await hiderifyMatching(question.data);
+        break;
+      case "measuring":
+        question.data = await hiderifyMeasuring(question.data);
+        break;
+    }
+  }
+
+  return question;
 };
 
 export const determinePlanningPolygon = async (
-    question: Question,
-    planningModeEnabled: boolean,
+  question: Question,
+  planningModeEnabled: boolean,
 ) => {
-    if (question.data.enabled === false) return undefined;
-    if (isZoneSizeChange(question)) return undefined;
-    if (planningModeEnabled && question.data.drag) {
-        if (questionStatus(question) !== "ready") return undefined;
-        const compiled = compiledGameAtom.get()!;
-        const questionDef = resolveCompiledQuestion(question, compiled);
-        if (questionDef) {
-            if (question.id === "radius") {
-                return radiusPlanningPolygon(question.data);
-            }
-            if (question.id === "thermometer") {
-                return thermometerPlanningPolygon(question.data);
-            }
-            return determinePlanningPolygonCompiled(
-                question,
-                questionDef,
-                compiled.datasets,
-            );
-        }
-
-        // Player-drawn custom questions aren't in the game's question map.
-        switch (question.id) {
-            case "tentacles":
-                return tentaclesPlanningPolygon(question.data);
-            case "matching":
-                return matchingPlanningPolygon(question.data);
-            case "measuring":
-                return measuringPlanningPolygon(question.data);
-        }
+  if (question.data.enabled === false) return undefined;
+  if (isZoneSizeChange(question)) return undefined;
+  if (planningModeEnabled && question.data.drag) {
+    if (questionStatus(question) !== "ready") return undefined;
+    const compiled = compiledGameAtom.get()!;
+    const questionDef = resolveCompiledQuestion(question, compiled);
+    if (questionDef) {
+      if (question.id === "radius") {
+        return radiusPlanningPolygon(question.data);
+      }
+      if (question.id === "thermometer") {
+        return thermometerPlanningPolygon(question.data);
+      }
+      return determinePlanningPolygonCompiled(question, questionDef, compiled.datasets);
     }
+
+    // Player-drawn custom questions aren't in the game's question map.
+    switch (question.id) {
+      case "tentacles":
+        return tentaclesPlanningPolygon(question.data);
+      case "matching":
+        return matchingPlanningPolygon(question.data);
+      case "measuring":
+        return measuringPlanningPolygon(question.data);
+    }
+  }
 };
 
 /**
@@ -333,36 +295,26 @@ export const determinePlanningPolygon = async (
  * there is nothing to measure to.
  */
 export async function measuringDistance(
-    data: MeasuringQuestion,
-    lat = data.lat,
-    lng = data.lng,
+  data: MeasuringQuestion,
+  lat = data.lat,
+  lng = data.lng,
 ): Promise<MeasuredDistance | undefined> {
-    const question = { id: "measuring", data };
-    if (questionStatus(question) !== "ready") return undefined;
-    const compiled = compiledGameAtom.get()!;
-    const questionDef = resolveCompiledQuestion(question, compiled);
-    let targets: FeatureCollection | undefined;
-    if (questionDef) {
-        targets = await measuringTargetsAt(
-            questionDef,
-            compiled.datasets,
-            data,
-            lat,
-            lng,
-        );
-    } else {
-        const drawn = determineMeasuringBoundary(data);
-        if (drawn) targets = turf.featureCollection(drawn);
-    }
-    const measured = targets && (await measureToTargets(targets, lat, lng));
-    if (
-        measured &&
-        questionDef?.evaluator.operator ===
-            "distance-to-containing-region-boundary"
-    ) {
-        measured.boundary = true;
-    }
-    return measured;
+  const question = { id: "measuring", data };
+  if (questionStatus(question) !== "ready") return undefined;
+  const compiled = compiledGameAtom.get()!;
+  const questionDef = resolveCompiledQuestion(question, compiled);
+  let targets: FeatureCollection | undefined;
+  if (questionDef) {
+    targets = await measuringTargetsAt(questionDef, compiled.datasets, data, lat, lng);
+  } else {
+    const drawn = determineMeasuringBoundary(data);
+    if (drawn) targets = turf.featureCollection(drawn);
+  }
+  const measured = targets && (await measureToTargets(targets, lat, lng));
+  if (measured && questionDef?.evaluator.operator === "distance-to-containing-region-boundary") {
+    measured.boundary = true;
+  }
+  return measured;
 }
 
 /**
@@ -372,94 +324,79 @@ export async function measuringDistance(
  * region, or when that feature has no name.
  */
 export function matchingTarget(
-    data: MatchingQuestion,
-    lat = data.lat,
-    lng = data.lng,
+  data: MatchingQuestion,
+  lat = data.lat,
+  lng = data.lng,
 ): string | undefined {
-    const question = { id: "matching", data };
-    if (questionStatus(question) !== "ready") return undefined;
-    const compiled = compiledGameAtom.get()!;
-    const questionDef = resolveCompiledQuestion(question, compiled);
-    const point = turf.point([lng, lat]);
-    let target: Feature | undefined;
-    if (questionDef) {
-        const evaluator = questionDef.evaluator;
-        const source = geometrySource(evaluator, compiled.datasets, {});
-        if (!source) return undefined;
-        if (evaluator.operator === "containing-region-match") {
-            target = containingRegion(source.regions, point);
-        } else if (evaluator.operator === "nearest-feature-match") {
-            if (source.lines.length) {
-                target = nearestLine(source.lines, point);
-            } else if (source.points.length) {
-                target = turf.nearestPoint(
-                    point,
-                    turf.featureCollection(source.points),
-                );
-            }
-        }
-    } else if (data.type === "custom-points") {
-        // Pasted presets aren't checked, and this runs while the card renders.
-        const geo = (data as CustomMatchingQuestion).geo;
-        const points = (Array.isArray(geo) ? geo : []).filter(
-            (feature): feature is Feature<Point> =>
-                feature?.geometry?.type === "Point" &&
-                Array.isArray(feature.geometry.coordinates),
-        );
-        if (points.length) {
-            target = turf.nearestPoint(point, turf.featureCollection(points));
-        }
+  const question = { id: "matching", data };
+  if (questionStatus(question) !== "ready") return undefined;
+  const compiled = compiledGameAtom.get()!;
+  const questionDef = resolveCompiledQuestion(question, compiled);
+  const point = turf.point([lng, lat]);
+  let target: Feature | undefined;
+  if (questionDef) {
+    const evaluator = questionDef.evaluator;
+    const source = geometrySource(evaluator, compiled.datasets, {});
+    if (!source) return undefined;
+    if (evaluator.operator === "containing-region-match") {
+      target = containingRegion(source.regions, point);
+    } else if (evaluator.operator === "nearest-feature-match") {
+      if (source.lines.length) {
+        target = nearestLine(source.lines, point);
+      } else if (source.points.length) {
+        target = turf.nearestPoint(point, turf.featureCollection(source.points));
+      }
     }
-    const name = target?.properties?.name;
-    return typeof name === "string" && name.trim() ? name : undefined;
+  } else if (data.type === "custom-points") {
+    // Pasted presets aren't checked, and this runs while the card renders.
+    const geo = (data as CustomMatchingQuestion).geo;
+    const points = (Array.isArray(geo) ? geo : []).filter(
+      (feature): feature is Feature<Point> =>
+        feature?.geometry?.type === "Point" && Array.isArray(feature.geometry.coordinates),
+    );
+    if (points.length) {
+      target = turf.nearestPoint(point, turf.featureCollection(points));
+    }
+  }
+  const name = target?.properties?.name;
+  return typeof name === "string" && name.trim() ? name : undefined;
 }
 
-export async function adjustMapGeoDataForQuestion(
-    question: any,
-    mapGeoData: any,
-) {
-    const status = questionStatus(question);
-    if (status === "unsupported") {
-        throw new Error(
-            "Question is not supported by the active game definition",
-        );
-    }
-    // Answered once the game's definition has loaded.
-    if (status === "pending") return mapGeoData;
-    if (
-        mapGeoData?.type === "FeatureCollection" &&
-        mapGeoData.features.length === 0
-    )
-        return mapGeoData;
-    const compiled = compiledGameAtom.get()!;
-    const questionDef = resolveCompiledQuestion(question, compiled);
-    if (questionDef) {
-        return await evaluateQuestionOperator({
-            questionDef,
-            datasets: compiled.datasets,
-            data: question.data,
-            mapGeoData,
-            requestKey: requestKeyFor(question),
-        });
-    }
+export async function adjustMapGeoDataForQuestion(question: any, mapGeoData: any) {
+  const status = questionStatus(question);
+  if (status === "unsupported") {
+    throw new Error("Question is not supported by the active game definition");
+  }
+  // Answered once the game's definition has loaded.
+  if (status === "pending") return mapGeoData;
+  if (mapGeoData?.type === "FeatureCollection" && mapGeoData.features.length === 0)
+    return mapGeoData;
+  const compiled = compiledGameAtom.get()!;
+  const questionDef = resolveCompiledQuestion(question, compiled);
+  if (questionDef) {
+    return await evaluateQuestionOperator({
+      questionDef,
+      datasets: compiled.datasets,
+      data: question.data,
+      mapGeoData,
+      requestKey: requestKeyFor(question),
+    });
+  }
 
-    // Player-drawn custom questions aren't in the game's question map.
-    switch (question?.id) {
-        case "tentacles":
-            if (question.data.location === false) {
-                return adjustPerRadius(
-                    { ...question.data, within: false },
-                    mapGeoData,
-                );
-            }
-            return await adjustPerTentacle(question.data, mapGeoData);
-        case "matching":
-            return await adjustPerMatching(question.data, mapGeoData);
-        case "measuring":
-            return await adjustPerMeasuring(question.data, mapGeoData);
-        default:
-            return mapGeoData;
-    }
+  // Player-drawn custom questions aren't in the game's question map.
+  switch (question?.id) {
+    case "tentacles":
+      if (question.data.location === false) {
+        return adjustPerRadius({ ...question.data, within: false }, mapGeoData);
+      }
+      return await adjustPerTentacle(question.data, mapGeoData);
+    case "matching":
+      return await adjustPerMatching(question.data, mapGeoData);
+    case "measuring":
+      return await adjustPerMeasuring(question.data, mapGeoData);
+    default:
+      return mapGeoData;
+  }
 }
 
 /**
@@ -467,19 +404,16 @@ export async function adjustMapGeoDataForQuestion(
  * evaluated against a fresh copy of the base boundary, independent of the
  * other questions.
  */
-export async function standaloneRegion(
-    question: any,
-    baseMapGeoData: any,
-): Promise<any> {
-    const base = structuredClone(baseMapGeoData);
-    const region = await adjustMapGeoDataForQuestion(question, base);
-    if (!region || region.type !== "FeatureCollection") {
-        return {
-            type: "FeatureCollection",
-            features: region ? [region] : [],
-        };
-    }
-    return region;
+export async function standaloneRegion(question: any, baseMapGeoData: any): Promise<any> {
+  const base = structuredClone(baseMapGeoData);
+  const region = await adjustMapGeoDataForQuestion(question, base);
+  if (!region || region.type !== "FeatureCollection") {
+    return {
+      type: "FeatureCollection",
+      features: region ? [region] : [],
+    };
+  }
+  return region;
 }
 
 // A question's region depends on its type and answer data, not on its name,
@@ -487,13 +421,13 @@ export async function standaloneRegion(
 // answers questions before they get here, so its answers are part of the data
 // and the hider's position is not an input of its own.
 export const regionData = (question: Question) => ({
-    ...question.data,
-    name: undefined,
-    collapsed: undefined,
-    drag: undefined,
-    color: undefined,
-    colorA: undefined,
-    colorB: undefined,
+  ...question.data,
+  name: undefined,
+  collapsed: undefined,
+  drag: undefined,
+  color: undefined,
+  colorA: undefined,
+  colorB: undefined,
 });
 
 /**
@@ -512,71 +446,61 @@ export const regionData = (question: Question) => ({
 let regionCache: { inputs: unknown[]; regions: Map<string, any> } | undefined;
 
 function regionCacheFor(baseMapGeoData: unknown): Map<string, any> {
-    const inputs = [baseMapGeoData, compiledGameAtom.get(), polyGeoJSON.get()];
-    if (
-        !regionCache ||
-        inputs.some((input, index) => input !== regionCache!.inputs[index])
-    ) {
-        regionCache = { inputs, regions: new Map() };
-    }
-    return regionCache.regions;
+  const inputs = [baseMapGeoData, compiledGameAtom.get(), polyGeoJSON.get()];
+  if (!regionCache || inputs.some((input, index) => input !== regionCache!.inputs[index])) {
+    regionCache = { inputs, regions: new Map() };
+  }
+  return regionCache.regions;
 }
 
 export async function computePerQuestionRegions(
-    questions: Questions,
-    baseMapGeoData: any,
-    planningModeEnabled: boolean,
-    isCurrent: () => boolean = () => true,
+  questions: Questions,
+  baseMapGeoData: any,
+  planningModeEnabled: boolean,
+  isCurrent: () => boolean = () => true,
 ): Promise<{ question: Question; region: any; zoneScale: number }[]> {
-    const regions: { question: Question; region: any; zoneScale: number }[] =
-        [];
-    // Editing one question must not re-evaluate the others against a large
-    // boundary. Only regions still in use are kept, bounding the cache.
-    const cache = regionCacheFor(baseMapGeoData);
-    const used = new Map<string, any>();
+  const regions: { question: Question; region: any; zoneScale: number }[] = [];
+  // Editing one question must not re-evaluate the others against a large
+  // boundary. Only regions still in use are kept, bounding the cache.
+  const cache = regionCacheFor(baseMapGeoData);
+  const used = new Map<string, any>();
 
-    for (const [index, question] of questions.entries()) {
-        // `enabled` lives on most (not all) members of the question.data union;
-        // narrow locally until the shared base type lands (see Bucket 1 cleanup).
-        if ((question.data as { enabled?: boolean }).enabled === false)
-            continue;
-        // A zone size change eliminates nothing itself: it sizes the hiding
-        // zones the questions below it are tested against.
-        if (isZoneSizeChange(question)) continue;
-        if (planningModeEnabled && question.data.drag) continue;
+  for (const [index, question] of questions.entries()) {
+    // `enabled` lives on most (not all) members of the question.data union;
+    // narrow locally until the shared base type lands (see Bucket 1 cleanup).
+    if ((question.data as { enabled?: boolean }).enabled === false) continue;
+    // A zone size change eliminates nothing itself: it sizes the hiding
+    // zones the questions below it are tested against.
+    if (isZoneSizeChange(question)) continue;
+    if (planningModeEnabled && question.data.drag) continue;
 
-        const key = JSON.stringify([question.id, regionData(question)]);
-        let region = cache.get(key);
-        try {
-            region ??= await standaloneRegion(question, baseMapGeoData);
-            used.set(key, region);
-        } catch (error) {
-            if (
-                error instanceof SupersededError ||
-                error instanceof GeometryWorkerError
-            )
-                throw error;
-            // A malformed question eliminates nothing (uncached, so it's
-            // retried) rather than stopping the map for every question.
-            console.error(`Question ${question.id} could not be drawn:`, error);
-            region =
-                baseMapGeoData?.type === "FeatureCollection"
-                    ? baseMapGeoData
-                    : turf.featureCollection([baseMapGeoData]);
-        }
-        if (!isCurrent()) return regions;
-
-        regions.push({
-            question,
-            region,
-            zoneScale: zoneScaleAfter(questions, index),
-        });
+    const key = JSON.stringify([question.id, regionData(question)]);
+    let region = cache.get(key);
+    try {
+      region ??= await standaloneRegion(question, baseMapGeoData);
+      used.set(key, region);
+    } catch (error) {
+      if (error instanceof SupersededError || error instanceof GeometryWorkerError) throw error;
+      // A malformed question eliminates nothing (uncached, so it's
+      // retried) rather than stopping the map for every question.
+      console.error(`Question ${question.id} could not be drawn:`, error);
+      region =
+        baseMapGeoData?.type === "FeatureCollection"
+          ? baseMapGeoData
+          : turf.featureCollection([baseMapGeoData]);
     }
+    if (!isCurrent()) return regions;
 
-    // An obsolete run finishing first must not prune the newer run's regions.
-    if (regionCache?.regions === cache && isCurrent())
-        regionCache.regions = used;
-    return regions;
+    regions.push({
+      question,
+      region,
+      zoneScale: zoneScaleAfter(questions, index),
+    });
+  }
+
+  // An obsolete run finishing first must not prune the newer run's regions.
+  if (regionCache?.regions === cache && isCurrent()) regionCache.regions = used;
+  return regions;
 }
 
 // The regions intersected in order: `upTo` is every region up to this one.
@@ -586,30 +510,26 @@ let regionChain: { region: unknown; upTo: FeatureCollection<any> }[] = [];
 
 /** The area every region leaves, or undefined without regions or when obsolete. */
 export async function intersectRegions(
-    regions: readonly { region: any }[],
-    isCurrent: () => boolean = () => true,
+  regions: readonly { region: any }[],
+  isCurrent: () => boolean = () => true,
 ): Promise<FeatureCollection<any> | undefined> {
-    let kept = 0;
-    while (
-        kept < regions.length &&
-        regionChain[kept]?.region === regions[kept].region
-    )
-        kept++;
-    const chain = regionChain.slice(0, kept);
-    for (const { region } of regions.slice(kept)) {
-        let upTo = region;
-        if (chain.length) {
-            const intersection = await requestGeometry({
-                kind: "clip",
-                mapData: chain[chain.length - 1].upTo,
-                modifications: region,
-                within: true,
-            });
-            if (!isCurrent()) return undefined;
-            upTo = turf.featureCollection(intersection ? [intersection] : []);
-        }
-        chain.push({ region, upTo });
+  let kept = 0;
+  while (kept < regions.length && regionChain[kept]?.region === regions[kept].region) kept++;
+  const chain = regionChain.slice(0, kept);
+  for (const { region } of regions.slice(kept)) {
+    let upTo = region;
+    if (chain.length) {
+      const intersection = await requestGeometry({
+        kind: "clip",
+        mapData: chain[chain.length - 1].upTo,
+        modifications: region,
+        within: true,
+      });
+      if (!isCurrent()) return undefined;
+      upTo = turf.featureCollection(intersection ? [intersection] : []);
     }
-    regionChain = chain;
-    return chain.at(-1)?.upTo;
+    chain.push({ region, upTo });
+  }
+  regionChain = chain;
+  return chain.at(-1)?.upTo;
 }

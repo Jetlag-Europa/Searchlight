@@ -34,12 +34,16 @@ async function buildTestApp() {
 async function cleanup() {
   await prisma.event.deleteMany({ where: { sessionId: SESSION_ID } });
   await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION_ID } });
-  await prisma.authSession.deleteMany({ where: { id: { in: [CREATOR_AUTH_ID, MEMBER_AUTH_ID, OUTSIDER_AUTH_ID] } } });
+  await prisma.authSession.deleteMany({
+    where: { id: { in: [CREATOR_AUTH_ID, MEMBER_AUTH_ID, OUTSIDER_AUTH_ID] } },
+  });
   await prisma.gameSession.deleteMany({ where: { id: SESSION_ID } });
   await prisma.gameRevision.deleteMany({ where: { gameId: { in: [GAME_ID, OTHER_GAME_ID] } } });
   await prisma.game.deleteMany({ where: { id: { in: [GAME_ID, OTHER_GAME_ID] } } });
   await prisma.server.deleteMany({ where: { id: { in: [SERVER_ID, OTHER_SERVER_ID] } } });
-  await prisma.user.deleteMany({ where: { discordId: { in: [CREATOR_ID, MEMBER_ID, OUTSIDER_ID] } } });
+  await prisma.user.deleteMany({
+    where: { discordId: { in: [CREATOR_ID, MEMBER_ID, OUTSIDER_ID] } },
+  });
 }
 
 describe("PATCH /sessions/:sessionId permissions", () => {
@@ -78,7 +82,13 @@ describe("PATCH /sessions/:sessionId permissions", () => {
       ],
     });
     await prisma.game.create({
-      data: { id: GAME_ID, serverId: SERVER_ID, name: "Patch Game", gameKey: "spatch-game", size: "medium" },
+      data: {
+        id: GAME_ID,
+        serverId: SERVER_ID,
+        name: "Patch Game",
+        gameKey: "spatch-game",
+        size: "medium",
+      },
     });
     const rev = await prisma.gameRevision.create({
       data: {
@@ -92,7 +102,13 @@ describe("PATCH /sessions/:sessionId permissions", () => {
 
     // A real second game and revision, so a write to them would succeed if allowed.
     await prisma.game.create({
-      data: { id: OTHER_GAME_ID, serverId: SERVER_ID, name: "Other Game", gameKey: "spatch-game2", size: "medium" },
+      data: {
+        id: OTHER_GAME_ID,
+        serverId: SERVER_ID,
+        name: "Other Game",
+        gameKey: "spatch-game2",
+        size: "medium",
+      },
     });
     const otherRev = await prisma.gameRevision.create({
       data: {
@@ -190,7 +206,10 @@ describe("PATCH /sessions/:sessionId permissions", () => {
   });
 
   test("a member cannot repoint the session at another game or revision", async () => {
-    const res = await patch(memberCookie, { gameId: OTHER_GAME_ID, gameRevisionId: otherRevisionId });
+    const res = await patch(memberCookie, {
+      gameId: OTHER_GAME_ID,
+      gameRevisionId: otherRevisionId,
+    });
     expect(res.statusCode).toBe(200);
     const s = await loadSession();
     expect(s.gameId).toBe(GAME_ID);
@@ -228,7 +247,11 @@ describe("PATCH /sessions/:sessionId permissions", () => {
   });
 
   test("a member can still update the hider position and planning mode", async () => {
-    const res = await patch(memberCookie, { hiderLat: 47.1, hiderLng: 8.5, planningModeEnabled: true });
+    const res = await patch(memberCookie, {
+      hiderLat: 47.1,
+      hiderLng: 8.5,
+      planningModeEnabled: true,
+    });
     expect(res.statusCode).toBe(200);
     const s = await loadSession();
     expect(s.hiderLat).toBe(47.1);
@@ -350,7 +373,10 @@ describe("PATCH /sessions/:sessionId permissions", () => {
 
   test("a zone both disabled and enabled in one change is rejected", async () => {
     await patch(memberCookie, { disableZoneIds: ["a"] });
-    const res = await patch(memberCookie, { disableZoneIds: ["b", "c"], enableZoneIds: ["a", "c"] });
+    const res = await patch(memberCookie, {
+      disableZoneIds: ["b", "c"],
+      enableZoneIds: ["a", "c"],
+    });
     expect(res.statusCode).toBe(400);
     expect((await loadSession()).disabledZoneIds).toEqual(["a"]);
     expect(await prisma.event.count({ where: { sessionId: SESSION_ID } })).toBe(1);
@@ -360,7 +386,9 @@ describe("PATCH /sessions/:sessionId permissions", () => {
     await patch(memberCookie, { disableZoneIds: ["a"] });
     await patch(memberCookie, { planningModeEnabled: true });
     expect((await loadSession()).disabledZoneIds).toEqual(["a"]);
-    expect(await prisma.event.count({ where: { sessionId: SESSION_ID, type: "zones.disabled" } })).toBe(1);
+    expect(
+      await prisma.event.count({ where: { sessionId: SESSION_ID, type: "zones.disabled" } }),
+    ).toBe(1);
   });
 
   test("zone IDs up to 1000 characters are accepted", async () => {
@@ -420,7 +448,10 @@ describe("PATCH /sessions/:sessionId permissions", () => {
   });
 
   test("the events replay returns zones.disabled with the whole list, as broadcast", async () => {
-    await patch(memberCookie, { disableZoneIds: ["b", "a"], zonesClientUuid: "zones-disabled-replay" });
+    await patch(memberCookie, {
+      disableZoneIds: ["b", "a"],
+      zonesClientUuid: "zones-disabled-replay",
+    });
     const res = await app.inject({
       method: "GET",
       url: `/sessions/${SESSION_ID}/events?after=0`,
@@ -440,7 +471,10 @@ describe("PATCH /sessions/:sessionId permissions", () => {
   });
 
   test("a change's ID becomes its event's clientUuid", async () => {
-    await patch(memberCookie, { disableZoneIds: ["a"], zonesClientUuid: "zones-disabled-1234-abcd" });
+    await patch(memberCookie, {
+      disableZoneIds: ["a"],
+      zonesClientUuid: "zones-disabled-1234-abcd",
+    });
     const event = await prisma.event.findFirstOrThrow({ where: { sessionId: SESSION_ID } });
     expect(event.clientUuid).toBe("zones-disabled-1234-abcd");
   });
@@ -464,7 +498,9 @@ describe("PATCH /sessions/:sessionId permissions", () => {
     // come back and to recognise a resend.
     const change = { disableZoneIds: ["a"], zonesClientUuid: "zones-disabled-late" };
     await patch(memberCookie, change);
-    const late = await prisma.event.findUniqueOrThrow({ where: { clientUuid: "zones-disabled-late" } });
+    const late = await prisma.event.findUniqueOrThrow({
+      where: { clientUuid: "zones-disabled-late" },
+    });
     expect(late).toMatchObject({ sequence: 2, payloadJson: { disabledZoneIds: ["a"] } });
     // Enabled again, then the resend after a lost reply: not applied.
     await patch(creatorCookie, { enableZoneIds: ["a"] });
@@ -532,7 +568,10 @@ describe("PATCH /sessions/:sessionId permissions", () => {
         clientCreatedAt: new Date(),
       },
     });
-    const res = await patch(memberCookie, { disableZoneIds: ["a"], zonesClientUuid: "zones-disabled-taken" });
+    const res = await patch(memberCookie, {
+      disableZoneIds: ["a"],
+      zonesClientUuid: "zones-disabled-taken",
+    });
     expect(res.statusCode).toBe(409);
     expect((await loadSession()).disabledZoneIds).toEqual([]);
   });

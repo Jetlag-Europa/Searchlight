@@ -60,8 +60,7 @@ function safeReturnTo(value: unknown): string | undefined {
   return url?.origin === frontendOrigin ? url.pathname + url.search + url.hash : undefined;
 }
 
-const escapeHtml = (s: string) =>
-  s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const escapeHtml = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 function devLoginPage(discordId: string, error?: string): string {
   return `<!doctype html>
@@ -199,31 +198,28 @@ export async function authRoutes(app: FastifyInstance) {
       "ENABLE_TEST_AUTH=1 — POST /auth/test-login is registered. Do NOT use this in production.",
     );
 
-    app.post<{ Body?: { discordId?: string } }>(
-      "/test-login",
-      async (req, reply) => {
-        const discordId = req.body?.discordId ?? env.TEST_AUTH_USER_ID;
+    app.post<{ Body?: { discordId?: string } }>("/test-login", async (req, reply) => {
+      const discordId = req.body?.discordId ?? env.TEST_AUTH_USER_ID;
 
-        // Upsert so the endpoint works even if the user wasn't pre-seeded.
-        const user = await prisma.user.upsert({
-          where: { discordId },
-          update: {},
-          create: {
-            discordId,
-            username: discordId,
-            displayName: `Test User ${discordId}`,
-            avatarUrl: `https://cdn.discordapp.com/embed/avatars/0.png`,
-            ...placeholderTokens(),
-          },
-        });
+      // Upsert so the endpoint works even if the user wasn't pre-seeded.
+      const user = await prisma.user.upsert({
+        where: { discordId },
+        update: {},
+        create: {
+          discordId,
+          username: discordId,
+          displayName: `Test User ${discordId}`,
+          avatarUrl: `https://cdn.discordapp.com/embed/avatars/0.png`,
+          ...placeholderTokens(),
+        },
+      });
 
-        await startSession(reply, user.discordId);
+      await startSession(reply, user.discordId);
 
-        return reply.send({
-          user: { discordId: user.discordId, displayName: user.displayName },
-        });
-      },
-    );
+      return reply.send({
+        user: { discordId: user.discordId, displayName: user.displayName },
+      });
+    });
   }
 
   // /auth/dev-login — PREVIEW DEPLOYMENTS ONLY, gated by DEV_LOGIN_TOKEN.
@@ -253,9 +249,7 @@ export async function authRoutes(app: FastifyInstance) {
     app.post<{ Body?: { discordId?: unknown; token?: unknown } }>(
       "/dev-login",
       async (req, reply) => {
-        const isForm = req.headers["content-type"]?.startsWith(
-          "application/x-www-form-urlencoded",
-        );
+        const isForm = req.headers["content-type"]?.startsWith("application/x-www-form-urlencoded");
         const fail = (status: number, error: string, discordId = "") =>
           isForm
             ? reply.status(status).type("text/html").send(devLoginPage(discordId, error))

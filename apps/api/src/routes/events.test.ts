@@ -16,8 +16,8 @@ const USER1_ID = "test-evroutes-user1";
 const USER2_ID = "test-evroutes-user2";
 const SERVER_ID = "test-evroutes-server";
 const GAME_ID = "test-evroutes-game";
-const SESSION1_ID = "test-evroutes-session1";   // owned by USER1
-const SESSION2_ID = "test-evroutes-session2";   // owned by USER2, USER1 not participant
+const SESSION1_ID = "test-evroutes-session1"; // owned by USER1
+const SESSION2_ID = "test-evroutes-session2"; // owned by USER2, USER1 not participant
 const AUTH_SESSION_ID = "test-evroutes-auth";
 
 async function buildTestApp() {
@@ -230,7 +230,10 @@ describe("GET /sessions/:sessionId/events", () => {
       url: `/sessions/${SESSION1_ID}/events`,
       headers: { cookie },
     });
-    const { events, nextAfter } = res.json<{ events: Array<Record<string, unknown>>; nextAfter: number | null }>();
+    const { events, nextAfter } = res.json<{
+      events: Array<Record<string, unknown>>;
+      nextAfter: number | null;
+    }>();
     const ev = events[0];
     expect(typeof ev.id).toBe("string");
     expect(ev.sessionId).toBe(SESSION1_ID);
@@ -248,7 +251,10 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const { events, nextAfter } = res.json<{ events: Array<{ sequence: number; type: string }>; nextAfter: number | null }>();
+    const { events, nextAfter } = res.json<{
+      events: Array<{ sequence: number; type: string }>;
+      nextAfter: number | null;
+    }>();
     expect(events).toHaveLength(1);
     expect(events[0].sequence).toBe(2);
     expect(events[0].type).toBe("stroke.delete");
@@ -262,7 +268,10 @@ describe("GET /sessions/:sessionId/events", () => {
       headers: { cookie },
     });
     expect(res.statusCode).toBe(200);
-    const { events, nextAfter } = res.json<{ events: Array<{ sequence: number }>; nextAfter: number | null }>();
+    const { events, nextAfter } = res.json<{
+      events: Array<{ sequence: number }>;
+      nextAfter: number | null;
+    }>();
     expect(events).toHaveLength(1);
     expect(events[0].sequence).toBe(1);
     expect(nextAfter).toBe(1);
@@ -324,7 +333,11 @@ describe("GET /sessions/:sessionId/events", () => {
   // ── GET /sessions/:sessionId/events/cursor ──────────────────────────────────
   test("a page of events is sent with brotli when accepted", async () => {
     // A catch-up page of question list replacements, each with the whole list.
-    const questions = Array.from({ length: 10 }, (_, i) => ({ id: `q-${i}`, type: "radius", radius: i }));
+    const questions = Array.from({ length: 10 }, (_, i) => ({
+      id: `q-${i}`,
+      type: "radius",
+      radius: i,
+    }));
     await prisma.event.createMany({
       data: Array.from({ length: 50 }, (_, i) => ({
         sessionId: SESSION1_ID,
@@ -342,7 +355,11 @@ describe("GET /sessions/:sessionId/events", () => {
       const plain = await app.inject({ method: "GET", url, headers: { cookie } });
       expect(plain.json<{ events: unknown[] }>().events).toHaveLength(50);
 
-      const res = await app.inject({ method: "GET", url, headers: { cookie, "accept-encoding": "br" } });
+      const res = await app.inject({
+        method: "GET",
+        url,
+        headers: { cookie, "accept-encoding": "br" },
+      });
       expect(res.statusCode).toBe(200);
       expect(res.headers["content-encoding"]).toBe("br");
       expect(brotliDecompressSync(res.rawPayload).toString()).toBe(plain.body);
@@ -485,7 +502,9 @@ describe("GET /sessions/:sessionId/events", () => {
       });
       expect(res.statusCode).toBe(403);
     } finally {
-      await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: REVOKED_USER_ID } });
+      await prisma.sessionParticipant.deleteMany({
+        where: { sessionId: SESSION1_ID, userId: REVOKED_USER_ID },
+      });
       await prisma.authSession.deleteMany({ where: { id: REVOKED_AUTH_ID } });
       await prisma.user.deleteMany({ where: { discordId: REVOKED_USER_ID } });
     }
@@ -547,7 +566,9 @@ describe("GET /sessions/:sessionId/events", () => {
       // No mockRestore: it breaks Prisma's delegate, and later calls already
       // go to the real findUnique.
       closeUserStreams(SESSION1_ID, MEMBER_ID);
-      await prisma.sessionParticipant.deleteMany({ where: { sessionId: SESSION1_ID, userId: MEMBER_ID } });
+      await prisma.sessionParticipant.deleteMany({
+        where: { sessionId: SESSION1_ID, userId: MEMBER_ID },
+      });
       await prisma.authSession.deleteMany({ where: { id: MEMBER_AUTH_ID } });
       await prisma.user.deleteMany({ where: { discordId: MEMBER_ID } });
     }
@@ -558,10 +579,15 @@ describe("GET /sessions/:sessionId/events", () => {
     if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
     const { port } = app.server.address() as AddressInfo;
     const res = await new Promise<IncomingMessage>((resolve, reject) => {
-      get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie, ...headers } }, resolve).on(
-        "error",
-        reject,
-      );
+      get(
+        {
+          host: "127.0.0.1",
+          port,
+          path: `/sessions/${SESSION1_ID}/stream`,
+          headers: { cookie, ...headers },
+        },
+        resolve,
+      ).on("error", reject);
     });
     expect(res.statusCode).toBe(200);
     await vi.waitFor(() => expect(isConnected()).toBe(true));
@@ -605,7 +631,9 @@ describe("GET /sessions/:sessionId/events", () => {
         clientCreatedAt: new Date().toISOString(),
         serverReceivedAt: new Date().toISOString(),
       });
-      await vi.waitFor(() => expect(received).toContain('data: {"id":"ev-plain"'), { timeout: 1000 });
+      await vi.waitFor(() => expect(received).toContain('data: {"id":"ev-plain"'), {
+        timeout: 1000,
+      });
     } finally {
       res.destroy();
       await vi.waitFor(() => expect(isConnected()).toBe(false));
@@ -638,7 +666,12 @@ describe("GET /sessions/:sessionId/events", () => {
     let left = false;
     // The client hangs up during the stream's user lookup, before the route
     // listens for that.
-    const clientReq = get({ host: "127.0.0.1", port, path: `/sessions/${SESSION1_ID}/stream`, headers: { cookie } });
+    const clientReq = get({
+      host: "127.0.0.1",
+      port,
+      path: `/sessions/${SESSION1_ID}/stream`,
+      headers: { cookie },
+    });
     clientReq.on("error", () => {});
     const spy = vi.spyOn(prisma.user, "findUnique").mockImplementationOnce((async (
       args: Parameters<typeof findUser>[0],
@@ -691,7 +724,11 @@ describe("GET /sessions/:sessionId/events", () => {
     const row = await prisma.authSession.findUnique({ where: { id: AUTH_SESSION_ID } });
     expect(row?.expiresAt).toEqual(expiresAt);
 
-    const next = await app.inject({ method: "GET", url: `/sessions/${SESSION1_ID}/events`, headers: { cookie } });
+    const next = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION1_ID}/events`,
+      headers: { cookie },
+    });
     expect(next.statusCode).toBe(200);
     expect(next.cookies.find((c) => c.name === "session")).toBeDefined();
     const renewed = await prisma.authSession.findUnique({ where: { id: AUTH_SESSION_ID } });

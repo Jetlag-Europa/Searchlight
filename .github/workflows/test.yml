@@ -6,103 +6,106 @@ name: Tests
 # use the Postgres service below.
 
 on:
-    pull_request:
-    push:
-        branches: [main]
-    workflow_dispatch:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
 
 # A new push to a pull request cancels its older run.
 concurrency:
-    group: tests-${{ github.event.pull_request.number || github.ref }}
-    cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
-    contents: read
+  contents: read
 
 jobs:
-    test:
-        name: Build and test
-        runs-on: ubuntu-24.04
-        timeout-minutes: 20
-        services:
-            postgres:
-                image: postgres:16
-                env:
-                    POSTGRES_DB: searchlight
-                    POSTGRES_USER: searchlight
-                    POSTGRES_PASSWORD: ci
-                ports:
-                    - 5432:5432
-                options: >-
-                    --health-cmd "pg_isready -U searchlight -d searchlight"
-                    --health-interval 2s
-                    --health-timeout 5s
-                    --health-retries 15
+  test:
+    name: Build and test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
         env:
-            DATABASE_URL: postgresql://searchlight:ci@localhost:5432/searchlight
-        steps:
-            - uses: actions/checkout@v6
+          POSTGRES_DB: searchlight
+          POSTGRES_USER: searchlight
+          POSTGRES_PASSWORD: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U searchlight -d searchlight"
+          --health-interval 2s
+          --health-timeout 5s
+          --health-retries 15
+    env:
+      DATABASE_URL: postgresql://searchlight:ci@localhost:5432/searchlight
+    steps:
+      - uses: actions/checkout@v6
 
-            # Uses the pnpm version from package.json#packageManager.
-            - uses: pnpm/action-setup@v6
+      # Uses the pnpm version from package.json#packageManager.
+      - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v7
-              with:
-                  node-version: 22
-                  cache: pnpm
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
 
-            - name: Install
-              run: pnpm install --frozen-lockfile
+      - name: Install
+        run: pnpm install --frozen-lockfile
 
-            # Type-checks the API (tsc) and builds shared, which the other
-            # packages import from its dist.
-            - name: Build
-              run: pnpm build
+      # Type-checks the API (tsc) and builds shared, which the other
+      # packages import from its dist.
+      - name: Build
+        run: pnpm build
 
-            # astro build doesn't type-check, so run tsc over the web app
-            # (after astro sync generates its .astro types).
-            - name: Typecheck web
-              run: pnpm --filter @searchlight/web typecheck
+      # astro build doesn't type-check, so run tsc over the web app
+      # (after astro sync generates its .astro types).
+      - name: Typecheck web
+        run: pnpm --filter @searchlight/web typecheck
 
-            - name: Lint web
-              run: pnpm --filter @searchlight/web lint:check
+      - name: Lint web
+        run: pnpm --filter @searchlight/web lint:check
 
-            # The production seed has its own tsconfig, which the build skips.
-            - name: Typecheck API seed
-              run: pnpm --filter @searchlight/api exec tsc -p tsconfig.seed.json --noEmit
+      - name: Format check
+        run: pnpm format:check
 
-            - name: Migrate the test database
-              id: migrate
-              working-directory: apps/api
-              run: pnpm exec prisma migrate deploy
+      # The production seed has its own tsconfig, which the build skips.
+      - name: Typecheck API seed
+        run: pnpm --filter @searchlight/api exec tsc -p tsconfig.seed.json --noEmit
 
-            - name: Shared tests
-              run: pnpm --filter @searchlight/shared test
+      - name: Migrate the test database
+        id: migrate
+        working-directory: apps/api
+        run: pnpm exec prisma migrate deploy
 
-            - name: Web tests
-              run: pnpm --filter @searchlight/web exec vitest run
+      - name: Shared tests
+        run: pnpm --filter @searchlight/shared test
 
-            - name: API tests
-              run: pnpm --filter @searchlight/api test
+      - name: Web tests
+        run: pnpm --filter @searchlight/web exec vitest run
 
-            - name: Game JSON schema
-              run: pnpm check:game-schema
+      - name: API tests
+        run: pnpm --filter @searchlight/api test
 
-            # schema.prisma must describe exactly what the migrations build, or
-            # the difference lands in whichever migration `prisma migrate dev`
-            # generates next. On failure this prints the SQL that would make the
-            # database match the schema. Runs last, even after a failed test, so
-            # one CI run reports both.
-            - name: Schema matches the migrations
-              if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
-              working-directory: apps/api
-              run: |
-                  status=0
-                  pnpm exec prisma migrate diff \
-                      --from-url "$DATABASE_URL" \
-                      --to-schema-datamodel prisma/schema.prisma \
-                      --script --exit-code || status=$?
-                  if [ "$status" -eq 2 ]; then
-                      echo "::error file=apps/api/prisma/schema.prisma::schema.prisma differs from the database its migrations build. Add the SQL above as a migration, or change schema.prisma to match the migrations."
-                  fi
-                  exit "$status"
+      - name: Game JSON schema
+        run: pnpm check:game-schema
+
+      # schema.prisma must describe exactly what the migrations build, or
+      # the difference lands in whichever migration `prisma migrate dev`
+      # generates next. On failure this prints the SQL that would make the
+      # database match the schema. Runs last, even after a failed test, so
+      # one CI run reports both.
+      - name: Schema matches the migrations
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+        working-directory: apps/api
+        run: |
+          status=0
+          pnpm exec prisma migrate diff \
+              --from-url "$DATABASE_URL" \
+              --to-schema-datamodel prisma/schema.prisma \
+              --script --exit-code || status=$?
+          if [ "$status" -eq 2 ]; then
+              echo "::error file=apps/api/prisma/schema.prisma::schema.prisma differs from the database its migrations build. Add the SQL above as a migration, or change schema.prisma to match the migrations."
+          fi
+          exit "$status"

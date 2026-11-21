@@ -184,13 +184,18 @@ interface QuestionListDiff {
 // Exact keys first, then near ones for what's left, so a list holding two
 // nearly equal keys still pairs each with its own. A key whose type changed
 // isn't the same question.
-function pairQuestions(before: ListedQuestion[], after: ListedQuestion[]): Map<ListedQuestion, ListedQuestion> {
+function pairQuestions(
+  before: ListedQuestion[],
+  after: ListedQuestion[],
+): Map<ListedQuestion, ListedQuestion> {
   const pairs = new Map<ListedQuestion, ListedQuestion>();
   const matched = new Set<ListedQuestion>();
   for (const same of [(a: number, b: number) => a === b, sameQuestionKey]) {
     for (const question of after) {
       if (pairs.has(question)) continue;
-      const old = before.find((q) => !matched.has(q) && q.id === question.id && same(q.key, question.key));
+      const old = before.find(
+        (q) => !matched.has(q) && q.id === question.id && same(q.key, question.key),
+      );
       if (!old) continue;
       pairs.set(question, old);
       matched.add(old);

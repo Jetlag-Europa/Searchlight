@@ -108,7 +108,10 @@ async function request(
     }
     const retryAfterSec = parseFloat(res.headers.get("Retry-After") ?? "1");
     const retryAfterMs = retryAfterSec * 1000;
-    logger?.warn({ route: path, bucket: bucketId, retry_after_ms: retryAfterMs }, "Discord rate limit hit");
+    logger?.warn(
+      { route: path, bucket: bucketId, retry_after_ms: retryAfterMs },
+      "Discord rate limit hit",
+    );
     await sleep(retryAfterMs);
     return request(path, init, logger, retries + 1);
   }
@@ -182,7 +185,11 @@ export const discord = {
   },
 
   // Returns all roles for a guild. Requires a bot token — the bot must be in the guild.
-  async getGuildRoles(guildId: string, botToken: string, logger?: FastifyBaseLogger): Promise<DiscordRole[]> {
+  async getGuildRoles(
+    guildId: string,
+    botToken: string,
+    logger?: FastifyBaseLogger,
+  ): Promise<DiscordRole[]> {
     const res = await request(
       `/guilds/${guildId}/roles`,
       { headers: { Authorization: `Bot ${botToken}` } },

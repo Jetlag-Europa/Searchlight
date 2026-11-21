@@ -1,57 +1,49 @@
 import type { StrokeFeature } from "@/annotations/types";
+import { compiledGameAtom, filterSupportedQuestions } from "@/game-definition/store";
 import {
-    compiledGameAtom,
-    filterSupportedQuestions,
-} from "@/game-definition/store";
-import {
-    activeSessionId,
-    isSessionReadOnly,
-    offlineUserId,
-    verifiedUserId,
+  activeSessionId,
+  isSessionReadOnly,
+  offlineUserId,
+  verifiedUserId,
 } from "@/lib/activeSession";
-import {
-    gameDefinitionReady,
-    pendingEventCount,
-    questions,
-    syncStatus,
-} from "@/lib/context";
+import { gameDefinitionReady, pendingEventCount, questions, syncStatus } from "@/lib/context";
 import { zonesDeltaOf } from "@/lib/disabledZones";
 import {
-    advanceBoardBase,
-    baseQuestions,
-    cacheDisabledZones,
-    discardEvent,
-    type EventType,
-    getCachedSession,
-    getPendingEvents,
-    isReplacementEventType,
-    markEventFailed,
-    markEventSent,
-    markEventSynced,
-    noteQuestionListSent,
-    type PendingEvent,
-    type QuestionsBase,
-    type QuestionsReplacePayload,
-    rebaseQueuedQuestions,
-    setCachedSession,
-    updateQueuedPayload,
+  advanceBoardBase,
+  baseQuestions,
+  cacheDisabledZones,
+  discardEvent,
+  type EventType,
+  getCachedSession,
+  getPendingEvents,
+  isReplacementEventType,
+  markEventFailed,
+  markEventSent,
+  markEventSynced,
+  noteQuestionListSent,
+  type PendingEvent,
+  type QuestionsBase,
+  type QuestionsReplacePayload,
+  rebaseQueuedQuestions,
+  setCachedSession,
+  updateQueuedPayload,
 } from "@/lib/eventQueue";
 import { type LoadDeadline, startLoadDeadline } from "@/lib/loadDeadline";
 import {
-    lookUpConflictAuthors,
-    questionHistory,
-    reconcileQuestionConflicts,
-    recordQuestionConflicts,
+  lookUpConflictAuthors,
+  questionHistory,
+  reconcileQuestionConflicts,
+  recordQuestionConflicts,
 } from "@/lib/questionConflicts";
 import {
-    indexOfQuestionKey,
-    mergeQuestionLists,
-    mergeQuestionListsWithConflicts,
-    ownVersionsOf,
-    questionKey,
-    sameQuestionKey,
-    sameQuestionList,
-    sameQuestionSubstance,
+  indexOfQuestionKey,
+  mergeQuestionLists,
+  mergeQuestionListsWithConflicts,
+  ownVersionsOf,
+  questionKey,
+  sameQuestionKey,
+  sameQuestionList,
+  sameQuestionSubstance,
 } from "@/lib/questionMerge";
 import { sessionUnavailableStatus } from "@/lib/sessionUnavailable";
 import { randomUUID } from "@/lib/utils";
@@ -73,41 +65,32 @@ const KEEPALIVE_BODY_LIMIT = 64 * 1024;
 const REQUEST_TIMEOUT_MS = 45_000;
 
 /** `request`, its signal aborted after REQUEST_TIMEOUT_MS. */
-export async function withTimeout<T>(
-    request: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
-    const deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
-    try {
-        return await request(deadline.signal);
-    } finally {
-        deadline.clear();
-    }
+export async function withTimeout<T>(request: (signal: AbortSignal) => Promise<T>): Promise<T> {
+  const deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
+  try {
+    return await request(deadline.signal);
+  } finally {
+    deadline.clear();
+  }
 }
 
 /** The server answered an edit with an error status. */
 export class SyncRequestError extends Error {
-    readonly status: number;
-    // The API's own 403/404 for the session (see sessionUnavailableStatus),
-    // else null, e.g. for a route it doesn't have.
-    readonly sessionStatus: 403 | 404 | null;
+  readonly status: number;
+  // The API's own 403/404 for the session (see sessionUnavailableStatus),
+  // else null, e.g. for a route it doesn't have.
+  readonly sessionStatus: 403 | 404 | null;
 
-    private constructor(
-        type: EventType,
-        status: number,
-        sessionStatus: 403 | 404 | null,
-    ) {
-        super(`${type} failed: ${status}`);
-        this.status = status;
-        this.sessionStatus = sessionStatus;
-    }
+  private constructor(type: EventType, status: number, sessionStatus: 403 | 404 | null) {
+    super(`${type} failed: ${status}`);
+    this.status = status;
+    this.sessionStatus = sessionStatus;
+  }
 
-    static async from(
-        type: EventType,
-        res: Response,
-    ): Promise<SyncRequestError> {
-        const sessionStatus = await sessionUnavailableStatus(res);
-        return new SyncRequestError(type, res.status, sessionStatus);
-    }
+  static async from(type: EventType, res: Response): Promise<SyncRequestError> {
+    const sessionStatus = await sessionUnavailableStatus(res);
+    return new SyncRequestError(type, res.status, sessionStatus);
+  }
 }
 
 /**
@@ -115,9 +98,9 @@ export class SyncRequestError extends Error {
  * is gone (it can't have the stroke then either).
  */
 export async function assertStrokeDeleted(res: Response): Promise<void> {
-    if (res.ok) return;
-    const error = await SyncRequestError.from("stroke.delete", res);
-    if (error.sessionStatus !== 404) throw error;
+  if (res.ok) return;
+  const error = await SyncRequestError.from("stroke.delete", res);
+  if (error.sessionStatus !== 404) throw error;
 }
 
 export type SendFailure = "retry" | "unavailable" | "rejected";
@@ -131,15 +114,11 @@ export type SendFailure = "retry" | "unavailable" | "rejected";
  * edits behind it, and incoming updates to its field, forever. A network
  * error (no status), a 5xx, 401, 408 or 429 may pass on a retry.
  */
-export function classifySendFailure(
-    status: number | undefined,
-    unavailable: boolean,
-): SendFailure {
-    if (status === undefined || status < 400 || status >= 500) return "retry";
-    if (status === 401 || status === 408 || status === 429) return "retry";
-    if (status === 403 || status === 404)
-        return unavailable ? "unavailable" : "retry";
-    return "rejected";
+export function classifySendFailure(status: number | undefined, unavailable: boolean): SendFailure {
+  if (status === undefined || status < 400 || status >= 500) return "retry";
+  if (status === 401 || status === 408 || status === 429) return "retry";
+  if (status === 403 || status === 404) return unavailable ? "unavailable" : "retry";
+  return "rejected";
 }
 
 /**
@@ -147,29 +126,29 @@ export function classifySendFailure(
  * browser's cookie may be another's. Throws a failure to retry.
  */
 export function assertMaySend(): void {
-    if (offlineUserId.get() && !verifiedUserId.get()) {
-        throw new Error("waiting for /me before sending edits");
-    }
+  if (offlineUserId.get() && !verifiedUserId.get()) {
+    throw new Error("waiting for /me before sending edits");
+  }
 }
 
 function failureOf(err: unknown): { kind: SendFailure; status?: number } {
-    if (!(err instanceof SyncRequestError)) return { kind: "retry" };
-    return {
-        kind: classifySendFailure(err.status, err.sessionStatus !== null),
-        status: err.status,
-    };
+  if (!(err instanceof SyncRequestError)) return { kind: "retry" };
+  return {
+    kind: classifySendFailure(err.status, err.sessionStatus !== null),
+    status: err.status,
+  };
 }
 
 type RejectionListener = (
-    event: PendingEvent,
-    status: number,
-    kind: Exclude<SendFailure, "retry">,
+  event: PendingEvent,
+  status: number,
+  kind: Exclude<SendFailure, "retry">,
 ) => void;
 const rejectionListeners = new Set<RejectionListener>();
 /** The session's disabled zones as of `sequence`: a save's reply. */
 export interface ZonesSaved {
-    ids: string[];
-    sequence: number;
+  ids: string[];
+  sequence: number;
 }
 
 type SyncListener = (event: PendingEvent, zones?: ZonesSaved) => void;
@@ -182,10 +161,10 @@ const syncListeners = new Set<SyncListener>();
  * (`zones`; an API from before sends none).
  */
 export function onEventSynced(listener: SyncListener): () => void {
-    syncListeners.add(listener);
-    return () => {
-        syncListeners.delete(listener);
-    };
+  syncListeners.add(listener);
+  return () => {
+    syncListeners.delete(listener);
+  };
 }
 
 /**
@@ -195,10 +174,10 @@ export function onEventSynced(listener: SyncListener): () => void {
  * "unavailable") stays queued.
  */
 export function onEventRejected(listener: RejectionListener): () => void {
-    rejectionListeners.add(listener);
-    return () => {
-        rejectionListeners.delete(listener);
-    };
+  rejectionListeners.add(listener);
+  return () => {
+    rejectionListeners.delete(listener);
+  };
 }
 
 // The server refused a list made on an older base (see QuestionsBase).
@@ -209,16 +188,16 @@ const MAX_QUESTION_MERGES = 3;
 
 /** A question list the server took, and what it was merged with. */
 export interface QuestionsSaved {
-    sessionId: string;
-    // The list as queued here, and the one saved (the same unless merged).
-    local: Questions;
-    saved: Questions;
-    // The base `local` was made from (undefined from builds before).
-    madeFrom?: QuestionsBase;
-    // The server's sequence after the save; undefined from an older API.
-    sequence?: number;
-    // When merged: the server's list it was last merged with.
-    mergedWith?: QuestionsBase;
+  sessionId: string;
+  // The list as queued here, and the one saved (the same unless merged).
+  local: Questions;
+  saved: Questions;
+  // The base `local` was made from (undefined from builds before).
+  madeFrom?: QuestionsBase;
+  // The server's sequence after the save; undefined from an older API.
+  sequence?: number;
+  // When merged: the server's list it was last merged with.
+  mergedWith?: QuestionsBase;
 }
 
 type QuestionsSavedListener = (saved: QuestionsSaved) => void;
@@ -226,10 +205,10 @@ const questionsSavedListeners = new Set<QuestionsSavedListener>();
 
 /** Hear about each question list saved, to show a merged one. */
 export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
-    questionsSavedListeners.add(listener);
-    return () => {
-        questionsSavedListeners.delete(listener);
-    };
+  questionsSavedListeners.add(listener);
+  return () => {
+    questionsSavedListeners.delete(listener);
+  };
 }
 
 // The server's own clientUuid for each question read from it, so a merged
@@ -237,44 +216,44 @@ export function onQuestionsSaved(listener: QuestionsSavedListener): () => void {
 const serverClientUuids = new WeakMap<object, string>();
 
 async function fetchServerQuestions(
-    sessionId: string,
-    signal: AbortSignal,
+  sessionId: string,
+  signal: AbortSignal,
 ): Promise<QuestionsBase> {
-    const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-        credentials: "include",
-        signal,
-    });
-    if (!res.ok) throw await SyncRequestError.from("questions.replace", res);
-    const data = (await res.json()) as {
-        questions: Array<{ clientUuid?: string; payloadJson: Questions[number] }>;
-        sequence?: number;
-    };
-    if (typeof data.sequence !== "number") {
-        // An API without bases can't have refused one: don't merge.
-        throw new Error("questions response has no sequence");
-    }
-    return {
-        sequence: data.sequence,
-        questions: data.questions.map((q) => {
-            if (q.payloadJson && typeof q.payloadJson === "object" && q.clientUuid) {
-                serverClientUuids.set(q.payloadJson, q.clientUuid);
-            }
-            return q.payloadJson;
-        }),
-    };
+  const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+    credentials: "include",
+    signal,
+  });
+  if (!res.ok) throw await SyncRequestError.from("questions.replace", res);
+  const data = (await res.json()) as {
+    questions: Array<{ clientUuid?: string; payloadJson: Questions[number] }>;
+    sequence?: number;
+  };
+  if (typeof data.sequence !== "number") {
+    // An API without bases can't have refused one: don't merge.
+    throw new Error("questions response has no sequence");
+  }
+  return {
+    sequence: data.sequence,
+    questions: data.questions.map((q) => {
+      if (q.payloadJson && typeof q.payloadJson === "object" && q.clientUuid) {
+        serverClientUuids.set(q.payloadJson, q.clientUuid);
+      }
+      return q.payloadJson;
+    }),
+  };
 }
 
 function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
-    const used = new Set<string>();
-    return questions.map((payloadJson, ordinal) => {
-        const own =
-            payloadJson && typeof payloadJson === "object"
-                ? serverClientUuids.get(payloadJson)
-                : undefined;
-        const clientUuid = own && !used.has(own) ? own : randomUUID();
-        used.add(clientUuid);
-        return { clientUuid, ordinal, payloadJson };
-    });
+  const used = new Set<string>();
+  return questions.map((payloadJson, ordinal) => {
+    const own =
+      payloadJson && typeof payloadJson === "object"
+        ? serverClientUuids.get(payloadJson)
+        : undefined;
+    const clientUuid = own && !used.has(own) ? own : randomUUID();
+    used.add(clientUuid);
+    return { clientUuid, ordinal, payloadJson };
+  });
 }
 
 /**
@@ -285,104 +264,88 @@ function toWire(questions: Questions): QuestionsReplacePayload["questions"] {
  * save lands still has them. If they can't be, ours is saved, as before.
  */
 async function mergeWithServer(
-    event: PendingEvent,
-    payload: QuestionsReplacePayload & { base: QuestionsBase },
-    local: Questions,
-    server: QuestionsBase,
-    keepalive: boolean,
+  event: PendingEvent,
+  payload: QuestionsReplacePayload & { base: QuestionsBase },
+  local: Questions,
+  server: QuestionsBase,
+  keepalive: boolean,
 ): Promise<Questions> {
-    const { sessionId } = event;
-    const { base } = payload;
-    const own = Array.isArray(payload.own) ? payload.own : [];
-    // What the list was made from, decisions taken on the board included.
-    let from = baseQuestions(base);
-    // A question of ours the base doesn't have, added by a list whose
-    // answer never came: which of our versions of it landed (if any) is
-    // what it was made from. When the server doesn't have it now, or has
-    // another version and we have several, only the server's history tells
-    // (see mergeQuestionListsWithConflicts for the rest), so ask it, but not
-    // while the page may be going away (it can take seconds, and a pagehide
-    // save waits behind it). Without an answer it stays as before.
-    const hidden =
-        typeof document !== "undefined" && document.visibilityState === "hidden";
-    if (!keepalive && !hidden && own.length > 0) {
-        const ownOf = (key: number) => ownVersionsOf(own, key);
-        const asked: number[] = [];
-        for (const question of [...local, ...server.questions]) {
-            const key = questionKey(question);
-            if (
-                key === undefined ||
-                asked.some((k) => sameQuestionKey(k, key)) ||
-                indexOfQuestionKey(from, key) !== -1
-            ) {
-                continue;
-            }
-            const versions = ownOf(key);
-            const at = indexOfQuestionKey(server.questions, key);
-            const now = at === -1 ? null : server.questions[at];
-            if (
-                versions.length > 0 &&
-                (now === null ||
-                    (versions.length > 1 &&
-                        !versions.some((v) => sameQuestionSubstance(v, now))))
-            ) {
-                asked.push(key);
-            }
-        }
-        if (asked.length > 0) {
-            // From the first base this list was made from: a list of ours
-            // replaced since may have landed any time after it.
-            const after = Math.min(
-                base.sequence,
-                base.since ?? base.sequence,
-                payload.merged?.base.sequence ?? base.sequence,
-            );
-            const history = await questionHistory(
-                sessionId,
-                asked,
-                after,
-                server.sequence,
-            );
-            for (const key of asked) {
-                const landed = history
-                    ?.get(key)
-                    ?.find(
-                        (v) =>
-                            v !== null &&
-                            ownOf(key).some((o) => sameQuestionSubstance(o, v)),
-                    );
-                if (landed) from = [...from, landed];
-            }
-        }
+  const { sessionId } = event;
+  const { base } = payload;
+  const own = Array.isArray(payload.own) ? payload.own : [];
+  // What the list was made from, decisions taken on the board included.
+  let from = baseQuestions(base);
+  // A question of ours the base doesn't have, added by a list whose
+  // answer never came: which of our versions of it landed (if any) is
+  // what it was made from. When the server doesn't have it now, or has
+  // another version and we have several, only the server's history tells
+  // (see mergeQuestionListsWithConflicts for the rest), so ask it, but not
+  // while the page may be going away (it can take seconds, and a pagehide
+  // save waits behind it). Without an answer it stays as before.
+  const hidden = typeof document !== "undefined" && document.visibilityState === "hidden";
+  if (!keepalive && !hidden && own.length > 0) {
+    const ownOf = (key: number) => ownVersionsOf(own, key);
+    const asked: number[] = [];
+    for (const question of [...local, ...server.questions]) {
+      const key = questionKey(question);
+      if (
+        key === undefined ||
+        asked.some((k) => sameQuestionKey(k, key)) ||
+        indexOfQuestionKey(from, key) !== -1
+      ) {
+        continue;
+      }
+      const versions = ownOf(key);
+      const at = indexOfQuestionKey(server.questions, key);
+      const now = at === -1 ? null : server.questions[at];
+      if (
+        versions.length > 0 &&
+        (now === null ||
+          (versions.length > 1 && !versions.some((v) => sameQuestionSubstance(v, now))))
+      ) {
+        asked.push(key);
+      }
     }
-    // Conflicts held from earlier saves first: this list may settle them.
-    reconcileQuestionConflicts(sessionId, server.questions, server.sequence);
-    const { merged, conflicts } = mergeQuestionListsWithConflicts(
-        from,
-        local,
-        server.questions,
-        own,
-    );
-    if (conflicts.length === 0) return merged;
-    try {
-        recordQuestionConflicts(sessionId, conflicts, {
-            baseSequence: base.since ?? base.sequence,
-            theirsSequence: server.sequence,
-            madeFrom: base,
-        });
-    } catch (err) {
-        console.warn("[searchlight:sync] couldn't hold the conflicts, keeping ours:", err);
-        return mergeQuestionLists(from, local, server.questions);
+    if (asked.length > 0) {
+      // From the first base this list was made from: a list of ours
+      // replaced since may have landed any time after it.
+      const after = Math.min(
+        base.sequence,
+        base.since ?? base.sequence,
+        payload.merged?.base.sequence ?? base.sequence,
+      );
+      const history = await questionHistory(sessionId, asked, after, server.sequence);
+      for (const key of asked) {
+        const landed = history
+          ?.get(key)
+          ?.find((v) => v !== null && ownOf(key).some((o) => sameQuestionSubstance(o, v)));
+        if (landed) from = [...from, landed];
+      }
     }
-    console.info(
-        "[searchlight:sync] held",
-        conflicts.length,
-        "question(s) changed on both sides for the player to decide",
-    );
-    // Who changed them is only for showing: never in the save's way, and
-    // not while the page goes away.
-    if (!keepalive) void lookUpConflictAuthors(sessionId);
-    return merged;
+  }
+  // Conflicts held from earlier saves first: this list may settle them.
+  reconcileQuestionConflicts(sessionId, server.questions, server.sequence);
+  const { merged, conflicts } = mergeQuestionListsWithConflicts(from, local, server.questions, own);
+  if (conflicts.length === 0) return merged;
+  try {
+    recordQuestionConflicts(sessionId, conflicts, {
+      baseSequence: base.since ?? base.sequence,
+      theirsSequence: server.sequence,
+      madeFrom: base,
+    });
+  } catch (err) {
+    console.warn("[searchlight:sync] couldn't hold the conflicts, keeping ours:", err);
+    return mergeQuestionLists(from, local, server.questions);
+  }
+  console.info(
+    "[searchlight:sync] held",
+    conflicts.length,
+    "question(s) changed on both sides for the player to decide",
+  );
+  // Who changed them is only for showing: never in the save's way, and
+  // not while the page goes away.
+  if (!keepalive) void lookUpConflictAuthors(sessionId);
+  return merged;
 }
 
 /**
@@ -393,192 +356,184 @@ async function mergeWithServer(
  * retry sends that same merged list, which the server recognizes as done.
  */
 async function sendQuestions(
-    event: PendingEvent,
-    keepalive: boolean,
-    requestSignal: () => AbortSignal,
+  event: PendingEvent,
+  keepalive: boolean,
+  requestSignal: () => AbortSignal,
 ): Promise<QuestionsSaved> {
-    const { sessionId } = event;
-    let payload = event.payloadJson as QuestionsReplacePayload;
-    const madeFrom = payload.merged?.base ?? payload.base;
-    // Before anything can fail: from here the list may land (for Undo).
-    noteQuestionListSent(event);
-    if (!event.sent) {
-        try {
-            markEventSent(sessionId, event.localId);
-        } catch (err) {
-            console.warn("[searchlight:sync] couldn't mark the list sent:", err);
-        }
+  const { sessionId } = event;
+  let payload = event.payloadJson as QuestionsReplacePayload;
+  const madeFrom = payload.merged?.base ?? payload.base;
+  // Before anything can fail: from here the list may land (for Undo).
+  noteQuestionListSent(event);
+  if (!event.sent) {
+    try {
+      markEventSent(sessionId, event.localId);
+    } catch (err) {
+      console.warn("[searchlight:sync] couldn't mark the list sent:", err);
     }
-    for (let merges = 0; ; merges++) {
-        const baseSequence = payload.base?.sequence;
-        const body = JSON.stringify({
-            replacementId: payload.replacementId,
-            questions: payload.questions,
-            ...(baseSequence === undefined ? {} : { baseSequence }),
-        });
-        const signal = requestSignal();
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
-            method: "PUT",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body,
-            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
-            signal,
-        });
-        if (res.status === 409 && payload.base) {
-            const code = await res
-                .json()
-                .then((data: { code?: unknown }) => data?.code)
-                .catch(() => undefined);
-            // Cut off before it said why: not a refusal, so try it again.
-            if (signal.aborted) throw signal.reason;
-            if (code === QUESTIONS_CHANGED) {
-                // Not a refusal of the edit: retry it later if this keeps on.
-                if (merges >= MAX_QUESTION_MERGES) {
-                    throw new Error("questions kept changing, merging later");
-                }
-                const server = await fetchServerQuestions(sessionId, requestSignal());
-                const list = payload.questions.map((q) => q.payloadJson);
-                const merged = await mergeWithServer(
-                    event,
-                    { ...payload, base: payload.base },
-                    list,
-                    server,
-                    keepalive,
-                );
-                console.info(
-                    "[searchlight:sync] questions changed elsewhere, merged",
-                    list.length,
-                    "+",
-                    server.questions.length,
-                    "→",
-                    merged.length,
-                );
-                payload = {
-                    ...payload,
-                    questions: toWire(merged),
-                    base: server,
-                    merged: payload.merged ?? { local: list, base: payload.base },
-                };
-                try {
-                    updateQueuedPayload(sessionId, event.localId, payload);
-                } catch (err) {
-                    // Storage is full: send the merged list anyway. Only a
-                    // lost answer to it can't be told apart from a new save.
-                    console.warn("[searchlight:sync] couldn't queue the merged list:", err);
-                }
-                continue;
-            }
+  }
+  for (let merges = 0; ; merges++) {
+    const baseSequence = payload.base?.sequence;
+    const body = JSON.stringify({
+      replacementId: payload.replacementId,
+      questions: payload.questions,
+      ...(baseSequence === undefined ? {} : { baseSequence }),
+    });
+    const signal = requestSignal();
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/questions`, {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+      signal,
+    });
+    if (res.status === 409 && payload.base) {
+      const code = await res
+        .json()
+        .then((data: { code?: unknown }) => data?.code)
+        .catch(() => undefined);
+      // Cut off before it said why: not a refusal, so try it again.
+      if (signal.aborted) throw signal.reason;
+      if (code === QUESTIONS_CHANGED) {
+        // Not a refusal of the edit: retry it later if this keeps on.
+        if (merges >= MAX_QUESTION_MERGES) {
+          throw new Error("questions kept changing, merging later");
         }
-        if (!res.ok)
-            throw await SyncRequestError.from("questions.replace", res);
-        const sequence =
-            res.status === 200
-                ? await res
-                      .json()
-                      .then((data: { sequence?: unknown }) =>
-                          typeof data?.sequence === "number"
-                              ? data.sequence
-                              : undefined,
-                      )
-                      .catch(() => undefined)
-                : undefined;
-        // Cut off before it said at what sequence: send it again for that.
-        if (signal.aborted) throw signal.reason;
-        const saved = payload.questions.map((q) => q.payloadJson);
-        return {
-            sessionId,
-            local: payload.merged?.local ?? saved,
-            saved,
-            madeFrom,
-            sequence,
-            mergedWith: payload.merged ? payload.base : undefined,
+        const server = await fetchServerQuestions(sessionId, requestSignal());
+        const list = payload.questions.map((q) => q.payloadJson);
+        const merged = await mergeWithServer(
+          event,
+          { ...payload, base: payload.base },
+          list,
+          server,
+          keepalive,
+        );
+        console.info(
+          "[searchlight:sync] questions changed elsewhere, merged",
+          list.length,
+          "+",
+          server.questions.length,
+          "→",
+          merged.length,
+        );
+        payload = {
+          ...payload,
+          questions: toWire(merged),
+          base: server,
+          merged: payload.merged ?? { local: list, base: payload.base },
         };
+        try {
+          updateQueuedPayload(sessionId, event.localId, payload);
+        } catch (err) {
+          // Storage is full: send the merged list anyway. Only a
+          // lost answer to it can't be told apart from a new save.
+          console.warn("[searchlight:sync] couldn't queue the merged list:", err);
+        }
+        continue;
+      }
     }
+    if (!res.ok) throw await SyncRequestError.from("questions.replace", res);
+    const sequence =
+      res.status === 200
+        ? await res
+            .json()
+            .then((data: { sequence?: unknown }) =>
+              typeof data?.sequence === "number" ? data.sequence : undefined,
+            )
+            .catch(() => undefined)
+        : undefined;
+    // Cut off before it said at what sequence: send it again for that.
+    if (signal.aborted) throw signal.reason;
+    const saved = payload.questions.map((q) => q.payloadJson);
+    return {
+      sessionId,
+      local: payload.merged?.local ?? saved,
+      saved,
+      madeFrom,
+      sequence,
+      mergedWith: payload.merged ? payload.base : undefined,
+    };
+  }
 }
 
 /** Send `event`, each request with the signal `requestSignal` gives it. */
 async function sendEvent(
-    event: PendingEvent,
-    keepalive: boolean,
-    requestSignal: () => AbortSignal,
+  event: PendingEvent,
+  keepalive: boolean,
+  requestSignal: () => AbortSignal,
 ): Promise<{ questions?: QuestionsSaved; zones?: ZonesSaved }> {
-    const { sessionId } = event;
+  const { sessionId } = event;
 
-    if (event.type === "stroke.create") {
-        const stroke = event.payloadJson as StrokeFeature;
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes`, {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-                clientUuid: stroke.properties.clientUuid,
-                payloadJson: stroke,
-            }),
-            signal: requestSignal(),
-        });
-        if (!res.ok) throw await SyncRequestError.from("stroke.create", res);
-    } else if (event.type === "stroke.delete") {
-        const { clientUuid } = event.payloadJson as { clientUuid: string };
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
-            method: "DELETE",
-            credentials: "include",
-            signal: requestSignal(),
-        });
-        await assertStrokeDeleted(res);
-    } else if (event.type === "questions.replace") {
-        return { questions: await sendQuestions(event, keepalive, requestSignal) };
-    } else if (event.type === "hider.update" || event.type === "planning.toggle") {
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(event.payloadJson),
-            keepalive,
-            signal: requestSignal(),
-        });
-        if (!res.ok) throw await SyncRequestError.from(event.type, res);
-    } else if (event.type === "zones.disabled") {
-        // A delta (Disable All on a big game) can be large, like questions.
-        // The event's clientUuid lets the server ignore a resend.
-        const body = JSON.stringify({
-            ...zonesDeltaOf(event.payloadJson),
-            zonesClientUuid: event.clientUuid,
-        });
-        const signal = requestSignal();
-        const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
-            method: "PATCH",
-            credentials: "include",
-            headers: { "Content-Type": "application/json" },
-            body,
-            keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
-            signal,
-        });
-        if (!res.ok) throw await SyncRequestError.from("zones.disabled", res);
-        // The session as saved: its whole list and the sequence that is as
-        // of, also when the server recognised a resend or nothing changed.
-        // A reply that can't be read (cut off, not the API's) fails the
-        // send: the change stays queued and is sent again, as a resend. Only
-        // a reply read in full and without a list is an API from before.
-        const data = (await res.json()) as
-            | { disabledZoneIds?: unknown; disabledZonesSequence?: unknown }
-            | undefined;
-        if (signal.aborted) throw signal.reason;
-        if (
-            Array.isArray(data?.disabledZoneIds) &&
-            typeof data.disabledZonesSequence === "number"
-        ) {
-            return {
-                zones: {
-                    ids: data.disabledZoneIds.filter(
-                        (id): id is string => typeof id === "string",
-                    ),
-                    sequence: data.disabledZonesSequence,
-                },
-            };
-        }
+  if (event.type === "stroke.create") {
+    const stroke = event.payloadJson as StrokeFeature;
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        clientUuid: stroke.properties.clientUuid,
+        payloadJson: stroke,
+      }),
+      signal: requestSignal(),
+    });
+    if (!res.ok) throw await SyncRequestError.from("stroke.create", res);
+  } else if (event.type === "stroke.delete") {
+    const { clientUuid } = event.payloadJson as { clientUuid: string };
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}/strokes/${clientUuid}`, {
+      method: "DELETE",
+      credentials: "include",
+      signal: requestSignal(),
+    });
+    await assertStrokeDeleted(res);
+  } else if (event.type === "questions.replace") {
+    return { questions: await sendQuestions(event, keepalive, requestSignal) };
+  } else if (event.type === "hider.update" || event.type === "planning.toggle") {
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(event.payloadJson),
+      keepalive,
+      signal: requestSignal(),
+    });
+    if (!res.ok) throw await SyncRequestError.from(event.type, res);
+  } else if (event.type === "zones.disabled") {
+    // A delta (Disable All on a big game) can be large, like questions.
+    // The event's clientUuid lets the server ignore a resend.
+    const body = JSON.stringify({
+      ...zonesDeltaOf(event.payloadJson),
+      zonesClientUuid: event.clientUuid,
+    });
+    const signal = requestSignal();
+    const res = await fetch(`${API_BASE}/sessions/${sessionId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body,
+      keepalive: keepalive && new Blob([body]).size <= KEEPALIVE_BODY_LIMIT,
+      signal,
+    });
+    if (!res.ok) throw await SyncRequestError.from("zones.disabled", res);
+    // The session as saved: its whole list and the sequence that is as
+    // of, also when the server recognised a resend or nothing changed.
+    // A reply that can't be read (cut off, not the API's) fails the
+    // send: the change stays queued and is sent again, as a resend. Only
+    // a reply read in full and without a list is an API from before.
+    const data = (await res.json()) as
+      | { disabledZoneIds?: unknown; disabledZonesSequence?: unknown }
+      | undefined;
+    if (signal.aborted) throw signal.reason;
+    if (Array.isArray(data?.disabledZoneIds) && typeof data.disabledZonesSequence === "number") {
+      return {
+        zones: {
+          ids: data.disabledZoneIds.filter((id): id is string => typeof id === "string"),
+          sequence: data.disabledZonesSequence,
+        },
+      };
     }
-    return {};
+  }
+  return {};
 }
 
 // Live saves and reconnect/unload replay share one dispatcher. A second caller
@@ -594,7 +549,7 @@ let retryTimer: ReturnType<typeof setTimeout> | undefined;
 let retryDelay = RETRY_MIN_MS;
 
 function hasUnsyncedEvents(sessionId: string): boolean {
-    return getPendingEvents(sessionId).length > 0;
+  return getPendingEvents(sessionId).length > 0;
 }
 
 /**
@@ -602,101 +557,99 @@ function hasUnsyncedEvents(sessionId: string): boolean {
  * the server rejected it. Returns whether it was dropped.
  */
 export function recordSendFailure(event: PendingEvent, err: unknown): boolean {
-    const { sessionId, localId } = event;
-    const { kind, status } = failureOf(err);
-    // A newer snapshot may have replaced it meanwhile; that one is sent next.
-    const queued = getPendingEvents(sessionId).some(
-        (candidate) => candidate.localId === localId,
-    );
-    if (kind === "rejected") {
-        if (queued) discardEvent(sessionId, localId);
-    } else {
-        markEventFailed(sessionId, localId);
-        scheduleRetry(sessionId);
+  const { sessionId, localId } = event;
+  const { kind, status } = failureOf(err);
+  // A newer snapshot may have replaced it meanwhile; that one is sent next.
+  const queued = getPendingEvents(sessionId).some((candidate) => candidate.localId === localId);
+  if (kind === "rejected") {
+    if (queued) discardEvent(sessionId, localId);
+  } else {
+    markEventFailed(sessionId, localId);
+    scheduleRetry(sessionId);
+  }
+  if (kind !== "retry" && queued && status !== undefined) {
+    for (const listener of rejectionListeners) {
+      listener(event, status, kind);
     }
-    if (kind !== "retry" && queued && status !== undefined) {
-        for (const listener of rejectionListeners) {
-            listener(event, status, kind);
-        }
-    }
-    return kind === "rejected";
+  }
+  return kind === "rejected";
 }
 
 function cancelRetry(): void {
-    clearTimeout(retryTimer);
-    retryTimer = undefined;
-    retryDelay = RETRY_MIN_MS;
+  clearTimeout(retryTimer);
+  retryTimer = undefined;
+  retryDelay = RETRY_MIN_MS;
 }
 
 export function scheduleRetry(sessionId: string): void {
-    if (retryTimer !== undefined || sessionId !== activeSessionId.get()) return;
-    const delay = retryDelay;
-    retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
-    retryTimer = setTimeout(() => {
-        retryTimer = undefined;
-        if (sessionId !== activeSessionId.get()) return;
-        console.info("[searchlight:sync] retrying unsynced events for", sessionId);
-        flushPendingEvents(sessionId).catch((e) => {
-            console.warn("[searchlight:sync] retry error:", e);
-        });
-    }, delay);
+  if (retryTimer !== undefined || sessionId !== activeSessionId.get()) return;
+  const delay = retryDelay;
+  retryDelay = Math.min(retryDelay * 2, RETRY_MAX_MS);
+  retryTimer = setTimeout(() => {
+    retryTimer = undefined;
+    if (sessionId !== activeSessionId.get()) return;
+    console.info("[searchlight:sync] retrying unsynced events for", sessionId);
+    flushPendingEvents(sessionId).catch((e) => {
+      console.warn("[searchlight:sync] retry error:", e);
+    });
+  }, delay);
 }
 
 /** Flush now instead of waiting out the backoff, e.g. after a reconnect. */
 export function retryPendingEvents(sessionId: string): void {
-    cancelRetry();
-    if (!hasUnsyncedEvents(sessionId)) return;
-    flushPendingEvents(sessionId).catch((e) => {
-        console.warn("[searchlight:sync] flush error:", e);
-    });
+  cancelRetry();
+  if (!hasUnsyncedEvents(sessionId)) return;
+  flushPendingEvents(sessionId).catch((e) => {
+    console.warn("[searchlight:sync] flush error:", e);
+  });
 }
 
 /** The pending count shown for a session's queue, as it is now. */
 export function refreshSyncCounts(sessionId: string): void {
-    const remaining = getPendingEvents(sessionId).length;
-    pendingEventCount.set(remaining);
-    if (remaining === 0) {
-        syncStatus.set("synced");
-        if (sessionId === activeSessionId.get()) cancelRetry();
-    }
+  const remaining = getPendingEvents(sessionId).length;
+  pendingEventCount.set(remaining);
+  if (remaining === 0) {
+    syncStatus.set("synced");
+    if (sessionId === activeSessionId.get()) cancelRetry();
+  }
 }
 
 // A question list landed: what followed on from it moves on.
 function settleQuestionsSaved(saved: QuestionsSaved, localId?: string): void {
-    const { sessionId, local, madeFrom, sequence, mergedWith } = saved;
-    if (sequence !== undefined) {
-        // The board, and the lists queued after this one made from the
-        // same base, followed on from it. Saved as it was, it's the
-        // server's list now. Merged, it isn't: they still lack the other
-        // side's changes, so they merge too (the board, until a merged
-        // list is shown: see onQuestionsSaved).
-        // Our own list as of the merge: its versions go back as far as
-        // what it was made from.
-        const next: QuestionsBase = mergedWith
-            ? {
-                  sequence: mergedWith.sequence,
-                  questions: local,
-                  since: madeFrom ? (madeFrom.since ?? madeFrom.sequence) : undefined,
-              }
-            : { sequence, questions: saved.saved };
-        if (next.since === undefined) delete next.since;
-        rebaseQueuedQuestions(sessionId, madeFrom, next, localId);
-        advanceBoardBase(sessionId, madeFrom, next);
-        // A board reopened from the snapshot shows the merged list as
-        // queued, made from the server's list it was merged with: it shows
-        // the saved list now, and it and the lists made on it move on from
-        // there (its answer isn't shown over it: see showMergedSave).
-        if (mergedWith && sessionId === activeSessionId.get()) {
-            const game = gameDefinitionReady.get() ? compiledGameAtom.get() : null;
-            const board = questions.get();
-            if (sameQuestionList(board, filterSupportedQuestions(saved.saved, game))) {
-                const to = { sequence, questions: saved.saved };
-                rebaseQueuedQuestions(sessionId, mergedWith, to, localId);
-                advanceBoardBase(sessionId, mergedWith, to);
-            }
+  const { sessionId, local, madeFrom, sequence, mergedWith } = saved;
+  if (sequence !== undefined) {
+    // The board, and the lists queued after this one made from the
+    // same base, followed on from it. Saved as it was, it's the
+    // server's list now. Merged, it isn't: they still lack the other
+    // side's changes, so they merge too (the board, until a merged
+    // list is shown: see onQuestionsSaved).
+    // Our own list as of the merge: its versions go back as far as
+    // what it was made from.
+    const next: QuestionsBase = mergedWith
+      ? {
+          sequence: mergedWith.sequence,
+          questions: local,
+          since: madeFrom ? (madeFrom.since ?? madeFrom.sequence) : undefined,
         }
-        answered.set(sessionId, Math.max(answered.get(sessionId) ?? -1, sequence));
+      : { sequence, questions: saved.saved };
+    if (next.since === undefined) delete next.since;
+    rebaseQueuedQuestions(sessionId, madeFrom, next, localId);
+    advanceBoardBase(sessionId, madeFrom, next);
+    // A board reopened from the snapshot shows the merged list as
+    // queued, made from the server's list it was merged with: it shows
+    // the saved list now, and it and the lists made on it move on from
+    // there (its answer isn't shown over it: see showMergedSave).
+    if (mergedWith && sessionId === activeSessionId.get()) {
+      const game = gameDefinitionReady.get() ? compiledGameAtom.get() : null;
+      const board = questions.get();
+      if (sameQuestionList(board, filterSupportedQuestions(saved.saved, game))) {
+        const to = { sequence, questions: saved.saved };
+        rebaseQueuedQuestions(sessionId, mergedWith, to, localId);
+        advanceBoardBase(sessionId, mergedWith, to);
+      }
     }
+    answered.set(sessionId, Math.max(answered.get(sessionId) ?? -1, sequence));
+  }
 }
 
 // The latest sequence a question list of ours was saved at, by session, in
@@ -705,12 +658,12 @@ const answered = new Map<string, number>();
 
 /** The latest sequence a question list of ours was saved at in this page. */
 export function latestSavedQuestionsSequence(sessionId: string): number | undefined {
-    return answered.get(sessionId);
+  return answered.get(sessionId);
 }
 
 /** Tell those listening (onQuestionsSaved) that a question list was saved. */
 export function notifyQuestionsSaved(saved: QuestionsSaved): void {
-    for (const listener of questionsSavedListeners) listener(saved);
+  for (const listener of questionsSavedListeners) listener(saved);
 }
 
 /**
@@ -721,178 +674,171 @@ export function notifyQuestionsSaved(saved: QuestionsSaved): void {
  * if it still comes, then changes nothing.
  */
 export function questionsSavedByEcho(
-    sessionId: string,
-    payload: QuestionsReplacePayload,
-    saved: Questions,
-    sequence: number,
+  sessionId: string,
+  payload: QuestionsReplacePayload,
+  saved: Questions,
+  sequence: number,
 ): void {
-    const settled: QuestionsSaved = {
+  const settled: QuestionsSaved = {
+    sessionId,
+    local: payload.merged?.local ?? saved,
+    saved,
+    madeFrom: payload.merged?.base ?? payload.base,
+    sequence,
+    mergedWith: payload.merged ? payload.base : undefined,
+  };
+  settleQuestionsSaved(settled);
+  notifyQuestionsSaved(settled);
+}
+
+async function dispatchQueuedEvent(requested: PendingEvent, keepalive: boolean): Promise<void> {
+  const { sessionId } = requested;
+  // A spectator's board sends nothing, including edits queued before.
+  if (isSessionReadOnly(sessionId)) return;
+  const queued = getPendingEvents(sessionId);
+  const event = isReplacementEventType(requested.type)
+    ? queued.findLast((candidate) => candidate.type === requested.type)
+    : queued.find((candidate) => candidate.localId === requested.localId);
+  if (!event) return;
+
+  syncStatus.set("syncing");
+  // Each request gets REQUEST_TIMEOUT_MS of its own: a list merged on its
+  // way is sent, read and sent again.
+  let deadline: LoadDeadline | undefined;
+  const requestSignal = () => {
+    deadline?.clear();
+    deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
+    return deadline.signal;
+  };
+  try {
+    assertMaySend();
+    const { questions: savedQuestions, zones: savedZones } = await sendEvent(
+      event,
+      keepalive,
+      requestSignal,
+    );
+    // Its SSE echo can arrive first, and later replaces may already be
+    // cached on top of it: only a still-queued replace updates the cache.
+    const stillQueued = getPendingEvents(sessionId).some(
+      (candidate) => candidate.localId === event.localId,
+    );
+    if (savedQuestions) settleQuestionsSaved(savedQuestions, event.localId);
+    if (savedQuestions && stillQueued) {
+      // The board as it stands with its base: the saved list once the
+      // base is it; a merged one not shown yet (see showMergedSave,
+      // which is skipped while a session loads) still shows ours as
+      // queued, made from our list as of the merge. A board reopened
+      // from the snapshot then shows the two together.
+      const cached = getCachedSession(sessionId);
+      const { local, saved, sequence, mergedWith } = savedQuestions;
+      const shows =
+        !mergedWith || (sequence !== undefined && cached?.serverQuestions?.sequence === sequence)
+          ? saved
+          : local;
+      setCachedSession({
+        ...cached,
         sessionId,
-        local: payload.merged?.local ?? saved,
-        saved,
-        madeFrom: payload.merged?.base ?? payload.base,
-        sequence,
-        mergedWith: payload.merged ? payload.base : undefined,
-    };
-    settleQuestionsSaved(settled);
-    notifyQuestionsSaved(settled);
-}
-
-async function dispatchQueuedEvent(
-    requested: PendingEvent,
-    keepalive: boolean,
-): Promise<void> {
-    const { sessionId } = requested;
-    // A spectator's board sends nothing, including edits queued before.
-    if (isSessionReadOnly(sessionId)) return;
-    const queued = getPendingEvents(sessionId);
-    const event = isReplacementEventType(requested.type)
-        ? queued.findLast((candidate) => candidate.type === requested.type)
-        : queued.find((candidate) => candidate.localId === requested.localId);
-    if (!event) return;
-
-    syncStatus.set("syncing");
-    // Each request gets REQUEST_TIMEOUT_MS of its own: a list merged on its
-    // way is sent, read and sent again.
-    let deadline: LoadDeadline | undefined;
-    const requestSignal = () => {
-        deadline?.clear();
-        deadline = startLoadDeadline(REQUEST_TIMEOUT_MS);
-        return deadline.signal;
-    };
-    try {
-        assertMaySend();
-        const { questions: savedQuestions, zones: savedZones } = await sendEvent(
-            event,
-            keepalive,
-            requestSignal,
-        );
-        // Its SSE echo can arrive first, and later replaces may already be
-        // cached on top of it: only a still-queued replace updates the cache.
-        const stillQueued = getPendingEvents(sessionId).some(
-            (candidate) => candidate.localId === event.localId,
-        );
-        if (savedQuestions) settleQuestionsSaved(savedQuestions, event.localId);
-        if (savedQuestions && stillQueued) {
-            // The board as it stands with its base: the saved list once the
-            // base is it; a merged one not shown yet (see showMergedSave,
-            // which is skipped while a session loads) still shows ours as
-            // queued, made from our list as of the merge. A board reopened
-            // from the snapshot then shows the two together.
-            const cached = getCachedSession(sessionId);
-            const { local, saved, sequence, mergedWith } = savedQuestions;
-            const shows =
-                !mergedWith ||
-                (sequence !== undefined && cached?.serverQuestions?.sequence === sequence)
-                    ? saved
-                    : local;
-            setCachedSession({
-                ...cached,
-                sessionId,
-                strokes: cached?.strokes ?? [],
-                questions: shows,
-                lastSyncedAt: Date.now(),
-                lastSequence: cached?.lastSequence ?? 0,
-            });
-        }
-        // Kept before the change leaves the queue: saved, it must still show
-        // on a board opened from the copy kept here before the stream brings
-        // it (a reload offline, a session left meanwhile).
-        if (savedZones) {
-            cacheDisabledZones(sessionId, savedZones.ids, savedZones.sequence);
-        }
-        markEventSynced(sessionId, event.localId);
-        if (stillQueued || savedZones) {
-            for (const listener of syncListeners) listener(event, savedZones);
-        }
-        if (savedQuestions) notifyQuestionsSaved(savedQuestions);
-    } catch (err) {
-        if (!recordSendFailure(event, err)) syncStatus.set("offline");
-        throw err;
-    } finally {
-        deadline?.clear();
-        refreshSyncCounts(sessionId);
+        strokes: cached?.strokes ?? [],
+        questions: shows,
+        lastSyncedAt: Date.now(),
+        lastSequence: cached?.lastSequence ?? 0,
+      });
     }
+    // Kept before the change leaves the queue: saved, it must still show
+    // on a board opened from the copy kept here before the stream brings
+    // it (a reload offline, a session left meanwhile).
+    if (savedZones) {
+      cacheDisabledZones(sessionId, savedZones.ids, savedZones.sequence);
+    }
+    markEventSynced(sessionId, event.localId);
+    if (stillQueued || savedZones) {
+      for (const listener of syncListeners) listener(event, savedZones);
+    }
+    if (savedQuestions) notifyQuestionsSaved(savedQuestions);
+  } catch (err) {
+    if (!recordSendFailure(event, err)) syncStatus.set("offline");
+    throw err;
+  } finally {
+    deadline?.clear();
+    refreshSyncCounts(sessionId);
+  }
 }
 
-export function sendPendingEvent(
-    event: PendingEvent,
-    keepalive = false,
-): Promise<void> {
-    const previous = dispatches.get(event.sessionId);
-    const run = () => dispatchQueuedEvent(event, keepalive);
-    const result = previous ? previous.catch(() => {}).then(run) : run();
-    dispatches.set(event.sessionId, result);
-    const cleanup = () => {
-        if (dispatches.get(event.sessionId) === result) {
-            dispatches.delete(event.sessionId);
-        }
-    };
-    void result.then(cleanup, cleanup);
-    return result;
+export function sendPendingEvent(event: PendingEvent, keepalive = false): Promise<void> {
+  const previous = dispatches.get(event.sessionId);
+  const run = () => dispatchQueuedEvent(event, keepalive);
+  const result = previous ? previous.catch(() => {}).then(run) : run();
+  dispatches.set(event.sessionId, result);
+  const cleanup = () => {
+    if (dispatches.get(event.sessionId) === result) {
+      dispatches.delete(event.sessionId);
+    }
+  };
+  void result.then(cleanup, cleanup);
+  return result;
 }
 
 export async function flushPendingEvents(sessionId: string): Promise<void> {
-    if (isSessionReadOnly(sessionId)) return;
-    for (const event of getPendingEvents(sessionId)) {
-        try {
-            await sendPendingEvent(event);
-        } catch (err) {
-            // A rejected edit has left the queue: the ones after it can sync.
-            if (failureOf(err).kind === "rejected") continue;
-            console.warn("[searchlight:sync] event send failed, stopping flush:", err);
-            return;
-        }
+  if (isSessionReadOnly(sessionId)) return;
+  for (const event of getPendingEvents(sessionId)) {
+    try {
+      await sendPendingEvent(event);
+    } catch (err) {
+      // A rejected edit has left the queue: the ones after it can sync.
+      if (failureOf(err).kind === "rejected") continue;
+      console.warn("[searchlight:sync] event send failed, stopping flush:", err);
+      return;
     }
-    refreshSyncCounts(sessionId);
+  }
+  refreshSyncCounts(sessionId);
 }
 function handleOnline() {
-    const sessionId = activeSessionId.get();
-    if (!sessionId) return;
-    console.info("[searchlight:sync] online — flushing pending events for", sessionId);
-    cancelRetry();
-    flushPendingEvents(sessionId).catch((e) => {
-        console.warn("[searchlight:sync] flush error:", e);
-    });
+  const sessionId = activeSessionId.get();
+  if (!sessionId) return;
+  console.info("[searchlight:sync] online — flushing pending events for", sessionId);
+  cancelRetry();
+  flushPendingEvents(sessionId).catch((e) => {
+    console.warn("[searchlight:sync] flush error:", e);
+  });
 }
 
 function handleOffline() {
-    syncStatus.set("offline");
+  syncStatus.set("offline");
 }
 
 function handleVisibilityChange() {
-    const sessionId = activeSessionId.get();
-    if (document.visibilityState === "visible" && sessionId) {
-        retryPendingEvents(sessionId);
-    }
+  const sessionId = activeSessionId.get();
+  if (document.visibilityState === "visible" && sessionId) {
+    retryPendingEvents(sessionId);
+  }
 }
 
 function handleActiveSessionChange(sessionId: string) {
-    // Retries follow the active session, including a load whose flush failed
-    // before the session was published.
-    cancelRetry();
-    if (sessionId && hasUnsyncedEvents(sessionId)) scheduleRetry(sessionId);
+  // Retries follow the active session, including a load whose flush failed
+  // before the session was published.
+  cancelRetry();
+  if (sessionId && hasUnsyncedEvents(sessionId)) scheduleRetry(sessionId);
 }
 
 let started = false;
 let unlistenActiveSession: (() => void) | undefined;
 
 export function startSyncManager(): void {
-    if (started) return;
-    started = true;
-    window.addEventListener("online", handleOnline);
-    window.addEventListener("offline", handleOffline);
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    unlistenActiveSession = activeSessionId.listen(handleActiveSessionChange);
-    if (!navigator.onLine) syncStatus.set("offline");
+  if (started) return;
+  started = true;
+  window.addEventListener("online", handleOnline);
+  window.addEventListener("offline", handleOffline);
+  document.addEventListener("visibilitychange", handleVisibilityChange);
+  unlistenActiveSession = activeSessionId.listen(handleActiveSessionChange);
+  if (!navigator.onLine) syncStatus.set("offline");
 }
 
 export function stopSyncManager(): void {
-    window.removeEventListener("online", handleOnline);
-    window.removeEventListener("offline", handleOffline);
-    document.removeEventListener("visibilitychange", handleVisibilityChange);
-    unlistenActiveSession?.();
-    unlistenActiveSession = undefined;
-    cancelRetry();
-    started = false;
+  window.removeEventListener("online", handleOnline);
+  window.removeEventListener("offline", handleOffline);
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
+  unlistenActiveSession?.();
+  unlistenActiveSession = undefined;
+  cancelRetry();
+  started = false;
 }

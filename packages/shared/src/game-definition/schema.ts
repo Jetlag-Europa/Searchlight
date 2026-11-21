@@ -193,16 +193,10 @@ export const GameDefinitionSchema = Type.Object(
     name: Type.String({ minLength: 1, maxLength: 120 }),
     serverId: Type.String({ minLength: 1 }),
     size: Type.Optional(
-      Type.Union([
-        Type.Literal("small"),
-        Type.Literal("medium"),
-        Type.Literal("large"),
-      ]),
+      Type.Union([Type.Literal("small"), Type.Literal("medium"), Type.Literal("large")]),
     ),
     visibility: Type.Optional(VisibilitySchema),
-    unit: Type.Optional(
-      Type.Union(DISTANCE_UNITS.map((u) => Type.Literal(u))),
-    ),
+    unit: Type.Optional(Type.Union(DISTANCE_UNITS.map((u) => Type.Literal(u)))),
     map: CleanMapConfigSchema,
     hidingZones: CleanHidingZonesSchema,
     radars: Type.Optional(

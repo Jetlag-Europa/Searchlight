@@ -1,10 +1,5 @@
 import * as turf from "@turf/turf";
-import type {
-    Feature,
-    FeatureCollection,
-    MultiPolygon,
-    Polygon,
-} from "geojson";
+import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 type Region = Feature<Polygon | MultiPolygon>;
 
@@ -23,39 +18,33 @@ const RETRY_PRECISIONS = [9, 8, 7, 6];
  * coordinates that are already that short.
  */
 function robustly(
-    operation: (
-        features: FeatureCollection<Polygon | MultiPolygon>,
-    ) => Region | null,
-    features: Region[],
+  operation: (features: FeatureCollection<Polygon | MultiPolygon>) => Region | null,
+  features: Region[],
 ): Region | null {
-    try {
-        return operation(turf.featureCollection(features));
-    } catch (error) {
-        // A region with a NaN or Infinity coordinate has to keep failing:
-        // rounding its other coordinates can make the clipper finish, with
-        // an area that means nothing.
-        let finite = true;
-        for (const feature of features) {
-            turf.coordEach(feature, (coord) => {
-                if (!coord.every(Number.isFinite)) finite = false;
-            });
-        }
-        if (!finite) throw error;
-        for (const precision of RETRY_PRECISIONS) {
-            try {
-                return operation(
-                    turf.featureCollection(
-                        features.map((feature) =>
-                            turf.truncate(feature, { precision }),
-                        ),
-                    ),
-                );
-            } catch {
-                // Try the next, coarser rounding.
-            }
-        }
-        throw error;
+  try {
+    return operation(turf.featureCollection(features));
+  } catch (error) {
+    // A region with a NaN or Infinity coordinate has to keep failing:
+    // rounding its other coordinates can make the clipper finish, with
+    // an area that means nothing.
+    let finite = true;
+    for (const feature of features) {
+      turf.coordEach(feature, (coord) => {
+        if (!coord.every(Number.isFinite)) finite = false;
+      });
     }
+    if (!finite) throw error;
+    for (const precision of RETRY_PRECISIONS) {
+      try {
+        return operation(
+          turf.featureCollection(features.map((feature) => turf.truncate(feature, { precision }))),
+        );
+      } catch {
+        // Try the next, coarser rounding.
+      }
+    }
+    throw error;
+  }
 }
 
 const intersect = (features: Region[]) => robustly(turf.intersect, features);
@@ -63,25 +52,25 @@ const difference = (features: Region[]) => robustly(turf.difference, features);
 const union = (features: Region[]) => robustly(turf.union, features);
 
 export interface ClipRequest {
-    kind: "clip";
-    mapData: FeatureCollection<Polygon | MultiPolygon>;
-    modifications: FeatureCollection<Polygon | MultiPolygon> | Region;
-    within: boolean;
+  kind: "clip";
+  mapData: FeatureCollection<Polygon | MultiPolygon>;
+  modifications: FeatureCollection<Polygon | MultiPolygon> | Region;
+  within: boolean;
 }
 
 export interface UnionRequest {
-    kind: "union";
-    regions: Region[];
+  kind: "union";
+  regions: Region[];
 }
 
 export interface BoundaryTargetRequest {
-    kind: "boundaryTarget";
-    /** A layer's regions; where they overlap, the first one owns the overlap. */
-    regions: Region[];
-    /** The regions that can shape the target, by index into `regions`. */
-    candidates: number[];
-    /** Each candidate's boundary buffered by the seeker's distance. */
-    buffers: Region[];
+  kind: "boundaryTarget";
+  /** A layer's regions; where they overlap, the first one owns the overlap. */
+  regions: Region[];
+  /** The regions that can shape the target, by index into `regions`. */
+  candidates: number[];
+  /** Each candidate's boundary buffered by the seeker's distance. */
+  buffers: Region[];
 }
 
 /**
@@ -93,60 +82,51 @@ export interface BoundaryTargetRequest {
  * seams for slivers between neighbouring regions.
  */
 export function calculateBoundaryTarget({
-    regions,
-    candidates,
-    buffers,
+  regions,
+  candidates,
+  buffers,
 }: BoundaryTargetRequest): Region | null {
-    const farParts: Region[] = [];
-    candidates.forEach((index, candidate) => {
-        let far = difference([regions[index], buffers[candidate]]);
-        if (!far) return;
-        // When regions overlap, the first containing source wins for both
-        // hider answers and map geometry.
-        for (let previous = 0; previous < index; previous++) {
-            const earlier = regions[previous];
-            if (!turf.booleanIntersects(far, earlier)) continue;
-            far = difference([far, earlier]);
-            if (!far) return;
-        }
-        farParts.push(far);
-    });
-    return calculateClip({
-        kind: "clip",
-        mapData: turf.featureCollection(buffers),
-        modifications: turf.featureCollection(farParts),
-        within: false,
-    });
+  const farParts: Region[] = [];
+  candidates.forEach((index, candidate) => {
+    let far = difference([regions[index], buffers[candidate]]);
+    if (!far) return;
+    // When regions overlap, the first containing source wins for both
+    // hider answers and map geometry.
+    for (let previous = 0; previous < index; previous++) {
+      const earlier = regions[previous];
+      if (!turf.booleanIntersects(far, earlier)) continue;
+      far = difference([far, earlier]);
+      if (!far) return;
+    }
+    farParts.push(far);
+  });
+  return calculateClip({
+    kind: "clip",
+    mapData: turf.featureCollection(buffers),
+    modifications: turf.featureCollection(farParts),
+    within: false,
+  });
 }
 
 export function calculateUnion({ regions }: UnionRequest): Region | null {
-    if (regions.length <= 1) return regions[0] ?? null;
-    return union(regions);
+  if (regions.length <= 1) return regions[0] ?? null;
+  return union(regions);
 }
 
-export function calculateClip({
-    mapData,
-    modifications,
-    within,
-}: ClipRequest): Region | null {
-    if (!mapData.features.length) return null;
-    const base =
-        mapData.features.length === 1
-            ? mapData.features[0]
-            : union(mapData.features);
-    if (!base) return null;
-    let constraint: Region | null;
-    if (modifications.type === "FeatureCollection") {
-        if (!modifications.features.length) return within ? null : base;
-        constraint =
-            modifications.features.length === 1
-                ? modifications.features[0]
-                : union(modifications.features);
-    } else {
-        constraint = modifications;
-    }
-    if (!constraint) throw new Error("Could not combine question constraint");
-    return within
-        ? intersect([base, constraint])
-        : difference([base, constraint]);
+export function calculateClip({ mapData, modifications, within }: ClipRequest): Region | null {
+  if (!mapData.features.length) return null;
+  const base = mapData.features.length === 1 ? mapData.features[0] : union(mapData.features);
+  if (!base) return null;
+  let constraint: Region | null;
+  if (modifications.type === "FeatureCollection") {
+    if (!modifications.features.length) return within ? null : base;
+    constraint =
+      modifications.features.length === 1
+        ? modifications.features[0]
+        : union(modifications.features);
+  } else {
+    constraint = modifications;
+  }
+  if (!constraint) throw new Error("Could not combine question constraint");
+  return within ? intersect([base, constraint]) : difference([base, constraint]);
 }

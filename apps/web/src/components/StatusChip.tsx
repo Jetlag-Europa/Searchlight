@@ -8,13 +8,13 @@ import { createPortal } from "react-dom";
  * the slot, such as /games, show the chip in the window's top-right corner.
  */
 export function StatusChip({
-    slot,
-    children,
+  slot,
+  children,
 }: {
-    slot: "user" | "session" | "conflicts";
-    children: ReactNode;
+  slot: "user" | "session" | "conflicts";
+  children: ReactNode;
 }) {
-    const el = document.getElementById(`${slot}-chip-slot`);
-    if (el) return createPortal(children, el);
-    return <div className="fixed top-2 right-14 z-[1041]">{children}</div>;
+  const el = document.getElementById(`${slot}-chip-slot`);
+  if (el) return createPortal(children, el);
+  return <div className="fixed top-2 right-14 z-[1041]">{children}</div>;
 }

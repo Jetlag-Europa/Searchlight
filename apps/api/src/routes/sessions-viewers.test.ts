@@ -89,14 +89,24 @@ describe("session viewers", () => {
         },
       });
       const auth = await prisma.authSession.create({
-        data: { id: `${discordId}-auth`, userId: discordId, expiresAt: new Date(Date.now() + 86_400_000) },
+        data: {
+          id: `${discordId}-auth`,
+          userId: discordId,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
       });
       cookies[discordId] = `session=${app.signCookie(auth.id)}`;
     }
 
     await prisma.server.create({ data: { id: SERVER_ID, name: "Viewer Server" } });
     await prisma.game.create({
-      data: { id: GAME_ID, serverId: SERVER_ID, name: "Viewer Game", gameKey: "sview-game", size: "medium" },
+      data: {
+        id: GAME_ID,
+        serverId: SERVER_ID,
+        name: "Viewer Game",
+        gameKey: "sview-game",
+        size: "medium",
+      },
     });
     const rev = await prisma.gameRevision.create({
       data: {
@@ -112,7 +122,12 @@ describe("session viewers", () => {
     // Nobody but the session's participants may read the game: these answer
     // the membership check without calling Discord.
     await prisma.serverMembershipCache.createMany({
-      data: USER_IDS.map((userId) => ({ userId, serverId: SERVER_ID, isMember: false, cachedAt: new Date() })),
+      data: USER_IDS.map((userId) => ({
+        userId,
+        serverId: SERVER_ID,
+        isMember: false,
+        cachedAt: new Date(),
+      })),
     });
   });
 
@@ -174,10 +189,10 @@ describe("session viewers", () => {
     if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
     const { port } = app.server.address() as AddressInfo;
     const res = await new Promise<IncomingMessage>((resolve, reject) => {
-      get({ host: "127.0.0.1", port, path: `/sessions/${SESSION_ID}/stream`, headers: as(userId) }, resolve).on(
-        "error",
-        reject,
-      );
+      get(
+        { host: "127.0.0.1", port, path: `/sessions/${SESSION_ID}/stream`, headers: as(userId) },
+        resolve,
+      ).on("error", reject);
     });
     expect(res.statusCode).toBe(200);
     let text = "";
@@ -224,9 +239,17 @@ describe("session viewers", () => {
     expect(await prisma.linkSnapshot.count({ where: { linkId: link.id } })).toBe(0);
 
     const info = await app.inject({ method: "GET", url: `/links/${link.token}` });
-    expect(info.json()).toMatchObject({ valid: true, sessionName: "Viewer Session", linkType: "view" });
+    expect(info.json()).toMatchObject({
+      valid: true,
+      sessionName: "Viewer Session",
+      linkType: "view",
+    });
 
-    const list = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/links`, headers: as(CREATOR_ID) });
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/links`,
+      headers: as(CREATOR_ID),
+    });
     expect(list.json().links).toEqual([
       expect.objectContaining({ id: link.id, token: link.token, linkType: "view" }),
     ]);
@@ -262,7 +285,9 @@ describe("session viewers", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ sessionId: SESSION_ID, linkType: "view" });
     expect(await participantRow(OUTSIDER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
-    expect((await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } })).visibility).toBe("shared");
+    expect(
+      (await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } })).visibility,
+    ).toBe("shared");
 
     const session = await getSession(OUTSIDER_ID);
     expect(session.statusCode).toBe(200);
@@ -284,7 +309,10 @@ describe("session viewers", () => {
     const { token } = await createLink("view");
     const before = await participantRow(MEMBER_ID);
 
-    expect((await redeem(token, MEMBER_ID)).json()).toEqual({ sessionId: SESSION_ID, linkType: "view" });
+    expect((await redeem(token, MEMBER_ID)).json()).toEqual({
+      sessionId: SESSION_ID,
+      linkType: "view",
+    });
     expect(await participantRow(MEMBER_ID)).toEqual(before);
 
     expect((await redeem(token, VIEWER_ID)).statusCode).toBe(200);
@@ -312,7 +340,11 @@ describe("session viewers", () => {
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ sessionId: SESSION_ID, linkType: "join" });
     expect(await participantRow(VIEWER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
-    expect((await getSession(VIEWER_ID)).json()).toMatchObject({ role: "viewer", hiderLat: null, hiderLng: null });
+    expect((await getSession(VIEWER_ID)).json()).toMatchObject({
+      role: "viewer",
+      hiderLat: null,
+      hiderLng: null,
+    });
 
     await prisma.sessionParticipant.update({
       where: { sessionId_userId: { sessionId: SESSION_ID, userId: VIEWER_ID } },
@@ -351,12 +383,20 @@ describe("session viewers", () => {
     const { token } = await createLink("join");
     expect((await redeem(token, OUTSIDER_ID)).statusCode).toBe(200);
     expect((await setRole(OUTSIDER_ID, "viewer")).statusCode).toBe(200);
-    const leave = await app.inject({ method: "DELETE", url: `/sessions/${SESSION_ID}/leave`, headers: as(OUTSIDER_ID) });
+    const leave = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/leave`,
+      headers: as(OUTSIDER_ID),
+    });
     expect(leave.statusCode).toBe(204);
 
     expect((await redeem(token, OUTSIDER_ID)).statusCode).toBe(200);
     expect(await participantRow(OUTSIDER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
-    expect((await getSession(OUTSIDER_ID)).json()).toMatchObject({ role: "viewer", hiderLat: null, hiderLng: null });
+    expect((await getSession(OUTSIDER_ID)).json()).toMatchObject({
+      role: "viewer",
+      hiderLat: null,
+      hiderLng: null,
+    });
     const write = await app.inject({
       method: "PATCH",
       url: `/sessions/${SESSION_ID}`,
@@ -375,9 +415,18 @@ describe("session viewers", () => {
     expect(sessionId).not.toBe(SESSION_ID);
 
     const copy = await prisma.gameSession.findUniqueOrThrow({ where: { id: sessionId } });
-    expect(copy).toMatchObject({ creatorId: VIEWER_ID, hiderLat: null, hiderLng: null, eventSequence: 0 });
+    expect(copy).toMatchObject({
+      creatorId: VIEWER_ID,
+      hiderLat: null,
+      hiderLng: null,
+      eventSequence: 0,
+    });
     expect(await prisma.event.count({ where: { sessionId } })).toBe(0);
-    const asOwner = await app.inject({ method: "GET", url: `/sessions/${sessionId}`, headers: as(VIEWER_ID) });
+    const asOwner = await app.inject({
+      method: "GET",
+      url: `/sessions/${sessionId}`,
+      headers: as(VIEWER_ID),
+    });
     expect(asOwner.json()).toMatchObject({ role: "creator", hiderLat: null, hiderLng: null });
     // The original is unchanged, and they are still its viewer.
     expect(await participantRow(VIEWER_ID)).toMatchObject({ role: "viewer", revokedAt: null });
@@ -387,11 +436,20 @@ describe("session viewers", () => {
 
   test("viewers can't change the session", async () => {
     await prisma.stroke.create({
-      data: { sessionId: SESSION_ID, userId: MEMBER_ID, clientUuid: "test-sview-stroke", payloadJson: {} },
+      data: {
+        sessionId: SESSION_ID,
+        userId: MEMBER_ID,
+        clientUuid: "test-sview-stroke",
+        payloadJson: {},
+      },
     });
     const writes = [
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { hiderLat: 1, hiderLng: 2 } },
-      { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { hiderLat: null, hiderLng: null } },
+      {
+        method: "PATCH",
+        url: `/sessions/${SESSION_ID}`,
+        payload: { hiderLat: null, hiderLng: null },
+      },
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { planningModeEnabled: true } },
       { method: "PATCH", url: `/sessions/${SESSION_ID}`, payload: { name: "Renamed" } },
       {
@@ -410,7 +468,10 @@ describe("session viewers", () => {
       {
         method: "PUT",
         url: `/sessions/${SESSION_ID}/questions`,
-        payload: { questions: [{ clientUuid: "q1", ordinal: 0, payloadJson: {} }], replacementId: "test-sview-r1" },
+        payload: {
+          questions: [{ clientUuid: "q1", ordinal: 0, payloadJson: {} }],
+          replacementId: "test-sview-r1",
+        },
       },
       {
         method: "PUT",
@@ -424,7 +485,11 @@ describe("session viewers", () => {
       { method: "POST", url: `/sessions/${SESSION_ID}/links`, payload: { linkType: "join" } },
       { method: "POST", url: `/sessions/${SESSION_ID}/upgrade-revision` },
       { method: "DELETE", url: `/sessions/${SESSION_ID}/participants/${MEMBER_ID}` },
-      { method: "PATCH", url: `/sessions/${SESSION_ID}/participants/${MEMBER_ID}`, payload: { role: "viewer" } },
+      {
+        method: "PATCH",
+        url: `/sessions/${SESSION_ID}/participants/${MEMBER_ID}`,
+        payload: { role: "viewer" },
+      },
       { method: "DELETE", url: `/sessions/${SESSION_ID}` },
     ] as const;
     for (const write of writes) {
@@ -444,7 +509,9 @@ describe("session viewers", () => {
       eventSequence: 0,
     });
     expect(await prisma.event.count({ where: { sessionId: SESSION_ID } })).toBe(0);
-    expect(await prisma.stroke.findUnique({ where: { clientUuid: "test-sview-stroke" } })).toMatchObject({
+    expect(
+      await prisma.stroke.findUnique({ where: { clientUuid: "test-sview-stroke" } }),
+    ).toMatchObject({
       deletedAt: null,
     });
     expect(await prisma.stroke.count({ where: { clientUuid: "test-sview-new-stroke" } })).toBe(0);
@@ -457,7 +524,10 @@ describe("session viewers", () => {
       method: "PATCH",
       url: `/sessions/${SESSION_ID}`,
       headers: as(MEMBER_ID),
-      payload: { disableZoneIds: ["zone-2", "zone-1"], zonesClientUuid: "zones-disabled-test-sview-2" },
+      payload: {
+        disableZoneIds: ["zone-2", "zone-1"],
+        zonesClientUuid: "zones-disabled-test-sview-2",
+      },
     });
     expect(disable.statusCode).toBe(200);
 
@@ -465,7 +535,11 @@ describe("session viewers", () => {
       role: "viewer",
       disabledZoneIds: ["zone-1", "zone-2"],
     });
-    const list = await app.inject({ method: "GET", url: `/sessions?serverId=${SERVER_ID}`, headers: as(VIEWER_ID) });
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions?serverId=${SERVER_ID}`,
+      headers: as(VIEWER_ID),
+    });
     expect(
       list.json<{ sessions: Array<{ id: string }> }>().sessions.find((s) => s.id === SESSION_ID),
     ).toMatchObject({ disabledZoneIds: ["zone-1", "zone-2"] });
@@ -481,7 +555,11 @@ describe("session viewers", () => {
 
   test("viewers read the session's content", async () => {
     for (const url of ["strokes", "questions", "events", "events/cursor"]) {
-      const res = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/${url}`, headers: as(VIEWER_ID) });
+      const res = await app.inject({
+        method: "GET",
+        url: `/sessions/${SESSION_ID}/${url}`,
+        headers: as(VIEWER_ID),
+      });
       expect(res.statusCode, url).toBe(200);
     }
   });
@@ -493,14 +571,20 @@ describe("session viewers", () => {
         url: `/sessions/${SESSION_ID}/questions`,
         headers: as(userId),
         payload: {
-          questions: [{ clientUuid: `test-sview-${replacementId}`, ordinal: 0, payloadJson: { key } }],
+          questions: [
+            { clientUuid: `test-sview-${replacementId}`, ordinal: 0, payloadJson: { key } },
+          ],
           replacementId: `test-sview-${replacementId}`,
           baseSequence,
         },
       });
     expect((await save(MEMBER_ID, "q-member", 0.5, 0)).statusCode).toBe(200);
 
-    const list = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/questions`, headers: as(VIEWER_ID) });
+    const list = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION_ID}/questions`,
+      headers: as(VIEWER_ID),
+    });
     expect(list.statusCode).toBe(200);
     expect(list.json()).toMatchObject({ questions: [{ payloadJson: { key: 0.5 } }], sequence: 1 });
 
@@ -519,14 +603,20 @@ describe("session viewers", () => {
     const res = await save(VIEWER_ID, "q-viewer", 0.25, 1);
     expect(res.statusCode).toBe(403);
     expect(res.json().message ?? res.body).toContain("Spectators can't change this session");
-    expect(await prisma.sessionQuestion.findMany({ where: { sessionId: SESSION_ID } })).toMatchObject([
-      { payloadJson: { key: 0.5 } },
-    ]);
-    expect((await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } })).eventSequence).toBe(1);
+    expect(
+      await prisma.sessionQuestion.findMany({ where: { sessionId: SESSION_ID } }),
+    ).toMatchObject([{ payloadJson: { key: 0.5 } }]);
+    expect(
+      (await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } })).eventSequence,
+    ).toBe(1);
   });
 
   test("a viewer can leave", async () => {
-    const res = await app.inject({ method: "DELETE", url: `/sessions/${SESSION_ID}/leave`, headers: as(VIEWER_ID) });
+    const res = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${SESSION_ID}/leave`,
+      headers: as(VIEWER_ID),
+    });
     expect(res.statusCode).toBe(204);
     expect((await participantRow(VIEWER_ID))!.revokedAt).not.toBeNull();
     expect((await getSession(VIEWER_ID)).statusCode).toBe(403);
@@ -539,14 +629,25 @@ describe("session viewers", () => {
     expect(asViewer.json()).toMatchObject({ role: "viewer", hiderLat: null, hiderLng: null });
     const asMember = await getSession(MEMBER_ID);
     expect(asMember.json()).toMatchObject({ role: "member", hiderLat: 47.37, hiderLng: 8.54 });
-    expect((await getSession(CREATOR_ID)).json()).toMatchObject({ role: "creator", hiderLat: 47.37 });
+    expect((await getSession(CREATOR_ID)).json()).toMatchObject({
+      role: "creator",
+      hiderLat: 47.37,
+    });
 
     const list = async (userId: string) => {
-      const res = await app.inject({ method: "GET", url: `/sessions?serverId=${SERVER_ID}`, headers: as(userId) });
+      const res = await app.inject({
+        method: "GET",
+        url: `/sessions?serverId=${SERVER_ID}`,
+        headers: as(userId),
+      });
       return res.json().sessions.find((s: { id: string }) => s.id === SESSION_ID);
     };
     expect(await list(VIEWER_ID)).toMatchObject({ role: "viewer", hiderLat: null, hiderLng: null });
-    expect(await list(MEMBER_ID)).toMatchObject({ role: "member", hiderLat: 47.37, hiderLng: 8.54 });
+    expect(await list(MEMBER_ID)).toMatchObject({
+      role: "member",
+      hiderLat: 47.37,
+      hiderLng: 8.54,
+    });
   });
 
   test("hider updates reach viewers without the position when catching up", async () => {
@@ -572,7 +673,11 @@ describe("session viewers", () => {
     });
 
     const events = async (userId: string) => {
-      const res = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/events`, headers: as(userId) });
+      const res = await app.inject({
+        method: "GET",
+        url: `/sessions/${SESSION_ID}/events`,
+        headers: as(userId),
+      });
       return res.json().events as Array<{ sequence: number; type: string; payloadJson: unknown }>;
     };
     const viewerEvents = await events(VIEWER_ID);
@@ -592,10 +697,18 @@ describe("session viewers", () => {
       broadcastHiderUpdate(1);
       await vi.waitFor(() => {
         expect(viewer.events()).toContainEqual(
-          expect.objectContaining({ type: "hider.update", sequence: 1, payloadJson: { hiderLat: null, hiderLng: null } }),
+          expect.objectContaining({
+            type: "hider.update",
+            sequence: 1,
+            payloadJson: { hiderLat: null, hiderLng: null },
+          }),
         );
         expect(member.events()).toContainEqual(
-          expect.objectContaining({ type: "hider.update", sequence: 1, payloadJson: { hiderLat: 1.5, hiderLng: 2.5 } }),
+          expect.objectContaining({
+            type: "hider.update",
+            sequence: 1,
+            payloadJson: { hiderLat: 1.5, hiderLng: 2.5 },
+          }),
         );
       });
     } finally {
@@ -646,7 +759,10 @@ describe("session viewers", () => {
       expect(res.json()).toEqual({ userId: MEMBER_ID, role: "viewer" });
       expect(await participantRow(MEMBER_ID)).toMatchObject({ role: "viewer" });
 
-      const changed = { type: "participant.role-changed", payloadJson: { userId: MEMBER_ID, role: "viewer" } };
+      const changed = {
+        type: "participant.role-changed",
+        payloadJson: { userId: MEMBER_ID, role: "viewer" },
+      };
       // The member's stream gets the event before it is closed.
       await member.ended;
       expect(member.events()).toContainEqual(changed);
@@ -659,13 +775,19 @@ describe("session viewers", () => {
         broadcastHiderUpdate(1);
         await vi.waitFor(() =>
           expect(reconnected.events()).toContainEqual(
-            expect.objectContaining({ type: "hider.update", payloadJson: { hiderLat: null, hiderLng: null } }),
+            expect.objectContaining({
+              type: "hider.update",
+              payloadJson: { hiderLat: null, hiderLng: null },
+            }),
           ),
         );
       } finally {
         reconnected.res.destroy();
       }
-      expect((await getSession(MEMBER_ID)).json()).toMatchObject({ role: "viewer", hiderLat: null });
+      expect((await getSession(MEMBER_ID)).json()).toMatchObject({
+        role: "viewer",
+        hiderLat: null,
+      });
     } finally {
       member.res.destroy();
       creator.res.destroy();
@@ -697,7 +819,11 @@ describe("session viewers", () => {
     expect(pinned.statusCode).toBe(200);
     expect(pinned.json().name).toBe("Viewer Game");
 
-    const direct = await app.inject({ method: "GET", url: `/games/revisions/${revisionId}`, headers: as(VIEWER_ID) });
+    const direct = await app.inject({
+      method: "GET",
+      url: `/games/revisions/${revisionId}`,
+      headers: as(VIEWER_ID),
+    });
     expect(direct.statusCode).toBe(403);
   });
 });

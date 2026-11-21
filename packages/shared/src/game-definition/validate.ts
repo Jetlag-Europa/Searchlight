@@ -74,10 +74,7 @@ function deepestVariantIssue(
   };
 }
 
-function getLiteralDiscriminator(
-  anyOf: Record<string, unknown>[],
-  prop: string,
-): string[] | null {
+function getLiteralDiscriminator(anyOf: Record<string, unknown>[], prop: string): string[] | null {
   const values: string[] = [];
   for (const variant of anyOf) {
     const props = variant["properties"];
@@ -224,7 +221,8 @@ function validateClosedRings(
             errors.push({
               path: `${basePath}/coordinates/${pIdx}/${rIdx}`,
               code: "INVALID_COORDINATES",
-              message: "MultiPolygon linear ring must be closed (first and last coordinates must match)",
+              message:
+                "MultiPolygon linear ring must be closed (first and last coordinates must match)",
             });
           }
         }

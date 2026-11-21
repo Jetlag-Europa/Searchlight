@@ -7,7 +7,7 @@ import {
   type ServersResponse,
   type ServerWithPermissions,
 } from "@searchlight/shared";
-import { useCallback,useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { verifiedUserId } from "@/lib/activeSession";
 
@@ -32,7 +32,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
     try {
       const res = await fetch(`${API_BASE}/servers/${server.id}/roles`, { credentials: "include" });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { message?: string };
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? `Failed to load roles: ${res.status}`);
       }
       setRolesData(await res.json());
@@ -47,18 +47,21 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
     let failure: string | null = null;
     try {
       const res = hasIt
-        ? await fetch(`${API_BASE}/servers/${server.id}/roles/${roleId}/permissions/${permission}`, {
-          method: "DELETE",
-          credentials: "include",
-        })
+        ? await fetch(
+            `${API_BASE}/servers/${server.id}/roles/${roleId}/permissions/${permission}`,
+            {
+              method: "DELETE",
+              credentials: "include",
+            },
+          )
         : await fetch(`${API_BASE}/servers/${server.id}/roles`, {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ discordRoleId: roleId, permission }),
-        });
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ discordRoleId: roleId, permission }),
+          });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { message?: string };
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
         failure = data.message ?? `Failed to change permission: ${res.status}`;
       }
     } catch (e) {
@@ -95,12 +98,15 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
       {expanded && isAdmin && (
         <div className="mt-4">
           {casual && (
-            <p className="text-xs text-muted-foreground mb-2">These are JetLag EU&apos;s Discord roles.</p>
+            <p className="text-xs text-muted-foreground mb-2">
+              These are JetLag EU&apos;s Discord roles.
+            </p>
           )}
           {loading && <p className="text-sm text-muted-foreground">Loading roles…</p>}
           {error && <p className="text-sm text-destructive">{error}</p>}
-          {rolesData && !loading && (
-            rolesData.roles.length === 0 ? (
+          {rolesData &&
+            !loading &&
+            (rolesData.roles.length === 0 ? (
               <p className="text-sm text-muted-foreground">No roles found in this server.</p>
             ) : (
               <table className="w-full text-sm">
@@ -150,8 +156,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
                     ))}
                 </tbody>
               </table>
-            )
-          )}
+            ))}
         </div>
       )}
     </div>
