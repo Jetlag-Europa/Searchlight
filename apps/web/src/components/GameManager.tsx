@@ -342,6 +342,7 @@ function ServerSection({
 export function GameManager() {
     const [servers, setServers] = useState<ServerWithPermissions[] | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [loadAttempt, setLoadAttempt] = useState(0);
     const userId = useStore(verifiedUserId);
     // How many Casual games are listed for the user, for when they have no
     // permission there: creators keep their games after losing the role.
@@ -351,16 +352,32 @@ export function GameManager() {
     // that was down when the page opened.
     useEffect(() => {
         if (!userId) return;
+        let cancelled = false;
+        setError(null);
         fetch(`${API_BASE}/servers`, { credentials: "include" })
             .then(async (res) => {
                 if (!res.ok) throw new Error(`${res.status}`);
                 const data: ServersResponse = await res.json();
-                setServers(data.servers);
+                if (!cancelled) setServers(data.servers);
             })
-            .catch((e: Error) => setError(e.message));
-    }, [userId]);
+            .catch((e: Error) => {
+                if (!cancelled) setError(e.message);
+            });
+        return () => {
+            cancelled = true;
+        };
+    }, [userId, loadAttempt]);
 
-    if (error) return <p className="text-destructive">Error: {error}</p>;
+    if (error) {
+        return (
+            <div className="flex items-center gap-3">
+                <p className="text-destructive">Error: {error}</p>
+                <Button size="sm" variant="outline" onClick={() => setLoadAttempt((n) => n + 1)}>
+                    Retry
+                </Button>
+            </div>
+        );
+    }
     if (!servers) return <p className="text-muted-foreground">Loading…</p>;
 
     // Casual is listed for its creators even without a permission there; its
