@@ -62,6 +62,18 @@ const isPositiveFinite = (value: unknown): value is number =>
 const isDistanceUnit = (unit: unknown): unit is DistanceUnit =>
   unit === "meters" || unit === "kilometers" || unit === "miles";
 
+function normalizeZoneName(raw: unknown): string | undefined {
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" || typeof raw === "boolean") return String(raw);
+  return undefined;
+}
+
+function normalizeZoneId(raw: unknown): string | number | undefined {
+  if (typeof raw === "string") return raw;
+  if (typeof raw === "number" && Number.isFinite(raw)) return raw;
+  return undefined;
+}
+
 function parseZoneRadius(raw: unknown, defaultUnit: DistanceUnit): DistanceRadius | undefined {
   if (isPositiveFinite(raw)) {
     return { value: raw, unit: defaultUnit };
@@ -105,9 +117,12 @@ export function compileGameDefinition(definition: GameDefinition): CompiledGame 
   for (const feat of rawFeatures) {
     const isArea = feat.geometry?.type === "Polygon" || feat.geometry?.type === "MultiPolygon";
     const ordinal = (isArea ? areaCount : stationCount) + 1;
+    const normalizedName = normalizeZoneName(feat.properties?.name);
     const zId =
-      feat.id ?? feat.properties?.name ?? (isArea ? `area-${ordinal}` : `zone-${ordinal}`);
-    const name = feat.properties?.name ?? (isArea ? `Area ${ordinal}` : `Station ${ordinal}`);
+      normalizeZoneId(feat.id) ??
+      normalizedName ??
+      (isArea ? `area-${ordinal}` : `zone-${ordinal}`);
+    const name = normalizedName ?? (isArea ? `Area ${ordinal}` : `Station ${ordinal}`);
     // tierOverrides keys are strings; a numeric tier (1) selects the "1" key,
     // here and in the zone sidebar alike.
     const rawTier = feat.properties?.tier;

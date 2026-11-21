@@ -7,6 +7,7 @@ import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import { sessionReadOnly } from "@/lib/activeSession";
 import { askedVariants, firstUnasked, radarVariant } from "@/lib/askedQuestions";
+import { isLocalBoard } from "@/lib/boardMode";
 import type { LatLng } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
 import { extractStationLabel, type ZoneDisplayStyle } from "@/maps/geo-utils";
@@ -18,11 +19,17 @@ import {
   type Units,
 } from "@/maps/schema";
 
-export const permanentOverlay = persistentAtom<FeatureCollection | null>("permanentOverlay", null, {
-  encode: JSON.stringify,
-  decode: JSON.parse,
-  listen: false,
-});
+const boardStorageKey = (key: string) => (isLocalBoard.get() ? `local:${key}` : key);
+
+export const permanentOverlay = persistentAtom<FeatureCollection | null>(
+  boardStorageKey("permanentOverlay"),
+  null,
+  {
+    encode: JSON.stringify,
+    decode: JSON.parse,
+    listen: false,
+  },
+);
 
 // The game's play area, set when its definition is applied. Not persisted:
 // until a game loads, there is none.
@@ -110,13 +117,17 @@ export const defaultUnit = persistentAtom<Units>("defaultUnit", "kilometers", {
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).
 export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
-export const displayHidingZones = persistentAtom<boolean>("displayHidingZones", false, {
-  encode: JSON.stringify,
-  decode: JSON.parse,
-  listen: false,
-});
+export const displayHidingZones = persistentAtom<boolean>(
+  boardStorageKey("displayHidingZones"),
+  false,
+  {
+    encode: JSON.stringify,
+    decode: JSON.parse,
+    listen: false,
+  },
+);
 export const displayHidingZonesStyle = persistentAtom<ZoneDisplayStyle>(
-  "displayHidingZonesStyle",
+  boardStorageKey("displayHidingZonesStyle"),
   "zones",
   { listen: false },
 );

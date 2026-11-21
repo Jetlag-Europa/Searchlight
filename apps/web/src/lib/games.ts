@@ -8,6 +8,7 @@ import {
   setActiveGameDefinition,
 } from "@/game-definition/store";
 import { activeSessionId } from "@/lib/activeSession";
+import { isLocalBoard } from "@/lib/boardMode";
 import {
   displayHidingZones,
   displayHidingZonesStyle,
@@ -49,7 +50,10 @@ interface PendingGameSwitch {
 let pendingGameSwitch: PendingGameSwitch | undefined;
 
 // Tab-local game ID — sessionStorage so each tab tracks its own game independently.
-export const currentGameId = atom<string>(readStorage("sessionStorage", GAME_SS_KEY) ?? "");
+// In local mode this stays in memory so it never interferes with `/map`.
+export const currentGameId = atom<string>(
+  isLocalBoard.get() ? "" : (readStorage("sessionStorage", GAME_SS_KEY) ?? ""),
+);
 
 // The game the overlay and the zone display settings were set in: they are
 // kept until another session or game loads. Per tab, like the active session;
@@ -129,8 +133,36 @@ export function resetGameState(): void {
   polyGeoJSON.set(null);
   mapGeoJSON.set(null);
   hidingZoneFocusedStationID.set("");
-  writeStorage("sessionStorage", GAME_SS_KEY, "");
+  if (!isLocalBoard.get()) {
+    writeStorage("sessionStorage", GAME_SS_KEY, "");
+  }
   currentGameId.set("");
+}
+
+/**
+ * Applies a browser-local game definition without touching any online session
+ * or server-cache storage keys.
+ */
+export function applyLocalGameDefinition(gameId: string, def: GameDefinition): void {
+  const previousGameId = currentGameId.get();
+  gameSwitchGeneration++;
+  pendingGameSwitch = undefined;
+  resetGameState();
+  currentGameId.set(gameId);
+  if (previousGameId !== gameId) {
+    permanentOverlay.set(null);
+    displayHidingZones.set(true);
+    displayHidingZonesStyle.set("zones");
+  }
+  applyGameDefinition(def);
+}
+
+/** Clears the local board's active game without touching online storage keys. */
+export function clearLocalGame(): void {
+  gameSwitchGeneration++;
+  pendingGameSwitch = undefined;
+  resetGameState();
+  permanentOverlay.set(null);
 }
 
 export function switchToGame(

@@ -14,6 +14,8 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
 });
 
 import { compileGameDefinition } from "@/game-definition/compile";
+import { trainStations } from "@/lib/context";
+import { hidingZoneCircles } from "@/maps/geo-utils";
 import { evaluateQuestionOperator } from "@/maps/questions/operators/base";
 import type { GameDefinition } from "@searchlight/shared";
 const parisDef = JSON.parse(
@@ -470,5 +472,85 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     for (const station of compiled.hidingZones.stations!) {
       expect(station.radius).toEqual(expected[String(station.id)]);
     }
+  });
+
+  it("normalizes non-string zone names and ids so zone sorting never throws", () => {
+    const poly = {
+      type: "Polygon",
+      coordinates: [
+        [
+          [10.0, 50.0],
+          [10.1, 50.0],
+          [10.1, 50.1],
+          [10.0, 50.1],
+          [10.0, 50.0],
+        ],
+      ],
+    };
+
+    const compiled = compileGameDefinition({
+      id: "zone-name-normalization",
+      name: "Zone name normalization",
+      serverId: "home-games",
+      map: {
+        center: [10, 50],
+        playArea: { type: "FeatureCollection", features: [] },
+      },
+      hidingZones: {
+        radius: 400,
+        unit: "meters",
+        features: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: { type: "Point", coordinates: [10.01, 50.01] },
+              properties: { name: 101 },
+            },
+            {
+              type: "Feature",
+              id: { bad: true },
+              geometry: { type: "Point", coordinates: [10.02, 50.02] },
+              properties: { name: { en: "Main" } },
+            },
+            {
+              type: "Feature",
+              id: ["bad"],
+              geometry: { type: "Point", coordinates: [10.03, 50.03] },
+              properties: { name: true },
+            },
+            {
+              type: "Feature",
+              id: 7,
+              geometry: poly,
+              properties: { name: ["North", "District"] },
+            },
+            {
+              type: "Feature",
+              geometry: poly,
+              properties: { name: "Central District" },
+            },
+          ],
+        },
+      },
+    } as unknown as GameDefinition);
+
+    expect(compiled.hidingZones.stations?.map(({ id, name }) => ({ id, name }))).toEqual([
+      { id: "101", name: "101" },
+      { id: "zone-2", name: "Station 2" },
+      { id: "true", name: "true" },
+      { id: 7, name: "Area 1" },
+      { id: "Central District", name: "Central District" },
+    ]);
+
+    for (const station of compiled.hidingZones.stations!) {
+      expect(typeof station.name).toBe("string");
+      expect(typeof station.id === "string" || typeof station.id === "number").toBe(true);
+    }
+
+    // Sorting compiled zones via trainStations (which calls localeCompare) must not throw.
+    const circles = hidingZoneCircles(compiled);
+    expect(() => trainStations.set(circles)).not.toThrow();
+    trainStations.set([]);
   });
 });

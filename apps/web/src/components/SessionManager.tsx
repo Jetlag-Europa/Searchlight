@@ -6,7 +6,7 @@ import {
   type ServersResponse,
   type SessionsResponse,
 } from "@searchlight/shared";
-import { EyeIcon, Settings, TriangleAlert } from "lucide-react";
+import { EyeIcon, HardDrive, Settings, TriangleAlert } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "react-toastify";
@@ -69,6 +69,7 @@ import {
 import { fetchGameCatalog, leaveGame, switchToGame } from "@/lib/games";
 import { shouldSuppressHiderSave } from "@/lib/hiderSaveSuppress";
 import { DETAILS_TIMEOUT_MS, FLUSH_WAIT_MS, startLoadDeadline } from "@/lib/loadDeadline";
+import { countLocalSessions } from "@/lib/localStore";
 import { endOfflineAccess } from "@/lib/offlineAccess";
 import { isTypingIn } from "@/lib/openWhenFree";
 import { shouldSuppressPlanningModeSave } from "@/lib/planningModeSaveSuppress";
@@ -195,7 +196,27 @@ const NOT_LOADED = Symbol("not loaded");
 
 // ── Session picker overlay ────────────────────────────────────────────────────
 
-function SessionPickerOverlay({
+function useLocalSessionCount(): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    try {
+      void countLocalSessions()
+        .then((n) => {
+          if (!cancelled) setCount(n);
+        })
+        .catch(() => {});
+    } catch {
+      // Ignore IndexedDB errors so local state never interferes with online picking.
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return count;
+}
+
+export function SessionPickerOverlay({
   onSessionSelected,
   onClose,
 }: {
@@ -203,6 +224,7 @@ function SessionPickerOverlay({
   // Returns to the active session's board; absent when there is none.
   onClose?: () => void;
 }) {
+  const localSessionCount = useLocalSessionCount();
   const [servers, setServers] = useState<ServersResponse["servers"] | null>(null);
   const [selectedServerId, setSelectedServerId] = useState<string>("");
   const [sessions, setSessions] = useState<GameSessionSummary[] | null>(null);
@@ -711,6 +733,19 @@ function SessionPickerOverlay({
             )}
           </div>
         )}
+
+        <div className="mt-5 flex items-center justify-between gap-3 border-t border-border pt-4">
+          <p className="min-w-0 text-xs text-muted-foreground">
+            Local sessions stay in this browser and can&apos;t be shared or resumed on another
+            device.
+          </p>
+          <Button asChild size="sm" variant="outline" className="shrink-0">
+            <a href="/local">
+              <HardDrive aria-hidden="true" className="h-3.5 w-3.5" />
+              {localSessionCount > 0 ? `Local sessions (${localSessionCount})` : "Open local play"}
+            </a>
+          </Button>
+        </div>
       </div>
       <AlertDialog open={confirmingDelete} onOpenChange={setConfirmingDelete}>
         <AlertDialogContent
@@ -759,9 +794,10 @@ function SessionPickerOverlay({
 
 // Offline the picker has nothing to list: sessions are listed, started and
 // deleted by the server.
-function OfflinePickerNotice({ onClose }: { onClose: () => void }) {
+export function OfflinePickerNotice({ onClose }: { onClose: () => void }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const localSessionCount = useLocalSessionCount();
   useEffect(() => {
     closeRef.current?.focus();
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -785,9 +821,17 @@ function OfflinePickerNotice({ onClose }: { onClose: () => void }) {
           Sessions can be changed once the server can be reached. This session keeps your edits
           meanwhile, and saves them then.
         </p>
-        <Button ref={closeRef} size="sm" onClick={onClose}>
-          Back to board
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button ref={closeRef} size="sm" onClick={onClose}>
+            Back to board
+          </Button>
+          <Button asChild size="sm" variant="outline">
+            <a href="/local">
+              <HardDrive aria-hidden="true" className="h-3.5 w-3.5" />
+              {localSessionCount > 0 ? `Local sessions (${localSessionCount})` : "Play locally"}
+            </a>
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -105,6 +105,72 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
   );
 }
 
+// A proxy that compresses or recompresses responses weakens ETags (W/"..."),
+// and If-None-Match may list several tags.
+function matchesETag(ifNoneMatch: string | undefined, etag: string): boolean {
+  if (!ifNoneMatch) return false;
+  return ifNoneMatch.split(",").some((tag) => tag.trim().replace(/^W\//, "") === etag);
+}
+
+const DEF_CACHE_MAX_ENTRIES = 6;
+const DEF_CACHE_MAX_BYTES = 16 * 1024 * 1024;
+
+const serializedDefCache = new Map<string, string>();
+let serializedDefCacheBytes = 0;
+const serializedDefInflight = new Map<string, Promise<string | null>>();
+
+function getCachedSerializedDef(revisionId: string): string | undefined {
+  const hit = serializedDefCache.get(revisionId);
+  if (hit !== undefined) {
+    serializedDefCache.delete(revisionId);
+    serializedDefCache.set(revisionId, hit);
+  }
+  return hit;
+}
+
+function setCachedSerializedDef(revisionId: string, raw: string) {
+  const size = Buffer.byteLength(raw);
+  if (size > DEF_CACHE_MAX_BYTES) return;
+  const existing = serializedDefCache.get(revisionId);
+  if (existing !== undefined) {
+    serializedDefCacheBytes -= Buffer.byteLength(existing);
+    serializedDefCache.delete(revisionId);
+  }
+  while (
+    serializedDefCache.size >= DEF_CACHE_MAX_ENTRIES ||
+    serializedDefCacheBytes + size > DEF_CACHE_MAX_BYTES
+  ) {
+    const oldest = serializedDefCache.keys().next().value;
+    if (oldest === undefined) break;
+    serializedDefCacheBytes -= Buffer.byteLength(serializedDefCache.get(oldest)!);
+    serializedDefCache.delete(oldest);
+  }
+  serializedDefCache.set(revisionId, raw);
+  serializedDefCacheBytes += size;
+}
+
+async function loadSerializedDefinition(revisionId: string): Promise<string | null> {
+  const cached = getCachedSerializedDef(revisionId);
+  if (cached !== undefined) return cached;
+
+  let pending = serializedDefInflight.get(revisionId);
+  if (!pending) {
+    pending = prisma.gameRevision
+      .findUnique({ where: { id: revisionId }, select: { definition: true } })
+      .then((rev) => {
+        if (!rev) return null;
+        const raw = JSON.stringify(rev.definition);
+        setCachedSerializedDef(revisionId, raw);
+        return raw;
+      })
+      .finally(() => {
+        serializedDefInflight.delete(revisionId);
+      });
+    serializedDefInflight.set(revisionId, pending);
+  }
+  return pending;
+}
+
 // Under /game-links: using a link.
 export async function gameLinkRoutes(app: FastifyInstance) {
   // GET /game-links/:token — public, no auth required
@@ -118,6 +184,39 @@ export async function gameLinkRoutes(app: FastifyInstance) {
       serverName: link.game.server.name,
     };
   });
+
+  // GET /game-links/:token/definition — public, no auth required.
+  // Lets a player open the linked game locally in their browser without
+  // signing in or creating a server-backed session. Revoking the link stops
+  // new loads immediately (Cache-Control: no-cache still allows ETag 304).
+  app.get(
+    "/:token/definition",
+    { schema: { params: Type.Object({ token: Type.String({ minLength: 1, maxLength: 128 }) }) } },
+    async (req, reply) => {
+      const { token } = req.params as { token: string };
+      const link = await findActiveLink(token);
+      const revision = link?.game.currentRevision;
+      if (!link || !revision) {
+        throw notFound("Link is invalid or has been revoked");
+      }
+
+      const etag = `"${revision.checksum}"`;
+      if (matchesETag(req.headers["if-none-match"], etag)) {
+        return reply.header("ETag", etag).header("Cache-Control", "no-cache").status(304).send();
+      }
+
+      const raw = await loadSerializedDefinition(revision.id);
+      if (raw === null) {
+        throw notFound("Game definition not found");
+      }
+
+      return reply
+        .header("Content-Type", "application/json; charset=utf-8")
+        .header("ETag", etag)
+        .header("Cache-Control", "no-cache")
+        .send(raw);
+    },
+  );
 
   // POST /game-links/:token/sessions — start a session of the linked game,
   // pinned to its current revision.

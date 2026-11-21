@@ -28,6 +28,7 @@ import {
 import { formatGameExportJson } from "@/game-definition/export";
 import { activeGameDefinitionAtom, compiledGameAtom } from "@/game-definition/store";
 import { activeSessionData, sessionReadOnly } from "@/lib/activeSession";
+import { activeLocalSession, isLocalBoard } from "@/lib/boardMode";
 import {
   allowGooglePlusCodes,
   animateMapMovements,
@@ -132,12 +133,26 @@ export const OptionDrawers = () => {
   const $penToolbarVisible = useStore(penToolbarVisible);
   const $showZoneNames = useStore(showZoneNames);
   const $readOnly = useStore(sessionReadOnly);
+  const $isLocalBoard = useStore(isLocalBoard);
+  const $localSession = useStore(activeLocalSession);
+  const googleMapsEnabled = googleMapsAvailable && !$isLocalBoard;
   const [isOptionsOpen, setOptionsOpen] = useState(false);
   const [isNavOpen, setNavOpen] = useState(false);
   const { readPaste, pasteDialog } = usePasteText();
   const $session = useStore(activeSessionData);
+  const $exportSession = $isLocalBoard
+    ? $localSession
+      ? {
+          name: $localSession.name,
+          gameId: $localSession.gameId,
+          gameName: $localSession.gameName,
+          gameRevisionId: $localSession.gameId,
+        }
+      : null
+    : $session;
   // As Restore: only a board whose edits are saved takes an import.
-  const $canEdit = useStore(questionDecisionsPossible);
+  const $canEditOnline = useStore(questionDecisionsPossible);
+  const $canEdit = $isLocalBoard ? Boolean($localSession) : $canEditOnline;
   const importInput = useRef<HTMLInputElement>(null);
   const [imported, setImported] = useState<
     | (ImportedQuestions & {
@@ -156,6 +171,16 @@ export const OptionDrawers = () => {
   // in-place edits are caught while reordered JSONB keys aren't). Null while
   // it can't be replaced.
   const importTarget = (clone = false) => {
+    if (isLocalBoard.get()) {
+      const local = activeLocalSession.get();
+      if (!local) return null;
+      const current = questions.get();
+      return {
+        sessionId: local.id,
+        gameRevisionId: local.gameId,
+        questions: clone ? structuredClone(current) : current,
+      };
+    }
     const session = activeSessionData.get();
     if (!session || !questionDecisionsPossible.get()) return null;
     const current = questions.get();
@@ -166,31 +191,38 @@ export const OptionDrawers = () => {
     };
   };
   const readQuestionsFile = async (file: File) => {
-    const session = activeSessionData.get();
+    const local = isLocalBoard.get() ? activeLocalSession.get() : null;
+    const session = isLocalBoard.get() ? null : activeSessionData.get();
     const compiled = compiledGameAtom.get();
     const replaces = importTarget(true);
-    if (!session || !compiled || replaces === null) {
+    if ((!local && !session) || !compiled || replaces === null) {
       toast.error(
         compiled ? "This session can't take an import right now" : "The game has not loaded yet",
       );
       return;
     }
-    // Keeping a held version would put it onto the imported list, and
-    // only what was saved is in the History to restore.
-    if (questionConflicts.get().length > 0) {
-      toast.error("Decide the questions that need a decision first");
-      return;
-    }
-    if (hasPendingQuestionSave(session.id)) {
-      toast.error("Your last changes aren't saved yet: try again once they are");
-      return;
+    if (session) {
+      // Keeping a held version would put it onto the imported list, and
+      // only what was saved is in the History to restore.
+      if (questionConflicts.get().length > 0) {
+        toast.error("Decide the questions that need a decision first");
+        return;
+      }
+      if (hasPendingQuestionSave(session.id)) {
+        toast.error("Your last changes aren't saved yet: try again once they are");
+        return;
+      }
     }
     // Before reading it: a file picked by mistake can be gigabytes.
     if (file.size > MAX_QUESTIONS_FILE_BYTES) {
       toast.error("That file is too big to import");
       return;
     }
-    const result = parseQuestionsFile(await file.text().catch(() => ""), compiled, session.gameId);
+    const result = parseQuestionsFile(
+      await file.text().catch(() => ""),
+      compiled,
+      (local ?? session)!.gameId,
+    );
     if ("error" in result) toast.error(result.error);
     else setImported({ ...result, replaces });
   };
@@ -198,16 +230,19 @@ export const OptionDrawers = () => {
     if (!imported) return;
     // The file was checked against the board as it was when picked, and
     // the confirm said what it replaces.
-    const session = activeSessionData.get();
     const current = importTarget();
+    const onlineBlocked =
+      !isLocalBoard.get() &&
+      (() => {
+        const session = activeSessionData.get();
+        return !session || questionConflicts.get().length > 0 || hasPendingQuestionSave(session.id);
+      })();
     if (
       !current ||
       current.sessionId !== imported.replaces.sessionId ||
       current.gameRevisionId !== imported.replaces.gameRevisionId ||
       !sameQuestionList(current.questions, imported.replaces.questions) ||
-      questionConflicts.get().length > 0 ||
-      !session ||
-      hasPendingQuestionSave(session.id)
+      onlineBlocked
     ) {
       toast.error("The session changed meanwhile: nothing was imported");
       return;
@@ -304,16 +339,16 @@ export const OptionDrawers = () => {
                     </Button>
                     <Button
                       variant="outline"
-                      disabled={!$session}
+                      disabled={!$exportSession}
                       onClick={() => {
-                        if (!$session) return;
+                        if (!$exportSession) return;
                         if (!questions.get().length) {
                           toast.error("This session has no questions to export");
                           return;
                         }
                         downloadJson(
-                          questionsFileName($session.name),
-                          JSON.stringify(buildQuestionsFile($session, questions.get())),
+                          questionsFileName($exportSession.name),
+                          JSON.stringify(buildQuestionsFile($exportSession, questions.get())),
                         );
                         toast.success(`Exported ${plural(questions.get().length)}`);
                       }}
@@ -352,8 +387,10 @@ export const OptionDrawers = () => {
                               from{" "}
                               {imported.sessionName ? `“${imported.sessionName}”` : "this file"}?
                               {replaced > 0 &&
+                                !$isLocalBoard &&
                                 " The replaced ones can be restored from the History."}
                               {replaced > 0 &&
+                                !$isLocalBoard &&
                                 !$autoSave &&
                                 " Auto save is off: changes you haven't saved are replaced too, and those aren't in the History."}
                               {imported.skipped > 0 &&
@@ -398,21 +435,19 @@ export const OptionDrawers = () => {
                       transport: "Thunderforest Transport",
                       neighbourhood: "Thunderforest Neighbourhood",
                       osmcarto: "OpenStreetMap Carto",
-                      ...(googleMapsAvailable && {
+                      ...(googleMapsEnabled && {
                         google: "Google Maps",
                       }),
                     }}
-                    // A build without a Google key
-                    // draws CARTO Voyager instead.
+                    // A build without a Google key, or local
+                    // mode, draws CARTO Voyager instead.
                     value={
-                      $baseTileLayer === "google" && !googleMapsAvailable
-                        ? "voyager"
-                        : $baseTileLayer
+                      $baseTileLayer === "google" && !googleMapsEnabled ? "voyager" : $baseTileLayer
                     }
                     onValueChange={(v) => baseTileLayer.set(v as any)}
                   />
                   {/* Google Maps Platform Terms 3.2.2(a). */}
-                  {googleMapsAvailable && (
+                  {googleMapsEnabled && (
                     <p className="text-xs text-muted-foreground max-w-[280px] text-center">
                       Searchlight includes Google Maps features and content. Their use is subject to
                       the{" "}
@@ -436,7 +471,7 @@ export const OptionDrawers = () => {
                       .
                     </p>
                   )}
-                  {$baseTileLayer === "google" && googleMapsAvailable && (
+                  {$baseTileLayer === "google" && googleMapsEnabled && (
                     <>
                       <Label>Google Maps view</Label>
                       <Select
@@ -481,7 +516,7 @@ export const OptionDrawers = () => {
                       )}
                     </>
                   )}
-                  {$baseTileLayer === "google" && googleMapsAvailable && $googleMapsProblem && (
+                  {$baseTileLayer === "google" && googleMapsEnabled && $googleMapsProblem && (
                     <p className="text-xs text-muted-foreground max-w-[280px] text-center">
                       {$googleMapsProblem === "offline"
                         ? "Google Maps needs a connection. Showing CARTO Voyager until you're back online."
@@ -491,7 +526,7 @@ export const OptionDrawers = () => {
                     </p>
                   )}
                   {$baseTileLayer === "google" &&
-                    googleMapsAvailable &&
+                    googleMapsEnabled &&
                     !$googleMapsProblem &&
                     $googleStandingIn && (
                       <p className="text-xs text-muted-foreground max-w-[280px] text-center">
