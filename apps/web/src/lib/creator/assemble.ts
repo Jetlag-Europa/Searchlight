@@ -43,6 +43,11 @@ export interface CreatorGeometryLayer {
     selected: boolean;
     noOverlaps?: boolean;
     sourceLabel: string;
+    /** Optional OSM POI filter metadata (enables single-layer OSM refresh). */
+    osmFilter?: string;
+    notableOnly?: boolean;
+    /** Optional thematic group hint for Google My Maps KML auto-packing. */
+    kmlGroup?: string;
     items: CreatorGeoFeatureItem[];
     vertexCount: number;
 }

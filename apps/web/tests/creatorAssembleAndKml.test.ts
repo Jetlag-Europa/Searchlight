@@ -10,7 +10,11 @@ import {
     assembleGameDefinition,
     validateCreatorLayers,
 } from "@/lib/creator/assemble";
-import { buildGameKml, hexToKmlColor } from "@/lib/creator/kml";
+import {
+    buildGameKml,
+    hexToKmlColor,
+    planKmlFolders,
+} from "@/lib/creator/kml";
 import { rectanglePlayArea } from "@/lib/creator/overpass";
 
 describe("assembleGameDefinition", () => {
@@ -319,25 +323,192 @@ describe("buildGameKml", () => {
             layers: manyLayers,
         });
 
-        // Default My Maps-safe mode combines all 10 POI layers into 1 "POIs" folder.
+        // Default mobile My Maps mode (maxLayers=9) packs 10 POI categories into
+        // the remaining 6 slots (Play Area + Stations + Circles = 3, + 6 POI folders = 9).
         const combined = buildGameKml(def, {
             combinePoisForMyMaps: true,
             includeHidingZoneCircles: true,
         });
-        expect(combined.folderCount).toBe(4); // Play Area, Stations, Hiding Zone Circles, POIs
+        expect(combined.folderCount).toBe(9);
         expect(combined.myMapsWarnings).toEqual([]);
         expect(combined.kml).toContain("Zurich &amp; Friends");
         expect(combined.kml).toContain("Main &lt;HB&gt;");
         expect(combined.kml).toContain("Art &amp; Craft &lt;1&gt;");
         expect(combined.kml).toContain("<name>Hiding Zone Circles</name>");
 
-        // Separate folders exceed My Maps' 10-layer limit and emit a warning.
+        // Separate folders exceed My Maps' 9-layer mobile limit and emit a warning.
         const split = buildGameKml(def, {
             combinePoisForMyMaps: false,
             includeHidingZoneCircles: false,
         });
         expect(split.folderCount).toBe(12); // Play Area + Stations + 10 layers
-        expect(split.myMapsWarnings[0]).toContain("at most 10 layers");
+        expect(split.myMapsWarnings[0]).toContain("9 layers");
+    });
+
+    it("keeps polygons/lines separate by default, fills remaining mobile 9-layer slots with thematic POIs, and allows manual overrides", () => {
+        const def = assembleGameDefinition({
+            name: "Randstad Style",
+            size: "large",
+            unit: "kilometers",
+            hidingRadius: 1,
+            tierOverrides: {},
+            radars: [1, 5],
+            thermometer: true,
+            playArea,
+            stations: [
+                { uid: "s1", name: "Central", lng: 8.54, lat: 47.37, enabled: true },
+            ],
+            layers: [],
+            geometryLayers: [
+                {
+                    id: "prov",
+                    name: "Province",
+                    family: "polygons",
+                    enabledFor: ["matching"],
+                    color: "#f59e0b",
+                    selected: true,
+                    sourceLabel: "Imported KML",
+                    vertexCount: 5,
+                    items: [
+                        {
+                            uid: "p1",
+                            name: "Utrecht",
+                            enabled: true,
+                            geometry: playArea.features[0].geometry,
+                        },
+                    ],
+                },
+                {
+                    id: "muni",
+                    name: "Municipality",
+                    family: "polygons",
+                    enabledFor: ["matching"],
+                    color: "#111827",
+                    selected: true,
+                    sourceLabel: "Imported KML",
+                    vertexCount: 5,
+                    items: [
+                        {
+                            uid: "m1",
+                            name: "Haarlem",
+                            enabled: true,
+                            geometry: playArea.features[0].geometry,
+                        },
+                    ],
+                },
+                {
+                    id: "coast",
+                    name: "Coastline",
+                    family: "lines",
+                    enabledFor: ["measuring"],
+                    color: "#0284c7",
+                    selected: true,
+                    sourceLabel: "Imported KML",
+                    vertexCount: 2,
+                    items: [
+                        {
+                            uid: "c1",
+                            name: "North Sea",
+                            enabled: true,
+                            geometry: {
+                                type: "LineString",
+                                coordinates: [
+                                    [8.5, 47.35],
+                                    [8.6, 47.42],
+                                ],
+                            },
+                        },
+                    ],
+                },
+                {
+                    id: "rail",
+                    name: "Train Line",
+                    family: "lines",
+                    enabledFor: ["measuring"],
+                    color: "#334155",
+                    selected: true,
+                    sourceLabel: "Imported KML",
+                    vertexCount: 2,
+                    items: [
+                        {
+                            uid: "r1",
+                            name: "IC",
+                            enabled: true,
+                            geometry: {
+                                type: "LineString",
+                                coordinates: [
+                                    [8.5, 47.36],
+                                    [8.6, 47.41],
+                                ],
+                            },
+                        },
+                    ],
+                },
+                ...[
+                    "Hospital",
+                    "Airport",
+                    "University",
+                    "Museum",
+                    "Zoo",
+                    "Cinema",
+                ].map((name, i) => ({
+                    id: `poi-${i}`,
+                    name,
+                    family: "points" as const,
+                    enabledFor: ["matching" as const],
+                    color: "#e11d48",
+                    selected: true,
+                    sourceLabel: "OSM POI",
+                    vertexCount: 1,
+                    items: [
+                        {
+                            uid: `pt-${i}`,
+                            name: `${name} 1`,
+                            enabled: true,
+                            geometry: {
+                                type: "Point" as const,
+                                coordinates: [8.54 + i * 0.001, 47.37] as [
+                                    number,
+                                    number,
+                                ],
+                            },
+                        },
+                    ],
+                })),
+            ],
+        });
+
+        // Without Play Area, with Hiding Zone Circles:
+        // Stations + Circles (2) + Province + Municipality + Coastline + Train Line (4) = 6 fixed -> 3 slots left for 6 POIs!
+        const plan = planKmlFolders(def, {
+            maxLayers: 9,
+            includePlayArea: false,
+            includeHidingZoneCircles: true,
+        });
+        expect(plan.totalFolders).toBe(9);
+        expect(plan.warnings).toEqual([]);
+        expect(plan.layerAssignments.Province).toBe("Province");
+        expect(plan.layerAssignments.Municipality).toBe("Municipality");
+        expect(plan.layerAssignments.Coastline).toBe("Coastline");
+        expect(plan.layerAssignments["Train Line"]).toBe("Train Line");
+
+        // Manual override lets a user combine a line layer and a POI layer into one folder.
+        const overridden = planKmlFolders(def, {
+            maxLayers: 8,
+            includePlayArea: false,
+            includeHidingZoneCircles: true,
+            layerFolderOverrides: {
+                Coastline: "Lines & Transit",
+                "Train Line": "Lines & Transit",
+                Airport: "Lines & Transit",
+            },
+        });
+        expect(overridden.layerAssignments.Coastline).toBe("Lines & Transit");
+        expect(overridden.layerAssignments["Train Line"]).toBe(
+            "Lines & Transit",
+        );
+        expect(overridden.layerAssignments.Airport).toBe("Lines & Transit");
+        expect(overridden.totalFolders).toBeLessThanOrEqual(8);
     });
 
     it("handles __proto__ layer names safely, omits HTML descriptions, and outputs CCW KML outer rings", () => {
@@ -399,13 +570,11 @@ describe("buildGameKml", () => {
         });
 
         const res = buildGameKml(def, {
-            combinePoisForMyMaps: true,
+            maxLayers: 9,
             layerColors: {},
+            layerFolderOverrides: { __proto__: "POIs" },
         });
         expect(res.kml).not.toContain("<description>");
-        expect(res.kml).toContain(
-            '<Data name="category"><value>__proto__</value></Data>',
-        );
         // First two coordinates in Play Area should now be reversed to CCW: (8.5,47.35) -> (8.6,47.35)
         expect(res.kml).toContain("8.5,47.35,0 8.6,47.35,0 8.6,47.42,0");
     });

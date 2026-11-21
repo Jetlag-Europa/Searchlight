@@ -25,6 +25,8 @@ export interface PoiCategoryPreset {
     osmFilter: string;
     defaultEnabledFor: readonly FeatureEnabledFor[];
     color: string;
+    /** Default thematic folder when packing POIs to fit Google My Maps' 9-layer mobile limit. */
+    kmlGroup: string;
     /** Suggests the "notable only (wikidata/wikipedia)" filter for noisy OSM tags. */
     noisyInOsm?: boolean;
     /** Hint shown next to the category in the UI. */
@@ -96,6 +98,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["aeroway"="aerodrome"]["iata"]',
         defaultEnabledFor: ["matching", "measuring"],
         color: "#0284c7",
+        kmlGroup: "Public Amenities",
         hint: "Commercial airports (requires IATA code)",
     },
     {
@@ -104,6 +107,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["tourism"="aquarium"]',
         defaultEnabledFor: ["matching", "measuring", "tentacle"],
         color: "#0891b2",
+        kmlGroup: "Places of Interest",
     },
     {
         id: "cinema",
@@ -111,6 +115,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["amenity"="cinema"]',
         defaultEnabledFor: ["matching", "measuring", "tentacle"],
         color: "#9333ea",
+        kmlGroup: "Places of Interest",
     },
     {
         id: "consulate",
@@ -118,6 +123,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["diplomatic"="consulate"]',
         defaultEnabledFor: ["matching", "measuring"],
         color: "#4f46e5",
+        kmlGroup: "Public Amenities",
     },
     {
         id: "golf_course",
@@ -125,6 +131,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["leisure"="golf_course"]',
         defaultEnabledFor: ["matching", "measuring"],
         color: "#15803d",
+        kmlGroup: "Nature & Leisure",
     },
     {
         id: "hospital",
@@ -132,6 +139,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["amenity"="hospital"]',
         defaultEnabledFor: ["matching", "measuring", "tentacle"],
         color: "#dc2626",
+        kmlGroup: "Public Amenities",
     },
     {
         id: "library",
@@ -139,6 +147,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["amenity"="library"]',
         defaultEnabledFor: ["matching", "measuring", "tentacle"],
         color: "#d97706",
+        kmlGroup: "Public Amenities",
     },
     {
         id: "mountain",
@@ -146,6 +155,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["natural"="peak"]',
         defaultEnabledFor: ["matching", "measuring"],
         color: "#78716c",
+        kmlGroup: "Nature & Leisure",
         noisyInOsm: true,
         hint: "Can include small hills; try Notable only",
     },
@@ -155,6 +165,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["tourism"="museum"]',
         defaultEnabledFor: ["matching", "measuring", "tentacle"],
         color: "#e11d48",
+        kmlGroup: "Places of Interest",
         noisyInOsm: true,
     },
     {
@@ -163,6 +174,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["leisure"="park"]',
         defaultEnabledFor: ["matching", "measuring"],
         color: "#16a34a",
+        kmlGroup: "Nature & Leisure",
         noisyInOsm: true,
         hint: "OSM includes small neighborhood parks; try Notable only",
     },
@@ -172,6 +184,15 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["tourism"="theme_park"]',
         defaultEnabledFor: ["matching", "measuring"],
         color: "#ea580c",
+        kmlGroup: "Places of Interest",
+    },
+    {
+        id: "university",
+        name: "University",
+        osmFilter: '["amenity"="university"]',
+        defaultEnabledFor: ["matching", "measuring"],
+        color: "#7c3aed",
+        kmlGroup: "Public Amenities",
     },
     {
         id: "zoo",
@@ -179,6 +200,7 @@ export const CREATOR_POI_CATALOG: readonly PoiCategoryPreset[] = [
         osmFilter: '["tourism"="zoo"]',
         defaultEnabledFor: ["matching", "measuring", "tentacle"],
         color: "#ca8a04",
+        kmlGroup: "Places of Interest",
     },
 ];
 

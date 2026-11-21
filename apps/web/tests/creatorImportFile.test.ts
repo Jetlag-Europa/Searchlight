@@ -6,12 +6,15 @@ import {
     type CreatorGeometryLayer,
 } from "@/lib/creator/assemble";
 import {
+    detectFolderSplitFields,
     importedFeaturesToPlayArea,
     importedFeaturesToStations,
     mergeImportedByName,
     parseCsvText,
     parseJsonImportText,
     parseKmlText,
+    SPLIT_BY_STYLE_KEY,
+    splitFeaturesByField,
 } from "@/lib/creator/importFile";
 
 describe("parseCsvText", () => {
@@ -462,5 +465,47 @@ describe("parseKmlText", () => {
                 res.folders[1].features[0].geometry.coordinates,
             ).toHaveLength(2);
         }
+    });
+
+    it("detects and splits grouped My Maps POI folders by ExtendedData type or styleUrl", () => {
+        const groupedFeatures = [
+            {
+                name: "Diakonessenhuis",
+                family: "points" as const,
+                geometry: { type: "Point" as const, coordinates: [5.12, 52.08] as [number, number] },
+                styleUrl: "#icon-1807-FF5252",
+                attributes: { type: "hospitals" },
+            },
+            {
+                name: "Utrecht University",
+                family: "points" as const,
+                geometry: { type: "Point" as const, coordinates: [5.16, 52.08] as [number, number] },
+                styleUrl: "#icon-1726-FFD600",
+                attributes: { type: "university" },
+            },
+            {
+                name: "Schiphol",
+                family: "points" as const,
+                geometry: { type: "Point" as const, coordinates: [4.76, 52.31] as [number, number] },
+                styleUrl: "#icon-1504-673AB7",
+                attributes: { type: "airport" },
+            },
+        ];
+
+        const opts = detectFolderSplitFields(groupedFeatures);
+        expect(opts.map((o) => o.key)).toEqual(["type", SPLIT_BY_STYLE_KEY]);
+
+        const byType = splitFeaturesByField(groupedFeatures, "type");
+        expect(byType.map((g) => g.suggestedName)).toEqual([
+            "Hospital",
+            "University",
+            "Airport",
+        ]);
+
+        const byStyle = splitFeaturesByField(
+            groupedFeatures,
+            SPLIT_BY_STYLE_KEY,
+        );
+        expect(byStyle).toHaveLength(3);
     });
 });

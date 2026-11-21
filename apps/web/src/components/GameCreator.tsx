@@ -3,7 +3,6 @@ import "leaflet/dist/leaflet.css";
 import {
     type Bounds,
     type DistanceUnit,
-    type FeatureEnabledFor,
     formatGameDefinitionJson,
     type GameDefinition,
     type HidingZoneFeature,
@@ -16,17 +15,12 @@ import * as L from "leaflet";
 import {
     AlertTriangle,
     Check,
-    ChevronDown,
-    ChevronRight,
     Download,
-    Eye,
-    EyeOff,
     FolderOpen,
     Layers,
     MapPin,
     PenTool,
     Play,
-    Plus,
     RefreshCw,
     Search,
     Sparkles,
@@ -49,8 +43,9 @@ import {
 } from "react-leaflet";
 import { toast } from "react-toastify";
 
-import { CreatorGeometryPanel } from "@/components/CreatorGeometryPanel";
 import { CreatorImportPanel } from "@/components/CreatorImportPanel";
+import { CreatorLayersList } from "@/components/CreatorLayersList";
+import { CreatorOsmFetchPanel } from "@/components/CreatorOsmFetchPanel";
 import { StationFileImporter } from "@/components/StationFileImporter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -70,7 +65,6 @@ import { CARTO_API_KEY, WORLD_BOUNDS } from "@/lib/basemap";
 import {
     assembleGameDefinition,
     type CreatorGeometryLayer,
-    type CreatorLayerState,
     layerSlugOf,
     type PreservedGameMetadata,
     validateCreatorLayers,
@@ -81,11 +75,13 @@ import {
     parseJsonImportText,
     sumFeatureVertices,
 } from "@/lib/creator/importFile";
-import { buildGameKml } from "@/lib/creator/kml";
+import {
+    buildGameKml,
+    MY_MAPS_MOBILE_MAX_LAYERS,
+} from "@/lib/creator/kml";
 import {
     buildValidatedDrawnPlayArea,
     type CreatorPointItem,
-    fetchPoiLayersFromOsm,
     fetchStationsFromOsm,
     type PlaceSearchResult,
     rectanglePlayArea,
@@ -94,7 +90,6 @@ import {
     validateCustomOsmFilter,
 } from "@/lib/creator/overpass";
 import {
-    CREATOR_POI_CATALOG,
     CUSTOM_LAYER_COLORS,
     type GameScale,
     getStationPreset,
@@ -113,25 +108,10 @@ import { cn } from "@/lib/utils";
 import { hidingZoneCircles } from "@/maps/geo-utils/hidingZones";
 
 type CreatorStep = "area" | "stations" | "features" | "export";
-type FeatureSubTab = "pois" | "geometry" | "import";
+type FeatureSubTab = "layers" | "import" | "osm";
 type MapInteractionMode = "browse" | "draw-area" | "add-station";
 
 const DEFAULT_SCALE: GameScale = "medium";
-
-function createInitialLayers(scale: GameScale): CreatorLayerState[] {
-    const defaultIds = new Set(SCALE_PRESETS[scale].defaultPoiIds);
-    return CREATOR_POI_CATALOG.map((cat) => ({
-        id: cat.id,
-        name: cat.name,
-        osmFilter: cat.osmFilter,
-        enabledFor: [...cat.defaultEnabledFor],
-        color: cat.color,
-        selected: defaultIds.has(cat.id),
-        notableOnly: Boolean(cat.noisyInOsm),
-        items: [],
-        fetched: false,
-    }));
-}
 
 function downloadBlob(fileName: string, content: string, mimeType: string) {
     const url = URL.createObjectURL(new Blob([content], { type: mimeType }));
@@ -269,43 +249,34 @@ export function GameCreator() {
     const [newTierName, setNewTierName] = useState("");
     const [newTierRadius, setNewTierRadius] = useState("600");
 
-    // ── Step 3: Feature Layers (POIs, Regions/Lines, Imported Files) ─────────
-    const [featureSubTab, setFeatureSubTab] = useState<FeatureSubTab>("pois");
-    const [layers, setLayers] = useState<CreatorLayerState[]>(() =>
-        createInitialLayers(DEFAULT_SCALE),
-    );
-    const [geometryLayers, setGeometryLayers] = useState<
-        CreatorGeometryLayer[]
-    >([]);
+    // ── Step 3: Unified Feature Layers (Points, Polygons, Lines) ────────────
+    const [featureSubTab, setFeatureSubTab] =
+        useState<FeatureSubTab>("layers");
+    const [layers, setLayers] = useState<CreatorGeometryLayer[]>([]);
     const [poiBufferKm, setPoiBufferKm] = useState<number>(
         SCALE_PRESETS[DEFAULT_SCALE].poiBufferKm,
     );
     const [visibleLayerIds, setVisibleLayerIds] = useState<Set<string>>(
         () => new Set(),
     );
-    const [expandedLayerId, setExpandedLayerId] = useState<string | null>(null);
-    const [poiBusy, setPoiBusy] = useState<string | null>(null);
-    const [poiError, setPoiError] = useState<string | null>(null);
     const [customEndpoint, setCustomEndpoint] = useState("");
-    const [showAdvancedOsm, setShowAdvancedOsm] = useState(false);
-
-    // Add custom POI layer form
-    const [customLayerName, setCustomLayerName] = useState("");
-    const [customLayerFilter, setCustomLayerFilter] = useState("");
-    const [customLayerError, setCustomLayerError] = useState<string | null>(
-        null,
-    );
 
     // ── Step 4: Review & Export ──────────────────────────────────────────────
     const [qualityIssues, setQualityIssues] = useState<QualityIssue[]>([]);
     const [checkingQuality, setCheckingQuality] = useState(false);
-    const [combinePoisKml, setCombinePoisKml] = useState(true);
+    const [maxKmlLayers, setMaxKmlLayers] = useState<number>(
+        MY_MAPS_MOBILE_MAX_LAYERS,
+    );
+    const [includePlayAreaKml, setIncludePlayAreaKml] = useState(true);
     const [includeCirclesKml, setIncludeCirclesKml] = useState(false);
+    const [kmlFolderOverrides, setKmlFolderOverrides] = useState<
+        Record<string, string>
+    >({});
+    const [showKmlGrouping, setShowKmlGrouping] = useState(false);
     const [launchingAction, setLaunchingAction] = useState<string | null>(null);
 
     const mapRef = useRef<L.Map | null>(null);
     const stationAbortRef = useRef<AbortController | null>(null);
-    const poiAbortRef = useRef<AbortController | null>(null);
     const playAreaGenRef = useRef(0);
     const customStationCounterRef = useRef(1);
     const loadGameInputRef = useRef<HTMLInputElement>(null);
@@ -315,24 +286,16 @@ export function GameCreator() {
         playAreaGenRef.current += 1;
         stationAbortRef.current?.abort();
         stationAbortRef.current = null;
-        poiAbortRef.current?.abort();
-        poiAbortRef.current = null;
         setStationBusy(null);
-        setPoiBusy(null);
         setStationError(null);
-        setPoiError(null);
         setStationSummary(null);
         // Keep user-placed and file-imported stations; only clear OSM-fetched stations.
         setStations((prev) => prev.filter((s) => s.custom));
+        // Drop OSM-fetched layers from the old area; keep file-imported & loaded layers.
         setLayers((prev) =>
-            prev.map((layer) => ({ ...layer, items: [], fetched: false })),
-        );
-        // Drop OSM-fetched region/line layers from the old area; keep user-imported file layers.
-        setGeometryLayers((prev) =>
             prev.filter((l) => !l.sourceLabel.startsWith("OSM ")),
         );
         setVisibleLayerIds(new Set());
-        setExpandedLayerId(null);
     }, []);
 
     const applyScalePreset = (nextScale: GameScale) => {
@@ -345,14 +308,6 @@ export function GameCreator() {
         setThermometer(preset.thermometer);
         setStationPreset(preset.stationPreset);
         setPoiBufferKm(preset.poiBufferKm);
-        const defaultIds = new Set(preset.defaultPoiIds);
-        setLayers((prev) =>
-            prev.map((layer) =>
-                layer.custom
-                    ? layer
-                    : { ...layer, selected: defaultIds.has(layer.id) },
-            ),
-        );
     };
 
     const setPlayAreaAndFit = useCallback(
@@ -543,167 +498,61 @@ export function GameCreator() {
         }
     };
 
-    // ── Fetch POIs from OSM (single batched query) ───────────────────────────
-    const handleFetchPois = async () => {
-        if (!hasPlayAreaGeometry || !playArea) {
-            setPoiError("Set a play area in Step 1 first.");
-            return;
-        }
-        const selectedLayers = layers.filter((l) => l.selected);
-        if (selectedLayers.length === 0) {
-            setPoiError("Select at least one feature layer to fetch.");
-            return;
-        }
-
-        poiAbortRef.current?.abort();
-        const controller = new AbortController();
-        poiAbortRef.current = controller;
-        const areaGen = playAreaGenRef.current;
-        setPoiError(null);
-        setPoiBusy("Querying OpenStreetMap for feature layers…");
-
-        try {
-            const result = await fetchPoiLayersFromOsm({
-                layers: selectedLayers.map((l) => ({
-                    id: l.id,
-                    name: l.name,
-                    osmFilter: l.osmFilter,
-                    notableOnly: l.notableOnly,
-                })),
-                playArea,
-                bufferKm: poiBufferKm,
-                preferEnglishName,
-                customEndpoint: customEndpoint.trim() || undefined,
-                signal: controller.signal,
-                onStatus: (msg) => {
-                    if (playAreaGenRef.current === areaGen) setPoiBusy(msg);
-                },
-            });
-            if (playAreaGenRef.current !== areaGen) return;
-            setLayers((prev) =>
-                prev.map((layer) =>
-                    layer.id in result.byLayerId
-                        ? {
-                              ...layer,
-                              items: result.byLayerId[layer.id],
-                              fetched: true,
-                          }
-                        : layer,
-                ),
-            );
-            // Automatically show the first non-empty fetched layer on the map.
-            const firstNonEmpty = selectedLayers.find(
-                (l) => (result.byLayerId[l.id]?.length ?? 0) > 0,
-            );
-            if (firstNonEmpty) {
-                setVisibleLayerIds((prev) => {
-                    const next = new Set(prev);
-                    next.add(firstNonEmpty.id);
-                    return next;
-                });
-            }
-            const totalPins = Object.values(result.byLayerId).reduce(
-                (sum, list) => sum + list.length,
-                0,
-            );
-            toast.success(
-                `Fetched ${totalPins} places across ${selectedLayers.length} layer${selectedLayers.length === 1 ? "" : "s"}`,
-            );
-        } catch (err) {
-            if (
-                playAreaGenRef.current !== areaGen ||
-                (err instanceof DOMException && err.name === "AbortError")
-            ) {
-                return;
-            }
-            setPoiError(
-                err instanceof Error
-                    ? err.message
-                    : "Failed to fetch features from OpenStreetMap.",
-            );
-        } finally {
-            if (poiAbortRef.current === controller) {
-                poiAbortRef.current = null;
-                setPoiBusy(null);
-            }
-        }
-    };
-
-    const handleAddCustomLayer = (e: React.FormEvent) => {
-        e.preventDefault();
-        setCustomLayerError(null);
-        const name = customLayerName.trim();
-        if (!name) {
-            setCustomLayerError("Enter a singular layer name (e.g. Castle).");
-            return;
-        }
-        const slug = layerSlugOf(name);
-        if (!slug) {
-            setCustomLayerError(
-                "Layer name must include at least one ASCII letter or digit (a–z, 0–9).",
-            );
-            return;
-        }
-        const collision = [...layers, ...geometryLayers].find(
-            (l) => layerSlugOf(l.name) === slug,
-        );
-        if (collision) {
-            setCustomLayerError(
-                `A layer with the same ID already exists ("${collision.name}").`,
-            );
-            return;
-        }
-        const filterCheck = validateCustomOsmFilter(customLayerFilter);
-        if (!filterCheck.ok) {
-            setCustomLayerError(filterCheck.error);
-            return;
-        }
-        const id = `custom-${Date.now()}`;
-        const color =
-            CUSTOM_LAYER_COLORS[layers.length % CUSTOM_LAYER_COLORS.length];
-        setLayers((prev) => [
-            ...prev,
-            {
-                id,
-                name,
-                osmFilter: filterCheck.filter,
-                enabledFor: ["matching", "measuring"],
-                color,
-                selected: true,
-                notableOnly: false,
-                custom: true,
-                items: [],
-                fetched: false,
-            },
-        ]);
-        setCustomLayerName("");
-        setCustomLayerFilter("");
-    };
-
     const existingLayerSlugs = useMemo(() => {
         const set = new Set<string>();
         for (const l of layers) {
-            if (!l.selected) continue;
-            const s = layerSlugOf(l.name);
-            if (s) set.add(s);
-        }
-        for (const l of geometryLayers) {
             const s = layerSlugOf(l.name);
             if (s) set.add(s);
         }
         return set;
-    }, [layers, geometryLayers]);
+    }, [layers]);
+
+    const handleUpsertOsmLayer = useCallback((incoming: CreatorGeometryLayer) => {
+        let finalId = incoming.id;
+        setLayers((prev) => {
+            const existingIdx = prev.findIndex(
+                (l) =>
+                    l.id === incoming.id ||
+                    (incoming.osmFilter &&
+                        layerSlugOf(l.name) === layerSlugOf(incoming.name)),
+            );
+            if (existingIdx >= 0) {
+                finalId = prev[existingIdx].id;
+                return prev.map((l, idx) =>
+                    idx === existingIdx
+                        ? {
+                              ...l,
+                              items: incoming.items,
+                              vertexCount: incoming.vertexCount,
+                              osmFilter: incoming.osmFilter ?? l.osmFilter,
+                              notableOnly:
+                                  incoming.notableOnly ?? l.notableOnly,
+                              kmlGroup: incoming.kmlGroup ?? l.kmlGroup,
+                              sourceLabel: incoming.sourceLabel,
+                              selected: true,
+                          }
+                        : l,
+                );
+            }
+            const usedSlugs = new Set(
+                prev.map((l) => layerSlugOf(l.name)).filter(Boolean),
+            );
+            let finalName = incoming.name;
+            let suffix = 2;
+            while (usedSlugs.has(layerSlugOf(finalName))) {
+                finalName = `${incoming.name} ${suffix++}`;
+            }
+            return [...prev, { ...incoming, name: finalName }];
+        });
+        setVisibleLayerIds((prev) => new Set(prev).add(finalId));
+    }, []);
 
     const handleLoadExistingGame = useCallback((def: GameDefinition) => {
         playAreaGenRef.current += 1;
         stationAbortRef.current?.abort();
         stationAbortRef.current = null;
-        poiAbortRef.current?.abort();
-        poiAbortRef.current = null;
         setStationBusy(null);
-        setPoiBusy(null);
         setStationError(null);
-        setPoiError(null);
 
         setGameName(def.name);
         setCustomId(def.id ?? "");
@@ -790,16 +639,6 @@ export function GameCreator() {
                 : `Loaded ${loadedStations.length} stations from file`,
         );
 
-        // Keep standard OSM catalog deselected so it doesn't collide with loaded layers.
-        setLayers((prev) =>
-            prev.map((l) => ({
-                ...l,
-                selected: false,
-                items: [],
-                fetched: false,
-            })),
-        );
-
         const loadedGeoLayers: CreatorGeometryLayer[] = (
             def.features ?? []
         ).map((feat, idx) => {
@@ -837,7 +676,8 @@ export function GameCreator() {
                 vertexCount: sumFeatureVertices(items),
             };
         });
-        setGeometryLayers(loadedGeoLayers);
+        setLayers(loadedGeoLayers);
+        setKmlFolderOverrides({});
         setVisibleLayerIds(
             new Set(loadedGeoLayers.slice(0, 1).map((l) => l.id)),
         );
@@ -909,10 +749,7 @@ export function GameCreator() {
             };
         }
 
-        const layerNameErrors = validateCreatorLayers([
-            ...layers,
-            ...geometryLayers,
-        ]);
+        const layerNameErrors = validateCreatorLayers(layers);
         if (layerNameErrors.length > 0) {
             return {
                 definition: null,
@@ -943,8 +780,8 @@ export function GameCreator() {
             stations,
             extraHidingZones,
             preservedMetadata,
-            layers,
-            geometryLayers,
+            layers: [],
+            geometryLayers: layers,
         });
 
         const validation = validateGameDefinition(definition);
@@ -998,7 +835,6 @@ export function GameCreator() {
         radarsText,
         thermometer,
         layers,
-        geometryLayers,
     ]);
 
     // Run check-game.mjs quality checks when viewing the Export step.
@@ -1033,9 +869,16 @@ export function GameCreator() {
     const layerColorsMap = useMemo(() => {
         const map = Object.create(null) as Record<string, string>;
         for (const l of layers) map[l.name] = l.color;
-        for (const l of geometryLayers) map[l.name] = l.color;
         return map;
-    }, [layers, geometryLayers]);
+    }, [layers]);
+
+    const layerGroupsMap = useMemo(() => {
+        const map = Object.create(null) as Record<string, string>;
+        for (const l of layers) {
+            if (l.kmlGroup) map[l.name] = l.kmlGroup;
+        }
+        return map;
+    }, [layers]);
 
     const kmlPreview = useMemo(() => {
         if (step !== "export" || !assembled.definition || !assembled.compiled) {
@@ -1043,9 +886,12 @@ export function GameCreator() {
         }
         try {
             return buildGameKml(assembled.definition, {
-                combinePoisForMyMaps: combinePoisKml,
+                maxLayers: maxKmlLayers,
+                includePlayArea: includePlayAreaKml,
                 includeHidingZoneCircles: includeCirclesKml,
                 layerColors: layerColorsMap,
+                layerGroups: layerGroupsMap,
+                layerFolderOverrides: kmlFolderOverrides,
             });
         } catch {
             return null;
@@ -1054,9 +900,12 @@ export function GameCreator() {
         step,
         assembled.definition,
         assembled.compiled,
-        combinePoisKml,
+        maxKmlLayers,
+        includePlayAreaKml,
         includeCirclesKml,
         layerColorsMap,
+        layerGroupsMap,
+        kmlFolderOverrides,
     ]);
 
     // ── Export & handoff actions ─────────────────────────────────────────────
@@ -1155,19 +1004,12 @@ export function GameCreator() {
 
     // ── Derived counters ─────────────────────────────────────────────────────
     const activeStationCount = stations.filter((s) => s.enabled).length;
-    const activeLayerCount =
-        layers.filter(
-            (l) =>
-                l.selected &&
-                l.enabledFor.length > 0 &&
-                l.items.some((i) => i.enabled),
-        ).length +
-        geometryLayers.filter(
-            (l) =>
-                l.selected &&
-                l.enabledFor.length > 0 &&
-                l.items.some((i) => i.enabled),
-        ).length;
+    const activeLayerCount = layers.filter(
+        (l) =>
+            l.selected &&
+            l.enabledFor.length > 0 &&
+            l.items.some((i) => i.enabled),
+    ).length;
 
     const filteredStations = useMemo(() => {
         const q = stationSearch.trim().toLowerCase();
@@ -2093,20 +1935,20 @@ export function GameCreator() {
                         </>
                     )}
 
-                    {/* ── STEP 3: FEATURE LAYERS (POIs, Regions & Lines, File Import) ── */}
+                    {/* ── STEP 3: FEATURE LAYERS (My Layers, Import File, Fetch from OSM) ── */}
                     {step === "features" && (
                         <>
                             <div className="grid grid-cols-3 gap-1 rounded-lg border border-border bg-muted/40 p-1">
                                 {(
                                     [
-                                        ["pois", "POIs (OSM)"],
                                         [
-                                            "geometry",
-                                            geometryLayers.length > 0
-                                                ? `Regions (${geometryLayers.length})`
-                                                : "Regions & Lines",
+                                            "layers",
+                                            layers.length > 0
+                                                ? `My Layers (${layers.length})`
+                                                : "My Layers",
                                         ],
                                         ["import", "Import File"],
+                                        ["osm", "Fetch OSM"],
                                     ] as const
                                 ).map(([tabId, label]) => (
                                     <button
@@ -2125,483 +1967,28 @@ export function GameCreator() {
                                 ))}
                             </div>
 
-                            {featureSubTab === "pois" && (
-                                <>
-                            {!playArea && (
-                                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-300">
-                                    Set a play area in Step 1 before fetching
-                                    features.
-                                </div>
-                            )}
-
-                            <section className="space-y-3">
-                                <div className="flex items-end gap-2">
-                                    <div className="w-36 space-y-1">
-                                        <Label
-                                            htmlFor="creator-poi-buffer"
-                                            className="text-xs text-muted-foreground"
-                                        >
-                                            Border margin (km)
-                                        </Label>
-                                        <Input
-                                            id="creator-poi-buffer"
-                                            type="number"
-                                            min={0}
-                                            max={50}
-                                            step="any"
-                                            value={poiBufferKm}
-                                            onChange={(e) =>
-                                                setPoiBufferKm(
-                                                    Math.max(
-                                                        0,
-                                                        Number(e.target.value) ||
-                                                            0,
-                                                    ),
-                                                )
-                                            }
-                                            className="h-9 text-xs"
-                                        />
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        className="flex-1"
-                                        disabled={
-                                            !hasPlayAreaGeometry ||
-                                            Boolean(poiBusy)
-                                        }
-                                        onClick={() => void handleFetchPois()}
-                                    >
-                                        <RefreshCw
-                                            className={cn(
-                                                "mr-1.5 h-4 w-4",
-                                                poiBusy && "animate-spin",
-                                            )}
-                                        />
-                                        {poiBusy
-                                            ? "Fetching…"
-                                            : "Fetch selected layers"}
-                                    </Button>
-                                    {poiBusy && (
-                                        <Button
-                                            type="button"
-                                            variant="outline"
-                                            onClick={() =>
-                                                poiAbortRef.current?.abort()
-                                            }
-                                        >
-                                            Cancel
-                                        </Button>
-                                    )}
-                                </div>
-
-                                <p className="text-xs text-muted-foreground">
-                                    All selected layers are fetched in one
-                                    batched OpenStreetMap query. Margin includes
-                                    nearest sites just outside the play area.
-                                </p>
-
-                                {poiBusy && (
-                                    <p className="text-xs text-muted-foreground">
-                                        {poiBusy}
-                                    </p>
-                                )}
-                                {poiError && (
-                                    <p className="text-xs text-destructive">
-                                        {poiError}
-                                    </p>
-                                )}
-                            </section>
-
-                            <section className="space-y-2">
-                                {layers.map((layer) => {
-                                    const activeCount = layer.items.filter(
-                                        (i) => i.enabled,
-                                    ).length;
-                                    const visible = visibleLayerIds.has(
-                                        layer.id,
-                                    );
-                                    const expanded =
-                                        expandedLayerId === layer.id;
-
-                                    const toggleKind = (
-                                        kind: FeatureEnabledFor,
-                                    ) => {
-                                        setLayers((prev) =>
-                                            prev.map((l) => {
-                                                if (l.id !== layer.id) return l;
-                                                const has =
-                                                    l.enabledFor.includes(kind);
-                                                const next = has
-                                                    ? l.enabledFor.filter(
-                                                          (k) => k !== kind,
-                                                      )
-                                                    : [...l.enabledFor, kind];
-                                                return {
-                                                    ...l,
-                                                    enabledFor: next,
-                                                };
-                                            }),
-                                        );
-                                    };
-
-                                    return (
-                                        <div
-                                            key={layer.id}
-                                            className="rounded-lg border border-border bg-background/40 p-2.5"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Checkbox
-                                                    checked={layer.selected}
-                                                    onCheckedChange={(v) =>
-                                                        setLayers((prev) =>
-                                                            prev.map((l) =>
-                                                                l.id ===
-                                                                layer.id
-                                                                    ? {
-                                                                          ...l,
-                                                                          selected:
-                                                                              v ===
-                                                                              true,
-                                                                      }
-                                                                    : l,
-                                                            ),
-                                                        )
-                                                    }
-                                                />
-                                                <span
-                                                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                                                    style={{
-                                                        backgroundColor:
-                                                            layer.color,
-                                                    }}
-                                                />
-                                                <span className="min-w-0 flex-1 truncate text-sm font-medium">
-                                                    {layer.name}
-                                                </span>
-                                                {layer.fetched && (
-                                                    <span className="rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
-                                                        {activeCount}/
-                                                        {layer.items.length}
-                                                    </span>
-                                                )}
-                                                {layer.items.length > 0 && (
-                                                    <>
-                                                        <button
-                                                            type="button"
-                                                            title={
-                                                                visible
-                                                                    ? "Hide on map"
-                                                                    : "Show on map"
-                                                            }
-                                                            onClick={() =>
-                                                                setVisibleLayerIds(
-                                                                    (prev) => {
-                                                                        const next =
-                                                                            new Set(
-                                                                                prev,
-                                                                            );
-                                                                        if (
-                                                                            visible
-                                                                        )
-                                                                            next.delete(
-                                                                                layer.id,
-                                                                            );
-                                                                        else
-                                                                            next.add(
-                                                                                layer.id,
-                                                                            );
-                                                                        return next;
-                                                                    },
-                                                                )
-                                                            }
-                                                            className="text-muted-foreground hover:text-foreground"
-                                                        >
-                                                            {visible ? (
-                                                                <Eye className="h-3.5 w-3.5 text-primary" />
-                                                            ) : (
-                                                                <EyeOff className="h-3.5 w-3.5" />
-                                                            )}
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            title="Inspect places"
-                                                            onClick={() =>
-                                                                setExpandedLayerId(
-                                                                    expanded
-                                                                        ? null
-                                                                        : layer.id,
-                                                                )
-                                                            }
-                                                            className="text-muted-foreground hover:text-foreground"
-                                                        >
-                                                            {expanded ? (
-                                                                <ChevronDown className="h-3.5 w-3.5" />
-                                                            ) : (
-                                                                <ChevronRight className="h-3.5 w-3.5" />
-                                                            )}
-                                                        </button>
-                                                    </>
-                                                )}
-                                                {layer.custom && (
-                                                    <button
-                                                        type="button"
-                                                        aria-label={`Remove ${layer.name}`}
-                                                        onClick={() =>
-                                                            setLayers((prev) =>
-                                                                prev.filter(
-                                                                    (l) =>
-                                                                        l.id !==
-                                                                        layer.id,
-                                                                ),
-                                                            )
-                                                        }
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-                                                    </button>
-                                                )}
-                                            </div>
-
-                                            {layer.selected && (
-                                                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 pl-6 text-[11px]">
-                                                    <div className="flex gap-1">
-                                                        {(
-                                                            [
-                                                                [
-                                                                    "matching",
-                                                                    "Match",
-                                                                ],
-                                                                [
-                                                                    "measuring",
-                                                                    "Measure",
-                                                                ],
-                                                                [
-                                                                    "tentacle",
-                                                                    "Tentacle",
-                                                                ],
-                                                            ] as const
-                                                        ).map(
-                                                            ([kind, label]) => {
-                                                                const on =
-                                                                    layer.enabledFor.includes(
-                                                                        kind,
-                                                                    );
-                                                                return (
-                                                                    <button
-                                                                        key={
-                                                                            kind
-                                                                        }
-                                                                        type="button"
-                                                                        onClick={() =>
-                                                                            toggleKind(
-                                                                                kind,
-                                                                            )
-                                                                        }
-                                                                        className={cn(
-                                                                            "rounded border px-1.5 py-0.5 transition-colors",
-                                                                            on
-                                                                                ? "border-primary/60 bg-primary/15 text-foreground"
-                                                                                : "border-border text-muted-foreground hover:text-foreground",
-                                                                        )}
-                                                                    >
-                                                                        {label}
-                                                                    </button>
-                                                                );
-                                                            },
-                                                        )}
-                                                    </div>
-                                                    <label className="flex cursor-pointer items-center gap-1 text-muted-foreground">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={
-                                                                layer.notableOnly
-                                                            }
-                                                            onChange={(e) =>
-                                                                setLayers(
-                                                                    (prev) =>
-                                                                        prev.map(
-                                                                            (
-                                                                                l,
-                                                                            ) =>
-                                                                                l.id ===
-                                                                                layer.id
-                                                                                    ? {
-                                                                                          ...l,
-                                                                                          notableOnly:
-                                                                                              e
-                                                                                                  .target
-                                                                                                  .checked,
-                                                                                      }
-                                                                                    : l,
-                                                                        ),
-                                                                )
-                                                            }
-                                                        />
-                                                        Notable only
-                                                    </label>
-                                                </div>
-                                            )}
-
-                                            {expanded &&
-                                                layer.items.length > 0 && (
-                                                    <div className="mt-2 max-h-40 divide-y divide-border overflow-y-auto rounded border border-border bg-card">
-                                                        {layer.items.map(
-                                                            (item) => (
-                                                                <label
-                                                                    key={
-                                                                        item.uid
-                                                                    }
-                                                                    className="flex cursor-pointer items-center gap-2 px-2 py-1 text-xs"
-                                                                >
-                                                                    <Checkbox
-                                                                        checked={
-                                                                            item.enabled
-                                                                        }
-                                                                        onCheckedChange={(
-                                                                            v,
-                                                                        ) =>
-                                                                            setLayers(
-                                                                                (
-                                                                                    prev,
-                                                                                ) =>
-                                                                                    prev.map(
-                                                                                        (
-                                                                                            l,
-                                                                                        ) =>
-                                                                                            l.id ===
-                                                                                            layer.id
-                                                                                                ? {
-                                                                                                      ...l,
-                                                                                                      items: l.items.map(
-                                                                                                          (
-                                                                                                              x,
-                                                                                                          ) =>
-                                                                                                              x.uid ===
-                                                                                                              item.uid
-                                                                                                                  ? {
-                                                                                                                        ...x,
-                                                                                                                        enabled:
-                                                                                                                            v ===
-                                                                                                                            true,
-                                                                                                                    }
-                                                                                                                  : x,
-                                                                                                      ),
-                                                                                                  }
-                                                                                                : l,
-                                                                                    ),
-                                                                            )
-                                                                        }
-                                                                    />
-                                                                    <span
-                                                                        className={cn(
-                                                                            "truncate",
-                                                                            !item.enabled &&
-                                                                                "text-muted-foreground line-through",
-                                                                        )}
-                                                                    >
-                                                                        {
-                                                                            item.name
-                                                                        }
-                                                                    </span>
-                                                                </label>
-                                                            ),
-                                                        )}
-                                                    </div>
-                                                )}
-                                        </div>
-                                    );
-                                })}
-                            </section>
-
-                            {/* Add custom OSM layer */}
-                            <form
-                                onSubmit={handleAddCustomLayer}
-                                className="space-y-2 rounded-lg border border-border bg-background/40 p-3"
-                            >
-                                <p className="text-xs font-semibold">
-                                    Add custom OSM POI layer
-                                </p>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <Input
-                                        placeholder="Name (e.g. Castle)"
-                                        value={customLayerName}
-                                        onChange={(e) =>
-                                            setCustomLayerName(e.target.value)
-                                        }
-                                        className="h-8 text-xs"
-                                    />
-                                    <Input
-                                        placeholder='["historic"="castle"]'
-                                        value={customLayerFilter}
-                                        onChange={(e) =>
-                                            setCustomLayerFilter(e.target.value)
-                                        }
-                                        className="h-8 font-mono text-xs"
-                                    />
-                                </div>
-                                {customLayerError && (
-                                    <p className="text-xs text-destructive">
-                                        {customLayerError}
-                                    </p>
-                                )}
-                                <Button
-                                    type="submit"
-                                    size="sm"
-                                    variant="secondary"
-                                >
-                                    <Plus className="mr-1 h-3.5 w-3.5" />
-                                    Add layer
-                                </Button>
-                            </form>
-
-                            {/* Advanced Overpass endpoint */}
-                            <div>
-                                <button
-                                    type="button"
-                                    onClick={() =>
-                                        setShowAdvancedOsm((v) => !v)
-                                    }
-                                    className="text-xs text-muted-foreground hover:text-foreground"
-                                >
-                                    {showAdvancedOsm ? "▾" : "▸"} Advanced
-                                    Overpass endpoint
-                                </button>
-                                {showAdvancedOsm && (
-                                    <div className="mt-2 space-y-1">
-                                        <Input
-                                            placeholder="Default: overpass-api.de + kumi.systems fallback"
-                                            value={customEndpoint}
-                                            onChange={(e) =>
-                                                setCustomEndpoint(
-                                                    e.target.value,
-                                                )
-                                            }
-                                            className="h-8 text-xs"
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                                </>
-                            )}
-
-                            {featureSubTab === "geometry" && (
-                                <CreatorGeometryPanel
+                            {featureSubTab === "layers" && (
+                                <CreatorLayersList
+                                    layers={layers}
+                                    setLayers={setLayers}
+                                    visibleLayerIds={visibleLayerIds}
+                                    setVisibleLayerIds={setVisibleLayerIds}
                                     playArea={playArea}
                                     playAreaGenRef={playAreaGenRef}
                                     poiBufferKm={poiBufferKm}
                                     preferEnglishName={preferEnglishName}
                                     customEndpoint={customEndpoint}
-                                    geometryLayers={geometryLayers}
-                                    setGeometryLayers={setGeometryLayers}
-                                    visibleLayerIds={visibleLayerIds}
-                                    setVisibleLayerIds={setVisibleLayerIds}
-                                    existingLayerSlugs={existingLayerSlugs}
+                                    onOpenImportTab={() =>
+                                        setFeatureSubTab("import")
+                                    }
+                                    onOpenOsmTab={() => setFeatureSubTab("osm")}
                                 />
                             )}
 
                             {featureSubTab === "import" && (
                                 <CreatorImportPanel
                                     existingLayerSlugs={existingLayerSlugs}
-                                    geometryLayerCount={geometryLayers.length}
+                                    geometryLayerCount={layers.length}
                                     onSetPlayArea={(nextArea, name) => {
                                         setPlayAreaAndFit(nextArea);
                                         if (name && !gameName.trim()) {
@@ -2626,19 +2013,38 @@ export function GameCreator() {
                                                 : `Added ${imported.length} stations from file`,
                                         );
                                     }}
-                                    onAddGeometryLayer={(layer) => {
-                                        setGeometryLayers((prev) => [
+                                    onAddGeometryLayers={(incoming) => {
+                                        setLayers((prev) => [
                                             ...prev,
-                                            layer,
+                                            ...incoming,
                                         ]);
-                                        setVisibleLayerIds((prev) =>
-                                            new Set(prev).add(layer.id),
-                                        );
-                                        setFeatureSubTab("geometry");
+                                        if (incoming[0]) {
+                                            setVisibleLayerIds((prev) =>
+                                                new Set(prev).add(
+                                                    incoming[0].id,
+                                                ),
+                                            );
+                                        }
+                                        setFeatureSubTab("layers");
                                     }}
                                     onLoadGameDefinition={
                                         handleLoadExistingGame
                                     }
+                                />
+                            )}
+
+                            {featureSubTab === "osm" && (
+                                <CreatorOsmFetchPanel
+                                    playArea={playArea}
+                                    playAreaGenRef={playAreaGenRef}
+                                    poiBufferKm={poiBufferKm}
+                                    setPoiBufferKm={setPoiBufferKm}
+                                    preferEnglishName={preferEnglishName}
+                                    customEndpoint={customEndpoint}
+                                    setCustomEndpoint={setCustomEndpoint}
+                                    existingLayers={layers}
+                                    existingLayerSlugs={existingLayerSlugs}
+                                    onUpsertLayer={handleUpsertOsmLayer}
                                 />
                             )}
 
@@ -2864,52 +2270,301 @@ export function GameCreator() {
                                             </Button>
                                         </div>
 
-                                        {/* KML options */}
-                                        <div className="space-y-1.5 rounded-lg border border-border bg-background/40 p-2.5 text-xs">
-                                            <p className="font-medium text-muted-foreground">
-                                                Google My Maps KML options
-                                            </p>
-                                            <label className="flex cursor-pointer items-center gap-2">
-                                                <Checkbox
-                                                    checked={combinePoisKml}
-                                                    onCheckedChange={(v) =>
-                                                        setCombinePoisKml(
-                                                            v === true,
-                                                        )
-                                                    }
-                                                />
-                                                <span>
-                                                    Combine POIs into one styled
-                                                    layer (10-layer safe)
-                                                </span>
-                                            </label>
-                                            <label className="flex cursor-pointer items-center gap-2">
-                                                <Checkbox
-                                                    checked={includeCirclesKml}
-                                                    onCheckedChange={(v) =>
-                                                        setIncludeCirclesKml(
-                                                            v === true,
-                                                        )
-                                                    }
-                                                />
-                                                <span>
-                                                    Include hiding zone circles
-                                                </span>
-                                            </label>
-                                            {kmlPreview && (
-                                                <p className="text-[11px] text-muted-foreground">
-                                                    {kmlPreview.folderCount}{" "}
-                                                    layer
-                                                    {kmlPreview.folderCount ===
-                                                    1
-                                                        ? ""
-                                                        : "s"}{" "}
-                                                    ·{" "}
-                                                    {formatFileSize(
-                                                        kmlPreview.byteLength,
-                                                    )}
+                                        {/* KML options & mobile 9-layer grouping planner */}
+                                        <div className="space-y-2 rounded-lg border border-border bg-background/40 p-2.5 text-xs">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <p className="font-medium text-muted-foreground">
+                                                    Google My Maps KML
                                                 </p>
+                                                <div className="flex items-center gap-1.5">
+                                                    <Label
+                                                        htmlFor="creator-kml-max-layers"
+                                                        className="text-[11px] text-muted-foreground"
+                                                    >
+                                                        Max layers
+                                                    </Label>
+                                                    <Input
+                                                        id="creator-kml-max-layers"
+                                                        type="number"
+                                                        min={1}
+                                                        max={10}
+                                                        value={maxKmlLayers}
+                                                        onChange={(e) =>
+                                                            setMaxKmlLayers(
+                                                                Math.max(
+                                                                    1,
+                                                                    Math.min(
+                                                                        10,
+                                                                        Number(
+                                                                            e
+                                                                                .target
+                                                                                .value,
+                                                                        ) ||
+                                                                            MY_MAPS_MOBILE_MAX_LAYERS,
+                                                                    ),
+                                                                ),
+                                                            )
+                                                        }
+                                                        className="h-7 w-14 text-center text-xs"
+                                                    />
+                                                </div>
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Mobile Google Maps displays up
+                                                to 9 layers. Lower this to leave
+                                                room for manual layers (e.g.
+                                                train lines).
+                                            </p>
+                                            <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                                                <label className="flex cursor-pointer items-center gap-1.5">
+                                                    <Checkbox
+                                                        checked={
+                                                            includePlayAreaKml
+                                                        }
+                                                        onCheckedChange={(v) =>
+                                                            setIncludePlayAreaKml(
+                                                                v === true,
+                                                            )
+                                                        }
+                                                    />
+                                                    <span>Play Area</span>
+                                                </label>
+                                                <label className="flex cursor-pointer items-center gap-1.5">
+                                                    <Checkbox
+                                                        checked={
+                                                            includeCirclesKml
+                                                        }
+                                                        onCheckedChange={(v) =>
+                                                            setIncludeCirclesKml(
+                                                                v === true,
+                                                            )
+                                                        }
+                                                    />
+                                                    <span>
+                                                        Hiding zone circles
+                                                    </span>
+                                                </label>
+                                            </div>
+
+                                            {kmlPreview && (
+                                                <div className="space-y-1.5 border-t border-border pt-2">
+                                                    <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                                                        <span>
+                                                            {
+                                                                kmlPreview.folderCount
+                                                            }
+                                                            /{maxKmlLayers}{" "}
+                                                            layers ·{" "}
+                                                            {formatFileSize(
+                                                                kmlPreview.byteLength,
+                                                            )}
+                                                        </span>
+                                                        {(assembled.definition
+                                                            .features?.length ??
+                                                            0) > 0 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    setShowKmlGrouping(
+                                                                        (v) =>
+                                                                            !v,
+                                                                    )
+                                                                }
+                                                                className="font-medium text-primary hover:underline"
+                                                            >
+                                                                {showKmlGrouping
+                                                                    ? "Hide grouping"
+                                                                    : "Customize grouping"}
+                                                            </button>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Live numbered KML folder layout */}
+                                                    <ol className="space-y-0.5 text-[11px]">
+                                                        {kmlPreview.plan.folders.map(
+                                                            (f, idx) => (
+                                                                <li
+                                                                    key={`${f.name}-${idx}`}
+                                                                    className="flex items-baseline justify-between gap-2"
+                                                                >
+                                                                    <span className="truncate">
+                                                                        <span className="mr-1 font-mono text-muted-foreground">
+                                                                            {idx +
+                                                                                1}
+                                                                            .
+                                                                        </span>
+                                                                        <span className="font-medium">
+                                                                            {
+                                                                                f.name
+                                                                            }
+                                                                        </span>
+                                                                        {f
+                                                                            .layerNames
+                                                                            .length >
+                                                                            1 && (
+                                                                            <span className="ml-1 text-muted-foreground">
+                                                                                (
+                                                                                {f.layerNames.join(
+                                                                                    ", ",
+                                                                                )}
+                                                                                )
+                                                                            </span>
+                                                                        )}
+                                                                    </span>
+                                                                    <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
+                                                                        {
+                                                                            f.featureCount
+                                                                        }
+                                                                    </span>
+                                                                </li>
+                                                            ),
+                                                        )}
+                                                    </ol>
+
+                                                    {/* Optional per-layer KML folder override (works for Points, Lines, AND Polygons) */}
+                                                    {showKmlGrouping &&
+                                                        (assembled.definition
+                                                            .features?.length ??
+                                                            0) > 0 && (
+                                                            <div className="space-y-1.5 rounded border border-border bg-card p-2">
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <span className="text-[11px] font-medium">
+                                                                        Assign
+                                                                        each
+                                                                        layer to
+                                                                        a KML
+                                                                        folder
+                                                                    </span>
+                                                                    {Object.keys(
+                                                                        kmlFolderOverrides,
+                                                                    ).length >
+                                                                        0 && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() =>
+                                                                                setKmlFolderOverrides(
+                                                                                    {},
+                                                                                )
+                                                                            }
+                                                                            className="text-[11px] text-primary hover:underline"
+                                                                        >
+                                                                            Reset
+                                                                            to
+                                                                            auto
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                                <datalist id="creator-kml-folder-suggestions">
+                                                                    {Array.from(
+                                                                        new Set(
+                                                                            [
+                                                                                ...kmlPreview.plan.folders
+                                                                                    .filter(
+                                                                                        (
+                                                                                            f,
+                                                                                        ) =>
+                                                                                            f.kind ===
+                                                                                            "features",
+                                                                                    )
+                                                                                    .map(
+                                                                                        (
+                                                                                            f,
+                                                                                        ) =>
+                                                                                            f.name,
+                                                                                    ),
+                                                                                "Public Amenities",
+                                                                                "Places of Interest",
+                                                                                "Nature & Leisure",
+                                                                                "POIs",
+                                                                            ],
+                                                                        ),
+                                                                    ).map(
+                                                                        (
+                                                                            name,
+                                                                        ) => (
+                                                                            <option
+                                                                                key={
+                                                                                    name
+                                                                                }
+                                                                                value={
+                                                                                    name
+                                                                                }
+                                                                            />
+                                                                        ),
+                                                                    )}
+                                                                </datalist>
+                                                                <div className="max-h-44 space-y-1 overflow-y-auto">
+                                                                    {assembled.definition.features?.map(
+                                                                        (
+                                                                            feat,
+                                                                        ) => {
+                                                                            const resolved =
+                                                                                kmlPreview
+                                                                                    .plan
+                                                                                    .layerAssignments[
+                                                                                    feat
+                                                                                        .name
+                                                                                ] ??
+                                                                                feat.name;
+                                                                            const overridden =
+                                                                                Object.prototype.hasOwnProperty.call(
+                                                                                    kmlFolderOverrides,
+                                                                                    feat.name,
+                                                                                );
+                                                                            return (
+                                                                                <div
+                                                                                    key={
+                                                                                        feat.name
+                                                                                    }
+                                                                                    className="grid grid-cols-2 items-center gap-1.5"
+                                                                                >
+                                                                                    <span className="truncate text-[11px]">
+                                                                                        {
+                                                                                            feat.name
+                                                                                        }
+                                                                                    </span>
+                                                                                    <Input
+                                                                                        list="creator-kml-folder-suggestions"
+                                                                                        value={
+                                                                                            overridden
+                                                                                                ? kmlFolderOverrides[
+                                                                                                      feat
+                                                                                                          .name
+                                                                                                  ]
+                                                                                                : resolved
+                                                                                        }
+                                                                                        placeholder={
+                                                                                            feat.name
+                                                                                        }
+                                                                                        onChange={(
+                                                                                            e,
+                                                                                        ) => {
+                                                                                            const val =
+                                                                                                e
+                                                                                                    .target
+                                                                                                    .value;
+                                                                                            setKmlFolderOverrides(
+                                                                                                (
+                                                                                                    prev,
+                                                                                                ) => ({
+                                                                                                    ...prev,
+                                                                                                    [feat.name]:
+                                                                                                        val,
+                                                                                                }),
+                                                                                            );
+                                                                                        }}
+                                                                                        className="h-7 text-[11px]"
+                                                                                    />
+                                                                                </div>
+                                                                            );
+                                                                        },
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                </div>
                                             )}
+
                                             {kmlPreview?.myMapsWarnings.map(
                                                 (warn, idx) => (
                                                     <div
@@ -3105,9 +2760,13 @@ export function GameCreator() {
                         </CircleMarker>
                     ))}
 
-                    {/* Visible geometry layers (admin regions, line layers, imported shapes) */}
-                    {geometryLayers
-                        .filter((l) => visibleLayerIds.has(l.id))
+                    {/* Visible Polygon & Line feature layers */}
+                    {layers
+                        .filter(
+                            (l) =>
+                                l.family !== "points" &&
+                                visibleLayerIds.has(l.id),
+                        )
                         .map((layer) => {
                             const activeItems = layer.items.filter(
                                 (item) => item.enabled,
@@ -3139,15 +2798,6 @@ export function GameCreator() {
                                                 ? 0.14
                                                 : 0.85,
                                     })}
-                                    pointToLayer={(_feature, latlng) =>
-                                        L.circleMarker(latlng, {
-                                            radius: 5,
-                                            color: "#ffffff",
-                                            weight: 1,
-                                            fillColor: layer.color,
-                                            fillOpacity: 0.9,
-                                        })
-                                    }
                                     onEachFeature={(feature, leafletLayer) => {
                                         const name =
                                             typeof feature.properties?.name ===
@@ -3165,57 +2815,69 @@ export function GameCreator() {
                             );
                         })}
 
-                    {/* Visible POI layer pins (click to toggle) */}
+                    {/* Visible Point (POI) feature layer pins (click to toggle) */}
                     {layers
-                        .filter((l) => visibleLayerIds.has(l.id))
+                        .filter(
+                            (l) =>
+                                l.family === "points" &&
+                                visibleLayerIds.has(l.id),
+                        )
                         .flatMap((layer) =>
-                            layer.items.map((item) => (
-                                <CircleMarker
-                                    key={item.uid}
-                                    center={[item.lat, item.lng]}
-                                    radius={item.enabled ? 5 : 4}
-                                    pathOptions={{
-                                        color: "#ffffff",
-                                        weight: 1,
-                                        fillColor: item.enabled
-                                            ? layer.color
-                                            : "#9ca3af",
-                                        fillOpacity: item.enabled ? 0.9 : 0.35,
-                                    }}
-                                    eventHandlers={{
-                                        click: () => {
-                                            if (interactionMode !== "browse") {
-                                                return;
-                                            }
-                                            setLayers((prev) =>
-                                                prev.map((l) =>
-                                                    l.id === layer.id
-                                                        ? {
-                                                              ...l,
-                                                              items: l.items.map(
-                                                                  (x) =>
-                                                                      x.uid ===
-                                                                      item.uid
-                                                                          ? {
-                                                                                ...x,
-                                                                                enabled:
-                                                                                    !x.enabled,
-                                                                            }
-                                                                          : x,
-                                                              ),
-                                                          }
-                                                        : l,
-                                                ),
-                                            );
-                                        },
-                                    }}
-                                >
-                                    <Tooltip sticky>
-                                        {item.name} ({layer.name}
-                                        {!item.enabled ? ", excluded" : ""})
-                                    </Tooltip>
-                                </CircleMarker>
-                            )),
+                            layer.items.map((item) => {
+                                if (item.geometry.type !== "Point") return null;
+                                const [lng, lat] = item.geometry.coordinates;
+                                return (
+                                    <CircleMarker
+                                        key={item.uid}
+                                        center={[lat, lng]}
+                                        radius={item.enabled ? 5 : 4}
+                                        pathOptions={{
+                                            color: "#ffffff",
+                                            weight: 1,
+                                            fillColor: item.enabled
+                                                ? layer.color
+                                                : "#9ca3af",
+                                            fillOpacity: item.enabled
+                                                ? 0.9
+                                                : 0.35,
+                                        }}
+                                        eventHandlers={{
+                                            click: () => {
+                                                if (
+                                                    interactionMode !== "browse"
+                                                ) {
+                                                    return;
+                                                }
+                                                setLayers((prev) =>
+                                                    prev.map((l) =>
+                                                        l.id === layer.id
+                                                            ? {
+                                                                  ...l,
+                                                                  items: l.items.map(
+                                                                      (x) =>
+                                                                          x.uid ===
+                                                                          item.uid
+                                                                              ? {
+                                                                                    ...x,
+                                                                                    enabled:
+                                                                                        !x.enabled,
+                                                                                }
+                                                                              : x,
+                                                                  ),
+                                                              }
+                                                            : l,
+                                                    ),
+                                                );
+                                            },
+                                        }}
+                                    >
+                                        <Tooltip sticky>
+                                            {item.name} ({layer.name}
+                                            {!item.enabled ? ", excluded" : ""})
+                                        </Tooltip>
+                                    </CircleMarker>
+                                );
+                            }),
                         )}
                 </MapContainer>
             </div>

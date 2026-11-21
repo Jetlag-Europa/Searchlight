@@ -20,6 +20,23 @@ export interface ImportedRawFeature {
     tier?: string;
     geometry: GeoJsonGeometry;
     family: GeometryFamily;
+    /** KML `<styleUrl>` (e.g. `#icon-1807-FF5252`) when imported from KML. */
+    styleUrl?: string;
+    /** Stringified ExtendedData / GeoJSON properties / CSV columns for grouping. */
+    attributes?: Record<string, string>;
+}
+
+export interface FolderSplitOption {
+    key: string;
+    label: string;
+    groupCount: number;
+}
+
+export interface SplitFeatureGroup {
+    key: string;
+    suggestedName: string;
+    features: ImportedRawFeature[];
+    family: GeometryFamily;
 }
 
 export interface ImportedFolder {
@@ -385,15 +402,19 @@ export function parseKmlText(xmlText: string): ParsedImportFile {
                 walk(child, topFolder ?? name);
             } else if (child.localName === "Placemark") {
                 const name = directChildText(child, "name");
+                const styleUrl = directChildText(child, "styleUrl") || undefined;
                 const ext = extractKmlExtendedData(child);
                 const tier = ext.tier || ext.Tier || undefined;
                 const geoms = extractKmlGeometries(child);
+                const hasAttrs = Object.keys(ext).length > 0;
                 for (const geom of geoms) {
                     add(topFolder ?? "(Root)", {
                         name: name || ext.name || ext.Name || "Unnamed",
                         tier,
                         geometry: geom,
                         family: familyOf(geom),
+                        ...(styleUrl && { styleUrl }),
+                        ...(hasAttrs && { attributes: ext }),
                     });
                 }
             }
@@ -651,12 +672,22 @@ export function parseJsonImportText(
                   ? String(props.tier)
                   : undefined;
 
+        const attrs: Record<string, string> = {};
+        for (const [k, v] of Object.entries(props)) {
+            if (typeof v === "string" && v.trim()) attrs[k] = v.trim();
+            else if (typeof v === "number" && Number.isFinite(v)) {
+                attrs[k] = String(v);
+            }
+        }
+        const hasAttrs = Object.keys(attrs).length > 0;
+
         for (const geom of normalizeAnyGeometry(f?.geometry)) {
             features.push({
                 name: rawName.trim() || `Feature ${features.length + 1}`,
                 tier,
                 geometry: geom,
                 family: familyOf(geom),
+                ...(hasAttrs && { attributes: attrs }),
             });
         }
     }
@@ -828,4 +859,188 @@ export function sumFeatureVertices(
         (sum, item) => sum + countGeometryVertices(item.geometry),
         0,
     );
+}
+
+export const SPLIT_BY_STYLE_KEY = "__style__";
+
+const PREFERRED_SPLIT_FIELDS = [
+    "type",
+    "category",
+    "kind",
+    "layer",
+    "group",
+    "class",
+    "amenity",
+    "tourism",
+    "leisure",
+];
+
+const IGNORED_SPLIT_FIELDS = new Set([
+    "name",
+    "title",
+    "description",
+    "beschreibung",
+    "id",
+    "@id",
+    "@geometry",
+    "website",
+    "url",
+    "phone",
+    "email",
+    "opening_hours",
+    "wikidata",
+    "addr:city",
+    "addr:street",
+    "addr:postcode",
+    "addr:housenumber",
+    "addr:country",
+]);
+
+function humanizeLayerLabel(raw: string): string {
+    const clean = raw
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    if (!clean) return "Layer";
+    const overrides: Record<string, string> = {
+        hospitals: "Hospital",
+        hospital: "Hospital",
+        themeparks: "Theme Park",
+        "theme parks": "Theme Park",
+        "theme park": "Theme Park",
+        zoos: "Zoo",
+        museums: "Museum",
+        libraries: "Library",
+        cinemas: "Cinema",
+        movies: "Cinema",
+        movie: "Cinema",
+        airports: "Airport",
+        universities: "University",
+        parks: "Park",
+        aquariums: "Aquarium",
+        consulates: "Consulate",
+        "foreign consulate": "Foreign Consulate",
+        "foreign consulates": "Foreign Consulate",
+        golf: "Golf Course",
+        "golf courses": "Golf Course",
+    };
+    const lower = clean.toLowerCase();
+    if (overrides[lower]) return overrides[lower];
+    return clean
+        .split(" ")
+        .map((w) => (w ? w[0].toUpperCase() + w.slice(1) : ""))
+        .join(" ");
+}
+
+/**
+ * Detects candidate attributes (e.g. KML ExtendedData `type`/`category`) or
+ * KML `styleUrl` icons that partition a folder's features into 2–30 groups
+ * (e.g. splitting Google My Maps "Public Amenities" into Hospital, Airport, …).
+ */
+export function detectFolderSplitFields(
+    features: readonly ImportedRawFeature[],
+): FolderSplitOption[] {
+    if (features.length < 2) return [];
+    const options: FolderSplitOption[] = [];
+
+    // 1. Attribute-based split candidates
+    const fieldValues = new Map<string, Set<string>>();
+    const fieldCoverage = new Map<string, number>();
+    for (const f of features) {
+        if (!f.attributes) continue;
+        for (const [key, val] of Object.entries(f.attributes)) {
+            if (!val || IGNORED_SPLIT_FIELDS.has(key.toLowerCase())) continue;
+            let set = fieldValues.get(key);
+            if (!set) {
+                set = new Set();
+                fieldValues.set(key, set);
+            }
+            set.add(val.trim());
+            fieldCoverage.set(key, (fieldCoverage.get(key) ?? 0) + 1);
+        }
+    }
+
+    for (const [key, values] of fieldValues.entries()) {
+        const coverage = fieldCoverage.get(key) ?? 0;
+        // Require at least 2 distinct groups, <= 30 groups, and meaningful coverage (>= 50% of features)
+        if (
+            values.size >= 2 &&
+            values.size <= 30 &&
+            coverage >= Math.ceil(features.length * 0.5)
+        ) {
+            options.push({
+                key,
+                label: `Attribute "${key}"`,
+                groupCount: values.size,
+            });
+        }
+    }
+
+    options.sort((a, b) => {
+        const ai = PREFERRED_SPLIT_FIELDS.indexOf(a.key.toLowerCase());
+        const bi = PREFERRED_SPLIT_FIELDS.indexOf(b.key.toLowerCase());
+        if (ai !== -1 || bi !== -1) {
+            if (ai === -1) return 1;
+            if (bi === -1) return -1;
+            return ai - bi;
+        }
+        return a.groupCount - b.groupCount;
+    });
+
+    // 2. KML styleUrl fallback (works even when a My Maps KML has no `type` column!)
+    const styles = new Set<string>();
+    for (const f of features) {
+        if (f.styleUrl) styles.add(f.styleUrl);
+    }
+    if (styles.size >= 2 && styles.size <= 30) {
+        options.push({
+            key: SPLIT_BY_STYLE_KEY,
+            label: "KML icon / style",
+            groupCount: styles.size,
+        });
+    }
+
+    return options;
+}
+
+/**
+ * Splits a folder's features into named groups by an attribute key or
+ * `SPLIT_BY_STYLE_KEY`, preserving insertion order.
+ */
+export function splitFeaturesByField(
+    features: readonly ImportedRawFeature[],
+    fieldKey: string,
+): SplitFeatureGroup[] {
+    const groups = new Map<string, ImportedRawFeature[]>();
+    for (const f of features) {
+        const rawKey =
+            fieldKey === SPLIT_BY_STYLE_KEY
+                ? f.styleUrl || "(Default style)"
+                : f.attributes?.[fieldKey]?.trim() || "(Unspecified)";
+        const list = groups.get(rawKey) ?? [];
+        list.push(f);
+        groups.set(rawKey, list);
+    }
+
+    let styleNum = 1;
+    return [...groups.entries()].map(([key, list]) => {
+        const counts = { points: 0, lines: 0, polygons: 0 };
+        for (const f of list) counts[f.family]++;
+        const family: GeometryFamily =
+            counts.polygons >= counts.lines && counts.polygons >= counts.points
+                ? "polygons"
+                : counts.lines >= counts.points
+                  ? "lines"
+                  : "points";
+        const suggestedName =
+            fieldKey === SPLIT_BY_STYLE_KEY
+                ? `Group ${styleNum++}`
+                : humanizeLayerLabel(key);
+        return {
+            key,
+            suggestedName,
+            features: list.filter((f) => f.family === family),
+            family,
+        };
+    });
 }
