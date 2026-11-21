@@ -186,6 +186,7 @@ export function LocalSessionManager() {
     const activeSessionIdRef = useRef<string | null>(null);
     const suppressSaveRef = useRef(true);
     const pendingPatchesRef = useRef(new Map<string, LocalSessionPatch>());
+    const inFlightFlushRef = useRef<Promise<Set<string>> | null>(null);
     const saveTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const openGenerationRef = useRef(0);
 
@@ -236,39 +237,87 @@ export function LocalSessionManager() {
             clearTimeout(saveTimerRef.current);
             saveTimerRef.current = undefined;
         }
-        const ids = targetSessionId
-            ? [targetSessionId]
-            : [...pendingPatchesRef.current.keys()];
 
-        let anyFailed = false;
-        for (const sessionId of ids) {
-            const patch = pendingPatchesRef.current.get(sessionId);
-            if (!patch) continue;
-            // Remove before awaiting so edits made during the write collect in
-            // a fresh patch; on failure we merge `patch` back underneath them.
-            pendingPatchesRef.current.delete(sessionId);
-            try {
-                await updateLocalSession(sessionId, patch);
-            } catch (err) {
-                anyFailed = true;
-                const newer = pendingPatchesRef.current.get(sessionId);
-                pendingPatchesRef.current.set(sessionId, {
-                    ...patch,
-                    ...(newer ?? {}),
-                });
-                const message =
-                    err instanceof LocalStorageFullError
-                        ? err.message
-                        : "Couldn't save your latest changes to browser storage.";
-                setUnsavedError(message);
-                toast.error(message, { toastId: "local-save-failed" });
-                console.warn("[searchlight:local] failed to save session:", err);
+        // Wait for any already in-flight IndexedDB write to settle before
+        // draining remaining patches so callers never race an active save.
+        while (inFlightFlushRef.current) {
+            const prevFailed = await inFlightFlushRef.current;
+            const relevantFailure = targetSessionId
+                ? prevFailed.has(targetSessionId)
+                : prevFailed.size > 0;
+            if (relevantFailure) {
+                return false;
             }
         }
-        if (!anyFailed && pendingPatchesRef.current.size === 0) {
-            setUnsavedError(null);
+
+        const failedIds = new Set<string>();
+        const run = (async (): Promise<Set<string>> => {
+            // Drain in a loop so edits arriving during an IndexedDB write are
+            // also committed before returning, without retrying ids that failed.
+            while (true) {
+                if (saveTimerRef.current !== undefined && !targetSessionId) {
+                    clearTimeout(saveTimerRef.current);
+                    saveTimerRef.current = undefined;
+                }
+                const ids = (
+                    targetSessionId
+                        ? [targetSessionId]
+                        : [...pendingPatchesRef.current.keys()]
+                ).filter(
+                    (id) =>
+                        !failedIds.has(id) &&
+                        pendingPatchesRef.current.has(id),
+                );
+                if (ids.length === 0) break;
+
+                for (const sessionId of ids) {
+                    const patch = pendingPatchesRef.current.get(sessionId);
+                    if (!patch) continue;
+                    // Remove before awaiting so edits made during the write collect in
+                    // a fresh patch; on failure we merge `patch` back underneath them.
+                    pendingPatchesRef.current.delete(sessionId);
+                    try {
+                        await updateLocalSession(sessionId, patch);
+                    } catch (err) {
+                        failedIds.add(sessionId);
+                        const newer = pendingPatchesRef.current.get(sessionId);
+                        pendingPatchesRef.current.set(sessionId, {
+                            ...patch,
+                            ...(newer ?? {}),
+                        });
+                        const message =
+                            err instanceof LocalStorageFullError
+                                ? err.message
+                                : "Couldn't save your latest changes to browser storage.";
+                        setUnsavedError(message);
+                        toast.error(message, { toastId: "local-save-failed" });
+                        console.warn(
+                            "[searchlight:local] failed to save session:",
+                            err,
+                        );
+                    }
+                }
+            }
+
+            if (failedIds.size === 0 && pendingPatchesRef.current.size === 0) {
+                setUnsavedError(null);
+            }
+            return failedIds;
+        })();
+
+        inFlightFlushRef.current = run;
+        try {
+            await run;
+        } finally {
+            if (inFlightFlushRef.current === run) {
+                inFlightFlushRef.current = null;
+            }
         }
-        return !anyFailed;
+
+        const hasRemaining = targetSessionId
+            ? pendingPatchesRef.current.has(targetSessionId)
+            : pendingPatchesRef.current.size > 0;
+        return failedIds.size === 0 && !hasRemaining;
     }, []);
 
     const scheduleSave = useCallback(
@@ -369,8 +418,15 @@ export function LocalSessionManager() {
             preloadedDef?: GameDefinition,
         ) => {
             const gen = ++openGenerationRef.current;
-            await flushSave();
+            const saved = await flushSave();
             if (gen !== openGenerationRef.current) return false;
+            if (!saved) {
+                toast.error(
+                    "Couldn't save your current session — stayed here so your edits aren't lost.",
+                    { toastId: "local-switch-blocked" },
+                );
+                return false;
+            }
 
             const targetId =
                 typeof sessionOrId === "string" ? sessionOrId : sessionOrId.id;
@@ -381,10 +437,7 @@ export function LocalSessionManager() {
             });
             if (gen !== openGenerationRef.current) return false;
 
-            const session =
-                typeof sessionOrId === "string"
-                    ? await getLocalSession(targetId)
-                    : ((await getLocalSession(targetId)) ?? sessionOrId);
+            const session = await getLocalSession(targetId);
             if (gen !== openGenerationRef.current) return false;
             if (!session) {
                 releaseLocalSessionLock();
@@ -658,6 +711,7 @@ export function LocalSessionManager() {
                 setLoadError({
                     message: "This saved game could not be read from browser storage.",
                 });
+                void refreshCatalog();
                 return;
             }
             const session = await createLocalSession(game, name);
@@ -672,6 +726,7 @@ export function LocalSessionManager() {
                         ? err.message
                         : "Failed to create local session.",
             });
+            void refreshCatalog();
         } finally {
             setBusyLabel(null);
         }

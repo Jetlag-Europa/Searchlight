@@ -344,6 +344,9 @@ export async function getLocalSession(
     return record ?? null;
 }
 
+const MISSING_LOCAL_GAME_ERROR =
+    "This saved game was removed from browser storage.";
+
 /** Create a new local session for a saved local game. */
 export async function createLocalSession(
     game: Pick<LocalGameMeta, "id" | "name">,
@@ -367,12 +370,31 @@ export async function createLocalSession(
 
     const db = await openDb();
     if (!db) {
+        if (!memoryDefinitions.has(game.id)) {
+            throw new Error(MISSING_LOCAL_GAME_ERROR);
+        }
         memorySessions.set(record.id, structuredClone(record));
         return record;
     }
 
-    const tx = db.transaction(STORE_SESSIONS, "readwrite");
+    const tx = db.transaction(
+        [STORE_GAME_DEFINITIONS, STORE_SESSIONS],
+        "readwrite",
+    );
     const done = idbTransactionDone(tx);
+    let existingDef: unknown;
+    try {
+        existingDef = await idbRequest(
+            tx.objectStore(STORE_GAME_DEFINITIONS).get(game.id),
+        );
+    } catch (err) {
+        void done.catch(() => {});
+        throw err;
+    }
+    if (!existingDef) {
+        await done;
+        throw new Error(MISSING_LOCAL_GAME_ERROR);
+    }
     tx.objectStore(STORE_SESSIONS).put(record);
     await done;
     return record;

@@ -165,4 +165,139 @@ describe("localStore", () => {
             "online-session-1",
         );
     });
+
+    it("rejects createLocalSession when the saved game definition is missing (in-memory fallback)", async () => {
+        const game = await saveLocalGame(parisFixture, {
+            kind: "file",
+            label: "paris.game.json",
+        });
+        await deleteLocalGame(game.id);
+
+        await expect(createLocalSession(game, "Orphan")).rejects.toThrow(
+            "This saved game was removed from browser storage.",
+        );
+        expect(await listLocalSessions()).toEqual([]);
+    });
+
+    it("atomically checks gameDefinitions inside IndexedDB transaction in createLocalSession", async () => {
+        const stores = new Map<string, Map<string, unknown>>([
+            ["gameMeta", new Map()],
+            ["gameDefinitions", new Map()],
+            ["sessions", new Map()],
+        ]);
+        const openedTransactions: Array<{
+            storeNames: string[];
+            mode: string;
+        }> = [];
+
+        const fakeDb = {
+            objectStoreNames: {
+                contains: (name: string) => stores.has(name),
+            },
+            close: () => {},
+            transaction: (
+                names: string | string[],
+                mode: string,
+            ) => {
+                const storeNames = Array.isArray(names) ? names : [names];
+                openedTransactions.push({ storeNames, mode });
+                const tx: any = {
+                    oncomplete: null,
+                    onerror: null,
+                    onabort: null,
+                    error: null,
+                    objectStore: (storeName: string) => {
+                        const map = stores.get(storeName)!;
+                        return {
+                            get: (key: string) => {
+                                const req: any = {
+                                    result: undefined,
+                                    onsuccess: null,
+                                    onerror: null,
+                                };
+                                queueMicrotask(() => {
+                                    req.result = map.get(key);
+                                    req.onsuccess?.();
+                                });
+                                return req;
+                            },
+                            put: (value: { id: string }) => {
+                                map.set(value.id, structuredClone(value));
+                                const req: any = {
+                                    result: value.id,
+                                    onsuccess: null,
+                                    onerror: null,
+                                };
+                                queueMicrotask(() => req.onsuccess?.());
+                                return req;
+                            },
+                            delete: (key: string) => {
+                                map.delete(key);
+                                const req: any = {
+                                    result: undefined,
+                                    onsuccess: null,
+                                    onerror: null,
+                                };
+                                queueMicrotask(() => req.onsuccess?.());
+                                return req;
+                            },
+                            getAll: () => {
+                                const req: any = {
+                                    result: [...map.values()].map((v) =>
+                                        structuredClone(v),
+                                    ),
+                                    onsuccess: null,
+                                    onerror: null,
+                                };
+                                queueMicrotask(() => req.onsuccess?.());
+                                return req;
+                            },
+                        };
+                    },
+                };
+                // Complete the transaction after pending microtasks drain.
+                setTimeout(() => {
+                    tx.oncomplete?.();
+                }, 0);
+                return tx;
+            },
+        };
+
+        vi.stubGlobal("indexedDB", {
+            open: () => {
+                const req: any = {
+                    result: fakeDb,
+                    onsuccess: null,
+                    onerror: null,
+                    onupgradeneeded: null,
+                    onblocked: null,
+                };
+                queueMicrotask(() => req.onsuccess?.());
+                return req;
+            },
+        });
+        _resetLocalStoreForTests();
+
+        const game = await saveLocalGame(parisFixture, {
+            kind: "file",
+            label: "paris.game.json",
+        });
+
+        // Present definition: creates session inside single readwrite tx across both stores.
+        openedTransactions.length = 0;
+        const created = await createLocalSession(game, "Valid Session");
+        expect(created.gameId).toBe(game.id);
+        expect(openedTransactions).toEqual([
+            { storeNames: ["gameDefinitions", "sessions"], mode: "readwrite" },
+        ]);
+        expect(stores.get("sessions")!.has(created.id)).toBe(true);
+
+        // Remove definition concurrently before createLocalSession runs.
+        stores.get("gameDefinitions")!.delete(game.id);
+        const sessionCountBefore = stores.get("sessions")!.size;
+        await expect(createLocalSession(game, "Orphan IDB")).rejects.toThrow(
+            "This saved game was removed from browser storage.",
+        );
+        expect(stores.get("sessions")!.size).toBe(sessionCountBefore);
+    });
 });

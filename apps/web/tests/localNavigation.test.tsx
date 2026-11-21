@@ -214,6 +214,15 @@ vi.mock("@/lib/localStore", async (importOriginal) => ({
     readLastLocalSessionId: localStoreMocks.readLastLocalSessionId,
 }));
 
+const authCheckMocks = vi.hoisted(() => ({
+    watchAuth: vi.fn(),
+}));
+
+vi.mock("@/lib/authCheck", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@/lib/authCheck")>()),
+    watchAuth: authCheckMocks.watchAuth,
+}));
+
 vi.mock("@/lib/localTabLock", () => ({
     acquireLocalSessionLock: vi.fn(async () => {}),
     releaseLocalSessionLock: vi.fn(),
@@ -222,6 +231,7 @@ vi.mock("@/lib/localTabLock", () => ({
 import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 
+import { AuthGuard } from "@/components/AuthGuard";
 import { LocalSessionManager } from "@/components/LocalSessionManager";
 import {
     OfflinePickerNotice,
@@ -485,5 +495,65 @@ describe("local-to-online navigation", () => {
         expect(env.ls.api.removeItem).not.toHaveBeenCalled();
         expect(env.ls.api.clear).not.toHaveBeenCalled();
         expect(env.ls.data.get(STORED_USER_KEY)).toBe("user-123");
+    });
+});
+
+describe("AuthGuard offline /local escape hatch", () => {
+    it("renders a /local 'Local play' link pill below the unreachable status chip when there are 0 local sessions", async () => {
+        localStoreMocks.listLocalSessions.mockResolvedValue([]);
+        authCheckMocks.watchAuth.mockImplementation((_url, callbacks) => {
+            callbacks.unreachable();
+            return () => {};
+        });
+
+        await render(createElement(AuthGuard));
+
+        expect(env.document.body.textContent).toContain(
+            "Can't reach the server, retrying…",
+        );
+        const localLink = anchors().find(
+            (a) => a.getAttribute("href") === "/local",
+        );
+        expect(localLink).toBeDefined();
+        expect(localLink!.textContent.trim()).toBe("Local play");
+        expect(hasNestedButton(localLink!)).toBe(false);
+        expect(hasButtonAncestor(localLink!)).toBe(false);
+    });
+
+    it("renders 'Local sessions (N)' when saved local sessions exist in the unreachable state", async () => {
+        localStoreMocks.listLocalSessions.mockResolvedValue([
+            makeLocalSession("1"),
+            makeLocalSession("2"),
+        ]);
+        authCheckMocks.watchAuth.mockImplementation((_url, callbacks) => {
+            callbacks.unreachable();
+            return () => {};
+        });
+
+        await render(createElement(AuthGuard));
+
+        const localLink = anchors().find(
+            (a) => a.getAttribute("href") === "/local",
+        );
+        expect(localLink).toBeDefined();
+        expect(localLink!.textContent.trim()).toBe("Local sessions (2)");
+    });
+
+    it("falls back to 'Local play' when listLocalSessions rejects in the unreachable state", async () => {
+        localStoreMocks.listLocalSessions.mockRejectedValue(
+            new Error("IndexedDB unavailable"),
+        );
+        authCheckMocks.watchAuth.mockImplementation((_url, callbacks) => {
+            callbacks.unreachable();
+            return () => {};
+        });
+
+        await render(createElement(AuthGuard));
+
+        const localLink = anchors().find(
+            (a) => a.getAttribute("href") === "/local",
+        );
+        expect(localLink).toBeDefined();
+        expect(localLink!.textContent.trim()).toBe("Local play");
     });
 });
