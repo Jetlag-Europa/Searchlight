@@ -416,8 +416,29 @@ export function parseKmlText(xmlText: string): ParsedImportFile {
 
 // ── CSV parser (RFC 4180) ────────────────────────────────────────────────────
 
+function detectCsvDelimiter(text: string): "," | ";" | "\t" {
+    const firstLine = text.split(/\r?\n/, 1)[0] ?? "";
+    let inQuote = false;
+    let commas = 0;
+    let semicolons = 0;
+    let tabs = 0;
+    for (let i = 0; i < firstLine.length; i++) {
+        const ch = firstLine[i];
+        if (ch === '"') inQuote = !inQuote;
+        else if (!inQuote) {
+            if (ch === ",") commas++;
+            else if (ch === ";") semicolons++;
+            else if (ch === "\t") tabs++;
+        }
+    }
+    if (commas === 0 && semicolons > 0) return ";";
+    if (commas === 0 && semicolons === 0 && tabs > 0) return "\t";
+    return ",";
+}
+
 function parseCsvRows(
     text: string,
+    delimiter: "," | ";" | "\t",
 ): { ok: true; rows: string[][] } | { ok: false; error: string } {
     const rows: string[][] = [];
     let row: string[] = [];
@@ -438,7 +459,7 @@ function parseCsvRows(
         } else if (ch === '"') {
             quoted = true;
             quoteStartRow = rows.length + 1;
-        } else if (ch === ",") {
+        } else if (ch === delimiter) {
             row.push(cell);
             cell = "";
         } else if (ch === "\n" || ch === "\r") {
@@ -464,37 +485,64 @@ function parseCsvRows(
     return { ok: true, rows };
 }
 
+/** Parses WKT `POINT [Z|M|ZM] (lng lat ...)` used by Google My Maps CSV exports. */
+function parseWktPoint(raw: string | undefined): Position | null {
+    if (!raw) return null;
+    const match = raw
+        .trim()
+        .match(
+            /^POINT(?:\s+(?:Z|M|ZM))?\s*\(\s*([+-]?\d+(?:\.\d+)?(?:e[+-]?\d+)?)\s+([+-]?\d+(?:\.\d+)?(?:e[+-]?\d+)?)(?:\s+[+-]?\d+(?:\.\d+)?(?:e[+-]?\d+)?)*\s*\)$/i,
+        );
+    if (!match) return null;
+    const lng = parseCoordNumber(match[1]);
+    const lat = parseCoordNumber(match[2]);
+    if (lng === null || lat === null) return null;
+    return validPosition([lng, lat]);
+}
+
 export function parseCsvText(
     csvText: string,
     fileName = "CSV",
 ): ParsedImportFile {
     const clean = csvText.replace(/^\uFEFF/, "").trim();
     if (!clean) return { ok: false, error: "CSV file is empty." };
-    const parsedRows = parseCsvRows(clean);
+    const delimiter = detectCsvDelimiter(clean);
+    const parsedRows = parseCsvRows(clean, delimiter);
     if (!parsedRows.ok) return parsedRows;
     const rows = parsedRows.rows;
     const header = rows.shift()!.map((h) => h.trim());
     const findCol = (...names: string[]) =>
         header.findIndex((h) => names.includes(h.toLowerCase()));
-    const latCol = findCol("lat", "latitude");
-    const lngCol = findCol("lng", "lon", "long", "longitude");
-    const nameCol = findCol("name", "title", "station", "label");
+    const wktCol = findCol("wkt", "geometry", "geom");
+    const latCol = findCol("lat", "latitude", "y");
+    const lngCol = findCol("lng", "lon", "long", "longitude", "x");
+    const nameCol = findCol("name", "title", "station", "stop", "label");
     const tierCol = findCol("tier");
 
-    if (latCol < 0 || lngCol < 0) {
+    const hasLatLng = latCol >= 0 && lngCol >= 0;
+    const hasWkt = wktCol >= 0;
+
+    if (!hasLatLng && !hasWkt) {
         return {
             ok: false,
-            error: "CSV must have `lat`/`latitude` and `lng`/`lon`/`longitude` columns.",
+            error: "CSV must have `lat`/`latitude` and `lng`/`lon`/`longitude` columns (or a Google My Maps `WKT` column).",
         };
     }
 
     const features: ImportedRawFeature[] = [];
     for (const row of rows) {
         if (!row.some((c) => c.trim() !== "")) continue;
-        const lat = parseCoordNumber(row[latCol]);
-        const lng = parseCoordNumber(row[lngCol]);
-        if (lat === null || lng === null) continue;
-        const pos = validPosition([lng, lat]);
+        let pos: Position | null = null;
+        if (hasLatLng) {
+            const lat = parseCoordNumber(row[latCol]);
+            const lng = parseCoordNumber(row[lngCol]);
+            if (lat !== null && lng !== null) {
+                pos = validPosition([lng, lat]);
+            }
+        }
+        if (!pos && hasWkt) {
+            pos = parseWktPoint(row[wktCol]);
+        }
         if (!pos) continue;
         const name =
             (nameCol >= 0 ? row[nameCol]?.trim() : "") ||
@@ -511,11 +559,11 @@ export function parseCsvText(
     if (features.length === 0) {
         return {
             ok: false,
-            error: "No rows with valid latitude/longitude coordinates found.",
+            error: "No rows with valid latitude/longitude or WKT point coordinates found.",
         };
     }
 
-    const baseName = fileName.replace(/\.csv$/i, "") || "CSV";
+    const baseName = fileName.replace(/\.(csv|tsv)$/i, "") || "CSV";
     return {
         ok: true,
         kind: "folders",
@@ -635,7 +683,7 @@ export function parseImportedFileText(
     if (lower.endsWith(".kml") || text.trimStart().startsWith("<")) {
         return parseKmlText(text);
     }
-    if (lower.endsWith(".csv")) {
+    if (lower.endsWith(".csv") || lower.endsWith(".tsv")) {
         return parseCsvText(text, fileName);
     }
     return parseJsonImportText(text, fileName);

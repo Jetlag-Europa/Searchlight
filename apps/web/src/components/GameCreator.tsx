@@ -21,6 +21,7 @@ import {
     Download,
     Eye,
     EyeOff,
+    FolderOpen,
     Layers,
     MapPin,
     PenTool,
@@ -50,6 +51,7 @@ import { toast } from "react-toastify";
 
 import { CreatorGeometryPanel } from "@/components/CreatorGeometryPanel";
 import { CreatorImportPanel } from "@/components/CreatorImportPanel";
+import { StationFileImporter } from "@/components/StationFileImporter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -76,6 +78,7 @@ import {
 import { saveCreatorImportHandoff } from "@/lib/creator/handoff";
 import {
     type GeometryFamily,
+    parseJsonImportText,
     sumFeatureVertices,
 } from "@/lib/creator/importFile";
 import { buildGameKml } from "@/lib/creator/kml";
@@ -99,6 +102,7 @@ import {
     STATION_PRESETS,
     type StationPresetId,
 } from "@/lib/creator/presets";
+import { MAX_LOCAL_GAME_BYTES } from "@/lib/localGameLoader";
 import {
     createLocalSession,
     isLocalStoragePersistent,
@@ -304,6 +308,8 @@ export function GameCreator() {
     const poiAbortRef = useRef<AbortController | null>(null);
     const playAreaGenRef = useRef(0);
     const customStationCounterRef = useRef(1);
+    const loadGameInputRef = useRef<HTMLInputElement>(null);
+    const loadGameSeqRef = useRef(0);
 
     const invalidateFetchedAreaData = useCallback(() => {
         playAreaGenRef.current += 1;
@@ -837,6 +843,36 @@ export function GameCreator() {
         );
     }, []);
 
+    const handleLoadGameFile = async (file: File) => {
+        const seq = ++loadGameSeqRef.current;
+        if (file.size > MAX_LOCAL_GAME_BYTES) {
+            toast.error("File is too large (50 MB limit).");
+            return;
+        }
+        let text: string;
+        try {
+            text = await file.text();
+        } catch {
+            if (loadGameSeqRef.current !== seq) return;
+            toast.error("Could not read file.");
+            return;
+        }
+        if (loadGameSeqRef.current !== seq) return;
+        const parsed = parseJsonImportText(text, file.name);
+        if (!parsed.ok) {
+            toast.error(parsed.error);
+            return;
+        }
+        if (parsed.kind !== "game-definition") {
+            toast.error(
+                "That file looks like plain GeoJSON, not a full Searchlight .game.json. Use Step 2 (Stops) or Step 3 → Import File for GeoJSON.",
+            );
+            return;
+        }
+        handleLoadExistingGame(parsed.definition);
+        toast.success(`Loaded "${parsed.definition.name}" into Creator`);
+    };
+
     const handleAddTier = (e: React.FormEvent) => {
         e.preventDefault();
         const name = newTierName.trim();
@@ -1154,11 +1190,32 @@ export function GameCreator() {
                         </h1>
                     </div>
                     <div className="flex items-center gap-2 text-xs">
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            className="h-7 px-2 text-xs"
+                            onClick={() => loadGameInputRef.current?.click()}
+                        >
+                            <FolderOpen className="mr-1 h-3.5 w-3.5" />
+                            Load .game.json
+                        </Button>
+                        <input
+                            ref={loadGameInputRef}
+                            type="file"
+                            accept=".json,application/json"
+                            hidden
+                            onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                e.target.value = "";
+                                if (file) void handleLoadGameFile(file);
+                            }}
+                        />
                         <a
                             href="/local"
                             className="text-muted-foreground hover:text-foreground"
                         >
-                            Local Play
+                            Local
                         </a>
                         <span className="text-muted-foreground">·</span>
                         <a
@@ -1184,7 +1241,7 @@ export function GameCreator() {
                             },
                             {
                                 id: "features",
-                                label: `3. POIs${activeLayerCount ? ` (${activeLayerCount})` : ""}`,
+                                label: `3. Layers${activeLayerCount ? ` (${activeLayerCount})` : ""}`,
                             },
                             { id: "export", label: "4. Export" },
                         ] as const
@@ -1697,6 +1754,29 @@ export function GameCreator() {
                                     </p>
                                 )}
                             </section>
+
+                            <StationFileImporter
+                                existingStationCount={stations.length}
+                                onImportStations={(imported, replace) => {
+                                    if (replace) {
+                                        stationAbortRef.current?.abort();
+                                        stationAbortRef.current = null;
+                                        setStationBusy(null);
+                                        setExtraHidingZones([]);
+                                    }
+                                    setStations((prev) =>
+                                        replace
+                                            ? imported
+                                            : [...prev, ...imported],
+                                    );
+                                    setStationSummary(
+                                        replace
+                                            ? `Loaded ${imported.length} stations from file`
+                                            : `Added ${imported.length} stations from file`,
+                                    );
+                                }}
+                                onLoadGameDefinition={handleLoadExistingGame}
+                            />
 
                             <Separator />
 

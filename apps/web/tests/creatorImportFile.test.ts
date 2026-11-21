@@ -50,6 +50,47 @@ describe("parseCsvText", () => {
         });
     });
 
+    it("parses Google My Maps WKT CSV exports and semicolon-delimited CSVs", () => {
+        const myMapsCsv = [
+            "WKT,name,description",
+            '"POINT (8.5402 47.3779)",Zürich HB,Main station',
+            '"POINT Z (8.5485 47.3667 408)",Stadelhofen,',
+        ].join("\n");
+        const wktRes = parseCsvText(myMapsCsv, "mymaps-stations.csv");
+        expect(wktRes.ok).toBe(true);
+        if (!wktRes.ok || wktRes.kind !== "folders") return;
+        const wktStations = importedFeaturesToStations(
+            wktRes.folders[0].features,
+        );
+        expect(wktStations).toHaveLength(2);
+        expect(wktStations[0]).toMatchObject({
+            name: "Zürich HB",
+            lng: 8.5402,
+            lat: 47.3779,
+        });
+        expect(wktStations[1]).toMatchObject({
+            name: "Stadelhofen",
+            lng: 8.5485,
+            lat: 47.3667,
+        });
+
+        const semiCsv = [
+            "stop;lat;lon;tier",
+            "Basel SBB;47.5474;7.5896;Hub",
+        ].join("\n");
+        const semiRes = parseCsvText(semiCsv, "ch-stops.csv");
+        expect(semiRes.ok).toBe(true);
+        if (!semiRes.ok || semiRes.kind !== "folders") return;
+        expect(
+            importedFeaturesToStations(semiRes.folders[0].features)[0],
+        ).toMatchObject({
+            name: "Basel SBB",
+            lat: 47.5474,
+            lng: 7.5896,
+            tier: "Hub",
+        });
+    });
+
     it("rejects CSV missing coordinate columns or having unclosed quotes", () => {
         expect(parseCsvText("name,city\nA,B").ok).toBe(false);
         const unclosed = parseCsvText(
