@@ -18,7 +18,7 @@ export async function findActiveLink(token: string) {
       game: {
         include: {
           server: { select: { name: true } },
-          currentRevision: { select: { id: true, revision: true } },
+          currentRevision: { select: { id: true, revision: true, checksum: true } },
         },
       },
     },

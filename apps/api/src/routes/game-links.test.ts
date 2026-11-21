@@ -298,6 +298,41 @@ describe("unlisted games and game links", () => {
   test("an unknown link is invalid", async () => {
     expect((await app.inject({ method: "GET", url: "/game-links/nope" })).json()).toEqual({ valid: false });
     expect((await startFromLink("nope", PLAYER_ID)).statusCode).toBe(404);
+    expect((await app.inject({ method: "GET", url: "/game-links/nope/definition" })).statusCode).toBe(404);
+  });
+
+  test("an active link serves its current game definition without auth, supports ETag, and stops when revoked", async () => {
+    const link = await createLink(UNLISTED_GAME_ID);
+
+    const first = await app.inject({
+      method: "GET",
+      url: `/game-links/${link.token}/definition`,
+    });
+    expect(first.statusCode).toBe(200);
+    expect(first.headers["cache-control"]).toBe("no-cache");
+    expect(first.headers["etag"]).toBeTruthy();
+    expect(first.json()).toEqual({ id: UNLISTED_GAME_ID, name: UNLISTED_GAME_ID, serverId: SERVER_ID });
+
+    // Matching ETag (strong or weakened by a proxy) returns 304.
+    const cached = await app.inject({
+      method: "GET",
+      url: `/game-links/${link.token}/definition`,
+      headers: { "if-none-match": `W/${first.headers["etag"]}` },
+    });
+    expect(cached.statusCode).toBe(304);
+    expect(cached.headers["cache-control"]).toBe("no-cache");
+
+    // Revoking the link stops definition downloads immediately.
+    await app.inject({
+      method: "DELETE",
+      url: `/games/${UNLISTED_GAME_ID}/links/${link.id}`,
+      headers: as(MANAGER_ID),
+    });
+    const afterRevoke = await app.inject({
+      method: "GET",
+      url: `/game-links/${link.token}/definition`,
+    });
+    expect(afterRevoke.statusCode).toBe(404);
   });
 
   test("a session started from a link can upgrade while the link is active", async () => {

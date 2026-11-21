@@ -208,3 +208,47 @@ it.each([
         expect(location.href).toBe(`http://localhost/${page}?token=t1`);
     },
 );
+
+it("on the play page, Play locally opens /local with the link token even when signed out", async () => {
+    const signedOutFetch: typeof globalThis.fetch = (input) => {
+        const url = String(input);
+        if (url.endsWith("/me")) {
+            return Promise.resolve(new Response(null, { status: 401 }));
+        }
+        return Promise.resolve(Response.json(LINK_INFO.play));
+    };
+    const { elements, shown, location } = open("play", signedOutFetch);
+    await settle();
+    expect(shown("valid")).toBe(true);
+    elements.get("local-btn")!.listeners.get("click")!({});
+    expect(location.href).toBe("/local?link=t1");
+});
+
+it("on the play page, Play locally passes the typed session name when signed in", async () => {
+    const { elements, shown, location } = open("play", fetchMock);
+    await settle();
+    expect(shown("valid")).toBe(true);
+    elements.get("session-name")!.value = "Weekend Round";
+    elements.get("local-btn")!.listeners.get("click")!({});
+    expect(location.href).toBe("/local?link=t1&name=Weekend+Round");
+});
+
+it("on the play page, a hanging /me does not hide Play locally once the link loads", async () => {
+    const hangingMeFetch: typeof globalThis.fetch = (input, init) => {
+        const url = String(input);
+        if (url.endsWith("/me")) {
+            return new Promise((_, reject) =>
+                init?.signal?.addEventListener("abort", () =>
+                    reject(new DOMException("Aborted", "AbortError")),
+                ),
+            );
+        }
+        return Promise.resolve(Response.json(LINK_INFO.play));
+    };
+    const { elements, shown, location } = open("play", hangingMeFetch);
+    await settle();
+    expect(shown("valid")).toBe(true);
+    expect(shown("unreachable")).toBe(false);
+    elements.get("local-btn")!.listeners.get("click")!({});
+    expect(location.href).toBe("/local?link=t1");
+});

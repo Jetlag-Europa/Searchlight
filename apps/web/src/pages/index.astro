@@ -38,6 +38,18 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             <p class="text-sm text-white/50">
                 Your existing maps are saved to your account.
             </p>
+
+            <div class="flex flex-col items-center gap-2 border-t border-white/10 pt-6 w-full">
+                <a
+                    href="/local"
+                    class="flex items-center justify-center rounded-xl border border-white/20 bg-white/5 px-6 py-3 text-sm font-medium text-white/90 transition-colors hover:bg-white/10"
+                >
+                    Play locally without signing in
+                </a>
+                <p class="text-xs text-white/50">
+                    Load a <code class="text-white/70">.game.json</code> file or URL on this device — unsynced and private to your browser.
+                </p>
+            </div>
         </div>
     </main>
 </Layout>
