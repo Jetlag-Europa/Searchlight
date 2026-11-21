@@ -157,9 +157,7 @@ export function ImportPanel({
 
     const casual = serverId === CASUAL_SERVER_ID;
     const updating = dryRun?.status === "updated";
-    // A replace is always an update, so it is pinned to the revision the
-    // preview showed even when the preview says the file is identical.
-    const existing = updating || replaceGameId ? dryRun?.existing : undefined;
+    const existing = dryRun?.existing;
     const needsConfirm =
         updating && !!existing?.likelyMistake && !confirmReplace;
 

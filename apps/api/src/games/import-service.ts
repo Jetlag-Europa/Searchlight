@@ -255,6 +255,10 @@ async function importDefinition(
   if (existingGame) {
     return importRevision(ctx, existingGame);
   }
+  if (expectedCurrentRevisionId !== undefined) {
+    // The caller previewed an existing game that has since been deleted.
+    throw gameChanged();
+  }
 
   // 5. Brand new game creation
   if (actor && !(await actor.canCreateGames(def.serverId))) {

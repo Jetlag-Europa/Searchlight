@@ -23,7 +23,7 @@ export async function importGameDefinitionAPI(
   allowUpdate = false,
   // Only applies when the import creates the game.
   unlisted = false,
-  // With allowUpdate: the id of the revision the update was previewed
+  // For an existing game: the id of the revision the import was previewed
   // against. The API refuses (409 GAME_CHANGED) if the game has changed since.
   expectedCurrentRevisionId?: string,
   // Replace this game (POST /games/:gameId/import), whatever the file's id

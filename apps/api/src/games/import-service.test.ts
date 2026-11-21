@@ -227,6 +227,36 @@ describe("importGameDefinition revisions", () => {
     expect(again).toMatchObject({ status: "updated", gameId: a.gameId });
   });
 
+  test("refuses a revision-pinned import with GAME_CHANGED when the game was deleted after preview", async () => {
+    const key = `${KEY_PREFIX}deleted-after-preview`;
+    const created = await importGameDefinition({ raw: definition(key, "Before delete") });
+    const preview = await importGameDefinition({
+      raw: definition(key, "After edit"),
+      dryRun: true,
+      allowUpdate: true,
+    });
+    const previewedRevisionId = preview.existing?.currentRevisionId;
+    expect(previewedRevisionId).toBeTruthy();
+
+    await prisma.game.update({ where: { id: created.gameId }, data: { currentRevisionId: null } });
+    await prisma.gameRevision.deleteMany({ where: { gameId: created.gameId } });
+    await prisma.game.delete({ where: { id: created.gameId } });
+
+    await expect(
+      importGameDefinition({
+        raw: definition(key, "After edit"),
+        allowUpdate: true,
+        expectedCurrentRevisionId: previewedRevisionId!,
+      }),
+    ).rejects.toMatchObject({
+      name: "ImportConflictError",
+      code: "GAME_CHANGED",
+      statusCode: 409,
+    });
+
+    expect(await prisma.game.findUnique({ where: onServer(key) })).toBeNull();
+  });
+
   describe("replaceGameDefinition", () => {
     // A game on SERVER_ID made by an actor-less import, as the replace route
     // loads it.
