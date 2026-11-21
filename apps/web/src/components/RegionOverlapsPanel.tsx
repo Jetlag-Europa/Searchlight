@@ -49,6 +49,10 @@ const formatArea = (m2: number) =>
         ? `${(m2 / 1e6).toFixed(2)} km²`
         : `${Math.round(m2).toLocaleString()} m²`;
 
+const errorMessage = (err: unknown) =>
+    (err as { message?: string } | null | undefined)?.message ||
+    String(err || "Unknown error");
+
 function countZonesTouched(
     pieces: OverlapPiece[],
     zones: Feature<Polygon | MultiPolygon>[],
@@ -91,7 +95,7 @@ export function RegionOverlapsPanel({
      */
     onWrongMarks: (layers: string[] | null) => void;
 }) {
-    const initial = useMemo(
+    const initial = useMemo<LayerCheck[]>(
         () =>
             (definition.features ?? []).flatMap((layer, index) =>
                 isRegionLayer(layer)
@@ -133,8 +137,8 @@ export function RegionOverlapsPanel({
                         result,
                         zonesTouched: countZonesTouched(result.pieces, zones),
                     };
-                } catch (err: any) {
-                    update = { error: err.message ?? String(err) };
+                } catch (err: unknown) {
+                    update = { error: errorMessage(err) };
                 }
                 if (!current) return;
                 setChecks((prev) =>
@@ -159,8 +163,10 @@ export function RegionOverlapsPanel({
     const overlaps = (check: LayerCheck) =>
         !!check.result &&
         (check.result.pieces.length > 0 || check.result.hidden.length > 0);
+    const wrongMark = (check: LayerCheck) =>
+        check.flagged && (!!check.error || overlaps(check));
     const wrongMarks = checks
-        .filter((check) => check.flagged && overlaps(check))
+        .filter(wrongMark)
         .map((check) => check.name);
     const wrongMarksKey = wrongMarks.join("\n");
     const checkingMarks = checks.some(
@@ -214,14 +220,14 @@ export function RegionOverlapsPanel({
                 features[check.index] = markNoOverlaps(layer, regions);
             }
             await onFix({ ...definition, features });
-        } catch (err: any) {
-            setFixError(err.message ?? String(err));
+        } catch (err: unknown) {
+            setFixError(errorMessage(err));
         } finally {
             setFixing(false);
         }
     };
 
-    /** Takes the mark off a layer that can't be fixed. */
+    /** Takes the noOverlaps mark off a layer. */
     const unmark = async (check: LayerCheck) => {
         setFixing(true);
         setFixError(null);
@@ -231,8 +237,8 @@ export function RegionOverlapsPanel({
             delete layer.noOverlaps;
             features[check.index] = layer;
             await onFix({ ...definition, features });
-        } catch (err: any) {
-            setFixError(err.message ?? String(err));
+        } catch (err: unknown) {
+            setFixError(errorMessage(err));
         } finally {
             setFixing(false);
         }
@@ -299,11 +305,11 @@ export function RegionOverlapsPanel({
                                     <span className="text-muted-foreground">
                                         ({check.regions.length} regions)
                                     </span>
-                                    {check.flagged && overlaps(check) && (
+                                    {wrongMark(check) && (
                                         <span className="block font-medium text-destructive">
-                                            Marked noOverlaps, but its regions
-                                            overlap: fix it or remove the mark
-                                            before importing.
+                                            {check.error
+                                                ? "Marked noOverlaps, but it couldn't be checked: remove the mark before importing."
+                                                : "Marked noOverlaps, but its regions overlap: fix it or remove the mark before importing."}
                                         </span>
                                     )}
                                     <span className="block text-muted-foreground">
@@ -327,7 +333,7 @@ export function RegionOverlapsPanel({
                                                     : "No overlaps; not marked yet."}
                                     </span>
                                 </label>
-                                {check.flagged && !fixable && !!result && (
+                                {wrongMark(check) && (
                                     <button
                                         type="button"
                                         className="shrink-0 underline"

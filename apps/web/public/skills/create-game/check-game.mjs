@@ -65,11 +65,40 @@ function nearEdge(pt, rings, limit) {
   return false;
 }
 
+/** A point strictly inside a polygon (accounting for holes), or null. */
+function interiorPoint(polygon) {
+  const ys = [...new Set(polygon.flat().map(([, y]) => y))].sort((a, b) => a - b);
+  let bestGap = 0, y = 0;
+  for (let i = 1; i < ys.length; i++) {
+    if (ys[i] - ys[i - 1] > bestGap) {
+      bestGap = ys[i] - ys[i - 1];
+      y = (ys[i - 1] + ys[i]) / 2;
+    }
+  }
+  if (!bestGap) return null;
+  const xs = [];
+  for (const ring of polygon) {
+    for (let i = 1; i < ring.length; i++) {
+      const [x1, y1] = ring[i - 1], [x2, y2] = ring[i];
+      if ((y1 > y) !== (y2 > y)) xs.push(x1 + ((x2 - x1) * (y - y1)) / (y2 - y1));
+    }
+  }
+  xs.sort((a, b) => a - b);
+  let best = 0, x = null;
+  for (let i = 0; i + 1 < xs.length; i += 2) {
+    if (xs[i + 1] - xs[i] > best) {
+      best = xs[i + 1] - xs[i];
+      x = (xs[i] + xs[i + 1]) / 2;
+    }
+  }
+  return x === null ? null : [x, y];
+}
+
 /**
- * How many corners of the regions, or middles of their edges, lie inside
- * another region further than a hairline from its edge, with one pair of
- * names as an example. Middles catch regions whose corners all sit on the
- * other's border, as when two rectangles overlap.
+ * How many corners of the regions, middles of their edges, or interior points
+ * lie inside another region further than a hairline from its edge, with one
+ * pair of names as an example. Middles catch regions whose corners all sit on
+ * the other's border; interior points catch identical regions.
  */
 function cornersInsideOthers(feats) {
   const regions = feats.map((f) => {
@@ -85,16 +114,22 @@ function cornersInsideOthers(feats) {
   });
   let count = 0, example = null;
   regions.forEach((region, r) => {
-    // Each point with the corners it lies on or between.
-    const points = region.rings.flatMap((ring) => ring.flatMap((pt, i) => (i
-      ? [{ pt: [(ring[i - 1][0] + pt[0]) / 2, (ring[i - 1][1] + pt[1]) / 2], ends: [ring[i - 1], pt] }, { pt, ends: [pt] }]
-      : [{ pt, ends: [pt] }])));
+    // Each point with the corners it lies on or between, plus an interior point.
+    const points = [
+      ...region.rings.flatMap((ring) => ring.flatMap((pt, i) => (i
+        ? [{ pt: [(ring[i - 1][0] + pt[0]) / 2, (ring[i - 1][1] + pt[1]) / 2], ends: [ring[i - 1], pt] }, { pt, ends: [pt] }]
+        : [{ pt, ends: [pt] }]))),
+      ...region.polygons.flatMap((polygon) => {
+        const pt = interiorPoint(polygon);
+        return pt ? [{ pt, ends: [] }] : [];
+      }),
+    ];
     for (const { pt, ends } of points) {
       for (let o = 0; o < regions.length; o++) {
         const other = regions[o];
         if (o === r || pt[0] < other.box[0] || pt[0] > other.box[2] || pt[1] < other.box[1] || pt[1] > other.box[3]) continue;
         // A corner, or an edge, the two regions share is on its border.
-        if (ends.every(([x, y]) => other.corners.has(`${x},${y}`))) continue;
+        if (ends.length && ends.every(([x, y]) => other.corners.has(`${x},${y}`))) continue;
         if (!other.polygons.some((polygon) => inRings(pt, polygon))) continue;
         if (nearEdge(pt, other.rings, HAIRLINE)) continue;
         count++;
@@ -623,7 +658,7 @@ export function checkGame(def, { fileSize } = {}) {
       if (!noOverlaps || family !== "polygons") continue;
       const inside = cornersInsideOthers(feats);
       if (inside.count) {
-        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) on its regions' borders lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
+        warn(`${path} "${name}"`, `marked noOverlaps, but ${inside.count} point(s) of its regions lie more than ${HAIRLINE} m inside another region (e.g. "${inside.example[0]}" reaches into "${inside.example[1]}"); fix the overlaps on Searchlight's import page or drop noOverlaps`, "no-overlaps-overlapping");
       }
     }
 

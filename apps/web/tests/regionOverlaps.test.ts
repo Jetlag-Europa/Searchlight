@@ -61,6 +61,14 @@ describe("findRegionOverlaps", () => {
         });
         expect(overlaps.pieces).toEqual([]);
         expect(overlaps.hairlines).toBe(1);
+
+        // Near-threshold ~0.4 m sliver must still classify as a hairline.
+        const hairlineDeg = 0.4 / (111_195 * Math.cos((50.5 * Math.PI) / 180));
+        const nearThreshold = findRegionOverlaps({
+            regions: [box(0, 1 + hairlineDeg, "a"), box(1, 2, "b")],
+        });
+        expect(nearThreshold.pieces).toEqual([]);
+        expect(nearThreshold.hairlines).toBe(1);
     });
 
     it("measures a spike by how far it reaches, however small", () => {
@@ -171,6 +179,74 @@ describe("findRegionOverlaps", () => {
             regions: [box(0, 2, "outer"), box(0.5, 1, "inner", 50.2, 50.4)],
         });
         expect(overlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+    });
+
+    it("detects identical rectangles as overlapping and hides the later one", () => {
+        const regions = [box(0, 1, "a"), box(0, 1, "b")];
+        const overlaps = findRegionOverlaps({ regions });
+        expect(overlaps.hairlines).toBe(0);
+        expect(overlaps.pieces).toHaveLength(1);
+        expect(overlaps.pieces[0]).toMatchObject({ first: 0, second: 1 });
+        expect(overlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+        expect(() => removeRegionOverlaps({ regions })).toThrow(
+            /Region 2 lies entirely inside/,
+        );
+    });
+
+    it("detects near-identical squares offset by 0.2 m as overlapping", () => {
+        const mLon = 1 / (111_195 * Math.cos((50.5 * Math.PI) / 180));
+        const mLat = 1 / 111_195;
+        const sizeLon = 1000 * mLon;
+        const sizeLat = 1000 * mLat;
+        const shiftLon = 0.2 * mLon;
+        const regions = [
+            box(1, 1 + sizeLon, "a", 50.5, 50.5 + sizeLat),
+            box(1 + shiftLon, 1 + sizeLon + shiftLon, "b", 50.5, 50.5 + sizeLat),
+        ];
+        const overlaps = findRegionOverlaps({ regions });
+        expect(overlaps.hairlines).toBe(0);
+        expect(overlaps.pieces).toHaveLength(1);
+        expect(overlaps.pieces[0]).toMatchObject({ first: 0, second: 1 });
+    });
+
+    it("detects identical concave polygons and polygons with holes", () => {
+        const u = local([
+            [0, 0],
+            [3, 0],
+            [3, 3],
+            [2, 3],
+            [2, 1],
+            [1, 1],
+            [1, 3],
+            [0, 3],
+        ]);
+        const uOverlaps = findRegionOverlaps({
+            regions: [u, structuredClone(u)],
+        });
+        expect(uOverlaps.hairlines).toBe(0);
+        expect(uOverlaps.pieces).toHaveLength(1);
+        expect(uOverlaps.hidden).toEqual([{ region: 1, by: [0] }]);
+
+        const donut = local(
+            [
+                [0, 0],
+                [4, 0],
+                [4, 4],
+                [0, 4],
+            ],
+            [
+                [1, 1],
+                [1, 3],
+                [3, 3],
+                [3, 1],
+            ],
+        );
+        const donutOverlaps = findRegionOverlaps({
+            regions: [donut, structuredClone(donut)],
+        });
+        expect(donutOverlaps.hairlines).toBe(0);
+        expect(donutOverlaps.pieces).toHaveLength(1);
+        expect(donutOverlaps.hidden).toEqual([{ region: 1, by: [0] }]);
     });
 });
 

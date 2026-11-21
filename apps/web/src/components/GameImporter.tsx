@@ -160,20 +160,24 @@ const serialize = (definition: GameDefinition, indent: string) =>
         : JSON.stringify(definition);
 
 async function inspectFile(file: File): Promise<Loaded> {
-    const text = await file.text();
-    const indent = indentOf(text);
+    let text: string | undefined;
     let parsed: any;
     try {
+        text = await file.text();
         parsed = JSON.parse(text);
-    } catch (err: any) {
+    } catch (err: unknown) {
+        const message =
+            err instanceof Error && err.message
+                ? err.message
+                : String(err || "Unknown error");
         return {
             fileName: file.name,
             fileSize: file.size,
             errors: [
                 {
                     path: "/",
-                    code: "json",
-                    message: `Not JSON: ${err.message}`,
+                    code: text === undefined ? "read" : "json",
+                    message: `${text === undefined ? "Couldn't read file" : "Not JSON"}: ${message}`,
                 },
             ],
             issues: [],
@@ -181,9 +185,10 @@ async function inspectFile(file: File): Promise<Loaded> {
             compiled: null,
             noServer: false,
             changed: false,
-            indent,
+            indent: text === undefined ? "" : indentOf(text),
         };
     }
+    const indent = indentOf(text);
     // The import step fills in the server picked there.
     let noServer = false;
     if (parsed && typeof parsed === "object" && !parsed.serverId) {
@@ -345,10 +350,10 @@ export function GameImporter() {
             const result = await inspectFile(file);
             if (load !== latestLoad.current) return;
             setLoaded(result);
-            setLoadCount((c) => c + 1);
+            setLoadCount(load);
             setShownLayers(new Set());
             setHighlight(null);
-            setWrongMarks([]);
+            setWrongMarks(null);
             setFileCount((c) => c + 1);
             // Show the new file's summary and checks first.
             panel.current?.scrollTo({ top: 0 });
@@ -358,22 +363,28 @@ export function GameImporter() {
     };
 
     /** Takes the file as fixed on the page, and checks it again. */
-    const applyFix = async (fixed: GameDefinition) => {
-        if (!loaded) return;
+    const applyFix = async (
+        fixed: GameDefinition,
+        sourceLoad: number,
+        source: Loaded,
+    ) => {
+        if (sourceLoad !== latestLoad.current) return;
         const load = ++latestLoad.current;
         setBusy(true);
         try {
             const result = await inspectDefinition(
                 fixed,
-                loaded.fileName,
-                loaded.fileSize,
-                loaded.noServer,
+                source.fileName,
+                source.fileSize,
+                source.noServer,
                 true,
-                loaded.indent,
+                source.indent,
             );
             if (load !== latestLoad.current) return;
             setLoaded(result);
-            setLoadCount((c) => c + 1);
+            setLoadCount(load);
+            setHighlight(null);
+            setWrongMarks(null);
         } finally {
             if (load === latestLoad.current) setBusy(false);
         }
@@ -700,9 +711,10 @@ export function GameImporter() {
 
                 {loaded?.definition && compiled && (
                     <RegionOverlapsPanel
+                        key={`overlaps-${loadCount}`}
                         definition={loaded.definition}
                         zones={zones}
-                        onFix={applyFix}
+                        onFix={(fixed) => applyFix(fixed, loadCount, loaded)}
                         onHighlight={setHighlight}
                         onWrongMarks={setWrongMarks}
                     />
@@ -727,7 +739,7 @@ export function GameImporter() {
                         busy={busy || !wrongMarks}
                         blocked={
                             wrongMarks?.length
-                                ? `${wrongMarks.join(", ")} ${wrongMarks.length === 1 ? "is" : "are"} marked noOverlaps but overlap: fix ${wrongMarks.length === 1 ? "it" : "them"} or remove the mark above first.`
+                                ? `${wrongMarks.join(", ")} ${wrongMarks.length === 1 ? "is" : "are"} marked noOverlaps but ${wrongMarks.length === 1 ? "overlaps or couldn't be checked" : "overlap or couldn't be checked"}: fix ${wrongMarks.length === 1 ? "it" : "them"} or remove the mark above first.`
                                 : null
                         }
                         definition={loaded.definition}

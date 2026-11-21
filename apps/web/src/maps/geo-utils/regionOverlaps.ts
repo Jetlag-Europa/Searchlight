@@ -234,15 +234,29 @@ function overlapPieces(a: Region, b: Region) {
         turf.featureCollection([clippedA, clippedB]),
     );
     if (!overlap) return [];
-    return turf.flatten(overlap).features.map((piece) => ({
+    const pieces = turf.flatten(overlap).features.map((piece) => ({
         area: turf.area(piece),
         // To the whole regions' borders: the box's sides aren't borders.
         width: reach(piece.geometry, [a, b]),
         geometry: piece.geometry,
     }));
+    // Identical or near-identical regions share nearly every border point so
+    // reach() stays below HAIRLINE_WIDTH; don't drop an overlap that covers
+    // more than half of either region as a hairline.
+    const coversMost =
+        pieces.some((p) => p.width < HAIRLINE_WIDTH) &&
+        (() => {
+            const total = pieces.reduce((sum, p) => sum + p.area, 0);
+            return (
+                total >= HAIRLINE_AREA &&
+                2 * total > Math.min(turf.area(a), turf.area(b))
+            );
+        })();
+    return pieces.map((piece) => ({
+        ...piece,
+        hairline: !coversMost && piece.width < HAIRLINE_WIDTH,
+    }));
 }
-
-const isHairline = ({ width }: { width: number }) => width < HAIRLINE_WIDTH;
 
 /** Where the layer's regions overlap, and which are covered entirely. */
 export function findRegionOverlaps({
@@ -257,11 +271,11 @@ export function findRegionOverlaps({
         const by: number[] = [];
         for (let first = 0; first < second; first++) {
             if (!boxesMeet(boxes[first], boxes[second])) continue;
-            for (const piece of overlapPieces(
+            for (const { hairline, ...piece } of overlapPieces(
                 regions[first],
                 regions[second],
             )) {
-                if (isHairline(piece)) {
+                if (hairline) {
                     hairlines++;
                     continue;
                 }
@@ -292,7 +306,8 @@ function removeOverlapsOf(regions: Region[], index: number): Region | null {
     const box = boxOf(left);
     for (let earlier = 0; earlier < index && left; earlier++) {
         if (!boxesMeet(boxOf(regions[earlier]), box)) continue;
-        if (overlapPieces(left, regions[earlier]).every(isHairline)) continue;
+        if (overlapPieces(left, regions[earlier]).every((p) => p.hairline))
+            continue;
         left = turf.difference(
             turf.featureCollection([left, regions[earlier]]),
         );

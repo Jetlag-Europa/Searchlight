@@ -359,6 +359,16 @@ describe("check-game.mjs", () => {
             expect(failing[0].message).toMatch(/"west" reaches into "east"/);
         });
 
+        it("fails a marked layer with identical regions", () => {
+            const dup = collection([
+                region("a", 10, 50, 10.5, 51),
+                region("b", 10, 50, 10.5, 51),
+            ]);
+            expect(codes(checkGame(layer(true, dup)))).toContain(
+                "no-overlaps-overlapping",
+            );
+        });
+
         it("ignores hairline overlaps", () => {
             // About 7 cm.
             expect(
