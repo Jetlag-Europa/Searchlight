@@ -180,6 +180,17 @@ describe("checkGameQuality", () => {
             ["note", "no-thermometer"],
         ]);
     });
+
+    it("reports non-object input as an error instead of throwing", async () => {
+        const issues = await checkGameQuality(null);
+        expect(issues).toEqual([
+            expect.objectContaining({
+                level: "error",
+                path: "/",
+                strict: false,
+            }),
+        ]);
+    });
 });
 
 describe("formatFileSize", () => {
