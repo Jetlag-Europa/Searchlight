@@ -42,7 +42,7 @@ function formatSchemaErrorMessage(err: ValueError): string {
     (err.schema === PositionSchema ||
       (err.schema["minItems"] === 2 && err.schema["maxItems"] === 2))
   ) {
-    return "position must be [lng, lat] (no altitude)";
+    return "position must be [lng, lat] (exactly 2 numbers)";
   }
   return err.message;
 }

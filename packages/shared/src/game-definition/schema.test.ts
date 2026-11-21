@@ -445,7 +445,7 @@ describe("Game Definition Validation", () => {
       {
         path: "/map/playArea/features/0/geometry/coordinates/0/0",
         code: "SCHEMA_VALIDATION_ERROR",
-        message: "position must be [lng, lat] (no altitude)",
+        message: "position must be [lng, lat] (exactly 2 numbers)",
       },
     ]);
 
@@ -469,7 +469,7 @@ describe("Game Definition Validation", () => {
       {
         path: "/hidingZones/features/features/0/geometry/coordinates",
         code: "SCHEMA_VALIDATION_ERROR",
-        message: "position must be [lng, lat] (no altitude)",
+        message: "position must be [lng, lat] (exactly 2 numbers)",
       },
     ]);
 
@@ -482,7 +482,7 @@ describe("Game Definition Validation", () => {
       {
         path: "/map/center",
         code: "SCHEMA_VALIDATION_ERROR",
-        message: "position must be [lng, lat] (no altitude)",
+        message: "position must be [lng, lat] (exactly 2 numbers)",
       },
     ]);
 
@@ -515,7 +515,7 @@ describe("Game Definition Validation", () => {
       {
         path: "/features/0/data/features/0/geometry/coordinates/0",
         code: "SCHEMA_VALIDATION_ERROR",
-        message: "position must be [lng, lat] (no altitude)",
+        message: "position must be [lng, lat] (exactly 2 numbers)",
       },
     ]);
   });
