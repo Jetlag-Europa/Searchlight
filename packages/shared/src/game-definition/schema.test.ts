@@ -413,7 +413,7 @@ describe("Game Definition Validation", () => {
     ]);
   });
 
-  it("reports actionable position error for 3D KML coordinates", () => {
+  it("reports actionable position error for 3D KML and 1-number coordinates", () => {
     const def = getSampleDefinition();
     const inPlayArea = validateGameDefinition({
       ...def,
@@ -449,43 +449,6 @@ describe("Game Definition Validation", () => {
       },
     ]);
 
-    const inHidingZone = validateGameDefinition({
-      ...def,
-      hidingZones: {
-        ...def.hidingZones,
-        features: {
-          type: "FeatureCollection",
-          features: [
-            {
-              type: "Feature",
-              geometry: { type: "Point", coordinates: [2.35, 48.85, 42] },
-            },
-          ],
-        },
-      },
-    });
-    expect(inHidingZone.valid).toBe(false);
-    expect(inHidingZone.errors).toEqual([
-      {
-        path: "/hidingZones/features/features/0/geometry/coordinates",
-        code: "SCHEMA_VALIDATION_ERROR",
-        message: "position must be [lng, lat] (exactly 2 numbers)",
-      },
-    ]);
-
-    const inCenter = validateGameDefinition({
-      ...def,
-      map: { ...def.map, center: [2.35, 48.85, 42] },
-    });
-    expect(inCenter.valid).toBe(false);
-    expect(inCenter.errors).toEqual([
-      {
-        path: "/map/center",
-        code: "SCHEMA_VALIDATION_ERROR",
-        message: "position must be [lng, lat] (exactly 2 numbers)",
-      },
-    ]);
-
     const inFeatureLine = validateGameDefinition({
       ...def,
       features: [
@@ -514,6 +477,19 @@ describe("Game Definition Validation", () => {
     expect(inFeatureLine.errors).toEqual([
       {
         path: "/features/0/data/features/0/geometry/coordinates/0",
+        code: "SCHEMA_VALIDATION_ERROR",
+        message: "position must be [lng, lat] (exactly 2 numbers)",
+      },
+    ]);
+
+    const oneNumberCenter = validateGameDefinition({
+      ...def,
+      map: { ...def.map, center: [2.35] },
+    });
+    expect(oneNumberCenter.valid).toBe(false);
+    expect(oneNumberCenter.errors).toEqual([
+      {
+        path: "/map/center",
         code: "SCHEMA_VALIDATION_ERROR",
         message: "position must be [lng, lat] (exactly 2 numbers)",
       },

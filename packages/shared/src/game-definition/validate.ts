@@ -37,11 +37,7 @@ function pathDepth(path: string): number {
 }
 
 function formatSchemaErrorMessage(err: ValueError): string {
-  if (
-    err.type === ValueErrorType.TupleLength &&
-    (err.schema === PositionSchema ||
-      (err.schema["minItems"] === 2 && err.schema["maxItems"] === 2))
-  ) {
+  if (err.type === ValueErrorType.TupleLength && err.schema === PositionSchema) {
     return "position must be [lng, lat] (exactly 2 numbers)";
   }
   return err.message;
@@ -61,6 +57,21 @@ function pickDeepestError(iter: ValueErrorIterator | undefined): ValueError | un
     if (++seen >= MAX_UNION_INNER_ERRORS) break;
   }
   return best;
+}
+
+function deepestVariantIssue(
+  err: ValueError,
+  variantIdx: number,
+  fallbackPath: string,
+): ValidationIssue | null {
+  if (variantIdx === -1) return null;
+  const inner = pickDeepestError(err.errors[variantIdx]);
+  if (!inner) return null;
+  return {
+    path: inner.path || fallbackPath,
+    code: "SCHEMA_VALIDATION_ERROR",
+    message: formatSchemaErrorMessage(inner),
+  };
 }
 
 function getLiteralDiscriminator(
@@ -105,16 +116,8 @@ function unpackUnionError(err: ValueError): ValidationIssue {
       };
     }
     const matchedIdx = typeof actualType === "string" ? geometryTypes.indexOf(actualType) : -1;
-    if (matchedIdx !== -1) {
-      const inner = pickDeepestError(err.errors[matchedIdx]);
-      if (inner) {
-        return {
-          path: inner.path || path,
-          code: "SCHEMA_VALIDATION_ERROR",
-          message: formatSchemaErrorMessage(inner),
-        };
-      }
-    }
+    const issue = deepestVariantIssue(err, matchedIdx, path);
+    if (issue) return issue;
     const allowed = geometryTypes.join(", ");
     return {
       path,
@@ -131,16 +134,8 @@ function unpackUnionError(err: ValueError): ValidationIssue {
   if (visibilityKinds) {
     const actualKind = isPlainObject(err.value) ? err.value["kind"] : undefined;
     const matchedIdx = typeof actualKind === "string" ? visibilityKinds.indexOf(actualKind) : -1;
-    if (matchedIdx !== -1) {
-      const inner = pickDeepestError(err.errors[matchedIdx]);
-      if (inner) {
-        return {
-          path: inner.path || path,
-          code: "SCHEMA_VALIDATION_ERROR",
-          message: formatSchemaErrorMessage(inner),
-        };
-      }
-    }
+    const issue = deepestVariantIssue(err, matchedIdx, path);
+    if (issue) return issue;
     const accepted = '{ kind: "server-members" } or { kind: "discord-role", guildId, roleId }';
     return {
       path,
@@ -156,14 +151,8 @@ function unpackUnionError(err: ValueError): ValidationIssue {
   if (err.path === "/radars") {
     if (Array.isArray(err.value) && err.value.length > 0) {
       const arrayIdx = anyOf.findIndex((v) => isPlainObject(v) && v["type"] === "array");
-      const inner = arrayIdx !== -1 ? pickDeepestError(err.errors[arrayIdx]) : undefined;
-      if (inner) {
-        return {
-          path: inner.path || path,
-          code: "SCHEMA_VALIDATION_ERROR",
-          message: formatSchemaErrorMessage(inner),
-        };
-      }
+      const issue = deepestVariantIssue(err, arrayIdx, path);
+      if (issue) return issue;
     }
     return {
       path,
