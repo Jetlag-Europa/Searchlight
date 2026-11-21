@@ -1,8 +1,5 @@
 import { useStore } from "@nanostores/react";
-import {
-    formatGameDefinitionJson,
-    resolveGameDefinitionId,
-} from "@searchlight/shared";
+import { resolveGameDefinitionId } from "@searchlight/shared";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "react-toastify";
@@ -28,6 +25,7 @@ import {
     DrawerTitle,
     DrawerTrigger,
 } from "@/components/ui/drawer";
+import { formatGameExportJson } from "@/game-definition/export";
 import {
     activeGameDefinitionAtom,
     compiledGameAtom,
@@ -336,8 +334,9 @@ export const OptionDrawers = () => {
                                                 try {
                                                     downloadJson(
                                                         `${gameId}.game.json`,
-                                                        formatGameDefinitionJson(
+                                                        formatGameExportJson(
                                                             def,
+                                                            gameId,
                                                         ),
                                                     );
                                                     toast.success(
