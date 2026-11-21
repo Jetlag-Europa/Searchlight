@@ -1,4 +1,11 @@
-import type { GameDefinition } from "@searchlight/shared";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
+import {
+    type GameDefinition,
+    validateGameDefinition,
+} from "@searchlight/shared";
 import { describe, expect, it } from "vitest";
 
 import { compileGameDefinition } from "@/game-definition/compile";
@@ -464,6 +471,113 @@ describe("check-game.mjs", () => {
             expect(notes).toEqual([]);
             expect(warnings).toHaveLength(1);
             expect(warnings[0].message).toMatch(/region "dense"/);
+        });
+    });
+
+    describe("server validator parity", () => {
+        it("matches server acceptance for id, revision, $schema, and tierOverrides", () => {
+            for (const def of [
+                game({ id: "paris-2026", revision: 2147483647, $schema: "" }),
+                game({ id: "a1", revision: 1 }),
+            ]) {
+                expect(checkGame(def).errors).toEqual([]);
+                expect(validateGameDefinition(def).valid).toBe(true);
+            }
+
+            const checkInvalid = (def: Record<string, unknown>, path: string) => {
+                expect(checkGame(def).errors.map((e) => e.path)).toEqual([path]);
+                expect(validateGameDefinition(def).valid).toBe(false);
+            };
+            for (const id of ["Paris-2026", "paris 2026", "paris_2026", "-paris", "paris--2026", "", "a", 123]) {
+                checkInvalid(game({ id }), "/id");
+            }
+            for (const revision of [0, 1.5, 2147483648]) {
+                checkInvalid(game({ revision }), "/revision");
+            }
+            for (const $schema of [123, null, {}]) {
+                checkInvalid(game({ $schema }), "/$schema");
+            }
+            for (const tierOverrides of [null, [600], "Outer", 600]) {
+                const def = game();
+                def.hidingZones = { ...def.hidingZones, tierOverrides } as typeof def.hidingZones;
+                checkInvalid(def, "/hidingZones/tierOverrides");
+            }
+        });
+
+        it("accepts an empty tierOverrides key and warns via unused-tier", () => {
+            const def = game();
+            def.hidingZones = {
+                ...def.hidingZones,
+                tierOverrides: { "": 600 },
+                features: collection([point("north", 10.5, 50.8, { tier: "" }), point("south", 10.5, 50.2)]),
+            } as typeof def.hidingZones;
+            expect(validateGameDefinition(def).valid).toBe(true);
+            expect(checkGame(def).errors).toEqual([]);
+            expect(checkGame(def).warnings).toEqual([
+                expect.objectContaining({ path: "/hidingZones/tierOverrides/", code: "unused-tier" }),
+            ]);
+
+            const bad = game();
+            bad.hidingZones = { ...bad.hidingZones, tierOverrides: { "": -5 } } as typeof bad.hidingZones;
+            expect(validateGameDefinition(bad).valid).toBe(false);
+            expect(checkGame(bad).errors.map((e) => e.path)).toEqual(["/hidingZones/tierOverrides/"]);
+        });
+    });
+
+    it("handles non-object roots and CLI invalid JSON as errors", () => {
+        for (const root of [null, undefined, [], "hello", 42]) {
+            const result = checkGame(root as never);
+            expect(result.errors.map((e) => e.path)).toEqual(["/"]);
+            expect(result.questions).toEqual([]);
+        }
+        const dir = mkdtempSync(join(tmpdir(), "check-game-cli-"));
+        const script = resolve(import.meta.dirname, "../public/skills/create-game/check-game.mjs");
+        try {
+            const file = join(dir, "invalid.game.json");
+            writeFileSync(file, "{ bad");
+            const res = spawnSync(process.execPath, [script, file], { encoding: "utf8" });
+            expect(res.status).toBe(1);
+            expect(res.stderr).toBe("");
+            expect(res.stdout).toContain("ERROR /: invalid JSON");
+        } finally {
+            rmSync(dir, { recursive: true, force: true });
+        }
+    });
+
+    describe("authoring trap warnings", () => {
+        it("warns on unknown keys in map, hidingZones, and visibility", () => {
+            const def = game({ visibility: { kind: "server-members", roleId: "123" } });
+            (def.map as Record<string, unknown>).zoom = 12;
+            (def.hidingZones as Record<string, unknown>).raduis = 500;
+            expect(validateGameDefinition(def).valid).toBe(true);
+            const result = checkGame(def);
+            expect(result.errors).toEqual([]);
+            expect(result.warnings.filter((w) => w.code === "unknown-property").map((w) => w.path)).toEqual([
+                "/map/zoom",
+                "/hidingZones/raduis",
+                "/visibility/roleId",
+            ]);
+            expect(STRICT_CODES.has("unknown-property")).toBe(false);
+        });
+
+        it("warns when hidingZones.radius is omitted with kilometers or miles", () => {
+            const kmDef = game();
+            delete (kmDef.hidingZones as Record<string, unknown>).radius;
+            kmDef.hidingZones.unit = "kilometers";
+            expect(codes(checkGame(kmDef))).toContain("default-radius-large-unit");
+
+            const metersOverride = game({ unit: "meters" });
+            delete (metersOverride.hidingZones as Record<string, unknown>).radius;
+            metersOverride.hidingZones.unit = "kilometers";
+            expect(codes(checkGame(metersOverride))).not.toContain("default-radius-large-unit");
+            expect(STRICT_CODES.has("default-radius-large-unit")).toBe(false);
+        });
+
+        it("explains tier-then-base fallback in invalid-zone-radius warning", () => {
+            const def = game();
+            def.hidingZones.features.features[0] = point("north", 10.5, 50.8, { radius: "600" });
+            const [warning] = checkGame(def).warnings.filter((w) => w.code === "invalid-zone-radius");
+            expect(warning.message).toContain("the zone gets its tier radius, else the base radius");
         });
     });
 });
