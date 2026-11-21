@@ -167,6 +167,28 @@ export const FeatureEnabledForSchema = Type.Union([
 ]);
 export type FeatureEnabledFor = Static<typeof FeatureEnabledForSchema>;
 
+export const FEATURE_ICONS = [
+  "pin",
+  "airport",
+  "aquarium",
+  "cinema",
+  "consulate",
+  "golf",
+  "hospital",
+  "library",
+  "mountain",
+  "museum",
+  "park",
+  "stadium",
+  "station",
+  "star",
+  "theme-park",
+  "university",
+  "zoo",
+] as const;
+export type FeatureIcon = (typeof FEATURE_ICONS)[number];
+export const FeatureIconSchema = Type.Union(FEATURE_ICONS.map((icon) => Type.Literal(icon)));
+
 export const GameFeatureSchema = Type.Object(
   {
     name: Type.String({ minLength: 1 }),
@@ -174,6 +196,10 @@ export const GameFeatureSchema = Type.Object(
     // Set by the importer's overlap fixer on a region layer whose regions
     // don't overlap, letting the app measure to all their borders at once.
     noOverlaps: Type.Optional(Type.Boolean()),
+    // Optional display color (#rrggbb), semantic icon, and KML export folder name.
+    color: Type.Optional(Type.String({ pattern: "^#[0-9a-fA-F]{6}$" })),
+    icon: Type.Optional(FeatureIconSchema),
+    kmlFolder: Type.Optional(Type.String({ minLength: 1, maxLength: 100, pattern: "\\S" })),
     data: GeoJsonFeatureCollectionSchema,
   },
   { additionalProperties: false },

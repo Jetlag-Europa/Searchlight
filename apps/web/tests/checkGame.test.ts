@@ -494,5 +494,29 @@ describe("check-game.mjs", () => {
       const [warning] = checkGame(def).warnings.filter((w) => w.code === "invalid-zone-radius");
       expect(warning.message).toContain("the zone gets its tier radius, else the base radius");
     });
+
+    it("accepts valid layer color/icon/kmlFolder and rejects malformed values", () => {
+      const good = game();
+      good.features[0] = {
+        ...good.features[0],
+        color: "#FF5252",
+        icon: "hospital",
+        kmlFolder: "Public Amenities",
+      } as never;
+      expect(checkGame(good).errors).toEqual([]);
+
+      const bad = game();
+      bad.features[0] = {
+        ...bad.features[0],
+        color: "blue",
+        icon: "bogus",
+        kmlFolder: "",
+      } as never;
+      expect(checkGame(bad).errors.map((e) => e.path)).toEqual([
+        "/features/0/color",
+        "/features/0/icon",
+        "/features/0/kmlFolder",
+      ]);
+    });
   });
 });

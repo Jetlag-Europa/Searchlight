@@ -424,11 +424,16 @@ export function GameManager() {
             Import or export versioned game definitions as JSON, or manage server maps.
           </p>
         </div>
-        {importableServers.length > 0 && (
-          <Button asChild className="font-semibold shadow-sm">
-            <a href="/games/import">+ Import Game JSON</a>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button asChild variant="outline" className="font-semibold">
+            <a href="/create">Map Creator</a>
           </Button>
-        )}
+          {importableServers.length > 0 && (
+            <Button asChild className="font-semibold shadow-sm">
+              <a href="/games/import">+ Import Game JSON</a>
+            </Button>
+          )}
+        </div>
       </div>
       {adminServers.map((s) => (
         <ServerSection

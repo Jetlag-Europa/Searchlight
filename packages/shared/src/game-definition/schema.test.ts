@@ -780,4 +780,36 @@ describe("Game Definition Validation", () => {
       },
     ]);
   });
+
+  it("accepts optional hex color, semantic icon, and kmlFolder on feature layers and rejects invalid values", () => {
+    const validDef = getSampleDefinition();
+    validDef.features = [
+      {
+        name: "Hospital",
+        enabledFor: ["matching", "measuring"],
+        color: "#FF5252",
+        icon: "hospital",
+        kmlFolder: "Public Amenities",
+        data: { type: "FeatureCollection", features: [] },
+      },
+    ];
+    expect(validateGameDefinition(validDef).valid).toBe(true);
+
+    const badDef = getSampleDefinition();
+    badDef.features = [
+      {
+        name: "Hospital",
+        enabledFor: ["matching"],
+        color: "red",
+        icon: "not-an-icon" as never,
+        kmlFolder: "",
+        data: { type: "FeatureCollection", features: [] },
+      },
+    ];
+    const res = validateGameDefinition(badDef);
+    expect(res.valid).toBe(false);
+    expect(res.errors.map((e) => e.path)).toEqual(
+      expect.arrayContaining(["/features/0/color", "/features/0/icon", "/features/0/kmlFolder"]),
+    );
+  });
 });

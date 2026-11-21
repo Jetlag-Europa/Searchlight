@@ -1,5 +1,6 @@
 import "leaflet/dist/leaflet.css";
 
+import { useStore } from "@nanostores/react";
 import {
   formatGameDefinitionJson,
   type GameDefinition,
@@ -24,7 +25,9 @@ import {
   type QualityIssue,
   summarizeLayers,
 } from "@/game-definition/inspect";
+import { verifiedUserId } from "@/lib/activeSession";
 import { CARTO_API_KEY } from "@/lib/basemap";
+import { clearCreatorImportHandoff, readCreatorImportHandoff } from "@/lib/creator/handoff";
 import { cn } from "@/lib/utils";
 import { hidingZoneCircles } from "@/maps/geo-utils/hidingZones";
 
@@ -295,8 +298,61 @@ export function GameImporter() {
   const [replaceGameId] = useState(() =>
     new URLSearchParams(window.location.search).get("replace"),
   );
+  const userId = useStore(verifiedUserId);
   const latestLoad = useRef(0);
   const panel = useRef<HTMLElement>(null);
+
+  // Load a game handed off from /create ("Import to Searchlight"). Wait for
+  // verified sign-in before consuming the draft or stripping `from=creator`
+  // so AuthGuard's 401 redirect preserves the return URL across login.
+  useEffect(() => {
+    if (!userId) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("from") !== "creator") return;
+
+    const draftId = params.get("draft");
+    let cancelled = false;
+    const load = ++latestLoad.current;
+    setBusy(true);
+    void readCreatorImportHandoff(draftId)
+      .then(async (handoff) => {
+        if (cancelled || load !== latestLoad.current) return;
+        if (!handoff) {
+          params.delete("from");
+          params.delete("draft");
+          const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+          window.history.replaceState({}, "", nextUrl);
+          return;
+        }
+        const text = formatGameDefinitionJson(handoff.definition);
+        const result = await inspectDefinition(
+          handoff.definition,
+          handoff.fileName,
+          new TextEncoder().encode(text).byteLength,
+          false,
+          false,
+          "  ",
+        );
+        if (cancelled || load !== latestLoad.current) return;
+        setLoaded(result);
+        setLoadCount(load);
+        setShownLayers(new Set());
+        setHighlight(null);
+        setWrongMarks(null);
+        setFileCount((c) => c + 1);
+        params.delete("from");
+        params.delete("draft");
+        const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+        window.history.replaceState({}, "", nextUrl);
+        void clearCreatorImportHandoff(draftId);
+      })
+      .finally(() => {
+        if (!cancelled && load === latestLoad.current) setBusy(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
 
   const loadFile = async (file: File) => {
     const load = ++latestLoad.current;
@@ -500,9 +556,14 @@ export function GameImporter() {
         className="space-y-5 border-border p-4 pt-14 md:w-96 md:overflow-y-auto md:border-l"
       >
         <div>
-          <a href="/games" className="text-xs text-muted-foreground underline">
-            ← Games
-          </a>
+          <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+            <a href="/games" className="underline">
+              ← Games
+            </a>
+            <a href="/create" className="underline hover:text-foreground">
+              Map Creator →
+            </a>
+          </div>
           <h1 className="text-xl font-bold">
             {replaceGameId ? "Replace a game" : "Import a game"}
           </h1>
@@ -514,7 +575,11 @@ export function GameImporter() {
           ) : (
             <p className="mt-1 text-sm text-muted-foreground">
               Check a <code>*.game.json</code> on the map, fix what the page can, then import it. No
-              file yet? Follow the{" "}
+              file yet? Build one in the{" "}
+              <a href="/create" className="underline">
+                Map Creator
+              </a>
+              , or follow the{" "}
               <a
                 href="/skills/create-game.md"
                 target="_blank"
@@ -522,8 +587,8 @@ export function GameImporter() {
                 className="underline"
               >
                 game creation guide
-              </a>
-              , or give it to an AI agent along with your rules doc and map links.
+              </a>{" "}
+              (or give it to an AI agent along with your rules doc and map links).
             </p>
           )}
         </div>

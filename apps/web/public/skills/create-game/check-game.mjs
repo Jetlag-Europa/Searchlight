@@ -474,8 +474,28 @@ export function checkGame(def, { fileSize } = {}) {
     "/hidingZones/features",
   );
 
-  const LAYER_KEYS = ["name", "enabledFor", "noOverlaps", "data"];
+  const LAYER_KEYS = ["name", "enabledFor", "noOverlaps", "color", "icon", "kmlFolder", "data"];
   const KINDS = ["matching", "measuring", "tentacle"];
+  const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+  const LAYER_ICONS = new Set([
+    "pin",
+    "airport",
+    "aquarium",
+    "cinema",
+    "consulate",
+    "golf",
+    "hospital",
+    "library",
+    "mountain",
+    "museum",
+    "park",
+    "stadium",
+    "station",
+    "star",
+    "theme-park",
+    "university",
+    "zoo",
+  ]);
   const layers = Array.isArray(def.features) ? def.features : [];
   if (def.features !== undefined && !Array.isArray(def.features))
     err("/features", "must be an array");
@@ -488,11 +508,31 @@ export function checkGame(def, { fileSize } = {}) {
       if (!LAYER_KEYS.includes(key))
         err(
           `${p}/${key}`,
-          "unknown layer property (layers take only name, enabledFor, noOverlaps, data)",
+          "unknown layer property (layers take only name, enabledFor, noOverlaps, color, icon, kmlFolder, data)",
         );
     }
     if (layer?.noOverlaps !== undefined && typeof layer.noOverlaps !== "boolean")
       err(`${p}/noOverlaps`, "must be true or false");
+    if (
+      layer?.color !== undefined &&
+      (typeof layer.color !== "string" || !HEX_COLOR.test(layer.color))
+    ) {
+      err(`${p}/color`, "must be a 6-digit hex color like #ff5252");
+    }
+    if (
+      layer?.icon !== undefined &&
+      (typeof layer.icon !== "string" || !LAYER_ICONS.has(layer.icon))
+    ) {
+      err(`${p}/icon`, `must be one of ${[...LAYER_ICONS].join(", ")}`);
+    }
+    if (
+      layer?.kmlFolder !== undefined &&
+      (typeof layer.kmlFolder !== "string" ||
+        !layer.kmlFolder.trim() ||
+        layer.kmlFolder.length > 100)
+    ) {
+      err(`${p}/kmlFolder`, "must be a non-empty string (1-100 characters)");
+    }
     const name = typeof layer?.name === "string" ? layer.name : "";
     if (!name) err(`${p}/name`, "required non-empty string");
     else if (layerNames.has(name))
