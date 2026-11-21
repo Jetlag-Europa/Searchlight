@@ -1,4 +1,3 @@
-import type { DistanceUnit } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 import type {
     Feature,
@@ -10,9 +9,6 @@ import type {
 import type { CompiledGame } from "@/game-definition/compile";
 import type { StationCircle, StationPlace } from "@/maps/api";
 
-const isUnit = (unit: unknown): unit is DistanceUnit =>
-    unit === "meters" || unit === "kilometers" || unit === "miles";
-
 /**
  * The game's hiding zones as the zone sidebar draws them. A station's zone is
  * a circle of its own radius, else its tier's, else the game's, times `scale`
@@ -21,12 +17,10 @@ const isUnit = (unit: unknown): unit is DistanceUnit =>
  * properties.
  */
 export function hidingZoneCircles(
-    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    compiled: Pick<CompiledGame, "hidingZones">,
     scale = 1,
 ): StationCircle[] {
-    const { stations = [], baseRadius } = compiled.hidingZones;
-    const tierOverrides: Record<string, number> =
-        compiled.definition.hidingZones?.tierOverrides ?? {};
+    const { stations = [] } = compiled.hidingZones;
 
     return stations.map((zone) => {
         const [lng, lat] = zone.coordinates;
@@ -37,16 +31,9 @@ export function hidingZoneCircles(
         });
         if (zone.area) return turf.feature(zone.area, place);
 
-        const radius =
-            zone.explicitRadius ??
-            (zone.tier ? tierOverrides[zone.tier] : undefined) ??
-            baseRadius.value;
-        const unit = isUnit(zone.radius?.unit)
-            ? zone.radius.unit
-            : baseRadius.unit;
-        return turf.circle(zone.coordinates, radius * scale, {
+        return turf.circle(zone.coordinates, zone.radius.value * scale, {
             steps: 32,
-            units: unit,
+            units: zone.radius.unit,
             properties: place,
         });
     });
@@ -88,7 +75,7 @@ const circlesByGame = new WeakMap<
  * zones. Callers must not mutate the result.
  */
 function cachedHidingZoneCircles(
-    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    compiled: Pick<CompiledGame, "hidingZones">,
     scale: number,
 ): StationCircle[] {
     const cached = circlesByGame.get(compiled);
@@ -129,7 +116,7 @@ export type FilterZones = (
  * every time for the same game and scale: don't mutate it.
  */
 export async function survivingHidingZones(
-    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    compiled: Pick<CompiledGame, "hidingZones">,
     answered: readonly AnsweredRegion[],
     currentScale: number,
     filterZones: FilterZones,
@@ -153,7 +140,7 @@ export async function survivingHidingZones(
  * `known` passes zones already drawn at one scale, to reuse them.
  */
 export async function survivingZoneIndexes(
-    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+    compiled: Pick<CompiledGame, "hidingZones">,
     answered: readonly AnsweredRegion[],
     filterZones: FilterZones,
     isCurrent: () => boolean = () => true,

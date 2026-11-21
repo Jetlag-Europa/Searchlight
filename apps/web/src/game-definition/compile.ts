@@ -1,6 +1,7 @@
 import {
   deriveFeatureQuestionId,
   type DistanceRadius,
+  type DistanceUnit,
   type GameDefinition,
   type QuestionDefinition,
   resolveGameDefinitionId,
@@ -17,7 +18,6 @@ export interface CompiledHidingZone {
   /** A polygon zone's own area. A station's zone is a circle of `radius`. */
   area?: Polygon | MultiPolygon;
   radius: DistanceRadius;
-  explicitRadius?: number;
 }
 
 export interface CompiledGame {
@@ -34,7 +34,6 @@ export interface CompiledGame {
     stations?: CompiledHidingZone[];
     /** The game-wide radius, before tier and per-zone overrides. */
     baseRadius: DistanceRadius;
-    getRadius: (zoneId: string | number, tier?: string) => DistanceRadius;
   };
   datasets: Record<string, any>;
   questions: QuestionDefinition[];
@@ -57,6 +56,28 @@ export function detectFeatureGeometry(feat: any): "polygons" | "lines" | "points
   return "points";
 }
 
+const isPositiveFinite = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value) && value > 0;
+
+const isDistanceUnit = (unit: unknown): unit is DistanceUnit =>
+  unit === "meters" || unit === "kilometers" || unit === "miles";
+
+function parseZoneRadius(
+  raw: unknown,
+  defaultUnit: DistanceUnit,
+): DistanceRadius | undefined {
+  if (isPositiveFinite(raw)) {
+    return { value: raw, unit: defaultUnit };
+  }
+  if (raw && typeof raw === "object") {
+    const candidate = raw as { value?: unknown; unit?: unknown };
+    if (isPositiveFinite(candidate.value) && isDistanceUnit(candidate.unit)) {
+      return { value: candidate.value, unit: candidate.unit };
+    }
+  }
+  return undefined;
+}
+
 export function compileGameDefinition(
   definition: GameDefinition,
 ): CompiledGame {
@@ -67,8 +88,22 @@ export function compileGameDefinition(
   const baseRadius: DistanceRadius = { value: baseRadiusValue, unit };
   const tierOverrides = definition.hidingZones?.tierOverrides ?? {};
 
+  const resolveTierRadius = (
+    tier: string | undefined,
+  ): DistanceRadius | undefined => {
+    // Not Object.hasOwn: Safari 14 and Chrome 87, which the build targets,
+    // don't have it.
+    if (
+      !tier ||
+      !Object.prototype.hasOwnProperty.call(tierOverrides, tier)
+    ) {
+      return undefined;
+    }
+    const value = tierOverrides[tier];
+    return isPositiveFinite(value) ? { value, unit } : undefined;
+  };
+
   // 1. Process Hiding Zones
-  const perZoneRadiusMap = new Map<string | number, DistanceRadius>();
   const stations: CompiledHidingZone[] = [];
   const rawFeatures = (definition.hidingZones?.features as any)?.features || [];
 
@@ -89,16 +124,10 @@ export function compileGameDefinition(
     const rawTier = feat.properties?.tier;
     const tier = rawTier == null ? undefined : String(rawTier);
 
-    let effectiveRadius = baseRadius;
-    let explicitRadius: number | undefined;
-    if (feat.properties?.radius) {
-      const r = feat.properties.radius;
-      effectiveRadius = typeof r === "number" ? { value: r, unit } : r;
-      explicitRadius = typeof r === "number" ? r : typeof r?.value === "number" ? r.value : undefined;
-      perZoneRadiusMap.set(zId, effectiveRadius);
-    } else if (tier && tierOverrides[tier]) {
-      effectiveRadius = { value: tierOverrides[tier], unit };
-    }
+    const effectiveRadius =
+      parseZoneRadius(feat.properties?.radius, unit) ??
+      resolveTierRadius(tier) ??
+      baseRadius;
 
     if (feat.geometry?.type === "Point") {
       stationCount++;
@@ -108,7 +137,6 @@ export function compileGameDefinition(
         tier,
         coordinates: feat.geometry.coordinates as [number, number],
         radius: effectiveRadius,
-        ...(explicitRadius !== undefined ? { explicitRadius } : {}),
       });
     } else if (isArea) {
       areaCount++;
@@ -122,16 +150,6 @@ export function compileGameDefinition(
       });
     }
   }
-
-  const getRadius = (
-    zoneId: string | number,
-    tier?: string,
-  ): DistanceRadius => {
-    const override = perZoneRadiusMap.get(zoneId);
-    if (override) return override;
-    if (tier && tierOverrides[tier]) return { value: tierOverrides[tier], unit };
-    return baseRadius;
-  };
 
   // 2. Build Datasets from features. Each layer is keyed by its position, since
   // differently named layers can share a slug.
@@ -271,10 +289,10 @@ export function compileGameDefinition(
     };
     // The play area, which the map starts as, and every zone.
     if (definition.map.playArea?.features?.length) {
-      extend(turf.bbox(definition.map.playArea as FeatureCollection));
+      extend(turf.bbox(definition.map.playArea as FeatureCollection, { recompute: true }));
     }
     for (const s of stations) {
-      extend(s.area ? turf.bbox(s.area) : [...s.coordinates, ...s.coordinates]);
+      extend(s.area ? turf.bbox(s.area, { recompute: true }) : [...s.coordinates, ...s.coordinates]);
     }
     const margin = 0.05;
     bounds = [minLng - margin, minLat - margin, maxLng + margin, maxLat + margin];
@@ -293,7 +311,6 @@ export function compileGameDefinition(
       features: definition.hidingZones?.features as FeatureCollection,
       stations,
       baseRadius,
-      getRadius,
     },
     datasets,
     questions,

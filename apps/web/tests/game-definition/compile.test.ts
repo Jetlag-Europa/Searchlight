@@ -33,13 +33,11 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(compiled.gameId).toBe("paris-2026");
     expect(compiled.hidingZones.stations?.length).toBe(412);
     expect(compiled.questions.length).toBe(39); // one radar for its two radii
-    const innerRadius = compiled.hidingZones.getRadius("zone-1", "Inner");
-    expect(innerRadius.value).toBe(400);
-    expect(innerRadius.unit).toBe("meters");
+    const innerRadius = compiled.hidingZones.stations?.find((s) => s.tier === "Inner")?.radius;
+    expect(innerRadius).toEqual({ value: 400, unit: "meters" });
 
-    const outerRadius = compiled.hidingZones.getRadius("zone-2", "Outer");
-    expect(outerRadius.value).toBe(600);
-    expect(outerRadius.unit).toBe("meters");
+    const outerRadius = compiled.hidingZones.stations?.find((s) => s.tier === "Outer")?.radius;
+    expect(outerRadius).toEqual({ value: 600, unit: "meters" });
   });
 
   it("evaluates a radius operator on compiled definition against play area", async () => {
@@ -103,7 +101,7 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     const compiled = compileGameDefinition(customDef as any);
     expect(compiled.gameId).toBe("tokyo-2026");
     expect(compiled.hidingZones.stations?.length).toBe(1);
-    expect(compiled.hidingZones.getRadius("shinjuku", "Yamanote").value).toBe(500);
+    expect(compiled.hidingZones.stations?.[0].radius.value).toBe(500);
     expect(compiled.questions.map((q) => q.id)).toEqual([
       "radius",
       "thermometer",
@@ -366,5 +364,57 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(names("matching-foo-bar")).toEqual(["A1", "A2"]);
   });
 
+  it("resolves per-zone radii once and falls back cleanly on invalid metadata", () => {
+    const point = (id: string, properties: Record<string, unknown>) => ({
+      type: "Feature",
+      id,
+      geometry: { type: "Point", coordinates: [10, 50] },
+      properties: { name: id, ...properties },
+    });
 
+    const compiled = compileGameDefinition({
+      id: "radius-resolution",
+      name: "Radius resolution",
+      serverId: "home-games",
+      map: {
+        center: [10, 50],
+        playArea: { type: "FeatureCollection", features: [] },
+      },
+      hidingZones: {
+        radius: 0.5,
+        unit: "kilometers",
+        tierOverrides: { "1": 0.75, Outer: 1.2 },
+        features: {
+          type: "FeatureCollection",
+          features: [
+            point("valid-num", { radius: 0.25 }),
+            point("valid-obj", { radius: { value: 300, unit: "meters" } }),
+            point("str-radius", { radius: "600", tier: "Outer" }),
+            point("str-val", { radius: { value: "500", unit: "meters" }, tier: "Outer" }),
+            point("bad-unit", { radius: { value: 500, unit: "m" } }),
+            point("neg-radius", { radius: -500, tier: 1 }),
+            point("zero-radius", { radius: 0 }),
+            point("numeric-tier", { tier: 1 }),
+            point("proto-tier", { tier: "toString" }),
+          ],
+        },
+      },
+    } as unknown as GameDefinition);
+
+    const expected: Record<string, { value: number; unit: string }> = {
+      "valid-num": { value: 0.25, unit: "kilometers" },
+      "valid-obj": { value: 300, unit: "meters" },
+      "str-radius": { value: 1.2, unit: "kilometers" },
+      "str-val": { value: 1.2, unit: "kilometers" },
+      "bad-unit": { value: 0.5, unit: "kilometers" },
+      "neg-radius": { value: 0.75, unit: "kilometers" },
+      "zero-radius": { value: 0.5, unit: "kilometers" },
+      "numeric-tier": { value: 0.75, unit: "kilometers" },
+      "proto-tier": { value: 0.5, unit: "kilometers" },
+    };
+
+    for (const station of compiled.hidingZones.stations!) {
+      expect(station.radius).toEqual(expected[String(station.id)]);
+    }
+  });
 });

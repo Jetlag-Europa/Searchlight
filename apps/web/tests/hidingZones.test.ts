@@ -229,3 +229,44 @@ it("compares zone lists by their objects, in any order", () => {
     // An equal but new zone is a change.
     expect(sameZones([a, b], [c, b])).toBe(false);
 });
+
+it("draws circles from each zone's resolved radius", () => {
+    const cases: Array<[string, Record<string, unknown>, number]> = [
+        ["valid-num", { radius: 0.2 }, 200],
+        ["valid-obj", { radius: { value: 250, unit: "meters" } }, 250],
+        ["bad-str", { radius: "600" }, 500],
+        ["bad-val", { radius: { value: "500", unit: "meters" }, tier: "tram" }, 300],
+        ["bad-unit", { radius: { value: 500, unit: "m" } }, 500],
+        ["bad-neg", { radius: -500, tier: 1 }, 800],
+        ["bad-zero", { radius: 0 }, 500],
+        ["proto-tier", { tier: "toString" }, 500],
+    ];
+
+    const compiled = compileGameDefinition({
+        ...game,
+        hidingZones: {
+            radius: 0.5,
+            unit: "kilometers",
+            tierOverrides: { "1": 0.8, tram: 0.3 },
+            features: {
+                type: "FeatureCollection",
+                features: cases.map(([id, props]) => ({
+                    type: "Feature",
+                    id,
+                    geometry: { type: "Point", coordinates: [10, 50] },
+                    properties: { name: id, ...props },
+                })),
+            },
+        },
+    } as unknown as GameDefinition);
+
+    const circles = hidingZoneCircles(compiled);
+    for (const [index, [, , expectedMeters]] of cases.entries()) {
+        const radiusMeters = turf.distance(
+            [10, 50],
+            (circles[index].geometry as Polygon).coordinates[0][0],
+            { units: "meters" },
+        );
+        expect(radiusMeters).toBeCloseTo(expectedMeters, 0);
+    }
+});
