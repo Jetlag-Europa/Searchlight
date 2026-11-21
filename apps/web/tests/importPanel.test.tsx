@@ -94,13 +94,16 @@ const submitButton = () => ui.buttons[ui.buttons.length - 1]!;
 beforeEach(() => {
     ui.buttons = [];
     apiMocks.importGameDefinitionAPI.mockReset();
-    verifiedUserId.set(null);
+    verifiedUserId.set("u1");
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
     root = createRoot(ui.container as unknown as Element);
 });
 
 afterEach(async () => {
     await act(async () => root?.unmount());
     root = null;
+    verifiedUserId.set(null);
+    vi.unstubAllGlobals();
 });
 
 test("sends expectedCurrentRevisionId on confirm for an unchanged plain import preview", async () => {
