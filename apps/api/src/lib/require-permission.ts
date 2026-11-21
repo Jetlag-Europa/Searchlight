@@ -17,12 +17,7 @@ export function requirePermission(
     const server = await prisma.server.findUnique({ where: { id: serverId } });
     if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
 
-    const perms = await getUserPermissions(
-      user.discordId,
-      serverId,
-      privileged,
-      req.log,
-    );
+    const perms = await getUserPermissions(user.discordId, serverId, privileged, req.log);
 
     if (!perms.has(permission)) throw forbidden();
   };

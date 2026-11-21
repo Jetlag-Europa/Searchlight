@@ -1,10 +1,5 @@
 import * as turf from "@turf/turf";
-import type {
-    Feature,
-    FeatureCollection,
-    MultiPolygon,
-    Polygon,
-} from "geojson";
+import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 import type { CompiledGame } from "@/game-definition/compile";
 import type { StationCircle, StationPlace } from "@/maps/api";
@@ -17,34 +12,30 @@ import type { StationCircle, StationPlace } from "@/maps/api";
  * properties.
  */
 export function hidingZoneCircles(
-    compiled: Pick<CompiledGame, "hidingZones">,
-    scale = 1,
+  compiled: Pick<CompiledGame, "hidingZones">,
+  scale = 1,
 ): StationCircle[] {
-    const { stations = [] } = compiled.hidingZones;
+  const { stations = [] } = compiled.hidingZones;
 
-    return stations.map((zone) => {
-        const [lng, lat] = zone.coordinates;
-        const place: StationPlace = turf.point(zone.coordinates, {
-            id: String(zone.id) || `${lat},${lng}`,
-            name: zone.name,
-            ...(zone.tier ? { tier: zone.tier } : {}),
-        });
-        if (zone.area) return turf.feature(zone.area, place);
-
-        return turf.circle(zone.coordinates, zone.radius.value * scale, {
-            steps: 32,
-            units: zone.radius.unit,
-            properties: place,
-        });
+  return stations.map((zone) => {
+    const [lng, lat] = zone.coordinates;
+    const place: StationPlace = turf.point(zone.coordinates, {
+      id: String(zone.id) || `${lat},${lng}`,
+      name: zone.name,
+      ...(zone.tier ? { tier: zone.tier } : {}),
     });
+    if (zone.area) return turf.feature(zone.area, place);
+
+    return turf.circle(zone.coordinates, zone.radius.value * scale, {
+      steps: 32,
+      units: zone.radius.unit,
+      properties: place,
+    });
+  });
 }
 
 /** How the zone sidebar shows the zones. */
-export type ZoneDisplayStyle =
-    | "zones"
-    | "stations"
-    | "no-overlap"
-    | "no-display";
+export type ZoneDisplayStyle = "zones" | "stations" | "no-overlap" | "no-display";
 
 /**
  * The layer the zone sidebar draws for the zones still in play: each zone or
@@ -53,20 +44,15 @@ export type ZoneDisplayStyle =
  * out, or all disabled by hand) there is nothing to draw, in every style.
  */
 export function hidingZoneLayer(
-    zones: StationCircle[],
-    style: ZoneDisplayStyle,
+  zones: StationCircle[],
+  style: ZoneDisplayStyle,
 ): FeatureCollection {
-    if (style === "no-display" || zones.length === 0)
-        return turf.featureCollection([]);
-    if (style === "stations")
-        return turf.featureCollection(zones.map((zone) => zone.properties));
-    return turf.featureCollection(zones);
+  if (style === "no-display" || zones.length === 0) return turf.featureCollection([]);
+  if (style === "stations") return turf.featureCollection(zones.map((zone) => zone.properties));
+  return turf.featureCollection(zones);
 }
 
-const circlesByGame = new WeakMap<
-    object,
-    { scale: number; circles: StationCircle[] }
->();
+const circlesByGame = new WeakMap<object, { scale: number; circles: StationCircle[] }>();
 
 /**
  * {@link hidingZoneCircles}, kept per compiled game for the latest scale so a
@@ -75,35 +61,32 @@ const circlesByGame = new WeakMap<
  * zones. Callers must not mutate the result.
  */
 function cachedHidingZoneCircles(
-    compiled: Pick<CompiledGame, "hidingZones">,
-    scale: number,
+  compiled: Pick<CompiledGame, "hidingZones">,
+  scale: number,
 ): StationCircle[] {
-    const cached = circlesByGame.get(compiled);
-    if (cached?.scale === scale) return cached.circles;
-    const circles = hidingZoneCircles(compiled, scale);
-    circlesByGame.set(compiled, { scale, circles });
-    return circles;
+  const cached = circlesByGame.get(compiled);
+  if (cached?.scale === scale) return cached.circles;
+  const circles = hidingZoneCircles(compiled, scale);
+  circlesByGame.set(compiled, { scale, circles });
+  return circles;
 }
 
 /** Whether two zone lists hold the same zone objects, in any order. */
-export function sameZones(
-    a: readonly StationCircle[],
-    b: readonly StationCircle[],
-): boolean {
-    if (a.length !== b.length) return false;
-    const zones = new Set(a);
-    return b.every((zone) => zones.has(zone));
+export function sameZones(a: readonly StationCircle[], b: readonly StationCircle[]): boolean {
+  if (a.length !== b.length) return false;
+  const zones = new Set(a);
+  return b.every((zone) => zones.has(zone));
 }
 
 /** A question's still-possible region and the zone size it was asked at. */
 export interface AnsweredRegion {
-    region: FeatureCollection<Polygon | MultiPolygon> | null | undefined;
-    zoneScale?: number;
+  region: FeatureCollection<Polygon | MultiPolygon> | null | undefined;
+  zoneScale?: number;
 }
 
 export type FilterZones = (
-    circles: Feature<Polygon | MultiPolygon>[],
-    regions: FeatureCollection<Polygon | MultiPolygon>[],
+  circles: Feature<Polygon | MultiPolygon>[],
+  regions: FeatureCollection<Polygon | MultiPolygon>[],
 ) => Promise<number[]> | number[];
 
 /**
@@ -116,23 +99,20 @@ export type FilterZones = (
  * every time for the same game and scale: don't mutate it.
  */
 export async function survivingHidingZones(
-    compiled: Pick<CompiledGame, "hidingZones">,
-    answered: readonly AnsweredRegion[],
-    currentScale: number,
-    filterZones: FilterZones,
-    isCurrent: () => boolean = () => true,
+  compiled: Pick<CompiledGame, "hidingZones">,
+  answered: readonly AnsweredRegion[],
+  currentScale: number,
+  filterZones: FilterZones,
+  isCurrent: () => boolean = () => true,
 ): Promise<StationCircle[] | undefined> {
-    // The same zones as last time keep their objects, so the sidebar can
-    // tell nothing changed and skip redrawing them.
-    const current = cachedHidingZoneCircles(compiled, currentScale);
-    const surviving = await survivingZoneIndexes(
-        compiled,
-        answered,
-        filterZones,
-        isCurrent,
-        { scale: currentScale, circles: current },
-    );
-    return surviving?.map((index) => current[index]);
+  // The same zones as last time keep their objects, so the sidebar can
+  // tell nothing changed and skip redrawing them.
+  const current = cachedHidingZoneCircles(compiled, currentScale);
+  const surviving = await survivingZoneIndexes(compiled, answered, filterZones, isCurrent, {
+    scale: currentScale,
+    circles: current,
+  });
+  return surviving?.map((index) => current[index]);
 }
 
 /**
@@ -140,40 +120,34 @@ export async function survivingHidingZones(
  * `known` passes zones already drawn at one scale, to reuse them.
  */
 export async function survivingZoneIndexes(
-    compiled: Pick<CompiledGame, "hidingZones">,
-    answered: readonly AnsweredRegion[],
-    filterZones: FilterZones,
-    isCurrent: () => boolean = () => true,
-    known?: { scale: number; circles: StationCircle[] },
+  compiled: Pick<CompiledGame, "hidingZones">,
+  answered: readonly AnsweredRegion[],
+  filterZones: FilterZones,
+  isCurrent: () => boolean = () => true,
+  known?: { scale: number; circles: StationCircle[] },
 ): Promise<number[] | undefined> {
-    const count = compiled.hidingZones.stations?.length ?? 0;
-    let surviving = Array.from({ length: count }, (_, index) => index);
-    if (count === 0 || answered.length === 0) return surviving;
-    if (answered.some(({ region }) => !region)) return [];
+  const count = compiled.hidingZones.stations?.length ?? 0;
+  let surviving = Array.from({ length: count }, (_, index) => index);
+  if (count === 0 || answered.length === 0) return surviving;
+  if (answered.some(({ region }) => !region)) return [];
 
-    const regionsByScale = new Map<
-        number,
-        FeatureCollection<Polygon | MultiPolygon>[]
-    >();
-    for (const { region, zoneScale = 1 } of answered) {
-        const regions = regionsByScale.get(zoneScale) ?? [];
-        regions.push(region!);
-        regionsByScale.set(zoneScale, regions);
-    }
+  const regionsByScale = new Map<number, FeatureCollection<Polygon | MultiPolygon>[]>();
+  for (const { region, zoneScale = 1 } of answered) {
+    const regions = regionsByScale.get(zoneScale) ?? [];
+    regions.push(region!);
+    regionsByScale.set(zoneScale, regions);
+  }
 
-    // Narrowed by each zone size in turn.
-    for (const [scale, regions] of regionsByScale) {
-        const circles =
-            scale === known?.scale
-                ? known.circles
-                : hidingZoneCircles(compiled, scale);
-        const kept = await filterZones(
-            surviving.map((index) => circles[index]),
-            regions,
-        );
-        if (!isCurrent()) return undefined;
-        surviving = kept.map((index) => surviving[index]);
-        if (surviving.length === 0) break;
-    }
-    return surviving;
+  // Narrowed by each zone size in turn.
+  for (const [scale, regions] of regionsByScale) {
+    const circles = scale === known?.scale ? known.circles : hidingZoneCircles(compiled, scale);
+    const kept = await filterZones(
+      surviving.map((index) => circles[index]),
+      regions,
+    );
+    if (!isCurrent()) return undefined;
+    surviving = kept.map((index) => surviving[index]);
+    if (surviving.length === 0) break;
+  }
+  return surviving;
 }

@@ -4,44 +4,36 @@ import { orient2d } from "robust-predicates";
 
 import type { CompiledGame } from "@/game-definition/compile";
 import { isQuestionSupported } from "@/game-definition/store";
-import {
-    newQuestionKey,
-    type Question,
-    type Questions,
-    questionSchema,
-} from "@/maps/schema";
+import { newQuestionKey, type Question, type Questions, questionSchema } from "@/maps/schema";
 
-type FileSession = Pick<
-    GameSessionSummary,
-    "name" | "gameId" | "gameName" | "gameRevisionId"
->;
+type FileSession = Pick<GameSessionSummary, "name" | "gameId" | "gameName" | "gameRevisionId">;
 
 /** A session's questions as a file: what Export Questions downloads. */
 export const buildQuestionsFile = (
-    session: FileSession,
-    questions: Questions,
-    now = new Date(),
+  session: FileSession,
+  questions: Questions,
+  now = new Date(),
 ) => ({
-    searchlightQuestions: 1,
-    sessionName: session.name,
-    // The session's game as the server knows it, not the definition's id,
-    // which two servers may share.
-    gameId: session.gameId,
-    gameName: session.gameName,
-    gameRevisionId: session.gameRevisionId,
-    exportedAt: now.toISOString(),
-    questions,
+  searchlightQuestions: 1,
+  sessionName: session.name,
+  // The session's game as the server knows it, not the definition's id,
+  // which two servers may share.
+  gameId: session.gameId,
+  gameName: session.gameName,
+  gameRevisionId: session.gameRevisionId,
+  exportedAt: now.toISOString(),
+  questions,
 });
 
 export const questionsFileName = (sessionName: string): string =>
-    `${
-        sessionName
-            .toLowerCase()
-            // Letters and digits of any script: "東京" and "zürich" stay.
-            .replace(/[^\p{L}\p{N}]+/gu, "-")
-            .slice(0, 80)
-            .replace(/^-|-$/g, "") || "session"
-    }.questions.json`;
+  `${
+    sessionName
+      .toLowerCase()
+      // Letters and digits of any script: "東京" and "zürich" stay.
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .slice(0, 80)
+      .replace(/^-|-$/g, "") || "session"
+  }.questions.json`;
 
 /** The API takes a question list of up to 1 MiB, counted in bytes. */
 export const MAX_QUESTIONS_FILE_BYTES = 1_000_000;
@@ -62,132 +54,104 @@ const MAX_PLACES = 300;
 const MAX_NAME_LENGTH = 80;
 
 const GEOMETRY_TYPES = [
-    "Point",
-    "MultiPoint",
-    "LineString",
-    "MultiLineString",
-    "Polygon",
-    "MultiPolygon",
+  "Point",
+  "MultiPoint",
+  "LineString",
+  "MultiLineString",
+  "Polygon",
+  "MultiPolygon",
 ] as const;
 
 // Leaflet can draw across the antimeridian without wrapping longitude (e.g.
 // 179.8° to 180.2°), so allow ±360° longitude while bounding latitude to ±90°.
 const positionOk = (pos: unknown): pos is number[] =>
-    Array.isArray(pos) &&
-    pos.length >= 2 &&
-    pos.every((n) => typeof n === "number" && Number.isFinite(n)) &&
-    Math.abs(pos[0]) <= 360 &&
-    Math.abs(pos[1]) <= 90;
+  Array.isArray(pos) &&
+  pos.length >= 2 &&
+  pos.every((n) => typeof n === "number" && Number.isFinite(n)) &&
+  Math.abs(pos[0]) <= 360 &&
+  Math.abs(pos[1]) <= 90;
 
 const lineOk = (line: unknown): boolean =>
-    Array.isArray(line) && line.length >= 2 && line.every(positionOk);
+  Array.isArray(line) && line.length >= 2 && line.every(positionOk);
 
 const ringOk = (ring: unknown): boolean => {
-    if (!Array.isArray(ring) || ring.length < 4 || !ring.every(positionOk)) {
-        return false;
-    }
-    const first = ring[0];
-    const last = ring[ring.length - 1];
-    if (first[0] !== last[0] || first[1] !== last[1]) return false;
-    const second = ring.find((p) => p[0] !== first[0] || p[1] !== first[1]);
-    if (!second) return false;
-    // Exact collinearity test (avoids floating-point cancellation on diagonal
-    // collinear rings) plus vertex-shifted shoelace area for retraced rings.
-    if (
-        !ring.some(
-            (p) =>
-                orient2d(
-                    first[0],
-                    first[1],
-                    second[0],
-                    second[1],
-                    p[0],
-                    p[1],
-                ) !== 0,
-        )
-    ) {
-        return false;
-    }
-    let area2 = 0;
-    let scale = 0;
-    for (let i = 1; i < ring.length; i++) {
-        const term =
-            (ring[i - 1][0] - first[0]) * (ring[i][1] - first[1]) -
-            (ring[i][0] - first[0]) * (ring[i - 1][1] - first[1]);
-        area2 += term;
-        scale += Math.abs(term);
-    }
-    return scale > 0 && Math.abs(area2) > scale * 1e-12;
+  if (!Array.isArray(ring) || ring.length < 4 || !ring.every(positionOk)) {
+    return false;
+  }
+  const first = ring[0];
+  const last = ring[ring.length - 1];
+  if (first[0] !== last[0] || first[1] !== last[1]) return false;
+  const second = ring.find((p) => p[0] !== first[0] || p[1] !== first[1]);
+  if (!second) return false;
+  // Exact collinearity test (avoids floating-point cancellation on diagonal
+  // collinear rings) plus vertex-shifted shoelace area for retraced rings.
+  if (!ring.some((p) => orient2d(first[0], first[1], second[0], second[1], p[0], p[1]) !== 0)) {
+    return false;
+  }
+  let area2 = 0;
+  let scale = 0;
+  for (let i = 1; i < ring.length; i++) {
+    const term =
+      (ring[i - 1][0] - first[0]) * (ring[i][1] - first[1]) -
+      (ring[i][0] - first[0]) * (ring[i - 1][1] - first[1]);
+    area2 += term;
+    scale += Math.abs(term);
+  }
+  return scale > 0 && Math.abs(area2) > scale * 1e-12;
 };
 
 const polygonOk = (rings: unknown): boolean =>
-    Array.isArray(rings) && rings.length > 0 && rings.every(ringOk);
+  Array.isArray(rings) && rings.length > 0 && rings.every(ringOk);
 
 const geometryOk = (type: unknown, coordinates: unknown): boolean => {
-    switch (type) {
-        case "Point":
-            return positionOk(coordinates);
-        case "MultiPoint":
-            return (
-                Array.isArray(coordinates) &&
-                coordinates.length > 0 &&
-                coordinates.every(positionOk)
-            );
-        case "LineString":
-            return lineOk(coordinates);
-        case "MultiLineString":
-            return (
-                Array.isArray(coordinates) &&
-                coordinates.length > 0 &&
-                coordinates.every(lineOk)
-            );
-        case "Polygon":
-            return polygonOk(coordinates);
-        case "MultiPolygon":
-            return (
-                Array.isArray(coordinates) &&
-                coordinates.length > 0 &&
-                coordinates.every(polygonOk)
-            );
-        default:
-            return false;
-    }
+  switch (type) {
+    case "Point":
+      return positionOk(coordinates);
+    case "MultiPoint":
+      return Array.isArray(coordinates) && coordinates.length > 0 && coordinates.every(positionOk);
+    case "LineString":
+      return lineOk(coordinates);
+    case "MultiLineString":
+      return Array.isArray(coordinates) && coordinates.length > 0 && coordinates.every(lineOk);
+    case "Polygon":
+      return polygonOk(coordinates);
+    case "MultiPolygon":
+      return Array.isArray(coordinates) && coordinates.length > 0 && coordinates.every(polygonOk);
+    default:
+      return false;
+  }
 };
 
-const featureOk = (
-    feature: unknown,
-    types: readonly string[] = GEOMETRY_TYPES,
-): boolean =>
-    isRecord(feature) &&
-    feature.type === "Feature" &&
-    isRecord(feature.geometry) &&
-    types.includes(feature.geometry.type as string) &&
-    geometryOk(feature.geometry.type, feature.geometry.coordinates) &&
-    // A place's name is shown as text.
-    ["string", "number", "undefined"].includes(
-        typeof (feature.properties as { name?: unknown } | null)?.name,
-    );
+const featureOk = (feature: unknown, types: readonly string[] = GEOMETRY_TYPES): boolean =>
+  isRecord(feature) &&
+  feature.type === "Feature" &&
+  isRecord(feature.geometry) &&
+  types.includes(feature.geometry.type as string) &&
+  geometryOk(feature.geometry.type, feature.geometry.coordinates) &&
+  // A place's name is shown as text.
+  ["string", "number", "undefined"].includes(
+    typeof (feature.properties as { name?: unknown } | null)?.name,
+  );
 
 /** How many positions a checked feature's geometry has. */
 const positionCount = (coordinates: unknown): number =>
-    !Array.isArray(coordinates)
-        ? 0
-        : typeof coordinates[0] === "number"
-          ? 1
-          : coordinates.reduce((n, c) => n + positionCount(c), 0);
+  !Array.isArray(coordinates)
+    ? 0
+    : typeof coordinates[0] === "number"
+      ? 1
+      : coordinates.reduce((n, c) => n + positionCount(c), 0);
 const lineLength = (features: unknown[]): number =>
-    features.reduce<number>((n, feature) => {
-        const { type, coordinates } = (
-            feature as { geometry: { type: string; coordinates: unknown } }
-        ).geometry;
-        return type.endsWith("Point") ? n : n + positionCount(coordinates);
-    }, 0);
+  features.reduce<number>((n, feature) => {
+    const { type, coordinates } = (feature as { geometry: { type: string; coordinates: unknown } })
+      .geometry;
+    return type.endsWith("Point") ? n : n + positionCount(coordinates);
+  }, 0);
 
 interface Cost {
-    /** Corners of drawn lines and outlines to measure to. */
-    corners: number;
-    /** Custom places and points. */
-    places: number;
+  /** Corners of drawn lines and outlines to measure to. */
+  corners: number;
+  /** Custom places and points. */
+  places: number;
 }
 
 /**
@@ -197,68 +161,57 @@ interface Cost {
  * saved to the session would break the board for every player.
  */
 function shapeCost({ id, data }: Question): Cost | null {
-    const { type, geo, location, places, radius, unit } = data as Record<
-        string,
-        unknown
-    >;
-    if (typeof radius === "number") {
-        const km = turf.convertLength(radius, unit as turf.Units, "kilometers");
-        if (!(km >= MIN_RADIUS_KM && km <= MAX_RADIUS_KM)) return null;
-    }
-    const points = (list: unknown[]): Cost | null =>
-        list.every((place) => featureOk(place, ["Point"]))
-            ? { corners: 0, places: list.length }
-            : null;
-    if (id === "tentacles") {
-        return !location || featureOk(location, ["Point"])
-            ? points((places as unknown[] | undefined) ?? [])
-            : null;
-    }
-    if (geo == null) return { corners: 0, places: 0 };
-    // Custom points are a list of features, drawn lines a collection, and a
-    // zone a feature or a collection.
-    if (type === "custom-points")
-        return Array.isArray(geo) ? points(geo) : null;
-    const collection = isRecord(geo) && geo.type === "FeatureCollection";
-    if (type === "custom-measure" && !collection) return null;
-    if (type === "custom-zone" && Array.isArray(geo)) return null;
-    const features = Array.isArray(geo)
-        ? geo
-        : collection
-          ? (geo as { features: unknown }).features
-          : [geo];
-    if (
-        !Array.isArray(features) ||
-        !features.every((feature) =>
-            featureOk(
-                feature,
-                type === "custom-zone"
-                    ? ["Polygon", "MultiPolygon"]
-                    : undefined,
-            ),
-        )
-    ) {
-        return null;
-    }
-    // Only what is measured to is buffered: a zone's outline is cheap.
-    return type === "custom-measure"
-        ? { corners: lineLength(features), places: features.length }
-        : { corners: 0, places: 0 };
+  const { type, geo, location, places, radius, unit } = data as Record<string, unknown>;
+  if (typeof radius === "number") {
+    const km = turf.convertLength(radius, unit as turf.Units, "kilometers");
+    if (!(km >= MIN_RADIUS_KM && km <= MAX_RADIUS_KM)) return null;
+  }
+  const points = (list: unknown[]): Cost | null =>
+    list.every((place) => featureOk(place, ["Point"])) ? { corners: 0, places: list.length } : null;
+  if (id === "tentacles") {
+    return !location || featureOk(location, ["Point"])
+      ? points((places as unknown[] | undefined) ?? [])
+      : null;
+  }
+  if (geo == null) return { corners: 0, places: 0 };
+  // Custom points are a list of features, drawn lines a collection, and a
+  // zone a feature or a collection.
+  if (type === "custom-points") return Array.isArray(geo) ? points(geo) : null;
+  const collection = isRecord(geo) && geo.type === "FeatureCollection";
+  if (type === "custom-measure" && !collection) return null;
+  if (type === "custom-zone" && Array.isArray(geo)) return null;
+  const features = Array.isArray(geo)
+    ? geo
+    : collection
+      ? (geo as { features: unknown }).features
+      : [geo];
+  if (
+    !Array.isArray(features) ||
+    !features.every((feature) =>
+      featureOk(feature, type === "custom-zone" ? ["Polygon", "MultiPolygon"] : undefined),
+    )
+  ) {
+    return null;
+  }
+  // Only what is measured to is buffered: a zone's outline is cheap.
+  return type === "custom-measure"
+    ? { corners: lineLength(features), places: features.length }
+    : { corners: 0, places: 0 };
 }
 
 const name = (value: unknown): string =>
-    typeof value === "string" ? value.slice(0, MAX_NAME_LENGTH) : "";
+  typeof value === "string" ? value.slice(0, MAX_NAME_LENGTH) : "";
 
 export interface ImportedQuestions {
-    questions: Questions;
-    /**
-     * Questions in the file that are broken, not part of this game, or more
-     * than the map can work out.
-     */
-    skipped: number;
-    sessionName: string;
-    /** The name of the game it was exported from, if not this session's. */
-    otherGame: string | null;
+  questions: Questions;
+  /**
+   * Questions in the file that are broken, not part of this game, or more
+   * than the map can work out.
+   */
+  skipped: number;
+  sessionName: string;
+  /** The name of the game it was exported from, if not this session's. */
+  otherGame: string | null;
 }
 
 /**
@@ -269,66 +222,53 @@ export interface ImportedQuestions {
  * asRestored), and restoring nothing, as one pasted (see addQuestion).
  */
 export function parseQuestionsFile(
-    text: string,
-    compiled: Pick<CompiledGame, "questionMap">,
-    gameId: string,
+  text: string,
+  compiled: Pick<CompiledGame, "questionMap">,
+  gameId: string,
 ): ImportedQuestions | { error: string } {
-    if (bytes(text) > MAX_QUESTIONS_FILE_BYTES) {
-        return { error: "That file is too big to import" };
+  if (bytes(text) > MAX_QUESTIONS_FILE_BYTES) {
+    return { error: "That file is too big to import" };
+  }
+  let file: unknown;
+  try {
+    // 1e999 reads as Infinity, which is saved as null: not a number here.
+    file = JSON.parse(text, (_, value) =>
+      typeof value === "number" && !Number.isFinite(value) ? null : value,
+    );
+  } catch {
+    return { error: "That file isn't JSON" };
+  }
+  if (!isRecord(file) || file.searchlightQuestions !== 1 || !Array.isArray(file.questions)) {
+    return { error: "That isn't a Searchlight questions file" };
+  }
+  let corners = 0;
+  let places = 0;
+  const questions = file.questions.flatMap((question) => {
+    const parsed = questionSchema.safeParse(question);
+    if (!parsed.success || !isQuestionSupported(parsed.data, compiled)) {
+      return [];
     }
-    let file: unknown;
-    try {
-        // 1e999 reads as Infinity, which is saved as null: not a number here.
-        file = JSON.parse(text, (_, value) =>
-            typeof value === "number" && !Number.isFinite(value) ? null : value,
-        );
-    } catch {
-        return { error: "That file isn't JSON" };
+    const cost = shapeCost(parsed.data);
+    if (!cost || corners + cost.corners > MAX_LINE_POSITIONS || places + cost.places > MAX_PLACES) {
+      return [];
     }
-    if (
-        !isRecord(file) ||
-        file.searchlightQuestions !== 1 ||
-        !Array.isArray(file.questions)
-    ) {
-        return { error: "That isn't a Searchlight questions file" };
-    }
-    let corners = 0;
-    let places = 0;
-    const questions = file.questions.flatMap((question) => {
-        const parsed = questionSchema.safeParse(question);
-        if (!parsed.success || !isQuestionSupported(parsed.data, compiled)) {
-            return [];
-        }
-        const cost = shapeCost(parsed.data);
-        if (
-            !cost ||
-            corners + cost.corners > MAX_LINE_POSITIONS ||
-            places + cost.places > MAX_PLACES
-        ) {
-            return [];
-        }
-        corners += cost.corners;
-        places += cost.places;
-        delete parsed.data.data.restoredFrom;
-        return [{ ...parsed.data, key: newQuestionKey() }];
-    });
-    if (questions.length === 0) {
-        return { error: "That file has no questions for this game" };
-    }
-    // Each is saved with an id and a position, about 100 bytes.
-    if (
-        bytes(JSON.stringify(questions)) + questions.length * 100 >
-        MAX_QUESTIONS_FILE_BYTES
-    ) {
-        return { error: "That file is too big to import" };
-    }
-    return {
-        questions,
-        skipped: file.questions.length - questions.length,
-        sessionName: name(file.sessionName),
-        otherGame:
-            typeof file.gameId === "string" && file.gameId !== gameId
-                ? name(file.gameName)
-                : null,
-    };
+    corners += cost.corners;
+    places += cost.places;
+    delete parsed.data.data.restoredFrom;
+    return [{ ...parsed.data, key: newQuestionKey() }];
+  });
+  if (questions.length === 0) {
+    return { error: "That file has no questions for this game" };
+  }
+  // Each is saved with an id and a position, about 100 bytes.
+  if (bytes(JSON.stringify(questions)) + questions.length * 100 > MAX_QUESTIONS_FILE_BYTES) {
+    return { error: "That file is too big to import" };
+  }
+  return {
+    questions,
+    skipped: file.questions.length - questions.length,
+    sessionName: name(file.sessionName),
+    otherGame:
+      typeof file.gameId === "string" && file.gameId !== gameId ? name(file.gameName) : null,
+  };
 }

@@ -1,10 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-  GAME_DEFINITION_SCHEMA_URL,
-  GameDefinitionSchema,
-} from "../packages/shared/src/index.js";
+import { GAME_DEFINITION_SCHEMA_URL, GameDefinitionSchema } from "../packages/shared/src/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = resolve(__dirname, "..");
@@ -13,7 +10,6 @@ const TARGET_PATHS = [
   resolve(ROOT_DIR, "games/schema/game-definition.v1.schema.json"),
   resolve(ROOT_DIR, "apps/web/public/schemas/game-definition.v1.schema.json"),
 ];
-
 
 export function buildJsonSchema(): string {
   const schemaObj = {

@@ -8,29 +8,25 @@ import type { GameSessionSummary } from "@searchlight/shared";
  * own stream finds out, and `deletedHere` covers a delete whose reply was lost.
  */
 export function deletedSessionNotice({
-    sessionId,
-    status,
-    activeSessionId,
-    deletedHere,
-    role,
-    name,
+  sessionId,
+  status,
+  activeSessionId,
+  deletedHere,
+  role,
+  name,
 }: {
-    sessionId: string;
-    status: number;
-    activeSessionId: string;
-    deletedHere: boolean;
-    // Unknown without the session's details: a cache from before they were
-    // kept, or another account's.
-    role?: GameSessionSummary["role"];
-    name?: string;
+  sessionId: string;
+  status: number;
+  activeSessionId: string;
+  deletedHere: boolean;
+  // Unknown without the session's details: a cache from before they were
+  // kept, or another account's.
+  role?: GameSessionSummary["role"];
+  name?: string;
 }): string | null {
-    if (status !== 404 || sessionId !== activeSessionId || deletedHere)
-        return null;
-    const session = name ? `The session “${name}”` : "The session you had open";
-    // Only the creator can delete a session.
-    if (role === "creator")
-        return `${session} was deleted from another tab or device.`;
-    return role
-        ? `${session} was deleted by its creator.`
-        : `${session} was deleted.`;
+  if (status !== 404 || sessionId !== activeSessionId || deletedHere) return null;
+  const session = name ? `The session “${name}”` : "The session you had open";
+  // Only the creator can delete a session.
+  if (role === "creator") return `${session} was deleted from another tab or device.`;
+  return role ? `${session} was deleted by its creator.` : `${session} was deleted.`;
 }

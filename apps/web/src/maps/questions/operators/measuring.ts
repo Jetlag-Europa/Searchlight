@@ -1,50 +1,37 @@
 import type { Evaluator } from "@searchlight/shared";
 import * as turf from "@turf/turf";
-import type {
-    BBox,
-    FeatureCollection,
-    Geometry,
-    MultiPolygon,
-    Polygon,
-} from "geojson";
+import type { BBox, FeatureCollection, Geometry, MultiPolygon, Polygon } from "geojson";
 
-import {
-    arcBuffer,
-    arcBufferToPoint,
-    arcDistanceToPoint,
-} from "@/maps/geo-utils";
-import {
-    bufferDeviation,
-    featuresReaching,
-} from "@/maps/geo-utils/bufferReach";
+import { arcBuffer, arcBufferToPoint, arcDistanceToPoint } from "@/maps/geo-utils";
+import { bufferDeviation, featuresReaching } from "@/maps/geo-utils/bufferReach";
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
 import {
-    borderNetwork,
-    cachedBuffer,
-    cachedGeometry,
-    containingRegion,
-    type GeometrySource,
-    geometrySource,
-    type Region,
-    regionLines,
+  borderNetwork,
+  cachedBuffer,
+  cachedGeometry,
+  containingRegion,
+  type GeometrySource,
+  geometrySource,
+  type Region,
+  regionLines,
 } from "./geometry";
 
 export interface MeasuringEvaluationParams {
-    evaluator: Evaluator;
-    datasets: Record<string, unknown>;
-    data: {
-        lat: number;
-        lng: number;
-        hiderCloser?: boolean;
-        geo?: FeatureCollection;
-    };
-    mapGeoData: FeatureCollection<Polygon | MultiPolygon> | null | undefined;
-    /**
-     * Identifies the asking question, so a buffer for its newer position
-     * supersedes one for an older position still waiting in the worker.
-     */
-    requestKey?: string;
+  evaluator: Evaluator;
+  datasets: Record<string, unknown>;
+  data: {
+    lat: number;
+    lng: number;
+    hiderCloser?: boolean;
+    geo?: FeatureCollection;
+  };
+  mapGeoData: FeatureCollection<Polygon | MultiPolygon> | null | undefined;
+  /**
+   * Identifies the asking question, so a buffer for its newer position
+   * supersedes one for an older position still waiting in the worker.
+   */
+  requestKey?: string;
 }
 
 type MeasuringGeometryParams = Omit<MeasuringEvaluationParams, "mapGeoData">;
@@ -54,72 +41,67 @@ type MeasuringGeometryParams = Omit<MeasuringEvaluationParams, "mapGeoData">;
 const BOUNDS_STEP = 0.05;
 
 function measuringBounds(
-    mapGeoData: FeatureCollection<Polygon | MultiPolygon> | null | undefined,
+  mapGeoData: FeatureCollection<Polygon | MultiPolygon> | null | undefined,
 ): BBox | undefined {
-    if (!mapGeoData?.features.length) return undefined;
-    const [west, south, east, north] = turf.bbox(mapGeoData);
-    const down = (value: number) =>
-        Math.min(value, Math.floor(value / BOUNDS_STEP) * BOUNDS_STEP);
-    const up = (value: number) =>
-        Math.max(value, Math.ceil(value / BOUNDS_STEP) * BOUNDS_STEP);
-    return [
-        Math.max(-180, down(west)),
-        Math.max(-90, down(south)),
-        Math.min(180, up(east)),
-        Math.min(90, up(north)),
-    ];
+  if (!mapGeoData?.features.length) return undefined;
+  const [west, south, east, north] = turf.bbox(mapGeoData);
+  const down = (value: number) => Math.min(value, Math.floor(value / BOUNDS_STEP) * BOUNDS_STEP);
+  const up = (value: number) => Math.max(value, Math.ceil(value / BOUNDS_STEP) * BOUNDS_STEP);
+  return [
+    Math.max(-180, down(west)),
+    Math.max(-90, down(south)),
+    Math.min(180, up(east)),
+    Math.min(90, up(north)),
+  ];
 }
 
 /** No feature comes within the seeker's distance of the map. */
 export function isEmptyBuffer(region: Region): boolean {
-    return region.geometry.coordinates.length === 0;
+  return region.geometry.coordinates.length === 0;
 }
 
 /** The same target set drives distance answers, buffers, and planning lines. */
 export async function determineMeasuringTargets({
-    evaluator,
-    datasets,
-    data,
+  evaluator,
+  datasets,
+  data,
 }: MeasuringGeometryParams) {
-    const source = geometrySource(evaluator, datasets, data);
-    if (!source) return undefined;
-    switch (evaluator.operator) {
-        case "nearest-feature-distance":
-            return source.points.length
-                ? cachedGeometry(
-                      source,
-                      "measuring:points",
-                      () => turf.featureCollection(source.points),
-                      true,
-                  )
-                : undefined;
-        case "distance-to-lines":
-            return source.lines.length
-                ? cachedGeometry(
-                      source,
-                      "measuring:lines",
-                      () =>
-                          turf.featureCollection(
-                              source.lines.map(({ line }) => line),
-                          ),
-                      true,
-                  )
-                : undefined;
-        case "distance-to-containing-region-boundary":
-            return boundaryLinesAt(source, data.lat, data.lng);
-        default:
-            return undefined;
-    }
+  const source = geometrySource(evaluator, datasets, data);
+  if (!source) return undefined;
+  switch (evaluator.operator) {
+    case "nearest-feature-distance":
+      return source.points.length
+        ? cachedGeometry(
+            source,
+            "measuring:points",
+            () => turf.featureCollection(source.points),
+            true,
+          )
+        : undefined;
+    case "distance-to-lines":
+      return source.lines.length
+        ? cachedGeometry(
+            source,
+            "measuring:lines",
+            () => turf.featureCollection(source.lines.map(({ line }) => line)),
+            true,
+          )
+        : undefined;
+    case "distance-to-containing-region-boundary":
+      return boundaryLinesAt(source, data.lat, data.lng);
+    default:
+      return undefined;
+  }
 }
 
 /** A region's own boundary, shared by answers and buffers. */
 function boundaryLines(source: GeometrySource, index: number) {
-    return cachedGeometry(
-        source,
-        `measuring:region:${index}`,
-        () => regionLines(source.regions[index]),
-        true,
-    );
+  return cachedGeometry(
+    source,
+    `measuring:region:${index}`,
+    () => regionLines(source.regions[index]),
+    true,
+  );
 }
 
 /**
@@ -129,30 +111,25 @@ function boundaryLines(source: GeometrySource, index: number) {
  * though it belonged to that region.
  */
 function boundaryLinesAt(source: GeometrySource, lat: number, lng: number) {
-    if (!source.regions.length) return undefined;
-    const containing = containingRegion(source.regions, turf.point([lng, lat]));
-    if (containing) {
-        return boundaryLines(source, source.regions.indexOf(containing));
-    }
-    return cachedGeometry(
-        source,
-        "measuring:region:all",
-        () =>
-            turf.featureCollection(
-                source.regions.flatMap(
-                    (region) => regionLines(region).features,
-                ),
-            ),
-        true,
-    );
+  if (!source.regions.length) return undefined;
+  const containing = containingRegion(source.regions, turf.point([lng, lat]));
+  if (containing) {
+    return boundaryLines(source, source.regions.indexOf(containing));
+  }
+  return cachedGeometry(
+    source,
+    "measuring:region:all",
+    () => turf.featureCollection(source.regions.flatMap((region) => regionLines(region).features)),
+    true,
+  );
 }
 
 export interface MeasuredDistance {
-    meters: number;
-    /** The nearest target's name, when it has one. */
-    name?: string;
-    /** Measured to a region's boundary, so `name` is the region's. */
-    boundary?: boolean;
+  meters: number;
+  /** The nearest target's name, when it has one. */
+  name?: string;
+  /** Measured to a region's boundary, so `name` is the region's. */
+  boundary?: boolean;
 }
 
 /**
@@ -162,49 +139,44 @@ export interface MeasuredDistance {
  * which can only disagree on a near tie.
  */
 export async function measureToTargets(
-    targets: FeatureCollection,
-    lat: number,
-    lng: number,
+  targets: FeatureCollection,
+  lat: number,
+  lng: number,
 ): Promise<MeasuredDistance | undefined> {
-    if (!targets.features.length) return undefined;
-    const meters = await arcDistanceToPoint(targets, lat, lng, "meters");
-    if (!Number.isFinite(meters)) return undefined;
-    const point = turf.point([lng, lat]);
-    let name: unknown;
-    let nearest = Infinity;
-    turf.flattenEach(
-        targets as FeatureCollection<Geometry>,
-        ({ geometry, properties }) => {
-            let distance: number;
-            if (geometry.type === "Point") {
-                distance = turf.distance(point, geometry);
-            } else if (geometry.type === "LineString") {
-                distance = turf.pointToLineDistance(point, geometry);
-            } else if (geometry.type === "Polygon") {
-                // A drawn custom measure can hold areas, measured from their
-                // edge and 0 inside, as the map's buffers measure them.
-                distance = turf.booleanPointInPolygon(point, geometry)
-                    ? 0
-                    : Math.min(
-                          ...turf
-                              .flatten(turf.polygonToLine(geometry))
-                              .features.map((line) =>
-                                  turf.pointToLineDistance(point, line),
-                              ),
-                      );
-            } else {
-                return;
-            }
-            if (distance < nearest) {
-                nearest = distance;
-                name = properties?.name;
-            }
-        },
-    );
-    return {
-        meters,
-        name: typeof name === "string" && name.trim() ? name : undefined,
-    };
+  if (!targets.features.length) return undefined;
+  const meters = await arcDistanceToPoint(targets, lat, lng, "meters");
+  if (!Number.isFinite(meters)) return undefined;
+  const point = turf.point([lng, lat]);
+  let name: unknown;
+  let nearest = Infinity;
+  turf.flattenEach(targets as FeatureCollection<Geometry>, ({ geometry, properties }) => {
+    let distance: number;
+    if (geometry.type === "Point") {
+      distance = turf.distance(point, geometry);
+    } else if (geometry.type === "LineString") {
+      distance = turf.pointToLineDistance(point, geometry);
+    } else if (geometry.type === "Polygon") {
+      // A drawn custom measure can hold areas, measured from their
+      // edge and 0 inside, as the map's buffers measure them.
+      distance = turf.booleanPointInPolygon(point, geometry)
+        ? 0
+        : Math.min(
+            ...turf
+              .flatten(turf.polygonToLine(geometry))
+              .features.map((line) => turf.pointToLineDistance(point, line)),
+          );
+    } else {
+      return;
+    }
+    if (distance < nearest) {
+      nearest = distance;
+      name = properties?.name;
+    }
+  });
+  return {
+    meters,
+    name: typeof name === "string" && name.trim() ? name : undefined,
+  };
 }
 
 /**
@@ -214,219 +186,186 @@ export async function measureToTargets(
  * combining the buffers takes more than twice as long.
  */
 function layerCenter(source: GeometrySource): Promise<[number, number]> {
-    return cachedGeometry(
-        source,
-        "measuring:layer-center",
-        () => {
-            const [west, south, east, north] = turf.bbox(
-                turf.featureCollection(source.regions),
-            );
-            return [(west + east) / 2, (south + north) / 2];
-        },
-        true,
-    );
+  return cachedGeometry(
+    source,
+    "measuring:layer-center",
+    () => {
+      const [west, south, east, north] = turf.bbox(turf.featureCollection(source.regions));
+      return [(west + east) / 2, (south + north) / 2];
+    },
+    true,
+  );
 }
 
 const MAX_CACHED_DISTANCES = 2;
-const regionBufferCaches = new WeakMap<
-    GeometrySource,
-    Map<string, Map<number, Promise<Region>>>
->();
+const regionBufferCaches = new WeakMap<GeometrySource, Map<string, Map<number, Promise<Region>>>>();
 
-function getRegionBuffer(
-    source: GeometrySource,
-    index: number,
-    distance: number,
-): Promise<Region> {
-    let distMap = regionBufferCaches.get(source);
-    if (!distMap) {
-        distMap = new Map();
-        regionBufferCaches.set(source, distMap);
+function getRegionBuffer(source: GeometrySource, index: number, distance: number): Promise<Region> {
+  let distMap = regionBufferCaches.get(source);
+  if (!distMap) {
+    distMap = new Map();
+    regionBufferCaches.set(source, distMap);
+  }
+  const distKey = String(distance);
+  let buffers = distMap.get(distKey);
+  if (!buffers) {
+    buffers = new Map();
+    distMap.set(distKey, buffers);
+    if (distMap.size > MAX_CACHED_DISTANCES) {
+      distMap.delete(distMap.keys().next().value!);
     }
-    const distKey = String(distance);
-    let buffers = distMap.get(distKey);
-    if (!buffers) {
-        buffers = new Map();
-        distMap.set(distKey, buffers);
-        if (distMap.size > MAX_CACHED_DISTANCES) {
-            distMap.delete(distMap.keys().next().value!);
-        }
-    } else {
-        distMap.delete(distKey);
-        distMap.set(distKey, buffers);
-    }
-    let pending = buffers.get(index);
-    if (!pending) {
-        pending = (async () =>
-            arcBuffer(
-                await boundaryLines(source, index),
-                distance,
-                "miles",
-                bufferDeviation(distance, "miles"),
-                await layerCenter(source),
-            ))();
-        buffers.set(index, pending);
-        void pending.catch(() => {
-            if (buffers?.get(index) === pending) {
-                buffers.delete(index);
-            }
-        });
-    }
-    return pending;
+  } else {
+    distMap.delete(distKey);
+    distMap.set(distKey, buffers);
+  }
+  let pending = buffers.get(index);
+  if (!pending) {
+    pending = (async () =>
+      arcBuffer(
+        await boundaryLines(source, index),
+        distance,
+        "miles",
+        bufferDeviation(distance, "miles"),
+        await layerCenter(source),
+      ))();
+    buffers.set(index, pending);
+    void pending.catch(() => {
+      if (buffers?.get(index) === pending) {
+        buffers.delete(index);
+      }
+    });
+  }
+  return pending;
 }
 
 async function getContainingRegionTargetGeometry(
-    source: GeometrySource,
-    data: { lat: number; lng: number },
-    mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null,
+  source: GeometrySource,
+  data: { lat: number; lng: number },
+  mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null,
 ): Promise<Region | null> {
-    const seekerLines = await boundaryLinesAt(source, data.lat, data.lng);
-    if (!seekerLines) return null;
-    // Use the same ArcGIS geodetic metric that constructs the boundary
-    // buffers; Turf's spherical distance can differ by over 100 m here.
-    const threshold = await cachedGeometry(
+  const seekerLines = await boundaryLinesAt(source, data.lat, data.lng);
+  if (!seekerLines) return null;
+  // Use the same ArcGIS geodetic metric that constructs the boundary
+  // buffers; Turf's spherical distance can differ by over 100 m here.
+  const threshold = await cachedGeometry(
+    source,
+    `measuring:region-distance:${data.lat}:${data.lng}`,
+    () => arcDistanceToPoint(seekerLines, data.lat, data.lng, "miles"),
+  );
+  if (!Number.isFinite(threshold) || threshold <= 0) return null;
+  // Only regions within the seeker's distance of the map can shape it. The
+  // target is independent of the current map's shape once they are known;
+  // a rounded bbox alone is not a safe cache key.
+  const candidates = mapGeoData?.features.length
+    ? featuresReaching(
+        source.regions,
+        turf.bbox(mapGeoData),
+        turf.convertLength(threshold, "miles", "kilometers"),
+      )
+    : source.regions.map((_, index) => index);
+  const key = `measuring:containing-target:${data.lat}:${data.lng}:${candidates.join(",")}`;
+  return cachedBuffer(source, key, async () => {
+    if (!candidates.length) return null;
+    if (source.noOverlaps) {
+      // A point is as far from its own region's boundary as from the
+      // nearest boundary of any, so one buffer of them all is the
+      // target, with nothing to cut from it.
+      const network = await cachedGeometry(
         source,
-        `measuring:region-distance:${data.lat}:${data.lng}`,
-        () => arcDistanceToPoint(seekerLines, data.lat, data.lng, "miles"),
+        `measuring:network:${candidates.join(",")}`,
+        () => borderNetwork(candidates.map((index) => source.regions[index])),
+      );
+      // Projected around its own middle: a single buffer has no
+      // neighbour to match, and stays planar further out that way.
+      return arcBuffer(
+        turf.featureCollection([network]),
+        threshold,
+        "miles",
+        bufferDeviation(threshold, "miles"),
+      );
+    }
+    const buffers = await Promise.all(
+      candidates.map((index) => getRegionBuffer(source, index, threshold)),
     );
-    if (!Number.isFinite(threshold) || threshold <= 0) return null;
-    // Only regions within the seeker's distance of the map can shape it. The
-    // target is independent of the current map's shape once they are known;
-    // a rounded bbox alone is not a safe cache key.
-    const candidates = mapGeoData?.features.length
-        ? featuresReaching(
-              source.regions,
-              turf.bbox(mapGeoData),
-              turf.convertLength(threshold, "miles", "kilometers"),
-          )
-        : source.regions.map((_, index) => index);
-    const key = `measuring:containing-target:${data.lat}:${data.lng}:${candidates.join(",")}`;
-    return cachedBuffer(source, key, async () => {
-        if (!candidates.length) return null;
-        if (source.noOverlaps) {
-            // A point is as far from its own region's boundary as from the
-            // nearest boundary of any, so one buffer of them all is the
-            // target, with nothing to cut from it.
-            const network = await cachedGeometry(
-                source,
-                `measuring:network:${candidates.join(",")}`,
-                () =>
-                    borderNetwork(
-                        candidates.map((index) => source.regions[index]),
-                    ),
-            );
-            // Projected around its own middle: a single buffer has no
-            // neighbour to match, and stays planar further out that way.
-            return arcBuffer(
-                turf.featureCollection([network]),
-                threshold,
-                "miles",
-                bufferDeviation(threshold, "miles"),
-            );
-        }
-        const buffers = await Promise.all(
-            candidates.map((index) =>
-                getRegionBuffer(source, index, threshold),
-            ),
-        );
-        // Cutting each region's far part from the buffers can take seconds on
-        // a large layer, so the worker does it.
-        return requestGeometry({
-            kind: "boundaryTarget",
-            regions: source.regions,
-            candidates,
-            buffers,
-        });
+    // Cutting each region's far part from the buffers can take seconds on
+    // a large layer, so the worker does it.
+    return requestGeometry({
+      kind: "boundaryTarget",
+      regions: source.regions,
+      candidates,
+      buffers,
     });
+  });
 }
 
 export async function determineMeasuringGeometry(
-    params: MeasuringGeometryParams & {
-        mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null;
-    },
+  params: MeasuringGeometryParams & {
+    mapGeoData?: FeatureCollection<Polygon | MultiPolygon> | null;
+  },
 ) {
-    const source = geometrySource(
-        params.evaluator,
-        params.datasets,
-        params.data,
-    );
-    if (!source) return undefined;
-    const { evaluator, data } = params;
-    if (evaluator.operator === "distance-to-containing-region-boundary") {
-        const target = await getContainingRegionTargetGeometry(
-            source,
-            data,
-            params.mapGeoData,
-        );
-        return target ?? undefined;
-    }
-    const within = measuringBounds(params.mapGeoData);
-    const prefix = `measuring:buffer:${evaluator.operator}:${data.lat}:${data.lng}:`;
-    return cachedBuffer(
-        source,
-        prefix + (within?.join(",") ?? "everywhere"),
-        async () => {
-            const targets = await determineMeasuringTargets(params);
-            if (!targets?.features.length) return undefined;
-            // The worker measures the seeker's distance to every target, so
-            // it stays exact, then buffers only the targets that can reach
-            // the map.
-            return arcBufferToPoint(targets, data.lat, data.lng, {
-                within,
-                supersede: params.requestKey,
-            });
-        },
-        // A buffer exact over a larger box serves a narrower map too.
-        (cachedKey) => {
-            if (!cachedKey.startsWith(prefix)) return false;
-            const bounds = cachedKey.slice(prefix.length);
-            if (bounds === "everywhere") return true;
-            if (!within) return false;
-            const [west, south, east, north] = bounds.split(",").map(Number);
-            return (
-                west <= within[0] &&
-                south <= within[1] &&
-                east >= within[2] &&
-                north >= within[3]
-            );
-        },
-    );
+  const source = geometrySource(params.evaluator, params.datasets, params.data);
+  if (!source) return undefined;
+  const { evaluator, data } = params;
+  if (evaluator.operator === "distance-to-containing-region-boundary") {
+    const target = await getContainingRegionTargetGeometry(source, data, params.mapGeoData);
+    return target ?? undefined;
+  }
+  const within = measuringBounds(params.mapGeoData);
+  const prefix = `measuring:buffer:${evaluator.operator}:${data.lat}:${data.lng}:`;
+  return cachedBuffer(
+    source,
+    prefix + (within?.join(",") ?? "everywhere"),
+    async () => {
+      const targets = await determineMeasuringTargets(params);
+      if (!targets?.features.length) return undefined;
+      // The worker measures the seeker's distance to every target, so
+      // it stays exact, then buffers only the targets that can reach
+      // the map.
+      return arcBufferToPoint(targets, data.lat, data.lng, {
+        within,
+        supersede: params.requestKey,
+      });
+    },
+    // A buffer exact over a larger box serves a narrower map too.
+    (cachedKey) => {
+      if (!cachedKey.startsWith(prefix)) return false;
+      const bounds = cachedKey.slice(prefix.length);
+      if (bounds === "everywhere") return true;
+      if (!within) return false;
+      const [west, south, east, north] = bounds.split(",").map(Number);
+      return west <= within[0] && south <= within[1] && east >= within[2] && north >= within[3];
+    },
+  );
 }
 
-export async function evaluateMeasuringOperator(
-    params: MeasuringEvaluationParams,
-) {
-    if (!params.mapGeoData) return params.mapGeoData;
-    const { evaluator, data, mapGeoData } = params;
-    if (evaluator.operator === "distance-to-containing-region-boundary") {
-        const source = geometrySource(evaluator, params.datasets, data);
-        if (!source) return mapGeoData;
-        const closer = data.hiderCloser !== false;
-        const targetGeometry = await getContainingRegionTargetGeometry(
-            source,
-            data,
-            mapGeoData,
-        );
-        if (!targetGeometry) {
-            return closer ? turf.featureCollection([]) : mapGeoData;
-        }
-        return requestGeometry({
-            kind: "clip",
-            mapData: mapGeoData,
-            modifications: targetGeometry,
-            within: closer,
-        });
-    }
-    const buffer = await determineMeasuringGeometry(params);
-    if (!buffer) return mapGeoData;
+export async function evaluateMeasuringOperator(params: MeasuringEvaluationParams) {
+  if (!params.mapGeoData) return params.mapGeoData;
+  const { evaluator, data, mapGeoData } = params;
+  if (evaluator.operator === "distance-to-containing-region-boundary") {
+    const source = geometrySource(evaluator, params.datasets, data);
+    if (!source) return mapGeoData;
     const closer = data.hiderCloser !== false;
-    if (isEmptyBuffer(buffer)) {
-        return closer ? turf.featureCollection([]) : mapGeoData;
+    const targetGeometry = await getContainingRegionTargetGeometry(source, data, mapGeoData);
+    if (!targetGeometry) {
+      return closer ? turf.featureCollection([]) : mapGeoData;
     }
     return requestGeometry({
-        kind: "clip",
-        mapData: mapGeoData,
-        modifications: buffer,
-        within: closer,
+      kind: "clip",
+      mapData: mapGeoData,
+      modifications: targetGeometry,
+      within: closer,
     });
+  }
+  const buffer = await determineMeasuringGeometry(params);
+  if (!buffer) return mapGeoData;
+  const closer = data.hiderCloser !== false;
+  if (isEmptyBuffer(buffer)) {
+    return closer ? turf.featureCollection([]) : mapGeoData;
+  }
+  return requestGeometry({
+    kind: "clip",
+    mapData: mapGeoData,
+    modifications: buffer,
+    within: closer,
+  });
 }

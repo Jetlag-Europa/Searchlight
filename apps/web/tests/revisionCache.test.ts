@@ -2,84 +2,80 @@ import type { GameDefinition } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
-    clearStoredRevisions,
-    MAX_STORED_REVISIONS,
-    readStoredRevision,
-    storeRevision,
+  clearStoredRevisions,
+  MAX_STORED_REVISIONS,
+  readStoredRevision,
+  storeRevision,
 } from "@/game-definition/revisionCache";
 import { clearDefinitionCache, loadGameDefinition } from "@/game-definition/store";
 
 // ── Cache API fake ───────────────────────────────────────────────────────────
 // Node has no Cache API. This keeps responses in memory.
 const urlOf = (request: RequestInfo | URL) =>
-    typeof request === "string"
-        ? request
-        : request instanceof URL
-          ? request.href
-          : request.url;
+  typeof request === "string" ? request : request instanceof URL ? request.href : request.url;
 
 class FakeCache {
-    readonly entries = new Map<string, Response>();
-    async put(request: RequestInfo | URL, response: Response) {
-        this.entries.set(urlOf(request), response);
-    }
-    async match(request: RequestInfo | URL) {
-        return this.entries.get(urlOf(request))?.clone();
-    }
-    async keys() {
-        return [...this.entries.keys()].map((url) => new Request(url));
-    }
-    async delete(request: RequestInfo | URL) {
-        return this.entries.delete(urlOf(request));
-    }
+  readonly entries = new Map<string, Response>();
+  async put(request: RequestInfo | URL, response: Response) {
+    this.entries.set(urlOf(request), response);
+  }
+  async match(request: RequestInfo | URL) {
+    return this.entries.get(urlOf(request))?.clone();
+  }
+  async keys() {
+    return [...this.entries.keys()].map((url) => new Request(url));
+  }
+  async delete(request: RequestInfo | URL) {
+    return this.entries.delete(urlOf(request));
+  }
 }
 
 class FakeCacheStorage {
-    readonly caches = new Map<string, FakeCache>();
-    async open(name: string) {
-        let cache = this.caches.get(name);
-        if (!cache) this.caches.set(name, (cache = new FakeCache()));
-        return cache;
-    }
-    async keys() {
-        return [...this.caches.keys()];
-    }
-    async delete(name: string) {
-        return this.caches.delete(name);
-    }
+  readonly caches = new Map<string, FakeCache>();
+  async open(name: string) {
+    let cache = this.caches.get(name);
+    if (!cache) this.caches.set(name, (cache = new FakeCache()));
+    return cache;
+  }
+  async keys() {
+    return [...this.caches.keys()];
+  }
+  async delete(name: string) {
+    return this.caches.delete(name);
+  }
 }
 
 const local = new Map<string, string>();
 vi.stubGlobal("localStorage", {
-    getItem: (k: string) => local.get(k) ?? null,
-    setItem: (k: string, v: string) => void local.set(k, v),
-    removeItem: (k: string) => void local.delete(k),
+  getItem: (k: string) => local.get(k) ?? null,
+  setItem: (k: string, v: string) => void local.set(k, v),
+  removeItem: (k: string) => void local.delete(k),
 });
 
 // Compiles: a play area and one hiding zone.
 function definition(name: string): GameDefinition {
-    return {
-        id: "game",
-        name,
-        serverId: "server",
-        map: {
-            center: [0, 0],
-            playArea: { type: "FeatureCollection", features: [] },
-        },
-        hidingZones: {
-            radius: 1,
-            features: {
-                type: "FeatureCollection",
-                features: [
-                    {
-                        type: "Feature",
-                        geometry: { type: "Point", coordinates: [0, 0] },
-                        properties: { name: "Station" },
-                    },
-                ],
-            },
-        },
-    } as unknown as GameDefinition;
+  return {
+    id: "game",
+    name,
+    serverId: "server",
+    map: {
+      center: [0, 0],
+      playArea: { type: "FeatureCollection", features: [] },
+    },
+    hidingZones: {
+      radius: 1,
+      features: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [0, 0] },
+            properties: { name: "Station" },
+          },
+        ],
+      },
+    },
+  } as unknown as GameDefinition;
 }
 const json = (name: string) => JSON.stringify(definition(name));
 
@@ -87,254 +83,228 @@ let storage: FakeCacheStorage;
 const entries = () => [...storage.caches.values()].flatMap((c) => [...c.entries.keys()]);
 
 beforeEach(() => {
-    local.clear();
-    local.set("taibled-authed-user", "u1");
-    storage = new FakeCacheStorage();
-    vi.stubGlobal("caches", storage);
-    vi.spyOn(console, "warn").mockImplementation(() => {});
-    clearDefinitionCache();
+  local.clear();
+  local.set("taibled-authed-user", "u1");
+  storage = new FakeCacheStorage();
+  vi.stubGlobal("caches", storage);
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+  clearDefinitionCache();
 });
 
 afterEach(() => {
-    vi.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 describe("kept game revisions", () => {
-    test("come back as stored, per game and revision", async () => {
-        await storeRevision("game", "r1", json("one"));
-        expect(await readStoredRevision("game", "r1")).toEqual(
-            definition("one"),
-        );
-        expect(await readStoredRevision("game", "r2")).toBeUndefined();
-        expect(await readStoredRevision("other", "r1")).toBeUndefined();
-    });
+  test("come back as stored, per game and revision", async () => {
+    await storeRevision("game", "r1", json("one"));
+    expect(await readStoredRevision("game", "r1")).toEqual(definition("one"));
+    expect(await readStoredRevision("game", "r2")).toBeUndefined();
+    expect(await readStoredRevision("other", "r1")).toBeUndefined();
+  });
 
-    test("keep only the most recently used ones", async () => {
-        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
-            await storeRevision("game", `r${i}`, json(`${i}`));
-        }
-        // The oldest is read again, as a session still playing it would.
-        expect(await readStoredRevision("game", "r1")).toBeDefined();
-        await storeRevision("game", "new", json("new"));
-
-        expect(await readStoredRevision("game", "r1")).toBeDefined();
-        expect(await readStoredRevision("game", "r2")).toBeUndefined();
-        expect(await readStoredRevision("game", "new")).toBeDefined();
-        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
-    });
-
-    test("drop an unreadable copy", async () => {
-        await storeRevision("game", "r1", json("one"));
-        const [cache] = storage.caches.values();
-        const [url] = cache.entries.keys();
-        cache.entries.set(url, new Response("{not json"));
-
-        expect(await readStoredRevision("game", "r1")).toBeUndefined();
-        expect(entries()).toHaveLength(0);
-    });
-
-    test("are all forgotten on clear, those of an older format too", async () => {
-        await storeRevision("game", "r1", json("one"));
-        await (await storage.open("searchlight-game-revisions")).put(
-            "https://old",
-            new Response("{}"),
-        );
-        await clearStoredRevisions();
-        expect(storage.caches.size).toBe(0);
-        expect(await readStoredRevision("game", "r1")).toBeUndefined();
-    });
-
-    test("aren't kept once nobody is logged in here", async () => {
-        local.delete("taibled-authed-user");
-        await storeRevision("game", "r1", json("one"));
-        expect(entries()).toHaveLength(0);
-    });
-
-    test("are skipped without the Cache API, or when it refuses", async () => {
-        vi.stubGlobal("caches", undefined);
-        await storeRevision("game", "r1", json("one"));
-        expect(await readStoredRevision("game", "r1")).toBeUndefined();
-        await clearStoredRevisions();
-
-        vi.stubGlobal("caches", {
-            open: () => Promise.reject(new DOMException("denied")),
-            keys: () => Promise.reject(new DOMException("denied")),
-        });
-        await storeRevision("game", "r1", json("one"));
-        expect(await readStoredRevision("game", "r1")).toBeUndefined();
-        await clearStoredRevisions();
-    });
-
-    // A store's cleanup lists the cache's keys, and holds them up until
-    // `meanwhile` has run.
-    async function cleanUpAround(
-        store: () => Promise<void>,
-        meanwhile: () => Promise<unknown>,
-    ) {
-        const cache = await storage.open("searchlight-game-revisions-v1");
-        const keys = cache.keys.bind(cache);
-        let listing!: () => void;
-        let finishListing!: () => void;
-        const listed = new Promise<void>((r) => (listing = r));
-        const finished = new Promise<void>((r) => (finishListing = r));
-        vi.spyOn(cache, "keys").mockImplementationOnce(async () => {
-            listing();
-            await finished;
-            return keys();
-        });
-        const storing = store();
-        await listed;
-        await meanwhile();
-        finishListing();
-        await storing;
+  test("keep only the most recently used ones", async () => {
+    for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+      await storeRevision("game", `r${i}`, json(`${i}`));
     }
+    // The oldest is read again, as a session still playing it would.
+    expect(await readStoredRevision("game", "r1")).toBeDefined();
+    await storeRevision("game", "new", json("new"));
 
-    test("survive another store finishing while one cleans up", async () => {
-        await cleanUpAround(
-            () => storeRevision("game", "r1", json("one")),
-            () => storeRevision("game", "r2", json("two")),
-        );
-        expect(await readStoredRevision("game", "r1")).toBeDefined();
-        expect(await readStoredRevision("game", "r2")).toBeDefined();
+    expect(await readStoredRevision("game", "r1")).toBeDefined();
+    expect(await readStoredRevision("game", "r2")).toBeUndefined();
+    expect(await readStoredRevision("game", "new")).toBeDefined();
+    expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
+  });
+
+  test("drop an unreadable copy", async () => {
+    await storeRevision("game", "r1", json("one"));
+    const [cache] = storage.caches.values();
+    const [url] = cache.entries.keys();
+    cache.entries.set(url, new Response("{not json"));
+
+    expect(await readStoredRevision("game", "r1")).toBeUndefined();
+    expect(entries()).toHaveLength(0);
+  });
+
+  test("are all forgotten on clear, those of an older format too", async () => {
+    await storeRevision("game", "r1", json("one"));
+    await (await storage.open("searchlight-game-revisions")).put("https://old", new Response("{}"));
+    await clearStoredRevisions();
+    expect(storage.caches.size).toBe(0);
+    expect(await readStoredRevision("game", "r1")).toBeUndefined();
+  });
+
+  test("aren't kept once nobody is logged in here", async () => {
+    local.delete("taibled-authed-user");
+    await storeRevision("game", "r1", json("one"));
+    expect(entries()).toHaveLength(0);
+  });
+
+  test("are skipped without the Cache API, or when it refuses", async () => {
+    vi.stubGlobal("caches", undefined);
+    await storeRevision("game", "r1", json("one"));
+    expect(await readStoredRevision("game", "r1")).toBeUndefined();
+    await clearStoredRevisions();
+
+    vi.stubGlobal("caches", {
+      open: () => Promise.reject(new DOMException("denied")),
+      keys: () => Promise.reject(new DOMException("denied")),
     });
+    await storeRevision("game", "r1", json("one"));
+    expect(await readStoredRevision("game", "r1")).toBeUndefined();
+    await clearStoredRevisions();
+  });
 
-    test("survive another tab's store, whose index it may see late", async () => {
-        // r2's copy is in the cache, but its tab hasn't gone on yet when
-        // r1's store (in another tab) cleans up.
-        const cache = await storage.open("searchlight-game-revisions-v1");
-        const put = cache.put.bind(cache);
-        let stored!: () => void;
-        let goOn!: () => void;
-        const inCache = new Promise<void>((r) => (stored = r));
-        const resumed = new Promise<void>((r) => (goOn = r));
-        vi.spyOn(cache, "put").mockImplementationOnce(async (...args) => {
-            await put(...args);
-            stored();
-            await resumed;
-        });
-        const other = storeRevision("game", "r2", json("two"));
-        await inCache;
-        await storeRevision("game", "r1", json("one"));
-        goOn();
-        await other;
-
-        expect(await readStoredRevision("game", "r1")).toBeDefined();
-        expect(await readStoredRevision("game", "r2")).toBeDefined();
+  // A store's cleanup lists the cache's keys, and holds them up until
+  // `meanwhile` has run.
+  async function cleanUpAround(store: () => Promise<void>, meanwhile: () => Promise<unknown>) {
+    const cache = await storage.open("searchlight-game-revisions-v1");
+    const keys = cache.keys.bind(cache);
+    let listing!: () => void;
+    let finishListing!: () => void;
+    const listed = new Promise<void>((r) => (listing = r));
+    const finished = new Promise<void>((r) => (finishListing = r));
+    vi.spyOn(cache, "keys").mockImplementationOnce(async () => {
+      listing();
+      await finished;
+      return keys();
     });
+    const storing = store();
+    await listed;
+    await meanwhile();
+    finishListing();
+    await storing;
+  }
 
-    test("keep no more than that when the index can't be written", async () => {
-        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
-            await storeRevision("game", `r${i}`, json(`${i}`));
-        }
-        vi.spyOn(localStorage, "setItem").mockImplementation(() => {
-            throw new DOMException("full", "QuotaExceededError");
-        });
-        await storeRevision("game", "new", json("new"));
+  test("survive another store finishing while one cleans up", async () => {
+    await cleanUpAround(
+      () => storeRevision("game", "r1", json("one")),
+      () => storeRevision("game", "r2", json("two")),
+    );
+    expect(await readStoredRevision("game", "r1")).toBeDefined();
+    expect(await readStoredRevision("game", "r2")).toBeDefined();
+  });
 
-        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
-        expect(await readStoredRevision("game", "new")).toBeDefined();
+  test("survive another tab's store, whose index it may see late", async () => {
+    // r2's copy is in the cache, but its tab hasn't gone on yet when
+    // r1's store (in another tab) cleans up.
+    const cache = await storage.open("searchlight-game-revisions-v1");
+    const put = cache.put.bind(cache);
+    let stored!: () => void;
+    let goOn!: () => void;
+    const inCache = new Promise<void>((r) => (stored = r));
+    const resumed = new Promise<void>((r) => (goOn = r));
+    vi.spyOn(cache, "put").mockImplementationOnce(async (...args) => {
+      await put(...args);
+      stored();
+      await resumed;
     });
+    const other = storeRevision("game", "r2", json("two"));
+    await inCache;
+    await storeRevision("game", "r1", json("one"));
+    goOn();
+    await other;
 
-    test("keep the one a session reads while a store makes room", async () => {
-        for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
-            await storeRevision("game", `r${i}`, json(`${i}`));
-        }
-        // Storing r5 pushes r1 out, but r1 is read (made recent) meanwhile.
-        await cleanUpAround(
-            () => storeRevision("game", "r5", json("5")),
-            () => readStoredRevision("game", "r1"),
-        );
-        expect(await readStoredRevision("game", "r1")).toBeDefined();
-        expect(await readStoredRevision("game", "r5")).toBeDefined();
-        expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
-    });
+    expect(await readStoredRevision("game", "r1")).toBeDefined();
+    expect(await readStoredRevision("game", "r2")).toBeDefined();
+  });
 
-    test("survive a full disk as a no-op", async () => {
-        const cache = await storage.open("searchlight-game-revisions-v1");
-        vi.spyOn(cache, "put").mockRejectedValue(
-            new DOMException("full", "QuotaExceededError"),
-        );
-        await expect(
-            storeRevision("game", "r1", json("one")),
-        ).resolves.toBeUndefined();
+  test("keep no more than that when the index can't be written", async () => {
+    for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+      await storeRevision("game", `r${i}`, json(`${i}`));
+    }
+    vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      throw new DOMException("full", "QuotaExceededError");
     });
+    await storeRevision("game", "new", json("new"));
+
+    expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
+    expect(await readStoredRevision("game", "new")).toBeDefined();
+  });
+
+  test("keep the one a session reads while a store makes room", async () => {
+    for (let i = 1; i <= MAX_STORED_REVISIONS; i++) {
+      await storeRevision("game", `r${i}`, json(`${i}`));
+    }
+    // Storing r5 pushes r1 out, but r1 is read (made recent) meanwhile.
+    await cleanUpAround(
+      () => storeRevision("game", "r5", json("5")),
+      () => readStoredRevision("game", "r1"),
+    );
+    expect(await readStoredRevision("game", "r1")).toBeDefined();
+    expect(await readStoredRevision("game", "r5")).toBeDefined();
+    expect(entries()).toHaveLength(MAX_STORED_REVISIONS);
+  });
+
+  test("survive a full disk as a no-op", async () => {
+    const cache = await storage.open("searchlight-game-revisions-v1");
+    vi.spyOn(cache, "put").mockRejectedValue(new DOMException("full", "QuotaExceededError"));
+    await expect(storeRevision("game", "r1", json("one"))).resolves.toBeUndefined();
+  });
 });
 
 describe("loading a session's game revision", () => {
-    test("keeps what the server sent and reads it back without it", async () => {
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockResolvedValue(new Response(json("served")));
-        expect(await loadGameDefinition("game", "r1", "s1")).toEqual(
-            definition("served"),
-        );
-        expect(fetchSpy).toHaveBeenCalledTimes(1);
-        // Stored in the background.
-        await vi.waitFor(async () =>
-            expect(await readStoredRevision("game", "r1")).toBeDefined(),
-        );
+  test("keeps what the server sent and reads it back without it", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(json("served")));
+    expect(await loadGameDefinition("game", "r1", "s1")).toEqual(definition("served"));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    // Stored in the background.
+    await vi.waitFor(async () => expect(await readStoredRevision("game", "r1")).toBeDefined());
 
-        // A reload, with the server out of reach.
-        clearDefinitionCache();
-        fetchSpy.mockRejectedValue(new TypeError("Failed to fetch"));
-        expect(await loadGameDefinition("game", "r1", "s1")).toEqual(
-            definition("served"),
-        );
-        expect(fetchSpy).toHaveBeenCalledTimes(1);
-    });
+    // A reload, with the server out of reach.
+    clearDefinitionCache();
+    fetchSpy.mockRejectedValue(new TypeError("Failed to fetch"));
+    expect(await loadGameDefinition("game", "r1", "s1")).toEqual(definition("served"));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
 
-    test("loads a kept copy that makes no game again, and keeps the new one", async () => {
-        await storeRevision(
-            "game",
-            "r1",
-            // A zone that isn't a feature: compiling it throws.
-            JSON.stringify({
-                ...definition("broken"),
-                hidingZones: { features: { type: "FeatureCollection", features: [null] } },
-            }),
-        );
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockResolvedValue(new Response(json("fixed")));
-        expect(await loadGameDefinition("game", "r1", "s1")).toEqual(
-            definition("fixed"),
-        );
-        expect(fetchSpy).toHaveBeenCalledTimes(1);
-        await vi.waitFor(async () =>
-            expect((await readStoredRevision("game", "r1"))?.name).toBe("fixed"),
-        );
-    });
+  test("loads a kept copy that makes no game again, and keeps the new one", async () => {
+    await storeRevision(
+      "game",
+      "r1",
+      // A zone that isn't a feature: compiling it throws.
+      JSON.stringify({
+        ...definition("broken"),
+        hidingZones: { features: { type: "FeatureCollection", features: [null] } },
+      }),
+    );
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(json("fixed")));
+    expect(await loadGameDefinition("game", "r1", "s1")).toEqual(definition("fixed"));
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    await vi.waitFor(async () =>
+      expect((await readStoredRevision("game", "r1"))?.name).toBe("fixed"),
+    );
+  });
 
-    test("doesn't keep a download that finishes after another account logged in", async () => {
-        let respond!: (response: Response) => void;
-        vi.spyOn(globalThis, "fetch").mockImplementation(
-            () => new Promise<Response>((r) => (respond = r)),
-        );
-        const load = loadGameDefinition("game", "r1", "s1");
-        await vi.waitFor(() => expect(respond).toBeDefined());
-        // u1 logs out (in another tab, say), and u2 logs in.
-        local.delete("taibled-authed-user");
-        await clearStoredRevisions();
-        local.set("taibled-authed-user", "u2");
-        respond(new Response(json("u1's game")));
-        await load;
+  test("doesn't keep a download that finishes after another account logged in", async () => {
+    let respond!: (response: Response) => void;
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      () => new Promise<Response>((r) => (respond = r)),
+    );
+    const load = loadGameDefinition("game", "r1", "s1");
+    await vi.waitFor(() => expect(respond).toBeDefined());
+    // u1 logs out (in another tab, say), and u2 logs in.
+    local.delete("taibled-authed-user");
+    await clearStoredRevisions();
+    local.set("taibled-authed-user", "u2");
+    respond(new Response(json("u1's game")));
+    await load;
 
-        await new Promise((r) => setTimeout(r, 0));
-        expect(entries()).toHaveLength(0);
-    });
+    await new Promise((r) => setTimeout(r, 0));
+    expect(entries()).toHaveLength(0);
+  });
 
-    test("never keeps an error", async () => {
-        const fetchSpy = vi
-            .spyOn(globalThis, "fetch")
-            .mockResolvedValue(new Response("Bad gateway", { status: 502 }));
-        await expect(loadGameDefinition("game", "r1", "s1")).rejects.toThrow(
-            "502",
-        );
-        expect(fetchSpy).toHaveBeenCalled();
-        expect(await readStoredRevision("game", "r1")).toBeUndefined();
+  test("never keeps an error", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("Bad gateway", { status: 502 }));
+    await expect(loadGameDefinition("game", "r1", "s1")).rejects.toThrow("502");
+    expect(fetchSpy).toHaveBeenCalled();
+    expect(await readStoredRevision("game", "r1")).toBeUndefined();
 
-        clearDefinitionCache();
-        fetchSpy.mockRejectedValue(new TypeError("Failed to fetch"));
-        await expect(loadGameDefinition("game", "r1", "s1")).rejects.toThrow();
-    });
+    clearDefinitionCache();
+    fetchSpy.mockRejectedValue(new TypeError("Failed to fetch"));
+    await expect(loadGameDefinition("game", "r1", "s1")).rejects.toThrow();
+  });
 });

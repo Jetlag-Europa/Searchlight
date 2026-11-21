@@ -8,13 +8,13 @@ const SS_KEY = "taibled-active-session";
 const LS_KEY = "taibled-last-session";
 
 function initialSessionId(): string {
-    const own = readStorage("sessionStorage", SS_KEY);
-    if (own !== null) return own;
+  const own = readStorage("sessionStorage", SS_KEY);
+  if (own !== null) return own;
 
-    const last = readStorage("localStorage", LS_KEY);
-    // Adopt the fallback so later selections in other tabs cannot replace it.
-    if (last) writeStorage("sessionStorage", SS_KEY, last);
-    return last ?? "";
+  const last = readStorage("localStorage", LS_KEY);
+  // Adopt the fallback so later selections in other tabs cannot replace it.
+  if (last) writeStorage("sessionStorage", SS_KEY, last);
+  return last ?? "";
 }
 
 // Prefer this tab's selection; a discarded or new tab inherits the durable one.
@@ -29,20 +29,14 @@ export const activeSessionRole = atom<SessionRole | null>(null);
 
 // Nothing on the board may be changed: its user only spectates the session.
 // (A personal "view only" lock would join in here.)
-export const sessionReadOnly = computed(
-    activeSessionRole,
-    (role) => role === "viewer",
-);
+export const sessionReadOnly = computed(activeSessionRole, (role) => role === "viewer");
 
 // Another tab or window of this browser took the active session over.
 export { editingInOtherTab };
 
 /** Edits to `sessionId` must not be made, queued or sent from this board. */
 export function isSessionReadOnly(sessionId: string): boolean {
-    return (
-        (sessionReadOnly.get() || editingInOtherTab.get()) &&
-        sessionId === activeSessionId.get()
-    );
+  return (sessionReadOnly.get() || editingInOtherTab.get()) && sessionId === activeSessionId.get();
 }
 
 // Set only after /me verifies the current cookie. Persisted identity hints
@@ -58,18 +52,18 @@ export const STORED_USER_KEY = "taibled-authed-user";
 export const offlineUserId = atom<string | null>(null);
 
 export function setActiveSession(session: GameSessionSummary): void {
-    writeStorage("sessionStorage", SS_KEY, session.id);
-    writeStorage("localStorage", LS_KEY, session.id);
-    activeSessionRole.set(session.role);
-    activeSessionId.set(session.id);
-    activeSessionData.set(session);
+  writeStorage("sessionStorage", SS_KEY, session.id);
+  writeStorage("localStorage", LS_KEY, session.id);
+  activeSessionRole.set(session.role);
+  activeSessionId.set(session.id);
+  activeSessionData.set(session);
 }
 
 export function clearActiveSession(): void {
-    // An empty marker keeps this tab cleared even if another tab selects later.
-    writeStorage("sessionStorage", SS_KEY, "");
-    removeStorage("localStorage", LS_KEY);
-    activeSessionRole.set(null);
-    activeSessionId.set("");
-    activeSessionData.set(null);
+  // An empty marker keeps this tab cleared even if another tab selects later.
+  writeStorage("sessionStorage", SS_KEY, "");
+  removeStorage("localStorage", LS_KEY);
+  activeSessionRole.set(null);
+  activeSessionId.set("");
+  activeSessionData.set(null);
 }

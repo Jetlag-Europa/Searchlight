@@ -49,10 +49,7 @@ function pointOf(geometry: Geometry | undefined): Position | null {
 // Web Mercator, as on the app's map, in radians: y grows northwards.
 function mercator([lng, lat]: Position): Position {
   const clamped = Math.max(-85, Math.min(85, lat));
-  return [
-    (lng * Math.PI) / 180,
-    Math.log(Math.tan(Math.PI / 4 + (clamped * Math.PI) / 360)),
-  ];
+  return [(lng * Math.PI) / 180, Math.log(Math.tan(Math.PI / 4 + (clamped * Math.PI) / 360))];
 }
 
 // A ring's points in Mercator.

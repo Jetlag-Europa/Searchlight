@@ -106,7 +106,11 @@ export function readCsv(path) {
         properties[h] = value;
       }
     });
-    features.push({ type: "Feature", geometry: { type: "Point", coordinates: [lng, lat] }, properties });
+    features.push({
+      type: "Feature",
+      geometry: { type: "Point", coordinates: [lng, lat] },
+      properties,
+    });
   }
   if (skipped) console.warn(`${path}: skipped ${skipped} row(s) without a numeric lat and lng`);
   return features;
@@ -124,7 +128,7 @@ function parseCsv(text) {
       else if (ch === '"') quoted = false;
       else cell += ch;
     } else if (ch === '"') quoted = true;
-    else if (ch === ",") (row.push(cell), (cell = ""));
+    else if (ch === ",") row.push(cell), (cell = "");
     else if (ch === "\n" || ch === "\r") {
       if (ch === "\r" && text[i + 1] === "\n") i++;
       row.push(cell), rows.push(row), (row = []), (cell = "");
@@ -160,14 +164,21 @@ export const OSM_TAGS = {
  * The public endpoint is shared: run queries one at a time. Busy responses
  * (429/504) are retried after 15 s and 45 s.
  */
-export async function overpassPoints(filter, [w, s, e, n], endpoint = "https://overpass-api.de/api/interpreter") {
+export async function overpassPoints(
+  filter,
+  [w, s, e, n],
+  endpoint = "https://overpass-api.de/api/interpreter",
+) {
   const query = `[out:json][timeout:180];nwr${filter}(${s},${w},${n},${e});out center tags;`;
   let res;
   for (const wait of [0, 15, 45]) {
     if (wait) await new Promise((r) => setTimeout(r, wait * 1000));
     res = await fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "searchlight-game-builder" },
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "User-Agent": "searchlight-game-builder",
+      },
       body: new URLSearchParams({ data: query }),
     });
     if (res.status !== 429 && res.status !== 504) break;
@@ -179,7 +190,13 @@ export async function overpassPoints(filter, [w, s, e, n], endpoint = "https://o
     const lat = el.lat ?? el.center?.lat;
     const lon = el.lon ?? el.center?.lon;
     if (!name || lat === undefined || lon === undefined) return [];
-    return [{ type: "Feature", geometry: { type: "Point", coordinates: [lon, lat] }, properties: { name } }];
+    return [
+      {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [lon, lat] },
+        properties: { name },
+      },
+    ];
   });
 }
 
@@ -191,8 +208,12 @@ const round = (n) => Math.round(n * 1e6) / 1e6;
 
 function position(c) {
   const p = [round(Number(c[0])), round(Number(c[1]))]; // drops altitude
-  return Number.isFinite(p[0]) && Number.isFinite(p[1]) &&
-    Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90 ? p : null;
+  return Number.isFinite(p[0]) &&
+    Number.isFinite(p[1]) &&
+    Math.abs(p[0]) <= 180 &&
+    Math.abs(p[1]) <= 90
+    ? p
+    : null;
 }
 
 function path(coords) {
@@ -216,7 +237,7 @@ function ring(coords) {
 // Rings of one polygon; null when the outer ring is unusable. Bad holes are dropped.
 function polygon(rings) {
   const outer = ring(rings?.[0]);
-  return outer ? [outer, ...(rings.slice(1).map(ring).filter(Boolean))] : null;
+  return outer ? [outer, ...rings.slice(1).map(ring).filter(Boolean)] : null;
 }
 
 function line(coords) {
@@ -252,9 +273,15 @@ function geometries(geom) {
       const parts = geom.geometries.flatMap(geometries);
       const points = parts.filter((g) => g.type === "Point");
       const lineParts = parts.flatMap((g) =>
-        g.type === "LineString" ? [g.coordinates] : g.type === "MultiLineString" ? g.coordinates : []);
+        g.type === "LineString"
+          ? [g.coordinates]
+          : g.type === "MultiLineString"
+            ? g.coordinates
+            : [],
+      );
       const polyParts = parts.flatMap((g) =>
-        g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : []);
+        g.type === "Polygon" ? [g.coordinates] : g.type === "MultiPolygon" ? g.coordinates : [],
+      );
       return [...points, ...lines(lineParts), ...polygons(polyParts)];
     }
     default:
@@ -263,20 +290,26 @@ function geometries(geom) {
 }
 
 const lines = (parts) =>
-  parts.length === 0 ? [] : parts.length === 1
-    ? [{ type: "LineString", coordinates: parts[0] }]
-    : [{ type: "MultiLineString", coordinates: parts }];
+  parts.length === 0
+    ? []
+    : parts.length === 1
+      ? [{ type: "LineString", coordinates: parts[0] }]
+      : [{ type: "MultiLineString", coordinates: parts }];
 
 const polygons = (parts) =>
-  parts.length === 0 ? [] : parts.length === 1
-    ? [{ type: "Polygon", coordinates: parts[0] }]
-    : [{ type: "MultiPolygon", coordinates: parts }];
+  parts.length === 0
+    ? []
+    : parts.length === 1
+      ? [{ type: "Polygon", coordinates: parts[0] }]
+      : [{ type: "MultiPolygon", coordinates: parts }];
 
 // Fails loudly on a missing input, e.g. kml.get("Stations") for a folder
 // that is really called "Stations 2026", instead of building an empty layer.
 function requireFeatures(features, fn) {
   if (!Array.isArray(features)) {
-    throw new Error(`${fn}: expected an array of features, got ${features === null ? "null" : typeof features} (a mistyped KML folder name? Map.get() returns undefined for unknown names)`);
+    throw new Error(
+      `${fn}: expected an array of features, got ${features === null ? "null" : typeof features} (a mistyped KML folder name? Map.get() returns undefined for unknown names)`,
+    );
   }
   return features;
 }
@@ -297,9 +330,12 @@ export function decodeText(text) {
     out = out
       .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
       .replace(/&(?:#(\d+)|#x([0-9a-f]+)|([a-z]+));/gi, (m, dec, hex, name) =>
-        dec ? String.fromCodePoint(Number(dec))
-          : hex ? String.fromCodePoint(parseInt(hex, 16))
-          : ENTITIES[name.toLowerCase()] ?? m);
+        dec
+          ? String.fromCodePoint(Number(dec))
+          : hex
+            ? String.fromCodePoint(parseInt(hex, 16))
+            : (ENTITIES[name.toLowerCase()] ?? m),
+      );
   } while (out !== prev);
   return out;
 }
@@ -327,9 +363,15 @@ export function normalize(features, { keep = ["name"], name: nameKey = "name" } 
   for (const f of requireFeatures(features, "normalize")) {
     const properties = {};
     for (const key of keep) {
-      let value = key === "name" ? (f.properties?.[nameKey] || f.properties?.name) : f.properties?.[key];
+      let value =
+        key === "name" ? f.properties?.[nameKey] || f.properties?.name : f.properties?.[key];
       if (typeof value === "string") value = decodeText(value).trim();
-      if (key === "radius" && typeof value === "string" && value !== "" && Number.isFinite(Number(value))) {
+      if (
+        key === "radius" &&
+        typeof value === "string" &&
+        value !== "" &&
+        Number.isFinite(Number(value))
+      ) {
         value = Number(value);
       }
       if (value !== undefined && value !== null && value !== "") properties[key] = value;
@@ -369,7 +411,9 @@ export function mergeByName(features) {
       out.push({ feature: f });
       continue;
     }
-    const parts = f.geometry.type.startsWith("Multi") ? f.geometry.coordinates : [f.geometry.coordinates];
+    const parts = f.geometry.type.startsWith("Multi")
+      ? f.geometry.coordinates
+      : [f.geometry.coordinates];
     const key = `${family(f)}:${name}`;
     if (groups.has(key)) groups.get(key).parts.push(...parts);
     else {
@@ -378,9 +422,11 @@ export function mergeByName(features) {
       out.push(group);
     }
   }
-  return out.map(({ feature, parts }) => parts
-    ? { ...feature, geometry: (family(feature) === "lines" ? lines : polygons)(parts)[0] }
-    : feature);
+  return out.map(({ feature, parts }) =>
+    parts
+      ? { ...feature, geometry: (family(feature) === "lines" ? lines : polygons)(parts)[0] }
+      : feature,
+  );
 }
 
 /** Features grouped by a property value, e.g. groupBy(kml.get("POIs"), "styleUrl"). */
@@ -396,7 +442,8 @@ export function groupBy(features, key) {
 
 const metersBetween = ([lng1, lat1], [lng2, lat2]) => {
   const rad = Math.PI / 180;
-  const a = Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
+  const a =
+    Math.sin(((lat2 - lat1) * rad) / 2) ** 2 +
     Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(((lng2 - lng1) * rad) / 2) ** 2;
   return 2 * 6371008.8 * Math.asin(Math.sqrt(a));
 };
@@ -410,10 +457,15 @@ const metersBetween = ([lng1, lat1], [lng2, lat2]) => {
  */
 export function circleRadius(feature) {
   const g = feature.geometry;
-  const ring = g.type === "Polygon" ? g.coordinates[0] : g.type === "LineString" ? g.coordinates : null;
-  if (!ring || ring.length < 4) throw new Error(`circleRadius: expected a Polygon or closed LineString, got ${g.type}`);
+  const ring =
+    g.type === "Polygon" ? g.coordinates[0] : g.type === "LineString" ? g.coordinates : null;
+  if (!ring || ring.length < 4)
+    throw new Error(`circleRadius: expected a Polygon or closed LineString, got ${g.type}`);
   const pts = ring.slice(0, -1);
-  const c = [pts.reduce((s, p) => s + p[0], 0) / pts.length, pts.reduce((s, p) => s + p[1], 0) / pts.length];
+  const c = [
+    pts.reduce((s, p) => s + p[0], 0) / pts.length,
+    pts.reduce((s, p) => s + p[1], 0) / pts.length,
+  ];
   return Math.round(pts.reduce((s, p) => s + metersBetween(c, p), 0) / pts.length);
 }
 
@@ -436,7 +488,8 @@ export function withIds(features, fallback = "feature") {
 
 export const collection = (features) => ({ type: "FeatureCollection", features });
 
-const family = (f) => f.geometry.type === "Point" ? "points" : f.geometry.type.includes("Line") ? "lines" : "polygons";
+const family = (f) =>
+  f.geometry.type === "Point" ? "points" : f.geometry.type.includes("Line") ? "lines" : "polygons";
 
 /**
  * One question layer. enabledFor: any of "matching", "measuring", "tentacle".
@@ -445,7 +498,9 @@ const family = (f) => f.geometry.type === "Point" ? "points" : f.geometry.type.i
 export function layer(name, enabledFor, features) {
   const families = new Set(requireFeatures(features, `layer("${name}")`).map(family));
   if (families.size > 1) {
-    throw new Error(`layer("${name}"): mixes ${[...families].join(" and ")}; a layer holds one geometry family, so filter the features by geometry.type`);
+    throw new Error(
+      `layer("${name}"): mixes ${[...families].join(" and ")}; a layer holds one geometry family, so filter the features by geometry.type`,
+    );
   }
   return { name, enabledFor, data: collection(features) };
 }
@@ -486,12 +541,20 @@ export function formatGame(game, indent = 2) {
   // Coordinates go in as NUL-wrapped strings, which are unwrapped after. A
   // file whose own text holds a NUL is rare enough to just indent in full.
   let hasNul = false;
-  const text = JSON.stringify(game, (key, value) => {
-    if (key.includes("\0") || ((typeof value === "string" || value instanceof String) && value.includes("\0"))) hasNul = true;
-    if (hasNul || key !== "coordinates" || !Array.isArray(value)) return value;
-    const json = JSON.stringify(value);
-    return POSITIONS.test(json) ? `\0${json}\0` : value;
-  }, indent);
+  const text = JSON.stringify(
+    game,
+    (key, value) => {
+      if (
+        key.includes("\0") ||
+        ((typeof value === "string" || value instanceof String) && value.includes("\0"))
+      )
+        hasNul = true;
+      if (hasNul || key !== "coordinates" || !Array.isArray(value)) return value;
+      const json = JSON.stringify(value);
+      return POSITIONS.test(json) ? `\0${json}\0` : value;
+    },
+    indent,
+  );
   if (hasNul) return `${JSON.stringify(game, null, indent)}\n`;
   return `${text.replace(/"\\u0000(.*?)\\u0000"/g, (_, json) => json)}\n`;
 }

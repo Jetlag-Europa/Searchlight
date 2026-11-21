@@ -139,13 +139,15 @@ export async function ogRoutes(app: FastifyInstance) {
       });
       if (!png) throw notFound("This game has no play area");
 
-      return reply
-        // Short enough that a revoked link's image soon stops being served
-        // from caches, such as Cloudflare's.
-        .header("Cache-Control", "public, max-age=3600")
-        .header("X-Robots-Tag", "noindex")
-        .type("image/png")
-        .send(png);
+      return (
+        reply
+          // Short enough that a revoked link's image soon stops being served
+          // from caches, such as Cloudflare's.
+          .header("Cache-Control", "public, max-age=3600")
+          .header("X-Robots-Tag", "noindex")
+          .type("image/png")
+          .send(png)
+      );
     },
   );
 }

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  deriveFeatureQuestionId,
-  resolveGameDefinitionId,
-  type GameDefinition,
-} from "./schema.js";
+import { deriveFeatureQuestionId, resolveGameDefinitionId, type GameDefinition } from "./schema.js";
 import { validateGameDefinition } from "./validate.js";
 function getSampleDefinition(): GameDefinition {
   return {
@@ -136,7 +132,13 @@ describe("Game Definition Validation", () => {
             {
               type: "Feature",
               id: "multi-pt",
-              geometry: { type: "MultiPoint", coordinates: [[2.3, 48.8], [2.4, 48.9]] },
+              geometry: {
+                type: "MultiPoint",
+                coordinates: [
+                  [2.3, 48.8],
+                  [2.4, 48.9],
+                ],
+              },
               properties: {},
             },
           ],
@@ -163,7 +165,13 @@ describe("Game Definition Validation", () => {
             {
               type: "Feature",
               id: "line-zone",
-              geometry: { type: "LineString", coordinates: [[2.3, 48.8], [2.4, 48.9]] },
+              geometry: {
+                type: "LineString",
+                coordinates: [
+                  [2.3, 48.8],
+                  [2.4, 48.9],
+                ],
+              },
               properties: {},
             },
           ],
@@ -192,7 +200,13 @@ describe("Game Definition Validation", () => {
               {
                 type: "Feature",
                 id: "mp1",
-                geometry: { type: "MultiPoint", coordinates: [[2.3, 48.8], [2.4, 48.9]] },
+                geometry: {
+                  type: "MultiPoint",
+                  coordinates: [
+                    [2.3, 48.8],
+                    [2.4, 48.9],
+                  ],
+                },
                 properties: {},
               },
             ],
@@ -306,8 +320,29 @@ describe("Game Definition Validation", () => {
     def.features![0].data = {
       type: "FeatureCollection",
       features: [
-        { type: "Feature", id: "p1", geometry: { type: "Point", coordinates: [2.3, 48.8] }, properties: {} },
-        { type: "Feature", id: "poly1", geometry: { type: "Polygon", coordinates: [[[2.1, 48.7], [2.2, 48.7], [2.2, 48.8], [2.1, 48.8], [2.1, 48.7]]] }, properties: {} },
+        {
+          type: "Feature",
+          id: "p1",
+          geometry: { type: "Point", coordinates: [2.3, 48.8] },
+          properties: {},
+        },
+        {
+          type: "Feature",
+          id: "poly1",
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [2.1, 48.7],
+                [2.2, 48.7],
+                [2.2, 48.8],
+                [2.1, 48.8],
+                [2.1, 48.7],
+              ],
+            ],
+          },
+          properties: {},
+        },
       ],
     };
     const result = validateGameDefinition(def);
@@ -321,7 +356,18 @@ describe("Game Definition Validation", () => {
     def.features![0].data = {
       type: "FeatureCollection",
       features: [
-        { type: "Feature", id: "line1", geometry: { type: "LineString", coordinates: [[2.1, 48.7], [2.2, 48.8]] }, properties: {} },
+        {
+          type: "Feature",
+          id: "line1",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [2.1, 48.7],
+              [2.2, 48.8],
+            ],
+          },
+          properties: {},
+        },
       ],
     };
     const result = validateGameDefinition(def);
@@ -351,15 +397,28 @@ describe("Game Definition Validation", () => {
   });
 
   it("rejects ids that are not lowercase slugs", () => {
-    for (const id of ["Paris-2026", "paris 2026", "zürich-2026", "東京-2026", "-paris", "paris--2026", "paris_2026"]) {
+    for (const id of [
+      "Paris-2026",
+      "paris 2026",
+      "zürich-2026",
+      "東京-2026",
+      "-paris",
+      "paris--2026",
+      "paris_2026",
+    ]) {
       const result = validateGameDefinition({ ...getSampleDefinition(), id });
       expect(result.valid, id).toBe(false);
-      expect(result.errors.some((e) => e.path === "/id"), id).toBe(true);
+      expect(
+        result.errors.some((e) => e.path === "/id"),
+        id,
+      ).toBe(true);
     }
   });
 
   it("rejects a revision beyond the 32-bit integer the database stores", () => {
-    expect(validateGameDefinition({ ...getSampleDefinition(), revision: 2147483647 }).valid).toBe(true);
+    expect(validateGameDefinition({ ...getSampleDefinition(), revision: 2147483647 }).valid).toBe(
+      true,
+    );
     const result = validateGameDefinition({ ...getSampleDefinition(), revision: 2147483648 });
     expect(result.valid).toBe(false);
     expect(result.errors.some((e) => e.path === "/revision")).toBe(true);
@@ -371,9 +430,7 @@ describe("Game Definition Validation", () => {
     const result = validateGameDefinition(withGameId);
     expect(result.valid).toBe(false);
     expect(
-      result.errors.some(
-        (e) => e.path === "/gameId" && e.code === "SCHEMA_VALIDATION_ERROR",
-      ),
+      result.errors.some((e) => e.path === "/gameId" && e.code === "SCHEMA_VALIDATION_ERROR"),
     ).toBe(true);
   });
 
@@ -508,7 +565,13 @@ describe("Game Definition Validation", () => {
           features: [
             {
               type: "Feature",
-              geometry: { type: "LineString", coordinates: [[2.3, 48.8], [2.4, 48.9]] },
+              geometry: {
+                type: "LineString",
+                coordinates: [
+                  [2.3, 48.8],
+                  [2.4, 48.9],
+                ],
+              },
             },
           ],
         },
@@ -519,7 +582,8 @@ describe("Game Definition Validation", () => {
       {
         path: "/hidingZones/features/features/0/geometry",
         code: "SCHEMA_VALIDATION_ERROR",
-        message: 'Unsupported geometry type "LineString"; must be one of Point, Polygon, MultiPolygon',
+        message:
+          'Unsupported geometry type "LineString"; must be one of Point, Polygon, MultiPolygon',
       },
     ]);
 
@@ -543,7 +607,8 @@ describe("Game Definition Validation", () => {
       {
         path: "/map/playArea/features/0/geometry",
         code: "SCHEMA_VALIDATION_ERROR",
-        message: 'Unsupported geometry type "GeometryCollection"; must be one of Polygon, MultiPolygon',
+        message:
+          'Unsupported geometry type "GeometryCollection"; must be one of Polygon, MultiPolygon',
       },
     ]);
 

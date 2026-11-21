@@ -9,7 +9,7 @@ let serverValue: HiderMode | typeof NONE = NONE;
 
 /** The server set the hider to `value`: the change it causes isn't saved. */
 export function suppressHiderSave(value: HiderMode): void {
-    serverValue = value;
+  serverValue = value;
 }
 
 /**
@@ -17,12 +17,12 @@ export function suppressHiderSave(value: HiderMode): void {
  * check consumes the server's value, which the next change replaces.
  */
 export function shouldSuppressHiderSave(value: HiderMode): boolean {
-    const suppressed = value === serverValue;
-    serverValue = NONE;
-    return suppressed;
+  const suppressed = value === serverValue;
+  serverValue = NONE;
+  return suppressed;
 }
 
 /** Forget the server's value: a session is (re)loading. */
 export function resetHiderSaveSuppression(): void {
-    serverValue = NONE;
+  serverValue = NONE;
 }

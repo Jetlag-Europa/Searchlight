@@ -13,16 +13,13 @@ export const OSM_TILE_CACHE = "searchlight-osm-tiles";
 // CARTO spreads tiles over a.–d. subdomains (Leaflet's `{s}`); the rest use
 // one host.
 const TILE_HOSTS = [
-    /^[a-d]\.basemaps\.cartocdn\.com$/,
-    /^tile\.openstreetmap\.org$/,
-    /^tile\.thunderforest\.com$/,
+  /^[a-d]\.basemaps\.cartocdn\.com$/,
+  /^tile\.openstreetmap\.org$/,
+  /^tile\.thunderforest\.com$/,
 ];
 
 export function isTileUrl(url: URL): boolean {
-    return (
-        url.protocol === "https:" &&
-        TILE_HOSTS.some((host) => host.test(url.hostname))
-    );
+  return url.protocol === "https:" && TILE_HOSTS.some((host) => host.test(url.hostname));
 }
 
 /**
@@ -31,16 +28,11 @@ export function isTileUrl(url: URL): boolean {
  * requested from `c.`.
  */
 export function tileCacheKey(url: string): string {
-    const parsed = new URL(url);
-    parsed.hostname = parsed.hostname.replace(
-        /^[a-d]\.(basemaps\.cartocdn\.com)$/,
-        "$1",
-    );
-    return parsed.href;
+  const parsed = new URL(url);
+  parsed.hostname = parsed.hostname.replace(/^[a-d]\.(basemaps\.cartocdn\.com)$/, "$1");
+  return parsed.href;
 }
 
 export function isOsmTileUrl(url: URL): boolean {
-    return (
-        url.protocol === "https:" && url.hostname === "tile.openstreetmap.org"
-    );
+  return url.protocol === "https:" && url.hostname === "tile.openstreetmap.org";
 }

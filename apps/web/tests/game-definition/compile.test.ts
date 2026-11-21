@@ -8,22 +8,16 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
   const actual = await importActual<typeof import("@/maps/geo-utils")>();
   return {
     ...actual,
-    arcBuffer: async (
-      fc: FeatureCollection<Point>,
-      radius: number,
-      unit: turf.Units,
-    ) => turf.buffer(fc.features[0], radius, { units: unit }),
-    };
+    arcBuffer: async (fc: FeatureCollection<Point>, radius: number, unit: turf.Units) =>
+      turf.buffer(fc.features[0], radius, { units: unit }),
+  };
 });
 
 import { compileGameDefinition } from "@/game-definition/compile";
 import { evaluateQuestionOperator } from "@/maps/questions/operators/base";
 import type { GameDefinition } from "@searchlight/shared";
 const parisDef = JSON.parse(
-  readFileSync(
-    resolve(process.cwd(), "tests/fixtures/games/paris-2026.game.json"),
-    "utf8",
-  ),
+  readFileSync(resolve(process.cwd(), "tests/fixtures/games/paris-2026.game.json"), "utf8"),
 );
 
 describe("Runtime Compiler and Operator Dispatch", () => {
@@ -127,7 +121,13 @@ describe("Runtime Compiler and Operator Dispatch", () => {
               geometry: {
                 type: "Polygon",
                 coordinates: [
-                  [[9.8, 53.4], [10.2, 53.4], [10.2, 53.7], [9.8, 53.7], [9.8, 53.4]],
+                  [
+                    [9.8, 53.4],
+                    [10.2, 53.4],
+                    [10.2, 53.7],
+                    [9.8, 53.7],
+                    [9.8, 53.4],
+                  ],
                 ],
               },
               properties: {},
@@ -153,7 +153,13 @@ describe("Runtime Compiler and Operator Dispatch", () => {
                 geometry: {
                   type: "Polygon",
                   coordinates: [
-                    [[9.85, 53.54], [9.95, 53.54], [9.95, 53.60], [9.85, 53.60], [9.85, 53.54]],
+                    [
+                      [9.85, 53.54],
+                      [9.95, 53.54],
+                      [9.95, 53.6],
+                      [9.85, 53.6],
+                      [9.85, 53.54],
+                    ],
                   ],
                 },
                 properties: { name: "Altona" },
@@ -164,7 +170,13 @@ describe("Runtime Compiler and Operator Dispatch", () => {
                 geometry: {
                   type: "Polygon",
                   coordinates: [
-                    [[9.95, 53.54], [10.05, 53.54], [10.05, 53.60], [9.95, 53.60], [9.95, 53.54]],
+                    [
+                      [9.95, 53.54],
+                      [10.05, 53.54],
+                      [10.05, 53.6],
+                      [9.95, 53.6],
+                      [9.95, 53.54],
+                    ],
                   ],
                 },
                 properties: { name: "Hamburg-Mitte" },
@@ -182,7 +194,10 @@ describe("Runtime Compiler and Operator Dispatch", () => {
                 type: "Feature",
                 geometry: {
                   type: "LineString",
-                  coordinates: [[9.8, 53.5], [10.1, 53.6]],
+                  coordinates: [
+                    [9.8, 53.5],
+                    [10.1, 53.6],
+                  ],
                 },
                 properties: { name: "Elbe Shore" },
               },
@@ -206,15 +221,15 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(measCoast).toBeDefined();
     expect(measCoast?.evaluator?.operator).toBe("distance-to-lines");
 
-    const insideAltona = turf.point([9.90, 53.56]);
-    const outsideAltona = turf.point([10.00, 53.56]);
+    const insideAltona = turf.point([9.9, 53.56]);
+    const outsideAltona = turf.point([10.0, 53.56]);
 
     const sameResult = await evaluateQuestionOperator({
       questionDef: matchAdmin!,
       datasets: compiled.datasets,
       data: {
         lat: 53.56,
-        lng: 9.90,
+        lng: 9.9,
         drag: true,
         same: true,
       },
@@ -228,7 +243,7 @@ describe("Runtime Compiler and Operator Dispatch", () => {
       datasets: compiled.datasets,
       data: {
         lat: 53.56,
-        lng: 9.90,
+        lng: 9.9,
         drag: false,
         same: false,
       },
@@ -237,30 +252,56 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(turf.booleanPointInPolygon(insideAltona, differentResult)).toBe(false);
     expect(turf.booleanPointInPolygon(outsideAltona, differentResult)).toBe(true);
   });
-  it.each(["points", "multipart lines"])("partitions same/different %s for locked questions", async (kind) => {
-    const playArea = turf.featureCollection([turf.bboxPolygon([9.8, 53.4, 10.2, 53.7])]);
-    const features = kind === "points"
-      ? [turf.point([9.9, 53.55]), turf.point([10.1, 53.55])]
-      : [
-          turf.multiLineString([[[9.9, 53.4], [9.9, 53.55]], [[9.9, 53.55], [9.9, 53.7]]]),
-          turf.lineString([[10.1, 53.4], [10.1, 53.7]]),
-        ];
-    const compiled = compileGameDefinition({
-      id: "matching-contract", name: "Matching contract", serverId: "home-games",
-      map: { center: [10, 53.55], playArea },
-      hidingZones: { radius: 400, unit: "meters", features: turf.featureCollection([]) },
-      features: [{ name: "Targets", enabledFor: ["matching"], data: turf.featureCollection(features as any) }],
-    } as any);
-    const questionDef = compiled.questions.find((q) => q.family === "matching")!;
-    for (const same of [true, false]) {
-      const result = await evaluateQuestionOperator({
-        questionDef, datasets: compiled.datasets,
-        data: { lat: 53.55, lng: 9.91, drag: false, same }, mapGeoData: playArea,
-      });
-      expect(turf.booleanPointInPolygon(turf.point([9.91, 53.55]), result)).toBe(same);
-      expect(turf.booleanPointInPolygon(turf.point([10.09, 53.55]), result)).toBe(!same);
-    }
-  });
+  it.each(["points", "multipart lines"])(
+    "partitions same/different %s for locked questions",
+    async (kind) => {
+      const playArea = turf.featureCollection([turf.bboxPolygon([9.8, 53.4, 10.2, 53.7])]);
+      const features =
+        kind === "points"
+          ? [turf.point([9.9, 53.55]), turf.point([10.1, 53.55])]
+          : [
+              turf.multiLineString([
+                [
+                  [9.9, 53.4],
+                  [9.9, 53.55],
+                ],
+                [
+                  [9.9, 53.55],
+                  [9.9, 53.7],
+                ],
+              ]),
+              turf.lineString([
+                [10.1, 53.4],
+                [10.1, 53.7],
+              ]),
+            ];
+      const compiled = compileGameDefinition({
+        id: "matching-contract",
+        name: "Matching contract",
+        serverId: "home-games",
+        map: { center: [10, 53.55], playArea },
+        hidingZones: { radius: 400, unit: "meters", features: turf.featureCollection([]) },
+        features: [
+          {
+            name: "Targets",
+            enabledFor: ["matching"],
+            data: turf.featureCollection(features as any),
+          },
+        ],
+      } as any);
+      const questionDef = compiled.questions.find((q) => q.family === "matching")!;
+      for (const same of [true, false]) {
+        const result = await evaluateQuestionOperator({
+          questionDef,
+          datasets: compiled.datasets,
+          data: { lat: 53.55, lng: 9.91, drag: false, same },
+          mapGeoData: playArea,
+        });
+        expect(turf.booleanPointInPolygon(turf.point([9.91, 53.55]), result)).toBe(same);
+        expect(turf.booleanPointInPolygon(turf.point([10.09, 53.55]), result)).toBe(!same);
+      }
+    },
+  );
   it("synthesizes radar and thermometer only when declared", () => {
     const baseGame = {
       id: "radar-test",
@@ -277,8 +318,9 @@ describe("Runtime Compiler and Operator Dispatch", () => {
       },
     };
     const families = (def: object) =>
-      compileGameDefinition({ ...baseGame, ...def } as unknown as GameDefinition)
-        .questions.map((q) => q.family);
+      compileGameDefinition({ ...baseGame, ...def } as unknown as GameDefinition).questions.map(
+        (q) => q.family,
+      );
 
     // Omitted -> nothing is enabled by default
     expect(families({})).toEqual([]);
@@ -314,9 +356,15 @@ describe("Runtime Compiler and Operator Dispatch", () => {
   it("keeps a name's own Nearest/Same/Tentacles prefix only when it is a whole word", () => {
     const region = turf.featureCollection([turf.bboxPolygon([4.3, 50.8, 4.4, 50.9])]);
     const sites = turf.featureCollection([turf.point([4.35, 50.85])]);
-    const layer = (name: string, enabledFor: string[], data: FeatureCollection) => ({ name, enabledFor, data });
+    const layer = (name: string, enabledFor: string[], data: FeatureCollection) => ({
+      name,
+      enabledFor,
+      data,
+    });
     const compiled = compileGameDefinition({
-      id: "label-prefixes", name: "Label prefixes", serverId: "home-games",
+      id: "label-prefixes",
+      name: "Label prefixes",
+      serverId: "home-games",
       map: { center: [4.35, 50.85], playArea: region },
       hidingZones: { radius: 400, unit: "meters", features: turf.featureCollection([]) },
       features: [
@@ -341,11 +389,17 @@ describe("Runtime Compiler and Operator Dispatch", () => {
   it("reads each question's own layer when layer names share a slug", () => {
     const point = (lng: number, name: string) => turf.point([lng, 50.8], { name });
     const compiled = compileGameDefinition({
-      id: "slug-collision", name: "Slug collision", serverId: "home-games",
+      id: "slug-collision",
+      name: "Slug collision",
+      serverId: "home-games",
       map: { center: [4.35, 50.85], playArea: turf.featureCollection([]) },
       hidingZones: { radius: 400, unit: "meters", features: turf.featureCollection([]) },
       features: [
-        { name: "foo-bar", enabledFor: ["measuring"], data: turf.featureCollection([point(4.3, "B1")]) },
+        {
+          name: "foo-bar",
+          enabledFor: ["measuring"],
+          data: turf.featureCollection([point(4.3, "B1")]),
+        },
         {
           name: "Foo Bar",
           enabledFor: ["matching"],

@@ -6,17 +6,13 @@ import { Label } from "@/components/ui/label";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { autoLockQuestions, defaultUnit } from "@/lib/context";
 import {
-    hiderMode,
-    isLoading,
-    questionModified,
-    questions,
-    triggerLocalRefresh,
+  hiderMode,
+  isLoading,
+  questionModified,
+  questions,
+  triggerLocalRefresh,
 } from "@/lib/context";
-import {
-    defaultQuestionLabel,
-    questionName,
-    setQuestionName,
-} from "@/lib/questionNames";
+import { defaultQuestionLabel, questionName, setQuestionName } from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
 import type { ThermometerQuestion } from "@/maps/schema";
 
@@ -24,123 +20,109 @@ import { AnswerSplitPreview } from "./answerSplit";
 import { QuestionCard } from "./base";
 
 export const ThermometerQuestionComponent = ({
-    data,
-    questionKey,
-    sub,
+  data,
+  questionKey,
+  sub,
 }: {
-    data: ThermometerQuestion;
-    questionKey: number;
-    sub?: string;
+  data: ThermometerQuestion;
+  questionKey: number;
+  sub?: string;
 }) => {
-    useStore(triggerLocalRefresh);
-    const $hiderMode = useStore(hiderMode);
-    const $questions = useStore(questions);
-    const $isLoading = useStore(isLoading);
+  useStore(triggerLocalRefresh);
+  const $hiderMode = useStore(hiderMode);
+  const $questions = useStore(questions);
+  const $isLoading = useStore(isLoading);
 
-    const $defaultUnit = useStore(defaultUnit);
-    const DISTANCE_UNIT = $defaultUnit ?? "kilometers";
+  const $defaultUnit = useStore(defaultUnit);
+  const DISTANCE_UNIT = $defaultUnit ?? "kilometers";
 
-    const label = defaultQuestionLabel($questions, questionKey);
+  const label = defaultQuestionLabel($questions, questionKey);
 
-    const hasCoords =
-        data.latA !== null &&
-        data.lngA !== null &&
-        data.latB !== null &&
-        data.lngB !== null;
+  const hasCoords =
+    data.latA !== null && data.lngA !== null && data.latB !== null && data.lngB !== null;
 
-    const distanceValue = hasCoords
-        ? distance(
-              point([data.lngA!, data.latA!]),
-              point([data.lngB!, data.latB!]),
-              { units: DISTANCE_UNIT },
-          )
-        : null;
+  const distanceValue = hasCoords
+    ? distance(point([data.lngA!, data.latA!]), point([data.lngB!, data.latB!]), {
+        units: DISTANCE_UNIT,
+      })
+    : null;
 
-    const unitLabel =
-        DISTANCE_UNIT === "meters"
-            ? "Meters"
-            : DISTANCE_UNIT === "kilometers"
-              ? "KM"
-              : "Miles";
+  const unitLabel =
+    DISTANCE_UNIT === "meters" ? "Meters" : DISTANCE_UNIT === "kilometers" ? "KM" : "Miles";
 
-    return (
-        <QuestionCard
-            questionKey={questionKey}
-            label={label}
-            name={questionName(data)}
-            setName={(name) => questionModified(setQuestionName(data, name))}
-            sub={sub}
-            collapsed={data.collapsed}
-            setCollapsed={(collapsed) => {
-                data.collapsed = collapsed;
-            }}
-            locked={!data.drag}
-            setLocked={(locked) => questionModified((data.drag = !locked))}
-            enabled={data.enabled ?? true}
-            setEnabled={(v) => questionModified((data.enabled = v))}
+  return (
+    <QuestionCard
+      questionKey={questionKey}
+      label={label}
+      name={questionName(data)}
+      setName={(name) => questionModified(setQuestionName(data, name))}
+      sub={sub}
+      collapsed={data.collapsed}
+      setCollapsed={(collapsed) => {
+        data.collapsed = collapsed;
+      }}
+      locked={!data.drag}
+      setLocked={(locked) => questionModified((data.drag = !locked))}
+      enabled={data.enabled ?? true}
+      setEnabled={(v) => questionModified((data.enabled = v))}
+    >
+      <LatitudeLongitude
+        latitude={data.latA}
+        longitude={data.lngA}
+        label="Start"
+        colorName={data.colorA}
+        onChange={(lat, lng) => {
+          if (lat !== null) data.latA = lat;
+          if (lng !== null) data.lngA = lng;
+          if (autoLockQuestions.get()) data.drag = false;
+          questionModified();
+        }}
+        disabled={!data.drag || $isLoading}
+      />
+
+      <LatitudeLongitude
+        latitude={data.latB}
+        longitude={data.lngB}
+        label="End"
+        colorName={data.colorB}
+        onChange={(lat, lng) => {
+          if (lat !== null) data.latB = lat;
+          if (lng !== null) data.lngB = lng;
+          if (autoLockQuestions.get()) data.drag = false;
+          questionModified();
+        }}
+        disabled={!data.drag || $isLoading}
+      />
+
+      {distanceValue !== null && (
+        <div className="px-2 text-sm text-muted-foreground">
+          Distance:{" "}
+          <span className="font-medium text-foreground">
+            {distanceValue.toFixed(3)} {unitLabel}
+          </span>
+        </div>
+      )}
+
+      <div className="flex gap-2 items-center p-2">
+        <Label className={cn("font-semibold text-lg", $isLoading && "text-muted-foreground")}>
+          Result
+        </Label>
+        <ToggleGroup
+          className="grow"
+          type="single"
+          value={data.warmer ? "warmer" : "colder"}
+          onValueChange={(value: "warmer" | "colder") =>
+            questionModified((data.warmer = value === "warmer"))
+          }
+          disabled={!!$hiderMode || !data.drag || $isLoading}
         >
-            <LatitudeLongitude
-                latitude={data.latA}
-                longitude={data.lngA}
-                label="Start"
-                colorName={data.colorA}
-                onChange={(lat, lng) => {
-                    if (lat !== null) data.latA = lat;
-                    if (lng !== null) data.lngA = lng;
-                    if (autoLockQuestions.get()) data.drag = false;
-                    questionModified();
-                }}
-                disabled={!data.drag || $isLoading}
-            />
-
-            <LatitudeLongitude
-                latitude={data.latB}
-                longitude={data.lngB}
-                label="End"
-                colorName={data.colorB}
-                onChange={(lat, lng) => {
-                    if (lat !== null) data.latB = lat;
-                    if (lng !== null) data.lngB = lng;
-                    if (autoLockQuestions.get()) data.drag = false;
-                    questionModified();
-                }}
-                disabled={!data.drag || $isLoading}
-            />
-
-            {distanceValue !== null && (
-                <div className="px-2 text-sm text-muted-foreground">
-                    Distance:{" "}
-                    <span className="font-medium text-foreground">
-                        {distanceValue.toFixed(3)} {unitLabel}
-                    </span>
-                </div>
-            )}
-
-            <div className="flex gap-2 items-center p-2">
-                <Label
-                    className={cn(
-                        "font-semibold text-lg",
-                        $isLoading && "text-muted-foreground",
-                    )}
-                >
-                    Result
-                </Label>
-                <ToggleGroup
-                    className="grow"
-                    type="single"
-                    value={data.warmer ? "warmer" : "colder"}
-                    onValueChange={(value: "warmer" | "colder") =>
-                        questionModified((data.warmer = value === "warmer"))
-                    }
-                    disabled={!!$hiderMode || !data.drag || $isLoading}
-                >
-                    <ToggleGroupItem color="red" value="colder">
-                        Colder
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="warmer">Warmer</ToggleGroupItem>
-                </ToggleGroup>
-            </div>
-            <AnswerSplitPreview questionKey={questionKey} data={data} />
-        </QuestionCard>
-    );
+          <ToggleGroupItem color="red" value="colder">
+            Colder
+          </ToggleGroupItem>
+          <ToggleGroupItem value="warmer">Warmer</ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <AnswerSplitPreview questionKey={questionKey} data={data} />
+    </QuestionCard>
+  );
 };

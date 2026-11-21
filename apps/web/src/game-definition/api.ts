@@ -1,7 +1,4 @@
-import type {
-  GameDefinition,
-  GameImportResponse,
-} from "@searchlight/shared";
+import type { GameDefinition, GameImportResponse } from "@searchlight/shared";
 
 import { startLoadDeadline } from "@/lib/loadDeadline";
 
@@ -9,7 +6,9 @@ import { startLoadDeadline } from "@/lib/loadDeadline";
 // link, and a load stops waiting for one well before (LOAD_TIMEOUT_MS).
 const GAME_DOWNLOAD_TIMEOUT_MS = 5 * 60_000;
 
-const API_BASE = (import.meta.env?.PUBLIC_API_BASE ?? (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ?? "") as string;
+const API_BASE = (import.meta.env?.PUBLIC_API_BASE ??
+  (typeof process !== "undefined" ? process.env.PUBLIC_API_BASE : "") ??
+  "") as string;
 
 function buildApiUrl(pathname: string): URL {
   const base = API_BASE || "http://localhost";
@@ -56,13 +55,10 @@ export async function importGameDefinitionAPI(
 
   if (!res.ok) {
     const errorBody = await res.json().catch(() => ({}));
-    throw Object.assign(
-      new Error(errorBody.message || `Import failed with status ${res.status}`),
-      {
-        status: res.status,
-        ...errorBody,
-      },
-    );
+    throw Object.assign(new Error(errorBody.message || `Import failed with status ${res.status}`), {
+      status: res.status,
+      ...errorBody,
+    });
   }
 
   return res.json();

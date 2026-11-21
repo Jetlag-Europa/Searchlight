@@ -9,10 +9,7 @@ const POSITIONS = /^[-+\d.eE,[\]nul]*$/;
  * that's mostly boundaries now stays within about 10% of it. It parses back
  * to the same value.
  */
-export function formatGameDefinitionJson(
-  definition: object,
-  indent: string | number = 2,
-): string {
+export function formatGameDefinitionJson(definition: object, indent: string | number = 2): string {
   // Coordinates go in as NUL-wrapped strings, which are unwrapped after. A
   // file whose own text holds a NUL is rare enough to just indent in full.
   let hasNul = false;
@@ -21,8 +18,7 @@ export function formatGameDefinitionJson(
     (key, value) => {
       if (
         key.includes("\0") ||
-        ((typeof value === "string" || value instanceof String) &&
-          value.includes("\0"))
+        ((typeof value === "string" || value instanceof String) && value.includes("\0"))
       ) {
         hasNul = true;
       }

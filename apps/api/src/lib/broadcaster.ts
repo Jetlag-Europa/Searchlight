@@ -60,7 +60,9 @@ export function getPresence(sessionId: string): PresenceUser[] {
 // Ids of the users with an open stream, per session that has any. Only the
 // games page's per-game stats read this, as counts.
 export function connectedUserIds(): Map<string, string[]> {
-  return new Map(Array.from(presenceMap, ([sessionId, users]) => [sessionId, Array.from(users.keys())]));
+  return new Map(
+    Array.from(presenceMap, ([sessionId, users]) => [sessionId, Array.from(users.keys())]),
+  );
 }
 
 export function addPresence(sessionId: string, user: PresenceUser): void {

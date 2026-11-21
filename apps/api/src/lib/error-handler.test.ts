@@ -59,7 +59,10 @@ describe("errorHandler", () => {
   test("keeps a client error's message", async () => {
     const res = await app.inject({ method: "GET", url: "/forbidden" });
     expect(res.statusCode).toBe(403);
-    expect(res.json()).toMatchObject({ error: "Forbidden", message: "Not a member of this server" });
+    expect(res.json()).toMatchObject({
+      error: "Forbidden",
+      message: "Not a member of this server",
+    });
   });
 
   test("takes the status from an error's `status`", async () => {

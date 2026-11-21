@@ -69,7 +69,10 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
         },
         include: { createdBy: { select: { displayName: true } } },
       });
-      req.log.info({ gameId: game.id, linkId: link.id, userId: user.discordId }, "[game-links] created");
+      req.log.info(
+        { gameId: game.id, linkId: link.id, userId: user.discordId },
+        "[game-links] created",
+      );
       return reply.status(201).send(serializeLink(link));
     },
   );
@@ -105,20 +108,16 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
 // Under /game-links: using a link.
 export async function gameLinkRoutes(app: FastifyInstance) {
   // GET /game-links/:token — public, no auth required
-  app.get(
-    "/:token",
-    { schema: { params: Type.Object({ token: Type.String() }) } },
-    async (req) => {
-      const { token } = req.params as { token: string };
-      const link = await findActiveLink(token);
-      if (!link?.game.currentRevision) return { valid: false };
-      return {
-        valid: true,
-        gameName: link.game.name,
-        serverName: link.game.server.name,
-      };
-    },
-  );
+  app.get("/:token", { schema: { params: Type.Object({ token: Type.String() }) } }, async (req) => {
+    const { token } = req.params as { token: string };
+    const link = await findActiveLink(token);
+    if (!link?.game.currentRevision) return { valid: false };
+    return {
+      valid: true,
+      gameName: link.game.name,
+      serverName: link.game.server.name,
+    };
+  });
 
   // POST /game-links/:token/sessions — start a session of the linked game,
   // pinned to its current revision.

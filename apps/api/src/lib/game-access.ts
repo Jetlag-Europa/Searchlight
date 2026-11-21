@@ -67,7 +67,9 @@ export function isOwnCasualGame(
   userId: string,
   game: { serverId: string; createdById: string | null },
 ): boolean {
-  return game.serverId === CASUAL_SERVER_ID && game.createdById !== null && game.createdById === userId;
+  return (
+    game.serverId === CASUAL_SERVER_ID && game.createdById !== null && game.createdById === userId
+  );
 }
 
 /** Throws 403 unless the user may change the game's listing and links. */
@@ -96,7 +98,9 @@ function getDiscordRoleGate(visibility: unknown): { guildId: string; roleId: str
 
 // Access checks only need each definition's `visibility`. Definitions embed
 // multi-MB GeoJSON, so read just that field instead of the whole document.
-async function revisionVisibilities(revisionIds: (string | null | undefined)[]): Promise<unknown[]> {
+async function revisionVisibilities(
+  revisionIds: (string | null | undefined)[],
+): Promise<unknown[]> {
   const ids = [...new Set(revisionIds.filter((id): id is string => Boolean(id)))];
   if (ids.length === 0) return [];
   const rows = await prisma.$queryRaw<{ visibility: unknown }[]>`

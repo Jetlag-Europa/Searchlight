@@ -14,7 +14,10 @@ vi.mock("@/maps/geo-utils", async (importActual) => {
   };
 });
 
-import { determineMeasuringGeometry, evaluateMeasuringOperator } from "@/maps/questions/operators/measuring";
+import {
+  determineMeasuringGeometry,
+  evaluateMeasuringOperator,
+} from "@/maps/questions/operators/measuring";
 
 describe("evaluateMeasuringOperator regression tests", () => {
   const mapGeoData = turf.featureCollection([turf.bboxPolygon([0, 0, 10, 10])]);
@@ -88,9 +91,14 @@ describe("evaluateMeasuringOperator regression tests", () => {
     ).rejects.toThrow("Buffer calculation failed");
     mockArcBufferToPoint.mockResolvedValue(bufferPolygon);
     const recovered = await evaluateMeasuringOperator({
-      evaluator, datasets, data: { lat: 4, lng: 4, hiderCloser: true }, mapGeoData,
+      evaluator,
+      datasets,
+      data: { lat: 4, lng: 4, hiderCloser: true },
+      mapGeoData,
     });
-    expect(turf.booleanPointInPolygon(insidePoint, recovered as Feature<Polygon | MultiPolygon>)).toBe(true);
+    expect(
+      turf.booleanPointInPolygon(insidePoint, recovered as Feature<Polygon | MultiPolygon>),
+    ).toBe(true);
     expect(mockArcBufferToPoint).toHaveBeenCalledTimes(2);
   });
 
@@ -104,14 +112,21 @@ describe("evaluateMeasuringOperator regression tests", () => {
       determineMeasuringGeometry(params),
       evaluateMeasuringOperator({ ...params, mapGeoData }),
       evaluateMeasuringOperator({
-        ...params, data: { ...params.data, hiderCloser: false },
+        ...params,
+        data: { ...params.data, hiderCloser: false },
         mapGeoData: turf.featureCollection([turf.bboxPolygon([1, 1, 9, 9])]),
       }),
     ]);
     expect(turf.booleanPointInPolygon(insidePoint, preview!)).toBe(true);
-    expect(turf.booleanPointInPolygon(insidePoint, closer as Feature<Polygon | MultiPolygon>)).toBe(true);
-    expect(turf.booleanPointInPolygon(insidePoint, farther as Feature<Polygon | MultiPolygon>)).toBe(false);
-    expect(turf.booleanPointInPolygon(outsidePoint, farther as Feature<Polygon | MultiPolygon>)).toBe(true);
+    expect(turf.booleanPointInPolygon(insidePoint, closer as Feature<Polygon | MultiPolygon>)).toBe(
+      true,
+    );
+    expect(
+      turf.booleanPointInPolygon(insidePoint, farther as Feature<Polygon | MultiPolygon>),
+    ).toBe(false);
+    expect(
+      turf.booleanPointInPolygon(outsidePoint, farther as Feature<Polygon | MultiPolygon>),
+    ).toBe(true);
     await evaluateMeasuringOperator({ ...params, mapGeoData });
     expect(mockArcBufferToPoint).toHaveBeenCalledTimes(1);
   });
@@ -120,7 +135,11 @@ describe("evaluateMeasuringOperator regression tests", () => {
     mockArcBufferToPoint.mockResolvedValue(bufferPolygon);
     const map = turf.featureCollection([turf.bboxPolygon([4.31, 50.82, 4.47, 50.91])]);
     await evaluateMeasuringOperator({
-      evaluator, datasets, data: { lat: 4, lng: 4 }, mapGeoData: map, requestKey: "question:3",
+      evaluator,
+      datasets,
+      data: { lat: 4, lng: 4 },
+      mapGeoData: map,
+      requestKey: "question:3",
     });
     const [, lat, lng, options] = mockArcBufferToPoint.mock.calls[0];
     expect([lat, lng]).toEqual([4, 4]);
@@ -141,11 +160,17 @@ describe("evaluateMeasuringOperator regression tests", () => {
   it("treats an empty buffer as no feature within the seeker's distance of the map", async () => {
     mockArcBufferToPoint.mockResolvedValue(turf.multiPolygon([]));
     const closer = await evaluateMeasuringOperator({
-      evaluator, datasets, data: { lat: 4, lng: 4, hiderCloser: true }, mapGeoData,
+      evaluator,
+      datasets,
+      data: { lat: 4, lng: 4, hiderCloser: true },
+      mapGeoData,
     });
     expect(closer).toEqual(turf.featureCollection([]));
     const farther = await evaluateMeasuringOperator({
-      evaluator, datasets, data: { lat: 4, lng: 4, hiderCloser: false }, mapGeoData,
+      evaluator,
+      datasets,
+      data: { lat: 4, lng: 4, hiderCloser: false },
+      mapGeoData,
     });
     expect(farther).toBe(mapGeoData);
   });

@@ -4,7 +4,11 @@ import { Prisma } from "@prisma/client";
 import { CASUAL_SERVER_ID, type GameSettingsUpdate } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { getUserPermissions, userPassesDiscordRoleGate, assertServerMembership } from "../lib/permissions.js";
+import {
+  getUserPermissions,
+  userPassesDiscordRoleGate,
+  assertServerMembership,
+} from "../lib/permissions.js";
 import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import {
   assertCanManageGame,
@@ -168,7 +172,8 @@ export async function gameRoutes(app: FastifyInstance) {
       const server = await prisma.server.findUnique({ where: { id: serverId } });
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
       const perms = await getUserPermissions(user.discordId, serverId, true, req.log);
-      if (!perms.has("server.admin")) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+      if (!perms.has("server.admin"))
+        throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
       const games = await prisma.game.findMany({ where: { serverId }, select: { id: true } });
       const gameIds = games.map((game) => game.id);
@@ -264,7 +269,10 @@ export async function gameRoutes(app: FastifyInstance) {
       }
 
       return {
-        stats: [...stats.values()].map((entry) => ({ ...entry, livePlayers: entry.livePlayers.size })),
+        stats: [...stats.values()].map((entry) => ({
+          ...entry,
+          livePlayers: entry.livePlayers.size,
+        })),
       };
     },
   );
@@ -293,7 +301,10 @@ export async function gameRoutes(app: FastifyInstance) {
       }
 
       const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
-      req.log.info({ gameId: game.id, unlisted, userId: user.discordId }, "[games] listing changed");
+      req.log.info(
+        { gameId: game.id, unlisted, userId: user.discordId },
+        "[games] listing changed",
+      );
       return serializeGame(updated);
     },
   );
@@ -342,14 +353,17 @@ export async function gameRoutes(app: FastifyInstance) {
       // A Casual game's creator edits it while they hold games.create there,
       // as for an import of it.
       const ownCasualGame = isOwnCasualGame(user.discordId, game) && perms.has("games.create");
-      if (!canEdit && !ownCasualGame) throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
+      if (!canEdit && !ownCasualGame)
+        throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
       const name = body.name?.trim();
       if (name === "") {
         throw Object.assign(new Error("The game's name can't be empty"), { statusCode: 400 });
       }
       if (name && name.length > 120) {
-        throw Object.assign(new Error("The game's name can be at most 120 characters"), { statusCode: 400 });
+        throw Object.assign(new Error("The game's name can be at most 120 characters"), {
+          statusCode: 400,
+        });
       }
 
       let result;
@@ -371,10 +385,10 @@ export async function gameRoutes(app: FastifyInstance) {
         // failure gets the first issue as its message, for the dialog to show.
         if (err instanceof ImportValidationError) {
           const issue = err.errors[0];
-          throw Object.assign(
-            new Error(issue ? `${issue.message} (${issue.path})` : err.message),
-            { statusCode: 400, code: err.code },
-          );
+          throw Object.assign(new Error(issue ? `${issue.message} (${issue.path})` : err.message), {
+            statusCode: 400,
+            code: err.code,
+          });
         }
         throw err;
       }
@@ -382,7 +396,12 @@ export async function gameRoutes(app: FastifyInstance) {
       const updated = await prisma.game.findUnique({ where: { id: game.id } });
       if (!updated) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
       req.log.info(
-        { gameId: game.id, status: result.status, revision: result.revision, userId: user.discordId },
+        {
+          gameId: game.id,
+          status: result.status,
+          revision: result.revision,
+          userId: user.discordId,
+        },
         "[games] settings changed",
       );
       return { status: result.status, revision: result.revision, game: serializeGame(updated) };
@@ -404,12 +423,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
 
-      const perms = await getUserPermissions(
-        user.discordId,
-        game.serverId,
-        true,
-        req.log,
-      );
+      const perms = await getUserPermissions(user.discordId, game.serverId, true, req.log);
       if (!perms.has("games.delete")) {
         throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
       }

@@ -80,7 +80,13 @@ describe("session sharing and links", () => {
 
     await prisma.server.create({ data: { id: SERVER_ID, name: "Share Server" } });
     await prisma.game.create({
-      data: { id: GAME_ID, serverId: SERVER_ID, name: "Share Game", gameKey: "sshare-game", size: "medium" },
+      data: {
+        id: GAME_ID,
+        serverId: SERVER_ID,
+        name: "Share Game",
+        gameKey: "sshare-game",
+        size: "medium",
+      },
     });
     const rev = await prisma.gameRevision.create({
       data: {

@@ -3,32 +3,37 @@
 @tailwind utilities;
 
 @keyframes warning-flash {
-    0%, 100% { background-color: rgba(220, 38, 38, 0.55); }
-    50%       { background-color: rgba(220, 38, 38, 0); }
+  0%,
+  100% {
+    background-color: rgba(220, 38, 38, 0.55);
+  }
+  50% {
+    background-color: rgba(220, 38, 38, 0);
+  }
 }
 
 .warning-flash {
-    animation: warning-flash 0.4s ease-in-out infinite;
+  animation: warning-flash 0.4s ease-in-out infinite;
 }
 
 html,
 body {
-    margin: 0;
-    width: 100%;
-    height: 100%;
+  margin: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .Toastify__toast {
-    /* A modal (the sidebar on phones) turns off pointer events outside it;
+  /* A modal (the sidebar on phones) turns off pointer events outside it;
        toasts such as the Undo after a delete stay clickable. */
-    pointer-events: auto;
-    /* Keeps the close button below clear of the content. */
-    column-gap: 8px;
+  pointer-events: auto;
+  /* Keeps the close button below clear of the content. */
+  column-gap: 8px;
 }
 
 /* Together with the gap, the icon's usual 10px from the text. */
 .Toastify__toast-icon {
-    margin-inline-end: 2px;
+  margin-inline-end: 2px;
 }
 
 /* The close button takes the toast's end edge, full height and a finger
@@ -36,174 +41,174 @@ body {
    Undo, sat right next to it, so a tap on a phone hit the wrong one. The auto
    margin keeps it at the edge when the content is a short string. */
 .Toastify__close-button {
-    position: static;
-    align-self: stretch;
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    margin: calc(-1 * var(--toastify-toast-padding));
-    margin-inline-start: auto;
+  position: static;
+  align-self: stretch;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  margin: calc(-1 * var(--toastify-toast-padding));
+  margin-inline-start: auto;
 }
 
 .leaflet-container {
-    height: 100vh; /* Fallback for old browsers */
-    height: 100svh;
+  height: 100vh; /* Fallback for old browsers */
+  height: 100svh;
 }
 
 .leaflet-bottom.leaflet-right {
-    /* Hypothetically this could cause an issue with other bottom right elements */
-    z-index: 752;
+  /* Hypothetically this could cause an issue with other bottom right elements */
+  z-index: 752;
 }
 
 div.leaflet-control-attribution.leaflet-control {
-    z-index: 751;
+  z-index: 751;
 }
 
 @layer base {
-    html {
-        @apply text-slate-50;
-    }
-    :root,
-    .light {
-        --background: 0 0% 100%;
-        --foreground: 222.2 84% 4.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 222.2 84% 4.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 222.2 84% 4.9%;
-        --primary: 222.2 47.4% 11.2%;
-        --primary-foreground: 210 40% 98%;
-        --secondary: 210 40% 96.1%;
-        --secondary-foreground: 222.2 47.4% 11.2%;
-        --muted: 210 40% 96.1%;
-        --muted-foreground: 215.4 16.3% 46.9%;
-        --accent: 210 40% 96.1%;
-        --accent-foreground: 222.2 47.4% 11.2%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 210 40% 98%;
-        /* Red text (text-destructive) on the background: --destructive is
+  html {
+    @apply text-slate-50;
+  }
+  :root,
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    /* Red text (text-destructive) on the background: --destructive is
            for fills and is too faint as text (red-600, 4.8:1 on white). */
-        --destructive-text: 0 72.2% 50.6%;
-        --border: 214.3 31.8% 91.4%;
-        --input: 214.3 31.8% 91.4%;
-        --ring: 222.2 84% 4.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
-        --sidebar-background: 0 0% 98%;
-        --sidebar-foreground: 240 5.3% 26.1%;
-        --sidebar-primary: 240 5.9% 10%;
-        --sidebar-primary-foreground: 0 0% 98%;
-        --sidebar-accent: 240 4.8% 95.9%;
-        --sidebar-accent-foreground: 240 5.9% 10%;
-        --sidebar-border: 220 13% 91%;
-        --sidebar-ring: 217.2 91.2% 59.8%;
-    }
-    .dark {
-        --background: 222.2 84% 4.9%;
-        --foreground: 210 40% 98%;
-        --card: 222.2 84% 4.9%;
-        --card-foreground: 210 40% 98%;
-        --popover: 222.2 84% 4.9%;
-        --popover-foreground: 210 40% 98%;
-        --primary: 210 40% 98%;
-        --primary-foreground: 222.2 47.4% 11.2%;
-        --secondary: 217.2 32.6% 17.5%;
-        --secondary-foreground: 210 40% 98%;
-        --muted: 217.2 32.6% 17.5%;
-        --muted-foreground: 215 20.2% 65.1%;
-        --accent: 217.2 32.6% 17.5%;
-        --accent-foreground: 210 40% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 210 40% 98%;
-        /* red-400: 7.4:1 on the background, where --destructive is 2:1. */
-        --destructive-text: 0 91.2% 71.4%;
-        --border: 217.2 32.6% 17.5%;
-        --input: 217.2 32.6% 17.5%;
-        --ring: 212.7 26.8% 83.9%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-        --sidebar-background: 240 5.9% 10%;
-        --sidebar-foreground: 240 4.8% 95.9%;
-        --sidebar-primary: 224.3 76.3% 48%;
-        --sidebar-primary-foreground: 0 0% 100%;
-        --sidebar-accent: 240 3.7% 15.9%;
-        --sidebar-accent-foreground: 240 4.8% 95.9%;
-        --sidebar-border: 240 3.7% 15.9%;
-        --sidebar-ring: 217.2 91.2% 59.8%;
-    }
+    --destructive-text: 0 72.2% 50.6%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 222.2 84% 4.9%;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 210 40% 98%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    /* red-400: 7.4:1 on the background, where --destructive is 2:1. */
+    --destructive-text: 0 91.2% 71.4%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 212.7 26.8% 83.9%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 224.3 76.3% 48%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
 
-    main:not(.fullscreen) .leaflet-top .leaflet-control {
-        @apply !mt-[104px] md:!mt-[40px];
-    }
+  main:not(.fullscreen) .leaflet-top .leaflet-control {
+    @apply !mt-[104px] md:!mt-[40px];
+  }
 
-    .selected-card-background-temporary {
-        @apply bg-slate-500;
-    }
+  .selected-card-background-temporary {
+    @apply bg-slate-500;
+  }
 }
 
 @layer base {
-    * {
-        @apply border-border;
-    }
-    body {
-        @apply bg-background text-foreground;
-    }
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
 
 /* Zone name labels — markers in the tooltip pane styled as centred Leaflet
    tooltips. Real tooltips measure themselves on every zoom. */
 .zone-name-marker {
-    /* Stack in DOM order like tooltips, not by the marker's y position. */
-    z-index: auto !important;
+  /* Stack in DOM order like tooltips, not by the marker's y position. */
+  z-index: auto !important;
 }
 .zone-name-marker > .zone-name-label {
-    transform: translate(-50%, -50%);
+  transform: translate(-50%, -50%);
 }
 .zone-name-label {
-    background: rgba(255, 255, 255, 0.85);
-    border: none;
-    border-radius: 4px;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
-    color: #1a1a1a;
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 6px;
-    pointer-events: none;
-    white-space: nowrap;
+  background: rgba(255, 255, 255, 0.85);
+  border: none;
+  border-radius: 4px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  color: #1a1a1a;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 6px;
+  pointer-events: none;
+  white-space: nowrap;
 }
 .zone-name-label::before {
-    display: none;
+  display: none;
 }
 .zone-labels-hidden .zone-name-label {
-    display: none !important;
+  display: none !important;
 }
 
 /* Google's logo, which GoogleMutant moves into the bottom-left corner. Its
    wrapper has no size, so the logo sat at the map's bottom edge, under the
    scale bar; Google's terms want it uncovered. It gets its own box below. */
 .leaflet-bottom.leaflet-left > div:not(.leaflet-control) {
-    position: relative;
-    clear: both;
-    float: left;
-    width: 66px;
-    height: 26px;
-    margin: 0 0 5px 10px;
+  position: relative;
+  clear: both;
+  float: left;
+  width: 66px;
+  height: 26px;
+  margin: 0 0 5px 10px;
 }
 
 /* Google's terms don't allow keeping its map outside the API, so a page the
    browser prints (Ctrl+P, Share → Print) leaves it out. Not visibility:
    GoogleMutant marks each tile it copies visible, which would win. */
 @media print {
-    .google-basemap {
-        display: none !important;
-    }
+  .google-basemap {
+    display: none !important;
+  }
 }

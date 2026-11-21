@@ -1,9 +1,5 @@
 import { clearStoredRevisions } from "@/game-definition/revisionCache";
-import {
-    offlineUserId,
-    STORED_USER_KEY,
-    verifiedUserId,
-} from "@/lib/activeSession";
+import { offlineUserId, STORED_USER_KEY, verifiedUserId } from "@/lib/activeSession";
 import { offlinePlayer } from "@/lib/authCheck";
 import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 
@@ -27,19 +23,19 @@ export const LOGIN_STARTED_KEY = "taibled-login-started";
 
 /** The account this browser played as last, to compare a new login with. */
 export function lastUser(): string | null {
-    return (
-        readStorage("localStorage", STORED_USER_KEY) ||
-        readStorage("localStorage", PREVIOUS_USER_KEY) ||
-        null
-    );
+  return (
+    readStorage("localStorage", STORED_USER_KEY) ||
+    readStorage("localStorage", PREVIOUS_USER_KEY) ||
+    null
+  );
 }
 
 /** `userId` is verified: it may play offline here for a while. */
 export function rememberUser(userId: string, now = Date.now()): void {
-    writeStorage("localStorage", STORED_USER_KEY, userId);
-    writeStorage("localStorage", VERIFIED_AT_KEY, String(now));
-    removeStorage("localStorage", PREVIOUS_USER_KEY);
-    removeStorage("localStorage", LOGIN_STARTED_KEY);
+  writeStorage("localStorage", STORED_USER_KEY, userId);
+  writeStorage("localStorage", VERIFIED_AT_KEY, String(now));
+  removeStorage("localStorage", PREVIOUS_USER_KEY);
+  removeStorage("localStorage", LOGIN_STARTED_KEY);
 }
 
 /**
@@ -50,21 +46,21 @@ export function rememberUser(userId: string, now = Date.now()): void {
  * a bad connection, and the clock starts here.
  */
 export function offlineAccount(now = Date.now()): string | null {
-    const stored = readStorage("localStorage", STORED_USER_KEY);
-    if (!stored) return null;
-    if (readStorage("localStorage", LOGIN_STARTED_KEY) !== null) {
-        void endOfflineAccess();
-        return null;
-    }
-    const verifiedAt = readStorage("localStorage", VERIFIED_AT_KEY);
-    if (verifiedAt === null) {
-        writeStorage("localStorage", VERIFIED_AT_KEY, String(now));
-        return stored;
-    }
-    // A clock set wrong either way doesn't keep it open for good.
-    if (Math.abs(now - Number(verifiedAt)) < OFFLINE_ACCESS_MS) return stored;
+  const stored = readStorage("localStorage", STORED_USER_KEY);
+  if (!stored) return null;
+  if (readStorage("localStorage", LOGIN_STARTED_KEY) !== null) {
     void endOfflineAccess();
     return null;
+  }
+  const verifiedAt = readStorage("localStorage", VERIFIED_AT_KEY);
+  if (verifiedAt === null) {
+    writeStorage("localStorage", VERIFIED_AT_KEY, String(now));
+    return stored;
+  }
+  // A clock set wrong either way doesn't keep it open for good.
+  if (Math.abs(now - Number(verifiedAt)) < OFFLINE_ACCESS_MS) return stored;
+  void endOfflineAccess();
+  return null;
 }
 
 /**
@@ -77,12 +73,9 @@ export function offlineAccount(now = Date.now()): string | null {
  * plays online; a 401 logs out.
  */
 export function playOfflineWhileUnreachable(now = Date.now()): string | null {
-    const player = offlinePlayer(
-        offlineUserId.get() ?? offlineAccount(now),
-        verifiedUserId.get(),
-    );
-    offlineUserId.set(player);
-    return player;
+  const player = offlinePlayer(offlineUserId.get() ?? offlineAccount(now), verifiedUserId.get());
+  offlineUserId.set(player);
+  return player;
 }
 
 /**
@@ -91,21 +84,21 @@ export function playOfflineWhileUnreachable(now = Date.now()): string | null {
  * again.
  */
 export async function endOfflineAccess(): Promise<void> {
-    const stored = readStorage("localStorage", STORED_USER_KEY);
-    if (stored) writeStorage("localStorage", PREVIOUS_USER_KEY, stored);
-    removeStorage("localStorage", STORED_USER_KEY);
-    removeStorage("localStorage", VERIFIED_AT_KEY);
-    offlineUserId.set(null);
-    await clearStoredRevisions();
+  const stored = readStorage("localStorage", STORED_USER_KEY);
+  if (stored) writeStorage("localStorage", PREVIOUS_USER_KEY, stored);
+  removeStorage("localStorage", STORED_USER_KEY);
+  removeStorage("localStorage", VERIFIED_AT_KEY);
+  offlineUserId.set(null);
+  await clearStoredRevisions();
 }
 
 /** Logging out: forget the account and the games it kept here. */
 export async function forgetAccount(): Promise<void> {
-    verifiedUserId.set(null);
-    offlineUserId.set(null);
-    removeStorage("localStorage", STORED_USER_KEY);
-    removeStorage("localStorage", VERIFIED_AT_KEY);
-    removeStorage("localStorage", PREVIOUS_USER_KEY);
-    removeStorage("localStorage", LOGIN_STARTED_KEY);
-    await clearStoredRevisions();
+  verifiedUserId.set(null);
+  offlineUserId.set(null);
+  removeStorage("localStorage", STORED_USER_KEY);
+  removeStorage("localStorage", VERIFIED_AT_KEY);
+  removeStorage("localStorage", PREVIOUS_USER_KEY);
+  removeStorage("localStorage", LOGIN_STARTED_KEY);
+  await clearStoredRevisions();
 }

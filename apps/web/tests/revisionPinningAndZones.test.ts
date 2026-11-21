@@ -26,9 +26,15 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
   const sessionStore = new Map<string, string>();
   vi.stubGlobal("sessionStorage", {
     getItem: (k: string) => sessionStore.get(k) ?? null,
-    setItem: (k: string, v: string) => { sessionStore.set(k, v); },
-    removeItem: (k: string) => { sessionStore.delete(k); },
-    clear: () => { sessionStore.clear(); },
+    setItem: (k: string, v: string) => {
+      sessionStore.set(k, v);
+    },
+    removeItem: (k: string) => {
+      sessionStore.delete(k);
+    },
+    clear: () => {
+      sessionStore.clear();
+    },
   });
 
   afterAll(() => {
@@ -57,7 +63,15 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
                 type: "Feature",
                 geometry: {
                   type: "Polygon",
-                  coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+                  coordinates: [
+                    [
+                      [0, 0],
+                      [1, 0],
+                      [1, 1],
+                      [0, 1],
+                      [0, 0],
+                    ],
+                  ],
                 },
                 properties: {},
               },
@@ -203,7 +217,15 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
                 type: "Feature",
                 geometry: {
                   type: "Polygon",
-                  coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+                  coordinates: [
+                    [
+                      [0, 0],
+                      [1, 0],
+                      [1, 1],
+                      [0, 1],
+                      [0, 0],
+                    ],
+                  ],
                 },
                 properties: { name: "Polygon Zone" },
               },
@@ -233,7 +255,11 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
           features: {
             type: "FeatureCollection",
             features: [
-              { type: "Feature", geometry: { type: "Point", coordinates: [1, 1] }, properties: { name: "Stale" } },
+              {
+                type: "Feature",
+                geometry: { type: "Point", coordinates: [1, 1] },
+                properties: { name: "Stale" },
+              },
             ],
           },
         },
@@ -439,17 +465,26 @@ describe("Review 5, 9, 10: Revision Pinning, Cache, and Zone Station Precedence"
       cacheRevisionDefinition("game-two", "rev-1-uuid", defGame2R1, "sess-2");
 
       // Retrieve revision 1 for game-one
-      const loaded1 = await switchToGame(gameDef1, { revisionId: "rev-1-uuid", sessionId: "sess-1" });
+      const loaded1 = await switchToGame(gameDef1, {
+        revisionId: "rev-1-uuid",
+        sessionId: "sess-1",
+      });
       expect(loaded1).toBe(true);
       expect(appliedRadius()).toBe(350);
 
       // Retrieve revision 1 for game-two
-      const loaded2 = await switchToGame(gameDef2, { revisionId: "rev-1-uuid", sessionId: "sess-2" });
+      const loaded2 = await switchToGame(gameDef2, {
+        revisionId: "rev-1-uuid",
+        sessionId: "sess-2",
+      });
       expect(loaded2).toBe(true);
       expect(appliedRadius()).toBe(700);
 
       // Switch back to game-one revision 1 and verify it was not corrupted by game-two
-      const reloaded1 = await switchToGame(gameDef1, { revisionId: "rev-1-uuid", sessionId: "sess-1" });
+      const reloaded1 = await switchToGame(gameDef1, {
+        revisionId: "rev-1-uuid",
+        sessionId: "sess-1",
+      });
       expect(reloaded1).toBe(true);
       expect(appliedRadius()).toBe(350);
     });

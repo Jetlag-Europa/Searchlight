@@ -23,11 +23,11 @@ for any other API URL, build the images on the server.
 `docker-compose.yml` is the whole stack with no published ports. An overlay
 adds the way in:
 
-| Overlay | Use |
-| --- | --- |
-| `docker-compose.cloudflared.yml` | Web and API behind a Cloudflare Tunnel, nothing published on the host. |
-| `docker-compose.backend.yml` | API and Postgres only, API on a host port (`API_BIND`, `API_PORT`). The web app is hosted elsewhere, e.g. [on Cloudflare](#web-app-on-cloudflare). |
-| `docker-compose.test.yml` | The e2e test stack ([`docs/TESTING.md`](docs/TESTING.md)). |
+| Overlay                          | Use                                                                                                                                                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `docker-compose.cloudflared.yml` | Web and API behind a Cloudflare Tunnel, nothing published on the host.                                                                             |
+| `docker-compose.backend.yml`     | API and Postgres only, API on a host port (`API_BIND`, `API_PORT`). The web app is hosted elsewhere, e.g. [on Cloudflare](#web-app-on-cloudflare). |
+| `docker-compose.test.yml`        | The e2e test stack ([`docs/TESTING.md`](docs/TESTING.md)).                                                                                         |
 
 `docker-compose.dev.yml` is unrelated: the Postgres for local development.
 
@@ -148,6 +148,7 @@ starting an API from before #85:
 
    Spectators lose access and their links stop working. Players and their
    sessions keep everything. Leave the `viewer` enum value alone.
+
 3. Start the older API.
 
 **Game ids per server** (#138). Older APIs expect a game's id (`Game.gameKey`) to be unique across all servers; migration `20261113120000_game_ids_per_server` replaces that unique index with one on server, owner and id. Once two games share an id, an older API picks either of them when it imports a file or looks a game up, so it may change the wrong one. Before starting an older API:
@@ -160,6 +161,7 @@ starting an API from before #85:
    ```
 
    If it returns rows, give all but one game in each group a new `gameKey` by hand (`UPDATE "Game" SET "gameKey" = '<new>' WHERE id = '<id>';`). On the older version their files then import as new games. The alternative is restoring the backup taken before the update, which loses everything played since.
+
 3. Put the old index back, in one transaction:
 
    ```sql
@@ -170,6 +172,7 @@ starting an API from before #85:
    ```
 
    Leave the `ownerScope` column: older APIs ignore it.
+
 4. Start the older API.
 
 Going forward again, the migration is already recorded as applied, so `prisma migrate deploy` does nothing. Before starting the newer API, redo its index swap and fill in the owner of Casual games created meanwhile. Without it, importing an id that another server or player uses fails with 409 `CONCURRENT_IMPORT` every time, and so does a creator updating a Casual game made on the older API. With only the index swap redone, that creator gets a second copy of the game instead:
@@ -351,9 +354,9 @@ log in again and role mappings changed in the admin UI are lost.
 
 ## Production
 
-| | |
-| --- | --- |
-| Web | <https://searchlight.jetlageuropa.org> |
+|     |                                                        |
+| --- | ------------------------------------------------------ |
+| Web | <https://searchlight.jetlageuropa.org>                 |
 | API | <https://api.searchlight.jetlageuropa.org> (`/health`) |
 
 Production runs the head of the `prod` branch: a release moves `prod` to a

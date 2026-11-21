@@ -4,7 +4,16 @@ import { diffQuestionLists } from "./question-history.js";
 const radius = (key: number, data: Record<string, unknown> = {}) => ({
   id: "radius",
   key,
-  data: { lat: 52.37, lng: 4.89, radius: 2, unit: "kilometers", within: true, drag: true, collapsed: false, ...data },
+  data: {
+    lat: 52.37,
+    lng: 4.89,
+    radius: 2,
+    unit: "kilometers",
+    within: true,
+    drag: true,
+    collapsed: false,
+    ...data,
+  },
 });
 
 // The next double up: what a one-ulp drift looks like.
@@ -21,7 +30,10 @@ const K3 = 0.3141592653589793;
 
 describe("diffQuestionLists", () => {
   it("lists an added question with its position", () => {
-    const diff = diffQuestionLists([radius(K1)], [radius(K1), radius(K2), { id: "matching", key: K3, data: {} }]);
+    const diff = diffQuestionLists(
+      [radius(K1)],
+      [radius(K1), radius(K2), { id: "matching", key: K3, data: {} }],
+    );
     expect(diff.reordered).toBe(false);
     expect(diff.prevOrder).toBeUndefined();
     expect(diff.changes).toEqual([
@@ -51,12 +63,18 @@ describe("diffQuestionLists", () => {
 
   it("doesn't see a key or a coordinate one ulp off as a change", () => {
     const lat = 52.123456789012345;
-    const diff = diffQuestionLists([radius(K1, { lat })], [radius(nextUp(K1), { lat: nextUp(lat) })]);
+    const diff = diffQuestionLists(
+      [radius(K1, { lat })],
+      [radius(nextUp(K1), { lat: nextUp(lat) })],
+    );
     expect(diff).toEqual({ changes: [], reordered: false });
   });
 
   it("gives a removed question in full, and the order before", () => {
-    const geo = { type: "FeatureCollection", features: [{ type: "Feature", geometry: null, properties: {} }] };
+    const geo = {
+      type: "FeatureCollection",
+      features: [{ type: "Feature", geometry: null, properties: {} }],
+    };
     const matching = { id: "matching", key: K2, data: { type: "custom-zone", geo, same: true } };
     const diff = diffQuestionLists([radius(K1), matching, radius(K3)], [radius(K1), radius(K3)]);
     expect(diff.changes).toEqual([
@@ -68,18 +86,31 @@ describe("diffQuestionLists", () => {
 
   it("omits geo and places from changes, but keeps them in a removed question", () => {
     const geo = { type: "FeatureCollection", features: [] };
-    const places = [{ type: "Feature", geometry: { type: "Point", coordinates: [4, 52] }, properties: { name: "A" } }];
+    const places = [
+      {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [4, 52] },
+        properties: { name: "A" },
+      },
+    ];
     const tentacle = (data: Record<string, unknown>) => ({
       id: "tentacles",
       key: K2,
       data: { locationType: "custom", places, radius: 15, ...data },
     });
-    const matching = (data: Record<string, unknown>) => ({ id: "matching", key: K1, data: { type: "custom-zone", geo, ...data } });
+    const matching = (data: Record<string, unknown>) => ({
+      id: "matching",
+      key: K1,
+      data: { type: "custom-zone", geo, ...data },
+    });
 
     const added = diffQuestionLists([], [matching({})]);
     expect(added.changes[0].after).toEqual({ type: "custom-zone", geo: { omitted: true } });
 
-    const changed = diffQuestionLists([matching({}), tentacle({})], [matching({ geo: { ...geo, features: [1] } }), tentacle({ places: [] })]);
+    const changed = diffQuestionLists(
+      [matching({}), tentacle({})],
+      [matching({ geo: { ...geo, features: [1] } }), tentacle({ places: [] })],
+    );
     expect(changed.changes.map((c) => c.fields)).toEqual([["geo"], ["places"]]);
     expect(changed.changes[0].before).toEqual({ geo: { omitted: true } });
     expect(changed.changes[1].after).toEqual({ places: { omitted: true } });
@@ -89,13 +120,20 @@ describe("diffQuestionLists", () => {
   });
 
   it("notices a new order of the questions kept", () => {
-    const diff = diffQuestionLists([radius(K1), radius(K2), radius(K3)], [radius(K2), radius(K1), radius(K3)]);
+    const diff = diffQuestionLists(
+      [radius(K1), radius(K2), radius(K3)],
+      [radius(K2), radius(K1), radius(K3)],
+    );
     expect(diff).toEqual({ changes: [], reordered: true });
   });
 
   it("doesn't call an add or a removal a reorder", () => {
-    expect(diffQuestionLists([radius(K1), radius(K3)], [radius(K2), radius(K1), radius(K3)]).reordered).toBe(false);
-    expect(diffQuestionLists([radius(K1), radius(K2), radius(K3)], [radius(K1), radius(K3)]).reordered).toBe(false);
+    expect(
+      diffQuestionLists([radius(K1), radius(K3)], [radius(K2), radius(K1), radius(K3)]).reordered,
+    ).toBe(false);
+    expect(
+      diffQuestionLists([radius(K1), radius(K2), radius(K3)], [radius(K1), radius(K3)]).reordered,
+    ).toBe(false);
   });
 
   it("pairs exact keys before near ones", () => {
@@ -119,12 +157,16 @@ describe("diffQuestionLists", () => {
     expect(diffQuestionLists(junk, [...junk, radius(K1)]).changes).toEqual([
       expect.objectContaining({ kind: "added", key: K1, index: 0 }),
     ]);
-    expect(diffQuestionLists(null as unknown as unknown[], undefined as unknown as unknown[])).toEqual({
+    expect(
+      diffQuestionLists(null as unknown as unknown[], undefined as unknown as unknown[]),
+    ).toEqual({
       changes: [],
       reordered: false,
     });
     // A question without data, or with an odd id, still diffs.
     const odd = diffQuestionLists([{ key: K1 }], [{ key: K1, id: 5, data: { a: 1 } }]);
-    expect(odd.changes).toEqual([expect.objectContaining({ kind: "changed", id: "unknown", fields: ["a"] })]);
+    expect(odd.changes).toEqual([
+      expect.objectContaining({ kind: "changed", id: "unknown", fields: ["a"] }),
+    ]);
   });
 });

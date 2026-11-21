@@ -12,8 +12,8 @@ export const disabledStations = atom<string[]>([]);
 
 /** A change to the disabled zones: the zones to add and to remove. */
 export interface ZonesDelta {
-    disableZoneIds: string[];
-    enableZoneIds: string[];
+  disableZoneIds: string[];
+  enableZoneIds: string[];
 }
 
 type EditListener = (delta: ZonesDelta) => void;
@@ -24,10 +24,10 @@ let editListener: EditListener | undefined;
  * Returns a function that stops listening.
  */
 export function onDisabledZonesEdit(listener: EditListener): () => void {
-    editListener = listener;
-    return () => {
-        if (editListener === listener) editListener = undefined;
-    };
+  editListener = listener;
+  return () => {
+    if (editListener === listener) editListener = undefined;
+  };
 }
 
 /**
@@ -38,24 +38,22 @@ export function onDisabledZonesEdit(listener: EditListener): () => void {
  * it shows the session's zones, and nothing changed there could be saved.
  */
 export function setDisabledStations(ids: string[]): void {
-    if (isSessionReadOnly(activeSessionId.get())) return;
-    const delta = diffZoneIds(disabledStations.get(), ids);
-    disabledStations.set(ids);
-    if (!isNoZonesChange(delta)) editListener?.(delta);
+  if (isSessionReadOnly(activeSessionId.get())) return;
+  const delta = diffZoneIds(disabledStations.get(), ids);
+  disabledStations.set(ids);
+  if (!isNoZonesChange(delta)) editListener?.(delta);
 }
 
 /** Disable or enable one zone against the board's current list. */
 export function setZoneDisabled(id: string, disabled: boolean): void {
-    const current = disabledStations.get();
-    if (current.includes(id) === disabled) return;
-    setDisabledStations(
-        disabled ? [...current, id] : current.filter((x) => x !== id),
-    );
+  const current = disabledStations.get();
+  if (current.includes(id) === disabled) return;
+  setDisabledStations(disabled ? [...current, id] : current.filter((x) => x !== id));
 }
 
 /** Disable a zone, or enable it again, against the board's current list. */
 export function toggleDisabledZone(id: string): void {
-    setZoneDisabled(id, !disabledStations.get().includes(id));
+  setZoneDisabled(id, !disabledStations.get().includes(id));
 }
 
 /**
@@ -63,63 +61,47 @@ export function toggleDisabledZone(id: string): void {
  * may have ruled those out, so they aren't among the zones listed.
  */
 export function disableZones(ids: readonly string[]): void {
-    setDisabledStations([...new Set([...disabledStations.get(), ...ids])]);
+  setDisabledStations([...new Set([...disabledStations.get(), ...ids])]);
 }
 
 /** The same zones, in any order. */
-export function sameZoneIds(
-    a: readonly string[],
-    b: readonly string[],
-): boolean {
-    const ids = new Set(a);
-    return ids.size === new Set(b).size && b.every((id) => ids.has(id));
+export function sameZoneIds(a: readonly string[], b: readonly string[]): boolean {
+  const ids = new Set(a);
+  return ids.size === new Set(b).size && b.every((id) => ids.has(id));
 }
 
 export function isNoZonesChange(delta: ZonesDelta): boolean {
-    return (
-        delta.disableZoneIds.length === 0 && delta.enableZoneIds.length === 0
-    );
+  return delta.disableZoneIds.length === 0 && delta.enableZoneIds.length === 0;
 }
 
 /** What changes `from` into `to`. */
-export function diffZoneIds(
-    from: readonly string[],
-    to: readonly string[],
-): ZonesDelta {
-    const before = new Set(from);
-    const after = new Set(to);
-    return {
-        disableZoneIds: [...after].filter((id) => !before.has(id)),
-        enableZoneIds: [...before].filter((id) => !after.has(id)),
-    };
+export function diffZoneIds(from: readonly string[], to: readonly string[]): ZonesDelta {
+  const before = new Set(from);
+  const after = new Set(to);
+  return {
+    disableZoneIds: [...after].filter((id) => !before.has(id)),
+    enableZoneIds: [...before].filter((id) => !after.has(id)),
+  };
 }
 
-export function applyZonesDelta(
-    ids: readonly string[],
-    delta: ZonesDelta,
-): string[] {
-    const result = new Set(ids);
-    for (const id of delta.disableZoneIds) result.add(id);
-    for (const id of delta.enableZoneIds) result.delete(id);
-    return [...result];
+export function applyZonesDelta(ids: readonly string[], delta: ZonesDelta): string[] {
+  const result = new Set(ids);
+  for (const id of delta.disableZoneIds) result.add(id);
+  for (const id of delta.enableZoneIds) result.delete(id);
+  return [...result];
 }
 
 function zoneIdList(value: unknown): string[] {
-    return Array.isArray(value)
-        ? value.filter((id): id is string => typeof id === "string")
-        : [];
+  return Array.isArray(value) ? value.filter((id): id is string => typeof id === "string") : [];
 }
 
 /** A queued zones.disabled event's delta, read defensively from storage. */
 export function zonesDeltaOf(payload: unknown): ZonesDelta {
-    const { disableZoneIds, enableZoneIds } = (payload ?? {}) as Record<
-        string,
-        unknown
-    >;
-    return {
-        disableZoneIds: zoneIdList(disableZoneIds),
-        enableZoneIds: zoneIdList(enableZoneIds),
-    };
+  const { disableZoneIds, enableZoneIds } = (payload ?? {}) as Record<string, unknown>;
+  return {
+    disableZoneIds: zoneIdList(disableZoneIds),
+    enableZoneIds: zoneIdList(enableZoneIds),
+  };
 }
 
 // Before disabled zones synced, each device kept them per session in this
@@ -128,16 +110,16 @@ export function zonesDeltaOf(payload: unknown): ZonesDelta {
 const LEGACY_DISABLED_ZONES_KEY = "disabledZones";
 
 function readLegacyEntries(): Record<string, unknown> | null {
-    try {
-        const parsed: unknown = JSON.parse(
-            readStorage("localStorage", LEGACY_DISABLED_ZONES_KEY) ?? "{}",
-        );
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-            ? (parsed as Record<string, unknown>)
-            : null;
-    } catch {
-        return null;
-    }
+  try {
+    const parsed: unknown = JSON.parse(
+      readStorage("localStorage", LEGACY_DISABLED_ZONES_KEY) ?? "{}",
+    );
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as Record<string, unknown>)
+      : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -145,10 +127,10 @@ function readLegacyEntries(): Record<string, unknown> | null {
  * the server accepts: one bad ID would get the whole save refused.
  */
 export function legacyDisabledZones(sessionId: string): string[] {
-    const ids = zoneIdList(readLegacyEntries()?.[sessionId]).filter(
-        (id) => id.length > 0 && id.length <= MAX_ZONE_ID_LENGTH,
-    );
-    return [...new Set(ids)].slice(0, MAX_DISABLED_ZONES);
+  const ids = zoneIdList(readLegacyEntries()?.[sessionId]).filter(
+    (id) => id.length > 0 && id.length <= MAX_ZONE_ID_LENGTH,
+  );
+  return [...new Set(ids)].slice(0, MAX_DISABLED_ZONES);
 }
 
 /**
@@ -156,42 +138,35 @@ export function legacyDisabledZones(sessionId: string): string[] {
  * legacy list: they leave that list, so adding it to the session later (see
  * adoptLegacyDisabledZones) can't disable them again.
  */
-export function enableLegacyDisabledZones(
-    sessionId: string,
-    ids: readonly string[],
-): void {
-    const entries = readLegacyEntries();
-    const kept = zoneIdList(entries?.[sessionId]);
-    const left = kept.filter((id) => !ids.includes(id));
-    if (!entries || left.length === kept.length) return;
-    if (left.length === 0) {
-        forgetLegacyDisabledZones(sessionId);
-        return;
-    }
-    writeStorage(
-        "localStorage",
-        LEGACY_DISABLED_ZONES_KEY,
-        JSON.stringify({ ...entries, [sessionId]: left }),
-    );
+export function enableLegacyDisabledZones(sessionId: string, ids: readonly string[]): void {
+  const entries = readLegacyEntries();
+  const kept = zoneIdList(entries?.[sessionId]);
+  const left = kept.filter((id) => !ids.includes(id));
+  if (!entries || left.length === kept.length) return;
+  if (left.length === 0) {
+    forgetLegacyDisabledZones(sessionId);
+    return;
+  }
+  writeStorage(
+    "localStorage",
+    LEGACY_DISABLED_ZONES_KEY,
+    JSON.stringify({ ...entries, [sessionId]: left }),
+  );
 }
 
 /** Drop a session's legacy disabled zones from the device. */
 export function forgetLegacyDisabledZones(sessionId: string): void {
-    const entries = readLegacyEntries();
-    if (entries === null) {
-        // A corrupt entry can't be adopted.
-        removeStorage("localStorage", LEGACY_DISABLED_ZONES_KEY);
-        return;
-    }
-    if (!(sessionId in entries)) return;
-    delete entries[sessionId];
-    if (Object.keys(entries).length > 0) {
-        writeStorage(
-            "localStorage",
-            LEGACY_DISABLED_ZONES_KEY,
-            JSON.stringify(entries),
-        );
-    } else {
-        removeStorage("localStorage", LEGACY_DISABLED_ZONES_KEY);
-    }
+  const entries = readLegacyEntries();
+  if (entries === null) {
+    // A corrupt entry can't be adopted.
+    removeStorage("localStorage", LEGACY_DISABLED_ZONES_KEY);
+    return;
+  }
+  if (!(sessionId in entries)) return;
+  delete entries[sessionId];
+  if (Object.keys(entries).length > 0) {
+    writeStorage("localStorage", LEGACY_DISABLED_ZONES_KEY, JSON.stringify(entries));
+  } else {
+    removeStorage("localStorage", LEGACY_DISABLED_ZONES_KEY);
+  }
 }

@@ -6,33 +6,28 @@ import { readStorage } from "@/lib/safeStorage";
 import { questionSchema } from "@/maps/schema";
 
 import { fetchGameRevisionJSON } from "./api.js";
-import { type CompiledGame,compileGameDefinition } from "./compile.js";
-import {
-    dropStoredRevision,
-    readStoredRevision,
-    storeRevision,
-} from "./revisionCache.js";
+import { type CompiledGame, compileGameDefinition } from "./compile.js";
+import { dropStoredRevision, readStoredRevision, storeRevision } from "./revisionCache.js";
 
 function canonicalQuestionId(question: any): {
-    family: string;
-    id: string | undefined;
+  family: string;
+  id: string | undefined;
 } {
-    if (!question || typeof question !== "object")
-        return { family: "", id: undefined };
-    if (question.id === "tentacles") {
-        return { family: "tentacle", id: question.data?.locationType };
-    }
-    if (question.id === "matching" || question.id === "measuring") {
-        return { family: question.id, id: question.data?.type };
-    }
-    return { family: question.id, id: undefined };
+  if (!question || typeof question !== "object") return { family: "", id: undefined };
+  if (question.id === "tentacles") {
+    return { family: "tentacle", id: question.data?.locationType };
+  }
+  if (question.id === "matching" || question.id === "measuring") {
+    return { family: question.id, id: question.data?.type };
+  }
+  return { family: question.id, id: undefined };
 }
 
 // Player-drawn questions carry their own geometry and never query OSM.
 export const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
-    matching: ["custom-zone", "custom-points"],
-    measuring: ["custom-measure"],
-    tentacle: ["custom"],
+  matching: ["custom-zone", "custom-points"],
+  measuring: ["custom-measure"],
+  tentacle: ["custom"],
 };
 
 /**
@@ -49,81 +44,70 @@ export const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
  * player-drawn custom questions.
  */
 export function isQuestionSupported(
-    question: any,
-    compiled: Pick<CompiledGame, "questionMap"> | null | undefined,
+  question: any,
+  compiled: Pick<CompiledGame, "questionMap"> | null | undefined,
 ): boolean {
-    const { family, id } = canonicalQuestionId(question);
-    if (!family) return false;
-    // A hiding zone size change belongs to no game: it fits every one.
-    if (family === "zone-size")
-        return questionSchema.safeParse(question).success;
-    if (family === "radius" || family === "thermometer") {
-        if (!compiled) return true;
-        return compiled.questionMap.get(family)?.family === family;
-    }
+  const { family, id } = canonicalQuestionId(question);
+  if (!family) return false;
+  // A hiding zone size change belongs to no game: it fits every one.
+  if (family === "zone-size") return questionSchema.safeParse(question).success;
+  if (family === "radius" || family === "thermometer") {
+    if (!compiled) return true;
+    return compiled.questionMap.get(family)?.family === family;
+  }
+  if (family !== "matching" && family !== "measuring" && family !== "tentacle") return false;
+  if (typeof id !== "string") return false;
+
+  const prefix = family === "tentacle" ? "tentacle-" : `${family}-`;
+  if (id.startsWith(prefix)) {
     if (
-        family !== "matching" &&
-        family !== "measuring" &&
-        family !== "tentacle"
-    )
-        return false;
-    if (typeof id !== "string") return false;
-
-    const prefix = family === "tentacle" ? "tentacle-" : `${family}-`;
-    if (id.startsWith(prefix)) {
-        if (
-            id.length === prefix.length ||
-            !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id.slice(prefix.length))
-        ) {
-            return false;
-        }
-        if (!compiled) return true;
-        return compiled.questionMap.get(id)?.family === family;
+      id.length === prefix.length ||
+      !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id.slice(prefix.length))
+    ) {
+      return false;
     }
+    if (!compiled) return true;
+    return compiled.questionMap.get(id)?.family === family;
+  }
 
-    if (!PLAYER_CUSTOM_TYPES[family].includes(id)) return false;
+  if (!PLAYER_CUSTOM_TYPES[family].includes(id)) return false;
 
-    // A player-drawn question must match its schema branch.
-    return questionSchema.safeParse(question).success;
+  // A player-drawn question must match its schema branch.
+  return questionSchema.safeParse(question).success;
 }
 
 export function filterSupportedQuestions(
-    questions: readonly any[],
-    compiled: Pick<CompiledGame, "questionMap"> | null | undefined,
+  questions: readonly any[],
+  compiled: Pick<CompiledGame, "questionMap"> | null | undefined,
 ): any[] {
-    return questions.filter((question) =>
-        isQuestionSupported(question, compiled),
-    );
+  return questions.filter((question) => isQuestionSupported(question, compiled));
 }
 
 export const activeGameDefinitionAtom = atom<GameDefinition | null>(null);
 const compiledDefinitionCache = new WeakMap<GameDefinition, CompiledGame>();
 
 export const compiledGameAtom = computed(
-    activeGameDefinitionAtom,
-    (definition): CompiledGame | null => {
-        if (!definition) return null;
-        let compiled = compiledDefinitionCache.get(definition);
-        if (!compiled) {
-            compiled = compileGameDefinition(definition);
-            compiledDefinitionCache.set(definition, compiled);
-        }
-        return compiled;
-    },
+  activeGameDefinitionAtom,
+  (definition): CompiledGame | null => {
+    if (!definition) return null;
+    let compiled = compiledDefinitionCache.get(definition);
+    if (!compiled) {
+      compiled = compileGameDefinition(definition);
+      compiledDefinitionCache.set(definition, compiled);
+    }
+    return compiled;
+  },
 );
 
 function compiles(definition: GameDefinition): boolean {
-    if (compiledDefinitionCache.has(definition)) return true;
-    try {
-        compiledDefinitionCache.set(
-            definition,
-            compileGameDefinition(definition),
-        );
-        return true;
-    } catch (err) {
-        console.warn("[searchlight:revisions] kept copy doesn't compile", err);
-        return false;
-    }
+  if (compiledDefinitionCache.has(definition)) return true;
+  try {
+    compiledDefinitionCache.set(definition, compileGameDefinition(definition));
+    return true;
+  } catch (err) {
+    console.warn("[searchlight:revisions] kept copy doesn't compile", err);
+    return false;
+  }
 }
 
 // Sessions load pinned revisions, which never change, so they can be cached.
@@ -134,53 +118,48 @@ const pendingDefinitions = new Map<string, Promise<GameDefinition>>();
 const MAX_REVISION_DEFINITIONS = 4;
 
 function rememberDefinition(
-    cache: Map<string, GameDefinition>,
-    key: string,
-    definition: GameDefinition,
-    limit: number,
+  cache: Map<string, GameDefinition>,
+  key: string,
+  definition: GameDefinition,
+  limit: number,
 ): void {
-    cache.delete(key);
-    cache.set(key, definition);
-    if (cache.size > limit) cache.delete(cache.keys().next().value!);
+  cache.delete(key);
+  cache.set(key, definition);
+  if (cache.size > limit) cache.delete(cache.keys().next().value!);
 }
 
 export function getRevisionCacheKey(
-    gameId: string,
-    revision: string | number,
-    sessionId?: string,
+  gameId: string,
+  revision: string | number,
+  sessionId?: string,
 ): string {
-    return JSON.stringify([gameId, String(revision), sessionId ?? null]);
+  return JSON.stringify([gameId, String(revision), sessionId ?? null]);
 }
 
 export function getCachedRevisionDefinition(
-    gameId: string,
-    revision: string | number,
-    sessionId?: string,
+  gameId: string,
+  revision: string | number,
+  sessionId?: string,
 ): GameDefinition | undefined {
-    const key = getRevisionCacheKey(gameId, revision, sessionId);
-    const definition = revisionDefinitionCache.get(key);
-    if (definition)
-        rememberDefinition(
-            revisionDefinitionCache,
-            key,
-            definition,
-            MAX_REVISION_DEFINITIONS,
-        );
-    return definition;
+  const key = getRevisionCacheKey(gameId, revision, sessionId);
+  const definition = revisionDefinitionCache.get(key);
+  if (definition)
+    rememberDefinition(revisionDefinitionCache, key, definition, MAX_REVISION_DEFINITIONS);
+  return definition;
 }
 
 export function cacheRevisionDefinition(
-    gameId: string,
-    revision: string | number,
-    definition: GameDefinition,
-    sessionId?: string,
+  gameId: string,
+  revision: string | number,
+  definition: GameDefinition,
+  sessionId?: string,
 ): void {
-    rememberDefinition(
-        revisionDefinitionCache,
-        getRevisionCacheKey(gameId, revision, sessionId),
-        definition,
-        MAX_REVISION_DEFINITIONS,
-    );
+  rememberDefinition(
+    revisionDefinitionCache,
+    getRevisionCacheKey(gameId, revision, sessionId),
+    definition,
+    MAX_REVISION_DEFINITIONS,
+  );
 }
 
 /**
@@ -193,58 +172,46 @@ export function cacheRevisionDefinition(
  * SessionManager), which loaded it before.
  */
 export function loadGameDefinition(
-    gameId: string,
-    revisionId: string,
-    sessionId: string,
+  gameId: string,
+  revisionId: string,
+  sessionId: string,
 ): Promise<GameDefinition> {
-    const key = JSON.stringify([gameId, revisionId, sessionId]);
-    const pending = pendingDefinitions.get(key);
-    if (pending) return pending;
+  const key = JSON.stringify([gameId, revisionId, sessionId]);
+  const pending = pendingDefinitions.get(key);
+  if (pending) return pending;
 
-    const cached = getCachedRevisionDefinition(gameId, revisionId, sessionId);
-    if (cached) return Promise.resolve(cached);
+  const cached = getCachedRevisionDefinition(gameId, revisionId, sessionId);
+  if (cached) return Promise.resolve(cached);
 
-    const owner = readStorage("localStorage", STORED_USER_KEY);
-    const request = readStoredRevision(gameId, revisionId)
-        .then(async (stored) => {
-            // A kept copy must still make a game (the compiled game is
-            // cached with it): one that doesn't is dropped and loaded again.
-            if (stored && compiles(stored)) return stored;
-            if (stored) await dropStoredRevision(gameId, revisionId);
-            const { definition, json } = await fetchGameRevisionJSON(
-                gameId,
-                revisionId,
-                sessionId,
-            );
-            void storeRevision(gameId, revisionId, json, owner);
-            return definition;
-        })
-        .then((definition) => {
-            // A cache clear also invalidates requests that started before it.
-            if (pendingDefinitions.get(key) === request) {
-                cacheRevisionDefinition(
-                    gameId,
-                    revisionId,
-                    definition,
-                    sessionId,
-                );
-            }
-            return definition;
-        })
-        .finally(() => {
-            if (pendingDefinitions.get(key) === request)
-                pendingDefinitions.delete(key);
-        });
-    pendingDefinitions.set(key, request);
-    return request;
+  const owner = readStorage("localStorage", STORED_USER_KEY);
+  const request = readStoredRevision(gameId, revisionId)
+    .then(async (stored) => {
+      // A kept copy must still make a game (the compiled game is
+      // cached with it): one that doesn't is dropped and loaded again.
+      if (stored && compiles(stored)) return stored;
+      if (stored) await dropStoredRevision(gameId, revisionId);
+      const { definition, json } = await fetchGameRevisionJSON(gameId, revisionId, sessionId);
+      void storeRevision(gameId, revisionId, json, owner);
+      return definition;
+    })
+    .then((definition) => {
+      // A cache clear also invalidates requests that started before it.
+      if (pendingDefinitions.get(key) === request) {
+        cacheRevisionDefinition(gameId, revisionId, definition, sessionId);
+      }
+      return definition;
+    })
+    .finally(() => {
+      if (pendingDefinitions.get(key) === request) pendingDefinitions.delete(key);
+    });
+  pendingDefinitions.set(key, request);
+  return request;
 }
 
 export function clearDefinitionCache(): void {
-    revisionDefinitionCache.clear();
-    pendingDefinitions.clear();
+  revisionDefinitionCache.clear();
+  pendingDefinitions.clear();
 }
-export function setActiveGameDefinition(
-    definition: GameDefinition | null,
-): void {
-    activeGameDefinitionAtom.set(definition);
+export function setActiveGameDefinition(definition: GameDefinition | null): void {
+  activeGameDefinitionAtom.set(definition);
 }

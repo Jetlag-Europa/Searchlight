@@ -8,52 +8,52 @@ let hasRun = false;
 // Pastebin, the disabled zones of every game in one list, and drawings kept
 // only on the device (they now sync per session).
 export const RETIRED_STORAGE_KEYS = [
-    "mapGeoLocation",
-    "additionalMapGeoLocations",
-    "polyGeoJSON",
-    "displayHidingZonesOptions",
-    "useCustomStations",
-    "customStations",
-    "includeDefaultStations",
-    "removeDuplicates",
-    "hidingRadius",
-    "hidingRadiusUnits",
-    "showTutorials",
-    "pastebinApiKey",
-    "alwaysUsePastebin",
-    "disabledStations",
-    "jetlag-annotations-v1",
+  "mapGeoLocation",
+  "additionalMapGeoLocations",
+  "polyGeoJSON",
+  "displayHidingZonesOptions",
+  "useCustomStations",
+  "customStations",
+  "includeDefaultStations",
+  "removeDuplicates",
+  "hidingRadius",
+  "hidingRadiusUnits",
+  "showTutorials",
+  "pastebinApiKey",
+  "alwaysUsePastebin",
+  "disabledStations",
+  "jetlag-annotations-v1",
 ];
 // Browser caches of OpenStreetMap lookups.
 export const RETIRED_CACHES = [
-    "jlhs-map-generator-cache",
-    "jlhs-map-generator-zone-cache",
-    "jlhs-map-generator-permanent-cache",
+  "jlhs-map-generator-cache",
+  "jlhs-map-generator-zone-cache",
+  "jlhs-map-generator-permanent-cache",
 ];
 
 /** Remove what retired features left in the browser. */
 export function removeRetiredStorage(): void {
-    for (const key of RETIRED_STORAGE_KEYS) removeStorage("localStorage", key);
-    try {
-        // The Cache API exists only in secure contexts, and privacy modes can
-        // make it throw.
-        if (typeof caches === "undefined") return;
-        for (const name of RETIRED_CACHES) {
-            caches.delete(name).catch(() => {});
-        }
-    } catch {
-        // Best-effort.
+  for (const key of RETIRED_STORAGE_KEYS) removeStorage("localStorage", key);
+  try {
+    // The Cache API exists only in secure contexts, and privacy modes can
+    // make it throw.
+    if (typeof caches === "undefined") return;
+    for (const name of RETIRED_CACHES) {
+      caches.delete(name).catch(() => {});
     }
+  } catch {
+    // Best-effort.
+  }
 }
 
 export function bootstrapDefaults(): void {
-    if (hasRun) return;
-    hasRun = true;
+  if (hasRun) return;
+  hasRun = true;
 
-    // Pen mode starts off on every load so the user opts in per-session.
-    drawingEnabled.set(false);
-    removeRetiredStorage();
+  // Pen mode starts off on every load so the user opts in per-session.
+  drawingEnabled.set(false);
+  removeRetiredStorage();
 
-    // Game defaults are now applied by SessionManager when a session is selected.
-    // No game bootstrap here.
+  // Game defaults are now applied by SessionManager when a session is selected.
+  // No game bootstrap here.
 }

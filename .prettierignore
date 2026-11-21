@@ -1,0 +1,11 @@
+dist/
+dist-seed/
+.astro/
+node_modules/
+pnpm-lock.yaml
+CHANGELOG.md
+games/
+apps/web/public/schemas/
+apps/web/tests/fixtures/
+apps/web/test-results/
+apps/api/prisma/migrations/

@@ -1,57 +1,37 @@
-import type {
-    Feature,
-    FeatureCollection,
-    MultiPolygon,
-    Polygon,
-} from "geojson";
+import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
 import type * as BufferGeometry from "./bufferGeometry";
 import type { BufferRequest, DistanceRequest } from "./bufferGeometry";
-import type {
-    BoundaryTargetRequest,
-    ClipRequest,
-    UnionRequest,
-} from "./clipGeometry";
-import {
-    calculateBoundaryTarget,
-    calculateClip,
-    calculateUnion,
-} from "./clipGeometry";
+import type { BoundaryTargetRequest, ClipRequest, UnionRequest } from "./clipGeometry";
+import { calculateBoundaryTarget, calculateClip, calculateUnion } from "./clipGeometry";
 import { calculateLineVoronoi, type LineVoronoiRequest } from "./lineVoronoi";
 import {
-    findRegionOverlaps,
-    type RegionOverlaps,
-    type RegionOverlapsRequest,
-    removeRegionOverlaps,
-    type RemoveRegionOverlapsRequest,
+  findRegionOverlaps,
+  type RegionOverlaps,
+  type RegionOverlapsRequest,
+  removeRegionOverlaps,
+  type RemoveRegionOverlapsRequest,
 } from "./regionOverlaps";
-import {
-    calculateFilterZoneIndexes,
-    type FilterZoneRequest,
-} from "./zoneFilter";
+import { calculateFilterZoneIndexes, type FilterZoneRequest } from "./zoneFilter";
 
 type GeometryResult = Feature<Polygon | MultiPolygon> | null;
-type Reply = { id: number } & (
-    | { result: unknown }
-    | { error: string }
-    | { superseded: true }
-);
+type Reply = { id: number } & ({ result: unknown } | { error: string } | { superseded: true });
 
 export interface RequestOptions {
-    /**
-     * Identifies who is asking, such as one question. A newer request with
-     * the same key makes this one obsolete: if the worker has not started it
-     * yet, it is skipped and its promise rejects with a SupersededError.
-     */
-    supersede?: string;
+  /**
+   * Identifies who is asking, such as one question. A newer request with
+   * the same key makes this one obsolete: if the worker has not started it
+   * yet, it is skipped and its promise rejects with a SupersededError.
+   */
+  supersede?: string;
 }
 
 /** A newer request with the same supersede key replaced this one. */
 export class SupersededError extends Error {
-    constructor() {
-        super("A newer geometry request replaced this one");
-        this.name = "SupersededError";
-    }
+  constructor() {
+    super("A newer geometry request replaced this one");
+    this.name = "SupersededError";
+  }
 }
 
 // The worker crashed: nothing is wrong with the requests it had pending.
@@ -60,12 +40,11 @@ export class GeometryWorkerError extends Error {}
 // The unit tests run in Node, which has no Worker, so they do the geometry on
 // this thread. Every browser has a Worker: their build leaves this path out,
 // with the ArcGIS code it would load.
-const onThisThread =
-    import.meta.env.MODE === "test" && typeof Worker === "undefined";
+const onThisThread = import.meta.env.MODE === "test" && typeof Worker === "undefined";
 let inlineBuffer: Promise<typeof BufferGeometry> | undefined;
 function loadInlineBuffer(): Promise<typeof BufferGeometry> {
-    inlineBuffer ??= import("./bufferGeometry");
-    return inlineBuffer;
+  inlineBuffer ??= import("./bufferGeometry");
+  return inlineBuffer;
 }
 // Start loading now so the first buffer doesn't wait for it.
 if (onThisThread) loadInlineBuffer().catch(() => {});
@@ -73,118 +52,107 @@ if (onThisThread) loadInlineBuffer().catch(() => {});
 let worker: Worker | undefined;
 let nextId = 0;
 const pending = new Map<
-    number,
-    {
-        resolve: (result: unknown) => void;
-        reject: (error: Error) => void;
-    }
+  number,
+  {
+    resolve: (result: unknown) => void;
+    reject: (error: Error) => void;
+  }
 >();
 
 function getWorker(): Worker {
-    if (!worker) {
-        worker = new Worker(new URL("./geometry.worker.ts", import.meta.url), {
-            type: "module",
-        });
-        worker.onmessage = (event: MessageEvent<Reply>) => {
-            const reply = event.data;
-            const task = pending.get(reply.id);
-            if (!task) return;
-            pending.delete(reply.id);
-            if ("error" in reply) task.reject(new Error(reply.error));
-            else if ("superseded" in reply) task.reject(new SupersededError());
-            else task.resolve(reply.result);
-        };
-        const fail = () => {
-            worker?.terminate();
-            worker = undefined;
-            const error = new GeometryWorkerError(
-                "Geometry worker failed; retry the calculation",
-            );
-            for (const task of pending.values()) task.reject(error);
-            pending.clear();
-        };
-        worker.onerror = fail;
-        worker.onmessageerror = fail;
-    }
-    return worker;
+  if (!worker) {
+    worker = new Worker(new URL("./geometry.worker.ts", import.meta.url), {
+      type: "module",
+    });
+    worker.onmessage = (event: MessageEvent<Reply>) => {
+      const reply = event.data;
+      const task = pending.get(reply.id);
+      if (!task) return;
+      pending.delete(reply.id);
+      if ("error" in reply) task.reject(new Error(reply.error));
+      else if ("superseded" in reply) task.reject(new SupersededError());
+      else task.resolve(reply.result);
+    };
+    const fail = () => {
+      worker?.terminate();
+      worker = undefined;
+      const error = new GeometryWorkerError("Geometry worker failed; retry the calculation");
+      for (const task of pending.values()) task.reject(error);
+      pending.clear();
+    };
+    worker.onerror = fail;
+    worker.onmessageerror = fail;
+  }
+  return worker;
 }
 
 export function requestGeometry(
-    request: BufferRequest,
-    options?: RequestOptions,
+  request: BufferRequest,
+  options?: RequestOptions,
 ): Promise<Feature<MultiPolygon>>;
 export function requestGeometry(request: DistanceRequest): Promise<number>;
-export function requestGeometry(
-    request: BoundaryTargetRequest,
-): Promise<GeometryResult>;
+export function requestGeometry(request: BoundaryTargetRequest): Promise<GeometryResult>;
 export function requestGeometry(request: ClipRequest): Promise<GeometryResult>;
 export function requestGeometry(
-    request: UnionRequest,
-    options?: RequestOptions,
+  request: UnionRequest,
+  options?: RequestOptions,
 ): Promise<GeometryResult>;
 export function requestGeometry(
-    request: LineVoronoiRequest,
+  request: LineVoronoiRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[][]>;
+export function requestGeometry(request: RegionOverlapsRequest): Promise<RegionOverlaps>;
 export function requestGeometry(
-    request: RegionOverlapsRequest,
-): Promise<RegionOverlaps>;
-export function requestGeometry(
-    request: RemoveRegionOverlapsRequest,
+  request: RemoveRegionOverlapsRequest,
 ): Promise<Feature<Polygon | MultiPolygon>[]>;
 export function requestGeometry(request: FilterZoneRequest): Promise<number[]>;
 export async function requestGeometry(
-    request:
-        | BoundaryTargetRequest
-        | BufferRequest
-        | ClipRequest
-        | DistanceRequest
-        | FilterZoneRequest
-        | LineVoronoiRequest
-        | RegionOverlapsRequest
-        | RemoveRegionOverlapsRequest
-        | UnionRequest,
-    options?: RequestOptions,
+  request:
+    | BoundaryTargetRequest
+    | BufferRequest
+    | ClipRequest
+    | DistanceRequest
+    | FilterZoneRequest
+    | LineVoronoiRequest
+    | RegionOverlapsRequest
+    | RemoveRegionOverlapsRequest
+    | UnionRequest,
+  options?: RequestOptions,
 ): Promise<unknown> {
-    if (onThisThread) {
-        if (request.kind === "clip") return calculateClip(request);
-        if (request.kind === "union") return calculateUnion(request);
-        if (request.kind === "boundaryTarget")
-            return calculateBoundaryTarget(request);
-        if (request.kind === "lineVoronoi")
-            return calculateLineVoronoi(request);
-        if (request.kind === "regionOverlaps")
-            return findRegionOverlaps(request);
-        if (request.kind === "removeRegionOverlaps")
-            return removeRegionOverlaps(request);
-        if (request.kind === "filterZone")
-            return calculateFilterZoneIndexes(request.circles, request.regions);
-        const buffer = await loadInlineBuffer();
-        if (request.kind === "distance")
-            return buffer.calculateDistance(request);
-        return buffer.calculateBuffer(request);
-    }
-    const activeWorker = getWorker();
-    return new Promise((resolve, reject) => {
-        const id = ++nextId;
-        pending.set(id, {
-            resolve: resolve as (result: unknown) => void,
-            reject,
-        });
-        try {
-            activeWorker.postMessage({
-                id,
-                request,
-                supersede: options?.supersede,
-            });
-        } catch (error) {
-            pending.delete(id);
-            reject(error);
-        }
+  if (onThisThread) {
+    if (request.kind === "clip") return calculateClip(request);
+    if (request.kind === "union") return calculateUnion(request);
+    if (request.kind === "boundaryTarget") return calculateBoundaryTarget(request);
+    if (request.kind === "lineVoronoi") return calculateLineVoronoi(request);
+    if (request.kind === "regionOverlaps") return findRegionOverlaps(request);
+    if (request.kind === "removeRegionOverlaps") return removeRegionOverlaps(request);
+    if (request.kind === "filterZone")
+      return calculateFilterZoneIndexes(request.circles, request.regions);
+    const buffer = await loadInlineBuffer();
+    if (request.kind === "distance") return buffer.calculateDistance(request);
+    return buffer.calculateBuffer(request);
+  }
+  const activeWorker = getWorker();
+  return new Promise((resolve, reject) => {
+    const id = ++nextId;
+    pending.set(id, {
+      resolve: resolve as (result: unknown) => void,
+      reject,
     });
+    try {
+      activeWorker.postMessage({
+        id,
+        request,
+        supersede: options?.supersede,
+      });
+    } catch (error) {
+      pending.delete(id);
+      reject(error);
+    }
+  });
 }
 export function filterZoneIndexes(
-    circles: Feature<Polygon | MultiPolygon>[],
-    regions: FeatureCollection<Polygon | MultiPolygon>[],
+  circles: Feature<Polygon | MultiPolygon>[],
+  regions: FeatureCollection<Polygon | MultiPolygon>[],
 ): Promise<number[]> {
-    return requestGeometry({ kind: "filterZone", circles, regions });
+  return requestGeometry({ kind: "filterZone", circles, regions });
 }

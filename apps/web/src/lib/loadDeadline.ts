@@ -8,42 +8,37 @@ export const FLUSH_WAIT_MS = 10_000;
 
 /** A session load ran out of time (see startLoadDeadline). */
 export class LoadTimeoutError extends Error {
-    constructor() {
-        super("The server took too long to answer");
-        this.name = "LoadTimeoutError";
-    }
+  constructor() {
+    super("The server took too long to answer");
+    this.name = "LoadTimeoutError";
+  }
 }
 
 export interface LoadDeadline {
-    /** Aborted once the time is up, for reads that can just stop. */
-    readonly signal: AbortSignal;
-    /**
-     * `work`, unless the time is up first: then a LoadTimeoutError. The work
-     * itself goes on (an edit being sent may still land); nothing waits for
-     * it anymore.
-     */
-    race<T>(work: Promise<T>): Promise<T>;
-    /** The load is over: stop the clock. */
-    clear(): void;
+  /** Aborted once the time is up, for reads that can just stop. */
+  readonly signal: AbortSignal;
+  /**
+   * `work`, unless the time is up first: then a LoadTimeoutError. The work
+   * itself goes on (an edit being sent may still land); nothing waits for
+   * it anymore.
+   */
+  race<T>(work: Promise<T>): Promise<T>;
+  /** The load is over: stop the clock. */
+  clear(): void;
 }
 
 /** One deadline for everything a session load waits for. */
 export function startLoadDeadline(ms = LOAD_TIMEOUT_MS): LoadDeadline {
-    const controller = new AbortController();
-    const timer = setTimeout(
-        () => controller.abort(new LoadTimeoutError()),
-        ms,
-    );
-    const expired = new Promise<never>((_, reject) => {
-        controller.signal.addEventListener("abort", () =>
-            reject(controller.signal.reason),
-        );
-    });
-    // Only a race that loses reports it.
-    expired.catch(() => {});
-    return {
-        signal: controller.signal,
-        race: (work) => Promise.race([work, expired]),
-        clear: () => clearTimeout(timer),
-    };
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new LoadTimeoutError()), ms);
+  const expired = new Promise<never>((_, reject) => {
+    controller.signal.addEventListener("abort", () => reject(controller.signal.reason));
+  });
+  // Only a race that loses reports it.
+  expired.catch(() => {});
+  return {
+    signal: controller.signal,
+    race: (work) => Promise.race([work, expired]),
+    clear: () => clearTimeout(timer),
+  };
 }

@@ -19,7 +19,11 @@ const SERVERS: { id: string; name: string; managementGuildId?: string }[] = [
 
 const ROLE_PERMISSIONS = [
   // JetLag UK — role 1383202208799129731 → server.admin
-  { serverId: "1059625399979606166", discordRoleId: "1383202208799129731", permission: "server.admin" },
+  {
+    serverId: "1059625399979606166",
+    discordRoleId: "1383202208799129731",
+    permission: "server.admin",
+  },
 ];
 
 /**
@@ -40,7 +44,9 @@ export async function seedServers(
       const { count } = await prisma.server.createMany({ data: [server], skipDuplicates: true });
       if (count === 0) continue;
       await prisma.rolePermission.createMany({ data: defaults, skipDuplicates: true });
-      console.log(`Created server: ${server.name} (${server.id}) with ${defaults.length} role permission(s)`);
+      console.log(
+        `Created server: ${server.name} (${server.id}) with ${defaults.length} role permission(s)`,
+      );
       continue;
     }
 
@@ -57,7 +63,9 @@ export async function seedServers(
         update: {},
         create: rp,
       });
-      console.log(`Upserted role permission: ${rp.serverId} / ${rp.discordRoleId} → ${rp.permission}`);
+      console.log(
+        `Upserted role permission: ${rp.serverId} / ${rp.discordRoleId} → ${rp.permission}`,
+      );
     }
   }
 }

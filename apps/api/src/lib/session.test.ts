@@ -19,7 +19,8 @@ describe("login renewal", () => {
       update: { expiresAt },
       create: { id: AUTH_ID, userId: USER_ID, expiresAt },
     });
-  const storedExpiry = async () => (await prisma.authSession.findUnique({ where: { id: AUTH_ID } }))!.expiresAt;
+  const storedExpiry = async () =>
+    (await prisma.authSession.findUnique({ where: { id: AUTH_ID } }))!.expiresAt;
 
   const cleanUp = async () => {
     await prisma.authSession.deleteMany({ where: { userId: USER_ID } });

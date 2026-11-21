@@ -13,51 +13,50 @@ import { sessionPickerOpen } from "@/lib/context";
  * kept here).
  */
 export function OtherTabNotice() {
-    const shown = useStore(editingInOtherTab);
-    const titleId = useId();
-    const buttonRef = useRef<HTMLButtonElement>(null);
-    // The board's controls are out of reach, as under the picker. A map in
-    // full screen would hide this notice.
-    useEffect(() => {
-        const board = document.getElementById("map-board");
-        if (!shown || !board) return;
-        const focus = () => buttonRef.current?.focus();
-        if (document.fullscreenElement) {
-            void document.exitFullscreen().catch(() => {}).then(focus);
-        }
-        board.inert = true;
-        focus();
-        return () => {
-            board.inert = sessionPickerOpen.get();
-        };
-    }, [shown]);
-    if (!shown) return null;
-    // On the body, and taking taps: a sheet or dialog open underneath (the
-    // question sidebar on a phone) hides the rest of the page from screen
-    // readers and turns pointer events off on the body.
-    return createPortal(
-        <div className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/60 p-4">
-            <div
-                role="dialog"
-                aria-modal="true"
-                aria-labelledby={titleId}
-                className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl"
-            >
-                <h2 id={titleId} className="text-base font-semibold">
-                    This session is open in another tab
-                </h2>
-                <p className="mt-1 mb-4 text-sm text-muted-foreground">
-                    It can be changed in one tab at a time.
-                </p>
-                <Button
-                    ref={buttonRef}
-                    size="sm"
-                    onClick={() => window.location.reload()}
-                >
-                    Use here
-                </Button>
-            </div>
-        </div>,
-        document.body,
-    );
+  const shown = useStore(editingInOtherTab);
+  const titleId = useId();
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  // The board's controls are out of reach, as under the picker. A map in
+  // full screen would hide this notice.
+  useEffect(() => {
+    const board = document.getElementById("map-board");
+    if (!shown || !board) return;
+    const focus = () => buttonRef.current?.focus();
+    if (document.fullscreenElement) {
+      void document
+        .exitFullscreen()
+        .catch(() => {})
+        .then(focus);
+    }
+    board.inert = true;
+    focus();
+    return () => {
+      board.inert = sessionPickerOpen.get();
+    };
+  }, [shown]);
+  if (!shown) return null;
+  // On the body, and taking taps: a sheet or dialog open underneath (the
+  // question sidebar on a phone) hides the rest of the page from screen
+  // readers and turns pointer events off on the body.
+  return createPortal(
+    <div className="pointer-events-auto fixed inset-0 z-[9000] flex items-center justify-center bg-background/60 p-4">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl"
+      >
+        <h2 id={titleId} className="text-base font-semibold">
+          This session is open in another tab
+        </h2>
+        <p className="mt-1 mb-4 text-sm text-muted-foreground">
+          It can be changed in one tab at a time.
+        </p>
+        <Button ref={buttonRef} size="sm" onClick={() => window.location.reload()}>
+          Use here
+        </Button>
+      </div>
+    </div>,
+    document.body,
+  );
 }

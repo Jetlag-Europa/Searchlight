@@ -11,32 +11,22 @@ import { clientsClaim } from "workbox-core";
 import type { WorkboxPlugin } from "workbox-core/types";
 import { ExpirationPlugin } from "workbox-expiration";
 import {
-    addPlugins,
-    cleanupOutdatedCaches,
-    getCacheKeyForURL,
-    matchPrecache,
-    precacheAndRoute,
+  addPlugins,
+  cleanupOutdatedCaches,
+  getCacheKeyForURL,
+  matchPrecache,
+  precacheAndRoute,
 } from "workbox-precaching";
 import { RangeRequestsPlugin } from "workbox-range-requests";
 import { registerRoute } from "workbox-routing";
-import {
-    CacheFirst,
-    NetworkFirst,
-    StaleWhileRevalidate,
-} from "workbox-strategies";
+import { CacheFirst, NetworkFirst, StaleWhileRevalidate } from "workbox-strategies";
 
 import { FONT_STYLES_CACHE, keepFontStyles, responseWithin } from "./lib/fonts";
 import { pageCacheKey } from "./lib/pageCache";
-import {
-    isOsmTileUrl,
-    isTileUrl,
-    OSM_TILE_CACHE,
-    TILE_CACHE,
-    tileCacheKey,
-} from "./lib/tileCache";
+import { isOsmTileUrl, isTileUrl, OSM_TILE_CACHE, TILE_CACHE, tileCacheKey } from "./lib/tileCache";
 
 declare const self: ServiceWorkerGlobalScope & {
-    __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
+  __WB_MANIFEST: Array<{ url: string; revision: string | null }>;
 };
 
 const DAY = 24 * 60 * 60;
@@ -50,39 +40,33 @@ const DOWNLOADED_AT = "X-Searchlight-Downloaded-At";
  * So the copy put in the cache is stamped with the time.
  */
 function downloadedWithin(maxAgeSeconds: number): WorkboxPlugin {
-    return {
-        cacheWillUpdate: async ({ response }) => {
-            const headers = new Headers(response.headers);
-            headers.set(DOWNLOADED_AT, String(Date.now()));
-            return new Response(response.body, {
-                status: response.status,
-                statusText: response.statusText,
-                headers,
-            });
-        },
-        cachedResponseWillBeUsed: async ({
-            cacheName,
-            request,
-            cachedResponse,
-        }) => {
-            if (!cachedResponse) return null;
-            const downloadedAt = Number(
-                cachedResponse.headers.get(DOWNLOADED_AT),
-            );
-            if (Date.now() - downloadedAt <= maxAgeSeconds * 1000) {
-                return cachedResponse;
-            }
-            await (await caches.open(cacheName)).delete(request);
-            return null;
-        },
-    };
+  return {
+    cacheWillUpdate: async ({ response }) => {
+      const headers = new Headers(response.headers);
+      headers.set(DOWNLOADED_AT, String(Date.now()));
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers,
+      });
+    },
+    cachedResponseWillBeUsed: async ({ cacheName, request, cachedResponse }) => {
+      if (!cachedResponse) return null;
+      const downloadedAt = Number(cachedResponse.headers.get(DOWNLOADED_AT));
+      if (Date.now() - downloadedAt <= maxAgeSeconds * 1000) {
+        return cachedResponse;
+      }
+      await (await caches.open(cacheName)).delete(request);
+      return null;
+    },
+  };
 }
 
 // The page asks a waiting update to take over when the player chooses to
 // reload (src/lib/serviceWorker.tsx); it never takes over on its own while
 // the old version has pages open.
 self.addEventListener("message", (event) => {
-    if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
+  if (event.data?.type === "SKIP_WAITING") void self.skipWaiting();
 });
 // The first install takes over the open page at once, so the tiles it shows
 // are already kept.
@@ -98,12 +82,11 @@ cleanupOutdatedCaches();
 // (`/play?token=…`), so the key drops both. Other paths, such as the link
 // previews under /og/, aren't precached pages and go to the network.
 registerRoute(
-    ({ request, url }) =>
-        request.mode === "navigate" &&
-        url.origin === self.location.origin &&
-        getCacheKeyForURL(pageCacheKey(url)) !== undefined,
-    async ({ request, url }) =>
-        (await matchPrecache(pageCacheKey(url))) ?? fetch(request),
+  ({ request, url }) =>
+    request.mode === "navigate" &&
+    url.origin === self.location.origin &&
+    getCacheKeyForURL(pageCacheKey(url)) !== undefined,
+  async ({ request, url }) => (await matchPrecache(pageCacheKey(url))) ?? fetch(request),
 );
 
 // The alarm plays from the precache. Media elements ask for byte ranges, and
@@ -116,7 +99,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 // are kept, one copy per tile across CARTO's subdomains, the newest few
 // thousand (tiles are 20–60 KB).
 const tileKey: WorkboxPlugin = {
-    cacheKeyWillBeUsed: async ({ request }) => tileCacheKey(request.url),
+  cacheKeyWillBeUsed: async ({ request }) => tileCacheKey(request.url),
 };
 
 // CARTO's terms allow keeping tiles on the device for 30 days at most, and
@@ -124,21 +107,21 @@ const tileKey: WorkboxPlugin = {
 // first, for 30 days after they were downloaded. They skip the browser's HTTP
 // cache, which could hand back a copy already weeks old to be stamped as new.
 registerRoute(
-    ({ url }) => isTileUrl(url) && !isOsmTileUrl(url),
-    new CacheFirst({
-        cacheName: TILE_CACHE,
-        fetchOptions: { cache: "no-store" },
-        plugins: [
-            tileKey,
-            new CacheableResponsePlugin({ statuses: [200] }),
-            downloadedWithin(30 * DAY),
-            new ExpirationPlugin({
-                maxEntries: 3000,
-                maxAgeSeconds: 30 * DAY,
-                purgeOnQuotaError: true,
-            }),
-        ],
-    }),
+  ({ url }) => isTileUrl(url) && !isOsmTileUrl(url),
+  new CacheFirst({
+    cacheName: TILE_CACHE,
+    fetchOptions: { cache: "no-store" },
+    plugins: [
+      tileKey,
+      new CacheableResponsePlugin({ statuses: [200] }),
+      downloadedWithin(30 * DAY),
+      new ExpirationPlugin({
+        maxEntries: 3000,
+        maxAgeSeconds: 30 * DAY,
+        purgeOnQuotaError: true,
+      }),
+    ],
+  }),
 );
 
 // OpenStreetMap asks clients to honour its caching headers (about a day,
@@ -146,20 +129,20 @@ registerRoute(
 // the browser's HTTP cache that applies them; the copy kept here is only
 // used when the network fails or takes over 3 s, and for a week at most.
 registerRoute(
-    ({ url }) => isOsmTileUrl(url),
-    new NetworkFirst({
-        cacheName: OSM_TILE_CACHE,
-        networkTimeoutSeconds: 3,
-        plugins: [
-            new CacheableResponsePlugin({ statuses: [200] }),
-            downloadedWithin(7 * DAY),
-            new ExpirationPlugin({
-                maxEntries: 1000,
-                maxAgeSeconds: 7 * DAY,
-                purgeOnQuotaError: true,
-            }),
-        ],
-    }),
+  ({ url }) => isOsmTileUrl(url),
+  new NetworkFirst({
+    cacheName: OSM_TILE_CACHE,
+    networkTimeoutSeconds: 3,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [200] }),
+      downloadedWithin(7 * DAY),
+      new ExpirationPlugin({
+        maxEntries: 1000,
+        maxAgeSeconds: 7 * DAY,
+        purgeOnQuotaError: true,
+      }),
+    ],
+  }),
 );
 
 // Google Fonts. Layout.astro loads the stylesheet with CORS, like the font
@@ -174,40 +157,39 @@ registerRoute(
 // at install doesn't carry.
 const FONT_STYLES_TIMEOUT_MS = 3_000;
 self.addEventListener("install", (event) => {
-    event.waitUntil(
-        caches
-            .open(FONT_STYLES_CACHE)
-            .then((cache) => keepFontStyles(cache, 10_000))
-            .catch(() => {}),
-    );
+  event.waitUntil(
+    caches
+      .open(FONT_STYLES_CACHE)
+      .then((cache) => keepFontStyles(cache, 10_000))
+      .catch(() => {}),
+  );
 });
 const fontStyles = new StaleWhileRevalidate({
-    cacheName: FONT_STYLES_CACHE,
-    matchOptions: { ignoreVary: true },
-    plugins: [
-        new CacheableResponsePlugin({ statuses: [200] }),
-        new ExpirationPlugin({ maxEntries: 5 }),
-    ],
+  cacheName: FONT_STYLES_CACHE,
+  matchOptions: { ignoreVary: true },
+  plugins: [
+    new CacheableResponsePlugin({ statuses: [200] }),
+    new ExpirationPlugin({ maxEntries: 5 }),
+  ],
 });
 registerRoute(
-    ({ url }) => url.origin === "https://fonts.googleapis.com",
-    (options) =>
-        responseWithin(fontStyles.handle(options), FONT_STYLES_TIMEOUT_MS),
+  ({ url }) => url.origin === "https://fonts.googleapis.com",
+  (options) => responseWithin(fontStyles.handle(options), FONT_STYLES_TIMEOUT_MS),
 );
 const fonts = new CacheFirst({
-    cacheName: "searchlight-fonts",
-    plugins: [
-        new CacheableResponsePlugin({ statuses: [200] }),
-        new ExpirationPlugin({
-            maxEntries: 30,
-            maxAgeSeconds: 365 * DAY,
-            purgeOnQuotaError: true,
-        }),
-    ],
+  cacheName: "searchlight-fonts",
+  plugins: [
+    new CacheableResponsePlugin({ statuses: [200] }),
+    new ExpirationPlugin({
+      maxEntries: 30,
+      maxAgeSeconds: 365 * DAY,
+      purgeOnQuotaError: true,
+    }),
+  ],
 });
 // A font never kept, offline: the browser falls back, without the error
 // Workbox would throw for it being logged.
 registerRoute(
-    ({ url }) => url.origin === "https://fonts.gstatic.com",
-    (options) => fonts.handle(options).catch(() => Response.error()),
+  ({ url }) => url.origin === "https://fonts.gstatic.com",
+  (options) => fonts.handle(options).catch(() => Response.error()),
 );

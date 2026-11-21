@@ -4,12 +4,12 @@ A map planner for Jet Lag: The Game's Hide and Seek. Players log in with
 Discord, pick a game, and share live sessions in which every answered question
 eliminates part of the map.
 
-| Path | What it is |
-| --- | --- |
-| `apps/web` | Astro + React frontend (the map) |
-| `apps/api` | Fastify + Prisma backend: auth, games, sessions, live sync |
+| Path              | What it is                                                   |
+| ----------------- | ------------------------------------------------------------ |
+| `apps/web`        | Astro + React frontend (the map)                             |
+| `apps/api`        | Fastify + Prisma backend: auth, games, sessions, live sync   |
 | `packages/shared` | Types and the game definition schema, validator and checksum |
-| `games/schema` | The published JSON schema of game definitions |
+| `games/schema`    | The published JSON schema of game definitions                |
 
 Running it on a server: [`DEPLOY.md`](DEPLOY.md). Adding a game:
 [`docs/ADDING_GAMES.md`](docs/ADDING_GAMES.md). Tests:

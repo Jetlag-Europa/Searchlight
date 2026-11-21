@@ -12,22 +12,21 @@ import { zonesLeft } from "@/lib/zonesLeft";
  * rather than cover the sidebar's controls.
  */
 export function ZonesLeftIndicator() {
-    const $zonesLeft = useStore(zonesLeft);
-    const $showCalculating = useStore(showCalculating);
-    const left = useStore(sidebarContextL);
-    const right = useStore(sidebarContextR);
-    const sidebarCoversMap =
-        (left.isMobile && left.openMobile) ||
-        (right.isMobile && right.openMobile);
-    if (!$zonesLeft || $showCalculating || sidebarCoversMap) return null;
-    return (
-        <div
-            role="status"
-            className="pointer-events-none flex w-max items-center gap-1.5 rounded-full px-2.5 py-1 text-xs bg-background/90 border border-border shadow-sm backdrop-blur-sm whitespace-nowrap"
-        >
-            <span className="text-muted-foreground">
-                {$zonesLeft.left} of {$zonesLeft.total} zones left
-            </span>
-        </div>
-    );
+  const $zonesLeft = useStore(zonesLeft);
+  const $showCalculating = useStore(showCalculating);
+  const left = useStore(sidebarContextL);
+  const right = useStore(sidebarContextR);
+  const sidebarCoversMap =
+    (left.isMobile && left.openMobile) || (right.isMobile && right.openMobile);
+  if (!$zonesLeft || $showCalculating || sidebarCoversMap) return null;
+  return (
+    <div
+      role="status"
+      className="pointer-events-none flex w-max items-center gap-1.5 rounded-full px-2.5 py-1 text-xs bg-background/90 border border-border shadow-sm backdrop-blur-sm whitespace-nowrap"
+    >
+      <span className="text-muted-foreground">
+        {$zonesLeft.left} of {$zonesLeft.total} zones left
+      </span>
+    </div>
+  );
 }

@@ -69,7 +69,10 @@ export async function serverRoutes(app: FastifyInstance) {
           } catch (err) {
             // Sessions don't need Discord, so keep them reachable.
             if (!hasSessions.has(server.id)) throw err;
-            req.log.warn({ serverId: server.id, err }, "Could not check server membership — listing for sessions only");
+            req.log.warn(
+              { serverId: server.id, err },
+              "Could not check server membership — listing for sessions only",
+            );
             access = { isMember: false, permissions: new Set() };
           }
           const { isMember, permissions: perms } = access;
@@ -94,7 +97,10 @@ export async function serverRoutes(app: FastifyInstance) {
 
       const result = settled.flatMap((r) => {
         if (r.status === "rejected") {
-          req.log.warn({ reason: String(r.reason) }, "Failed to resolve membership for a server — skipping");
+          req.log.warn(
+            { reason: String(r.reason) },
+            "Failed to resolve membership for a server — skipping",
+          );
           return [];
         }
         return r.value ? [r.value] : [];
@@ -187,7 +193,10 @@ export async function serverRoutes(app: FastifyInstance) {
     },
     async (req) => {
       const { serverId } = req.params as { serverId: string };
-      const { discordRoleId, permission } = req.body as { discordRoleId: string; permission: string };
+      const { discordRoleId, permission } = req.body as {
+        discordRoleId: string;
+        permission: string;
+      };
 
       if (!KNOWN_PERMISSIONS.includes(permission)) {
         throw Object.assign(new Error(`Unknown permission: ${permission}`), { statusCode: 400 });

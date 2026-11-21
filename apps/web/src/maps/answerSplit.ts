@@ -3,10 +3,10 @@ import { zoneScaleAfter } from "@/lib/zoneSize";
 
 import { regionData, standaloneRegion } from ".";
 import {
-    type AnsweredRegion,
-    type FilterZones,
-    hidingZoneCircles,
-    survivingZoneIndexes,
+  type AnsweredRegion,
+  type FilterZones,
+  hidingZoneCircles,
+  survivingZoneIndexes,
 } from "./geo-utils/hidingZones";
 import type { Question, Questions } from "./schema";
 
@@ -15,29 +15,29 @@ import type { Question, Questions } from "./schema";
  * order its card's toggle shows them.
  */
 export const SPLIT_ANSWERS: Partial<
-    Record<Question["id"], { label: string; data: Record<string, boolean> }[]>
+  Record<Question["id"], { label: string; data: Record<string, boolean> }[]>
 > = {
-    radius: [
-        { label: "Outside", data: { within: false } },
-        { label: "Inside", data: { within: true } },
-    ],
-    thermometer: [
-        { label: "Colder", data: { warmer: false } },
-        { label: "Warmer", data: { warmer: true } },
-    ],
-    matching: [
-        { label: "Different", data: { same: false } },
-        { label: "Same", data: { same: true } },
-    ],
-    measuring: [
-        { label: "Further", data: { hiderCloser: false } },
-        { label: "Closer", data: { hiderCloser: true } },
-    ],
+  radius: [
+    { label: "Outside", data: { within: false } },
+    { label: "Inside", data: { within: true } },
+  ],
+  thermometer: [
+    { label: "Colder", data: { warmer: false } },
+    { label: "Warmer", data: { warmer: true } },
+  ],
+  matching: [
+    { label: "Different", data: { same: false } },
+    { label: "Same", data: { same: true } },
+  ],
+  measuring: [
+    { label: "Further", data: { hiderCloser: false } },
+    { label: "Closer", data: { hiderCloser: true } },
+  ],
 };
 
 export interface AnswerSplit {
-    label: string;
-    zones: number;
+  label: string;
+  zones: number;
 }
 
 /**
@@ -45,13 +45,11 @@ export interface AnswerSplit {
  * ({@link regionData}) without its answer, which the split tries both ways.
  */
 export function splitInputs(question: Question): object {
-    const answerFields = (SPLIT_ANSWERS[question.id] ?? []).flatMap(
-        ({ data }) => Object.keys(data),
-    );
-    return {
-        ...regionData(question),
-        ...Object.fromEntries(answerFields.map((field) => [field, undefined])),
-    };
+  const answerFields = (SPLIT_ANSWERS[question.id] ?? []).flatMap(({ data }) => Object.keys(data));
+  return {
+    ...regionData(question),
+    ...Object.fromEntries(answerFields.map((field) => [field, undefined])),
+  };
 }
 
 /**
@@ -63,52 +61,45 @@ export function splitInputs(question: Question): object {
  * question without two answers, or once `isCurrent` turns false.
  */
 export async function answerSplit(
-    question: Question,
-    questions: Questions,
-    compiled: Pick<CompiledGame, "definition" | "hidingZones">,
-    answered: readonly AnsweredRegion[],
-    disabledZones: readonly string[],
-    baseMapGeoData: unknown,
-    filterZones: FilterZones,
-    isCurrent: () => boolean = () => true,
+  question: Question,
+  questions: Questions,
+  compiled: Pick<CompiledGame, "definition" | "hidingZones">,
+  answered: readonly AnsweredRegion[],
+  disabledZones: readonly string[],
+  baseMapGeoData: unknown,
+  filterZones: FilterZones,
+  isCurrent: () => boolean = () => true,
 ): Promise<AnswerSplit[] | undefined> {
-    const answers = SPLIT_ANSWERS[question.id];
-    if (!answers) return undefined;
-    // Cards edit their data in place: work from a copy taken now.
-    const data = structuredClone(question.data);
+  const answers = SPLIT_ANSWERS[question.id];
+  if (!answers) return undefined;
+  // Cards edit their data in place: work from a copy taken now.
+  const data = structuredClone(question.data);
 
-    const surviving = await survivingZoneIndexes(
-        compiled,
-        answered,
-        filterZones,
-        isCurrent,
-    );
-    if (!surviving) return undefined;
-    const position = questions.findIndex(({ key }) => key === question.key);
-    const circles = hidingZoneCircles(
-        compiled,
-        zoneScaleAfter(questions, position < 0 ? undefined : position),
-    );
-    // The map hides the zones the player disabled.
-    const zones = surviving
-        .map((index) => circles[index])
-        .filter(
-            (zone) => !disabledZones.includes(zone.properties.properties.id),
-        );
+  const surviving = await survivingZoneIndexes(compiled, answered, filterZones, isCurrent);
+  if (!surviving) return undefined;
+  const position = questions.findIndex(({ key }) => key === question.key);
+  const circles = hidingZoneCircles(
+    compiled,
+    zoneScaleAfter(questions, position < 0 ? undefined : position),
+  );
+  // The map hides the zones the player disabled.
+  const zones = surviving
+    .map((index) => circles[index])
+    .filter((zone) => !disabledZones.includes(zone.properties.properties.id));
 
-    const split: AnswerSplit[] = [];
-    for (const answer of answers) {
-        // Without its key, its requests don't supersede the map's for the
-        // question, or each other. It may still share, through the geometry
-        // caches, a request of the map's that a newer one supersedes.
-        const region = await standaloneRegion(
-            { id: question.id, data: { ...data, ...answer.data } },
-            baseMapGeoData,
-        );
-        if (!isCurrent()) return undefined;
-        const kept = await filterZones(zones, [region]);
-        if (!isCurrent()) return undefined;
-        split.push({ label: answer.label, zones: kept.length });
-    }
-    return split;
+  const split: AnswerSplit[] = [];
+  for (const answer of answers) {
+    // Without its key, its requests don't supersede the map's for the
+    // question, or each other. It may still share, through the geometry
+    // caches, a request of the map's that a newer one supersedes.
+    const region = await standaloneRegion(
+      { id: question.id, data: { ...data, ...answer.data } },
+      baseMapGeoData,
+    );
+    if (!isCurrent()) return undefined;
+    const kept = await filterZones(zones, [region]);
+    if (!isCurrent()) return undefined;
+    split.push({ label: answer.label, zones: kept.length });
+  }
+  return split;
 }

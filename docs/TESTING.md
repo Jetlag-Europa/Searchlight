@@ -77,15 +77,15 @@ token is `DEV_LOGIN_TOKEN` in the preview server's `secrets/preview.env`.
 
   ```ts
   await page.request.post(`${API}/auth/dev-login`, {
-      headers: { authorization: `Bearer ${process.env.DEV_LOGIN_TOKEN}` },
-      data: { discordId: "123456789012345678" },
+    headers: { authorization: `Bearer ${process.env.DEV_LOGIN_TOKEN}` },
+    data: { discordId: "123456789012345678" },
   });
   await page.goto(`${WEB}/map`);
   ```
 
   With curl, keep the cookie in a jar: `curl -c jar -H "authorization: Bearer
-  $DEV_LOGIN_TOKEN" -H 'content-type: application/json' -d
-  '{"discordId":"…"}' $API/auth/dev-login`, then `curl -b jar $API/me`.
+$DEV_LOGIN_TOKEN" -H 'content-type: application/json' -d
+'{"discordId":"…"}' $API/auth/dev-login`, then `curl -b jar $API/me`.
 
 A real Discord ID gets that user's name and avatar, and their servers and roles
 through the bot as usual. Any other numeric ID (15–21 digits, e.g.

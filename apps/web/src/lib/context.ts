@@ -6,143 +6,123 @@ import { atom, onSet } from "nanostores";
 import { radarRadii } from "@/game-definition/compile";
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import { sessionReadOnly } from "@/lib/activeSession";
-import {
-    askedVariants,
-    firstUnasked,
-    radarVariant,
-} from "@/lib/askedQuestions";
+import { askedVariants, firstUnasked, radarVariant } from "@/lib/askedQuestions";
 import type { LatLng } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
 import { extractStationLabel, type ZoneDisplayStyle } from "@/maps/geo-utils";
 import {
-    type DeepPartial,
-    type Question,
-    type Questions,
-    questionSchema,
-    type Units,
+  type DeepPartial,
+  type Question,
+  type Questions,
+  questionSchema,
+  type Units,
 } from "@/maps/schema";
 
-export const permanentOverlay = persistentAtom<FeatureCollection | null>(
-    "permanentOverlay",
-    null,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
+export const permanentOverlay = persistentAtom<FeatureCollection | null>("permanentOverlay", null, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+  listen: false,
+});
 
 // The game's play area, set when its definition is applied. Not persisted:
 // until a game loads, there is none.
-export const mapGeoJSON = atom<FeatureCollection<
-    Polygon | MultiPolygon
-> | null>(null);
-export const polyGeoJSON = atom<FeatureCollection<
-    Polygon | MultiPolygon
-> | null>(null);
+export const mapGeoJSON = atom<FeatureCollection<Polygon | MultiPolygon> | null>(null);
+export const polyGeoJSON = atom<FeatureCollection<Polygon | MultiPolygon> | null>(null);
 
 // Questions are server-backed and restored on session selection.
 export const questions = atom<Questions>([]);
 // Player-drawn variants, allowed in every game (see isQuestionSupported).
 const playerCustomData = (family: string): Record<string, unknown> =>
-    family === "tentacle"
-        ? { locationType: "custom", places: [] }
-        : { type: family === "matching" ? "custom-points" : "custom-measure" };
+  family === "tentacle"
+    ? { locationType: "custom", places: [] }
+    : { type: family === "matching" ? "custom-points" : "custom-measure" };
 export const addQuestion = (question: DeepPartial<Question>) => {
-    if (sessionReadOnly.get()) {
-        throw new Error("Spectators can't add questions");
+  if (sessionReadOnly.get()) {
+    throw new Error("Spectators can't add questions");
+  }
+  // Every question belongs to a game: none can be added until its
+  // definition has loaded.
+  const compiled = compiledGameAtom.get();
+  if (!compiled) throw new Error("The game has not loaded yet");
+  const candidate: any = {
+    ...question,
+    data: { ...((question as any).data ?? {}) },
+  };
+  const family =
+    candidate.id === "tentacles"
+      ? "tentacle"
+      : candidate.id === "matching" || candidate.id === "measuring"
+        ? candidate.id
+        : undefined;
+  if (family) {
+    const idField = family === "tentacle" ? "locationType" : "type";
+    if (candidate.data[idField] === undefined) {
+      // The first of the family's questions not asked yet.
+      const asked = askedVariants(questions.get(), candidate.id);
+      const first = firstUnasked(
+        compiled.questions.filter((q) => q.family === family),
+        asked,
+        (q) => q.id,
+      );
+      // A game with no layer for this family still allows custom ones.
+      if (first) candidate.data[idField] = first.id;
+      else {
+        for (const [key, value] of Object.entries(playerCustomData(family)))
+          candidate.data[key] ??= value;
+      }
     }
-    // Every question belongs to a game: none can be added until its
-    // definition has loaded.
-    const compiled = compiledGameAtom.get();
-    if (!compiled) throw new Error("The game has not loaded yet");
-    const candidate: any = {
-        ...question,
-        data: { ...((question as any).data ?? {}) },
-    };
-    const family =
-        candidate.id === "tentacles"
-            ? "tentacle"
-            : candidate.id === "matching" || candidate.id === "measuring"
-              ? candidate.id
-              : undefined;
-    if (family) {
-        const idField = family === "tentacle" ? "locationType" : "type";
-        if (candidate.data[idField] === undefined) {
-            // The first of the family's questions not asked yet.
-            const asked = askedVariants(questions.get(), candidate.id);
-            const first = firstUnasked(
-                compiled.questions.filter((q) => q.family === family),
-                asked,
-                (q) => q.id,
-            );
-            // A game with no layer for this family still allows custom ones.
-            if (first) candidate.data[idField] = first.id;
-            else {
-                for (const [key, value] of Object.entries(
-                    playerCustomData(family),
-                ))
-                    candidate.data[key] ??= value;
-            }
-        }
+  }
+  // A game's radar starts at its first declared radius not asked yet, not
+  // the schema's generic default.
+  if (candidate.id === "radius" && candidate.data.radius === undefined) {
+    const radius = firstUnasked(
+      radarRadii(compiled),
+      askedVariants(questions.get(), "radius"),
+      (r) => radarVariant(r.value, r.unit),
+    );
+    if (radius) {
+      candidate.data.radius = radius.value;
+      candidate.data.unit = radius.unit;
     }
-    // A game's radar starts at its first declared radius not asked yet, not
-    // the schema's generic default.
-    if (candidate.id === "radius" && candidate.data.radius === undefined) {
-        const radius = firstUnasked(
-            radarRadii(compiled),
-            askedVariants(questions.get(), "radius"),
-            (r) => radarVariant(r.value, r.unit),
-        );
-        if (radius) {
-            candidate.data.radius = radius.value;
-            candidate.data.unit = radius.unit;
-        }
-    }
-    const parsed = questionSchema.parse(candidate);
-    // A new question, though pasted from a restored one, restores nothing.
-    delete parsed.data.restoredFrom;
-    if (!isQuestionSupported(parsed, compiled)) {
-        throw new Error("This question is not part of the active game");
-    }
-    questionModified(questions.get().push(parsed));
+  }
+  const parsed = questionSchema.parse(candidate);
+  // A new question, though pasted from a restored one, restores nothing.
+  delete parsed.data.restoredFrom;
+  if (!isQuestionSupported(parsed, compiled)) {
+    throw new Error("This question is not part of the active game");
+  }
+  questionModified(questions.get().push(parsed));
 };
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const questionModified = (..._: any[]) => {
-    if (autoSave.get()) {
-        questions.set([...questions.get()]);
-    } else {
-        triggerLocalRefresh.set(Math.random());
-    }
+  if (autoSave.get()) {
+    questions.set([...questions.get()]);
+  } else {
+    triggerLocalRefresh.set(Math.random());
+  }
 };
 
 export const leafletMapContext = atom<LeafletMap | null>(null);
 
 export const defaultUnit = persistentAtom<Units>("defaultUnit", "kilometers", {
-    listen: false,
+  listen: false,
 });
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).
-export const hiderMode = atom<false | { latitude: number; longitude: number }>(
-    false,
-);
+export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
-export const displayHidingZones = persistentAtom<boolean>(
-    "displayHidingZones",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-        listen: false,
-    },
-);
+export const displayHidingZones = persistentAtom<boolean>("displayHidingZones", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+  listen: false,
+});
 export const displayHidingZonesStyle = persistentAtom<ZoneDisplayStyle>(
-    "displayHidingZonesStyle",
-    "zones",
-    { listen: false },
+  "displayHidingZonesStyle",
+  "zones",
+  { listen: false },
 );
 export const showZoneNames = persistentAtom<boolean>("showZoneNames", false, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
+  encode: JSON.stringify,
+  decode: JSON.parse,
 });
 export const questionFinishedMapData = atom<any>(null);
 
@@ -150,105 +130,85 @@ export const questionFinishedMapData = atom<any>(null);
 // zone survival (a zone survives if it overlaps EACH question's region
 // independently). See computePerQuestionRegions / DissapearingAct. Each
 // carries the zones' size, relative to the game's, when it was asked.
-export const perQuestionMapData = atom<
-    { question: any; region: any; zoneScale?: number }[]
->([]);
+export const perQuestionMapData = atom<{ question: any; region: any; zoneScale?: number }[]>([]);
 // The zones' size now, relative to the game's, after every zone size change
 // in the question list. Published with perQuestionMapData.
 export const hidingZoneScale = atom<number>(1);
 
 export const trainStations = atom<StationCircle[]>([]);
 onSet(trainStations, ({ newValue }) => {
-    newValue.sort((a, b) => {
-        const aName = (extractStationLabel(a.properties) || "") as string;
-        const bName = (extractStationLabel(b.properties) || "") as string;
-        return aName.localeCompare(bName);
-    });
+  newValue.sort((a, b) => {
+    const aName = (extractStationLabel(a.properties) || "") as string;
+    const bName = (extractStationLabel(b.properties) || "") as string;
+    return aName.localeCompare(bName);
+  });
 });
 
-export const animateMapMovements = persistentAtom<boolean>(
-    "animateMapMovements",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
+export const animateMapMovements = persistentAtom<boolean>("animateMapMovements", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
 export {
-    disabledStations,
-    disableZones,
-    setDisabledStations,
-    setZoneDisabled,
-    toggleDisabledZone,
+  disabledStations,
+  disableZones,
+  setDisabledStations,
+  setZoneDisabled,
+  toggleDisabledZone,
 } from "@/lib/disabledZones";
 export const autoSave = persistentAtom<boolean>("autoSave", true, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
+  encode: JSON.stringify,
+  decode: JSON.parse,
 });
 export const warningAlarm = persistentAtom<boolean>("warningAlarm2", false, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
+  encode: JSON.stringify,
+  decode: JSON.parse,
 });
 export const save = () => {
-    questions.set([...questions.get()]);
-    const $hiderMode = hiderMode.get();
+  questions.set([...questions.get()]);
+  const $hiderMode = hiderMode.get();
 
-    if ($hiderMode !== false) {
-        hiderMode.set({ ...$hiderMode });
-    }
+  if ($hiderMode !== false) {
+    hiderMode.set({ ...$hiderMode });
+  }
 };
 
 /* Presets for custom questions (savable / sharable / editable) */
 export type CustomPreset = {
-    id: string;
-    name: string;
-    type: string;
-    data: any;
-    createdAt: string;
+  id: string;
+  name: string;
+  type: string;
+  data: any;
+  createdAt: string;
 };
 
-export const customPresets = persistentAtom<CustomPreset[]>(
-    "customPresets",
-    [],
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
+export const customPresets = persistentAtom<CustomPreset[]>("customPresets", [], {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
 onSet(customPresets, ({ newValue }) => {
-    newValue.sort((a, b) => a.name.localeCompare(b.name));
+  newValue.sort((a, b) => a.name.localeCompare(b.name));
 });
 
-export const saveCustomPreset = (
-    preset: Omit<CustomPreset, "id" | "createdAt">,
-) => {
-    const id =
-        typeof crypto !== "undefined" &&
-        typeof (crypto as any).randomUUID === "function"
-            ? (crypto as any).randomUUID()
-            : String(Date.now());
-    const p: CustomPreset = {
-        ...preset,
-        id,
-        createdAt: new Date().toISOString(),
-    };
-    customPresets.set([...customPresets.get(), p]);
-    return p;
+export const saveCustomPreset = (preset: Omit<CustomPreset, "id" | "createdAt">) => {
+  const id =
+    typeof crypto !== "undefined" && typeof (crypto as any).randomUUID === "function"
+      ? (crypto as any).randomUUID()
+      : String(Date.now());
+  const p: CustomPreset = {
+    ...preset,
+    id,
+    createdAt: new Date().toISOString(),
+  };
+  customPresets.set([...customPresets.get(), p]);
+  return p;
 };
 
-export const updateCustomPreset = (
-    id: string,
-    updates: Partial<CustomPreset>,
-) => {
-    customPresets.set(
-        customPresets
-            .get()
-            .map((p) => (p.id === id ? { ...p, ...updates } : p)),
-    );
+export const updateCustomPreset = (id: string, updates: Partial<CustomPreset>) => {
+  customPresets.set(customPresets.get().map((p) => (p.id === id ? { ...p, ...updates } : p)));
 };
 
 export const deleteCustomPreset = (id: string) => {
-    customPresets.set(customPresets.get().filter((p) => p.id !== id));
+  customPresets.set(customPresets.get().filter((p) => p.id !== id));
 };
 
 // True once the session's game definition has been applied: false before the
@@ -264,8 +224,8 @@ export const drawingQuestionKey = atom<number>(-1);
 export const hidingZoneFocusedStationID = atom<string>("");
 export const planningModeEnabled = atom<boolean>(false);
 export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
+  encode: JSON.stringify,
+  decode: JSON.parse,
 });
 
 /**
@@ -277,147 +237,114 @@ export const autoZoom = persistentAtom<boolean>("autoZoom", true, {
 export const isLoading = atom<boolean>(false);
 const loadingScopeCounts = new Map<string | symbol, number>();
 
-export function setScopedLoading(
-    scope: string | symbol,
-    active: boolean,
-): void {
-    const current = loadingScopeCounts.get(scope) ?? 0;
-    if (active) {
-        loadingScopeCounts.set(scope, current + 1);
+export function setScopedLoading(scope: string | symbol, active: boolean): void {
+  const current = loadingScopeCounts.get(scope) ?? 0;
+  if (active) {
+    loadingScopeCounts.set(scope, current + 1);
+  } else {
+    const next = Math.max(0, current - 1);
+    if (next === 0) {
+      loadingScopeCounts.delete(scope);
     } else {
-        const next = Math.max(0, current - 1);
-        if (next === 0) {
-            loadingScopeCounts.delete(scope);
-        } else {
-            loadingScopeCounts.set(scope, next);
-        }
+      loadingScopeCounts.set(scope, next);
     }
-    let total = 0;
-    for (const count of loadingScopeCounts.values()) {
-        total += count;
-    }
-    isLoading.set(total > 0);
+  }
+  let total = 0;
+  for (const count of loadingScopeCounts.values()) {
+    total += count;
+  }
+  isLoading.set(total > 0);
 }
 
 export function resetScopedLoading(scope?: string | symbol): void {
-    if (scope) {
-        loadingScopeCounts.delete(scope);
-    } else {
-        loadingScopeCounts.clear();
-    }
-    let total = 0;
-    for (const count of loadingScopeCounts.values()) {
-        total += count;
-    }
-    isLoading.set(total > 0);
+  if (scope) {
+    loadingScopeCounts.delete(scope);
+  } else {
+    loadingScopeCounts.clear();
+  }
+  let total = 0;
+  for (const count of loadingScopeCounts.values()) {
+    total += count;
+  }
+  isLoading.set(total > 0);
 }
 
 export const baseTileLayer = persistentAtom<
-    | "voyager"
-    | "light"
-    | "dark"
-    | "transport"
-    | "neighbourhood"
-    | "osmcarto"
-    | "google"
+  "voyager" | "light" | "dark" | "transport" | "neighbourhood" | "osmcarto" | "google"
 >("baseTileLayer", "voyager");
 // What the Google Maps basemap shows: its map type (a GoogleMapType; read it
 // with googleMapTypeOf), transit lines on top, and places hidden.
 export const googleMapType = persistentAtom<string>("googleMapType", "roadmap");
-export const hideGooglePlaces = persistentAtom<boolean>(
-    "hideGooglePlaces",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
-export const showGoogleTransit = persistentAtom<boolean>(
-    "showGoogleTransit",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
-export const thunderforestApiKey = persistentAtom<string>(
-    "thunderforestApiKey",
-    "",
-    {
-        encode: (value: string) => value,
-        decode: (value: string) => value,
-    },
-);
+export const hideGooglePlaces = persistentAtom<boolean>("hideGooglePlaces", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
+export const showGoogleTransit = persistentAtom<boolean>("showGoogleTransit", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
+export const thunderforestApiKey = persistentAtom<string>("thunderforestApiKey", "", {
+  encode: (value: string) => value,
+  decode: (value: string) => value,
+});
 export const followMe = persistentAtom<boolean>("followMe", false, {
-    encode: JSON.stringify,
-    decode: JSON.parse,
+  encode: JSON.stringify,
+  decode: JSON.parse,
 });
 // The last position Follow Me's watch reported, cleared when the watch stops
 // or fails to get a fix. Not persisted: a fix from an earlier visit says
 // nothing about where the seeker is now.
 export const lastGpsFix = atom<LatLng | null>(null);
-export const defaultCustomQuestions = persistentAtom<boolean>(
-    "defaultCustomQuestions",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
+export const defaultCustomQuestions = persistentAtom<boolean>("defaultCustomQuestions", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
 
 export const customInitPreference = persistentAtom<"ask" | "blank" | "prefill">(
-    "customInitPreference",
-    "ask",
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
+  "customInitPreference",
+  "ask",
+  {
+    encode: JSON.stringify,
+    decode: JSON.parse,
+  },
 );
 
-export const allowGooglePlusCodes = persistentAtom<boolean>(
-    "allowGooglePlusCodes",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
-export const autoLockQuestions = persistentAtom<boolean>(
-    "autoLockQuestions",
-    false,
-    {
-        encode: JSON.stringify,
-        decode: JSON.parse,
-    },
-);
+export const allowGooglePlusCodes = persistentAtom<boolean>("allowGooglePlusCodes", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
+export const autoLockQuestions = persistentAtom<boolean>("autoLockQuestions", false, {
+  encode: JSON.stringify,
+  decode: JSON.parse,
+});
 
 // Shared sidebar context atoms — kept here so all islands (client:load and
 // client:only) resolve the same module instance and therefore the same atom.
 export type SidebarContextType = {
-    state: "expanded" | "collapsed";
-    open: boolean;
-    setOpen: (open: boolean) => void;
-    openMobile: boolean;
-    setOpenMobile: (open: boolean) => void;
-    isMobile: boolean;
-    toggleSidebar: () => void;
+  state: "expanded" | "collapsed";
+  open: boolean;
+  setOpen: (open: boolean) => void;
+  openMobile: boolean;
+  setOpenMobile: (open: boolean) => void;
+  isMobile: boolean;
+  toggleSidebar: () => void;
 };
 
 const _defaultSidebarCtx: SidebarContextType = {
-    state: "expanded",
-    open: true,
-    setOpen: () => {},
-    openMobile: false,
-    setOpenMobile: () => {},
-    isMobile: false,
-    toggleSidebar: () => {},
+  state: "expanded",
+  open: true,
+  setOpen: () => {},
+  openMobile: false,
+  setOpenMobile: () => {},
+  isMobile: false,
+  toggleSidebar: () => {},
 };
 
 export const sidebarContextL = atom<SidebarContextType>({
-    ..._defaultSidebarCtx,
+  ..._defaultSidebarCtx,
 });
 export const sidebarContextR = atom<SidebarContextType>({
-    ..._defaultSidebarCtx,
+  ..._defaultSidebarCtx,
 });
 
 // ── Sync status ───────────────────────────────────────────────────────────────
@@ -429,9 +356,9 @@ export const pendingEventCount = atom<number>(0);
 // ── Presence ─────────────────────────────────────────────────────────────────
 
 export type PresenceUser = {
-    userId: string;
-    displayName: string;
-    avatarUrl: string;
+  userId: string;
+  displayName: string;
+  avatarUrl: string;
 };
 export const connectedUsers = atom<PresenceUser[]>([]);
 

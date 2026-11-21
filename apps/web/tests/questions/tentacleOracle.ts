@@ -9,11 +9,8 @@ export type { OracleVerdict };
 
 /** Grid over the scenario's base boundary (thin wrapper over the shared helper
  *  so existing tentacle callers can pass a scenario). */
-export function sampleGrid(
-    s: TentacleScenario,
-    steps: number,
-): Feature<Point>[] {
-    return sampleGridArea(s.base, steps);
+export function sampleGrid(s: TentacleScenario, steps: number): Feature<Point>[] {
+  return sampleGridArea(s.base, steps);
 }
 
 /**
@@ -34,40 +31,38 @@ export function sampleGrid(
  */
 
 export interface TentacleScenario {
-    seeker: [number, number]; // [lng, lat]
-    radius: number;
-    unit: Units;
-    /** POI sites, each with a unique properties.name. */
-    places: Feature<Point>[];
-    /** properties.name of the POI the seeker's tentacle points at. */
-    answerName: string;
-    /** Game boundary polygon. */
-    base: Feature<Polygon>;
+  seeker: [number, number]; // [lng, lat]
+  radius: number;
+  unit: Units;
+  /** POI sites, each with a unique properties.name. */
+  places: Feature<Point>[];
+  /** properties.name of the POI the seeker's tentacle points at. */
+  answerName: string;
+  /** Game boundary polygon. */
+  base: Feature<Polygon>;
 }
 
 export function sitesWithinRadius(s: TentacleScenario): Feature<Point>[] {
-    const seeker = turf.point(s.seeker);
-    return s.places.filter(
-        (p) => turf.distance(seeker, p, { units: s.unit }) <= s.radius,
-    );
+  const seeker = turf.point(s.seeker);
+  return s.places.filter((p) => turf.distance(seeker, p, { units: s.unit }) <= s.radius);
 }
 
 /** Nearest site to `pt`, or null if no sites. Returns name + the margin to the
  *  runner-up (used to skip points too close to a Voronoi edge to assert safely). */
 function nearestSite(
-    pt: Feature<Point>,
-    sites: Feature<Point>[],
-    unit: Units,
+  pt: Feature<Point>,
+  sites: Feature<Point>[],
+  unit: Units,
 ): { name: string; margin: number } | null {
-    if (sites.length === 0) return null;
-    const sorted = sites
-        .map((s) => ({
-            name: String(s.properties?.name),
-            d: turf.distance(pt, s, { units: unit }),
-        }))
-        .sort((a, b) => a.d - b.d);
-    const margin = sorted.length > 1 ? sorted[1].d - sorted[0].d : Infinity;
-    return { name: sorted[0].name, margin };
+  if (sites.length === 0) return null;
+  const sorted = sites
+    .map((s) => ({
+      name: String(s.properties?.name),
+      d: turf.distance(pt, s, { units: unit }),
+    }))
+    .sort((a, b) => a.d - b.d);
+  const margin = sorted.length > 1 ? sorted[1].d - sorted[0].d : Infinity;
+  return { name: sorted[0].name, margin };
 }
 
 /**
@@ -77,25 +72,25 @@ function nearestSite(
  * the test asserts only on points with a clear answer.
  */
 export function oracleVerdict(
-    s: TentacleScenario,
-    pt: Feature<Point>,
-    edgeMargin: number, // distance (in `unit`) within which we call it ambiguous
+  s: TentacleScenario,
+  pt: Feature<Point>,
+  edgeMargin: number, // distance (in `unit`) within which we call it ambiguous
 ): OracleVerdict {
-    const seeker = turf.point(s.seeker);
-    const distToSeeker = turf.distance(seeker, pt, { units: s.unit });
+  const seeker = turf.point(s.seeker);
+  const distToSeeker = turf.distance(seeker, pt, { units: s.unit });
 
-    // Near the radius edge → ambiguous.
-    if (Math.abs(distToSeeker - s.radius) <= edgeMargin) return "ambiguous";
+  // Near the radius edge → ambiguous.
+  if (Math.abs(distToSeeker - s.radius) <= edgeMargin) return "ambiguous";
 
-    const inBase = turf.booleanPointInPolygon(pt, s.base);
-    const withinRadius = distToSeeker < s.radius;
-    if (!inBase || !withinRadius) return "eliminated";
+  const inBase = turf.booleanPointInPolygon(pt, s.base);
+  const withinRadius = distToSeeker < s.radius;
+  if (!inBase || !withinRadius) return "eliminated";
 
-    const sites = sitesWithinRadius(s);
-    const nearest = nearestSite(pt, sites, s.unit);
-    if (!nearest) return "eliminated"; // answer POI not even in radius
-    // Near a Voronoi edge (two sites almost equidistant) → ambiguous.
-    if (nearest.margin <= edgeMargin) return "ambiguous";
+  const sites = sitesWithinRadius(s);
+  const nearest = nearestSite(pt, sites, s.unit);
+  if (!nearest) return "eliminated"; // answer POI not even in radius
+  // Near a Voronoi edge (two sites almost equidistant) → ambiguous.
+  if (nearest.margin <= edgeMargin) return "ambiguous";
 
-    return nearest.name === s.answerName ? "survives" : "eliminated";
+  return nearest.name === s.answerName ? "survives" : "eliminated";
 }

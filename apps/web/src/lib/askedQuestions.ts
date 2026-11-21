@@ -9,38 +9,36 @@ import type { Question, Questions, Units } from "@/maps/schema";
 // A radar is identified by its size, in whole meters: 500 m and 2 km are
 // different questions, 2 km and 2000 m the same one.
 export const radarVariant = (radius: number, unit: Units) =>
-    String(Math.round(turf.convertLength(radius, unit, "meters")));
+  String(Math.round(turf.convertLength(radius, unit, "meters")));
 
 // A radar radius that draws a circle. Older clients stored 0, negatives or null.
 export const isRadius = (radius: unknown): radius is number =>
-    Number.isFinite(radius) && (radius as number) > 0;
+  Number.isFinite(radius) && (radius as number) > 0;
 
 // A stored radar's variant: none for a bad radius, which would throw.
 export const storedRadarVariant = (radius: unknown, unit: Units) =>
-    isRadius(radius) ? radarVariant(radius, unit) : undefined;
+  isRadius(radius) ? radarVariant(radius, unit) : undefined;
 
 // What a question asks within its family: its layer (for matching, measuring
 // and tentacles) or its radar size. Thermometers and zone size changes have
 // no variants.
 const askedVariant = (question: Question): string | undefined => {
-    switch (question.id) {
-        case "matching":
-        case "measuring":
-        case "tentacles": {
-            const [family, variant] =
-                question.id === "tentacles"
-                    ? ["tentacle", question.data.locationType]
-                    : [question.id, question.data.type];
-            // Drawing a player-drawn question doesn't use anything up.
-            return PLAYER_CUSTOM_TYPES[family].includes(variant)
-                ? undefined
-                : variant;
-        }
-        case "radius":
-            return storedRadarVariant(question.data.radius, question.data.unit);
-        default:
-            return undefined;
+  switch (question.id) {
+    case "matching":
+    case "measuring":
+    case "tentacles": {
+      const [family, variant] =
+        question.id === "tentacles"
+          ? ["tentacle", question.data.locationType]
+          : [question.id, question.data.type];
+      // Drawing a player-drawn question doesn't use anything up.
+      return PLAYER_CUSTOM_TYPES[family].includes(variant) ? undefined : variant;
     }
+    case "radius":
+      return storedRadarVariant(question.data.radius, question.data.unit);
+    default:
+      return undefined;
+  }
 };
 
 /**
@@ -48,37 +46,32 @@ const askedVariant = (question: Question): string | undefined => {
  * (the card asking). Disabled questions were still asked.
  */
 export const askedVariants = (
-    questions: Questions,
-    family: Question["id"],
-    exceptKey?: number,
+  questions: Questions,
+  family: Question["id"],
+  exceptKey?: number,
 ): Set<string> => {
-    const asked = new Set<string>();
-    for (const question of questions) {
-        if (question.id !== family || question.key === exceptKey) continue;
-        const variant = askedVariant(question);
-        if (variant !== undefined) asked.add(variant);
-    }
-    return asked;
+  const asked = new Set<string>();
+  for (const question of questions) {
+    if (question.id !== family || question.key === exceptKey) continue;
+    const variant = askedVariant(question);
+    if (variant !== undefined) asked.add(variant);
+  }
+  return asked;
 };
 
 /** A "✓ asked" note on each variant another question asks, for a picker. */
 export const askedHints = (
-    questions: Questions,
-    family: Question["id"],
-    exceptKey: number,
+  questions: Questions,
+  family: Question["id"],
+  exceptKey: number,
 ): Record<string, string> =>
-    Object.fromEntries(
-        [...askedVariants(questions, family, exceptKey)].map((variant) => [
-            variant,
-            "✓ asked",
-        ]),
-    );
+  Object.fromEntries(
+    [...askedVariants(questions, family, exceptKey)].map((variant) => [variant, "✓ asked"]),
+  );
 
 /** The first candidate not asked yet, or the first one if all were. */
 export const firstUnasked = <T>(
-    candidates: T[],
-    asked: Set<string>,
-    variant: (candidate: T) => string,
-): T | undefined =>
-    candidates.find((candidate) => !asked.has(variant(candidate))) ??
-    candidates[0];
+  candidates: T[],
+  asked: Set<string>,
+  variant: (candidate: T) => string,
+): T | undefined => candidates.find((candidate) => !asked.has(variant(candidate))) ?? candidates[0];

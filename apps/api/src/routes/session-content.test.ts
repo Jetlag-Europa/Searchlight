@@ -36,7 +36,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
     // Clean up
     await prisma.event.deleteMany({ where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } } });
     await prisma.stroke.deleteMany({ where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } } });
-    await prisma.sessionQuestion.deleteMany({ where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } } });
+    await prisma.sessionQuestion.deleteMany({
+      where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } },
+    });
     await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
     await prisma.gameSession.deleteMany({ where: { id: { in: [SESSION_ID, SESSION2_ID] } } });
     await prisma.gameRevision.deleteMany({ where: { gameId: GAME_ID } });
@@ -61,7 +63,13 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
     await prisma.server.create({ data: { id: SERVER_ID, name: "Content Server" } });
     // Upgrading a session requires access to the game's server.
     await prisma.serverMembershipCache.create({
-      data: { userId: USER_ID, serverId: SERVER_ID, isMember: true, roles: [], cachedAt: new Date() },
+      data: {
+        userId: USER_ID,
+        serverId: SERVER_ID,
+        isMember: true,
+        roles: [],
+        cachedAt: new Date(),
+      },
     });
 
     const game = await prisma.game.create({
@@ -129,7 +137,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
     await app.close();
     await prisma.event.deleteMany({ where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } } });
     await prisma.stroke.deleteMany({ where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } } });
-    await prisma.sessionQuestion.deleteMany({ where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } } });
+    await prisma.sessionQuestion.deleteMany({
+      where: { sessionId: { in: [SESSION_ID, SESSION2_ID] } },
+    });
     await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
     await prisma.gameSession.deleteMany({ where: { id: { in: [SESSION_ID, SESSION2_ID] } } });
     await prisma.gameRevision.deleteMany({ where: { gameId: GAME_ID } });
@@ -168,11 +178,15 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         expect(stroke1.clientUuid).toBe(strokeClientUuid);
 
         // Durable stroke and event in database
-        const strokeInDb = await prisma.stroke.findUnique({ where: { clientUuid: strokeClientUuid } });
+        const strokeInDb = await prisma.stroke.findUnique({
+          where: { clientUuid: strokeClientUuid },
+        });
         expect(strokeInDb).not.toBeNull();
         expect(strokeInDb?.sessionId).toBe(SESSION_ID);
 
-        const eventInDb = await prisma.event.findUnique({ where: { clientUuid: `stroke-create-${strokeClientUuid}` } });
+        const eventInDb = await prisma.event.findUnique({
+          where: { clientUuid: `stroke-create-${strokeClientUuid}` },
+        });
         expect(eventInDb).not.toBeNull();
         expect(eventInDb?.type).toBe("stroke.create");
         expect(eventInDb?.sessionId).toBe(SESSION_ID);
@@ -268,10 +282,14 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         expect(res1.statusCode).toBe(204);
 
         // Verify stroke is soft-deleted and event exists durably
-        const strokeInDb = await prisma.stroke.findUnique({ where: { clientUuid: strokeClientUuid } });
+        const strokeInDb = await prisma.stroke.findUnique({
+          where: { clientUuid: strokeClientUuid },
+        });
         expect(strokeInDb?.deletedAt).not.toBeNull();
 
-        const eventInDb = await prisma.event.findUnique({ where: { clientUuid: `stroke-delete-${strokeClientUuid}` } });
+        const eventInDb = await prisma.event.findUnique({
+          where: { clientUuid: `stroke-delete-${strokeClientUuid}` },
+        });
         expect(eventInDb).not.toBeNull();
         expect(eventInDb?.type).toBe("stroke.delete");
 
@@ -319,7 +337,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       });
 
       expect(res.statusCode).toBe(409);
-      const foreignStroke = await prisma.stroke.findUnique({ where: { clientUuid: foreignStrokeUuid } });
+      const foreignStroke = await prisma.stroke.findUnique({
+        where: { clientUuid: foreignStrokeUuid },
+      });
       expect(foreignStroke?.deletedAt).toBeNull();
     });
 
@@ -372,7 +392,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         expect(strokeTombstone).not.toBeNull();
         expect(strokeTombstone?.deletedAt).not.toBeNull();
 
-        const delEvent = await prisma.event.findUnique({ where: { clientUuid: `stroke-delete-${raceUuid}` } });
+        const delEvent = await prisma.event.findUnique({
+          where: { clientUuid: `stroke-delete-${raceUuid}` },
+        });
         expect(delEvent).not.toBeNull();
         expect(delEvent?.type).toBe("stroke.delete");
         expect(delEvent?.sequence).toBeGreaterThan(0);
@@ -393,7 +415,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         const strokeAfterPost = await prisma.stroke.findUnique({ where: { clientUuid: raceUuid } });
         expect(strokeAfterPost?.deletedAt).not.toBeNull();
 
-        const createEvent = await prisma.event.findUnique({ where: { clientUuid: `stroke-create-${raceUuid}` } });
+        const createEvent = await prisma.event.findUnique({
+          where: { clientUuid: `stroke-create-${raceUuid}` },
+        });
         expect(createEvent).toBeNull();
         expect(broadcasted).toHaveLength(1);
 
@@ -542,7 +566,11 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
           headers: { cookie },
           payload: {
             questions: [
-              { clientUuid: "q-attempted-new", ordinal: 0, payloadJson: { text: "Should be rolled back" } },
+              {
+                clientUuid: "q-attempted-new",
+                ordinal: 0,
+                payloadJson: { text: "Should be rolled back" },
+              },
             ],
             replacementId: conflictReplacementId,
           },
@@ -699,13 +727,19 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       });
       expect(res2.statusCode).toBe(204);
 
-      const ev1 = await prisma.event.findUniqueOrThrow({ where: { clientUuid: "stroke-create-seq-test-stroke-1" } });
-      const ev2 = await prisma.event.findUniqueOrThrow({ where: { clientUuid: "questions-replace-seq-test-rep-1" } });
+      const ev1 = await prisma.event.findUniqueOrThrow({
+        where: { clientUuid: "stroke-create-seq-test-stroke-1" },
+      });
+      const ev2 = await prisma.event.findUniqueOrThrow({
+        where: { clientUuid: "questions-replace-seq-test-rep-1" },
+      });
 
       expect(ev1.sequence).toBe(initialSeq + 1);
       expect(ev2.sequence).toBe(initialSeq + 2);
 
-      const updatedSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      const updatedSession = await prisma.gameSession.findUniqueOrThrow({
+        where: { id: SESSION_ID },
+      });
       expect(updatedSession.eventSequence).toBe(initialSeq + 2);
 
       await prisma.event.deleteMany({ where: { id: { in: [ev1.id, ev2.id] } } });
@@ -720,7 +754,11 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         method: "PUT",
         url: `/sessions/${SESSION_ID}/questions`,
         headers: { cookie },
-        payload: { questions, replacementId, ...(baseSequence === undefined ? {} : { baseSequence }) },
+        payload: {
+          questions,
+          replacementId,
+          ...(baseSequence === undefined ? {} : { baseSequence }),
+        },
       });
     const read = async () => {
       const res = await app.inject({
@@ -731,7 +769,11 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       expect(res.statusCode).toBe(200);
       return res.json() as { questions: Array<{ clientUuid: string }>; sequence: number };
     };
-    const question = (clientUuid: string, ordinal = 0) => ({ clientUuid, ordinal, payloadJson: { key: ordinal } });
+    const question = (clientUuid: string, ordinal = 0) => ({
+      clientUuid,
+      ordinal,
+      payloadJson: { key: ordinal },
+    });
 
     test("reads the list with the sequence it's at, and saves over it with that base", async () => {
       await put("base-seq-setup", [question("base-a")]);
@@ -757,12 +799,18 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["other-device"]);
       expect(await prisma.event.count({ where: { sessionId: SESSION_ID } })).toBe(eventsBefore);
       expect(
-        await prisma.event.findUnique({ where: { clientUuid: "questions-replace-base-seq-stale" } }),
+        await prisma.event.findUnique({
+          where: { clientUuid: "questions-replace-base-seq-stale" },
+        }),
       ).toBeNull();
 
       // The client merges and saves again on the new base.
       const { sequence } = await read();
-      const merged = await put("base-seq-stale", [question("other-device"), question("stale", 1)], sequence);
+      const merged = await put(
+        "base-seq-stale",
+        [question("other-device"), question("stale", 1)],
+        sequence,
+      );
       expect(merged.statusCode).toBe(200);
       expect((await read()).questions.map((q) => q.clientUuid)).toEqual(["other-device", "stale"]);
     });
@@ -776,7 +824,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         payload: { clientUuid: "base-seq-stroke", payloadJson: { a: 1 } },
       });
       expect(stroke.statusCode).toBe(201);
-      expect((await put("base-seq-after-stroke", [question("after-stroke")], sequence)).statusCode).toBe(200);
+      expect(
+        (await put("base-seq-after-stroke", [question("after-stroke")], sequence)).statusCode,
+      ).toBe(200);
     });
 
     test("answers a retry of a saved list with its sequence, even once it is stale", async () => {
@@ -824,12 +874,23 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
           sequence,
         );
         expect(res.statusCode).toBe(200);
-        const read2 = await app.inject({ method: "GET", url: `/sessions/${SESSION_ID}/questions`, headers: { cookie } });
-        expect(read2.json().questions.map((q: { payloadJson: { key: number } }) => q.payloadJson.key)).toEqual(keys);
-        const event = await prisma.event.findUniqueOrThrow({ where: { clientUuid: "questions-replace-base-seq-exact" } });
-        const stored = (event.payloadJson as { questions: Array<{ payloadJson: { key: number } }> }).questions;
+        const read2 = await app.inject({
+          method: "GET",
+          url: `/sessions/${SESSION_ID}/questions`,
+          headers: { cookie },
+        });
+        expect(
+          read2.json().questions.map((q: { payloadJson: { key: number } }) => q.payloadJson.key),
+        ).toEqual(keys);
+        const event = await prisma.event.findUniqueOrThrow({
+          where: { clientUuid: "questions-replace-base-seq-exact" },
+        });
+        const stored = (event.payloadJson as { questions: Array<{ payloadJson: { key: number } }> })
+          .questions;
         expect(stored.map((q) => q.payloadJson.key)).toEqual(keys);
-        const sent = (broadcasted[0].payloadJson as { questions: Array<{ payloadJson: { key: number } }> }).questions;
+        const sent = (
+          broadcasted[0].payloadJson as { questions: Array<{ payloadJson: { key: number } }> }
+        ).questions;
         expect(sent.map((q) => q.payloadJson.key)).toEqual(keys);
       } finally {
         unsubscribe();
@@ -897,7 +958,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       });
       expect(resIdempotent.statusCode).toBe(200);
 
-      const finalSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      const finalSession = await prisma.gameSession.findUniqueOrThrow({
+        where: { id: SESSION_ID },
+      });
       expect(finalSession.eventSequence).toBe(initialSeq + 2);
     });
 
@@ -916,10 +979,16 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
           method: "PATCH",
           url: `/sessions/${SESSION_ID}`,
           headers: { cookie },
-          payload: { disableZoneIds: ["zone-b", "zone-a"], zonesClientUuid: `zones-disabled-${SESSION_ID}` },
+          payload: {
+            disableZoneIds: ["zone-b", "zone-a"],
+            zonesClientUuid: `zones-disabled-${SESSION_ID}`,
+          },
         });
         expect(res.statusCode).toBe(200);
-        expect(res.json<{ disabledZoneIds: string[] }>().disabledZoneIds).toEqual(["zone-a", "zone-b"]);
+        expect(res.json<{ disabledZoneIds: string[] }>().disabledZoneIds).toEqual([
+          "zone-a",
+          "zone-b",
+        ]);
 
         const zonesEvent = await prisma.event.findUniqueOrThrow({
           where: { clientUuid: `zones-disabled-${SESSION_ID}` },
@@ -939,14 +1008,22 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
           payload: { disableZoneIds: ["zone-a"] },
         });
         expect(resSame.statusCode).toBe(200);
-        expect(resSame.json<{ disabledZoneIds: string[] }>().disabledZoneIds).toEqual(["zone-a", "zone-b"]);
+        expect(resSame.json<{ disabledZoneIds: string[] }>().disabledZoneIds).toEqual([
+          "zone-a",
+          "zone-b",
+        ]);
         expect(broadcasted).toHaveLength(1);
 
-        const finalSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+        const finalSession = await prisma.gameSession.findUniqueOrThrow({
+          where: { id: SESSION_ID },
+        });
         expect(finalSession.eventSequence).toBe(initialSeq + 1);
       } finally {
         unsubscribe();
-        await prisma.gameSession.update({ where: { id: SESSION_ID }, data: { disabledZoneIds: [] } });
+        await prisma.gameSession.update({
+          where: { id: SESSION_ID },
+          data: { disabledZoneIds: [] },
+        });
       }
     });
 
@@ -961,7 +1038,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       });
       await prisma.game.update({ where: { id: GAME_ID }, data: { currentRevisionId: rev2.id } });
 
-      const sessionBefore = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      const sessionBefore = await prisma.gameSession.findUniqueOrThrow({
+        where: { id: SESSION_ID },
+      });
       const initialSeq = sessionBefore.eventSequence;
 
       const res = await app.inject({
@@ -981,7 +1060,9 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
       expect(upgradeEvent).not.toBeNull();
       expect(upgradeEvent?.sequence).toBe(initialSeq + 1);
 
-      const sessionAfter = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      const sessionAfter = await prisma.gameSession.findUniqueOrThrow({
+        where: { id: SESSION_ID },
+      });
       expect(sessionAfter.gameRevisionId).toBe(rev2.id);
       expect(sessionAfter.eventSequence).toBe(initialSeq + 1);
 
@@ -997,150 +1078,190 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
         gameRevisionId: rev2.id,
       });
 
-      const sessionFinal = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION_ID } });
+      const sessionFinal = await prisma.gameSession.findUniqueOrThrow({
+        where: { id: SESSION_ID },
+      });
       expect(sessionFinal.eventSequence).toBe(initialSeq + 1);
     });
 
     test.each([
       { publishAfterFirstUpgrade: false, revision: 10 },
       { publishAfterFirstUpgrade: true, revision: 20 },
-    ])("serializes delayed upgrades with publication timing $publishAfterFirstUpgrade", async ({
-      publishAfterFirstUpgrade,
-      revision,
-    }) => {
-      const initialSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION2_ID } });
-      const initialGame = await prisma.game.findUniqueOrThrow({ where: { id: GAME_ID } });
-      const target2 = await prisma.gameRevision.create({
-        data: {
-          gameId: GAME_ID,
-          revision,
-          checksum: `content-concurrent-${revision}`,
-          definition: { id: "content-game", name: "Concurrent revision", serverId: SERVER_ID },
-        },
-      });
-      const target3 = await prisma.gameRevision.create({
-        data: {
-          gameId: GAME_ID,
-          revision: revision + 1,
-          checksum: `content-concurrent-${revision + 1}`,
-          definition: { id: "content-game", name: "Latest concurrent revision", serverId: SERVER_ID },
-        },
-      });
-      await prisma.game.update({ where: { id: GAME_ID }, data: { currentRevisionId: target2.id } });
-
-      let reachedLock!: () => void;
-      const waitingForLock = new Promise<void>((resolve) => { reachedLock = resolve; });
-      let releaseLock!: () => void;
-      const lockReleased = new Promise<void>((resolve) => { releaseLock = resolve; });
-      const originalTransaction = prisma.$transaction;
-      const transact = originalTransaction.bind(prisma);
-      const transactionSpy = vi.fn(transact);
-      prisma.$transaction = transactionSpy as unknown as typeof prisma.$transaction;
-      // Pause only the first request immediately before its real row-lock query.
-      // All reads, writes and the competing request still use PostgreSQL.
-      transactionSpy.mockImplementationOnce((operation, options) =>
-        transact(async (tx) => operation(new Proxy(tx, {
-          get(target, property, receiver) {
-            if (property === "$queryRaw") {
-              return async (...args: Parameters<typeof tx.$queryRaw>) => {
-                reachedLock();
-                await lockReleased;
-                return tx.$queryRaw(...args);
-              };
-            }
-            return Reflect.get(target, property, receiver);
-          },
-        })), options),
-      );
-      const broadcasted: EventRecord[] = [];
-      const unsubscribe = subscribe(SESSION2_ID, (event) => {
-        if ("type" in event && event.type === "session.revision-upgraded") {
-          broadcasted.push(event as EventRecord);
-        }
-      });
-      const upgrade = () => app.inject({
-        method: "POST",
-        url: `/sessions/${SESSION2_ID}/upgrade-revision`,
-        headers: { cookie },
-      });
-      const delayed = upgrade().then((response) => response);
-
-      try {
-        await waitingForLock;
-        if (!publishAfterFirstUpgrade) {
-          await prisma.game.update({ where: { id: GAME_ID }, data: { currentRevisionId: target3.id } });
-        }
-        const first = await upgrade();
-        expect(first.statusCode).toBe(200);
-        expect(first.json()).toMatchObject({
-          status: "upgraded",
-          newRevision: publishAfterFirstUpgrade ? target2.revision : target3.revision,
-        });
-        if (publishAfterFirstUpgrade) {
-          await prisma.game.update({ where: { id: GAME_ID }, data: { currentRevisionId: target3.id } });
-        }
-        releaseLock();
-        const resumed = await delayed;
-        expect(resumed.statusCode).toBe(200);
-        expect(resumed.json()).toEqual(publishAfterFirstUpgrade ? {
-          status: "upgraded",
-          previousRevision: target2.revision,
-          newRevision: target3.revision,
-          gameRevisionId: target3.id,
-        } : {
-          status: "already-current",
-          newRevision: target3.revision,
-          gameRevisionId: target3.id,
-        });
-
-        const retry = await upgrade();
-        expect(retry.statusCode).toBe(200);
-        expect(retry.json()).toEqual({
-          status: "already-current",
-          newRevision: target3.revision,
-          gameRevisionId: target3.id,
-        });
-        const events = await prisma.event.findMany({
-          where: {
-            sessionId: SESSION2_ID,
-            sequence: { gt: initialSession.eventSequence },
-            type: "session.revision-upgraded",
-          },
-          orderBy: { sequence: "asc" },
-        });
-        const expectedTargets = publishAfterFirstUpgrade ? [target2, target3] : [target3];
-        expect(events.map((event) => event.payloadJson)).toEqual(expectedTargets.map((target) => ({
-          sessionId: SESSION2_ID,
-          gameRevisionId: target.id,
-          revision: target.revision,
-        })));
-        expect(events.map((event) => event.sequence)).toEqual(
-          expectedTargets.map((_, index) => initialSession.eventSequence + index + 1),
-        );
-        expect(broadcasted.map((event) => event.id)).toEqual(events.map((event) => event.id));
-        const finalSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION2_ID } });
-        expect(finalSession.gameRevisionId).toBe(target3.id);
-        expect(finalSession.eventSequence).toBe(initialSession.eventSequence + expectedTargets.length);
-      } finally {
-        releaseLock();
-        await delayed;
-        prisma.$transaction = originalTransaction;
-        unsubscribe();
-        await prisma.gameSession.update({
+    ])(
+      "serializes delayed upgrades with publication timing $publishAfterFirstUpgrade",
+      async ({ publishAfterFirstUpgrade, revision }) => {
+        const initialSession = await prisma.gameSession.findUniqueOrThrow({
           where: { id: SESSION2_ID },
-          data: { gameRevisionId: initialSession.gameRevisionId },
+        });
+        const initialGame = await prisma.game.findUniqueOrThrow({ where: { id: GAME_ID } });
+        const target2 = await prisma.gameRevision.create({
+          data: {
+            gameId: GAME_ID,
+            revision,
+            checksum: `content-concurrent-${revision}`,
+            definition: { id: "content-game", name: "Concurrent revision", serverId: SERVER_ID },
+          },
+        });
+        const target3 = await prisma.gameRevision.create({
+          data: {
+            gameId: GAME_ID,
+            revision: revision + 1,
+            checksum: `content-concurrent-${revision + 1}`,
+            definition: {
+              id: "content-game",
+              name: "Latest concurrent revision",
+              serverId: SERVER_ID,
+            },
+          },
         });
         await prisma.game.update({
           where: { id: GAME_ID },
-          data: { currentRevisionId: initialGame.currentRevisionId },
+          data: { currentRevisionId: target2.id },
         });
-        await prisma.gameRevision.deleteMany({ where: { id: { in: [target2.id, target3.id] } } });
-      }
-    });
+
+        let reachedLock!: () => void;
+        const waitingForLock = new Promise<void>((resolve) => {
+          reachedLock = resolve;
+        });
+        let releaseLock!: () => void;
+        const lockReleased = new Promise<void>((resolve) => {
+          releaseLock = resolve;
+        });
+        const originalTransaction = prisma.$transaction;
+        const transact = originalTransaction.bind(prisma);
+        const transactionSpy = vi.fn(transact);
+        prisma.$transaction = transactionSpy as unknown as typeof prisma.$transaction;
+        // Pause only the first request immediately before its real row-lock query.
+        // All reads, writes and the competing request still use PostgreSQL.
+        transactionSpy.mockImplementationOnce((operation, options) =>
+          transact(
+            async (tx) =>
+              operation(
+                new Proxy(tx, {
+                  get(target, property, receiver) {
+                    if (property === "$queryRaw") {
+                      return async (...args: Parameters<typeof tx.$queryRaw>) => {
+                        reachedLock();
+                        await lockReleased;
+                        return tx.$queryRaw(...args);
+                      };
+                    }
+                    return Reflect.get(target, property, receiver);
+                  },
+                }),
+              ),
+            options,
+          ),
+        );
+        const broadcasted: EventRecord[] = [];
+        const unsubscribe = subscribe(SESSION2_ID, (event) => {
+          if ("type" in event && event.type === "session.revision-upgraded") {
+            broadcasted.push(event as EventRecord);
+          }
+        });
+        const upgrade = () =>
+          app.inject({
+            method: "POST",
+            url: `/sessions/${SESSION2_ID}/upgrade-revision`,
+            headers: { cookie },
+          });
+        const delayed = upgrade().then((response) => response);
+
+        try {
+          await waitingForLock;
+          if (!publishAfterFirstUpgrade) {
+            await prisma.game.update({
+              where: { id: GAME_ID },
+              data: { currentRevisionId: target3.id },
+            });
+          }
+          const first = await upgrade();
+          expect(first.statusCode).toBe(200);
+          expect(first.json()).toMatchObject({
+            status: "upgraded",
+            newRevision: publishAfterFirstUpgrade ? target2.revision : target3.revision,
+          });
+          if (publishAfterFirstUpgrade) {
+            await prisma.game.update({
+              where: { id: GAME_ID },
+              data: { currentRevisionId: target3.id },
+            });
+          }
+          releaseLock();
+          const resumed = await delayed;
+          expect(resumed.statusCode).toBe(200);
+          expect(resumed.json()).toEqual(
+            publishAfterFirstUpgrade
+              ? {
+                  status: "upgraded",
+                  previousRevision: target2.revision,
+                  newRevision: target3.revision,
+                  gameRevisionId: target3.id,
+                }
+              : {
+                  status: "already-current",
+                  newRevision: target3.revision,
+                  gameRevisionId: target3.id,
+                },
+          );
+
+          const retry = await upgrade();
+          expect(retry.statusCode).toBe(200);
+          expect(retry.json()).toEqual({
+            status: "already-current",
+            newRevision: target3.revision,
+            gameRevisionId: target3.id,
+          });
+          const events = await prisma.event.findMany({
+            where: {
+              sessionId: SESSION2_ID,
+              sequence: { gt: initialSession.eventSequence },
+              type: "session.revision-upgraded",
+            },
+            orderBy: { sequence: "asc" },
+          });
+          const expectedTargets = publishAfterFirstUpgrade ? [target2, target3] : [target3];
+          expect(events.map((event) => event.payloadJson)).toEqual(
+            expectedTargets.map((target) => ({
+              sessionId: SESSION2_ID,
+              gameRevisionId: target.id,
+              revision: target.revision,
+            })),
+          );
+          expect(events.map((event) => event.sequence)).toEqual(
+            expectedTargets.map((_, index) => initialSession.eventSequence + index + 1),
+          );
+          expect(broadcasted.map((event) => event.id)).toEqual(events.map((event) => event.id));
+          const finalSession = await prisma.gameSession.findUniqueOrThrow({
+            where: { id: SESSION2_ID },
+          });
+          expect(finalSession.gameRevisionId).toBe(target3.id);
+          expect(finalSession.eventSequence).toBe(
+            initialSession.eventSequence + expectedTargets.length,
+          );
+        } finally {
+          releaseLock();
+          await delayed;
+          prisma.$transaction = originalTransaction;
+          unsubscribe();
+          await prisma.gameSession.update({
+            where: { id: SESSION2_ID },
+            data: { gameRevisionId: initialSession.gameRevisionId },
+          });
+          await prisma.game.update({
+            where: { id: GAME_ID },
+            data: { currentRevisionId: initialGame.currentRevisionId },
+          });
+          await prisma.gameRevision.deleteMany({ where: { id: { in: [target2.id, target3.id] } } });
+        }
+      },
+    );
 
     test("can recover a previously reached revision without reusing its old transition event", async () => {
       const initialGame = await prisma.game.findUniqueOrThrow({ where: { id: GAME_ID } });
-      const initialSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION2_ID } });
+      const initialSession = await prisma.gameSession.findUniqueOrThrow({
+        where: { id: SESSION2_ID },
+      });
       const target = await prisma.gameRevision.create({
         data: {
           gameId: GAME_ID,
@@ -1157,7 +1278,11 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
           userId: USER_ID,
           sequence: initialSession.eventSequence + 1,
           type: "session.revision-upgraded",
-          payloadJson: { sessionId: SESSION2_ID, gameRevisionId: target.id, revision: target.revision },
+          payloadJson: {
+            sessionId: SESSION2_ID,
+            gameRevisionId: target.id,
+            revision: target.revision,
+          },
           clientUuid: `session-revision-upgraded-${SESSION2_ID}-${target.id}`,
           clientCreatedAt: new Date(),
         },
@@ -1182,10 +1307,15 @@ describe("session-content mutations: atomicity, durability, and idempotency", ()
           where: { sessionId: SESSION2_ID, sequence: { gte: oldEvent.sequence } },
           orderBy: { sequence: "asc" },
         });
-        expect(events.map((event) => event.sequence)).toEqual([oldEvent.sequence, oldEvent.sequence + 1]);
+        expect(events.map((event) => event.sequence)).toEqual([
+          oldEvent.sequence,
+          oldEvent.sequence + 1,
+        ]);
         expect(events[1].clientUuid).not.toBe(oldEvent.clientUuid);
         expect(events[1].payloadJson).toEqual(oldEvent.payloadJson);
-        const finalSession = await prisma.gameSession.findUniqueOrThrow({ where: { id: SESSION2_ID } });
+        const finalSession = await prisma.gameSession.findUniqueOrThrow({
+          where: { id: SESSION2_ID },
+        });
         expect(finalSession.gameRevisionId).toBe(target.id);
         expect(finalSession.eventSequence).toBe(oldEvent.sequence + 1);
       } finally {
@@ -1283,10 +1413,21 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     }
     await prisma.server.create({ data: { id: SERVER, name: "Changes Server" } });
     await prisma.game.create({
-      data: { id: GAME, serverId: SERVER, name: "Changes Game", gameKey: "qchanges-game", size: "medium" },
+      data: {
+        id: GAME,
+        serverId: SERVER,
+        name: "Changes Game",
+        gameKey: "qchanges-game",
+        size: "medium",
+      },
     });
     const rev = await prisma.gameRevision.create({
-      data: { gameId: GAME, revision: 1, checksum: "qchanges-checksum", definition: { id: "qchanges-game" } },
+      data: {
+        gameId: GAME,
+        revision: 1,
+        checksum: "qchanges-checksum",
+        definition: { id: "qchanges-game" },
+      },
     });
     await prisma.gameSession.createMany({
       data: SESSIONS.map((id) => ({
@@ -1358,8 +1499,14 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     expect(res.json().changes[0].questions[0].key).toBe(EXACT_KEY);
 
     const later = await get(`?after=${second - 1}&keys=3`);
-    expect(later.json().changes.map((e: { sequence: number }) => e.sequence)).toEqual([second, third]);
-    expect(later.json().changes.map((e: { questions: unknown[] }) => e.questions)).toEqual([[c], [c]]);
+    expect(later.json().changes.map((e: { sequence: number }) => e.sequence)).toEqual([
+      second,
+      third,
+    ]);
+    expect(later.json().changes.map((e: { questions: unknown[] }) => e.questions)).toEqual([
+      [c],
+      [c],
+    ]);
     expect((await get(`?after=${third}&keys=3`)).json()).toEqual({ changes: [] });
   });
 
@@ -1378,9 +1525,13 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
         { sequence: second, userId: PLAYER, displayName: "Sam", questions: [q(2)] },
       ],
     });
-    expect((await get(`?after=${start}&until=${start}&keys=${EXACT_KEY}`)).json()).toEqual({ changes: [] });
+    expect((await get(`?after=${start}&until=${start}&keys=${EXACT_KEY}`)).json()).toEqual({
+      changes: [],
+    });
     // An `until` before `after` asks for nothing.
-    expect((await get(`?after=${second}&until=${first}&keys=${EXACT_KEY}`)).json()).toEqual({ changes: [] });
+    expect((await get(`?after=${second}&until=${first}&keys=${EXACT_KEY}`)).json()).toEqual({
+      changes: [],
+    });
   });
 
   test("picks the requested questions out of a large list, and copes with any stored shape", async () => {
@@ -1396,20 +1547,37 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     const zone = {
       id: "custom-zone",
       key: 0.123,
-      data: { polygon: Array.from({ length: 40_000 }, (_, i) => [5.123456789012345 + i * 1e-6, 50.98765432109876]) },
+      data: {
+        polygon: Array.from({ length: 40_000 }, (_, i) => [
+          5.123456789012345 + i * 1e-6,
+          50.98765432109876,
+        ]),
+      },
     };
     const wanted = { id: "radius", key: EXACT_KEY, data: { lat: 47.42790359754809 } };
     const list = (payloads: unknown[]) =>
       JSON.stringify({
         replacementId: "odd",
-        questions: payloads.map((payloadJson, ordinal) => ({ clientUuid: `odd-${ordinal}`, ordinal, payloadJson })),
+        questions: payloads.map((payloadJson, ordinal) => ({
+          clientUuid: `odd-${ordinal}`,
+          ordinal,
+          payloadJson,
+        })),
       });
     await event(1, list([zone, wanted]));
     await event(2, JSON.stringify({ replacementId: "no-list" }));
     await event(3, JSON.stringify({ questions: "not a list" }));
-    await event(4, JSON.stringify({ questions: [null, 7, "x", [], {}, { payloadJson: null }, { payloadJson: 3 }] }));
+    await event(
+      4,
+      JSON.stringify({
+        questions: [null, 7, "x", [], {}, { payloadJson: null }, { payloadJson: 3 }],
+      }),
+    );
     // Keys no double holds, and keys that aren't numbers.
-    await event(5, `{"questions":[{"payloadJson":{"key":1e400}},{"payloadJson":{"key":1e-400}},{"payloadJson":{"key":"${EXACT_KEY}"}},{"payloadJson":{"key":null}},{"payloadJson":{"key":{"n":1}}}]}`);
+    await event(
+      5,
+      `{"questions":[{"payloadJson":{"key":1e400}},{"payloadJson":{"key":1e-400}},{"payloadJson":{"key":"${EXACT_KEY}"}},{"payloadJson":{"key":null}},{"payloadJson":{"key":{"n":1}}}]}`,
+    );
     await event(6, list([wanted]));
     await prisma.gameSession.update({ where: { id: ODD_SESSION }, data: { eventSequence: 6 } });
 
@@ -1461,7 +1629,10 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     expect((await get("?after=0&keys=1", OUTSIDER)).statusCode).toBe(403);
     expect((await get("?after=0&keys=1", REVOKED)).statusCode).toBe(403);
     expect((await get("?after=0&keys=1", CREATOR, `${PREFIX}-missing`)).statusCode).toBe(404);
-    const anonymous = await app.inject({ method: "GET", url: `/sessions/${SESSION}/questions/changes?after=0&keys=1` });
+    const anonymous = await app.inject({
+      method: "GET",
+      url: `/sessions/${SESSION}/questions/changes?after=0&keys=1`,
+    });
     expect(anonymous.statusCode).toBe(401);
   });
 
@@ -1492,7 +1663,9 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
       expect({ query, status: (await get(query)).statusCode }).toEqual({ query, status: 400 });
     }
     expect((await get(`?after=0&keys=${fifty}`)).statusCode).toBe(200);
-    expect((await get(`?after=0&keys=${encodeURIComponent("-1.5e-3,.5,2.,1E+2")}`)).statusCode).toBe(200);
+    expect(
+      (await get(`?after=0&keys=${encodeURIComponent("-1.5e-3,.5,2.,1E+2")}`)).statusCode,
+    ).toBe(200);
   });
 
   test("answers at most QUESTION_CHANGES_LIMIT replacements, the oldest, and says there are more", async () => {
@@ -1503,12 +1676,18 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
         userId: CREATOR,
         sequence: i + 1,
         type: "questions.replace",
-        payloadJson: { replacementId: `busy-${i}`, questions: [{ clientUuid: `busy-${i}`, ordinal: 0, payloadJson: { key: 1, n: i } }] },
+        payloadJson: {
+          replacementId: `busy-${i}`,
+          questions: [{ clientUuid: `busy-${i}`, ordinal: 0, payloadJson: { key: 1, n: i } }],
+        },
         clientUuid: `${PREFIX}-busy-${i}`,
         clientCreatedAt: new Date(),
       })),
     });
-    await prisma.gameSession.update({ where: { id: BUSY_SESSION }, data: { eventSequence: total } });
+    await prisma.gameSession.update({
+      where: { id: BUSY_SESSION },
+      data: { eventSequence: total },
+    });
 
     const capped = (await get("?after=0&keys=1", CREATOR, BUSY_SESSION)).json();
     expect(capped.truncated).toBe(true);
@@ -1521,19 +1700,32 @@ describe("GET /sessions/:sessionId/questions/changes", () => {
     });
     expect(capped.changes.at(-1).sequence).toBe(QUESTION_CHANGES_LIMIT);
 
-    const rest = (await get(`?after=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    const rest = (
+      await get(`?after=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)
+    ).json();
     expect(rest).toEqual({
-      changes: [{ sequence: total, userId: CREATOR, displayName: "Alex", questions: [{ key: 1, n: total - 1 }] }],
+      changes: [
+        {
+          sequence: total,
+          userId: CREATOR,
+          displayName: "Alex",
+          questions: [{ key: 1, n: total - 1 }],
+        },
+      ],
     });
     const exactlyAtLimit = (await get("?after=1&keys=1", CREATOR, BUSY_SESSION)).json();
     expect(exactlyAtLimit.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
     expect(exactlyAtLimit.truncated).toBeUndefined();
 
     // `until` bounds the page before the cap does.
-    const bounded = (await get(`?after=0&until=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    const bounded = (
+      await get(`?after=0&until=${QUESTION_CHANGES_LIMIT}&keys=1`, CREATOR, BUSY_SESSION)
+    ).json();
     expect(bounded.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
     expect(bounded.truncated).toBeUndefined();
-    const boundedCapped = (await get(`?after=0&until=${total}&keys=1`, CREATOR, BUSY_SESSION)).json();
+    const boundedCapped = (
+      await get(`?after=0&until=${total}&keys=1`, CREATOR, BUSY_SESSION)
+    ).json();
     expect(boundedCapped.changes).toHaveLength(QUESTION_CHANGES_LIMIT);
     expect(boundedCapped.truncated).toBe(true);
     const few = (await get("?after=10&until=12&keys=1", CREATOR, BUSY_SESSION)).json();

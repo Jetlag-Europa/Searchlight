@@ -7,13 +7,13 @@ import { Marker, Tooltip } from "react-leaflet";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { sessionReadOnly } from "@/lib/activeSession";
 import {
-    autoSave,
-    hiderMode,
-    questionModified,
-    questions,
-    save,
-    trainStations,
-    triggerLocalRefresh,
+  autoSave,
+  hiderMode,
+  questionModified,
+  questions,
+  save,
+  trainStations,
+  triggerLocalRefresh,
 } from "@/lib/context";
 import { questionName } from "@/lib/questionNames";
 import { isZoneSizeChange } from "@/lib/zoneSize";
@@ -31,253 +31,238 @@ let isDragging = false;
 // reference changes, so share one Icon per colour instead of one per render.
 const markerIcons = new Map<string, Icon>();
 const markerIcon = (color: string): Icon => {
-    let icon = markerIcons.get(color);
-    if (!icon) {
-        icon = new Icon({
-            // pointhi/leaflet-color-markers, served with the app so the
-            // service worker precaches them (public/markers)
-            iconUrl: `/markers/marker-icon-2x-${color}.png`,
-            shadowUrl: "/markers/marker-shadow.png",
-            iconSize: [25, 41],
-            iconAnchor: [12, 41],
-            popupAnchor: [1, -34],
-            shadowSize: [41, 41],
-        });
-        markerIcons.set(color, icon);
-    }
-    return icon;
+  let icon = markerIcons.get(color);
+  if (!icon) {
+    icon = new Icon({
+      // pointhi/leaflet-color-markers, served with the app so the
+      // service worker precaches them (public/markers)
+      iconUrl: `/markers/marker-icon-2x-${color}.png`,
+      shadowUrl: "/markers/marker-shadow.png",
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+      shadowSize: [41, 41],
+    });
+    markerIcons.set(color, icon);
+  }
+  return icon;
 };
 
 const ColoredMarker = ({
-    latitude,
-    longitude,
-    color,
-    onChange,
-    questionKey,
-    sub = "",
-    name,
+  latitude,
+  longitude,
+  color,
+  onChange,
+  questionKey,
+  sub = "",
+  name,
 }: {
-    onChange: (event: DragEndEvent) => void;
-    latitude: number;
-    longitude: number;
-    color: keyof typeof ICON_COLORS;
-    questionKey: number;
-    sub?: string;
-    name?: string;
+  onChange: (event: DragEndEvent) => void;
+  latitude: number;
+  longitude: number;
+  color: keyof typeof ICON_COLORS;
+  questionKey: number;
+  sub?: string;
+  name?: string;
 }) => {
-    const $questions = useStore(questions);
-    const $hiderMode = useStore(hiderMode);
-    const $trainStations = useStore(trainStations);
-    const $autoSave = useStore(autoSave);
-    const $readOnly = useStore(sessionReadOnly);
-    const hiderLocalLocations: LocalLocation[] | undefined = useMemo(
-        () =>
-            $trainStations.length > 0
-                ? $trainStations
-                      .map((s) => {
-                          const name = extractStationLabel(s.properties) as string;
-                          const coords = s.properties.geometry.coordinates as [number, number];
-                          return { name, lat: coords[1], lng: coords[0] };
-                      })
-                      .filter((loc) => loc.name)
-                : undefined,
-        [$trainStations],
-    );
-    const [open, setOpen] = useState(false);
+  const $questions = useStore(questions);
+  const $hiderMode = useStore(hiderMode);
+  const $trainStations = useStore(trainStations);
+  const $autoSave = useStore(autoSave);
+  const $readOnly = useStore(sessionReadOnly);
+  const hiderLocalLocations: LocalLocation[] | undefined = useMemo(
+    () =>
+      $trainStations.length > 0
+        ? $trainStations
+            .map((s) => {
+              const name = extractStationLabel(s.properties) as string;
+              const coords = s.properties.geometry.coordinates as [number, number];
+              return { name, lat: coords[1], lng: coords[0] };
+            })
+            .filter((loc) => loc.name)
+        : undefined,
+    [$trainStations],
+  );
+  const [open, setOpen] = useState(false);
 
-    return (
-        <Dialog open={open} onOpenChange={setOpen}>
-            <Marker
-                position={[latitude, longitude]}
-                icon={color ? markerIcon(color) : undefined}
-                // A spectator can open a marker's question, not move it.
-                draggable={!$readOnly}
-                eventHandlers={{
-                    dragstart: () => {
-                        isDragging = true;
-                    },
-                    dragend: (x) => {
-                        onChange(x);
-                        setTimeout(() => {
-                            isDragging = false;
-                        }, 100);
-                    },
-                    click: () => {
-                        if (!isDragging) {
-                            setOpen(true);
-                        }
-                    },
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <Marker
+        position={[latitude, longitude]}
+        icon={color ? markerIcon(color) : undefined}
+        // A spectator can open a marker's question, not move it.
+        draggable={!$readOnly}
+        eventHandlers={{
+          dragstart: () => {
+            isDragging = true;
+          },
+          dragend: (x) => {
+            onChange(x);
+            setTimeout(() => {
+              isDragging = false;
+            }, 100);
+          },
+          click: () => {
+            if (!isDragging) {
+              setOpen(true);
+            }
+          },
+        }}
+      >
+        {name && (
+          <Tooltip direction="top" offset={[0, -34]}>
+            {sub ? `${name} (${sub})` : name}
+          </Tooltip>
+        )}
+      </Marker>
+      <DialogContent
+        aria-describedby={undefined}
+        className="!bg-[hsl(var(--sidebar-background))] !text-white"
+      >
+        <DialogTitle className="sr-only">{name ?? "Question"}</DialogTitle>
+        {questionKey === -1 && $hiderMode !== false && (
+          <>
+            <h2 className="text-center text-2xl font-bold font-poppins">{sub}</h2>
+            <SidebarMenu>
+              <LatitudeLongitude
+                latitude={$hiderMode.latitude}
+                longitude={$hiderMode.longitude}
+                inlineEdit
+                localLocations={hiderLocalLocations}
+                onResultSelect={() => setOpen(false)}
+                onChange={(latitude, longitude) => {
+                  hiderMode.set({
+                    latitude: latitude ?? $hiderMode.latitude,
+                    longitude: longitude ?? $hiderMode.longitude,
+                  });
                 }}
-            >
-                {name && (
-                    <Tooltip direction="top" offset={[0, -34]}>
-                        {sub ? `${name} (${sub})` : name}
-                    </Tooltip>
-                )}
-            </Marker>
-            <DialogContent aria-describedby={undefined} className="!bg-[hsl(var(--sidebar-background))] !text-white">
-                <DialogTitle className="sr-only">
-                    {name ?? "Question"}
-                </DialogTitle>
-                {questionKey === -1 && $hiderMode !== false && (
-                    <>
-                        <h2 className="text-center text-2xl font-bold font-poppins">
-                            {sub}
-                        </h2>
-                        <SidebarMenu>
-                            <LatitudeLongitude
-                                latitude={$hiderMode.latitude}
-                                longitude={$hiderMode.longitude}
-                                inlineEdit
-                                localLocations={hiderLocalLocations}
-                                onResultSelect={() => setOpen(false)}
-                                onChange={(latitude, longitude) => {
-                                    hiderMode.set({
-                                        latitude:
-                                            latitude ?? $hiderMode.latitude,
-                                        longitude:
-                                            longitude ?? $hiderMode.longitude,
-                                    });
-                                }}
-                                label="Hider Location"
-                            />
-                        </SidebarMenu>
-                    </>
-                )}
-                {$questions
-                    .filter((q) => q.key === questionKey)
-                    .map((q) => (
-                        <CardForQuestion key={q.key} question={q} sub={sub} />
-                    ))}
-                {questionKey === -1 && (
-                    <Button // If it's the hider mode marker
-                        onClick={() => {
-                            hiderMode.set(false);
-                        }}
-                        variant="destructive"
-                        className="font-semibold font-poppins"
-                    >
-                        Disable
-                    </Button>
-                )}
-                {!$autoSave && !$readOnly && (
-                    <button
-                        onClick={save}
-                        className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"
-                    >
-                        Save
-                    </button>
-                )}
-            </DialogContent>
-        </Dialog>
-    );
+                label="Hider Location"
+              />
+            </SidebarMenu>
+          </>
+        )}
+        {$questions
+          .filter((q) => q.key === questionKey)
+          .map((q) => (
+            <CardForQuestion key={q.key} question={q} sub={sub} />
+          ))}
+        {questionKey === -1 && (
+          <Button // If it's the hider mode marker
+            onClick={() => {
+              hiderMode.set(false);
+            }}
+            variant="destructive"
+            className="font-semibold font-poppins"
+          >
+            Disable
+          </Button>
+        )}
+        {!$autoSave && !$readOnly && (
+          <button
+            onClick={save}
+            className="bg-blue-600 p-2 rounded-md font-semibold font-poppins transition-shadow duration-500"
+          >
+            Save
+          </button>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
 };
 
 export const DraggableMarkers = () => {
-    useStore(triggerLocalRefresh);
-    const $questions = useStore(questions);
-    const $hiderMode = useStore(hiderMode);
+  useStore(triggerLocalRefresh);
+  const $questions = useStore(questions);
+  const $hiderMode = useStore(hiderMode);
 
-    return (
-        <Fragment>
-            {$hiderMode !== false && (
+  return (
+    <Fragment>
+      {$hiderMode !== false && (
+        <ColoredMarker
+          color="green"
+          key="hider"
+          sub="Hider Location"
+          questionKey={-1}
+          latitude={$hiderMode.latitude}
+          longitude={$hiderMode.longitude}
+          onChange={(e) => {
+            $hiderMode.latitude = e.target.getLatLng().lat ?? $hiderMode.latitude;
+            $hiderMode.longitude = e.target.getLatLng().lng ?? $hiderMode.longitude;
+
+            if (autoSave.get()) {
+              hiderMode.set({
+                ...$hiderMode,
+              });
+            } else {
+              triggerLocalRefresh.set(Math.random());
+            }
+          }}
+        />
+      )}
+      {$questions.map((question) => {
+        if (!question.data) return null;
+        if (question.data.enabled === false) return null;
+        if (isZoneSizeChange(question)) return null;
+        if (!question.data.drag) return null;
+        if (question.id === "matching" && question.data.type === "custom-zone") return null;
+
+        switch (question.id) {
+          case "radius":
+          case "tentacles":
+          case "matching":
+          case "measuring":
+            return (
+              <ColoredMarker
+                color={question.data.color}
+                key={question.key}
+                questionKey={question.key}
+                name={questionName(question.data)}
+                latitude={question.data.lat}
+                longitude={question.data.lng}
+                onChange={(e) => {
+                  question.data.lat = e.target.getLatLng().lat;
+                  question.data.lng = e.target.getLatLng().lng;
+                  questionModified();
+                }}
+              />
+            );
+          case "thermometer":
+            return (
+              <Fragment key={question.key}>
                 <ColoredMarker
-                    color="green"
-                    key="hider"
-                    sub="Hider Location"
-                    questionKey={-1}
-                    latitude={$hiderMode.latitude}
-                    longitude={$hiderMode.longitude}
-                    onChange={(e) => {
-                        $hiderMode.latitude =
-                            e.target.getLatLng().lat ?? $hiderMode.latitude;
-                        $hiderMode.longitude =
-                            e.target.getLatLng().lng ?? $hiderMode.longitude;
-
-                        if (autoSave.get()) {
-                            hiderMode.set({
-                                ...$hiderMode,
-                            });
-                        } else {
-                            triggerLocalRefresh.set(Math.random());
-                        }
-                    }}
+                  color={question.data.colorA}
+                  key={"a" + question.key.toString()}
+                  questionKey={question.key}
+                  name={questionName(question.data)}
+                  sub="Start"
+                  latitude={question.data.latA}
+                  longitude={question.data.lngA}
+                  onChange={(e) => {
+                    question.data.latA = e.target.getLatLng().lat;
+                    question.data.lngA = e.target.getLatLng().lng;
+                    questionModified();
+                  }}
                 />
-            )}
-            {$questions.map((question) => {
-                if (!question.data) return null;
-                if (question.data.enabled === false) return null;
-                if (isZoneSizeChange(question)) return null;
-                if (!question.data.drag) return null;
-                if (
-                    question.id === "matching" &&
-                    question.data.type === "custom-zone"
-                )
-                    return null;
-
-                switch (question.id) {
-                    case "radius":
-                    case "tentacles":
-                    case "matching":
-                    case "measuring":
-                        return (
-                            <ColoredMarker
-                                color={question.data.color}
-                                key={question.key}
-                                questionKey={question.key}
-                                name={questionName(question.data)}
-                                latitude={question.data.lat}
-                                longitude={question.data.lng}
-                                onChange={(e) => {
-                                    question.data.lat =
-                                        e.target.getLatLng().lat;
-                                    question.data.lng =
-                                        e.target.getLatLng().lng;
-                                    questionModified();
-                                }}
-                            />
-                        );
-                    case "thermometer":
-                        return (
-                            <Fragment key={question.key}>
-                                <ColoredMarker
-                                    color={question.data.colorA}
-                                    key={"a" + question.key.toString()}
-                                    questionKey={question.key}
-                                    name={questionName(question.data)}
-                                    sub="Start"
-                                    latitude={question.data.latA}
-                                    longitude={question.data.lngA}
-                                    onChange={(e) => {
-                                        question.data.latA =
-                                            e.target.getLatLng().lat;
-                                        question.data.lngA =
-                                            e.target.getLatLng().lng;
-                                        questionModified();
-                                    }}
-                                />
-                                <ColoredMarker
-                                    color={question.data.colorB}
-                                    key={"b" + question.key.toString()}
-                                    questionKey={question.key}
-                                    name={questionName(question.data)}
-                                    sub="End"
-                                    latitude={question.data.latB}
-                                    longitude={question.data.lngB}
-                                    onChange={(e) => {
-                                        question.data.latB =
-                                            e.target.getLatLng().lat;
-                                        question.data.lngB =
-                                            e.target.getLatLng().lng;
-                                        questionModified();
-                                    }}
-                                />
-                            </Fragment>
-                        );
-                    default:
-                        return null;
-                }
-            })}
-        </Fragment>
-    );
+                <ColoredMarker
+                  color={question.data.colorB}
+                  key={"b" + question.key.toString()}
+                  questionKey={question.key}
+                  name={questionName(question.data)}
+                  sub="End"
+                  latitude={question.data.latB}
+                  longitude={question.data.lngB}
+                  onChange={(e) => {
+                    question.data.latB = e.target.getLatLng().lat;
+                    question.data.lngB = e.target.getLatLng().lng;
+                    questionModified();
+                  }}
+                />
+              </Fragment>
+            );
+          default:
+            return null;
+        }
+      })}
+    </Fragment>
+  );
 };

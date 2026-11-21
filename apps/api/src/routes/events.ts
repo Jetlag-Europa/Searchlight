@@ -2,7 +2,14 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { subscribe, addPresence, removePresence, getPresence, registerUserStream, toEventRecord } from "../lib/broadcaster.js";
+import {
+  subscribe,
+  addPresence,
+  removePresence,
+  getPresence,
+  registerUserStream,
+  toEventRecord,
+} from "../lib/broadcaster.js";
 import type { PresenceUser, SessionRole } from "@searchlight/shared";
 import { env } from "../lib/env.js";
 import { eventForRole, resolveSessionAccess } from "../lib/session-access.js";
@@ -119,7 +126,10 @@ export async function eventRoutes(app: FastifyInstance) {
         avatarUrl: userRecord?.avatarUrl ?? "",
       };
 
-      req.log.info({ sessionId, userId: user.discordId, displayName: presenceUser.displayName }, "[sse] client connected");
+      req.log.info(
+        { sessionId, userId: user.discordId, displayName: presenceUser.displayName },
+        "[sse] client connected",
+      );
 
       // The reply is hijacked, so the CORS plugin doesn't add these.
       const corsHeaders = {
@@ -172,7 +182,10 @@ export async function eventRoutes(app: FastifyInstance) {
       const send = (chunk: string) => {
         if (reply.raw.write(chunk) || stallTimer) return;
         stallTimer = setTimeout(() => {
-          req.log.warn({ sessionId, userId: user.discordId }, "[sse] client stopped reading, closing stream");
+          req.log.warn(
+            { sessionId, userId: user.discordId },
+            "[sse] client stopped reading, closing stream",
+          );
           doClose();
           reply.raw.destroy();
         }, stallTimeout.ms);
@@ -218,7 +231,7 @@ export async function eventRoutes(app: FastifyInstance) {
       reply.raw.writeHead(200, {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        "Connection": "keep-alive",
+        Connection: "keep-alive",
         "X-Accel-Buffering": "no",
         ...corsHeaders,
       });
@@ -233,8 +246,13 @@ export async function eventRoutes(app: FastifyInstance) {
 
       // Send current presence roster to this client before registering them
       const snapshot = getPresence(sessionId);
-      req.log.info({ sessionId, presenceCount: snapshot.length }, "[sse] sending presence snapshot");
-      send(`data: ${JSON.stringify({ type: "presence.snapshot", payloadJson: { users: snapshot } })}\n\n`);
+      req.log.info(
+        { sessionId, presenceCount: snapshot.length },
+        "[sse] sending presence snapshot",
+      );
+      send(
+        `data: ${JSON.stringify({ type: "presence.snapshot", payloadJson: { users: snapshot } })}\n\n`,
+      );
 
       // Register presence — broadcasts presence.join to all subscribers including this client
       addPresence(sessionId, presenceUser);

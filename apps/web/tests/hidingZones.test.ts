@@ -4,269 +4,244 @@ import type { Polygon } from "geojson";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { compileGameDefinition } from "@/game-definition/compile";
-import {
-    hidingZoneCircles,
-    sameZones,
-    survivingHidingZones,
-} from "@/maps/geo-utils";
+import { hidingZoneCircles, sameZones, survivingHidingZones } from "@/maps/geo-utils";
 
 const district: Polygon = {
-    type: "Polygon",
-    coordinates: [
-        [
-            [10.2, 50.2],
-            [10.4, 50.2],
-            [10.4, 50.4],
-            [10.2, 50.4],
-            [10.2, 50.2],
-        ],
+  type: "Polygon",
+  coordinates: [
+    [
+      [10.2, 50.2],
+      [10.4, 50.2],
+      [10.4, 50.4],
+      [10.2, 50.4],
+      [10.2, 50.2],
     ],
+  ],
 };
 
 const game = {
-    id: "zones",
-    name: "Zones",
-    serverId: "home-games",
-    map: {
-        center: [10, 50],
-        playArea: { type: "FeatureCollection", features: [] },
-    },
-    hidingZones: {
-        radius: 500,
-        unit: "meters",
-        tierOverrides: { tram: 300 },
-        features: {
-            type: "FeatureCollection",
-            features: [
-                {
-                    type: "Feature",
-                    id: "central",
-                    geometry: { type: "Point", coordinates: [10, 50] },
-                    properties: { name: "Central", tier: "tram" },
-                },
-                {
-                    type: "Feature",
-                    id: "district",
-                    geometry: district,
-                    properties: { name: "District" },
-                },
-            ],
+  id: "zones",
+  name: "Zones",
+  serverId: "home-games",
+  map: {
+    center: [10, 50],
+    playArea: { type: "FeatureCollection", features: [] },
+  },
+  hidingZones: {
+    radius: 500,
+    unit: "meters",
+    tierOverrides: { tram: 300 },
+    features: {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          id: "central",
+          geometry: { type: "Point", coordinates: [10, 50] },
+          properties: { name: "Central", tier: "tram" },
         },
+        {
+          type: "Feature",
+          id: "district",
+          geometry: district,
+          properties: { name: "District" },
+        },
+      ],
     },
+  },
 } as unknown as GameDefinition;
 
 afterEach(() => vi.restoreAllMocks());
 
 it("draws a game's zones from its definition alone", () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    const compiled = compileGameDefinition(game);
-    const [station, polygon] = hidingZoneCircles(compiled);
+  const fetchSpy = vi.spyOn(globalThis, "fetch");
+  const compiled = compileGameDefinition(game);
+  const [station, polygon] = hidingZoneCircles(compiled);
 
-    // A station's zone is a circle of its tier's radius around it.
-    expect(station.properties.properties).toEqual({
-        id: "central",
-        name: "Central",
-        tier: "tram",
-    });
-    expect(
-        turf.distance(
-            [10, 50],
-            (station.geometry as Polygon).coordinates[0][0],
-            { units: "meters" },
-        ),
-    ).toBeCloseTo(300, 0);
+  // A station's zone is a circle of its tier's radius around it.
+  expect(station.properties.properties).toEqual({
+    id: "central",
+    name: "Central",
+    tier: "tram",
+  });
+  expect(
+    turf.distance([10, 50], (station.geometry as Polygon).coordinates[0][0], { units: "meters" }),
+  ).toBeCloseTo(300, 0);
 
-    // A polygon zone is its own area, marked by a point inside it.
-    expect(polygon.geometry).toEqual(district);
-    expect(polygon.properties.properties).toEqual({
-        id: "district",
-        name: "District",
-    });
-    expect(turf.booleanPointInPolygon(polygon.properties, district)).toBe(true);
+  // A polygon zone is its own area, marked by a point inside it.
+  expect(polygon.geometry).toEqual(district);
+  expect(polygon.properties.properties).toEqual({
+    id: "district",
+    name: "District",
+  });
+  expect(turf.booleanPointInPolygon(polygon.properties, district)).toBe(true);
 
-    // Without explicit bounds, the map frames the polygon zone too.
-    expect(compiled.bounds[2]).toBeGreaterThanOrEqual(10.4);
-    expect(compiled.bounds[3]).toBeGreaterThanOrEqual(50.4);
-    expect(fetchSpy).not.toHaveBeenCalled();
+  // Without explicit bounds, the map frames the polygon zone too.
+  expect(compiled.bounds[2]).toBeGreaterThanOrEqual(10.4);
+  expect(compiled.bounds[3]).toBeGreaterThanOrEqual(50.4);
+  expect(fetchSpy).not.toHaveBeenCalled();
 });
 
 it("numbers unnamed zones among their own kind", () => {
-    const point = (lng: number) => ({
-        type: "Feature",
-        geometry: { type: "Point", coordinates: [lng, 50] },
-        properties: {},
-    });
-    const area = { type: "Feature", geometry: district, properties: {} };
-    const compiled = compileGameDefinition({
-        ...game,
-        hidingZones: {
-            features: {
-                type: "FeatureCollection",
-                features: [area, point(10), area, point(10.1)],
-            },
-        },
-    } as unknown as GameDefinition);
+  const point = (lng: number) => ({
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [lng, 50] },
+    properties: {},
+  });
+  const area = { type: "Feature", geometry: district, properties: {} };
+  const compiled = compileGameDefinition({
+    ...game,
+    hidingZones: {
+      features: {
+        type: "FeatureCollection",
+        features: [area, point(10), area, point(10.1)],
+      },
+    },
+  } as unknown as GameDefinition);
 
-    // Adding areas doesn't renumber the stations.
-    expect(
-        compiled.hidingZones.stations?.map(({ id, name }) => [id, name]),
-    ).toEqual([
-        ["area-1", "Area 1"],
-        ["zone-1", "Station 1"],
-        ["area-2", "Area 2"],
-        ["zone-2", "Station 2"],
-    ]);
+  // Adding areas doesn't renumber the stations.
+  expect(compiled.hidingZones.stations?.map(({ id, name }) => [id, name])).toEqual([
+    ["area-1", "Area 1"],
+    ["zone-1", "Station 1"],
+    ["area-2", "Area 2"],
+    ["zone-2", "Station 2"],
+  ]);
 });
 
 it("frames the play area without explicit bounds", () => {
-    const compiled = compileGameDefinition({
-        ...game,
-        map: {
-            center: [10, 50],
-            playArea: {
-                type: "FeatureCollection",
-                features: [
-                    {
-                        type: "Feature",
-                        geometry: {
-                            type: "Polygon",
-                            coordinates: [
-                                [
-                                    [9, 49],
-                                    [11, 49],
-                                    [11, 51],
-                                    [9, 51],
-                                    [9, 49],
-                                ],
-                            ],
-                        },
-                        properties: {},
-                    },
+  const compiled = compileGameDefinition({
+    ...game,
+    map: {
+      center: [10, 50],
+      playArea: {
+        type: "FeatureCollection",
+        features: [
+          {
+            type: "Feature",
+            geometry: {
+              type: "Polygon",
+              coordinates: [
+                [
+                  [9, 49],
+                  [11, 49],
+                  [11, 51],
+                  [9, 51],
+                  [9, 49],
                 ],
+              ],
             },
-        },
-    } as unknown as GameDefinition);
+            properties: {},
+          },
+        ],
+      },
+    },
+  } as unknown as GameDefinition);
 
-    const [west, south, east, north] = compiled.bounds;
-    expect(west).toBeLessThanOrEqual(9);
-    expect(south).toBeLessThanOrEqual(49);
-    expect(east).toBeGreaterThanOrEqual(11);
-    expect(north).toBeGreaterThanOrEqual(51);
+  const [west, south, east, north] = compiled.bounds;
+  expect(west).toBeLessThanOrEqual(9);
+  expect(south).toBeLessThanOrEqual(49);
+  expect(east).toBeGreaterThanOrEqual(11);
+  expect(north).toBeGreaterThanOrEqual(51);
 });
 
 it("keeps the same zone objects across recalculations", async () => {
-    const compiled = compileGameDefinition(game);
-    const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
+  const compiled = compileGameDefinition(game);
+  const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
 
-    const first = await survivingHidingZones(compiled, [], 1, keepAll);
-    const again = await survivingHidingZones(compiled, [], 1, keepAll);
-    // A new list each time: trainStations sorts the list it's given in
-    // place, which would reorder the cache.
-    expect(again).not.toBe(first);
-    expect(again).toHaveLength(2);
-    again!.forEach((zone, i) => expect(zone).toBe(first![i]));
-    expect(sameZones([...first!].reverse(), again!)).toBe(true);
+  const first = await survivingHidingZones(compiled, [], 1, keepAll);
+  const again = await survivingHidingZones(compiled, [], 1, keepAll);
+  // A new list each time: trainStations sorts the list it's given in
+  // place, which would reorder the cache.
+  expect(again).not.toBe(first);
+  expect(again).toHaveLength(2);
+  again!.forEach((zone, i) => expect(zone).toBe(first![i]));
+  expect(sameZones([...first!].reverse(), again!)).toBe(true);
 
-    // Answered questions reuse them too.
-    const region = turf.featureCollection([turf.polygon(district.coordinates)]);
-    const answered = await survivingHidingZones(
-        compiled,
-        [{ region }],
-        1,
-        keepAll,
-    );
-    answered!.forEach((zone, i) => expect(zone).toBe(first![i]));
+  // Answered questions reuse them too.
+  const region = turf.featureCollection([turf.polygon(district.coordinates)]);
+  const answered = await survivingHidingZones(compiled, [{ region }], 1, keepAll);
+  answered!.forEach((zone, i) => expect(zone).toBe(first![i]));
 
-    // An answer that rules out a zone changes the list, not the zones left.
-    const narrowed = await survivingHidingZones(
-        compiled,
-        [{ region }],
-        1,
-        () => [1],
-    );
-    expect(narrowed).toHaveLength(1);
-    expect(narrowed![0]).toBe(first![1]);
-    expect(sameZones(first!, narrowed!)).toBe(false);
+  // An answer that rules out a zone changes the list, not the zones left.
+  const narrowed = await survivingHidingZones(compiled, [{ region }], 1, () => [1]);
+  expect(narrowed).toHaveLength(1);
+  expect(narrowed![0]).toBe(first![1]);
+  expect(sameZones(first!, narrowed!)).toBe(false);
 
-    // Another scale or game draws new zones.
-    const [resized] = (await survivingHidingZones(compiled, [], 2, keepAll))!;
-    expect(resized).not.toBe(first![0]);
-    const [recompiled] = (await survivingHidingZones(
-        compileGameDefinition(game),
-        [],
-        1,
-        keepAll,
-    ))!;
-    expect(recompiled).not.toBe(first![0]);
-    expect(recompiled).toEqual(first![0]);
+  // Another scale or game draws new zones.
+  const [resized] = (await survivingHidingZones(compiled, [], 2, keepAll))!;
+  expect(resized).not.toBe(first![0]);
+  const [recompiled] = (await survivingHidingZones(compileGameDefinition(game), [], 1, keepAll))!;
+  expect(recompiled).not.toBe(first![0]);
+  expect(recompiled).toEqual(first![0]);
 
-    // Callers that may edit them still get their own.
-    expect(hidingZoneCircles(compiled)[0]).not.toBe(first![0]);
-    expect(hidingZoneCircles(compiled)[0]).toEqual(first![0]);
+  // Callers that may edit them still get their own.
+  expect(hidingZoneCircles(compiled)[0]).not.toBe(first![0]);
+  expect(hidingZoneCircles(compiled)[0]).toEqual(first![0]);
 });
 
 it("keeps only the latest scale's zones", async () => {
-    // Every multiplier typed into a zone size change is a new scale, and
-    // each scale is a full set of zones: keep one set, not one per scale.
-    const compiled = compileGameDefinition(game);
-    const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
+  // Every multiplier typed into a zone size change is a new scale, and
+  // each scale is a full set of zones: keep one set, not one per scale.
+  const compiled = compileGameDefinition(game);
+  const keepAll = (circles: unknown[]) => circles.map((_, i) => i);
 
-    const [first] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
-    await survivingHidingZones(compiled, [], 1.5, keepAll);
-    const [back] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
-    expect(back).not.toBe(first);
-    expect(back).toEqual(first);
+  const [first] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
+  await survivingHidingZones(compiled, [], 1.5, keepAll);
+  const [back] = (await survivingHidingZones(compiled, [], 1, keepAll))!;
+  expect(back).not.toBe(first);
+  expect(back).toEqual(first);
 });
 
 it("compares zone lists by their objects, in any order", () => {
-    const [a, b] = hidingZoneCircles(compileGameDefinition(game));
-    const [c] = hidingZoneCircles(compileGameDefinition(game));
+  const [a, b] = hidingZoneCircles(compileGameDefinition(game));
+  const [c] = hidingZoneCircles(compileGameDefinition(game));
 
-    expect(sameZones([a, b], [b, a])).toBe(true);
-    expect(sameZones([], [])).toBe(true);
-    expect(sameZones([a, b], [a])).toBe(false);
-    expect(sameZones([a], [a, b])).toBe(false);
-    // An equal but new zone is a change.
-    expect(sameZones([a, b], [c, b])).toBe(false);
+  expect(sameZones([a, b], [b, a])).toBe(true);
+  expect(sameZones([], [])).toBe(true);
+  expect(sameZones([a, b], [a])).toBe(false);
+  expect(sameZones([a], [a, b])).toBe(false);
+  // An equal but new zone is a change.
+  expect(sameZones([a, b], [c, b])).toBe(false);
 });
 
 it("draws circles from each zone's resolved radius", () => {
-    const cases: Array<[string, Record<string, unknown>, number]> = [
-        ["valid-num", { radius: 0.2 }, 200],
-        ["valid-obj", { radius: { value: 250, unit: "meters" } }, 250],
-        ["bad-str", { radius: "600" }, 500],
-        ["bad-val", { radius: { value: "500", unit: "meters" }, tier: "tram" }, 300],
-        ["bad-unit", { radius: { value: 500, unit: "m" } }, 500],
-        ["bad-neg", { radius: -500, tier: 1 }, 800],
-        ["bad-zero", { radius: 0 }, 500],
-        ["proto-tier", { tier: "toString" }, 500],
-    ];
+  const cases: Array<[string, Record<string, unknown>, number]> = [
+    ["valid-num", { radius: 0.2 }, 200],
+    ["valid-obj", { radius: { value: 250, unit: "meters" } }, 250],
+    ["bad-str", { radius: "600" }, 500],
+    ["bad-val", { radius: { value: "500", unit: "meters" }, tier: "tram" }, 300],
+    ["bad-unit", { radius: { value: 500, unit: "m" } }, 500],
+    ["bad-neg", { radius: -500, tier: 1 }, 800],
+    ["bad-zero", { radius: 0 }, 500],
+    ["proto-tier", { tier: "toString" }, 500],
+  ];
 
-    const compiled = compileGameDefinition({
-        ...game,
-        hidingZones: {
-            radius: 0.5,
-            unit: "kilometers",
-            tierOverrides: { "1": 0.8, tram: 0.3 },
-            features: {
-                type: "FeatureCollection",
-                features: cases.map(([id, props]) => ({
-                    type: "Feature",
-                    id,
-                    geometry: { type: "Point", coordinates: [10, 50] },
-                    properties: { name: id, ...props },
-                })),
-            },
-        },
-    } as unknown as GameDefinition);
+  const compiled = compileGameDefinition({
+    ...game,
+    hidingZones: {
+      radius: 0.5,
+      unit: "kilometers",
+      tierOverrides: { "1": 0.8, tram: 0.3 },
+      features: {
+        type: "FeatureCollection",
+        features: cases.map(([id, props]) => ({
+          type: "Feature",
+          id,
+          geometry: { type: "Point", coordinates: [10, 50] },
+          properties: { name: id, ...props },
+        })),
+      },
+    },
+  } as unknown as GameDefinition);
 
-    const circles = hidingZoneCircles(compiled);
-    for (const [index, [, , expectedMeters]] of cases.entries()) {
-        const radiusMeters = turf.distance(
-            [10, 50],
-            (circles[index].geometry as Polygon).coordinates[0][0],
-            { units: "meters" },
-        );
-        expect(radiusMeters).toBeCloseTo(expectedMeters, 0);
-    }
+  const circles = hidingZoneCircles(compiled);
+  for (const [index, [, , expectedMeters]] of cases.entries()) {
+    const radiusMeters = turf.distance(
+      [10, 50],
+      (circles[index].geometry as Polygon).coordinates[0][0],
+      { units: "meters" },
+    );
+    expect(radiusMeters).toBeCloseTo(expectedMeters, 0);
+  }
 });

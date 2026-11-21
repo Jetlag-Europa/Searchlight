@@ -1,9 +1,9 @@
 import {
-    hiderMode,
-    mapGeoJSON,
-    polyGeoJSON,
-    questionFinishedMapData,
-    questions,
+  hiderMode,
+  mapGeoJSON,
+  polyGeoJSON,
+  questionFinishedMapData,
+  questions,
 } from "@/lib/context";
 
 /**
@@ -20,27 +20,27 @@ import {
  * flag is on, so it can never leak into production.
  */
 export function installTestHook(): void {
-    if (import.meta.env.PUBLIC_ENABLE_TEST_HOOK !== "1") return;
-    if (typeof window === "undefined") return;
+  if (import.meta.env.PUBLIC_ENABLE_TEST_HOOK !== "1") return;
+  if (typeof window === "undefined") return;
 
-    Object.defineProperty(window, "__searchlight", {
-        configurable: true,
-        value: {
-            get mapGeoJSON() {
-                return mapGeoJSON.get();
-            },
-            get polyGeoJSON() {
-                return polyGeoJSON.get();
-            },
-            get eliminationGeoJSON() {
-                return questionFinishedMapData.get();
-            },
-            get questions() {
-                return questions.get();
-            },
-            get hiderMode() {
-                return hiderMode.get();
-            },
-        },
-    });
+  Object.defineProperty(window, "__searchlight", {
+    configurable: true,
+    value: {
+      get mapGeoJSON() {
+        return mapGeoJSON.get();
+      },
+      get polyGeoJSON() {
+        return polyGeoJSON.get();
+      },
+      get eliminationGeoJSON() {
+        return questionFinishedMapData.get();
+      },
+      get questions() {
+        return questions.get();
+      },
+      get hiderMode() {
+        return hiderMode.get();
+      },
+    },
+  });
 }

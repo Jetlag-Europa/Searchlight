@@ -86,7 +86,11 @@ describe("unlisted games and game links", () => {
         },
       });
       const auth = await prisma.authSession.create({
-        data: { id: `${discordId}-auth`, userId: discordId, expiresAt: new Date(Date.now() + 86_400_000) },
+        data: {
+          id: `${discordId}-auth`,
+          userId: discordId,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
       });
       cookies[discordId] = `session=${app.signCookie(auth.id)}`;
     }
@@ -102,7 +106,13 @@ describe("unlisted games and game links", () => {
     await prisma.game.createMany({
       data: [
         { id: LISTED_GAME_ID, gameKey: LISTED_GAME_ID, serverId: SERVER_ID, name: "Listed" },
-        { id: UNLISTED_GAME_ID, gameKey: UNLISTED_GAME_ID, serverId: SERVER_ID, name: "Unlisted", unlisted: true },
+        {
+          id: UNLISTED_GAME_ID,
+          gameKey: UNLISTED_GAME_ID,
+          serverId: SERVER_ID,
+          name: "Unlisted",
+          unlisted: true,
+        },
       ],
     });
     await publishRevision(LISTED_GAME_ID, 1);
@@ -114,9 +124,21 @@ describe("unlisted games and game links", () => {
     await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
     await prisma.serverMembershipCache.createMany({
       data: [
-        { userId: MANAGER_ID, serverId: SERVER_ID, isMember: true, roles: [MANAGER_ROLE_ID], cachedAt: new Date() },
+        {
+          userId: MANAGER_ID,
+          serverId: SERVER_ID,
+          isMember: true,
+          roles: [MANAGER_ROLE_ID],
+          cachedAt: new Date(),
+        },
         { userId: PLAYER_ID, serverId: SERVER_ID, isMember: true, roles: [], cachedAt: new Date() },
-        { userId: OUTSIDER_ID, serverId: SERVER_ID, isMember: false, roles: [], cachedAt: new Date() },
+        {
+          userId: OUTSIDER_ID,
+          serverId: SERVER_ID,
+          isMember: false,
+          roles: [],
+          cachedAt: new Date(),
+        },
       ],
     });
     await prisma.game.update({ where: { id: UNLISTED_GAME_ID }, data: { unlisted: true } });
@@ -129,13 +151,21 @@ describe("unlisted games and game links", () => {
 
   const listGames = async (userId: string, includeUnlisted = false) => {
     const query = includeUnlisted ? "&includeUnlisted=true" : "";
-    const res = await app.inject({ method: "GET", url: `/games?serverId=${SERVER_ID}${query}`, headers: as(userId) });
+    const res = await app.inject({
+      method: "GET",
+      url: `/games?serverId=${SERVER_ID}${query}`,
+      headers: as(userId),
+    });
     expect(res.statusCode).toBe(200);
     return res.json().games as Array<{ id: string; unlisted: boolean }>;
   };
 
   const createLink = async (gameId: string) => {
-    const res = await app.inject({ method: "POST", url: `/games/${gameId}/links`, headers: as(MANAGER_ID) });
+    const res = await app.inject({
+      method: "POST",
+      url: `/games/${gameId}/links`,
+      headers: as(MANAGER_ID),
+    });
     expect(res.statusCode).toBe(201);
     return res.json() as { id: string; token: string; createdByDisplayName: string };
   };
@@ -180,7 +210,12 @@ describe("unlisted games and game links", () => {
 
   test("game managers can list and unlist a game; others cannot", async () => {
     const patch = (userId: string, unlisted: boolean) =>
-      app.inject({ method: "PATCH", url: `/games/${LISTED_GAME_ID}`, headers: as(userId), payload: { unlisted } });
+      app.inject({
+        method: "PATCH",
+        url: `/games/${LISTED_GAME_ID}`,
+        headers: as(userId),
+        payload: { unlisted },
+      });
 
     expect((await patch(PLAYER_ID, true)).statusCode).toBe(403);
 
@@ -214,13 +249,21 @@ describe("unlisted games and game links", () => {
     expect(link.createdByDisplayName).toBe(MANAGER_ID);
 
     const info = await app.inject({ method: "GET", url: `/game-links/${link.token}` });
-    expect(info.json()).toEqual({ valid: true, gameName: "Unlisted", serverName: "Game Link Server" });
+    expect(info.json()).toEqual({
+      valid: true,
+      gameName: "Unlisted",
+      serverName: "Game Link Server",
+    });
 
     // None of them can start a session of the unlisted game directly.
     for (const userId of [PLAYER_ID, OUTSIDER_ID, MANAGER_ID]) {
       const res = await startFromLink(link.token, userId);
       expect(res.statusCode).toBe(201);
-      expect(res.json()).toMatchObject({ gameId: UNLISTED_GAME_ID, role: "creator", name: "From link" });
+      expect(res.json()).toMatchObject({
+        gameId: UNLISTED_GAME_ID,
+        role: "creator",
+        name: "From link",
+      });
       const session = await prisma.gameSession.findUniqueOrThrow({ where: { id: res.json().id } });
       expect(session.gameLinkId).toBe(link.id);
 
@@ -244,7 +287,11 @@ describe("unlisted games and game links", () => {
       expect((await startFromLink(link.token, OUTSIDER_ID)).statusCode).toBe(201);
     }
 
-    const listed = await app.inject({ method: "GET", url: `/games/${UNLISTED_GAME_ID}/links`, headers: as(MANAGER_ID) });
+    const listed = await app.inject({
+      method: "GET",
+      url: `/games/${UNLISTED_GAME_ID}/links`,
+      headers: as(MANAGER_ID),
+    });
     expect(listed.json().links.map((l: { id: string }) => l.id)).toContain(link.id);
 
     const revoke = await app.inject({
@@ -254,9 +301,15 @@ describe("unlisted games and game links", () => {
     });
     expect(revoke.statusCode).toBe(204);
 
-    expect((await app.inject({ method: "GET", url: `/game-links/${link.token}` })).json()).toEqual({ valid: false });
+    expect((await app.inject({ method: "GET", url: `/game-links/${link.token}` })).json()).toEqual({
+      valid: false,
+    });
     expect((await startFromLink(link.token, OUTSIDER_ID)).statusCode).toBe(404);
-    const after = await app.inject({ method: "GET", url: `/games/${UNLISTED_GAME_ID}/links`, headers: as(MANAGER_ID) });
+    const after = await app.inject({
+      method: "GET",
+      url: `/games/${UNLISTED_GAME_ID}/links`,
+      headers: as(MANAGER_ID),
+    });
     expect(after.json().links.map((l: { id: string }) => l.id)).not.toContain(link.id);
     // Revoking twice, or another game's link, is a 404.
     const again = await app.inject({
@@ -296,7 +349,9 @@ describe("unlisted games and game links", () => {
   });
 
   test("an unknown link is invalid", async () => {
-    expect((await app.inject({ method: "GET", url: "/game-links/nope" })).json()).toEqual({ valid: false });
+    expect((await app.inject({ method: "GET", url: "/game-links/nope" })).json()).toEqual({
+      valid: false,
+    });
     expect((await startFromLink("nope", PLAYER_ID)).statusCode).toBe(404);
   });
 
@@ -307,13 +362,21 @@ describe("unlisted games and game links", () => {
 
     await publishRevision(UNLISTED_GAME_ID, 2);
     const upgrade = () =>
-      app.inject({ method: "POST", url: `/sessions/${sessionId}/upgrade-revision`, headers: as(OUTSIDER_ID) });
+      app.inject({
+        method: "POST",
+        url: `/sessions/${sessionId}/upgrade-revision`,
+        headers: as(OUTSIDER_ID),
+      });
 
     const res = await upgrade();
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: "upgraded", newRevision: 2 });
 
-    await app.inject({ method: "DELETE", url: `/games/${UNLISTED_GAME_ID}/links/${link.id}`, headers: as(MANAGER_ID) });
+    await app.inject({
+      method: "DELETE",
+      url: `/games/${UNLISTED_GAME_ID}/links/${link.id}`,
+      headers: as(MANAGER_ID),
+    });
     await publishRevision(UNLISTED_GAME_ID, 3);
     expect((await upgrade()).statusCode).toBe(403);
   });
@@ -332,7 +395,18 @@ describe("unlisted games and game links", () => {
           features: [
             {
               type: "Feature",
-              geometry: { type: "Polygon", coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]] },
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [0, 0],
+                    [1, 0],
+                    [1, 1],
+                    [0, 1],
+                    [0, 0],
+                  ],
+                ],
+              },
             },
           ],
         },
@@ -353,9 +427,15 @@ describe("unlisted games and game links", () => {
       });
       expect(create.statusCode, create.body).toBe(201);
       const importedId = create.json().gameId;
-      expect((await prisma.game.findUniqueOrThrow({ where: { id: importedId } })).unlisted).toBe(true);
+      expect((await prisma.game.findUniqueOrThrow({ where: { id: importedId } })).unlisted).toBe(
+        true,
+      );
       // Links are addressed by the game's id only.
-      const byKey = await app.inject({ method: "GET", url: `/games/${gameKey}/links`, headers: as(MANAGER_ID) });
+      const byKey = await app.inject({
+        method: "GET",
+        url: `/games/${gameKey}/links`,
+        headers: as(MANAGER_ID),
+      });
       expect(byKey.statusCode).toBe(404);
 
       await prisma.game.update({ where: { id: importedId }, data: { unlisted: false } });
@@ -366,7 +446,9 @@ describe("unlisted games and game links", () => {
         payload: definition("Imported v2"),
       });
       expect(update.statusCode, update.body).toBe(200);
-      expect((await prisma.game.findUniqueOrThrow({ where: { id: importedId } })).unlisted).toBe(false);
+      expect((await prisma.game.findUniqueOrThrow({ where: { id: importedId } })).unlisted).toBe(
+        false,
+      );
     } finally {
       const game = await prisma.game.findFirst({ where: { gameKey, serverId: SERVER_ID } });
       if (game) {

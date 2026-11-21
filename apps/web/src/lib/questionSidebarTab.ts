@@ -18,12 +18,12 @@ export const questionCardToShow = atom<number | null>(null);
  * scrolled to it.
  */
 export function showQuestionCard(key: number): void {
-    questionSidebarTab.set("questions");
-    questionCardToShow.set(key);
-    const sidebar = sidebarContextL.get();
-    if (sidebar.isMobile) {
-        if (!sidebar.openMobile) sidebar.setOpenMobile(true);
-    } else if (!sidebar.open) {
-        sidebar.setOpen(true);
-    }
+  questionSidebarTab.set("questions");
+  questionCardToShow.set(key);
+  const sidebar = sidebarContextL.get();
+  if (sidebar.isMobile) {
+    if (!sidebar.openMobile) sidebar.setOpenMobile(true);
+  } else if (!sidebar.open) {
+    sidebar.setOpen(true);
+  }
 }

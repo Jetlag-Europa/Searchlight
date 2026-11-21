@@ -35,7 +35,15 @@ function definition(name: string, size?: "small" | "medium" | "large") {
             type: "Feature",
             geometry: {
               type: "Polygon",
-              coordinates: [[[0, 0], [1, 0], [1, 1], [0, 1], [0, 0]]],
+              coordinates: [
+                [
+                  [0, 0],
+                  [1, 0],
+                  [1, 1],
+                  [0, 1],
+                  [0, 0],
+                ],
+              ],
             },
           },
         ],
@@ -112,7 +120,11 @@ describe("PATCH /games/:gameId/settings", () => {
         },
       });
       const auth = await prisma.authSession.create({
-        data: { id: `${discordId}-auth`, userId: discordId, expiresAt: new Date(Date.now() + 86_400_000) },
+        data: {
+          id: `${discordId}-auth`,
+          userId: discordId,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
       });
       cookies[discordId] = `session=${app.signCookie(auth.id)}`;
     }
@@ -132,10 +144,28 @@ describe("PATCH /games/:gameId/settings", () => {
     await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
     await prisma.serverMembershipCache.createMany({
       data: [
-        { userId: EDITOR_ID, serverId: SERVER_ID, isMember: true, roles: [EDIT_ROLE_ID], cachedAt: new Date() },
-        { userId: CREATOR_ID, serverId: SERVER_ID, isMember: true, roles: [CREATE_ROLE_ID], cachedAt: new Date() },
+        {
+          userId: EDITOR_ID,
+          serverId: SERVER_ID,
+          isMember: true,
+          roles: [EDIT_ROLE_ID],
+          cachedAt: new Date(),
+        },
+        {
+          userId: CREATOR_ID,
+          serverId: SERVER_ID,
+          isMember: true,
+          roles: [CREATE_ROLE_ID],
+          cachedAt: new Date(),
+        },
         { userId: MEMBER_ID, serverId: SERVER_ID, isMember: true, roles: [], cachedAt: new Date() },
-        { userId: ADMIN_ID, serverId: SERVER_ID, isMember: true, roles: [ADMIN_ROLE_ID], cachedAt: new Date() },
+        {
+          userId: ADMIN_ID,
+          serverId: SERVER_ID,
+          isMember: true,
+          roles: [ADMIN_ROLE_ID],
+          cachedAt: new Date(),
+        },
       ],
     });
   });
@@ -191,13 +221,18 @@ describe("PATCH /games/:gameId/settings", () => {
       name: "Brand New Name",
       serverId: SERVER_ID,
     });
-    expect(await prisma.game.count({ where: { gameKey: { startsWith: `${KEY_PREFIX}rename` } } })).toBe(1);
+    expect(
+      await prisma.game.count({ where: { gameKey: { startsWith: `${KEY_PREFIX}rename` } } }),
+    ).toBe(1);
     expect(await prisma.game.count({ where: { gameKey: "brand-new-name" } })).toBe(0);
   });
 
   test("a size change updates the definition and the game", async () => {
     const game = await createGame("Test GSettings Size");
-    const res = await patch(EDITOR_ID, game.id, { baseRevisionId: game.currentRevisionId, size: "large" });
+    const res = await patch(EDITOR_ID, game.id, {
+      baseRevisionId: game.currentRevisionId,
+      size: "large",
+    });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: "updated", revision: 2, game: { size: "large" } });
     const [, rev2] = await revisionsOf(game.id);
@@ -222,7 +257,10 @@ describe("PATCH /games/:gameId/settings", () => {
 
   test("medium on a definition without a size is unchanged", async () => {
     const game = await createGame("Test GSettings Default Size");
-    const res = await patch(EDITOR_ID, game.id, { baseRevisionId: game.currentRevisionId, size: "medium" });
+    const res = await patch(EDITOR_ID, game.id, {
+      baseRevisionId: game.currentRevisionId,
+      size: "medium",
+    });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ status: "unchanged", revision: 1 });
   });
@@ -230,7 +268,10 @@ describe("PATCH /games/:gameId/settings", () => {
   test("a name's length is checked once trimmed", async () => {
     const game = await createGame("Test GSettings Padded");
     const name = "x".repeat(120);
-    const res = await patch(EDITOR_ID, game.id, { baseRevisionId: game.currentRevisionId, name: `  ${name}  ` });
+    const res = await patch(EDITOR_ID, game.id, {
+      baseRevisionId: game.currentRevisionId,
+      name: `  ${name}  `,
+    });
     expect(res.statusCode).toBe(200);
     expect(res.json().game.name).toBe(name);
   });
@@ -259,9 +300,15 @@ describe("PATCH /games/:gameId/settings", () => {
     const blank = await patch(EDITOR_ID, game.id, { baseRevisionId: base, name: "   " });
     expect(blank.statusCode).toBe(400);
     expect(blank.json().message).toMatch(/name/i);
-    expect((await patch(EDITOR_ID, game.id, { baseRevisionId: base, unlisted: true })).statusCode).toBe(400);
-    expect((await patch(EDITOR_ID, game.id, { baseRevisionId: base, size: "huge" })).statusCode).toBe(400);
-    expect((await patch(EDITOR_ID, game.id, { baseRevisionId: base, name: "x".repeat(121) })).statusCode).toBe(400);
+    expect(
+      (await patch(EDITOR_ID, game.id, { baseRevisionId: base, unlisted: true })).statusCode,
+    ).toBe(400);
+    expect(
+      (await patch(EDITOR_ID, game.id, { baseRevisionId: base, size: "huge" })).statusCode,
+    ).toBe(400);
+    expect(
+      (await patch(EDITOR_ID, game.id, { baseRevisionId: base, name: "x".repeat(121) })).statusCode,
+    ).toBe(400);
     expect((await patch(EDITOR_ID, game.id, { name: "No Base" })).statusCode).toBe(400);
     expect((await revisionsOf(game.id)).length).toBe(1);
 
@@ -278,7 +325,10 @@ describe("PATCH /games/:gameId/settings", () => {
       data: { archivedAt, preloadChecksum: "preloaded-file-checksum" },
     });
 
-    const res = await patch(EDITOR_ID, game.id, { baseRevisionId: game.currentRevisionId, size: "large" });
+    const res = await patch(EDITOR_ID, game.id, {
+      baseRevisionId: game.currentRevisionId,
+      size: "large",
+    });
     expect(res.statusCode).toBe(200);
     expect(res.json().game.archivedAt).toBe(archivedAt.toISOString());
     const after = await prisma.game.findUniqueOrThrow({ where: { id: game.id } });

@@ -51,7 +51,12 @@ async function cleanup() {
   await prisma.user.deleteMany({ where: { discordId: { in: USERS } } });
 }
 
-async function createSession(id: string, createdAt: Date, revisionId: string, gameId = BUSY_GAME_ID) {
+async function createSession(
+  id: string,
+  createdAt: Date,
+  revisionId: string,
+  gameId = BUSY_GAME_ID,
+) {
   await prisma.gameSession.create({
     data: {
       id,
@@ -115,7 +120,12 @@ describe("GET /games/stats", () => {
     });
     const createRevision = (gameId: string) =>
       prisma.gameRevision.create({
-        data: { gameId, revision: 1, checksum: `${gameId}-r1`, definition: { id: gameId, name: gameId, serverId: SERVER_ID } },
+        data: {
+          gameId,
+          revision: 1,
+          checksum: `${gameId}-r1`,
+          definition: { id: gameId, name: gameId, serverId: SERVER_ID },
+        },
       });
     const revision = await createRevision(BUSY_GAME_ID);
 
@@ -124,7 +134,12 @@ describe("GET /games/stats", () => {
     await createSession(OLD_SESSION_ID, new Date(Date.now() - 20 * DAY), revision.id);
     // Created 20 hours ago and never changed: its creation is its last activity.
     newSessionCreatedAt = new Date(Date.now() - (20 * DAY) / 24);
-    await createSession(NEW_SESSION_ID, newSessionCreatedAt, (await createRevision(NEW_GAME_ID)).id, NEW_GAME_ID);
+    await createSession(
+      NEW_SESSION_ID,
+      newSessionCreatedAt,
+      (await createRevision(NEW_GAME_ID)).id,
+      NEW_GAME_ID,
+    );
     await prisma.event.createMany({
       data: [
         { sessionId: RECENT_SESSION_ID, at: Date.now() - DAY / 24 },
@@ -155,8 +170,20 @@ describe("GET /games/stats", () => {
     await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
     await prisma.serverMembershipCache.createMany({
       data: [
-        { userId: ADMIN_ID, serverId: SERVER_ID, isMember: true, roles: [ADMIN_ROLE_ID], cachedAt: new Date() },
-        { userId: MANAGER_ID, serverId: SERVER_ID, isMember: true, roles: [MANAGER_ROLE_ID], cachedAt: new Date() },
+        {
+          userId: ADMIN_ID,
+          serverId: SERVER_ID,
+          isMember: true,
+          roles: [ADMIN_ROLE_ID],
+          cachedAt: new Date(),
+        },
+        {
+          userId: MANAGER_ID,
+          serverId: SERVER_ID,
+          isMember: true,
+          roles: [MANAGER_ROLE_ID],
+          cachedAt: new Date(),
+        },
         { userId: PLAYER_A, serverId: SERVER_ID, isMember: true, roles: [], cachedAt: new Date() },
       ],
     });
@@ -171,7 +198,11 @@ describe("GET /games/stats", () => {
     app.inject({ method: "GET", url: `/games/stats?serverId=${serverId}`, headers: as(userId) });
 
   test("sums each game's sessions for a server admin", async () => {
-    const user = { userId: PLAYER_A, displayName: PLAYER_A, avatarUrl: "https://example.com/a.png" };
+    const user = {
+      userId: PLAYER_A,
+      displayName: PLAYER_A,
+      avatarUrl: "https://example.com/a.png",
+    };
     addPresence(RECENT_SESSION_ID, user);
     addPresence(RECENT_SESSION_ID, user); // a second tab
     try {
@@ -209,7 +240,13 @@ describe("GET /games/stats", () => {
       });
 
       // Nothing that leads to a session or a player.
-      for (const secret of [RECENT_SESSION_ID, OLD_SESSION_ID, NEW_SESSION_ID, PLAYER_A, PLAYER_B]) {
+      for (const secret of [
+        RECENT_SESSION_ID,
+        OLD_SESSION_ID,
+        NEW_SESSION_ID,
+        PLAYER_A,
+        PLAYER_B,
+      ]) {
         expect(res.body).not.toContain(secret);
       }
     } finally {
@@ -227,15 +264,25 @@ describe("GET /games/stats", () => {
         acceptedAt: new Date(),
       })),
     });
-    const viewer = { userId: VIEWER_ID, displayName: VIEWER_ID, avatarUrl: "https://example.com/a.png" };
-    const player = { userId: PLAYER_B, displayName: PLAYER_B, avatarUrl: "https://example.com/a.png" };
+    const viewer = {
+      userId: VIEWER_ID,
+      displayName: VIEWER_ID,
+      avatarUrl: "https://example.com/a.png",
+    };
+    const player = {
+      userId: PLAYER_B,
+      displayName: PLAYER_B,
+      avatarUrl: "https://example.com/a.png",
+    };
     addPresence(RECENT_SESSION_ID, player);
     addPresence(RECENT_SESSION_ID, viewer);
     // Only watched: not live.
     addPresence(OLD_SESSION_ID, viewer);
     try {
       const res = await getStats(ADMIN_ID);
-      const busy = (res.json().stats as Array<Record<string, unknown>>).find((s) => s.gameId === BUSY_GAME_ID);
+      const busy = (res.json().stats as Array<Record<string, unknown>>).find(
+        (s) => s.gameId === BUSY_GAME_ID,
+      );
       expect(busy).toMatchObject({ liveSessions: 1, livePlayers: 1, players: 2 });
     } finally {
       removePresence(RECENT_SESSION_ID, PLAYER_B);

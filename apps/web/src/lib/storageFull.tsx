@@ -9,30 +9,30 @@ const TEXT = "This device's storage is full, so your last change wasn't saved.";
  * until it is: meanwhile the edit holds the board (see queueEdit).
  */
 export function sayStorageFull(retry?: () => boolean): void {
-    if (!retry) {
-        toast.error(TEXT, { toastId: "storage-full", autoClose: false });
-        return;
-    }
-    toast.error(
-        ({ closeToast }) => (
-            <div className="flex w-full items-center gap-2">
-                <span className="min-w-0 flex-1 break-words">{TEXT}</span>
-                <button
-                    className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
-                    onClick={() => {
-                        if (retry()) closeToast();
-                    }}
-                >
-                    Retry
-                </button>
-            </div>
-        ),
-        {
-            toastId: "storage-full-retry",
-            autoClose: false,
-            closeButton: false,
-            closeOnClick: false,
-            draggable: false,
-        },
-    );
+  if (!retry) {
+    toast.error(TEXT, { toastId: "storage-full", autoClose: false });
+    return;
+  }
+  toast.error(
+    ({ closeToast }) => (
+      <div className="flex w-full items-center gap-2">
+        <span className="min-w-0 flex-1 break-words">{TEXT}</span>
+        <button
+          className="min-h-9 shrink-0 rounded-md border border-current px-3 text-sm font-semibold"
+          onClick={() => {
+            if (retry()) closeToast();
+          }}
+        >
+          Retry
+        </button>
+      </div>
+    ),
+    {
+      toastId: "storage-full-retry",
+      autoClose: false,
+      closeButton: false,
+      closeOnClick: false,
+      draggable: false,
+    },
+  );
 }

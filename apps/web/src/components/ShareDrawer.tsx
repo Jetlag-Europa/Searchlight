@@ -1,25 +1,25 @@
 import { useStore } from "@nanostores/react";
 import type {
-    CreateLinkResponse,
-    GameSessionSummary,
-    SessionLinksResponse,
-    SessionLinkSummary,
+  CreateLinkResponse,
+  GameSessionSummary,
+  SessionLinksResponse,
+  SessionLinkSummary,
 } from "@searchlight/shared";
 import { useCallback, useRef, useState } from "react";
 
 import {
-    sessionLinkUrl,
-    UncopiedLinkField,
-    useCopyLink,
-    withCreatedLinks,
+  sessionLinkUrl,
+  UncopiedLinkField,
+  useCopyLink,
+  withCreatedLinks,
 } from "@/components/CopyLink";
 import { Button } from "@/components/ui/button";
 import {
-    Drawer,
-    DrawerContent,
-    DrawerHeader,
-    DrawerTitle,
-    DrawerTrigger,
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
 } from "@/components/ui/drawer";
 import { activeSessionData } from "@/lib/activeSession";
 import { cn } from "@/lib/utils";
@@ -27,200 +27,198 @@ import { cn } from "@/lib/utils";
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 
 async function errorMessage(res: Response): Promise<string> {
-    const body = await res.json().catch(() => null) as { message?: string } | null;
-    return body?.message ?? `Request failed (${res.status})`;
+  const body = (await res.json().catch(() => null)) as { message?: string } | null;
+  return body?.message ?? `Request failed (${res.status})`;
 }
 
 export function ShareDrawer({ className, onOpen }: { className?: string; onOpen?: () => void }) {
-    const session = useStore(activeSessionData);
-    if (session?.role !== "creator") return null;
-    // Keyed so a session switch never shows, copies or revokes the old session's links.
-    return <SessionShareDrawer key={session.id} session={session} className={className} onOpen={onOpen} />;
+  const session = useStore(activeSessionData);
+  if (session?.role !== "creator") return null;
+  // Keyed so a session switch never shows, copies or revokes the old session's links.
+  return (
+    <SessionShareDrawer key={session.id} session={session} className={className} onOpen={onOpen} />
+  );
 }
 
 function SessionShareDrawer({
-    session,
-    className,
-    onOpen,
+  session,
+  className,
+  onOpen,
 }: {
-    session: GameSessionSummary;
-    className?: string;
-    onOpen?: () => void;
+  session: GameSessionSummary;
+  className?: string;
+  onOpen?: () => void;
 }) {
-    const [open, setOpen] = useState(false);
-    const [sendError, setSendError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
 
-    const [links, setLinks] = useState<SessionLinkSummary[]>([]);
-    const [loadingLinks, setLoadingLinks] = useState(false);
-    const [creatingLink, setCreatingLink] = useState(false);
-    const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
-    const { copiedId: copiedLinkId, uncopiedUrl, setUncopiedUrl, copyLink } = useCopyLink();
-    // Links created since the list started loading.
-    const createdLinkIds = useRef(new Set<string>());
+  const [links, setLinks] = useState<SessionLinkSummary[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
+  const [creatingLink, setCreatingLink] = useState(false);
+  const [revokingLinkId, setRevokingLinkId] = useState<string | null>(null);
+  const { copiedId: copiedLinkId, uncopiedUrl, setUncopiedUrl, copyLink } = useCopyLink();
+  // Links created since the list started loading.
+  const createdLinkIds = useRef(new Set<string>());
 
-    const fetchLinks = useCallback(async () => {
-        setLoadingLinks(true);
-        createdLinkIds.current.clear();
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
-                credentials: "include",
-            });
-            if (!res.ok) return;
-            const data: SessionLinksResponse = await res.json();
-            const loaded = data.links.filter((l) => l.linkType === "fork");
-            setLinks((prev) => withCreatedLinks(loaded, prev, createdLinkIds.current));
-        } catch {
-            // non-critical
-        } finally {
-            setLoadingLinks(false);
-        }
-    }, [session.id]);
+  const fetchLinks = useCallback(async () => {
+    setLoadingLinks(true);
+    createdLinkIds.current.clear();
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
+        credentials: "include",
+      });
+      if (!res.ok) return;
+      const data: SessionLinksResponse = await res.json();
+      const loaded = data.links.filter((l) => l.linkType === "fork");
+      setLinks((prev) => withCreatedLinks(loaded, prev, createdLinkIds.current));
+    } catch {
+      // non-critical
+    } finally {
+      setLoadingLinks(false);
+    }
+  }, [session.id]);
 
-    const handleCreateLink = async () => {
-        setCreatingLink(true);
-        setSendError(null);
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
-                method: "POST",
-                credentials: "include",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ linkType: "fork" }),
-            });
-            if (!res.ok) {
-                setSendError(await errorMessage(res));
-                return;
-            }
-            const data: CreateLinkResponse = await res.json();
-            // The board moved to another session meanwhile: don't copy this link.
-            if (activeSessionData.get()?.id !== session.id) return;
-            // Listed right away, so its "Copied!" shows for the full 2 s.
-            createdLinkIds.current.add(data.id);
-            setLinks((prev) => [
-                {
-                    id: data.id,
-                    token: data.token,
-                    linkType: "fork",
-                    createdAt: new Date().toISOString(),
-                },
-                ...prev,
-            ]);
-            await copyLink(data.id, sessionLinkUrl(data.token));
-        } catch {
-            setSendError("Could not create the link. Check your connection.");
-        } finally {
-            setCreatingLink(false);
-        }
-    };
+  const handleCreateLink = async () => {
+    setCreatingLink(true);
+    setSendError(null);
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${session.id}/links`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkType: "fork" }),
+      });
+      if (!res.ok) {
+        setSendError(await errorMessage(res));
+        return;
+      }
+      const data: CreateLinkResponse = await res.json();
+      // The board moved to another session meanwhile: don't copy this link.
+      if (activeSessionData.get()?.id !== session.id) return;
+      // Listed right away, so its "Copied!" shows for the full 2 s.
+      createdLinkIds.current.add(data.id);
+      setLinks((prev) => [
+        {
+          id: data.id,
+          token: data.token,
+          linkType: "fork",
+          createdAt: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+      await copyLink(data.id, sessionLinkUrl(data.token));
+    } catch {
+      setSendError("Could not create the link. Check your connection.");
+    } finally {
+      setCreatingLink(false);
+    }
+  };
 
-    const handleRevokeLink = async (linkId: string, token: string) => {
-        setRevokingLinkId(linkId);
-        setSendError(null);
-        try {
-            const res = await fetch(`${API_BASE}/sessions/${session.id}/links/${linkId}`, {
-                method: "DELETE",
-                credentials: "include",
-            });
-            // A 404 means it is already gone.
-            if (!res.ok && res.status !== 404) {
-                setSendError(await errorMessage(res));
-                return;
-            }
-            setLinks((prev) => prev.filter((l) => l.id !== linkId));
-            const url = sessionLinkUrl(token);
-            setUncopiedUrl((u) => (u === url ? null : u));
-        } catch {
-            setSendError("Could not revoke the link. Check your connection.");
-        } finally {
-            setRevokingLinkId(null);
-        }
-    };
+  const handleRevokeLink = async (linkId: string, token: string) => {
+    setRevokingLinkId(linkId);
+    setSendError(null);
+    try {
+      const res = await fetch(`${API_BASE}/sessions/${session.id}/links/${linkId}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      // A 404 means it is already gone.
+      if (!res.ok && res.status !== 404) {
+        setSendError(await errorMessage(res));
+        return;
+      }
+      setLinks((prev) => prev.filter((l) => l.id !== linkId));
+      const url = sessionLinkUrl(token);
+      setUncopiedUrl((u) => (u === url ? null : u));
+    } catch {
+      setSendError("Could not revoke the link. Check your connection.");
+    } finally {
+      setRevokingLinkId(null);
+    }
+  };
 
-    // ── Drawer open/close ─────────────────────────────────────────────────────
-    const handleOpenChange = (v: boolean) => {
-        setOpen(v);
-        setUncopiedUrl(null);
-        if (v) {
-            onOpen?.();
-            fetchLinks();
-        } else {
-            setSendError(null);
-        }
-    };
+  // ── Drawer open/close ─────────────────────────────────────────────────────
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    setUncopiedUrl(null);
+    if (v) {
+      onOpen?.();
+      fetchLinks();
+    } else {
+      setSendError(null);
+    }
+  };
 
-    return (
-        <Drawer open={open} onOpenChange={handleOpenChange}>
-            <DrawerTrigger asChild>
-                <Button className={cn(className)}>
-                    Share a copy
-                </Button>
-            </DrawerTrigger>
-            <DrawerContent aria-describedby={undefined}>
-                <DrawerHeader>
-                    <DrawerTitle>
-                        Share a copy of <span className="text-muted-foreground font-normal">{session.name}</span>
-                    </DrawerTitle>
-                </DrawerHeader>
+  return (
+    <Drawer open={open} onOpenChange={handleOpenChange}>
+      <DrawerTrigger asChild>
+        <Button className={cn(className)}>Share a copy</Button>
+      </DrawerTrigger>
+      <DrawerContent aria-describedby={undefined}>
+        <DrawerHeader>
+          <DrawerTitle>
+            Share a copy of{" "}
+            <span className="text-muted-foreground font-normal">{session.name}</span>
+          </DrawerTitle>
+        </DrawerHeader>
 
-                <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto">
-                    {sendError && (
-                        <p className="text-xs text-destructive mb-3">{sendError}</p>
-                    )}
+        <div className="px-4 pb-6 max-h-[70vh] overflow-y-auto">
+          {sendError && <p className="text-xs text-destructive mb-3">{sendError}</p>}
 
-                    <div className="space-y-3">
-                        <p className="text-xs text-muted-foreground">
-                            Anyone with this link gets their own private copy of this session’s questions as they are now. It does not let them into this session.
-                        </p>
+          <div className="space-y-3">
+            <p className="text-xs text-muted-foreground">
+              Anyone with this link gets their own private copy of this session’s questions as they
+              are now. It does not let them into this session.
+            </p>
 
-                        <Button
-                            className="w-full"
-                            disabled={creatingLink}
-                            onClick={handleCreateLink}
-                        >
-                            {creatingLink ? "Creating…" : "Create share link"}
-                        </Button>
+            <Button className="w-full" disabled={creatingLink} onClick={handleCreateLink}>
+              {creatingLink ? "Creating…" : "Create share link"}
+            </Button>
 
-                        <UncopiedLinkField url={uncopiedUrl} />
+            <UncopiedLinkField url={uncopiedUrl} />
 
-                        {loadingLinks && links.length === 0 && (
-                            <p className="text-xs text-muted-foreground">Loading…</p>
-                        )}
-                        {links.length > 0 && (
-                            <div className="space-y-1.5">
-                                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Active links</p>
-                                {links.map((l) => (
-                                    <div
-                                        key={l.id}
-                                        className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
-                                    >
-                                        <p className="text-xs text-muted-foreground truncate">
-                                            Created {new Date(l.createdAt).toLocaleDateString()}
-                                        </p>
-                                        <div className="flex gap-1.5 shrink-0">
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                className="text-xs"
-                                                onClick={() => copyLink(l.id, sessionLinkUrl(l.token))}
-                                            >
-                                                {copiedLinkId === l.id ? "Copied!" : "Copy"}
-                                            </Button>
-                                            <Button
-                                                size="sm"
-                                                variant="ghost"
-                                                disabled={revokingLinkId === l.id}
-                                                onClick={() => handleRevokeLink(l.id, l.token)}
-                                                className="text-muted-foreground hover:text-destructive"
-                                            >
-                                                {revokingLinkId === l.id ? "…" : "Revoke"}
-                                            </Button>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+            {loadingLinks && links.length === 0 && (
+              <p className="text-xs text-muted-foreground">Loading…</p>
+            )}
+            {links.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">
+                  Active links
+                </p>
+                {links.map((l) => (
+                  <div
+                    key={l.id}
+                    className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2"
+                  >
+                    <p className="text-xs text-muted-foreground truncate">
+                      Created {new Date(l.createdAt).toLocaleDateString()}
+                    </p>
+                    <div className="flex gap-1.5 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs"
+                        onClick={() => copyLink(l.id, sessionLinkUrl(l.token))}
+                      >
+                        {copiedLinkId === l.id ? "Copied!" : "Copy"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={revokingLinkId === l.id}
+                        onClick={() => handleRevokeLink(l.id, l.token)}
+                        className="text-muted-foreground hover:text-destructive"
+                      >
+                        {revokingLinkId === l.id ? "…" : "Revoke"}
+                      </Button>
                     </div>
-                </div>
-            </DrawerContent>
-        </Drawer>
-    );
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
 }

@@ -1,10 +1,5 @@
 import { useStore } from "@nanostores/react";
-import {
-    ClipboardCopyIcon,
-    ClipboardPasteIcon,
-    EditIcon,
-    LocateIcon,
-} from "lucide-react";
+import { ClipboardCopyIcon, ClipboardPasteIcon, EditIcon, LocateIcon } from "lucide-react";
 import { OpenLocationCode } from "open-location-code";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
@@ -20,630 +15,536 @@ import { determineName, geocode, ICON_COLORS } from "@/maps/api";
 
 import { Button } from "./ui/button";
 import {
-    Command,
-    CommandEmpty,
-    CommandGroup,
-    CommandInput,
-    CommandItem,
-    CommandList,
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
 } from "./ui/command";
 import {
-    Dialog,
-    DialogClose,
-    DialogContent,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "./ui/dialog";
 import { Separator } from "./ui/separator";
 import { SidebarMenuItem } from "./ui/sidebar";
 
 export const parseCoordinatesFromText = (
-    text: string,
+  text: string,
 ): { lat: number | null; lng: number | null } => {
-    // Format: decimal degrees (e.g., 37.7749, -122.4194 or 37,7749, -122,4194)
-    const decimalPattern = /(-?\d+[.,]\d+)\s*,\s*(-?\d+[.,]\d+)/;
+  // Format: decimal degrees (e.g., 37.7749, -122.4194 or 37,7749, -122,4194)
+  const decimalPattern = /(-?\d+[.,]\d+)\s*,\s*(-?\d+[.,]\d+)/;
 
-    // Format: degrees, minutes, seconds (e.g., 37°46'26"N, 122°25'10"W)
-    const dmsPattern =
-        /(\d+)°\s*(\d+)['′]?\s*(?:(\d+(?:\.\d+)?)["″]?\s*)?([NS])[,\s]+(\d+)°\s*(\d+)['′]?\s*(?:(\d+(?:\.\d+)?)["″]?\s*)?([EW])/i;
+  // Format: degrees, minutes, seconds (e.g., 37°46'26"N, 122°25'10"W)
+  const dmsPattern =
+    /(\d+)°\s*(\d+)['′]?\s*(?:(\d+(?:\.\d+)?)["″]?\s*)?([NS])[,\s]+(\d+)°\s*(\d+)['′]?\s*(?:(\d+(?:\.\d+)?)["″]?\s*)?([EW])/i;
 
-    // Format: decimal degrees with cardinal directions (e.g., 48,89607° N, 9,09885° E or 48.89607° N, 9.09885° E)
-    const decimalCardinalPattern =
-        /(\d+[.,]\d+)°\s*([NS])\s*,\s*(\d+[.,]\d+)°\s*([EW])/i;
+  // Format: decimal degrees with cardinal directions (e.g., 48,89607° N, 9,09885° E or 48.89607° N, 9.09885° E)
+  const decimalCardinalPattern = /(\d+[.,]\d+)°\s*([NS])\s*,\s*(\d+[.,]\d+)°\s*([EW])/i;
 
-    const decimalMatch = text.match(decimalPattern);
-    if (decimalMatch) {
-        return {
-            lat: parseFloat(decimalMatch[1].replace(",", ".")),
-            lng: parseFloat(decimalMatch[2].replace(",", ".")),
-        };
-    }
+  const decimalMatch = text.match(decimalPattern);
+  if (decimalMatch) {
+    return {
+      lat: parseFloat(decimalMatch[1].replace(",", ".")),
+      lng: parseFloat(decimalMatch[2].replace(",", ".")),
+    };
+  }
 
-    const dmsMatch = text.match(dmsPattern);
-    if (dmsMatch) {
-        let lat =
-            parseInt(dmsMatch[1]) +
-            parseInt(dmsMatch[2]) / 60 +
-            (parseFloat(dmsMatch[3]) || 0) / 3600;
-        let lng =
-            parseInt(dmsMatch[5]) +
-            parseInt(dmsMatch[6]) / 60 +
-            (parseFloat(dmsMatch[7]) || 0) / 3600;
+  const dmsMatch = text.match(dmsPattern);
+  if (dmsMatch) {
+    let lat =
+      parseInt(dmsMatch[1]) + parseInt(dmsMatch[2]) / 60 + (parseFloat(dmsMatch[3]) || 0) / 3600;
+    let lng =
+      parseInt(dmsMatch[5]) + parseInt(dmsMatch[6]) / 60 + (parseFloat(dmsMatch[7]) || 0) / 3600;
 
-        if (dmsMatch[4].toUpperCase() === "S") lat = -lat;
-        if (dmsMatch[8].toUpperCase() === "W") lng = -lng;
+    if (dmsMatch[4].toUpperCase() === "S") lat = -lat;
+    if (dmsMatch[8].toUpperCase() === "W") lng = -lng;
 
-        return { lat, lng };
-    }
+    return { lat, lng };
+  }
 
-    const decimalCardinalMatch = text.match(decimalCardinalPattern);
-    if (decimalCardinalMatch) {
-        let lat = parseFloat(decimalCardinalMatch[1].replace(",", "."));
-        let lng = parseFloat(decimalCardinalMatch[3].replace(",", "."));
+  const decimalCardinalMatch = text.match(decimalCardinalPattern);
+  if (decimalCardinalMatch) {
+    let lat = parseFloat(decimalCardinalMatch[1].replace(",", "."));
+    let lng = parseFloat(decimalCardinalMatch[3].replace(",", "."));
 
-        if (decimalCardinalMatch[2].toUpperCase() === "S") lat = -lat;
-        if (decimalCardinalMatch[4].toUpperCase() === "W") lng = -lng;
+    if (decimalCardinalMatch[2].toUpperCase() === "S") lat = -lat;
+    if (decimalCardinalMatch[4].toUpperCase() === "W") lng = -lng;
 
-        return { lat, lng };
-    }
+    return { lat, lng };
+  }
 
-    return { lat: null, lng: null };
+  return { lat: null, lng: null };
 };
 
 export interface LocalLocation {
-    name: string;
-    lat: number;
-    lng: number;
+  name: string;
+  lat: number;
+  lng: number;
 }
 
 const LatLngEditForm = ({
-    latitude,
-    longitude,
-    onChange,
-    disabled,
-    localLocations,
-    onResultSelect,
+  latitude,
+  longitude,
+  onChange,
+  disabled,
+  localLocations,
+  onResultSelect,
 }: {
-    latitude: number;
-    longitude: number;
-    onChange: (lat: number | null, lng: number | null) => void;
-    disabled?: boolean;
-    localLocations?: LocalLocation[];
-    onResultSelect?: () => void;
+  latitude: number;
+  longitude: number;
+  onChange: (lat: number | null, lng: number | null) => void;
+  disabled?: boolean;
+  localLocations?: LocalLocation[];
+  onResultSelect?: () => void;
 }) => {
-    const [inputValue, setInputValue] = useState("");
-    const debouncedValue = useDebounce<string>(inputValue);
-    const [results, setResults] = useState<any[]>([]);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState(false);
-    const $allowGooglePlusCodes = useStore(allowGooglePlusCodes);
-    const googlePlusCodesRef = useRef<HTMLInputElement>(null);
+  const [inputValue, setInputValue] = useState("");
+  const debouncedValue = useDebounce<string>(inputValue);
+  const [results, setResults] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const $allowGooglePlusCodes = useStore(allowGooglePlusCodes);
+  const googlePlusCodesRef = useRef<HTMLInputElement>(null);
 
-    // Pasting a whole coordinate pair (or a map link) into either number field
-    // sets both. Anything else, like a single number, pastes as usual.
-    const pasteCoordinates = (e: React.ClipboardEvent<HTMLInputElement>) => {
-        const { lat, lng } = parseCoordinatesFromText(
-            e.clipboardData.getData("text/plain"),
-        );
-        if (lat === null || lng === null) return;
-        if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
-        e.preventDefault();
-        onChange(lat, lng);
-        toast.success("Coordinates set", { autoClose: 1000 });
-    };
+  // Pasting a whole coordinate pair (or a map link) into either number field
+  // sets both. Anything else, like a single number, pastes as usual.
+  const pasteCoordinates = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const { lat, lng } = parseCoordinatesFromText(e.clipboardData.getData("text/plain"));
+    if (lat === null || lng === null) return;
+    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return;
+    e.preventDefault();
+    onChange(lat, lng);
+    toast.success("Coordinates set", { autoClose: 1000 });
+  };
 
-    const localResults: LocalLocation[] = localLocations
-        ? debouncedValue.trim() === ""
-            ? []
-            : localLocations.filter((loc) =>
-                  loc.name.toLowerCase().includes(debouncedValue.toLowerCase()),
-              )
-        : [];
+  const localResults: LocalLocation[] = localLocations
+    ? debouncedValue.trim() === ""
+      ? []
+      : localLocations.filter((loc) =>
+          loc.name.toLowerCase().includes(debouncedValue.toLowerCase()),
+        )
+    : [];
 
-    useEffect(() => {
-        if (localLocations) return;
-        setError(false);
-        setResults([]);
-        if (debouncedValue.trim() === "") {
-            setLoading(false);
-            return;
-        }
-        // Drop the answer for a query the player has already typed past.
-        const controller = new AbortController();
-        setLoading(true);
-        geocode(debouncedValue, "en", false, controller.signal)
-            .then((x) => {
-                if (!controller.signal.aborted) setResults(x);
-            })
-            .catch(() => {
-                if (!controller.signal.aborted) setError(true);
-            })
-            .finally(() => {
-                if (!controller.signal.aborted) setLoading(false);
-            });
-        return () => controller.abort();
-    }, [debouncedValue, localLocations]);
+  useEffect(() => {
+    if (localLocations) return;
+    setError(false);
+    setResults([]);
+    if (debouncedValue.trim() === "") {
+      setLoading(false);
+      return;
+    }
+    // Drop the answer for a query the player has already typed past.
+    const controller = new AbortController();
+    setLoading(true);
+    geocode(debouncedValue, "en", false, controller.signal)
+      .then((x) => {
+        if (!controller.signal.aborted) setResults(x);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setError(true);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+    return () => controller.abort();
+  }, [debouncedValue, localLocations]);
 
-    const _latlngLabels = results.map((r) => determineName(r));
-    const _latlngLabelCounts: Record<string, number> = {};
-    _latlngLabels.forEach((l) => {
-        _latlngLabelCounts[l] = (_latlngLabelCounts[l] || 0) + 1;
-    });
-    const _latlngLabelByKey: Record<string, string> = {};
-    const _latlngOcc: Record<string, number> = {};
-    results.forEach((r) => {
-        const key = `${r.properties.osm_id}${r.properties.name}`;
-        const lbl = determineName(r);
-        const idx = (_latlngOcc[lbl] = (_latlngOcc[lbl] || 0) + 1);
-        _latlngLabelByKey[key] =
-            _latlngLabelCounts[lbl] > 1 ? `${lbl} (${idx})` : lbl;
-    });
+  const _latlngLabels = results.map((r) => determineName(r));
+  const _latlngLabelCounts: Record<string, number> = {};
+  _latlngLabels.forEach((l) => {
+    _latlngLabelCounts[l] = (_latlngLabelCounts[l] || 0) + 1;
+  });
+  const _latlngLabelByKey: Record<string, string> = {};
+  const _latlngOcc: Record<string, number> = {};
+  results.forEach((r) => {
+    const key = `${r.properties.osm_id}${r.properties.name}`;
+    const lbl = determineName(r);
+    const idx = (_latlngOcc[lbl] = (_latlngOcc[lbl] || 0) + 1);
+    _latlngLabelByKey[key] = _latlngLabelCounts[lbl] > 1 ? `${lbl} (${idx})` : lbl;
+  });
 
-    return (
+  return (
+    <>
+      <Command shouldFilter={false}>
+        <CommandInput
+          placeholder={localLocations ? "Search hiding location..." : "Search place..."}
+          value={inputValue}
+          onValueChange={setInputValue}
+          disabled={disabled}
+        />
+        <CommandList>
+          {localLocations ? (
+            <>
+              <CommandEmpty>
+                {debouncedValue.trim() === ""
+                  ? "Type to search hiding locations."
+                  : "No hiding locations found."}
+              </CommandEmpty>
+              <CommandGroup>
+                {localResults.map((loc) => (
+                  <CommandItem
+                    key={`${loc.name}-${loc.lat}-${loc.lng}`}
+                    onSelect={() => {
+                      onChange(loc.lat, loc.lng);
+                      setInputValue("");
+                      onResultSelect?.();
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {loc.name}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </>
+          ) : (
+            <>
+              <CommandEmpty>
+                {loading ? "Loading..." : error ? "Error loading places." : "No locations found."}
+              </CommandEmpty>
+              <CommandGroup>
+                {results.map((result) => (
+                  <CommandItem
+                    key={`${result.properties.osm_id}${result.properties.name}`}
+                    onSelect={() => {
+                      const coords = result.geometry.coordinates;
+                      onChange(coords[0], coords[1]);
+                      setInputValue("");
+                      onResultSelect?.();
+                    }}
+                    className="cursor-pointer"
+                  >
+                    {(() => {
+                      const _key = `${result.properties.osm_id}${result.properties.name}`;
+                      return _latlngLabelByKey[_key] || determineName(result);
+                    })()}
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </>
+          )}
+        </CommandList>
+      </Command>
+      <div className="flex gap-2 items-center">
+        <Label className="min-w-16">Latitude</Label>
+        <Input
+          type="number"
+          value={Math.abs(latitude)}
+          min={0}
+          max={90}
+          onPaste={pasteCoordinates}
+          onChange={(e) => {
+            if (isNaN(parseFloat(e.target.value))) return;
+            onChange(
+              parseFloat(e.target.value) * (latitude !== 0 ? Math.sign(latitude) : -1),
+              null,
+            );
+          }}
+          disabled={disabled}
+        />
+        <Button variant="outline" onClick={() => onChange(-latitude, null)} disabled={disabled}>
+          {latitude > 0 ? "N" : "S"}
+        </Button>
+      </div>
+      <div className="flex gap-2 items-center">
+        <Label className="min-w-16">Longitude</Label>
+        <Input
+          type="number"
+          value={Math.abs(longitude)}
+          min={0}
+          max={180}
+          onPaste={pasteCoordinates}
+          onChange={(e) => {
+            if (isNaN(parseFloat(e.target.value))) return;
+            onChange(
+              null,
+              parseFloat(e.target.value) * (longitude !== 0 ? Math.sign(longitude) : -1),
+            );
+          }}
+          disabled={disabled}
+        />
+        <Button variant="outline" onClick={() => onChange(null, -longitude)} disabled={disabled}>
+          {longitude > 0 ? "E" : "W"}
+        </Button>
+      </div>
+
+      {$allowGooglePlusCodes && (
         <>
-            <Command shouldFilter={false}>
-                <CommandInput
-                    placeholder={
-                        localLocations
-                            ? "Search hiding location..."
-                            : "Search place..."
-                    }
-                    value={inputValue}
-                    onValueChange={setInputValue}
-                    disabled={disabled}
-                />
-                <CommandList>
-                    {localLocations ? (
-                        <>
-                            <CommandEmpty>
-                                {debouncedValue.trim() === ""
-                                    ? "Type to search hiding locations."
-                                    : "No hiding locations found."}
-                            </CommandEmpty>
-                            <CommandGroup>
-                                {localResults.map((loc) => (
-                                    <CommandItem
-                                        key={`${loc.name}-${loc.lat}-${loc.lng}`}
-                                        onSelect={() => {
-                                            onChange(loc.lat, loc.lng);
-                                            setInputValue("");
-                                            onResultSelect?.();
-                                        }}
-                                        className="cursor-pointer"
-                                    >
-                                        {loc.name}
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </>
-                    ) : (
-                        <>
-                            <CommandEmpty>
-                                {loading
-                                    ? "Loading..."
-                                    : error
-                                      ? "Error loading places."
-                                      : "No locations found."}
-                            </CommandEmpty>
-                            <CommandGroup>
-                                {results.map((result) => (
-                                    <CommandItem
-                                        key={`${result.properties.osm_id}${result.properties.name}`}
-                                        onSelect={() => {
-                                            const coords =
-                                                result.geometry.coordinates;
-                                            onChange(coords[0], coords[1]);
-                                            setInputValue("");
-                                            onResultSelect?.();
-                                        }}
-                                        className="cursor-pointer"
-                                    >
-                                        {(() => {
-                                            const _key = `${result.properties.osm_id}${result.properties.name}`;
-                                            return (
-                                                _latlngLabelByKey[_key] ||
-                                                determineName(result)
-                                            );
-                                        })()}
-                                    </CommandItem>
-                                ))}
-                            </CommandGroup>
-                        </>
-                    )}
-                </CommandList>
-            </Command>
-            <div className="flex gap-2 items-center">
-                <Label className="min-w-16">Latitude</Label>
-                <Input
-                    type="number"
-                    value={Math.abs(latitude)}
-                    min={0}
-                    max={90}
-                    onPaste={pasteCoordinates}
-                    onChange={(e) => {
-                        if (isNaN(parseFloat(e.target.value))) return;
-                        onChange(
-                            parseFloat(e.target.value) *
-                                (latitude !== 0 ? Math.sign(latitude) : -1),
-                            null,
-                        );
-                    }}
-                    disabled={disabled}
-                />
-                <Button
-                    variant="outline"
-                    onClick={() => onChange(-latitude, null)}
-                    disabled={disabled}
-                >
-                    {latitude > 0 ? "N" : "S"}
-                </Button>
-            </div>
-            <div className="flex gap-2 items-center">
-                <Label className="min-w-16">Longitude</Label>
-                <Input
-                    type="number"
-                    value={Math.abs(longitude)}
-                    min={0}
-                    max={180}
-                    onPaste={pasteCoordinates}
-                    onChange={(e) => {
-                        if (isNaN(parseFloat(e.target.value))) return;
-                        onChange(
-                            null,
-                            parseFloat(e.target.value) *
-                                (longitude !== 0 ? Math.sign(longitude) : -1),
-                        );
-                    }}
-                    disabled={disabled}
-                />
-                <Button
-                    variant="outline"
-                    onClick={() => onChange(null, -longitude)}
-                    disabled={disabled}
-                >
-                    {longitude > 0 ? "E" : "W"}
-                </Button>
-            </div>
+          <Separator />
 
-            {$allowGooglePlusCodes && (
-                <>
-                    <Separator />
+          <div className="flex gap-2 items-center">
+            <Label className="min-w-32">Google Plus Code</Label>
+            <Input
+              type="text"
+              disabled={disabled}
+              ref={googlePlusCodesRef}
+              placeholder="i.e., Q9CM+3P Narita, Chiba, Japan"
+            />
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                if (!googlePlusCodesRef.current) return;
+                const code = googlePlusCodesRef.current.value.trim();
+                if (code === "") return;
 
-                    <div className="flex gap-2 items-center">
-                        <Label className="min-w-32">Google Plus Code</Label>
-                        <Input
-                            type="text"
-                            disabled={disabled}
-                            ref={googlePlusCodesRef}
-                            placeholder="i.e., Q9CM+3P Narita, Chiba, Japan"
-                        />
-                        <Button
-                            variant="secondary"
-                            onClick={async () => {
-                                if (!googlePlusCodesRef.current) return;
-                                const code =
-                                    googlePlusCodesRef.current.value.trim();
-                                if (code === "") return;
+                const olc = new OpenLocationCode() as typeof OpenLocationCode;
 
-                                const olc =
-                                    new OpenLocationCode() as typeof OpenLocationCode;
+                const { code: parsedCode, locality } = splitPlusCode(code);
+                let codeBase = parsedCode;
 
-                                const { code: parsedCode, locality } =
-                                    splitPlusCode(code);
-                                let codeBase = parsedCode;
+                if (!olc.isValid(codeBase)) {
+                  toast.error("Invalid Google Plus code");
+                  return;
+                }
 
-                                if (!olc.isValid(codeBase)) {
-                                    toast.error("Invalid Google Plus code");
-                                    return;
-                                }
+                if (olc.isShort(codeBase)) {
+                  if (locality === "") {
+                    toast.error("Add a town after a short Plus code, e.g. Q9CM+3P Narita");
+                    return;
+                  }
 
-                                if (olc.isShort(codeBase)) {
-                                    if (locality === "") {
-                                        toast.error(
-                                            "Add a town after a short Plus code, e.g. Q9CM+3P Narita",
-                                        );
-                                        return;
-                                    }
+                  setLoading(true);
 
-                                    setLoading(true);
+                  const geo = await geocode(locality, "en", false)
+                    .catch(() => [])
+                    .finally(() => setLoading(false));
 
-                                    const geo = await geocode(
-                                        locality,
-                                        "en",
-                                        false,
-                                    )
-                                        .catch(() => [])
-                                        .finally(() => setLoading(false));
+                  if (geo.length === 0) {
+                    toast.error("Could not resolve location for short code");
+                    return;
+                  }
 
-                                    if (geo.length === 0) {
-                                        toast.error(
-                                            "Could not resolve location for short code",
-                                        );
-                                        return;
-                                    }
+                  const center = geo[0].geometry.coordinates;
 
-                                    const center = geo[0].geometry.coordinates;
+                  codeBase = olc.recoverNearest(codeBase, center[0], center[1]);
+                }
 
-                                    codeBase = olc.recoverNearest(
-                                        codeBase,
-                                        center[0],
-                                        center[1],
-                                    );
-                                }
+                const coordinates = olc.decode(codeBase);
 
-                                const coordinates = olc.decode(codeBase);
-
-                                onChange(
-                                    coordinates.latitudeCenter,
-                                    coordinates.longitudeCenter,
-                                );
-                            }}
-                            disabled={disabled}
-                        >
-                            Import
-                        </Button>
-                    </div>
-                </>
-            )}
+                onChange(coordinates.latitudeCenter, coordinates.longitudeCenter);
+              }}
+              disabled={disabled}
+            >
+              Import
+            </Button>
+          </div>
         </>
-    );
+      )}
+    </>
+  );
 };
 
 const LOCATION_KEPT = "Card locked, so its location was kept";
 
 export const LatitudeLongitude = ({
-    latitude,
-    longitude,
-    onChange,
-    label = "Location",
-    colorName,
-    disabled,
-    inlineEdit = false,
-    localLocations,
-    onResultSelect,
+  latitude,
+  longitude,
+  onChange,
+  label = "Location",
+  colorName,
+  disabled,
+  inlineEdit = false,
+  localLocations,
+  onResultSelect,
 }: {
-    latitude: number;
-    longitude: number;
-    onChange: (lat: number | null, lng: number | null) => void;
-    label?: string;
-    colorName?: keyof typeof ICON_COLORS;
-    disabled?: boolean;
-    inlineEdit?: boolean;
-    localLocations?: LocalLocation[];
-    onResultSelect?: () => void;
+  latitude: number;
+  longitude: number;
+  onChange: (lat: number | null, lng: number | null) => void;
+  label?: string;
+  colorName?: keyof typeof ICON_COLORS;
+  disabled?: boolean;
+  inlineEdit?: boolean;
+  localLocations?: LocalLocation[];
+  onResultSelect?: () => void;
 }) => {
-    const $isLoading = useStore(isLoading);
-    const { readPaste, pasteDialog } = usePasteText();
-    // Only this location waits for its GPS fix: the fix writes nowhere else.
-    const [locating, setLocating] = useState(false);
-    const blocked = disabled || locating;
-    // Locking the card while its fix is pending keeps the location. The card
-    // also disables it while another card prefills, which locks nothing.
-    const disabledRef = useRef(disabled);
-    disabledRef.current = disabled;
-    // A teammate's save while the fix is pending gives the card new question
-    // data, which only the latest onChange writes to.
-    const onChangeRef = useRef(onChange);
-    onChangeRef.current = onChange;
+  const $isLoading = useStore(isLoading);
+  const { readPaste, pasteDialog } = usePasteText();
+  // Only this location waits for its GPS fix: the fix writes nowhere else.
+  const [locating, setLocating] = useState(false);
+  const blocked = disabled || locating;
+  // Locking the card while its fix is pending keeps the location. The card
+  // also disables it while another card prefills, which locks nothing.
+  const disabledRef = useRef(disabled);
+  disabledRef.current = disabled;
+  // A teammate's save while the fix is pending gives the card new question
+  // data, which only the latest onChange writes to.
+  const onChangeRef = useRef(onChange);
+  onChangeRef.current = onChange;
 
-    const color = colorName ? ICON_COLORS[colorName] : "transparent";
+  const color = colorName ? ICON_COLORS[colorName] : "transparent";
 
-    return (
-        <>
-            <SidebarMenuItem
-                style={{
-                    backgroundColor: color,
-                }}
-                className={cn(
-                    "p-2 rounded-md space-y-1 mt-2",
-                    ($isLoading || locating) && "brightness-50",
-                )}
+  return (
+    <>
+      <SidebarMenuItem
+        style={{
+          backgroundColor: color,
+        }}
+        className={cn("p-2 rounded-md space-y-1 mt-2", ($isLoading || locating) && "brightness-50")}
+      >
+        {!inlineEdit && (
+          <div
+            className={cn(
+              "flex justify-between items-center",
+              ($isLoading || locating) && "opacity-50",
+            )}
+            style={{
+              color: colorName === "gold" ? "black" : undefined,
+            }}
+          >
+            <div className="text-2xl font-semibold font-poppins">{label}</div>
+            <div className="tabular-nums text-right text-sm font-oxygen">
+              <div>
+                {Math.abs(latitude).toFixed(5)}
+                {"° "}
+                {latitude > 0 ? "N" : "S"}
+              </div>
+              <div>
+                {Math.abs(longitude).toFixed(5)}
+                {"° "}
+                {longitude > 0 ? "E" : "W"}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className={cn(!inlineEdit && "flex justify-center gap-2 *:max-w-12 *:w-[20%]")}>
+          {inlineEdit ? (
+            <div className="flex flex-col gap-2 w-full mb-2">
+              <LatLngEditForm
+                latitude={latitude}
+                longitude={longitude}
+                onChange={onChange}
+                disabled={blocked}
+                localLocations={localLocations}
+                onResultSelect={onResultSelect}
+              />
+            </div>
+          ) : (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button disabled={blocked} variant="outline" title="Edit coordinates">
+                  <EditIcon />
+                </Button>
+              </DialogTrigger>
+              <DialogContent aria-describedby={undefined}>
+                <DialogHeader>
+                  <DialogTitle className="text-2xl">Update {label}</DialogTitle>
+                </DialogHeader>
+                <LatLngEditForm
+                  latitude={latitude}
+                  longitude={longitude}
+                  onChange={onChange}
+                  disabled={blocked}
+                  localLocations={localLocations}
+                  onResultSelect={onResultSelect}
+                />
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button>Done</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+          <div className={inlineEdit ? "flex justify-center gap-2" : "contents"}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!navigator || !navigator.geolocation) return alert("Geolocation not supported");
+
+                setLocating(true);
+
+                toast.promise(
+                  new Promise<GeolocationPosition>((resolve, reject) => {
+                    navigator.geolocation.getCurrentPosition(resolve, reject, {
+                      maximumAge: 0,
+                      enableHighAccuracy: true,
+                    });
+                  })
+                    .then((position) => {
+                      if (disabledRef.current && !isLoading.get()) throw new Error(LOCATION_KEPT);
+                      onChangeRef.current(position.coords.latitude, position.coords.longitude);
+                    })
+                    .finally(() => setLocating(false)),
+                  {
+                    pending: "Fetching location",
+                    success: "Location fetched",
+                    error: {
+                      render: ({ data }) =>
+                        data instanceof Error && data.message === LOCATION_KEPT
+                          ? LOCATION_KEPT
+                          : "Could not fetch location",
+                    },
+                  },
+                  { autoClose: 500 },
+                );
+              }}
+              disabled={blocked}
+              title="Set to current location"
             >
-                {!inlineEdit && (
-                    <div
-                        className={cn(
-                            "flex justify-between items-center",
-                            ($isLoading || locating) && "opacity-50",
-                        )}
-                        style={{
-                            color: colorName === "gold" ? "black" : undefined,
-                        }}
-                    >
-                        <div className="text-2xl font-semibold font-poppins">
-                            {label}
-                        </div>
-                        <div className="tabular-nums text-right text-sm font-oxygen">
-                            <div>
-                                {Math.abs(latitude).toFixed(5)}
-                                {"° "}
-                                {latitude > 0 ? "N" : "S"}
-                            </div>
-                            <div>
-                                {Math.abs(longitude).toFixed(5)}
-                                {"° "}
-                                {longitude > 0 ? "E" : "W"}
-                            </div>
-                        </div>
-                    </div>
-                )}
+              <LocateIcon />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                // No pending toast or loading state here: when
+                // the browser blocks the clipboard, this waits
+                // on the user's paste field.
+                const text = await readPaste({
+                  title: "Paste coordinates",
+                  placeholder: "47.3769, 8.5417 or a Google Maps link",
+                });
+                if (text === null) return;
 
-                <div
-                    className={cn(
-                        !inlineEdit &&
-                            "flex justify-center gap-2 *:max-w-12 *:w-[20%]",
-                    )}
-                >
-                    {inlineEdit ? (
-                        <div className="flex flex-col gap-2 w-full mb-2">
-                            <LatLngEditForm
-                                latitude={latitude}
-                                longitude={longitude}
-                                onChange={onChange}
-                                disabled={blocked}
-                                localLocations={localLocations}
-                                onResultSelect={onResultSelect}
-                            />
-                        </div>
-                    ) : (
-                        <Dialog>
-                            <DialogTrigger asChild>
-                                <Button
-                                    disabled={blocked}
-                                    variant="outline"
-                                    title="Edit coordinates"
-                                >
-                                    <EditIcon />
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent aria-describedby={undefined}>
-                                <DialogHeader>
-                                    <DialogTitle className="text-2xl">
-                                        Update {label}
-                                    </DialogTitle>
-                                </DialogHeader>
-                                <LatLngEditForm
-                                    latitude={latitude}
-                                    longitude={longitude}
-                                    onChange={onChange}
-                                    disabled={blocked}
-                                    localLocations={localLocations}
-                                    onResultSelect={onResultSelect}
-                                />
-                                <DialogFooter>
-                                    <DialogClose asChild>
-                                        <Button>Done</Button>
-                                    </DialogClose>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
-                    )}
-                    <div
-                        className={
-                            inlineEdit
-                                ? "flex justify-center gap-2"
-                                : "contents"
-                        }
-                    >
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                if (!navigator || !navigator.geolocation)
-                                    return alert("Geolocation not supported");
+                const coords = parseCoordinatesFromText(text);
+                if (coords.lat === null || coords.lng === null) {
+                  toast.error("No valid coordinates found in pasted text", { autoClose: 1000 });
+                  return;
+                }
+                onChange(coords.lat, coords.lng);
+                toast.success("Coordinates set", {
+                  autoClose: 1000,
+                });
+              }}
+              disabled={blocked}
+              title="Paste coordinates from clipboard"
+            >
+              <ClipboardPasteIcon />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (!navigator || !navigator.clipboard) {
+                  toast.error("Clipboard API not supported in your browser");
+                  return;
+                }
 
-                                setLocating(true);
-
-                                toast.promise(
-                                    new Promise<GeolocationPosition>(
-                                        (resolve, reject) => {
-                                            navigator.geolocation.getCurrentPosition(
-                                                resolve,
-                                                reject,
-                                                {
-                                                    maximumAge: 0,
-                                                    enableHighAccuracy: true,
-                                                },
-                                            );
-                                        },
-                                    )
-                                        .then((position) => {
-                                            if (
-                                                disabledRef.current &&
-                                                !isLoading.get()
-                                            )
-                                                throw new Error(LOCATION_KEPT);
-                                            onChangeRef.current(
-                                                position.coords.latitude,
-                                                position.coords.longitude,
-                                            );
-                                        })
-                                        .finally(() => setLocating(false)),
-                                    {
-                                        pending: "Fetching location",
-                                        success: "Location fetched",
-                                        error: {
-                                            render: ({ data }) =>
-                                                data instanceof Error &&
-                                                data.message === LOCATION_KEPT
-                                                    ? LOCATION_KEPT
-                                                    : "Could not fetch location",
-                                        },
-                                    },
-                                    { autoClose: 500 },
-                                );
-                            }}
-                            disabled={blocked}
-                            title="Set to current location"
-                        >
-                            <LocateIcon />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={async () => {
-                                // No pending toast or loading state here: when
-                                // the browser blocks the clipboard, this waits
-                                // on the user's paste field.
-                                const text = await readPaste({
-                                    title: "Paste coordinates",
-                                    placeholder:
-                                        "47.3769, 8.5417 or a Google Maps link",
-                                });
-                                if (text === null) return;
-
-                                const coords = parseCoordinatesFromText(text);
-                                if (
-                                    coords.lat === null ||
-                                    coords.lng === null
-                                ) {
-                                    toast.error(
-                                        "No valid coordinates found in pasted text",
-                                        { autoClose: 1000 },
-                                    );
-                                    return;
-                                }
-                                onChange(coords.lat, coords.lng);
-                                toast.success("Coordinates set", {
-                                    autoClose: 1000,
-                                });
-                            }}
-                            disabled={blocked}
-                            title="Paste coordinates from clipboard"
-                        >
-                            <ClipboardPasteIcon />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            onClick={() => {
-                                if (!navigator || !navigator.clipboard) {
-                                    toast.error(
-                                        "Clipboard API not supported in your browser",
-                                    );
-                                    return;
-                                }
-
-                                toast.promise(
-                                    navigator.clipboard.writeText(
-                                        `${Math.abs(latitude)}°${latitude > 0 ? "N" : "S"}, ${Math.abs(
-                                            longitude,
-                                        )}°${longitude > 0 ? "E" : "W"}`,
-                                    ),
-                                    {
-                                        pending: "Writing to clipboard...",
-                                        success: "Coordinates copied!",
-                                        error: "An error occurred while copying",
-                                    },
-                                    { autoClose: 1000 },
-                                );
-                            }}
-                            title="Copy coordinates to clipboard"
-                        >
-                            <ClipboardCopyIcon />
-                        </Button>
-                    </div>
-                </div>
-            </SidebarMenuItem>
-            {pasteDialog}
-        </>
-    );
+                toast.promise(
+                  navigator.clipboard.writeText(
+                    `${Math.abs(latitude)}°${latitude > 0 ? "N" : "S"}, ${Math.abs(
+                      longitude,
+                    )}°${longitude > 0 ? "E" : "W"}`,
+                  ),
+                  {
+                    pending: "Writing to clipboard...",
+                    success: "Coordinates copied!",
+                    error: "An error occurred while copying",
+                  },
+                  { autoClose: 1000 },
+                );
+              }}
+              title="Copy coordinates to clipboard"
+            >
+              <ClipboardCopyIcon />
+            </Button>
+          </div>
+        </div>
+      </SidebarMenuItem>
+      {pasteDialog}
+    </>
+  );
 };
