@@ -11,6 +11,7 @@ import {
     firstUnasked,
     radarVariant,
 } from "@/lib/askedQuestions";
+import { isLocalBoard } from "@/lib/boardMode";
 import type { LatLng } from "@/lib/questionPosition";
 import type { StationCircle } from "@/maps/api";
 import { extractStationLabel, type ZoneDisplayStyle } from "@/maps/geo-utils";
@@ -22,8 +23,11 @@ import {
     type Units,
 } from "@/maps/schema";
 
+const boardStorageKey = (key: string) =>
+    isLocalBoard.get() ? `local:${key}` : key;
+
 export const permanentOverlay = persistentAtom<FeatureCollection | null>(
-    "permanentOverlay",
+    boardStorageKey("permanentOverlay"),
     null,
     {
         encode: JSON.stringify,
@@ -127,7 +131,7 @@ export const hiderMode = atom<false | { latitude: number; longitude: number }>(
 );
 export const triggerLocalRefresh = atom<number>(0);
 export const displayHidingZones = persistentAtom<boolean>(
-    "displayHidingZones",
+    boardStorageKey("displayHidingZones"),
     false,
     {
         encode: JSON.stringify,
@@ -136,7 +140,7 @@ export const displayHidingZones = persistentAtom<boolean>(
     },
 );
 export const displayHidingZonesStyle = persistentAtom<ZoneDisplayStyle>(
-    "displayHidingZonesStyle",
+    boardStorageKey("displayHidingZonesStyle"),
     "zones",
     { listen: false },
 );

@@ -23,6 +23,7 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar";
 import { sessionReadOnly } from "@/lib/activeSession";
+import { isLocalBoard } from "@/lib/boardMode";
 import { sidebarContextL as SidebarContext } from "@/lib/context";
 import {
     autoSave,
@@ -51,10 +52,12 @@ export const QuestionSidebar = () => {
     const $isLoading = useStore(isLoading);
     const $warningAlarm = useStore(warningAlarm);
     const $readOnly = useStore(sessionReadOnly);
+    const $isLocalBoard = useStore(isLocalBoard);
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [alarmActive, setAlarmActive] = useState(false);
-    // History is only fetched while it's shown.
-    const tab = useStore(questionSidebarTab);
+    // History is only fetched while it's shown (online sessions only).
+    const rawTab = useStore(questionSidebarTab);
+    const tab = $isLocalBoard ? "questions" : rawTab;
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const cardToShow = useStore(questionCardToShow);
     const sidebar = useStore(SidebarContext);
@@ -195,9 +198,9 @@ export const QuestionSidebar = () => {
                                                     Are you absolutely sure?
                                                 </AlertDialogTitle>
                                                 <AlertDialogDescription>
-                                                    This will delete all questions for
-                                                    everyone in the session. You can
-                                                    undo it for a few seconds.
+                                                    {$isLocalBoard
+                                                        ? "This will delete all questions in this local session. You can undo it for a few seconds."
+                                                        : "This will delete all questions for everyone in the session. You can undo it for a few seconds."}
                                                 </AlertDialogDescription>
                                             </AlertDialogHeader>
                                             <AlertDialogFooter>
@@ -233,30 +236,32 @@ export const QuestionSidebar = () => {
                             </>
                         )}
                         {/* Last, so it stays put when switching views. */}
-                        <SidebarMenuItem>
-                            <SidebarMenuButton
-                                className="text-muted-foreground"
-                                onClick={() =>
-                                    questionSidebarTab.set(
-                                        tab === "history"
-                                            ? "questions"
-                                            : "history",
-                                    )
-                                }
-                            >
-                                {tab === "history" ? (
-                                    <>
-                                        <ArrowLeftIcon />
-                                        Back to questions
-                                    </>
-                                ) : (
-                                    <>
-                                        <HistoryIcon />
-                                        History
-                                    </>
-                                )}
-                            </SidebarMenuButton>
-                        </SidebarMenuItem>
+                        {!$isLocalBoard && (
+                            <SidebarMenuItem>
+                                <SidebarMenuButton
+                                    className="text-muted-foreground"
+                                    onClick={() =>
+                                        questionSidebarTab.set(
+                                            tab === "history"
+                                                ? "questions"
+                                                : "history",
+                                        )
+                                    }
+                                >
+                                    {tab === "history" ? (
+                                        <>
+                                            <ArrowLeftIcon />
+                                            Back to questions
+                                        </>
+                                    ) : (
+                                        <>
+                                            <HistoryIcon />
+                                            History
+                                        </>
+                                    )}
+                                </SidebarMenuButton>
+                            </SidebarMenuItem>
+                        )}
                     </SidebarMenu>
                 </SidebarGroupContent>
             </SidebarGroup>

@@ -1,6 +1,7 @@
 import type { GameSessionSummary, SessionRole } from "@searchlight/shared";
 import { atom, computed } from "nanostores";
 
+import { isLocalBoard } from "@/lib/boardMode";
 import { editingInOtherTab } from "@/lib/otherTab";
 import { readStorage, removeStorage, writeStorage } from "@/lib/safeStorage";
 
@@ -8,6 +9,10 @@ const SS_KEY = "taibled-active-session";
 const LS_KEY = "taibled-last-session";
 
 function initialSessionId(): string {
+    // Local mode keeps its own session state in IndexedDB and must never adopt
+    // or overwrite an online session's storage keys.
+    if (isLocalBoard.get()) return "";
+
     const own = readStorage("sessionStorage", SS_KEY);
     if (own !== null) return own;
 
