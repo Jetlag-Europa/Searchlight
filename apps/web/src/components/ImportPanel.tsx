@@ -157,12 +157,7 @@ export function ImportPanel({
 
     const casual = serverId === CASUAL_SERVER_ID;
     const updating = dryRun?.status === "updated";
-    // Pin to the revision the preview showed for any existing game (updated or
-    // unchanged, plain import or replace).
-    const existing =
-        updating || dryRun?.status === "unchanged" || replaceGameId
-            ? dryRun?.existing
-            : undefined;
+    const existing = dryRun?.existing;
     const needsConfirm =
         updating && !!existing?.likelyMistake && !confirmReplace;
 
