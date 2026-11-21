@@ -91,7 +91,14 @@ export function compileGameDefinition(
   const resolveTierRadius = (
     tier: string | undefined,
   ): DistanceRadius | undefined => {
-    if (!tier || !Object.hasOwn(tierOverrides, tier)) return undefined;
+    // Not Object.hasOwn: Safari 14 and Chrome 87, which the build targets,
+    // don't have it.
+    if (
+      !tier ||
+      !Object.prototype.hasOwnProperty.call(tierOverrides, tier)
+    ) {
+      return undefined;
+    }
     const value = tierOverrides[tier];
     return isPositiveFinite(value) ? { value, unit } : undefined;
   };
