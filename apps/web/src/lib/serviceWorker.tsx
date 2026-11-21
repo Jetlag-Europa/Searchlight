@@ -12,6 +12,108 @@ const MIN_UPDATE_CHECK_GAP = 10 * 60 * 1000;
 
 const UPDATE_TOAST_ID = "service-worker-update";
 
+export const RELOAD_FALLBACK_MS = 1500;
+
+export interface WaitingWorker {
+    readonly state: ServiceWorkerState;
+    addEventListener(type: "statechange", listener: () => void): void;
+    removeEventListener(type: "statechange", listener: () => void): void;
+}
+
+export interface ServiceWorkerReloaderDeps {
+    hasController: boolean;
+    isEditingInOtherTab: () => boolean;
+    getWaiting: () => WaitingWorker | null | undefined;
+    updateServiceWorker: (reloadPage?: boolean) => Promise<void> | void;
+    reloadPage: () => void;
+    fallbackMs?: number;
+}
+
+function isWaitingDone(worker: WaitingWorker): boolean {
+    return worker.state === "activated" || worker.state === "redundant";
+}
+
+export function createServiceWorkerReloader({
+    hasController,
+    isEditingInOtherTab,
+    getWaiting,
+    updateServiceWorker,
+    reloadPage,
+    fallbackMs = RELOAD_FALLBACK_MS,
+}: ServiceWorkerReloaderDeps) {
+    let reloadsOnTakeOver = hasController;
+    let reloading = false;
+    let reloadTappedHere = false;
+    let fallbackTimer: ReturnType<typeof setTimeout> | undefined;
+    let cleanupWaitingListener: (() => void) | undefined;
+
+    function clearPendingFallback() {
+        if (fallbackTimer !== undefined) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = undefined;
+        }
+        cleanupWaitingListener?.();
+        cleanupWaitingListener = undefined;
+    }
+
+    function reloadPageOnce() {
+        if (reloading) return;
+        reloading = true;
+        clearPendingFallback();
+        reloadPage();
+    }
+
+    function onControllerChange() {
+        if (reloading) return;
+        if (!reloadsOnTakeOver) {
+            reloadsOnTakeOver = true;
+            return;
+        }
+        if (isEditingInOtherTab() && !reloadTappedHere) return;
+        reloadPageOnce();
+    }
+
+    function onUpdateAvailable() {
+        // A page opened without a worker reloads into the update it offers.
+        reloadsOnTakeOver = true;
+    }
+
+    function reload() {
+        if (reloading) return;
+        reloadTappedHere = true;
+        // Another page may have activated it already.
+        const waiting = getWaiting();
+        if (!waiting) {
+            reloadPageOnce();
+            return;
+        }
+        clearPendingFallback();
+        // A Shift+Reloaded tab has no controller and clients.claim() never
+        // claims it, so controllerchange will never fire there. Watch the
+        // waiting worker's own state transition (with a short fallback timer)
+        // so Reload still reloads once the update activates.
+        const onStateChange = () => {
+            if (isWaitingDone(waiting)) reloadPageOnce();
+        };
+        waiting.addEventListener("statechange", onStateChange);
+        cleanupWaitingListener = () =>
+            waiting.removeEventListener("statechange", onStateChange);
+        void updateServiceWorker(true);
+        if (reloading) return;
+        if (isWaitingDone(waiting)) {
+            reloadPageOnce();
+            return;
+        }
+        fallbackTimer = setTimeout(reloadPageOnce, fallbackMs);
+    }
+
+    return {
+        onControllerChange,
+        onUpdateAvailable,
+        reload,
+    };
+}
+
 let registration: ServiceWorkerRegistration | undefined;
 
 // A new build waits until the player chooses to reload, so a game is never
@@ -23,19 +125,18 @@ let registration: ServiceWorkerRegistration | undefined;
 // A tab another tab took the session over from doesn't, unless Reload was
 // tapped in it: reloaded, it would take the session back (see
 // editSessionHere). Its Use here reloads it.
-let reloadsOnTakeOver = Boolean(navigator.serviceWorker?.controller);
-let reloading = false;
-let reloadTappedHere = false;
-navigator.serviceWorker?.addEventListener("controllerchange", () => {
-    if (reloading) return;
-    if (!reloadsOnTakeOver) {
-        reloadsOnTakeOver = true;
-        return;
-    }
-    if (editingInOtherTab.get() && !reloadTappedHere) return;
-    reloading = true;
-    window.location.reload();
+const reloader = createServiceWorkerReloader({
+    hasController: Boolean(navigator.serviceWorker?.controller),
+    isEditingInOtherTab: () => editingInOtherTab.get(),
+    getWaiting: () => registration?.waiting,
+    updateServiceWorker: (reloadPage) => updateServiceWorker(reloadPage),
+    reloadPage: () => window.location.reload(),
 });
+
+navigator.serviceWorker?.addEventListener(
+    "controllerchange",
+    reloader.onControllerChange,
+);
 
 const updateServiceWorker = registerSW({
     immediate: true,
@@ -50,15 +151,14 @@ const updateServiceWorker = registerSW({
 });
 
 function showUpdateToast() {
-    // A page opened without a worker reloads into the update it offers.
-    reloadsOnTakeOver = true;
+    reloader.onUpdateAvailable();
     toast(
         () => (
             <div className="flex w-full items-center justify-between gap-3">
                 <span>A new version of Searchlight is available</span>
                 <button
                     className="shrink-0 rounded-md border border-current px-3 py-1 text-sm font-semibold"
-                    onClick={reload}
+                    onClick={reloader.reload}
                 >
                     Reload
                 </button>
@@ -70,13 +170,6 @@ function showUpdateToast() {
             closeOnClick: false,
         },
     );
-}
-
-function reload() {
-    reloadTappedHere = true;
-    // Another page may have activated it already.
-    if (registration?.waiting) void updateServiceWorker(true);
-    else window.location.reload();
 }
 
 // The browser looks for a new service worker only on navigations, and an
