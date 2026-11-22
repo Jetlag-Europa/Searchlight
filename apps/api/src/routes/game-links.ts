@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
+import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
 import { assertCanManageGame, findActiveLink } from "../lib/game-access.js";
 import { notFound } from "../lib/http-errors.js";
@@ -61,13 +62,24 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
       if (!game) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 
-      const link = await prisma.gameLink.create({
-        data: {
-          token: randomBytes(16).toString("hex"),
-          gameId: game.id,
-          createdById: user.discordId,
-        },
-        include: { createdBy: { select: { displayName: true } } },
+      const link = await prisma.$transaction(async (tx) => {
+        const created = await tx.gameLink.create({
+          data: {
+            token: randomBytes(16).toString("hex"),
+            gameId: game.id,
+            createdById: user.discordId,
+          },
+          include: { createdBy: { select: { displayName: true } } },
+        });
+        await audit(tx, {
+          serverId: game.serverId,
+          actorId: user.discordId,
+          action: "link.create",
+          targetId: game.id,
+          targetName: game.name,
+          details: { linkId: created.id },
+        });
+        return created;
       });
       req.log.info(
         { gameId: game.id, linkId: link.id, userId: user.discordId },
@@ -94,11 +106,21 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
       if (!game) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 
-      const { count } = await prisma.gameLink.updateMany({
-        where: { id: linkId, gameId: game.id, revokedAt: null },
-        data: { revokedAt: new Date() },
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.gameLink.updateMany({
+          where: { id: linkId, gameId: game.id, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        if (count === 0) throw notFound("Link not found");
+        await audit(tx, {
+          serverId: game.serverId,
+          actorId: user.discordId,
+          action: "link.revoke",
+          targetId: game.id,
+          targetName: game.name,
+          details: { linkId },
+        });
       });
-      if (count === 0) throw notFound("Link not found");
       req.log.info({ gameId: game.id, linkId, userId: user.discordId }, "[game-links] revoked");
       return reply.status(204).send();
     },

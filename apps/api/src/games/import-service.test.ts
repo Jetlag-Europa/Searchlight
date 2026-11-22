@@ -75,6 +75,8 @@ async function revisionsOf(gameKey: string) {
 
 async function cleanup() {
   const games = { gameKey: { startsWith: KEY_PREFIX } };
+  const ids = (await prisma.game.findMany({ where: games, select: { id: true } })).map((g) => g.id);
+  await prisma.auditLog.deleteMany({ where: { targetId: { in: ids } } });
   await prisma.game.updateMany({ where: games, data: { currentRevisionId: null } });
   await prisma.gameRevision.deleteMany({ where: { game: games } });
   await prisma.game.deleteMany({ where: games });
@@ -379,6 +381,24 @@ describe("preloadGameDefinitions", () => {
       currentRevision: { revision: 3 },
     });
     expect(await start("Preloaded v3")).toMatchObject({ unchanged: 1, kept: [] });
+
+    // Logged once per change: the restarts that changed nothing add nothing.
+    const log = await prisma.auditLog.findMany({
+      where: { targetId: (await current()).id },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    });
+    expect(log.map((e) => [e.action, e.details])).toEqual([
+      ["game.create", { revision: 1, source: "preload" }],
+      [
+        "game.revision",
+        { revision: 2, source: "web", name: { from: "Preloaded", to: "Uploaded" } },
+      ],
+      [
+        "game.revision",
+        { revision: 3, source: "preload", name: { from: "Uploaded", to: "Preloaded v3" } },
+      ],
+    ]);
+    expect(log.every((e) => e.actorId === null)).toBe(true);
   });
 
   test("a rollback by upload to an older preloaded revision survives restarts", async () => {

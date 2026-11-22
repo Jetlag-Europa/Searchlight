@@ -3,6 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import { AuthGuard } from "@/components/AuthGuard";
 import { AdminPanel } from "@/components/AdminPanel";
 import { UsagePanel } from "@/components/UsagePanel";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 ---
 
 <Layout>
@@ -30,5 +31,6 @@ import { UsagePanel } from "@/components/UsagePanel";
         </p>
         <AdminPanel client:only="react" />
         <UsagePanel client:only="react" />
+        <AuditLogPanel client:only="react" />
     </main>
 </Layout>

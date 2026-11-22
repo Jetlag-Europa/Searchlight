@@ -206,6 +206,42 @@ export interface UsageResponse {
   counts: { event: UsageEvent; last7d: number; last30d: number; total: number }[];
 }
 
+// ── Audit log ─────────────────────────────────────────────────────────────────
+
+export const AUDIT_ACTIONS = [
+  "game.create", // first import of a game
+  "game.revision", // new revision: re-import, settings edit or preload change
+  "game.listing", // listed / unlisted
+  "game.delete",
+  "link.create",
+  "link.revoke",
+  "role.grant",
+  "role.revoke",
+] as const;
+
+export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+
+export interface AuditLogEntry {
+  id: string;
+  createdAt: string;
+  serverId: string;
+  serverName: string | null;
+  // null: the system (games preloaded at API start).
+  actorId: string | null;
+  actorName: string | null;
+  action: AuditAction;
+  // The game's or role's id and name when it happened.
+  targetId: string;
+  targetName: string;
+  details: Record<string, unknown>;
+}
+
+export interface AuditLogResponse {
+  entries: AuditLogEntry[];
+  // Pass as `before` for the next (older) page; null when there is none.
+  nextCursor: string | null;
+}
+
 // ── Game links ────────────────────────────────────────────────────────────────
 
 export interface GameLinkSummary {

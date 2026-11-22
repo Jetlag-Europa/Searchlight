@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { Prisma } from "@prisma/client";
 import { CASUAL_SERVER_ID, type GameSettingsUpdate } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
+import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
 import {
   getUserPermissions,
@@ -305,7 +306,18 @@ export async function gameRoutes(app: FastifyInstance) {
         throw Object.assign(new Error("Casual games are always unlisted"), { statusCode: 400 });
       }
 
-      const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
+      if (game.unlisted === unlisted) return serializeGame(game);
+      const updated = await prisma.$transaction(async (tx) => {
+        await audit(tx, {
+          serverId: game.serverId,
+          actorId: user.discordId,
+          action: "game.listing",
+          targetId: game.id,
+          targetName: game.name,
+          details: { unlisted },
+        });
+        return tx.game.update({ where: { id: game.id }, data: { unlisted } });
+      });
       req.log.info(
         { gameId: game.id, unlisted, userId: user.discordId },
         "[games] listing changed",
@@ -441,7 +453,17 @@ export async function gameRoutes(app: FastifyInstance) {
         );
       }
 
-      await prisma.game.delete({ where: { id: game.id } });
+      await prisma.$transaction(async (tx) => {
+        await tx.game.delete({ where: { id: game.id } });
+        await audit(tx, {
+          serverId: game.serverId,
+          actorId: user.discordId,
+          action: "game.delete",
+          targetId: game.id,
+          targetName: game.name,
+          details: {},
+        });
+      });
       return reply.status(204).send();
     },
   );

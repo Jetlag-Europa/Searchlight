@@ -9,6 +9,7 @@ import {
 } from "@searchlight/shared";
 import { useCallback, useEffect, useState } from "react";
 
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 import { verifiedUserId } from "@/lib/activeSession";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
@@ -157,6 +158,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
                 </tbody>
               </table>
             ))}
+          <AuditLogPanel serverId={server.id} />
         </div>
       )}
     </div>

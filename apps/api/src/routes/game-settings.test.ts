@@ -71,6 +71,7 @@ async function cleanup() {
   await prisma.game.updateMany({ where: games, data: { currentRevisionId: null } });
   await prisma.gameRevision.deleteMany({ where: { game: games } });
   await prisma.game.deleteMany({ where: games });
+  await prisma.auditLog.deleteMany({ where: { serverId: SERVER_ID } });
   await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
   await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
   await prisma.authSession.deleteMany({ where: { userId: { in: USERS } } });
@@ -237,6 +238,13 @@ describe("PATCH /games/:gameId/settings", () => {
     expect(res.json()).toMatchObject({ status: "updated", revision: 2, game: { size: "large" } });
     const [, rev2] = await revisionsOf(game.id);
     expect(rev2.definition).toMatchObject({ size: "large", name: "Test GSettings Size" });
+    const entry = await prisma.auditLog.findFirst({
+      where: { targetId: game.id, action: "game.revision" },
+    });
+    expect(entry).toMatchObject({
+      actorId: EDITOR_ID,
+      details: { revision: 2, source: "web", size: { from: "medium", to: "large" } },
+    });
   });
 
   test("unchanged settings add no revision", async () => {
