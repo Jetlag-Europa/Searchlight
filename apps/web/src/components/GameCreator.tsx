@@ -126,6 +126,7 @@ export function GameCreator() {
   const [extraHidingZones, setExtraHidingZones] = useState<HidingZoneFeature[]>([]);
 
   const [playArea, setPlayArea] = useState<PlayAreaFeatureCollection | null>(null);
+  const [playAreaOsmRelationId, setPlayAreaOsmRelationId] = useState<number | null>(null);
   const [playAreaVersion, setPlayAreaVersion] = useState(0);
   const [fitTarget, setFitTarget] = useState<{
     bounds: Bounds;
@@ -261,9 +262,13 @@ export function GameCreator() {
   };
 
   const setPlayAreaAndFit = useCallback(
-    (next: PlayAreaFeatureCollection, options?: { preserveData?: boolean }) => {
+    (
+      next: PlayAreaFeatureCollection,
+      options?: { preserveData?: boolean; osmRelationId?: number | null },
+    ) => {
       invalidateFetchedAreaData(options?.preserveData);
       setPlayArea(next);
+      setPlayAreaOsmRelationId(options?.osmRelationId ?? null);
       setPlayAreaVersion((v) => v + 1);
       const bounds = tryPlayAreaBounds(next);
       if (bounds) {
@@ -279,6 +284,7 @@ export function GameCreator() {
   const clearPlayArea = useCallback(() => {
     invalidateFetchedAreaData();
     setPlayArea(null);
+    setPlayAreaOsmRelationId(null);
   }, [invalidateFetchedAreaData]);
 
   // ── Place search ─────────────────────────────────────────────────────────
@@ -305,7 +311,7 @@ export function GameCreator() {
   };
 
   const handlePickPlace = (place: PlaceSearchResult) => {
-    setPlayAreaAndFit(place.playArea);
+    setPlayAreaAndFit(place.playArea, { osmRelationId: place.osmRelationId ?? null });
     if (!gameName.trim()) {
       setGameName(place.name);
     }
@@ -698,6 +704,7 @@ export function GameCreator() {
     });
 
     setPlayArea(def.map.playArea);
+    setPlayAreaOsmRelationId(null);
     setPlayAreaVersion((v) => v + 1);
     const fitBounds =
       tryPlayAreaBounds(def.map.playArea) ??
@@ -1284,6 +1291,7 @@ export function GameCreator() {
       radarsText,
       thermometer,
       playArea,
+      playAreaOsmRelationId,
       preservedMetadata,
       stationSource,
       stationTypes,
@@ -1313,6 +1321,7 @@ export function GameCreator() {
     radarsText,
     thermometer,
     playArea,
+    playAreaOsmRelationId,
     preservedMetadata,
     stationSource,
     stationTypes,
@@ -1359,6 +1368,7 @@ export function GameCreator() {
         setRadarsText(saved.radarsText);
         setThermometer(saved.thermometer);
         setPlayArea(saved.playArea);
+        setPlayAreaOsmRelationId(saved.playAreaOsmRelationId ?? null);
         setPlayAreaVersion((v) => v + 1);
         setPreservedMetadata(saved.preservedMetadata);
         setStationSource(saved.stationSource ?? "transitous");
@@ -1486,6 +1496,7 @@ export function GameCreator() {
     setPreservedMetadata(null);
     setExtraHidingZones([]);
     setPlayArea(null);
+    setPlayAreaOsmRelationId(null);
     setPlayAreaVersion((v) => v + 1);
     setDrawPoints([]);
     setPlaceQuery("");
@@ -1784,6 +1795,7 @@ export function GameCreator() {
                   visibleLayerIds={visibleLayerIds}
                   setVisibleLayerIds={setVisibleLayerIds}
                   playArea={playArea}
+                  playAreaOsmRelationId={playAreaOsmRelationId}
                   playAreaGenRef={playAreaGenRef}
                   poiBufferKm={poiBufferKm}
                   preferEnglishName={preferEnglishName}
@@ -1827,6 +1839,7 @@ export function GameCreator() {
               {featureSubTab === "osm" && (
                 <CreatorOsmFetchPanel
                   playArea={playArea}
+                  playAreaOsmRelationId={playAreaOsmRelationId}
                   playAreaGenRef={playAreaGenRef}
                   poiBufferKm={poiBufferKm}
                   setPoiBufferKm={setPoiBufferKm}

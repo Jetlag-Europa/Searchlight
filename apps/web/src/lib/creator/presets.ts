@@ -306,7 +306,7 @@ export const SCALE_PRESETS: Record<GameScale, ScalePreset> = {
     thermometer: true,
     stationTypes: ["rail", "suburban", "metro", "tram"],
     stationPreset: "rail-metro-tram",
-    poiBufferKm: 1,
+    poiBufferKm: 0,
   },
   medium: {
     id: "medium",
@@ -318,7 +318,7 @@ export const SCALE_PRESETS: Record<GameScale, ScalePreset> = {
     thermometer: true,
     stationTypes: ["rail", "suburban", "metro"],
     stationPreset: "rail-metro",
-    poiBufferKm: 2,
+    poiBufferKm: 0,
   },
   large: {
     id: "large",
@@ -330,7 +330,7 @@ export const SCALE_PRESETS: Record<GameScale, ScalePreset> = {
     thermometer: true,
     stationTypes: ["rail", "suburban"],
     stationPreset: "rail-only",
-    poiBufferKm: 5,
+    poiBufferKm: 0,
   },
 };
 

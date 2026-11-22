@@ -282,22 +282,399 @@ function canonicalWayDirection(coords: Position[]): Position[] {
   return coords;
 }
 
-function geometryIntersectsPlayArea(
-  geom: PolygonGeometry | MultiPolygonGeometry | LineStringGeometry | MultiLineStringGeometry,
+function roundPolygonGeom(
+  geom: PolygonGeometry | MultiPolygonGeometry,
+): PolygonGeometry | MultiPolygonGeometry | null {
+  const roundRing = (ring: readonly Position[]): Position[] | null => {
+    const out: Position[] = [];
+    for (const p of ring) {
+      const rp: Position = [round6(p[0]), round6(p[1])];
+      const last = out[out.length - 1];
+      if (!last || last[0] !== rp[0] || last[1] !== rp[1]) out.push(rp);
+    }
+    if (out.length < 3) return null;
+    if (out[0][0] !== out[out.length - 1][0] || out[0][1] !== out[out.length - 1][1]) {
+      out.push([out[0][0], out[0][1]]);
+    }
+    return out.length >= 4 ? out : null;
+  };
+  if (geom.type === "Polygon") {
+    const rings = geom.coordinates.map(roundRing).filter((r): r is Position[] => r !== null);
+    return rings.length > 0 ? { type: "Polygon", coordinates: rings } : null;
+  }
+  const polys = geom.coordinates
+    .map((poly) => poly.map(roundRing).filter((r): r is Position[] => r !== null))
+    .filter((rings) => rings.length > 0);
+  if (polys.length === 0) return null;
+  return polys.length === 1
+    ? { type: "Polygon", coordinates: polys[0] }
+    : { type: "MultiPolygon", coordinates: polys };
+}
+
+/**
+ * Returns `playArea` expanded by `bufferKm` kilometers when `bufferKm > 0`,
+ * or `playArea` itself when `bufferKm <= 0`. Used to crop POIs, admin regions,
+ * and lines to the exact play-area shape (+ margin) rather than its bounding box.
+ */
+export function buildPlayAreaMask(
   playArea: PlayAreaFeatureCollection,
-): boolean {
-  const feature = { type: "Feature" as const, geometry: geom, properties: {} };
-  return playArea.features.some((pa) => {
+  bufferKm = 0,
+): PlayAreaFeatureCollection {
+  if (bufferKm <= 0 || playArea.features.length === 0) return playArea;
+  const bufferedFeatures: PlayAreaFeatureCollection["features"] = [];
+  for (const feat of playArea.features) {
     try {
-      return turf.booleanIntersects(feature, {
-        type: "Feature",
-        geometry: pa.geometry,
-        properties: {},
-      });
+      const buffered = turf.buffer(
+        { type: "Feature", properties: {}, geometry: feat.geometry },
+        bufferKm,
+        { units: "kilometers", steps: 12 },
+      );
+      if (
+        buffered?.geometry &&
+        (buffered.geometry.type === "Polygon" || buffered.geometry.type === "MultiPolygon")
+      ) {
+        const rounded = roundPolygonGeom(
+          buffered.geometry as PolygonGeometry | MultiPolygonGeometry,
+        );
+        if (rounded) {
+          bufferedFeatures.push({
+            type: "Feature",
+            properties: feat.properties ?? null,
+            geometry: rounded,
+          });
+        }
+      }
+    } catch {
+      bufferedFeatures.push(feat);
+    }
+  }
+  return bufferedFeatures.length > 0
+    ? { type: "FeatureCollection", features: bufferedFeatures }
+    : playArea;
+}
+
+interface MaskBoundaryEntry {
+  line: ReturnType<typeof turf.lineString>;
+  bbox: Bounds;
+}
+
+interface MaskFeatureEntry {
+  feature: {
+    type: "Feature";
+    properties: Record<string, never>;
+    geometry: PolygonGeometry | MultiPolygonGeometry;
+  };
+  bbox: Bounds;
+  area: number;
+}
+
+interface PlayAreaMaskIndex {
+  bbox: Bounds;
+  totalArea: number;
+  features: MaskFeatureEntry[];
+  boundaries: MaskBoundaryEntry[];
+}
+
+const maskIndexCache = new WeakMap<PlayAreaFeatureCollection, PlayAreaMaskIndex>();
+
+function computeCoordsBbox(coords: readonly Position[]): Bounds {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  for (const [lng, lat] of coords) {
+    if (lng < minLng) minLng = lng;
+    if (lat < minLat) minLat = lat;
+    if (lng > maxLng) maxLng = lng;
+    if (lat > maxLat) maxLat = lat;
+  }
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+function computeGeomBbox(
+  geom: PolygonGeometry | MultiPolygonGeometry | LineStringGeometry | MultiLineStringGeometry,
+): Bounds {
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  const visit = (ring: readonly Position[]) => {
+    for (const [lng, lat] of ring) {
+      if (lng < minLng) minLng = lng;
+      if (lat < minLat) minLat = lat;
+      if (lng > maxLng) maxLng = lng;
+      if (lat > maxLat) maxLat = lat;
+    }
+  };
+  if (geom.type === "LineString") visit(geom.coordinates);
+  else if (geom.type === "MultiLineString") geom.coordinates.forEach(visit);
+  else if (geom.type === "Polygon") geom.coordinates.forEach(visit);
+  else geom.coordinates.forEach((p) => p.forEach(visit));
+  return [minLng, minLat, maxLng, maxLat];
+}
+
+function bboxesOverlap(a: Bounds, b: Bounds): boolean {
+  return a[0] <= b[2] && a[2] >= b[0] && a[1] <= b[3] && a[3] >= b[1];
+}
+
+function getMaskIndex(mask: PlayAreaFeatureCollection): PlayAreaMaskIndex {
+  const cached = maskIndexCache.get(mask);
+  if (cached) return cached;
+
+  let minLng = Infinity;
+  let minLat = Infinity;
+  let maxLng = -Infinity;
+  let maxLat = -Infinity;
+  let totalArea = 0;
+  const features: MaskFeatureEntry[] = [];
+  const boundaries: MaskBoundaryEntry[] = [];
+
+  for (const pa of mask.features) {
+    const geom = pa.geometry;
+    const feature = {
+      type: "Feature" as const,
+      properties: {} as Record<string, never>,
+      geometry: geom,
+    };
+    const bbox = computeGeomBbox(geom);
+    if (bbox[0] < minLng) minLng = bbox[0];
+    if (bbox[1] < minLat) minLat = bbox[1];
+    if (bbox[2] > maxLng) maxLng = bbox[2];
+    if (bbox[3] > maxLat) maxLat = bbox[3];
+
+    let area = 0;
+    try {
+      area = turf.area(feature);
+    } catch {
+      area = 0;
+    }
+    totalArea += area;
+    features.push({ feature, bbox, area });
+
+    const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
+    for (const poly of polys) {
+      for (const ring of poly) {
+        if (ring.length >= 4) {
+          boundaries.push({
+            line: turf.lineString(ring),
+            bbox: computeCoordsBbox(ring),
+          });
+        }
+      }
+    }
+  }
+
+  const index: PlayAreaMaskIndex = {
+    bbox: [minLng, minLat, maxLng, maxLat],
+    totalArea,
+    features,
+    boundaries,
+  };
+  maskIndexCache.set(mask, index);
+  return index;
+}
+
+/** Fast point-in-mask check for clipping POIs to the play area (+ margin). */
+export function pointInPlayAreaMask(
+  lng: number,
+  lat: number,
+  mask: PlayAreaFeatureCollection,
+): boolean {
+  if (mask.features.length === 0) return true;
+  const idx = getMaskIndex(mask);
+  if (lng < idx.bbox[0] || lng > idx.bbox[2] || lat < idx.bbox[1] || lat > idx.bbox[3]) {
+    return false;
+  }
+  const pt = turf.point([lng, lat]);
+  return idx.features.some(({ feature, bbox }) => {
+    if (lng < bbox[0] || lng > bbox[2] || lat < bbox[1] || lat > bbox[3]) return false;
+    try {
+      return turf.booleanPointInPolygon(pt, feature.geometry);
     } catch {
       return false;
     }
   });
+}
+
+function dedupeRoundedPath(coords: readonly Position[]): Position[] {
+  const out: Position[] = [];
+  for (const p of coords) {
+    const rp: Position = [round6(p[0]), round6(p[1])];
+    const last = out[out.length - 1];
+    if (!last || last[0] !== rp[0] || last[1] !== rp[1]) {
+      out.push(rp);
+    }
+  }
+  return out;
+}
+
+/**
+ * Clips a polygon / multipolygon region against the allowed play-area mask.
+ * - Drops regions that only touch the border or have negligible sliver overlap
+ *   (< 100 m² or < 0.5% of the smaller of region/mask area).
+ * - Keeps regions already >= 98% inside the mask untouched so internal shared
+ *   borders stay topology-aligned.
+ * - Crops regions that extend meaningfully outside the mask down to the mask.
+ */
+export function cropRegionToPlayAreaMask(
+  geom: PolygonGeometry | MultiPolygonGeometry,
+  mask: PlayAreaFeatureCollection,
+): PolygonGeometry | MultiPolygonGeometry | null {
+  if (mask.features.length === 0) return geom;
+  const idx = getMaskIndex(mask);
+  const geomBbox = computeGeomBbox(geom);
+  if (!bboxesOverlap(geomBbox, idx.bbox)) return null;
+
+  const regionFeat = { type: "Feature" as const, properties: {}, geometry: geom };
+  let regionArea = 0;
+  try {
+    regionArea = turf.area(regionFeat);
+  } catch {
+    return null;
+  }
+  if (regionArea <= 0) return null;
+
+  const clippedPolys: Position[][][] = [];
+  for (const { feature: maskFeat, bbox: maskBbox } of idx.features) {
+    if (!bboxesOverlap(geomBbox, maskBbox)) continue;
+    try {
+      const inter = turf.intersect(turf.featureCollection([regionFeat, maskFeat]));
+      if (!inter?.geometry) continue;
+      if (inter.geometry.type === "Polygon") {
+        clippedPolys.push(inter.geometry.coordinates as Position[][]);
+      } else if (inter.geometry.type === "MultiPolygon") {
+        clippedPolys.push(...(inter.geometry.coordinates as Position[][][]));
+      }
+    } catch {
+      // Fallback: if Turf intersection fails on an invalid ring, keep only if an
+      // interior point of the region falls inside the mask.
+      try {
+        const pt = turf.pointOnFeature(regionFeat);
+        if (turf.booleanPointInPolygon(pt, maskFeat.geometry)) {
+          return geom;
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  if (clippedPolys.length === 0) return null;
+  const rawClipped: PolygonGeometry | MultiPolygonGeometry =
+    clippedPolys.length === 1
+      ? { type: "Polygon", coordinates: clippedPolys[0] }
+      : { type: "MultiPolygon", coordinates: clippedPolys };
+  const clipped = roundPolygonGeom(rawClipped);
+  if (!clipped) return null;
+
+  let clippedArea = 0;
+  try {
+    clippedArea = turf.area({ type: "Feature", properties: {}, geometry: clipped });
+  } catch {
+    return null;
+  }
+
+  const refArea = Math.min(regionArea, idx.totalArea > 0 ? idx.totalArea : regionArea);
+  // Drop border-touching neighbors / hairline boundary jitter.
+  if (clippedArea < 100 || (refArea > 0 && clippedArea / refArea < 0.005)) {
+    return null;
+  }
+
+  // Already essentially completely inside the play area: keep original crisp geometry.
+  if (clippedArea >= 0.98 * regionArea) {
+    return geom;
+  }
+
+  return clipped;
+}
+
+/**
+ * Crops a LineString / MultiLineString to the allowed play-area mask.
+ * Segments completely outside are dropped; segments crossing the border are
+ * split at the mask boundary and only the portions inside are kept.
+ */
+export function cropLineToPlayAreaMask(
+  geom: LineStringGeometry | MultiLineStringGeometry,
+  mask: PlayAreaFeatureCollection,
+): LineStringGeometry | MultiLineStringGeometry | null {
+  if (mask.features.length === 0) return geom;
+  const idx = getMaskIndex(mask);
+  if (!bboxesOverlap(computeGeomBbox(geom), idx.bbox)) return null;
+
+  const lines: Position[][] = geom.type === "LineString" ? [geom.coordinates] : geom.coordinates;
+
+  const kept: Position[][] = [];
+  for (const coords of lines) {
+    if (coords.length < 2) continue;
+    const lineBbox = computeCoordsBbox(coords);
+    if (!bboxesOverlap(lineBbox, idx.bbox)) continue;
+
+    const lineFeat = turf.lineString(coords);
+    const overlappingBoundaries = idx.boundaries.filter((b) => bboxesOverlap(lineBbox, b.bbox));
+
+    // Fast path: if every vertex is inside the mask and the line doesn't cross any
+    // mask boundary ring, keep as-is without splitting.
+    const allInside = coords.every((p) => pointInPlayAreaMask(p[0], p[1], mask));
+    let crosses = false;
+    if (allInside) {
+      for (const boundary of overlappingBoundaries) {
+        try {
+          if (turf.lineIntersect(lineFeat, boundary.line).features.length > 0) {
+            crosses = true;
+            break;
+          }
+        } catch {
+          // ignore
+        }
+      }
+    }
+    if (allInside && !crosses) {
+      kept.push(coords);
+      continue;
+    }
+
+    // Split along overlapping mask boundaries and keep sub-segments whose midpoint is inside.
+    let pieces: Position[][] = [coords];
+    for (const boundary of overlappingBoundaries) {
+      const nextPieces: Position[][] = [];
+      for (const piece of pieces) {
+        if (piece.length < 2) continue;
+        try {
+          const split = turf.lineSplit(turf.lineString(piece), boundary.line);
+          if (split.features.length > 0) {
+            for (const f of split.features) {
+              const c = dedupeRoundedPath(f.geometry.coordinates as Position[]);
+              if (c.length >= 2) nextPieces.push(c);
+            }
+          } else {
+            nextPieces.push(piece);
+          }
+        } catch {
+          nextPieces.push(piece);
+        }
+      }
+      pieces = nextPieces;
+    }
+
+    for (const piece of pieces) {
+      const clean = dedupeRoundedPath(piece);
+      if (clean.length < 2) continue;
+      // Check midpoint along the piece so boundary-touching endpoints don't fool us.
+      const midIdx = Math.floor((clean.length - 1) / 2);
+      const a = clean[midIdx];
+      const b = clean[Math.min(midIdx + 1, clean.length - 1)];
+      const midLng = (a[0] + b[0]) / 2;
+      const midLat = (a[1] + b[1]) / 2;
+      if (pointInPlayAreaMask(midLng, midLat, mask)) {
+        kept.push(clean);
+      }
+    }
+  }
+
+  if (kept.length === 0) return null;
+  return kept.length === 1
+    ? { type: "LineString", coordinates: kept[0] }
+    : { type: "MultiLineString", coordinates: kept };
 }
 
 /**
@@ -395,12 +772,13 @@ export function assembleAdminRelations(
       }
     }
 
-    const geometry: PolygonGeometry | MultiPolygonGeometry =
+    const rawGeometry: PolygonGeometry | MultiPolygonGeometry =
       polygons.length === 1
         ? { type: "Polygon", coordinates: polygons[0] }
         : { type: "MultiPolygon", coordinates: polygons };
 
-    if (playArea && !geometryIntersectsPlayArea(geometry, playArea)) {
+    const geometry = playArea ? cropRegionToPlayAreaMask(rawGeometry, playArea) : rawGeometry;
+    if (!geometry) {
       skippedOutside++;
       continue;
     }
@@ -444,6 +822,7 @@ export function buildAdminRegionsQuery(adminLevel: number, bounds: Bounds): stri
 export async function fetchAdminRegionsFromOsm({
   adminLevel,
   playArea,
+  bufferKm = 0,
   toleranceMeters = 15,
   preferEnglishName = false,
   customEndpoint,
@@ -453,6 +832,7 @@ export async function fetchAdminRegionsFromOsm({
 }: {
   adminLevel: number;
   playArea: PlayAreaFeatureCollection;
+  bufferKm?: number;
   toleranceMeters?: number;
   preferEnglishName?: boolean;
   customEndpoint?: string;
@@ -460,7 +840,8 @@ export async function fetchAdminRegionsFromOsm({
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<RegionFetchResult> {
-  const bounds = playAreaBounds(playArea);
+  const mask = buildPlayAreaMask(playArea, bufferKm);
+  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
   const query = rawQueryOverride?.trim() || buildAdminRegionsQuery(adminLevel, bounds);
   onStatus?.(`Querying OpenStreetMap for admin_level=${adminLevel} boundaries…`);
   const { elements, endpoint } = await runOverpassQuery(query, {
@@ -470,7 +851,7 @@ export async function fetchAdminRegionsFromOsm({
   });
 
   const assembled = assembleAdminRelations(elements as unknown as OverpassGeomElement[], {
-    playArea,
+    playArea: mask,
     toleranceMeters,
     preferEnglishName,
   });
@@ -521,11 +902,14 @@ export function assembleLineWays(
     const simplified = simplifyPathMeters(raw, toleranceMeters);
     if (simplified.length < 2) continue;
 
-    if (
-      playArea &&
-      !geometryIntersectsPlayArea({ type: "LineString", coordinates: simplified }, playArea)
-    ) {
-      continue;
+    let keptSegments: Position[][] = [simplified];
+    if (playArea) {
+      const cropped = cropLineToPlayAreaMask(
+        { type: "LineString", coordinates: simplified },
+        playArea,
+      );
+      if (!cropped) continue;
+      keptSegments = cropped.type === "LineString" ? [cropped.coordinates] : cropped.coordinates;
     }
 
     const rawName = preferEnglishName
@@ -536,16 +920,19 @@ export function assembleLineWays(
     if (groupByName) {
       if (name) {
         const list = namedGroups.get(name) ?? [];
-        list.push(simplified);
+        list.push(...keptSegments);
         namedGroups.set(name, list);
       } else {
-        unnamedSegments.push(simplified);
+        unnamedSegments.push(...keptSegments);
       }
     } else {
       individual.push({
         uid: `way-${el.id}`,
         name: name || layerName,
-        geometry: { type: "LineString", coordinates: simplified },
+        geometry:
+          keptSegments.length === 1
+            ? { type: "LineString", coordinates: keptSegments[0] }
+            : { type: "MultiLineString", coordinates: keptSegments },
         enabled: true,
       });
     }
@@ -591,7 +978,7 @@ export async function fetchLineLayerFromOsm({
   layerName,
   osmFilter,
   playArea,
-  bufferKm = 2,
+  bufferKm = 0,
   toleranceMeters = 15,
   groupByName = true,
   preferEnglishName = false,
@@ -612,6 +999,7 @@ export async function fetchLineLayerFromOsm({
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<LineFetchResult> {
+  const mask = buildPlayAreaMask(playArea, bufferKm);
   const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
   const query = rawQueryOverride?.trim() || buildLineLayerQuery(osmFilter, bounds);
   onStatus?.(`Querying OpenStreetMap for ${layerName}…`);
@@ -623,6 +1011,7 @@ export async function fetchLineLayerFromOsm({
 
   const assembled = assembleLineWays(elements as unknown as OverpassGeomElement[], {
     layerName,
+    playArea: mask,
     toleranceMeters,
     groupByName,
     preferEnglishName,

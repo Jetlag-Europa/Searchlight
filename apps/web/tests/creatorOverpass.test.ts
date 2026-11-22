@@ -1,3 +1,4 @@
+import type { PlayAreaFeatureCollection } from "@searchlight/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -226,6 +227,76 @@ describe("fetchStationsFromOsm & fetchPoiLayersFromOsm", () => {
     expect(result.byLayerId.hospital.map((h) => h.name)).toEqual(["University Hospital"]);
   });
 
+  it("clips Overpass POIs to the play-area polygon + margin rather than its bounding box", async () => {
+    const triangleArea: PlayAreaFeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { name: "Triangle" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [8.5, 47.35],
+                [8.6, 47.35],
+                [8.5, 47.42],
+                [8.5, 47.35],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+    const mockElements = {
+      elements: [
+        {
+          type: "node",
+          id: 21,
+          lon: 8.52,
+          lat: 47.36,
+          tags: { tourism: "museum", name: "Inside Museum" },
+        },
+        {
+          // Inside bbox, ~1.5 km outside the triangle hypotenuse
+          type: "node",
+          id: 22,
+          lon: 8.56,
+          lat: 47.39,
+          tags: { tourism: "museum", name: "Near Border Museum" },
+        },
+        {
+          // Inside bbox far corner (~4 km outside hypotenuse)
+          type: "node",
+          id: 23,
+          lon: 8.595,
+          lat: 47.415,
+          tags: { tourism: "museum", name: "Far Corner Museum" },
+        },
+      ],
+    };
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response(JSON.stringify(mockElements), { status: 200 }),
+    );
+
+    const zeroMargin = await fetchPoiLayersFromOsm({
+      layers: [{ id: "museum", name: "Museum", osmFilter: '["tourism"="museum"]' }],
+      playArea: triangleArea,
+      bufferKm: 0,
+    });
+    expect(zeroMargin.byLayerId.museum.map((m) => m.name)).toEqual(["Inside Museum"]);
+
+    const twoKmMargin = await fetchPoiLayersFromOsm({
+      layers: [{ id: "museum", name: "Museum", osmFilter: '["tourism"="museum"]' }],
+      playArea: triangleArea,
+      bufferKm: 2,
+    });
+    expect(twoKmMargin.byLayerId.museum.map((m) => m.name)).toEqual([
+      "Inside Museum",
+      "Near Border Museum",
+    ]);
+  });
+
   it("expands bounds symmetrically and clamps to world bounds", () => {
     const expanded = expandBoundsKm([8.5, 47.35, 8.6, 47.42], 2);
     expect(expanded[0]).toBeLessThan(8.5);
@@ -381,8 +452,10 @@ describe("searchPlaces", () => {
     const results = await searchPlaces("Zurich");
     expect(results).toHaveLength(2);
     expect(results[0].name).toBe("Zurich");
+    expect(results[0].osmRelationId).toBe(100);
     expect(results[0].playArea.features[0].geometry.type).toBe("Polygon");
     expect(results[1].name).toBe("Small Village");
+    expect(results[1].osmRelationId).toBeUndefined();
     expect(results[1].bounds).toEqual([8.4, 47.3, 8.42, 47.32]);
   });
 });

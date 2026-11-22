@@ -18,6 +18,8 @@ export interface PlaceSearchResult {
   name: string;
   displayName: string;
   type: string;
+  /** OSM relation ID when the place came from an OSM boundary relation (used to fast-scope QLever queries). */
+  osmRelationId?: number;
   bounds: Bounds;
   playArea: PlayAreaFeatureCollection;
 }
@@ -333,6 +335,11 @@ export async function searchPlaces(
       name,
       displayName,
       type: item.type ?? "place",
+      ...(item.osm_type === "relation" &&
+        item.type === "administrative" &&
+        typeof item.osm_id === "number" &&
+        Number.isInteger(item.osm_id) &&
+        geometry && { osmRelationId: item.osm_id }),
       bounds,
       playArea,
     });
@@ -937,7 +944,7 @@ export function buildBatchedPoiOverpassQuery(
 export async function fetchPoiLayersFromOsm({
   layers,
   playArea,
-  bufferKm = 2,
+  bufferKm = 0,
   preferEnglishName = false,
   customEndpoint,
   signal,
@@ -954,6 +961,30 @@ export async function fetchPoiLayersFromOsm({
   if (layers.length === 0) {
     return { byLayerId: {}, endpoint: "" };
   }
+  const mask: PlayAreaFeatureCollection =
+    bufferKm > 0
+      ? {
+          type: "FeatureCollection",
+          features: playArea.features.flatMap((f) => {
+            try {
+              const b = turf.buffer(
+                { type: "Feature", properties: {}, geometry: f.geometry },
+                bufferKm,
+                { units: "kilometers", steps: 12 },
+              );
+              if (
+                b?.geometry &&
+                (b.geometry.type === "Polygon" || b.geometry.type === "MultiPolygon")
+              ) {
+                return [{ ...f, geometry: b.geometry as PlayAreaGeometry }];
+              }
+            } catch {
+              // fall back to original polygon
+            }
+            return [f];
+          }),
+        }
+      : playArea;
   const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
   const parsedLayers = layers.map((layer) => {
     const predicates = parseSimpleOsmFilter(layer.osmFilter);
@@ -979,6 +1010,7 @@ export async function fetchPoiLayersFromOsm({
   for (const el of elements) {
     const pt = extractElementPoint(el, preferEnglishName);
     if (!pt) continue;
+    if (!pointInPlayArea(pt.lng, pt.lat, mask)) continue;
     for (const { layer, predicates } of parsedLayers) {
       if (!matchesOsmPredicates(el.tags, predicates)) continue;
       if (layer.notableOnly && !el.tags?.wikidata && !el.tags?.wikipedia) {

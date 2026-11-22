@@ -44,6 +44,7 @@ import { cn } from "@/lib/utils";
 
 interface Props {
   playArea: PlayAreaFeatureCollection | null;
+  playAreaOsmRelationId: number | null;
   playAreaGenRef: React.MutableRefObject<number>;
   poiBufferKm: number;
   setPoiBufferKm: (km: number) => void;
@@ -57,6 +58,7 @@ interface Props {
 
 export function CreatorOsmFetchPanel({
   playArea,
+  playAreaOsmRelationId,
   playAreaGenRef,
   poiBufferKm,
   setPoiBufferKm,
@@ -248,6 +250,7 @@ export function CreatorOsmFetchPanel({
         const result = await fetchAdminRegionsFromOsm({
           adminLevel,
           playArea,
+          bufferKm: poiBufferKm,
           toleranceMeters: regionTolerance,
           preferEnglishName,
           customEndpoint: customEndpoint.trim() || undefined,
@@ -383,6 +386,7 @@ export function CreatorOsmFetchPanel({
               osmFilter,
               notableOnly,
               playArea,
+              playAreaOsmRelationId,
               bufferKm: poiBufferKm,
               preferEnglishName,
               signal: controller.signal,
@@ -526,6 +530,7 @@ export function CreatorOsmFetchPanel({
           ? await fetchAdminRegionsFromQlever({
               adminLevel,
               playArea,
+              bufferKm: poiBufferKm,
               toleranceMeters: regionTolerance,
               preferEnglishName,
               signal: controller.signal,
@@ -536,6 +541,7 @@ export function CreatorOsmFetchPanel({
           : await fetchAdminRegionsFromOsm({
               adminLevel,
               playArea,
+              bufferKm: poiBufferKm,
               toleranceMeters: regionTolerance,
               preferEnglishName,
               customEndpoint: customEndpoint.trim() || undefined,
@@ -629,6 +635,7 @@ export function CreatorOsmFetchPanel({
             layerName: lineName.trim(),
             osmFilter,
             playArea,
+            playAreaOsmRelationId,
             bufferKm: poiBufferKm,
             toleranceMeters: lineTolerance,
             groupByName: lineGroupByName,
@@ -978,7 +985,10 @@ export function CreatorOsmFetchPanel({
               openRawQueryEditor({
                 name: regionName.trim() || "Region",
                 family: "polygons",
-                query: buildAdminRegionsQuery(adminLevel, playAreaBounds(playArea)),
+                query: buildAdminRegionsQuery(
+                  adminLevel,
+                  expandBoundsKm(playAreaBounds(playArea), poiBufferKm),
+                ),
               });
             }}
             className="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40"

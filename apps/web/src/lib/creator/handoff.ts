@@ -39,6 +39,7 @@ export interface CreatorWorkspaceDraft {
   radarsText: string;
   thermometer: boolean;
   playArea: PlayAreaFeatureCollection | null;
+  playAreaOsmRelationId?: number | null;
   preservedMetadata: PreservedGameMetadata | null;
   stationSource?: StationSource;
   stationTypes?: StationTypeId[];

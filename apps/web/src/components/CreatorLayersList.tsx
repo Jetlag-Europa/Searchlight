@@ -54,6 +54,7 @@ import {
 } from "@/lib/creator/osmGeometry";
 import { fetchPoiLayersFromOsm } from "@/lib/creator/overpass";
 import { FEATURE_ICON_META, inferLayerIcon, MY_MAPS_PALETTE } from "@/lib/creator/presets";
+import { fetchPoiLayerFromQlever, osmFilterToSparqlPatterns } from "@/lib/creator/qlever";
 import { cn } from "@/lib/utils";
 import { requestGeometry } from "@/maps/geo-utils/geometryClient";
 
@@ -96,6 +97,7 @@ interface Props {
   visibleLayerIds: Set<string>;
   setVisibleLayerIds: React.Dispatch<React.SetStateAction<Set<string>>>;
   playArea: PlayAreaFeatureCollection | null;
+  playAreaOsmRelationId?: number | null;
   playAreaGenRef: React.MutableRefObject<number>;
   poiBufferKm: number;
   preferEnglishName: boolean;
@@ -112,6 +114,7 @@ export function CreatorLayersList({
   visibleLayerIds,
   setVisibleLayerIds,
   playArea,
+  playAreaOsmRelationId = null,
   playAreaGenRef,
   poiBufferKm,
   preferEnglishName,
@@ -243,22 +246,38 @@ export function CreatorLayersList({
     const areaGen = playAreaGenRef.current;
     setRefreshingId(layer.id);
     try {
-      const result = await fetchPoiLayersFromOsm({
-        layers: [
-          {
-            id: layer.id,
-            name: layer.name,
-            osmFilter: layer.osmFilter,
-            notableOnly: layer.notableOnly,
-          },
-        ],
-        playArea,
-        bufferKm: poiBufferKm,
-        preferEnglishName,
-        customEndpoint: customEndpoint.trim() || undefined,
-      });
+      const useQlever =
+        !customEndpoint.trim() && osmFilterToSparqlPatterns(layer.osmFilter) !== null;
+      const rawPts = useQlever
+        ? (
+            await fetchPoiLayerFromQlever({
+              id: layer.id,
+              name: layer.name,
+              osmFilter: layer.osmFilter,
+              notableOnly: layer.notableOnly,
+              playArea,
+              playAreaOsmRelationId,
+              bufferKm: poiBufferKm,
+              preferEnglishName,
+            })
+          ).items
+        : ((
+            await fetchPoiLayersFromOsm({
+              layers: [
+                {
+                  id: layer.id,
+                  name: layer.name,
+                  osmFilter: layer.osmFilter,
+                  notableOnly: layer.notableOnly,
+                },
+              ],
+              playArea,
+              bufferKm: poiBufferKm,
+              preferEnglishName,
+              customEndpoint: customEndpoint.trim() || undefined,
+            })
+          ).byLayerId[layer.id] ?? []);
       if (playAreaGenRef.current !== areaGen) return;
-      const rawPts = result.byLayerId[layer.id] ?? [];
       const items = rawPts.map((pt) => ({
         uid: pt.uid,
         name: pt.name,

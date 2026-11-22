@@ -8,12 +8,15 @@ import type {
   PolygonGeometry,
   Position,
 } from "@searchlight/shared";
-import * as turf from "@turf/turf";
 
 import {
+  buildPlayAreaMask,
   countGeometryVertices,
   type CreatorGeoFeatureItem,
+  cropLineToPlayAreaMask,
+  cropRegionToPlayAreaMask,
   type LineFetchResult,
+  pointInPlayAreaMask,
   type RegionFetchResult,
   simplifyLineLayerTopology,
   simplifyPolygonLayerTopology,
@@ -31,7 +34,11 @@ export const QLEVER_WEB_UI_URL = "https://qlever.dev/osm-planet";
 
 const OSM_KEY_PREFIX = "https://www.openstreetmap.org/wiki/Key:";
 const OSM_NAME_EN_IRI = "<https://www.openstreetmap.org/wiki/Key:name:en>";
+const OSM2RDF_PREFIX = "https://osm2rdf.cs.uni-freiburg.de/rdf#";
 const OSM2RDF_KEY_PREFIX = "https://osm2rdf.cs.uni-freiburg.de/rdf/key#";
+// Small countries (< 15,000 km²) such as Liechtenstein, Luxembourg, Monaco,
+// Andorra, Malta, or Singapore often have no `admin_level=4` subdivisions.
+const SMALL_COUNTRY_AREA_M2 = 15_000_000_000;
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -321,9 +328,10 @@ function bboxCacheKey(bounds: Bounds): string {
 
 /**
  * Finds the minimal set of OSM administrative relations (`admin_level=4`, plus
- * any intersecting `admin_level=2` country that has no `admin_level=4` children
- * such as Liechtenstein or Luxembourg) whose union fully covers `bounds`.
- * Results are cached in memory per bbox so subsequent layers skip this lookup.
+ * any small intersecting `admin_level=2` country such as Liechtenstein or
+ * Luxembourg that lacks `admin_level=4` subdivisions, or all `admin_level=2`
+ * countries if no `admin_level=4` regions match) whose union covers `bounds`.
+ * Runs in a single fast QLever query (~0.35s) and caches results per bbox.
  */
 export async function resolveQleverCoveringRegions(
   bounds: Bounds,
@@ -343,47 +351,44 @@ export async function resolveQleverCoveringRegions(
   const box = bboxToWktPolygon(bounds);
   const findQuery = `PREFIX osmkey: <${OSM_KEY_PREFIX}>
 PREFIX osm: <https://www.openstreetmap.org/>
+PREFIX osm2rdf: <${OSM2RDF_PREFIX}>
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
-SELECT DISTINCT ?r ?lvl WHERE {
+SELECT DISTINCT ?r ?lvl ?area WHERE {
   ?r a osm:relation ;
      osmkey:type "boundary" ;
      osmkey:boundary "administrative" ;
      osmkey:admin_level ?lvl ;
      geo:hasGeometry/geo:asWKT ?wkt .
   VALUES ?lvl { 2 4 }
+  OPTIONAL { ?r osm2rdf:area ?area . }
   FILTER(geof:sfIntersects(?wkt, "${box}"^^geo:wktLiteral))
 }`;
 
   const rows = await runQleverQuery(findQuery, { signal, timeoutMs: 20_000 });
-  const adm2 = new Set<string>();
+  const adm2 = new Map<string, number>();
   const adm4 = new Set<string>();
   for (const row of rows) {
     const uri = row.r?.value;
     const lvl = row.lvl?.value;
     if (!uri) continue;
     if (lvl === "4") adm4.add(uri);
-    else if (lvl === "2") adm2.add(uri);
+    else if (lvl === "2") {
+      const area = Number(row.area?.value);
+      adm2.set(uri, Number.isFinite(area) ? area : Infinity);
+    }
   }
 
-  let uncoveredCountries: string[] = [];
-  if (adm2.size > 0 && adm4.size > 0) {
-    const countryValues = [...adm2].map((u) => `<${u}>`).join(" ");
-    const subValues = [...adm4].map((u) => `<${u}>`).join(" ");
-    const coverQuery = `PREFIX ogc: <http://www.opengis.net/rdf#>
-SELECT DISTINCT ?c WHERE {
-  VALUES ?c { ${countryValues} }
-  VALUES ?r { ${subValues} }
-  ?c ogc:sfCovers ?r .
-}`;
-    const coveredRows = await runQleverQuery(coverQuery, { signal, timeoutMs: 10_000 });
-    const covered = new Set(coveredRows.map((row) => row.c?.value).filter(Boolean) as string[]);
-    uncoveredCountries = [...adm2].filter((c) => !covered.has(c));
-  } else if (adm4.size === 0) {
-    uncoveredCountries = [...adm2];
+  let includedCountries: string[];
+  if (adm4.size === 0) {
+    includedCountries = [...adm2.keys()];
+  } else {
+    includedCountries = [...adm2.entries()]
+      .filter(([, area]) => area < SMALL_COUNTRY_AREA_M2)
+      .map(([uri]) => uri);
   }
 
-  const regions = [...adm4, ...uncoveredCountries];
+  const regions = [...adm4, ...includedCountries];
   if (coveringRegionCache.size >= MAX_REGION_CACHE) {
     const oldest = coveringRegionCache.keys().next().value;
     if (oldest !== undefined) coveringRegionCache.delete(oldest);
@@ -456,7 +461,8 @@ export async function fetchPoiLayerFromQlever({
   osmFilter,
   notableOnly = false,
   playArea,
-  bufferKm = 2,
+  playAreaOsmRelationId,
+  bufferKm = 0,
   preferEnglishName = false,
   signal,
   onStatus,
@@ -466,13 +472,18 @@ export async function fetchPoiLayerFromQlever({
   osmFilter: string;
   notableOnly?: boolean;
   playArea: PlayAreaFeatureCollection;
+  playAreaOsmRelationId?: number | null;
   bufferKm?: number;
   preferEnglishName?: boolean;
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<{ items: CreatorPointItem[]; endpoint: string }> {
+  const mask = buildPlayAreaMask(playArea, bufferKm);
   const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
-  const regionIris = await resolveQleverCoveringRegions(bounds, { signal, onStatus });
+  const regionIris =
+    playAreaOsmRelationId && bufferKm <= 0
+      ? [`https://www.openstreetmap.org/relation/${playAreaOsmRelationId}`]
+      : await resolveQleverCoveringRegions(bounds, { signal, onStatus });
   const query = buildQleverPoiQuery({
     osmFilter,
     bounds,
@@ -494,6 +505,7 @@ export async function fetchPoiLayerFromQlever({
     if (!label || !wkt) continue;
     const pt = parseWktPoint(wkt);
     if (!pt) continue;
+    if (!pointInPlayAreaMask(pt[0], pt[1], mask)) continue;
     const osmId = osmIdFromUri(row.s?.value, i);
     raw.push({
       uid: `poi-${id}-${osmId}`,
@@ -545,6 +557,7 @@ ${enOptional}  FILTER(geof:sfIntersects(?wkt, "${box}"^^geo:wktLiteral))
 export async function fetchAdminRegionsFromQlever({
   adminLevel,
   playArea,
+  bufferKm = 0,
   toleranceMeters = 15,
   preferEnglishName = false,
   signal,
@@ -552,17 +565,19 @@ export async function fetchAdminRegionsFromQlever({
 }: {
   adminLevel: number;
   playArea: PlayAreaFeatureCollection;
+  bufferKm?: number;
   toleranceMeters?: number;
   preferEnglishName?: boolean;
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<RegionFetchResult> {
-  const bounds = playAreaBounds(playArea);
+  const mask = buildPlayAreaMask(playArea, bufferKm);
+  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
   const query = buildQleverAdminRegionsQuery({ adminLevel, bounds, preferEnglishName });
   onStatus?.(`Querying QLever for admin_level=${adminLevel} boundaries…`);
   const rows = await runQleverQuery(query, { signal, timeoutMs: 30_000 });
 
-  onStatus?.("Processing and simplifying region polygons…");
+  onStatus?.("Cropping and simplifying region polygons…");
   const rawItems: CreatorGeoFeatureItem[] = [];
   const seenIds = new Set<string>();
   let skippedOutside = 0;
@@ -578,21 +593,8 @@ export async function fetchAdminRegionsFromQlever({
     const geom = parseWktGeometry(wkt);
     if (!geom || (geom.type !== "Polygon" && geom.type !== "MultiPolygon")) continue;
 
-    let intersects = true;
-    try {
-      const feat = { type: "Feature" as const, properties: {}, geometry: geom };
-      intersects = playArea.features.some((pa) =>
-        turf.booleanIntersects(feat, {
-          type: "Feature" as const,
-          properties: {},
-          geometry: pa.geometry,
-        }),
-      );
-    } catch {
-      intersects = true;
-    }
-
-    if (!intersects) {
+    const cropped = cropRegionToPlayAreaMask(geom, mask);
+    if (!cropped) {
       skippedOutside++;
       continue;
     }
@@ -601,7 +603,7 @@ export async function fetchAdminRegionsFromQlever({
     rawItems.push({
       uid: `osm-rel-${osmId}`,
       name: label,
-      geometry: geom,
+      geometry: cropped,
       enabled: true,
     });
   }
@@ -658,7 +660,8 @@ export async function fetchLineLayerFromQlever({
   layerName,
   osmFilter,
   playArea,
-  bufferKm = 2,
+  playAreaOsmRelationId,
+  bufferKm = 0,
   toleranceMeters = 15,
   groupByName = true,
   preferEnglishName = false,
@@ -668,6 +671,7 @@ export async function fetchLineLayerFromQlever({
   layerName: string;
   osmFilter: string;
   playArea: PlayAreaFeatureCollection;
+  playAreaOsmRelationId?: number | null;
   bufferKm?: number;
   toleranceMeters?: number;
   groupByName?: boolean;
@@ -675,8 +679,12 @@ export async function fetchLineLayerFromQlever({
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<LineFetchResult> {
+  const mask = buildPlayAreaMask(playArea, bufferKm);
   const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
-  const regionIris = await resolveQleverCoveringRegions(bounds, { signal, onStatus });
+  const regionIris =
+    playAreaOsmRelationId && bufferKm <= 0
+      ? [`https://www.openstreetmap.org/relation/${playAreaOsmRelationId}`]
+      : await resolveQleverCoveringRegions(bounds, { signal, onStatus });
   const query = buildQleverLineQuery({ osmFilter, bounds, regionIris, preferEnglishName });
   if (!query) {
     throw new Error(`Unsupported OSM filter for QLever: ${osmFilter}`);
@@ -685,7 +693,7 @@ export async function fetchLineLayerFromQlever({
   onStatus?.(`Querying QLever for ${layerName}…`);
   const rows = await runQleverQuery(query, { signal, timeoutMs: 30_000 });
 
-  onStatus?.("Assembling and simplifying line features…");
+  onStatus?.("Cropping and simplifying line features…");
   const seenIds = new Set<string>();
   const rawSegments: Array<{ id: string; name: string; lines: Position[][] }> = [];
 
@@ -699,9 +707,12 @@ export async function fetchLineLayerFromQlever({
     const geom = parseWktGeometry(wkt);
     if (!geom || (geom.type !== "LineString" && geom.type !== "MultiLineString")) continue;
 
+    const cropped = cropLineToPlayAreaMask(geom, mask);
+    if (!cropped) continue;
+
     seenIds.add(osmId);
     const label = pickBindingName(row, preferEnglishName) || layerName;
-    const lines = geom.type === "LineString" ? [geom.coordinates] : geom.coordinates;
+    const lines = cropped.type === "LineString" ? [cropped.coordinates] : cropped.coordinates;
     rawSegments.push({ id: osmId, name: label, lines });
   }
 

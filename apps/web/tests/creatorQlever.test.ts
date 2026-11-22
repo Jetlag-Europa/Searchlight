@@ -1,3 +1,4 @@
+import type { PlayAreaFeatureCollection } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { rectanglePlayArea } from "@/lib/creator/overpass";
@@ -76,57 +77,213 @@ describe("QLever WKT parser & OSM filter converter", () => {
 describe("QLever covering regions & layer fetchers", () => {
   const zurichPlayArea = rectanglePlayArea([8.5, 47.35, 8.6, 47.42], "Zurich");
 
-  it("resolves admin_level=4 regions plus uncovered countries (e.g. Liechtenstein) and caches by bbox", async () => {
-    const fetchSpy = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            results: {
-              bindings: [
-                {
-                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/51701" },
-                  lvl: { type: "literal", value: "2" },
-                },
-                {
-                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/1155955" },
-                  lvl: { type: "literal", value: "2" },
-                },
-                {
-                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/1690227" },
-                  lvl: { type: "literal", value: "4" },
-                },
-              ],
-            },
-          }),
-          { status: 200 },
-        ),
-      )
-      .mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            results: {
-              bindings: [
-                // Switzerland (51701) covers Canton Zurich (1690227); Liechtenstein (1155955) has no adm4.
-                { c: { type: "uri", value: "https://www.openstreetmap.org/relation/51701" } },
-              ],
-            },
-          }),
-          { status: 200 },
-        ),
-      );
+  it("resolves admin_level=4 regions plus small countries (e.g. Liechtenstein) in one query and caches by bbox", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          results: {
+            bindings: [
+              {
+                // Switzerland (~41,285 km²) — skipped because adm4 regions are present.
+                r: { type: "uri", value: "https://www.openstreetmap.org/relation/51701" },
+                lvl: { type: "literal", value: "2" },
+                area: { type: "literal", value: "41285000000" },
+              },
+              {
+                // Liechtenstein (~160 km²) — kept because small countries often lack adm4.
+                r: { type: "uri", value: "https://www.openstreetmap.org/relation/1155955" },
+                lvl: { type: "literal", value: "2" },
+                area: { type: "literal", value: "160000000" },
+              },
+              {
+                r: { type: "uri", value: "https://www.openstreetmap.org/relation/1690227" },
+                lvl: { type: "literal", value: "4" },
+                area: { type: "literal", value: "1729000000" },
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
 
     const regions = await resolveQleverCoveringRegions([8.5, 47.35, 9.6, 47.42]);
     expect(regions).toEqual([
       "https://www.openstreetmap.org/relation/1690227",
       "https://www.openstreetmap.org/relation/1155955",
     ]);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
 
     // Second call for the same bbox hits the in-memory cache (0 extra requests).
     const cached = await resolveQleverCoveringRegions([8.5, 47.35, 9.6, 47.42]);
     expect(cached).toEqual(regions);
-    expect(fetchSpy).toHaveBeenCalledTimes(2);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the play-area OSM relation directly when margin is 0, and clips POIs to the polygon (not bbox)", async () => {
+    // Diagonal triangle covering lower-left half of [8.5..8.6, 47.35..47.42]
+    const trianglePlayArea: PlayAreaFeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: { name: "Triangle" },
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [8.5, 47.35],
+                [8.6, 47.35],
+                [8.5, 47.42],
+                [8.5, 47.35],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+
+    const queries: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const body = new URLSearchParams(String(init?.body ?? "")).get("query") ?? "";
+      queries.push(body);
+      return new Response(
+        JSON.stringify({
+          results: {
+            bindings: [
+              {
+                // Strictly inside triangle
+                s: { type: "uri", value: "https://www.openstreetmap.org/node/1" },
+                name: { type: "literal", value: "Inside Museum" },
+                c: { type: "literal", value: "POINT(8.52 47.36)" },
+              },
+              {
+                // Inside bbox upper-right corner, OUTSIDE triangle
+                s: { type: "uri", value: "https://www.openstreetmap.org/node/2" },
+                name: { type: "literal", value: "Corner Outside Museum" },
+                c: { type: "literal", value: "POINT(8.59 47.41)" },
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      );
+    });
+
+    const res = await fetchPoiLayerFromQlever({
+      id: "museum",
+      name: "Museum",
+      osmFilter: '["tourism"="museum"]',
+      playArea: trianglePlayArea,
+      playAreaOsmRelationId: 51701,
+      bufferKm: 0,
+    });
+
+    // Only 1 query fired (skipped covering-region discovery) using relation/51701 directly.
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toContain("<https://www.openstreetmap.org/relation/51701>");
+    expect(res.items.map((i) => i.name)).toEqual(["Inside Museum"]);
+  });
+
+  it("drops border-touching admin regions, keeps interior regions, and crops overhanging ones", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: {
+            bindings: [
+              {
+                // Completely inside playArea [8.5..8.6, 47.35..47.42]
+                s: { type: "uri", value: "https://www.openstreetmap.org/relation/200" },
+                name: { type: "literal", value: "Inner District" },
+                wkt: {
+                  type: "literal",
+                  value: "POLYGON((8.52 47.36, 8.56 47.36, 8.56 47.40, 8.52 47.40, 8.52 47.36))",
+                },
+              },
+              {
+                // Only touches the eastern border x=8.6 (neighbor outside playArea)
+                s: { type: "uri", value: "https://www.openstreetmap.org/relation/201" },
+                name: { type: "literal", value: "Border Neighbor" },
+                wkt: {
+                  type: "literal",
+                  value: "POLYGON((8.60 47.36, 8.70 47.36, 8.70 47.40, 8.60 47.40, 8.60 47.36))",
+                },
+              },
+              {
+                // Overhangs past eastern border x=8.6 out to x=8.7
+                s: { type: "uri", value: "https://www.openstreetmap.org/relation/202" },
+                name: { type: "literal", value: "Overhanging District" },
+                wkt: {
+                  type: "literal",
+                  value: "POLYGON((8.57 47.36, 8.70 47.36, 8.70 47.40, 8.57 47.40, 8.57 47.36))",
+                },
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await fetchAdminRegionsFromQlever({
+      adminLevel: 8,
+      playArea: zurichPlayArea,
+      bufferKm: 0,
+      toleranceMeters: 0,
+    });
+
+    expect(res.items.map((i) => i.name)).toEqual(["Inner District", "Overhanging District"]);
+    expect(res.skippedOutside).toBe(1);
+    const overhang = res.items.find((i) => i.name === "Overhanging District")!;
+    expect(overhang.geometry.type).toBe("Polygon");
+    if (overhang.geometry.type === "Polygon") {
+      const maxLng = Math.max(...overhang.geometry.coordinates[0].map((p) => p[0]));
+      expect(maxLng).toBeLessThanOrEqual(8.600001);
+    }
+  });
+
+  it("crops crossing line ways down to the play area and drops lines outside the polygon", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: {
+            bindings: [
+              {
+                // Crosses from outside west (8.4) through play area to outside east (8.7)
+                s: { type: "uri", value: "https://www.openstreetmap.org/way/10" },
+                name: { type: "literal", value: "Cross Rail" },
+                wkt: { type: "literal", value: "LINESTRING(8.4 47.38, 8.7 47.38)" },
+              },
+              {
+                // Completely outside
+                s: { type: "uri", value: "https://www.openstreetmap.org/way/11" },
+                name: { type: "literal", value: "Outside Rail" },
+                wkt: { type: "literal", value: "LINESTRING(8.65 47.38, 8.75 47.38)" },
+              },
+            ],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+
+    const res = await fetchLineLayerFromQlever({
+      layerName: "Rail",
+      osmFilter: '["railway"="rail"]',
+      playArea: zurichPlayArea,
+      playAreaOsmRelationId: 1682248,
+      bufferKm: 0,
+      toleranceMeters: 0,
+    });
+
+    expect(res.items.map((i) => i.name)).toEqual(["Cross Rail"]);
+    const geom = res.items[0].geometry;
+    expect(geom.type).toBe("LineString");
+    if (geom.type === "LineString") {
+      const lngs = geom.coordinates.map((p) => p[0]);
+      expect(Math.min(...lngs)).toBeGreaterThanOrEqual(8.499999);
+      expect(Math.max(...lngs)).toBeLessThanOrEqual(8.600001);
+    }
   });
 
   it("fetches POIs via QLever with notableOnly, English names, and deduplication", async () => {
