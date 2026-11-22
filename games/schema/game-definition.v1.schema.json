@@ -559,6 +559,88 @@
           "noOverlaps": {
             "type": "boolean"
           },
+          "color": {
+            "pattern": "^#[0-9a-fA-F]{6}$",
+            "type": "string"
+          },
+          "icon": {
+            "anyOf": [
+              {
+                "const": "pin",
+                "type": "string"
+              },
+              {
+                "const": "airport",
+                "type": "string"
+              },
+              {
+                "const": "aquarium",
+                "type": "string"
+              },
+              {
+                "const": "cinema",
+                "type": "string"
+              },
+              {
+                "const": "consulate",
+                "type": "string"
+              },
+              {
+                "const": "golf",
+                "type": "string"
+              },
+              {
+                "const": "hospital",
+                "type": "string"
+              },
+              {
+                "const": "library",
+                "type": "string"
+              },
+              {
+                "const": "mountain",
+                "type": "string"
+              },
+              {
+                "const": "museum",
+                "type": "string"
+              },
+              {
+                "const": "park",
+                "type": "string"
+              },
+              {
+                "const": "stadium",
+                "type": "string"
+              },
+              {
+                "const": "station",
+                "type": "string"
+              },
+              {
+                "const": "star",
+                "type": "string"
+              },
+              {
+                "const": "theme-park",
+                "type": "string"
+              },
+              {
+                "const": "university",
+                "type": "string"
+              },
+              {
+                "const": "zoo",
+                "type": "string"
+              }
+            ]
+          },
+          "kmlFolder": {
+            "minLength": 1,
+            "maxLength": 100,
+            "pattern": "\\S",
+            "type": "string"
+          },
           "data": {
             "type": "object",
             "required": [
