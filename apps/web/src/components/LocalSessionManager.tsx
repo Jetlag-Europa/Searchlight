@@ -76,6 +76,7 @@ import {
 } from "@/lib/localStore";
 import { acquireLocalSessionLock, releaseLocalSessionLock } from "@/lib/localTabLock";
 import { readStorage } from "@/lib/safeStorage";
+import { countUsage } from "@/lib/usage";
 
 const API_BASE = (import.meta.env.PUBLIC_API_BASE ?? "") as string;
 const SAVE_DEBOUNCE_MS = 200;
@@ -464,6 +465,7 @@ export function LocalSessionManager() {
     async (definition: GameDefinition, source: LocalGameSource, sessionName?: string) => {
       const game = await saveLocalGame(definition, source);
       const session = await createLocalSession(game, sessionName);
+      countUsage(`local-session:${source.kind}`);
       await refreshCatalog();
       await openSessionRecord(session, definition);
     },
@@ -698,6 +700,7 @@ export function LocalSessionManager() {
         return;
       }
       const session = await createLocalSession(game, name);
+      countUsage(`local-session:${game.source.kind}`);
       setNewSessionGame(null);
       setNewSessionName("");
       await refreshCatalog();
