@@ -5,6 +5,7 @@ import { deleteStrokeFromServer, saveStrokeToServer } from "@/annotations/storag
 import type { AnnotationTool, StrokeFeature, StrokeWidthPreset } from "@/annotations/types";
 import { PEN_COLORS } from "@/annotations/types";
 import { activeSessionId, sessionReadOnly } from "@/lib/activeSession";
+import { isLocalBoard } from "@/lib/boardMode";
 
 export const tool = persistentAtom<AnnotationTool>("annot-tool", "pen");
 
@@ -42,6 +43,7 @@ export function addStroke(s: StrokeFeature): void {
   if (sessionReadOnly.get()) return;
   strokes.set([...strokes.get(), s]);
 
+  if (isLocalBoard.get()) return;
   const sessionId = activeSessionId.get();
   if (!sessionId) return;
   saveStrokeToServer(sessionId, s).catch((err) => {
@@ -62,6 +64,7 @@ export function removeStrokes(predicate: (s: StrokeFeature) => boolean): void {
 
   strokes.set(next);
 
+  if (isLocalBoard.get()) return;
   const sessionId = activeSessionId.get();
   if (!sessionId) return;
   for (const s of removed) {
@@ -76,6 +79,7 @@ export function clearAllStrokes(): void {
   const current = strokes.get();
   strokes.set([]);
 
+  if (isLocalBoard.get()) return;
   const sessionId = activeSessionId.get();
   if (!sessionId) return;
   for (const s of current) {

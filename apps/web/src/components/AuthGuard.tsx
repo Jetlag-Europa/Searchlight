@@ -1,10 +1,17 @@
 import type { MeResponse } from "@searchlight/shared";
+import { HardDrive } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { clearStoredRevisions } from "@/game-definition/revisionCache";
-import { clearActiveSession, offlineUserId, verifiedUserId } from "@/lib/activeSession";
+import {
+  activeSessionId,
+  clearActiveSession,
+  offlineUserId,
+  verifiedUserId,
+} from "@/lib/activeSession";
 import { watchAuth } from "@/lib/authCheck";
 import { forgetGameViews } from "@/lib/gameView";
+import { countLocalSessions } from "@/lib/localStore";
 import {
   endOfflineAccess,
   lastUser,
@@ -20,6 +27,26 @@ const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
 export function AuthGuard() {
   const [user, setUser] = useState<MeResponse["user"] | null>(null);
   const [unreachable, setUnreachable] = useState(false);
+  // A player on their offline /map board keeps it: no pull towards unsynced /local.
+  const [onOfflineBoard, setOnOfflineBoard] = useState(false);
+  const [localCount, setLocalCount] = useState(0);
+
+  useEffect(() => {
+    if (user || !unreachable || onOfflineBoard) return;
+    let cancelled = false;
+    try {
+      void countLocalSessions()
+        .then((n) => {
+          if (!cancelled) setLocalCount(n);
+        })
+        .catch(() => {});
+    } catch {
+      // Ignore IndexedDB errors so local lookup never interferes with offline auth fallback.
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [user, unreachable, onOfflineBoard]);
 
   useEffect(
     () =>
@@ -37,7 +64,11 @@ export function AuthGuard() {
         // playing what this browser kept for it until /me answers,
         // even past the week once it has started.
         unreachable: () => {
-          playOfflineWhileUnreachable();
+          const offlinePlayer = playOfflineWhileUnreachable();
+          setOnOfflineBoard(
+            Boolean(offlinePlayer && activeSessionId.get()) &&
+              window.location.pathname.startsWith("/map"),
+          );
           setUnreachable(true);
           document.getElementById("auth-loading-overlay")?.remove();
         },
@@ -75,12 +106,23 @@ export function AuthGuard() {
   if (!unreachable) return null;
   return (
     <StatusChip slot="user">
-      <div
-        role="status"
-        className="flex w-max items-center gap-1.5 rounded-full border border-destructive/50 bg-background/90 px-2.5 py-1 text-xs shadow-sm backdrop-blur-sm"
-      >
-        <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
-        <span className="text-muted-foreground">Can&apos;t reach the server, retrying…</span>
+      <div className="flex flex-col items-end gap-1">
+        <div
+          role="status"
+          className="flex w-max items-center gap-1.5 rounded-full border border-destructive/50 bg-background/90 px-2.5 py-1 text-xs shadow-sm backdrop-blur-sm"
+        >
+          <span className="h-2 w-2 animate-pulse rounded-full bg-destructive" />
+          <span className="text-muted-foreground">Can&apos;t reach the server, retrying…</span>
+        </div>
+        {!onOfflineBoard && (
+          <a
+            href="/local"
+            className="flex w-max items-center gap-1.5 rounded-full border border-border bg-background/90 px-3 py-1.5 text-xs font-medium text-foreground shadow-sm backdrop-blur-sm transition-colors hover:bg-accent"
+          >
+            <HardDrive aria-hidden="true" className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <span>{localCount > 0 ? `Local sessions (${localCount})` : "Local play"}</span>
+          </a>
+        )}
       </div>
     </StatusChip>
   );

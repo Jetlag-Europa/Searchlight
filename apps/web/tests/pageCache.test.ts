@@ -8,6 +8,7 @@ describe("precacheUrl", () => {
   it("names a page by its directory", () => {
     expect(precacheUrl("index.html")).toBe("/");
     expect(precacheUrl("map/index.html")).toBe("/map/");
+    expect(precacheUrl("local/index.html")).toBe("/local/");
     expect(precacheUrl("games/import/index.html")).toBe("/games/import/");
   });
 
@@ -28,6 +29,8 @@ describe("pageCacheKey", () => {
 
   it("drops the query and hash", () => {
     expect(key("/play?token=abc")).toBe("/play/");
+    expect(key("/local?url=https%3A%2F%2Fexample.com%2Fg.json")).toBe("/local/");
+    expect(key("/local?link=abc")).toBe("/local/");
     expect(key("/map/?x=1#y")).toBe("/map/");
     expect(key("/?returnTo=%2Fmap")).toBe("/");
   });

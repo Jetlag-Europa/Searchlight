@@ -14,6 +14,7 @@ import { AnnotationLayer } from "@/annotations";
 import { compiledGameAtom } from "@/game-definition/store";
 import { activeSessionData, activeSessionId, sessionReadOnly } from "@/lib/activeSession";
 import { CARTO_API_KEY, WORLD_BOUNDS } from "@/lib/basemap";
+import { isLocalBoard } from "@/lib/boardMode";
 import { bootstrapDefaults } from "@/lib/bootstrap";
 import { startCalculation } from "@/lib/calculating";
 import {
@@ -256,10 +257,12 @@ const ADD_QUESTION_MENU_ITEMS = [
 
 export const Map = ({ className }: { className?: string }) => {
   const $questions = useStore(questions);
+  const $isLocalBoard = useStore(isLocalBoard);
+  const googleMapsEnabled = googleMapsAvailable && !$isLocalBoard;
   const $chosenBasemap = useStore(baseTileLayer);
-  // Google chosen on a device whose build has no key: CARTO Voyager.
+  // Google chosen on a build without a key, or in local mode: CARTO Voyager.
   const $baseTileLayer =
-    $chosenBasemap === "google" && !googleMapsAvailable ? "voyager" : $chosenBasemap;
+    $chosenBasemap === "google" && !googleMapsEnabled ? "voyager" : $chosenBasemap;
   // GoogleBasemap stays, with its CARTO stand-in, while Google can't show
   // (offline before its first draw, failing), so that CARTO isn't swapped for another CARTO
   // layer, which goes empty while its tiles load.
@@ -574,7 +577,7 @@ export const Map = ({ className }: { className?: string }) => {
   // world. Only such a restored view is reset: switching away from a game
   // that did load keeps its view until the next game loads, as before.
   useEffect(() => {
-    if (!map) return;
+    if (!map || $isLocalBoard) return;
     const provisional = provisionalViewRef.current;
     if (framedGameIdRef.current !== null && !provisional) return;
     const view = savedGameView($currentGameId, $activeSessionId);
@@ -590,7 +593,7 @@ export const Map = ({ className }: { className?: string }) => {
         animate: false,
       });
     }
-  }, [map, $currentGameId, $activeSessionId, $lastGameView]);
+  }, [map, $isLocalBoard, $currentGameId, $activeSessionId, $lastGameView]);
 
   // Show each game when it loads; a new revision of the same game keeps
   // the view.
@@ -601,22 +604,23 @@ export const Map = ({ className }: { className?: string }) => {
       framedGameIdRef.current = $currentGameId;
       fitGameBounds(map, $compiledGame.bounds);
     }
-    if (!isGameBounds($compiledGame.bounds)) return;
+    if ($isLocalBoard || !isGameBounds($compiledGame.bounds)) return;
     const session = activeSessionData.get();
     rememberGameView(
       $currentGameId,
       $compiledGame.bounds,
       session?.gameId === $currentGameId ? session.id : undefined,
     );
-  }, [map, $compiledGame, $currentGameId]);
+  }, [map, $compiledGame, $currentGameId, $isLocalBoard]);
 
   // A session selected after its game loaded plays the framed game too.
   useEffect(() => {
+    if ($isLocalBoard) return;
     const view = lastGameView.get();
     if (!$activeSession || view?.gameId !== $activeSession.gameId) return;
     if (view.sessionId === $activeSession.id) return;
     rememberGameView(view.gameId, view.bounds, $activeSession.id);
-  }, [$activeSession]);
+  }, [$activeSession, $isLocalBoard]);
 
   useEffect(() => {
     bootstrapDefaults();
