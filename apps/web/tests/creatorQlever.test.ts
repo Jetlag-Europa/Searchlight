@@ -358,6 +358,16 @@ describe("QLever covering regions & layer fetchers", () => {
                 wkt: { type: "literal", value: "LINESTRING(8.4 47.38, 8.7 47.38)" },
               },
               {
+                // Wiggles ±25 m (~0.0003° lng) along the eastern border x=8.6 — must stay 1 unbroken piece at bufferKm=0
+                s: { type: "uri", value: "https://www.openstreetmap.org/way/12" },
+                name: { type: "literal", value: "Border River" },
+                wkt: {
+                  type: "literal",
+                  value:
+                    "LINESTRING(8.5997 47.36, 8.6003 47.37, 8.5997 47.38, 8.6003 47.39, 8.5997 47.40)",
+                },
+              },
+              {
                 // Completely outside
                 s: { type: "uri", value: "https://www.openstreetmap.org/way/11" },
                 name: { type: "literal", value: "Outside Rail" },
@@ -379,13 +389,19 @@ describe("QLever covering regions & layer fetchers", () => {
       toleranceMeters: 0,
     });
 
-    expect(res.items.map((i) => i.name)).toEqual(["Cross Rail"]);
-    const geom = res.items[0].geometry;
+    expect(res.items.map((i) => i.name)).toEqual(["Border River", "Cross Rail"]);
+    const borderRiver = res.items[0].geometry;
+    expect(borderRiver.type).toBe("LineString");
+    if (borderRiver.type === "LineString") {
+      expect(borderRiver.coordinates).toHaveLength(5);
+    }
+    const geom = res.items[1].geometry;
     expect(geom.type).toBe("LineString");
     if (geom.type === "LineString") {
       const lngs = geom.coordinates.map((p) => p[0]);
-      expect(Math.min(...lngs)).toBeGreaterThanOrEqual(8.499999);
-      expect(Math.max(...lngs)).toBeLessThanOrEqual(8.600001);
+      // Cropped within the 100 m border tolerance (~0.0014° lng at 47.38°N)
+      expect(Math.min(...lngs)).toBeGreaterThan(8.497);
+      expect(Math.max(...lngs)).toBeLessThan(8.603);
     }
   });
 

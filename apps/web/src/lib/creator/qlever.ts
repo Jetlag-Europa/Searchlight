@@ -17,6 +17,7 @@ import {
   cropRegionToPlayAreaMask,
   type LineFetchResult,
   maskQueryBounds,
+  MIN_LINE_CROP_BUFFER_KM,
   pointInPlayAreaMask,
   type RegionFetchResult,
   simplifyLineLayerTopology,
@@ -747,8 +748,8 @@ export async function fetchLineLayerFromQlever({
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<LineFetchResult> {
-  const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
+  const mask = buildPlayAreaMask(playArea, Math.max(bufferKm, MIN_LINE_CROP_BUFFER_KM));
+  const bounds = maskQueryBounds(mask);
   const useDirectRelation =
     Boolean(playAreaOsmRelationId) &&
     bufferKm <= 0 &&

@@ -15,6 +15,14 @@ import { playAreaBounds, runOverpassQuery } from "@/lib/creator/overpass";
 const METERS_PER_DEGREE = (6371008.8 * Math.PI) / 180;
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
+/**
+ * Minimum line-cropping mask buffer (100 m) applied by OSM/QLever line fetchers
+ * even when user margin is 0 km. Nominatim simplifies boundary polygons at
+ * 0.0005° (~55 m), so without a small tolerance border rivers and international
+ * borders wiggle across the simplified edge and get shredded into fragments.
+ */
+export const MIN_LINE_CROP_BUFFER_KM = 0.1;
+
 export interface OverpassGeomNode {
   lat: number;
   lon: number;
@@ -1269,8 +1277,8 @@ export async function fetchLineLayerFromOsm({
   signal?: AbortSignal;
   onStatus?: (message: string) => void;
 }): Promise<LineFetchResult> {
-  const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
+  const mask = buildPlayAreaMask(playArea, Math.max(bufferKm, MIN_LINE_CROP_BUFFER_KM));
+  const bounds = maskQueryBounds(mask);
   const query = rawQueryOverride?.trim() || buildLineLayerQuery(osmFilter, bounds);
   onStatus?.(`Querying OpenStreetMap for ${layerName}…`);
   const { elements, endpoint } = await runOverpassQuery(query, {
