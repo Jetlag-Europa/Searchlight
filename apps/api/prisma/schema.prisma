@@ -107,6 +107,8 @@ model Game {
   // (null if never preloaded): the file only changes the game when its
   // content changes.
   preloadChecksum   String?
+  // Downloads for local play through its game links (GET /game-links/:token/definition).
+  localOpens        Int            @default(0)
   // Discord id of whoever first imported it (null for preloaded games and
   // those imported before this was recorded). On Casual Games it decides who
   // may see and change the game.
@@ -142,8 +144,6 @@ model GameLink {
   createdById String
   revokedAt   DateTime?
   createdAt   DateTime  @default(now())
-  // Games opened locally from the link (GET /game-links/:token/definition).
-  localOpens  Int       @default(0)
 
   game      Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
   createdBy User          @relation("CreatedGameLinks", fields: [createdById], references: [discordId])

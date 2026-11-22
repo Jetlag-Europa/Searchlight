@@ -83,11 +83,13 @@ function GameStatsLine({ stats }: { stats: GameStats }) {
         value={stats.questions}
         title="Questions across all sessions"
       />
-      <Stat
-        label={stats.localOpens === 1 ? "local open" : "local opens"}
-        value={stats.localOpens}
-        title="Times the game was opened locally from a game link"
-      />
+      {stats.localOpens > 0 && (
+        <Stat
+          label={stats.localOpens === 1 ? "local open" : "local opens"}
+          value={stats.localOpens}
+          title="Downloads of the game for local play through its game links"
+        />
+      )}
       {stats.lastActivityAt && (
         <span title={new Date(stats.lastActivityAt).toLocaleString()}>
           last played {timeAgo(stats.lastActivityAt)}

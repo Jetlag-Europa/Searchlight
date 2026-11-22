@@ -360,6 +360,9 @@ describe("unlisted games and game links", () => {
 
   test("an active link serves its current game definition without auth, supports ETag, and stops when revoked", async () => {
     const link = await createLink(UNLISTED_GAME_ID);
+    const { localOpens: localOpensBefore } = await prisma.game.findUniqueOrThrow({
+      where: { id: UNLISTED_GAME_ID },
+    });
 
     const first = await app.inject({
       method: "GET",
@@ -383,8 +386,8 @@ describe("unlisted games and game links", () => {
     expect(cached.statusCode).toBe(304);
     expect(cached.headers["cache-control"]).toBe("no-cache");
     // Both downloads count as local opens.
-    const { localOpens } = await prisma.gameLink.findUniqueOrThrow({ where: { id: link.id } });
-    expect(localOpens).toBe(2);
+    const game = await prisma.game.findUniqueOrThrow({ where: { id: UNLISTED_GAME_ID } });
+    expect(game.localOpens).toBe(localOpensBefore + 2);
 
     // Revoking the link stops definition downloads immediately.
     await app.inject({

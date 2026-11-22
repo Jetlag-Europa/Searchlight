@@ -176,7 +176,10 @@ export async function gameRoutes(app: FastifyInstance) {
       if (!perms.has("server.admin"))
         throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
-      const games = await prisma.game.findMany({ where: { serverId }, select: { id: true } });
+      const games = await prisma.game.findMany({
+        where: { serverId },
+        select: { id: true, localOpens: true },
+      });
       const gameIds = games.map((game) => game.id);
       if (gameIds.length === 0) return { stats: [] };
 
@@ -236,7 +239,7 @@ export async function gameRoutes(app: FastifyInstance) {
             });
 
       const stats = new Map(
-        gameIds.map((gameId) => [
+        games.map(({ id: gameId, localOpens }) => [
           gameId,
           {
             gameId,
@@ -247,7 +250,7 @@ export async function gameRoutes(app: FastifyInstance) {
             totalSessions: 0,
             players: 0,
             questions: 0,
-            localOpens: 0,
+            localOpens,
             lastActivityAt: null as string | null,
           },
         ]),
@@ -261,12 +264,6 @@ export async function gameRoutes(app: FastifyInstance) {
         entry.lastActivityAt = row.lastActivityAt?.toISOString() ?? null;
       }
       for (const row of playerRows) stats.get(row.gameId)!.players = row.players;
-      const linkRows = await prisma.gameLink.groupBy({
-        by: ["gameId"],
-        where: { gameId: { in: gameIds } },
-        _sum: { localOpens: true },
-      });
-      for (const row of linkRows) stats.get(row.gameId)!.localOpens = row._sum.localOpens ?? 0;
       for (const session of liveSessions) {
         const viewers = new Set(session.participants.map((p) => p.userId));
         const players = connected.get(session.id)!.filter((userId) => !viewers.has(userId));

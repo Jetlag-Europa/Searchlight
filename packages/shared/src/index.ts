@@ -168,7 +168,7 @@ export interface GameStats {
   players: number;
   /** Questions across all sessions. */
   questions: number;
-  /** Times the game was opened locally from one of its game links. */
+  /** Downloads of the game for local play through its game links. */
   localOpens: number;
   /** When a session of the game was last created or changed. */
   lastActivityAt: string | null;

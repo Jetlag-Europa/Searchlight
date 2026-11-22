@@ -8,5 +8,7 @@ export function countUsage(event: UsageEvent): void {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ event }),
+    // The Creator's handoffs can navigate away right after counting.
+    keepalive: true,
   }).catch(() => {});
 }
