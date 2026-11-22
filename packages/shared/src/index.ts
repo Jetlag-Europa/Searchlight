@@ -183,19 +183,12 @@ export interface GameStatsResponse {
  * the Map Creator never reach the server otherwise. Only a count per day and
  * event is kept, nothing about who or which game.
  */
-export const USAGE_EVENTS = [
-  "local-session:file",
-  "local-session:url",
-  "local-session:game-link",
-  "creator:opened",
-  "creator:export-json",
-  "creator:export-kml",
-] as const;
+export const USAGE_EVENTS = ["local-session", "creator-opened", "creator-export"] as const;
 
 export type UsageEvent = (typeof USAGE_EVENTS)[number];
 
 export interface UsageResponse {
-  counts: { event: string; last7d: number; last30d: number; total: number }[];
+  counts: { event: UsageEvent; last7d: number; last30d: number; total: number }[];
 }
 
 // ── Game links ────────────────────────────────────────────────────────────────

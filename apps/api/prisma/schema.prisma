@@ -322,8 +322,7 @@ model Event {
   @@unique([sessionId, sequence])
 }
 
-// Uses the web app reports at POST /usage (routes/usage.ts), per UTC day and
-// event. Nothing identifies who or which game.
+// Counts from POST /usage (routes/usage.ts), per UTC day and event.
 model UsageCount {
   day   DateTime @db.Date
   event String

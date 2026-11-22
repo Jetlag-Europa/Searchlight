@@ -1264,7 +1264,7 @@ export function GameCreator() {
       formatGameDefinitionJson(assembled.definition),
       "application/json",
     );
-    countUsage("creator:export-json");
+    countUsage("creator-export");
     toast.success(`Downloaded ${fileStem}.game.json`);
   };
 
@@ -1278,7 +1278,7 @@ export function GameCreator() {
       layerGroups: layerGroupsMap,
     });
     downloadBlob(`${fileStem}.kml`, result.kml, "application/vnd.google-earth.kml+xml");
-    countUsage("creator:export-kml");
+    countUsage("creator-export");
     const sizeWarn = result.myMapsWarnings.find((w) => w.includes("5 MB"));
     if (sizeWarn) {
       toast.warn(`Downloaded ${fileStem}.kml (${sizeWarn})`);
@@ -1301,7 +1301,7 @@ export function GameCreator() {
     const folderSlug = layerSlugOf(folderName) || "layer";
     const fileName = `${fileStem}-${folderSlug}.kml`;
     downloadBlob(fileName, single.kml, "application/vnd.google-earth.kml+xml");
-    countUsage("creator:export-kml");
+    countUsage("creator-export");
     toast.success(`Downloaded ${fileName}`);
   };
 

@@ -1,19 +1,10 @@
 import { useStore } from "@nanostores/react";
-import { USAGE_EVENTS, type UsageEvent, type UsageResponse } from "@searchlight/shared";
+import { USAGE_EVENTS, type UsageResponse } from "@searchlight/shared";
 import { useEffect, useState } from "react";
 
 import { verifiedUserId } from "@/lib/activeSession";
 
 const API_BASE = import.meta.env.PUBLIC_API_BASE as string;
-
-const LABELS: Record<UsageEvent, string> = {
-  "local-session:file": "Local sessions, game from a file",
-  "local-session:url": "Local sessions, game from a URL",
-  "local-session:game-link": "Local sessions, game from a game link",
-  "creator:opened": "Map Creator opened",
-  "creator:export-json": "Map Creator .game.json downloads",
-  "creator:export-kml": "Map Creator .kml downloads",
-};
 
 /** Usage counts for global admins; renders nothing for anyone else. */
 export function UsagePanel() {
@@ -33,10 +24,7 @@ export function UsagePanel() {
 
   return (
     <section className="mt-10">
-      <h2 className="text-lg font-semibold mb-1">Usage</h2>
-      <p className="text-sm text-muted-foreground mb-3">
-        Local play and the Map Creator, which the server can&apos;t see otherwise. Days are UTC.
-      </p>
+      <h2 className="text-lg font-semibold mb-3">Usage (UTC days)</h2>
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-border">
@@ -51,7 +39,7 @@ export function UsagePanel() {
             const c = byEvent.get(event);
             return (
               <tr key={event} className="border-b border-border/50">
-                <td className="py-2 pr-4">{LABELS[event]}</td>
+                <td className="py-2 pr-4">{event}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{c?.last7d ?? 0}</td>
                 <td className="py-2 px-2 text-right tabular-nums">{c?.last30d ?? 0}</td>
                 <td className="py-2 pl-2 text-right tabular-nums">{c?.total ?? 0}</td>

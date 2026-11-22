@@ -1,5 +1,3 @@
--- Daily usage counts the web app reports, for the admin page.
-
 -- CreateTable
 CREATE TABLE "UsageCount" (
     "day" DATE NOT NULL,
