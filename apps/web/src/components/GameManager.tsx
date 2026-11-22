@@ -41,22 +41,26 @@ function timeAgo(iso: string): string {
 
 function Stat({ label, value, title }: { label: string; value: string | number; title: string }) {
   return (
-    <span title={title}>
-      <span className="text-foreground font-medium tabular-nums">{value}</span> {label}
+    <span title={title} className="whitespace-nowrap">
+      <span className="text-foreground/80 tabular-nums">{value}</span> {label}
     </span>
   );
 }
 
 function GameStatsLine({ stats }: { stats: GameStats }) {
+  const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
   return (
-    <p className="text-xs text-muted-foreground mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
-      <span title="Sessions with a player connected right now, and the players connected to them">
+    <p className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+      <span
+        title="Sessions with a player connected right now, and the players connected to them"
+        className="whitespace-nowrap"
+      >
         {stats.liveSessions > 0 && (
           <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-500 mr-1 align-middle" />
         )}
-        <span className="text-foreground font-medium tabular-nums">{stats.liveSessions}</span> live
+        <span className="text-foreground/80 tabular-nums">{stats.liveSessions}</span> live
         {stats.livePlayers > 0 &&
-          ` (${stats.livePlayers} ${stats.livePlayers === 1 ? "player" : "players"})`}
+          ` (${stats.livePlayers} ${plural(stats.livePlayers, "player", "players")})`}
       </span>
       <Stat
         label="active 24h"
@@ -69,29 +73,29 @@ function GameStatsLine({ stats }: { stats: GameStats }) {
         title="Sessions created or changed in the last 7 days"
       />
       <Stat
-        label={stats.totalSessions === 1 ? "session" : "sessions"}
+        label={plural(stats.totalSessions, "session", "sessions")}
         value={stats.totalSessions}
         title="Sessions ever started"
       />
       <Stat
-        label={stats.players === 1 ? "player" : "players"}
+        label={plural(stats.players, "player", "players")}
         value={stats.players}
         title="Players who ever joined a session"
       />
       <Stat
-        label={stats.questions === 1 ? "question" : "questions"}
+        label={plural(stats.questions, "question", "questions")}
         value={stats.questions}
         title="Questions across all sessions"
       />
       {stats.localOpens > 0 && (
         <Stat
-          label={stats.localOpens === 1 ? "local open" : "local opens"}
+          label={plural(stats.localOpens, "local open", "local opens")}
           value={stats.localOpens}
           title="Downloads of the game for local play through its game links"
         />
       )}
       {stats.lastActivityAt && (
-        <span title={new Date(stats.lastActivityAt).toLocaleString()}>
+        <span title={new Date(stats.lastActivityAt).toLocaleString()} className="whitespace-nowrap">
           last played {timeAgo(stats.lastActivityAt)}
         </span>
       )}
@@ -234,10 +238,10 @@ function GameCard({
   };
 
   return (
-    <div className="border border-border rounded-lg p-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="border border-border rounded-lg p-4 flex flex-col gap-3">
       <div className="min-w-0">
-        <p className="text-sm font-medium flex items-center gap-2">
-          {game.name}
+        <div className="flex flex-wrap items-center gap-2">
+          <h3 className="text-base font-semibold break-words">{game.name}</h3>
           {game.unlisted && (
             <span
               className="rounded-full border border-border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"
@@ -246,27 +250,16 @@ function GameCard({
               Unlisted
             </span>
           )}
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5 font-mono">ID: {game.gameKey}</p>
-        {stats && <GameStatsLine stats={stats} />}
-        {error && <p className="text-xs text-destructive mt-1">{error}</p>}
-      </div>
-      <div className="flex flex-wrap gap-2 sm:justify-end sm:shrink-0">
-        {canManage && !casual && (
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={savingListing}
-            onClick={handleToggleListed}
-            title={
-              game.unlisted
-                ? "Show this game to everyone who can play it"
-                : "Stop offering this game when creating a session; sessions then start from game links"
-            }
-          >
-            {game.unlisted ? "Make listed" : "Make unlisted"}
-          </Button>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5 font-mono break-all">{game.gameKey}</p>
+        {stats && (
+          <div className="mt-2">
+            <GameStatsLine stats={stats} />
+          </div>
         )}
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-3">
         {canManage && <GameLinksDialog game={game} />}
         {canEditSettings && <GameSettingsDialog game={game} onUpdated={onUpdated} />}
         {canOpenInCreator && (
@@ -299,8 +292,28 @@ function GameCard({
             Export JSON
           </Button>
         )}
+        {canManage && !casual && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={savingListing}
+            onClick={handleToggleListed}
+            title={
+              game.unlisted
+                ? "Show this game to everyone who can play it"
+                : "Stop offering this game when creating a session; sessions then start from game links"
+            }
+          >
+            {game.unlisted ? "Make listed" : "Make unlisted"}
+          </Button>
+        )}
         {canDelete && (
-          <Button size="sm" variant="destructive" onClick={handleDelete}>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto text-destructive hover:bg-destructive/10 hover:text-destructive"
+            onClick={handleDelete}
+          >
             Delete
           </Button>
         )}
@@ -371,13 +384,22 @@ function ServerSection({
   if (!hasAnyGamePerm && (server.id !== CASUAL_SERVER_ID || games?.length === 0)) return null;
 
   return (
-    <div className="mb-8">
-      <h2 className="text-base font-semibold mb-3">{server.name}</h2>
-      {server.id === CASUAL_SERVER_ID && (
-        <p className="text-xs text-muted-foreground -mt-2 mb-3">
-          Only a game’s creator and global admins see it here. Sessions start from game links.
-        </p>
-      )}
+    <section className="mb-10">
+      <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
+        <div className="min-w-0">
+          <h2 className="text-lg font-semibold">{server.name}</h2>
+          {server.id === CASUAL_SERVER_ID && (
+            <p className="text-xs text-muted-foreground">
+              Only a game’s creator and global admins see it here. Sessions start from game links.
+            </p>
+          )}
+        </div>
+        {canImport && (
+          <Button asChild variant="outline" size="sm">
+            <a href={`/games/import?server=${encodeURIComponent(server.id)}`}>Import JSON Game</a>
+          </Button>
+        )}
+      </div>
 
       {loading && <p className="text-sm text-muted-foreground">Loading…</p>}
 
@@ -391,7 +413,7 @@ function ServerSection({
       )}
 
       {games !== null && (
-        <div className="space-y-2 mb-3">
+        <div className="space-y-3">
           {games.length === 0 && (
             <p className="text-sm text-muted-foreground italic">No games yet.</p>
           )}
@@ -409,15 +431,7 @@ function ServerSection({
           ))}
         </div>
       )}
-
-      {canImport && (
-        <div className="flex gap-2">
-          <Button asChild variant="outline" size="sm">
-            <a href={`/games/import?server=${encodeURIComponent(server.id)}`}>Import JSON Game</a>
-          </Button>
-        </div>
-      )}
-    </div>
+    </section>
   );
 }
 
