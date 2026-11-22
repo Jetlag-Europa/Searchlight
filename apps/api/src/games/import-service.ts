@@ -10,6 +10,7 @@ import {
   type ValidationIssue,
 } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
+import { audit } from "../lib/audit.js";
 import { compareWithExisting } from "./compare-games.js";
 
 // GameRevision.revision is a PostgreSQL integer.
@@ -310,6 +311,14 @@ async function importDefinition(
         where: { id: game.id },
         data: { currentRevisionId: rev.id },
       });
+      await audit(tx, {
+        serverId: def.serverId,
+        actorId: actor?.userId ?? null,
+        action: "game.create",
+        targetId: game.id,
+        targetName: def.name,
+        details: { revision, source },
+      });
 
       return {
         status: "created" as const,
@@ -381,12 +390,13 @@ async function importRevision(
         currentRevisionId: string | null;
         preloadChecksum: string | null;
         name: string;
+        size: string;
         createdById: string | null;
         bounds: unknown;
         center: unknown;
       }[]
     >`
-      SELECT g."currentRevisionId", g."preloadChecksum", g.name, g."createdById",
+      SELECT g."currentRevisionId", g."preloadChecksum", g.name, g.size, g."createdById",
         r.definition->'map'->'bounds' AS bounds, r.definition->'map'->'center' AS center
       FROM "Game" g
       LEFT JOIN "GameRevision" r ON r.id = g."currentRevisionId"
@@ -518,14 +528,28 @@ async function importRevision(
         })
       ).id;
 
+    const size = def.size ?? "medium";
     await tx.game.update({
       where: { id: game.id },
       data: {
         name: def.name,
-        size: def.size ?? "medium",
+        size,
         currentRevisionId: revId,
         archivedAt: ctx.keepArchived ? undefined : null,
         preloadChecksum,
+      },
+    });
+    await audit(tx, {
+      serverId: game.serverId,
+      actorId: actor?.userId ?? null,
+      action: "game.revision",
+      targetId: game.id,
+      targetName: def.name,
+      details: {
+        revision: targetRevision,
+        source,
+        ...(locked.name !== def.name && { name: { from: locked.name, to: def.name } }),
+        ...(locked.size !== size && { size: { from: locked.size, to: size } }),
       },
     });
 

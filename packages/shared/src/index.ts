@@ -206,6 +206,47 @@ export interface UsageResponse {
   counts: { event: UsageEvent; last7d: number; last30d: number; total: number }[];
 }
 
+// ── Audit log ─────────────────────────────────────────────────────────────────
+
+export type AuditAction =
+  | "game.create" // first import of a game
+  | "game.revision" // new revision: re-import, settings edit or preload change
+  | "game.listing" // listed / unlisted
+  | "game.delete"
+  | "link.create"
+  | "link.revoke"
+  | "role.grant"
+  | "role.revoke";
+
+export interface AuditLogEntry {
+  id: string;
+  createdAt: string;
+  serverId: string;
+  serverName: string | null;
+  // null: the system (games preloaded at API start).
+  actorId: string | null;
+  actorName: string | null;
+  action: AuditAction;
+  // The game's or role's id and name when it happened.
+  targetId: string;
+  targetName: string;
+  details: Record<string, unknown>;
+}
+
+export interface AuditLogResponse {
+  entries: AuditLogEntry[];
+  // Pass as `before` for the next (older) page; null when there is none.
+  nextCursor: string | null;
+}
+
+// GET /audit-log/filters: who and what the log (one server's, or all) has entries for.
+export interface AuditLogFilters {
+  servers: { id: string; name: string | null }[];
+  actors: { id: string; name: string | null }[];
+  // Games, deleted ones included, by their latest name.
+  games: { id: string; name: string; serverId: string }[];
+}
+
 // ── Game links ────────────────────────────────────────────────────────────────
 
 export interface GameLinkSummary {

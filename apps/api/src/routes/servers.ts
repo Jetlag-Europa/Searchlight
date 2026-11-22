@@ -1,6 +1,7 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
 import prisma from "../lib/prisma.js";
+import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
 import { listedSessionsWhere } from "../lib/session-access.js";
 import { getListingAccess } from "../lib/permissions.js";
@@ -10,6 +11,31 @@ import { env } from "../lib/env.js";
 import { VIRTUAL_SERVER_IDS, VIRTUAL_SERVER_PERMISSIONS } from "../lib/virtual-servers.js";
 
 const KNOWN_PERMISSIONS = ["games.create", "games.edit", "games.delete", "server.admin"];
+
+// The guild whose roles a server's permissions map: a virtual server's are its
+// management guild's. null for a virtual server without one.
+async function rolesGuildId(serverId: string): Promise<string | null> {
+  if (!VIRTUAL_SERVER_IDS.has(serverId)) return serverId;
+  const server = await prisma.server.findUnique({
+    where: { id: serverId },
+    select: { managementGuildId: true },
+  });
+  return server?.managementGuildId ?? null;
+}
+
+// For audit entries: the role's name now, or its id when Discord can't say.
+async function roleName(serverId: string, roleId: string, logger: FastifyBaseLogger) {
+  try {
+    const guildId = await rolesGuildId(serverId);
+    const roles = guildId
+      ? await discord.getGuildRoles(guildId, env.DISCORD_BOT_TOKEN, logger)
+      : [];
+    return roles.find((r) => r.id === roleId)?.name ?? roleId;
+  } catch (err) {
+    logger.warn({ serverId, roleId, err }, "Could not read a role name for the audit log");
+    return roleId;
+  }
+}
 
 export async function serverRoutes(app: FastifyInstance) {
   // GET /servers — the servers the authed user is in, plus servers where they
@@ -143,16 +169,9 @@ export async function serverRoutes(app: FastifyInstance) {
     async (req) => {
       const { serverId } = req.params as { serverId: string };
 
-      let guildId = serverId;
-      if (VIRTUAL_SERVER_IDS.has(serverId)) {
-        const server = await prisma.server.findUnique({
-          where: { id: serverId },
-          select: { managementGuildId: true },
-        });
-        if (!server?.managementGuildId) {
-          throw Object.assign(new Error("This server has no Discord roles"), { statusCode: 400 });
-        }
-        guildId = server.managementGuildId;
+      const guildId = await rolesGuildId(serverId);
+      if (!guildId) {
+        throw Object.assign(new Error("This server has no Discord roles"), { statusCode: 400 });
       }
 
       const [mappings, roles] = await Promise.all([
@@ -208,10 +227,27 @@ export async function serverRoutes(app: FastifyInstance) {
         );
       }
 
-      return prisma.rolePermission.upsert({
-        where: { serverId_discordRoleId_permission: { serverId, discordRoleId, permission } },
-        update: {},
-        create: { serverId, discordRoleId, permission },
+      const { user } = await resolveSession(req);
+      const targetName = await roleName(serverId, discordRoleId, req.log);
+      return prisma.$transaction(async (tx) => {
+        // Skips an existing grant, so only new ones are logged.
+        const { count } = await tx.rolePermission.createMany({
+          data: [{ serverId, discordRoleId, permission }],
+          skipDuplicates: true,
+        });
+        if (count > 0) {
+          await audit(tx, {
+            serverId,
+            actorId: user.discordId,
+            action: "role.grant",
+            targetId: discordRoleId,
+            targetName,
+            details: { permission },
+          });
+        }
+        return tx.rolePermission.findUniqueOrThrow({
+          where: { serverId_discordRoleId_permission: { serverId, discordRoleId, permission } },
+        });
       });
     },
   );
@@ -233,7 +269,23 @@ export async function serverRoutes(app: FastifyInstance) {
         permission: string;
       };
 
-      await prisma.rolePermission.deleteMany({ where: { serverId, discordRoleId, permission } });
+      const { user } = await resolveSession(req);
+      const targetName = await roleName(serverId, discordRoleId, req.log);
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.rolePermission.deleteMany({
+          where: { serverId, discordRoleId, permission },
+        });
+        if (count > 0) {
+          await audit(tx, {
+            serverId,
+            actorId: user.discordId,
+            action: "role.revoke",
+            targetId: discordRoleId,
+            targetName,
+            details: { permission },
+          });
+        }
+      });
       return reply.status(204).send();
     },
   );

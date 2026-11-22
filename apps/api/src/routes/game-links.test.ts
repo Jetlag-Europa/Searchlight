@@ -43,6 +43,7 @@ async function cleanup() {
   await prisma.game.updateMany({ where: { id: { in: GAMES } }, data: { currentRevisionId: null } });
   await prisma.gameRevision.deleteMany({ where: { gameId: { in: GAMES } } });
   await prisma.game.deleteMany({ where: { id: { in: GAMES } } });
+  await prisma.auditLog.deleteMany({ where: { serverId: SERVER_ID } });
   await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
   await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
   await prisma.authSession.deleteMany({ where: { userId: { in: USERS } } });
@@ -225,7 +226,17 @@ describe("unlisted games and game links", () => {
     expect((await listGames(PLAYER_ID)).map((g) => g.id)).toEqual([]);
 
     expect((await patch(MANAGER_ID, false)).json()).toMatchObject({ unlisted: false });
+    // A repeat changes nothing and is not logged.
+    expect((await patch(MANAGER_ID, false)).json()).toMatchObject({ unlisted: false });
     expect((await listGames(PLAYER_ID)).map((g) => g.id)).toEqual([LISTED_GAME_ID]);
+    const logged = await prisma.auditLog.findMany({
+      where: { targetId: LISTED_GAME_ID, action: "game.listing" },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(logged.map((e) => [e.actorId, e.details])).toEqual([
+      [MANAGER_ID, { unlisted: true }],
+      [MANAGER_ID, { unlisted: false }],
+    ]);
   });
 
   test("only game managers can manage links", async () => {
@@ -318,6 +329,14 @@ describe("unlisted games and game links", () => {
       headers: as(MANAGER_ID),
     });
     expect(again.statusCode).toBe(404);
+    const logged = await prisma.auditLog.findMany({
+      where: { details: { equals: { linkId: link.id } } },
+      orderBy: { createdAt: "asc" },
+    });
+    expect(logged.map((e) => [e.action, e.actorId, e.targetId])).toEqual([
+      ["link.create", MANAGER_ID, UNLISTED_GAME_ID],
+      ["link.revoke", MANAGER_ID, UNLISTED_GAME_ID],
+    ]);
   });
 
   test("the link list, which holds tokens, is never compressed", async () => {

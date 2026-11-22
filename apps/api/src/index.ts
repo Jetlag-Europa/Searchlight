@@ -25,6 +25,7 @@ import { linkRoutes } from "./routes/links.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./routes/game-links.js";
 import { ogRoutes } from "./routes/og.js";
 import { usageRoutes } from "./routes/usage.js";
+import { auditLogRoutes } from "./routes/audit-log.js";
 
 const app = Fastify({
   logger: {
@@ -99,6 +100,7 @@ await app.register(linkRoutes, { prefix: "/links" });
 await app.register(gameLinkRoutes, { prefix: "/game-links" });
 await app.register(ogRoutes, { prefix: "/og" });
 await app.register(usageRoutes, { prefix: "/usage" });
+await app.register(auditLogRoutes, { prefix: "/audit-log" });
 
 // Node runs as PID 1 in the container, which has no default signal handling:
 // without this, `docker stop` waits out its timeout and kills the process

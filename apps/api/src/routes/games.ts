@@ -3,6 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { Prisma } from "@prisma/client";
 import { CASUAL_SERVER_ID, type GameSettingsUpdate } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
+import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
 import {
   getUserPermissions,
@@ -305,7 +306,24 @@ export async function gameRoutes(app: FastifyInstance) {
         throw Object.assign(new Error("Casual games are always unlisted"), { statusCode: 400 });
       }
 
-      const updated = await prisma.game.update({ where: { id: game.id }, data: { unlisted } });
+      const updated = await prisma.$transaction(async (tx) => {
+        // Conditional, so a repeat (or a concurrent duplicate) changes and logs nothing.
+        const { count } = await tx.game.updateMany({
+          where: { id: game.id, unlisted: !unlisted },
+          data: { unlisted },
+        });
+        if (count > 0) {
+          await audit(tx, {
+            serverId: game.serverId,
+            actorId: user.discordId,
+            action: "game.listing",
+            targetId: game.id,
+            targetName: game.name,
+            details: { unlisted },
+          });
+        }
+        return tx.game.findUniqueOrThrow({ where: { id: game.id } });
+      });
       req.log.info(
         { gameId: game.id, unlisted, userId: user.discordId },
         "[games] listing changed",
@@ -441,7 +459,17 @@ export async function gameRoutes(app: FastifyInstance) {
         );
       }
 
-      await prisma.game.delete({ where: { id: game.id } });
+      await prisma.$transaction(async (tx) => {
+        await tx.game.delete({ where: { id: game.id } });
+        await audit(tx, {
+          serverId: game.serverId,
+          actorId: user.discordId,
+          action: "game.delete",
+          targetId: game.id,
+          targetName: game.name,
+          details: {},
+        });
+      });
       return reply.status(204).send();
     },
   );

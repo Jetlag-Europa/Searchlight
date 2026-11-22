@@ -332,3 +332,21 @@ model UsageCount {
 
   @@id([day, event])
 }
+
+// Who changed which game or role permission (lib/audit.ts). No foreign keys,
+// so entries outlive deleted games, servers and users.
+model AuditLog {
+  id         String   @id @default(cuid())
+  createdAt  DateTime @default(now())
+  serverId   String
+  // null: the system (games preloaded at API start).
+  actorId    String?
+  action     String // an AuditAction value from @searchlight/shared
+  targetId   String
+  // As it was then, so the entry still reads after a rename or delete.
+  targetName String
+  details    Json
+
+  @@index([serverId, createdAt])
+  @@index([createdAt])
+}

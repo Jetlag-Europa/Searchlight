@@ -3,6 +3,7 @@ import Layout from "@/layouts/Layout.astro";
 import { AuthGuard } from "@/components/AuthGuard";
 import { AdminPanel } from "@/components/AdminPanel";
 import { UsagePanel } from "@/components/UsagePanel";
+import { AuditLogPanel } from "@/components/AuditLogPanel";
 ---
 
 <Layout>
@@ -22,13 +23,15 @@ import { UsagePanel } from "@/components/UsagePanel";
 
     <AuthGuard client:only="react" />
 
-    <main class="container mx-auto max-w-4xl p-8">
-        <h1 class="text-2xl font-bold mb-2">Server Admin</h1>
-        <p class="text-sm text-muted-foreground mb-8">
-            Map Discord roles to permissions for each JetLag server.
-            Only servers where you hold <code>server.admin</code> show the role management panel.
+    <main class="container mx-auto max-w-4xl px-4 py-6 sm:p-8">
+        <h1 class="text-2xl font-bold mb-1">Admin</h1>
+        <p class="text-sm text-muted-foreground mb-6">
+            Give Discord roles permissions on each server, and see who changed what.
+            You can manage servers where you hold <code>server.admin</code>.
         </p>
+        <h2 class="text-lg font-semibold mb-3">Servers</h2>
         <AdminPanel client:only="react" />
+        <AuditLogPanel client:only="react" />
         <UsagePanel client:only="react" />
     </main>
 </Layout>

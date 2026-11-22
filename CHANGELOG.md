@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Audit log for admins (2026-11-22)
+
+- `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".
+- Changes made before this update aren't in the log.
+- `/admin` is tidier: each server card has **Roles** and **Activity** tabs, permissions have readable names, and the page fits a phone screen.
+
 ## Discord login on iPhone (2026-11-19)
 
 - Logging in with Discord no longer sometimes ends on a page saying "Failed to exchange OAuth code". Safari on iPhone can open the page Discord returns to twice, and the second time failed, because Discord accepts each login only once. Both now log you in.
