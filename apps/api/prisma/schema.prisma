@@ -107,6 +107,8 @@ model Game {
   // (null if never preloaded): the file only changes the game when its
   // content changes.
   preloadChecksum   String?
+  // Downloads for local play through its game links (GET /game-links/:token/definition).
+  localOpens        Int            @default(0)
   // Discord id of whoever first imported it (null for preloaded games and
   // those imported before this was recorded). On Casual Games it decides who
   // may see and change the game.
@@ -320,4 +322,13 @@ model Event {
 
   @@index([sessionId, serverReceivedAt])
   @@unique([sessionId, sequence])
+}
+
+// Counts from POST /usage (routes/usage.ts), per UTC day and event.
+model UsageCount {
+  day   DateTime @db.Date
+  event String
+  count Int
+
+  @@id([day, event])
 }

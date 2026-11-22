@@ -229,6 +229,7 @@ describe("GET /games/stats", () => {
         totalSessions: 0,
         players: 0,
         questions: 0,
+        localOpens: 0,
         lastActivityAt: null,
       });
 

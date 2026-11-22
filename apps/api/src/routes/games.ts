@@ -158,6 +158,7 @@ export async function gameRoutes(app: FastifyInstance) {
                 totalSessions: Type.Integer(),
                 players: Type.Integer(),
                 questions: Type.Integer(),
+                localOpens: Type.Integer(),
                 lastActivityAt: Type.Union([Type.String(), Type.Null()]),
               }),
             ),
@@ -175,7 +176,10 @@ export async function gameRoutes(app: FastifyInstance) {
       if (!perms.has("server.admin"))
         throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
-      const games = await prisma.game.findMany({ where: { serverId }, select: { id: true } });
+      const games = await prisma.game.findMany({
+        where: { serverId },
+        select: { id: true, localOpens: true },
+      });
       const gameIds = games.map((game) => game.id);
       if (gameIds.length === 0) return { stats: [] };
 
@@ -235,7 +239,7 @@ export async function gameRoutes(app: FastifyInstance) {
             });
 
       const stats = new Map(
-        gameIds.map((gameId) => [
+        games.map(({ id: gameId, localOpens }) => [
           gameId,
           {
             gameId,
@@ -246,6 +250,7 @@ export async function gameRoutes(app: FastifyInstance) {
             totalSessions: 0,
             players: 0,
             questions: 0,
+            localOpens,
             lastActivityAt: null as string | null,
           },
         ]),

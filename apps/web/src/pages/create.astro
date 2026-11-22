@@ -6,7 +6,12 @@ import { GameCreator } from "@/components/GameCreator";
 <Layout>
     <!--
         Client-side OpenStreetMap game creator: runs fully in the browser
-        without requiring Discord sign-in or calling Searchlight's API.
+        without requiring Discord sign-in. Searchlight's API only counts uses.
     -->
     <GameCreator client:only="react" />
 </Layout>
+
+<script>
+    import { countUsage } from "@/lib/usage";
+    countUsage("creator:opened");
+</script>

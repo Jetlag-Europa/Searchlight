@@ -199,6 +199,13 @@ export async function gameLinkRoutes(app: FastifyInstance) {
       if (!link || !revision) {
         throw notFound("Link is invalid or has been revoked");
       }
+      // Only /local fetches this, once per game it opens from a link. Counting
+      // never fails the download, even if the game was deleted meanwhile.
+      if (req.method === "GET") {
+        await prisma.game
+          .updateMany({ where: { id: link.gameId }, data: { localOpens: { increment: 1 } } })
+          .catch((err) => req.log.warn({ err }, "Couldn't count a local open"));
+      }
 
       const etag = `"${revision.checksum}"`;
       if (matchesETag(req.headers["if-none-match"], etag)) {

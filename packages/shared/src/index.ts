@@ -168,12 +168,42 @@ export interface GameStats {
   players: number;
   /** Questions across all sessions. */
   questions: number;
+  /** Downloads of the game for local play through its game links. */
+  localOpens: number;
   /** When a session of the game was last created or changed. */
   lastActivityAt: string | null;
 }
 
 export interface GameStatsResponse {
   stats: GameStats[];
+}
+
+// ── Usage counts ──────────────────────────────────────────────────────────────
+
+/**
+ * What the web app counts at POST /usage, for the admin page: local play and
+ * the Map Creator never reach the server otherwise. Only a count per day and
+ * event is kept, nothing about who or which game.
+ */
+export const USAGE_EVENTS = [
+  "local-session:file",
+  "local-session:url",
+  "local-session:game-link",
+  // Another session of a game already saved in the browser.
+  "local-session:saved",
+  "creator:opened",
+  "creator:export-json",
+  "creator:export-kml",
+  "creator:test-locally",
+  "creator:import",
+  // Each is a billed Google map load: the page created its Google map.
+  "google-maps:load",
+] as const;
+
+export type UsageEvent = (typeof USAGE_EVENTS)[number];
+
+export interface UsageResponse {
+  counts: { event: UsageEvent; last7d: number; last30d: number; total: number }[];
 }
 
 // ── Game links ────────────────────────────────────────────────────────────────
