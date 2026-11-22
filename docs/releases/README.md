@@ -29,7 +29,8 @@ the problem was there at the last release's tag.
 | ------- | ------------------------------ | ---------------------------------------------------------- |
 | 1.0.0   | `4394c1b6d` (2026-09-26)       | JetLagHideAndSeek's fork up to Jules's last change         |
 | 2.0.0   | `ce3f572c3` (2026-10-21)       | Importable games, and everything since 1.0                 |
-| 2.1.0   | the commit that adds this file | Installable app, Google Maps, spectators, question history |
+| 2.1.0   | `f6e8661eb` (2026-11-04)       | Installable app, Google Maps, spectators, question history |
+| 2.2.0   | the commit that adds this file | Local play, Map Creator, question files, shared zones      |
 
 ## Publishing a release
 
