@@ -63,6 +63,8 @@ export interface CreatorWorkspaceDraft {
   stationPreset?: StationPresetId;
   customStationFilter: string;
   dedupeMeters: number;
+  minStationSpacingMeters?: number;
+  thinBusOnly?: boolean;
   preferEnglishName: boolean;
   stations: CreatorPointItem[];
   extraHidingZones: HidingZoneFeature[];

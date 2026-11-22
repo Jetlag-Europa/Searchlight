@@ -64,6 +64,7 @@ import {
   type PlaceSearchResult,
   rectanglePlayArea,
   searchPlaces,
+  thinStationsBySpacing,
   tryPlayAreaBounds,
   validateCustomOsmFilter,
 } from "@/lib/creator/overpass";
@@ -156,6 +157,9 @@ export function GameCreator() {
   ]);
   const [customStationFilter, setCustomStationFilter] = useState("");
   const [dedupeMeters, setDedupeMeters] = useState(250);
+  const [minStationSpacingMeters, setMinStationSpacingMeters] = useState(0);
+  const [thinBusOnly, setThinBusOnly] = useState(true);
+  const [hideDisabledStations, setHideDisabledStations] = useState(false);
   const [preferEnglishName, setPreferEnglishName] = useState(false);
   const [stations, setStations] = useState<CreatorPointItem[]>([]);
   const [stationSearch, setStationSearch] = useState("");
@@ -204,6 +208,8 @@ export function GameCreator() {
   const prevDraftRef = useRef<CreatorWorkspaceDraft | null | undefined>(undefined);
   const layersRef = useRef<CreatorGeometryLayer[]>(layers);
   layersRef.current = layers;
+  const stationsRef = useRef<CreatorPointItem[]>(stations);
+  stationsRef.current = stations;
   const deferredGameName = useDeferredValue(gameName);
   const deferredCustomId = useDeferredValue(customId);
   const deferredRadarsText = useDeferredValue(radarsText);
@@ -407,6 +413,31 @@ export function GameCreator() {
     );
   }, []);
 
+  const handleApplyStationSpacing = useCallback((spacingMeters: number, busOnly: boolean) => {
+    const current = stationsRef.current;
+    if (current.length === 0) return;
+    const hasMixedBus =
+      current.some((s) => s.modePriority === 1) &&
+      current.some((s) => !s.custom && (s.modePriority ?? 0) > 1);
+    const effectiveBusOnly = busOnly && hasMixedBus;
+    const {
+      stations: next,
+      keptCount,
+      disabledCount,
+    } = thinStationsBySpacing(current, {
+      minSpacingMeters: spacingMeters,
+      busOnly: effectiveBusOnly,
+    });
+    setStations(next);
+    if (spacingMeters <= 0) {
+      toast.info(`Enabled all ${keptCount} stations`);
+    } else {
+      toast.success(
+        `Kept ${keptCount} of ${current.length} stations (≥${spacingMeters} m${effectiveBusOnly ? ", buses thinned" : ""}; ${disabledCount} disabled)`,
+      );
+    }
+  }, []);
+
   // ── Fetch stations (Transitous GTFS or OpenStreetMap) ────────────────────
   const handleFetchStations = async (sourceOverride?: StationSource) => {
     if (!hasPlayAreaGeometry || !playArea) {
@@ -479,35 +510,52 @@ export function GameCreator() {
               },
             });
       if (playAreaGenRef.current !== areaGen) return;
-      setStations((prev) => {
-        // Keep manually placed stations and preserve user curation
-        // (edited name, tier, enabled) on matching fetched stations across refetches.
-        const manual = prev.filter((s) => s.custom);
-        const prevByOsmId = new Map<string, CreatorPointItem>();
-        for (const s of prev) {
-          if (!s.custom && s.osmId) prevByOsmId.set(s.osmId, s);
-        }
-        const merged = result.stations.map((s) => {
-          const existing = s.osmId ? prevByOsmId.get(s.osmId) : undefined;
-          if (!existing) return s;
-          return {
-            ...s,
-            uid: existing.uid,
-            ...(existing.nameEdited && {
-              name: existing.name,
-              nameEdited: true,
-            }),
-            enabled: existing.enabled,
-            ...(existing.tier !== undefined && {
-              tier: existing.tier,
-            }),
-          };
-        });
-        return [...manual, ...merged];
+      const prev = stationsRef.current;
+      // Keep manually placed stations and preserve user curation
+      // (edited name, tier, enabled) on matching fetched stations across refetches.
+      const manual = prev.filter((s) => s.custom);
+      const prevByOsmId = new Map<string, CreatorPointItem>();
+      for (const s of prev) {
+        if (!s.custom && s.osmId) prevByOsmId.set(s.osmId, s);
+      }
+      const merged = result.stations.map((s) => {
+        const existing = s.osmId ? prevByOsmId.get(s.osmId) : undefined;
+        if (!existing) return s;
+        return {
+          ...s,
+          uid: existing.uid,
+          ...(existing.nameEdited && {
+            name: existing.name,
+            nameEdited: true,
+          }),
+          enabled: existing.enabled,
+          ...(existing.tier !== undefined && {
+            tier: existing.tier,
+          }),
+        };
       });
+      let finalStations = [...manual, ...merged];
+      let thinnedInfo: string | null = null;
+      if (minStationSpacingMeters > 0 && finalStations.length > 1) {
+        const hasMixedBus =
+          finalStations.some((s) => s.modePriority === 1) &&
+          finalStations.some((s) => !s.custom && (s.modePriority ?? 0) > 1);
+        const thinned = thinStationsBySpacing(finalStations, {
+          minSpacingMeters: minStationSpacingMeters,
+          busOnly: thinBusOnly && hasMixedBus,
+        });
+        finalStations = thinned.stations;
+        if (thinned.disabledCount > 0) {
+          thinnedInfo = `kept ${thinned.keptCount} at ≥${minStationSpacingMeters} m spacing`;
+        }
+      }
+      setStations(finalStations);
       const parts = [
         `Found ${result.stations.length} station${result.stations.length === 1 ? "" : "s"} (${activeSource === "transitous" ? "Transitous" : "OSM"})`,
       ];
+      if (thinnedInfo) {
+        parts.push(thinnedInfo);
+      }
       if (result.mergedCount > 0) {
         parts.push(`merged ${result.mergedCount} duplicates`);
       }
@@ -1375,6 +1423,8 @@ export function GameCreator() {
       stationTypes,
       customStationFilter,
       dedupeMeters,
+      minStationSpacingMeters,
+      thinBusOnly,
       preferEnglishName,
       stations,
       extraHidingZones,
@@ -1406,6 +1456,8 @@ export function GameCreator() {
     stationTypes,
     customStationFilter,
     dedupeMeters,
+    minStationSpacingMeters,
+    thinBusOnly,
     preferEnglishName,
     stations,
     extraHidingZones,
@@ -1478,6 +1530,8 @@ export function GameCreator() {
                 : "",
             );
             setDedupeMeters(saved.dedupeMeters);
+            setMinStationSpacingMeters(saved.minStationSpacingMeters ?? 0);
+            setThinBusOnly(saved.thinBusOnly ?? true);
             setPreferEnglishName(saved.preferEnglishName);
             setStations(saved.stations);
             setExtraHidingZones(saved.extraHidingZones);
@@ -1613,6 +1667,9 @@ export function GameCreator() {
     setStationTypes([...SCALE_PRESETS[DEFAULT_SCALE].stationTypes]);
     setCustomStationFilter("");
     setDedupeMeters(250);
+    setMinStationSpacingMeters(0);
+    setThinBusOnly(true);
+    setHideDisabledStations(false);
     setPreferEnglishName(false);
     setStations([]);
     setStationSearch("");
@@ -1845,6 +1902,13 @@ export function GameCreator() {
               setCustomStationFilter={setCustomStationFilter}
               dedupeMeters={dedupeMeters}
               setDedupeMeters={setDedupeMeters}
+              minStationSpacingMeters={minStationSpacingMeters}
+              setMinStationSpacingMeters={setMinStationSpacingMeters}
+              thinBusOnly={thinBusOnly}
+              setThinBusOnly={setThinBusOnly}
+              onApplyStationSpacing={handleApplyStationSpacing}
+              hideDisabledStations={hideDisabledStations}
+              setHideDisabledStations={setHideDisabledStations}
               preferEnglishName={preferEnglishName}
               setPreferEnglishName={setPreferEnglishName}
               showStationQuery={showStationQuery}
@@ -2069,6 +2133,7 @@ export function GameCreator() {
         tierOverrides={tierOverrides}
         stations={stations}
         setStations={setStations}
+        hideDisabledStations={hideDisabledStations}
         layers={layers}
         setLayers={setLayers}
         visibleLayerIds={visibleLayerIds}

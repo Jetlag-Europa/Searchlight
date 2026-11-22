@@ -97,6 +97,7 @@ interface Props {
   tierOverrides: Record<string, number>;
   stations: CreatorPointItem[];
   setStations: React.Dispatch<React.SetStateAction<CreatorPointItem[]>>;
+  hideDisabledStations?: boolean;
   layers: CreatorGeometryLayer[];
   setLayers: React.Dispatch<React.SetStateAction<CreatorGeometryLayer[]>>;
   visibleLayerIds: ReadonlySet<string>;
@@ -121,6 +122,7 @@ export function CreatorMapPane({
   tierOverrides,
   stations,
   setStations,
+  hideDisabledStations = false,
   layers,
   setLayers,
   visibleLayerIds,
@@ -251,16 +253,19 @@ export function CreatorMapPane({
           />
         )}
 
-        {stations.map((station) => (
+        {(hideDisabledStations
+          ? stations.filter((s) => s.enabled)
+          : [...stations.filter((s) => !s.enabled), ...stations.filter((s) => s.enabled)]
+        ).map((station) => (
           <CircleMarker
             key={station.uid}
             center={[station.lat, station.lng]}
-            radius={station.enabled ? 6 : 4.5}
+            radius={station.enabled ? 6 : 3.5}
             pathOptions={{
               color: station.enabled ? "#ffffff" : "#9ca3af",
-              weight: 1.5,
+              weight: station.enabled ? 1.5 : 1,
               fillColor: station.enabled ? "#2563eb" : "#6b7280",
-              fillOpacity: station.enabled ? 0.95 : 0.4,
+              fillOpacity: station.enabled ? 0.95 : 0.3,
             }}
             eventHandlers={{
               click: () => {

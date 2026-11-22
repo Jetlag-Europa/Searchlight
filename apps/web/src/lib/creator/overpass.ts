@@ -42,6 +42,10 @@ export interface CreatorPointItem {
   tier?: string;
   osmId?: string;
   custom?: boolean;
+  /** Transit mode priority tier for spatial thinning (6=rail, 5=suburban, 4=metro, 3=tram, 2=ferry/cable, 1=bus). */
+  modePriority?: number;
+  /** Source importance score (e.g. Transitous GTFS importance) used as tie-breaker when thinning. */
+  importance?: number;
   /** True when the user explicitly edited the name so OSM refetches preserve it. */
   nameEdited?: boolean;
   /** Original feature id and properties preserved when loading an existing .game.json. */
@@ -707,6 +711,159 @@ function isAllCapsName(name: string): boolean {
   return letters.length >= 4 && letters === letters.toUpperCase();
 }
 
+const TRANSITOUS_MODE_PRIORITY: Record<string, number> = {
+  HIGHSPEED_RAIL: 6,
+  LONG_DISTANCE: 6,
+  NIGHT_RAIL: 6,
+  REGIONAL_FAST_RAIL: 6,
+  REGIONAL_RAIL: 6,
+  RAIL: 6,
+  SUBURBAN: 5,
+  SUBWAY: 4,
+  METRO: 4,
+  TRAM: 3,
+  FERRY: 2,
+  FUNICULAR: 2,
+  AERIAL_LIFT: 2,
+  GONDOLA: 2,
+  CABLE_CAR: 2,
+  BUS: 1,
+  COACH: 1,
+};
+
+function stationModePriorityFromTransitous(modes?: readonly string[]): number {
+  if (!Array.isArray(modes) || modes.length === 0) return 0;
+  let best = 0;
+  for (const m of modes) {
+    const p = TRANSITOUS_MODE_PRIORITY[m] ?? 0;
+    if (p > best) best = p;
+  }
+  return best;
+}
+
+function stationModePriorityFromOsmTags(tags?: Record<string, string>): number {
+  if (!tags) return 0;
+  if (tags.railway === "station" || tags.railway === "halt") {
+    if (tags.station === "subway") return 4;
+    if (tags.station === "tram") return 3;
+    if (tags.station === "commuter" || tags.station === "light_rail") return 5;
+    return 6;
+  }
+  if (tags.railway === "tram_stop") return 3;
+  if (tags.amenity === "ferry_terminal" || tags.aerialway === "station") return 2;
+  if (tags.highway === "bus_stop" || tags.amenity === "bus_station") return 1;
+  return 0;
+}
+
+function haversineMeters(lng1: number, lat1: number, lng2: number, lat2: number): number {
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLng = (lng2 - lng1) * toRad;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const a = sinLat * sinLat + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * sinLng * sinLng;
+  return 2 * 6371008.8 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/**
+ * Non-destructively thins a dense station list so kept stops are spaced at
+ * least `minSpacingMeters` apart, toggling thinned stops to `enabled: false`.
+ * Prioritizes manual stations, higher-tier transit modes (rail > metro > tram
+ * > ferry/cable > bus), and higher GTFS hub importance so major hubs survive
+ * over nearby minor stops. When `busOnly` is true, non-bus stops stay enabled
+ * and still act as anchors that thin nearby bus stops.
+ */
+export function thinStationsBySpacing(
+  stations: readonly CreatorPointItem[],
+  {
+    minSpacingMeters,
+    busOnly = false,
+  }: {
+    minSpacingMeters: number;
+    busOnly?: boolean;
+  },
+): { stations: CreatorPointItem[]; keptCount: number; disabledCount: number } {
+  if (!Number.isFinite(minSpacingMeters) || minSpacingMeters <= 0 || stations.length === 0) {
+    const next = stations.map((s) => (s.enabled ? s : { ...s, enabled: true }));
+    return { stations: next, keptCount: next.length, disabledCount: 0 };
+  }
+
+  const isProtected = (s: CreatorPointItem) =>
+    Boolean(s.custom) || (busOnly && (s.modePriority ?? 0) !== 1);
+
+  const ordered = stations.map((s, index) => ({ s, index }));
+  ordered.sort((a, b) => {
+    const protDiff = Number(isProtected(b.s)) - Number(isProtected(a.s));
+    if (protDiff !== 0) return protDiff;
+    const modeDiff = (b.s.modePriority ?? 0) - (a.s.modePriority ?? 0);
+    if (modeDiff !== 0) return modeDiff;
+    const impDiff = (b.s.importance ?? 0) - (a.s.importance ?? 0);
+    if (impDiff !== 0) return impDiff;
+    const capsDiff = Number(isAllCapsName(a.s.name)) - Number(isAllCapsName(b.s.name));
+    if (capsDiff !== 0) return capsDiff;
+    return a.s.name.localeCompare(b.s.name) || a.s.uid.localeCompare(b.s.uid);
+  });
+
+  // 2D spatial grid sized to minSpacingMeters so each stop checks only its 3x3 neighbor cells.
+  let minLat = Infinity;
+  let maxLat = -Infinity;
+  for (const s of stations) {
+    if (s.lat < minLat) minLat = s.lat;
+    if (s.lat > maxLat) maxLat = s.lat;
+  }
+  const maxAbsLat = Math.max(Math.abs(minLat), Math.abs(maxLat));
+  const cosLat = Math.max(0.05, Math.cos((maxAbsLat * Math.PI) / 180));
+  const cellLat = Math.max(1e-6, minSpacingMeters / 110_570);
+  const cellLng = Math.max(1e-6, minSpacingMeters / (111_320 * cosLat));
+  const grid = new Map<string, Array<{ lng: number; lat: number }>>();
+  const cellKey = (cx: number, cy: number) => `${cx},${cy}`;
+
+  const keptMask = new Uint8Array(stations.length);
+  let keptCount = 0;
+  let disabledCount = 0;
+
+  for (const { s, index } of ordered) {
+    const cx = Math.floor(s.lng / cellLng);
+    const cy = Math.floor(s.lat / cellLat);
+    let keep = isProtected(s);
+
+    if (!keep) {
+      let tooClose = false;
+      outer: for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = grid.get(cellKey(cx + dx, cy + dy));
+          if (!bucket) continue;
+          for (let i = 0; i < bucket.length; i++) {
+            const other = bucket[i];
+            if (haversineMeters(s.lng, s.lat, other.lng, other.lat) < minSpacingMeters) {
+              tooClose = true;
+              break outer;
+            }
+          }
+        }
+      }
+      keep = !tooClose;
+    }
+
+    if (keep) {
+      keptMask[index] = 1;
+      keptCount++;
+      const key = cellKey(cx, cy);
+      const bucket = grid.get(key);
+      if (bucket) bucket.push({ lng: s.lng, lat: s.lat });
+      else grid.set(key, [{ lng: s.lng, lat: s.lat }]);
+    } else {
+      disabledCount++;
+    }
+  }
+
+  const next = stations.map((s, idx) => {
+    const enabled = keptMask[idx] === 1;
+    return s.enabled === enabled ? s : { ...s, enabled };
+  });
+  return { stations: next, keptCount, disabledCount };
+}
+
 /**
  * Fetches grouped GTFS transit stations from Transitous (MOTIS v6) with
  * server-side mode filtering, clips them to the play area polygon, and
@@ -811,6 +968,7 @@ export async function fetchStationsFromTransitous({
       continue;
     }
     const stopKey = stop.stopId?.trim() || `${lat6},${lng},${i}`;
+    const modePriority = stationModePriorityFromTransitous(stop.modes);
     inside.push({
       uid: `st-tr-${stopKey}`,
       name,
@@ -818,6 +976,7 @@ export async function fetchStationsFromTransitous({
       lat: lat6,
       enabled: true,
       osmId: `transitous:${stopKey}`,
+      ...(modePriority > 0 && { modePriority }),
       importance:
         typeof stop.importance === "number" && Number.isFinite(stop.importance)
           ? stop.importance
@@ -836,15 +995,7 @@ export async function fetchStationsFromTransitous({
     return a.name.localeCompare(b.name);
   });
 
-  const stripped: CreatorPointItem[] = inside.map(({ uid, name, lng, lat, enabled, osmId }) => ({
-    uid,
-    name,
-    lng,
-    lat,
-    enabled,
-    osmId,
-  }));
-  const { items, mergedCount } = dedupePointItems(stripped, {
+  const { items, mergedCount } = dedupePointItems(inside, {
     sameNameMeters: dedupeMeters,
     nearCoordMeters: 35,
   });
@@ -904,6 +1055,7 @@ export async function fetchStationsFromOsm({
       outsideCount++;
       continue;
     }
+    const modePriority = stationModePriorityFromOsmTags(el.tags);
     inside.push({
       uid: `st-${pt.osmId}`,
       name: pt.name,
@@ -911,6 +1063,7 @@ export async function fetchStationsFromOsm({
       lat: pt.lat,
       enabled: true,
       osmId: pt.osmId,
+      ...(modePriority > 0 && { modePriority }),
     });
   }
 

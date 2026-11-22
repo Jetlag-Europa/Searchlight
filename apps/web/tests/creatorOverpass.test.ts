@@ -17,6 +17,7 @@ import {
   rectanglePlayArea,
   runOverpassQuery,
   searchPlaces,
+  thinStationsBySpacing,
   TRANSITOUS_STOPS_URL,
   validateCustomOsmFilter,
 } from "@/lib/creator/overpass";
@@ -609,5 +610,98 @@ describe("Transitous GTFS station fetching & station types", () => {
         playArea,
       }),
     ).rejects.toThrow(/Too many stops.*OpenStreetMap/i);
+  });
+
+  it("thins dense bus stops by min spacing while prioritizing rail/tram hubs, importance, and manual stops", () => {
+    // 0.001° lat is ~111 m; stops along a north-south corridor spaced ~111 m apart.
+    const stops = [
+      {
+        uid: "bus-1",
+        name: "Minor Bus Stop A",
+        lat: 35.22,
+        lng: -80.84,
+        enabled: true,
+        modePriority: 1,
+        importance: 0.00001,
+      },
+      {
+        uid: "tram-1",
+        name: "CityLYNX Hub",
+        lat: 35.2205, // ~55 m from bus-1
+        lng: -80.84,
+        enabled: true,
+        modePriority: 3,
+        importance: 0.000001,
+      },
+      {
+        uid: "tram-2",
+        name: "CityLYNX Next",
+        lat: 35.222, // ~167 m from tram-1
+        lng: -80.84,
+        enabled: true,
+        modePriority: 3,
+        importance: 0.000001,
+      },
+      {
+        uid: "bus-2",
+        name: "Minor Bus Stop B",
+        lat: 35.2225, // ~55 m from tram-2, ~222 m from tram-1
+        lng: -80.84,
+        enabled: true,
+        modePriority: 1,
+        importance: 0.00002,
+      },
+      {
+        uid: "bus-3",
+        name: "Farther Bus Stop C",
+        lat: 35.2265, // ~500 m from tram-2
+        lng: -80.84,
+        enabled: true,
+        modePriority: 1,
+        importance: 0.00005,
+      },
+      {
+        uid: "bus-4",
+        name: "Near C Bus Stop D",
+        lat: 35.2275, // ~111 m from bus-3 (lower importance)
+        lng: -80.84,
+        enabled: true,
+        modePriority: 1,
+        importance: 0.00001,
+      },
+      {
+        uid: "manual-1",
+        name: "Custom Stop",
+        lat: 35.2276, // right next to bus-4 — manual must always survive
+        lng: -80.84,
+        enabled: true,
+        custom: true,
+      },
+    ];
+
+    // 1. All-modes thinning at 400 m: keeps manual-1, tram-1 (wins over bus-1 & tram-2), and bus-3?
+    // Wait: manual-1 (35.2276) is ~122 m from bus-3 (35.2265), so manual-1 anchors and disables bus-3 & bus-4!
+    const allThinned = thinStationsBySpacing(stops, { minSpacingMeters: 400, busOnly: false });
+    expect(allThinned.stations.filter((s) => s.enabled).map((s) => s.uid)).toEqual([
+      "tram-1",
+      "manual-1",
+    ]);
+    expect(allThinned.keptCount).toBe(2);
+    expect(allThinned.disabledCount).toBe(5);
+
+    // 2. busOnly=true at 400 m: keeps BOTH tram-1 and tram-2 (protected) + manual-1,
+    // and thins bus-1/bus-2/bus-3/bus-4 that fall within 400 m of those anchors!
+    const busThinned = thinStationsBySpacing(stops, { minSpacingMeters: 400, busOnly: true });
+    expect(busThinned.stations.filter((s) => s.enabled).map((s) => s.uid)).toEqual([
+      "tram-1",
+      "tram-2",
+      "manual-1",
+    ]);
+
+    // 3. Re-enabling with minSpacingMeters=0 restores every stop non-destructively.
+    const restored = thinStationsBySpacing(allThinned.stations, { minSpacingMeters: 0 });
+    expect(restored.keptCount).toBe(stops.length);
+    expect(restored.disabledCount).toBe(0);
+    expect(restored.stations.every((s) => s.enabled)).toBe(true);
   });
 });

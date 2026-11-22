@@ -27,6 +27,13 @@ interface Props {
   setCustomStationFilter: (val: string) => void;
   dedupeMeters: number;
   setDedupeMeters: (val: number) => void;
+  minStationSpacingMeters: number;
+  setMinStationSpacingMeters: (val: number) => void;
+  thinBusOnly: boolean;
+  setThinBusOnly: (val: boolean) => void;
+  onApplyStationSpacing: (spacingMeters: number, busOnly: boolean) => void;
+  hideDisabledStations: boolean;
+  setHideDisabledStations: (val: boolean) => void;
   preferEnglishName: boolean;
   setPreferEnglishName: (val: boolean) => void;
   showStationQuery: boolean;
@@ -76,6 +83,13 @@ export function CreatorStationsStep({
   setCustomStationFilter,
   dedupeMeters,
   setDedupeMeters,
+  minStationSpacingMeters,
+  setMinStationSpacingMeters,
+  thinBusOnly,
+  setThinBusOnly,
+  onApplyStationSpacing,
+  hideDisabledStations,
+  setHideDisabledStations,
   preferEnglishName,
   setPreferEnglishName,
   showStationQuery,
@@ -240,18 +254,56 @@ export function CreatorStationsStep({
               onChange={(e) => setDedupeMeters(Math.max(0, Number(e.target.value) || 0))}
             />
           </div>
-          <div className="flex items-end pb-2">
-            <div className="flex items-center gap-2">
-              <Checkbox
-                id="creator-en-names"
-                checked={preferEnglishName}
-                onCheckedChange={(v) => setPreferEnglishName(v === true)}
-              />
-              <label htmlFor="creator-en-names" className="cursor-pointer text-xs">
-                Prefer English names
-              </label>
-            </div>
+          <div className="space-y-1">
+            <Label
+              htmlFor="creator-min-spacing"
+              title="Keep at most one enabled station per radius (prioritizes rail/metro/tram hubs over nearby minor bus stops). Set 0 for all stops."
+              className="cursor-help text-xs text-muted-foreground underline decoration-dotted underline-offset-2"
+            >
+              Min spacing (m)
+            </Label>
+            <Input
+              id="creator-min-spacing"
+              type="number"
+              min={0}
+              max={50000}
+              placeholder="0 (off)"
+              value={minStationSpacingMeters}
+              onChange={(e) => setMinStationSpacingMeters(Math.max(0, Number(e.target.value) || 0))}
+            />
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="creator-en-names"
+              checked={preferEnglishName}
+              onCheckedChange={(v) => setPreferEnglishName(v === true)}
+            />
+            <label htmlFor="creator-en-names" className="cursor-pointer text-xs">
+              Prefer English names
+            </label>
+          </div>
+          {minStationSpacingMeters > 0 &&
+            ((stationTypes.includes("bus") && stationTypes.length > 1) ||
+              (stations.some((s) => s.modePriority === 1) &&
+                stations.some((s) => !s.custom && (s.modePriority ?? 0) > 1))) && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="creator-thin-bus-only"
+                  checked={thinBusOnly}
+                  onCheckedChange={(v) => setThinBusOnly(v === true)}
+                />
+                <label
+                  htmlFor="creator-thin-bus-only"
+                  title="Keep all rail, S-Bahn, metro, tram, ferry, and cable stops enabled and only thin bus stops within the spacing distance"
+                  className="cursor-pointer text-xs"
+                >
+                  Only thin bus stops
+                </label>
+              </div>
+            )}
         </div>
 
         {stationSource === "osm" && (
@@ -402,7 +454,64 @@ export function CreatorStationsStep({
               Show zone circles
             </label>
           </div>
+          {stations.length > activeStationCount && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <Checkbox
+                id="creator-hide-disabled"
+                checked={hideDisabledStations}
+                onCheckedChange={(v) => setHideDisabledStations(v === true)}
+              />
+              <label htmlFor="creator-hide-disabled" className="cursor-pointer">
+                Hide disabled pins
+              </label>
+            </div>
+          )}
         </div>
+
+        {/* Instant spatial thinning bar for already-fetched stations */}
+        {stations.length > 1 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-2 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="text-muted-foreground">Thin existing stops:</span>
+              <Input
+                type="number"
+                min={0}
+                max={50000}
+                aria-label="Thin existing stops minimum spacing in meters"
+                value={minStationSpacingMeters}
+                onChange={(e) =>
+                  setMinStationSpacingMeters(Math.max(0, Number(e.target.value) || 0))
+                }
+                className="h-7 w-20 text-xs"
+              />
+              <span className="text-muted-foreground">m</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              {[400, 800].map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  onClick={() => {
+                    setMinStationSpacingMeters(preset);
+                    onApplyStationSpacing(preset, thinBusOnly);
+                  }}
+                  className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  {preset}m
+                </button>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant="secondary"
+                className="h-7 px-2.5 text-xs"
+                onClick={() => onApplyStationSpacing(minStationSpacingMeters, thinBusOnly)}
+              >
+                {minStationSpacingMeters > 0 ? "Apply" : "Show all"}
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Optional radius tiers */}
         <div className="space-y-2 rounded-lg border border-border bg-background/40 p-2.5">
