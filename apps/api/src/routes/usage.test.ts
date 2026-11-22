@@ -62,18 +62,18 @@ describe("/usage", () => {
     const res = await app.inject({ url: "/usage", headers: { cookie: cookies[ADMIN_ID] } });
     expect(res.statusCode).toBe(200);
     const { counts } = res.json() as UsageResponse;
-    return counts.find((c) => c.event === "creator-opened") ?? { last7d: 0, last30d: 0, total: 0 };
+    return counts.find((c) => c.event === "creator:opened") ?? { last7d: 0, last30d: 0, total: 0 };
   };
 
   test("counts known events per day without a login", async () => {
     const before = await read();
-    expect((await count("creator-opened")).statusCode).toBe(204);
-    expect((await count("creator-opened")).statusCode).toBe(204);
+    expect((await count("creator:opened")).statusCode).toBe(204);
+    expect((await count("creator:opened")).statusCode).toBe(204);
     // Days before the last 30 count toward the total only.
-    await prisma.usageCount.create({ data: { day: OLD_DAY, event: "creator-opened", count: 5 } });
+    await prisma.usageCount.create({ data: { day: OLD_DAY, event: "creator:opened", count: 5 } });
 
     expect(await read()).toEqual({
-      event: "creator-opened",
+      event: "creator:opened",
       last7d: before.last7d + 2,
       last30d: before.last30d + 2,
       total: before.total + 7,

@@ -465,7 +465,7 @@ export function LocalSessionManager() {
     async (definition: GameDefinition, source: LocalGameSource, sessionName?: string) => {
       const game = await saveLocalGame(definition, source);
       const session = await createLocalSession(game, sessionName);
-      countUsage("local-session");
+      countUsage(`local-session:${source.kind}`);
       await refreshCatalog();
       await openSessionRecord(session, definition);
     },
@@ -700,7 +700,7 @@ export function LocalSessionManager() {
         return;
       }
       const session = await createLocalSession(game, name);
-      countUsage("local-session");
+      countUsage("local-session:saved");
       setNewSessionGame(null);
       setNewSessionName("");
       await refreshCatalog();
