@@ -18,6 +18,7 @@ import {
   viewTilesShown,
   whenDrawn,
 } from "@/lib/googleMaps";
+import { countUsage } from "@/lib/usage";
 
 // One layer for the whole page. GoogleMutant creates its google.maps.Map the
 // first time the layer is added and keeps it when the layer is removed, and
@@ -51,6 +52,7 @@ function chosenLook(): GoogleLook {
 
 function googleLayer(): L.GridLayer {
   if (layer) return layer;
+  countUsage("google-maps:load");
   // Created as chosen, so the first tiles are the right ones. Transit lines
   // come with the first applyLook.
   const initial = { ...chosenLook(), transit: false };

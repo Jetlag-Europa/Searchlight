@@ -196,6 +196,8 @@ export const USAGE_EVENTS = [
   "creator:export-kml",
   "creator:test-locally",
   "creator:import",
+  // Each is a billed Google map load: the page created its Google map.
+  "google-maps:load",
 ] as const;
 
 export type UsageEvent = (typeof USAGE_EVENTS)[number];
