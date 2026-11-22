@@ -239,6 +239,14 @@ export interface AuditLogResponse {
   nextCursor: string | null;
 }
 
+// GET /audit-log/filters: who and what the log (one server's, or all) has entries for.
+export interface AuditLogFilters {
+  servers: { id: string; name: string | null }[];
+  actors: { id: string; name: string | null }[];
+  // Games, deleted ones included, by their latest name.
+  games: { id: string; name: string; serverId: string }[];
+}
+
 // ── Game links ────────────────────────────────────────────────────────────────
 
 export interface GameLinkSummary {

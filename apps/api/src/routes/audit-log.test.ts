@@ -10,7 +10,7 @@ vi.mock("../lib/discord-client.js", () => ({
 
 import Fastify, { type FastifyInstance } from "fastify";
 import fastifyCookie from "@fastify/cookie";
-import { CASUAL_SERVER_ID, type AuditLogResponse } from "@searchlight/shared";
+import { CASUAL_SERVER_ID, type AuditLogFilters, type AuditLogResponse } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import { importGameDefinition } from "../games/import-service.js";
@@ -194,6 +194,37 @@ describe("/audit-log", () => {
       details: { revision: 2, source: "api", name: { from: "First", to: "Second" } },
     });
     expect(entries[2].details).toEqual({ permission: "games.create" });
+  });
+
+  test("filters by action, actor and game, and lists what there is to filter by", async () => {
+    const filters = await read(SERVER_ADMIN, `/filters?serverId=${SERVER_ID}`);
+    expect(filters.statusCode).toBe(200);
+    const { servers, actors, games } = filters.json() as AuditLogFilters;
+    expect(servers).toEqual([{ id: SERVER_ID, name: "Audit Server" }]);
+    expect(actors).toHaveLength(2);
+    expect(actors).toEqual(
+      expect.arrayContaining([
+        { id: SERVER_ADMIN, name: `${SERVER_ADMIN} name` },
+        { id: GLOBAL_ADMIN, name: `${GLOBAL_ADMIN} name` },
+      ]),
+    );
+    // The deleted game, by its latest name.
+    expect(games).toEqual([{ id: expect.any(String), name: "Second", serverId: SERVER_ID }]);
+
+    const actions = async (query: string) =>
+      (
+        (await read(SERVER_ADMIN, `?serverId=${SERVER_ID}${query}`)).json() as AuditLogResponse
+      ).entries.map((e) => e.action);
+    expect(await actions("&action=role.grant")).toEqual(["role.grant"]);
+    expect(await actions(`&actorId=${GLOBAL_ADMIN}`)).toEqual(["game.delete"]);
+    expect(await actions(`&targetId=${games[0].id}`)).toEqual([
+      "game.delete",
+      "game.revision",
+      "game.create",
+    ]);
+
+    expect((await read(MEMBER, `/filters?serverId=${SERVER_ID}`)).statusCode).toBe(403);
+    expect((await read(SERVER_ADMIN, "/filters")).statusCode).toBe(403);
   });
 
   test("a server's log is for its server admins; the whole log and Casual Games' for global admins", async () => {

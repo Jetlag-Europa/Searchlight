@@ -1,6 +1,11 @@
 import { useStore } from "@nanostores/react";
-import type { AuditAction, AuditLogEntry, AuditLogResponse } from "@searchlight/shared";
-import { useCallback, useEffect, useState } from "react";
+import type {
+  AuditAction,
+  AuditLogEntry,
+  AuditLogFilters,
+  AuditLogResponse,
+} from "@searchlight/shared";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { verifiedUserId } from "@/lib/activeSession";
@@ -17,6 +22,12 @@ const LABELS: Record<AuditAction, string> = {
   "role.grant": "Granted permission",
   "role.revoke": "Revoked permission",
 };
+
+// "" means any.
+const NO_FILTER = { serverId: "", action: "", actorId: "", targetId: "" };
+type Filter = typeof NO_FILTER;
+
+const byName = (a: [string, string], b: [string, string]) => a[1].localeCompare(b[1]);
 
 const show = (v: unknown) => (typeof v === "object" && v !== null ? JSON.stringify(v) : String(v));
 
@@ -40,17 +51,24 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
   const [entries, setEntries] = useState<AuditLogEntry[] | null>(null);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [filter, setFilter] = useState(NO_FILTER);
+  const [options, setOptions] = useState<AuditLogFilters | null>(null);
+  // Only the latest request's answer counts, after quick filter changes.
+  const latest = useRef(0);
   const userId = useStore(verifiedUserId);
 
   const load = useCallback(
     (before?: string) => {
-      const params = new URLSearchParams();
-      if (serverId) params.set("serverId", serverId);
+      const params = new URLSearchParams(
+        Object.entries({ ...filter, serverId: serverId ?? filter.serverId }).filter(([, v]) => v),
+      );
       if (before) params.set("before", before);
+      const request = ++latest.current;
       setLoading(true);
       fetch(`${API_BASE}/audit-log?${params}`, { credentials: "include" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data: AuditLogResponse | null) => {
+          if (request !== latest.current) return;
           if (!data) {
             // A refused first page hides the panel, e.g. after switching accounts.
             if (!before) setEntries(null);
@@ -62,24 +80,72 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
         .catch(() => {})
         .finally(() => setLoading(false));
     },
-    [serverId],
+    [serverId, filter],
   );
 
   useEffect(() => {
     if (userId) load();
   }, [userId, load]);
 
+  useEffect(() => {
+    if (!userId) return;
+    fetch(`${API_BASE}/audit-log/filters${serverId ? `?serverId=${serverId}` : ""}`, {
+      credentials: "include",
+    })
+      .then((res) => (res.ok ? res.json() : null))
+      .then(setOptions)
+      .catch(() => {});
+  }, [userId, serverId]);
+
   if (!entries) return null;
 
+  const serverNames = new Map(options?.servers.map((s) => [s.id, s.name ?? s.id]));
+  const select = (key: keyof Filter, any: string, choices: [string, string][]) => (
+    <select
+      aria-label={any}
+      className="min-w-0 max-w-full border border-input rounded-md px-2 py-1 text-sm bg-background"
+      value={filter[key]}
+      // Another server's games don't match, so a new server clears the game.
+      onChange={(e) =>
+        setFilter({ ...filter, [key]: e.target.value, ...(key === "serverId" && { targetId: "" }) })
+      }
+    >
+      <option value="">{any}</option>
+      {choices.map(([value, label]) => (
+        <option key={value} value={value}>
+          {label}
+        </option>
+      ))}
+    </select>
+  );
+
   return (
-    <section className={serverId ? "mt-6" : "mt-10"}>
-      {serverId ? (
-        <h3 className="text-sm font-semibold mb-2">Activity</h3>
-      ) : (
-        <h2 className="text-lg font-semibold mb-3">Audit log</h2>
+    <section className={serverId ? undefined : "mt-10"}>
+      {!serverId && <h2 className="text-lg font-semibold mb-3">Audit log</h2>}
+      {options && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {select("action", "All changes", Object.entries(LABELS))}
+          {select(
+            "actorId",
+            "All users",
+            options.actors.map((a): [string, string] => [a.id, a.name ?? a.id]).sort(byName),
+          )}
+          {!serverId && select("serverId", "All servers", [...serverNames].sort(byName))}
+          {select(
+            "targetId",
+            "All games",
+            options.games
+              .filter((g) => !filter.serverId || g.serverId === filter.serverId)
+              .map((g): [string, string] => [
+                g.id,
+                serverId || filter.serverId ? g.name : `${g.name} (${serverNames.get(g.serverId)})`,
+              ])
+              .sort(byName),
+          )}
+        </div>
       )}
       {entries.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No activity yet.</p>
+        <p className="text-sm text-muted-foreground">No activity.</p>
       ) : (
         <ul className="text-sm">
           {entries.map((e) => (
