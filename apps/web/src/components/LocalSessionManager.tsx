@@ -966,8 +966,8 @@ export function LocalSessionManager() {
             className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl outline-none"
           >
             {/* Header */}
-            <div className="flex items-start justify-between gap-4 border-b border-border px-6 py-4">
-              <div>
+            <div className="flex flex-col gap-3 border-b border-border px-6 py-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+              <div className="min-w-0">
                 <h1 id={titleId} className="text-xl font-bold tracking-tight">
                   Local Play
                 </h1>
@@ -976,7 +976,7 @@ export function LocalSessionManager() {
                   required.
                 </p>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
                 {active && (
                   <Button size="sm" variant="outline" onClick={() => setPickerOpen(false)}>
                     Back to board
