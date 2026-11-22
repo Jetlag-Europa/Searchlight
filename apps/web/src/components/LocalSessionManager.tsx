@@ -29,7 +29,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import {
   activeSessionId,
   activeSessionRole,
@@ -484,19 +484,29 @@ export function LocalSessionManager() {
       }
       try {
         stripLocalQueryParams();
-        await saveGameAndStartSession(
-          result.definition,
-          { kind: "game-link", label: result.definition.name },
-          target.sessionName,
-        );
-        toast.success(`Opened ${result.definition.name} locally`);
+        // Coming back through the same link resumes this game's latest session
+        // (same revision) instead of an empty board. A custom name asks for a new one.
+        const game = await saveLocalGame(result.definition, {
+          kind: "game-link",
+          label: result.definition.name,
+        });
+        const previous = target.sessionName
+          ? undefined
+          : (await listLocalSessions()).find((s) => s.gameId === game.id);
+        const session = previous ?? (await createLocalSession(game, target.sessionName));
+        await refreshCatalog();
+        if (await openSessionRecord(session.id, result.definition)) {
+          toast.success(
+            previous ? `Resumed ${previous.name}` : `Opened ${result.definition.name} locally`,
+          );
+        }
       } catch (err) {
         if (signal?.aborted) return;
         const message = err instanceof Error ? err.message : "Couldn't save the game locally.";
         setLinkError({ message });
       }
     },
-    [saveGameAndStartSession],
+    [openSessionRecord, refreshCatalog],
   );
 
   // Boot: check persistence, handle ?url= / ?link= / ?session=, or restore last local session.
@@ -849,7 +859,7 @@ export function LocalSessionManager() {
             </p>
             <label className="mb-4 flex flex-col gap-1.5 text-sm">
               <span className="text-muted-foreground">Session name (optional)</span>
-              <Input
+              <RawInput
                 value={pendingUrl.sessionName}
                 maxLength={100}
                 placeholder="Defaults to the game's name"
@@ -1030,7 +1040,7 @@ export function LocalSessionManager() {
                                 void handleRenameSession(s.id);
                               }}
                             >
-                              <Input
+                              <RawInput
                                 autoFocus
                                 maxLength={100}
                                 value={renameDraft}
@@ -1170,7 +1180,7 @@ export function LocalSessionManager() {
                   }}
                 >
                   <div className="flex gap-2">
-                    <Input
+                    <RawInput
                       type="url"
                       placeholder="https://example.com/my-city.game.json"
                       value={urlInput}
@@ -1249,7 +1259,7 @@ export function LocalSessionManager() {
                               void handleStartFromSavedGame(g, newSessionName);
                             }}
                           >
-                            <Input
+                            <RawInput
                               autoFocus
                               maxLength={100}
                               value={newSessionName}

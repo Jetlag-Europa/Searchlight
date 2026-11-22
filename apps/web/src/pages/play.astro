@@ -117,8 +117,10 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
             credentials: "include",
             signal: meDeadline.signal,
         })
-            .then((r) => (r.ok ? r.json() : null))
-            .catch(() => null)
+            // Only a 401 means signed out. If /me merely failed, offer "Start
+            // session" as before: its POST sends a signed-out player to log in.
+            .then((r) => (r.status === 401 ? null : r.ok ? r.json() : {}))
+            .catch(() => ({}))
             .finally(() => meDeadline.clear());
 
         fetch(`${apiBase}/game-links/${encodeURIComponent(token)}`, { signal: current.signal })
@@ -195,7 +197,8 @@ const apiBase = import.meta.env.PUBLIC_API_BASE;
         $("local-btn").addEventListener("click", () => {
             const params = new URLSearchParams({ link: token });
             const customName = $("session-name").value.trim();
-            if (me && customName) params.set("name", customName);
+            // The prefilled game name isn't a custom one: leave it out so /local resumes.
+            if (me && customName && customName !== linkInfo.gameName) params.set("name", customName);
             window.location.href = `/local?${params.toString()}`;
         });
 

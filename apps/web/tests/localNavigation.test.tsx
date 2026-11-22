@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => {
@@ -234,7 +236,12 @@ import { createRoot, type Root } from "react-dom/client";
 import { AuthGuard } from "@/components/AuthGuard";
 import { LocalSessionManager } from "@/components/LocalSessionManager";
 import { OfflinePickerNotice, SessionPickerOverlay } from "@/components/SessionManager";
-import { activeSessionRole, STORED_USER_KEY } from "@/lib/activeSession";
+import {
+  activeSessionId,
+  activeSessionRole,
+  offlineUserId,
+  STORED_USER_KEY,
+} from "@/lib/activeSession";
 import { activeLocalSession, boardMode } from "@/lib/boardMode";
 
 const settle = () =>
@@ -443,6 +450,34 @@ describe("local-to-online navigation", () => {
   });
 });
 
+describe("LocalSessionManager game links", () => {
+  it("resumes the latest local session of the same game instead of starting an empty one", async () => {
+    const actual = await vi.importActual<typeof import("@/lib/localStore")>("@/lib/localStore");
+    actual._resetLocalStoreForTests();
+    localStoreMocks.listLocalSessions.mockImplementation(actual.listLocalSessions);
+    const def = JSON.parse(
+      readFileSync(
+        new URL("./fixtures/games/south-limburg-2026.game.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const game = await actual.saveLocalGame(def, { kind: "game-link", label: def.name });
+    const earlier = await actual.createLocalSession(game, "Earlier run");
+    fetchMock.mockImplementation(async (url: string) =>
+      url.includes("/game-links/tok/definition")
+        ? new Response(JSON.stringify(def), { status: 200 })
+        : new Response(JSON.stringify({ servers: [] }), { status: 200 }),
+    );
+    env.window.location.pathname = "/local";
+    env.window.location.search = "?link=tok";
+
+    await render(createElement(LocalSessionManager));
+
+    expect(activeLocalSession.get()?.id).toBe(earlier.id);
+    expect(await actual.listLocalSessions()).toHaveLength(1);
+  });
+});
+
 describe("AuthGuard offline /local escape hatch", () => {
   it("renders a /local 'Local play' link pill below the unreachable status chip when there are 0 local sessions", async () => {
     localStoreMocks.countLocalSessions.mockResolvedValue(0);
@@ -473,6 +508,25 @@ describe("AuthGuard offline /local escape hatch", () => {
     const localLink = anchors().find((a) => a.getAttribute("href") === "/local");
     expect(localLink).toBeDefined();
     expect(localLink!.textContent.trim()).toBe("Local sessions (2)");
+  });
+
+  it("hides the /local link while the stored account plays its /map session offline", async () => {
+    offlineUserId.set("user-123");
+    activeSessionId.set("session-1");
+    authCheckMocks.watchAuth.mockImplementation((_url, callbacks) => {
+      callbacks.unreachable();
+      return () => {};
+    });
+
+    try {
+      await render(createElement(AuthGuard));
+
+      expect(env.document.body.textContent).toContain("Can't reach the server, retrying…");
+      expect(anchors().find((a) => a.getAttribute("href") === "/local")).toBeUndefined();
+    } finally {
+      offlineUserId.set(null);
+      activeSessionId.set("");
+    }
   });
 
   it("falls back to 'Local play' when countLocalSessions rejects in the unreachable state", async () => {
