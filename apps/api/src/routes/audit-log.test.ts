@@ -236,5 +236,8 @@ describe("/audit-log", () => {
 
     expect((await read(GLOBAL_ADMIN, "?limit=101")).statusCode).toBe(400);
     expect((await read(GLOBAL_ADMIN, "?before=nope")).statusCode).toBe(400);
+    // Another server's entry is no cursor here.
+    const foreign = await read(GLOBAL_ADMIN, `?serverId=${SERVER_ID}&before=${first.nextCursor}`);
+    expect(foreign.statusCode).toBe(400);
   });
 });

@@ -26,6 +26,8 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
   const [rolesData, setRolesData] = useState<ServerRolesResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Bumped on each permission change, so the Activity list reloads with it.
+  const [changes, setChanges] = useState(0);
 
   const loadRoles = useCallback(async () => {
     setLoading(true);
@@ -72,6 +74,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
     // clears the error, so set it after.
     await loadRoles();
     if (failure) setError(failure);
+    setChanges((n) => n + 1);
   };
 
   const handleToggleExpand = () => {
@@ -158,7 +161,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
                 </tbody>
               </table>
             ))}
-          <AuditLogPanel serverId={server.id} />
+          <AuditLogPanel key={changes} serverId={server.id} />
         </div>
       )}
     </div>

@@ -208,18 +208,15 @@ export interface UsageResponse {
 
 // ── Audit log ─────────────────────────────────────────────────────────────────
 
-export const AUDIT_ACTIONS = [
-  "game.create", // first import of a game
-  "game.revision", // new revision: re-import, settings edit or preload change
-  "game.listing", // listed / unlisted
-  "game.delete",
-  "link.create",
-  "link.revoke",
-  "role.grant",
-  "role.revoke",
-] as const;
-
-export type AuditAction = (typeof AUDIT_ACTIONS)[number];
+export type AuditAction =
+  | "game.create" // first import of a game
+  | "game.revision" // new revision: re-import, settings edit or preload change
+  | "game.listing" // listed / unlisted
+  | "game.delete"
+  | "link.create"
+  | "link.revoke"
+  | "role.grant"
+  | "role.revoke";
 
 export interface AuditLogEntry {
   id: string;

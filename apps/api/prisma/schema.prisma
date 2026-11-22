@@ -341,7 +341,7 @@ model AuditLog {
   serverId   String
   // null: the system (games preloaded at API start).
   actorId    String?
-  action     String // an AUDIT_ACTIONS value from @searchlight/shared
+  action     String // an AuditAction value from @searchlight/shared
   targetId   String
   // As it was then, so the entry still reads after a rename or delete.
   targetName String

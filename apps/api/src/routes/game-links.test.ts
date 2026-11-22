@@ -226,6 +226,8 @@ describe("unlisted games and game links", () => {
     expect((await listGames(PLAYER_ID)).map((g) => g.id)).toEqual([]);
 
     expect((await patch(MANAGER_ID, false)).json()).toMatchObject({ unlisted: false });
+    // A repeat changes nothing and is not logged.
+    expect((await patch(MANAGER_ID, false)).json()).toMatchObject({ unlisted: false });
     expect((await listGames(PLAYER_ID)).map((g) => g.id)).toEqual([LISTED_GAME_ID]);
     const logged = await prisma.auditLog.findMany({
       where: { targetId: LISTED_GAME_ID, action: "game.listing" },

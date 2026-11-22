@@ -51,7 +51,11 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
       fetch(`${API_BASE}/audit-log?${params}`, { credentials: "include" })
         .then((res) => (res.ok ? res.json() : null))
         .then((data: AuditLogResponse | null) => {
-          if (!data) return;
+          if (!data) {
+            // A refused first page hides the panel, e.g. after switching accounts.
+            if (!before) setEntries(null);
+            return;
+          }
           setEntries((prev) => [...(before ? (prev ?? []) : []), ...data.entries]);
           setNextCursor(data.nextCursor);
         })

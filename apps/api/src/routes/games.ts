@@ -306,17 +306,23 @@ export async function gameRoutes(app: FastifyInstance) {
         throw Object.assign(new Error("Casual games are always unlisted"), { statusCode: 400 });
       }
 
-      if (game.unlisted === unlisted) return serializeGame(game);
       const updated = await prisma.$transaction(async (tx) => {
-        await audit(tx, {
-          serverId: game.serverId,
-          actorId: user.discordId,
-          action: "game.listing",
-          targetId: game.id,
-          targetName: game.name,
-          details: { unlisted },
+        // Conditional, so a repeat (or a concurrent duplicate) changes and logs nothing.
+        const { count } = await tx.game.updateMany({
+          where: { id: game.id, unlisted: !unlisted },
+          data: { unlisted },
         });
-        return tx.game.update({ where: { id: game.id }, data: { unlisted } });
+        if (count > 0) {
+          await audit(tx, {
+            serverId: game.serverId,
+            actorId: user.discordId,
+            action: "game.listing",
+            targetId: game.id,
+            targetName: game.name,
+            details: { unlisted },
+          });
+        }
+        return tx.game.findUniqueOrThrow({ where: { id: game.id } });
       });
       req.log.info(
         { gameId: game.id, unlisted, userId: user.discordId },

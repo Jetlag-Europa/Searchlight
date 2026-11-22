@@ -39,7 +39,7 @@ export async function auditLogRoutes(app: FastifyInstance) {
 
       const cursor = before
         ? await prisma.auditLog.findUnique({
-            where: { id: before },
+            where: { id: before, serverId },
             select: { id: true, createdAt: true },
           })
         : null;
