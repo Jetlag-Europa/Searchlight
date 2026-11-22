@@ -1,8 +1,9 @@
-import type {
-  DistanceUnit,
-  GameDefinition,
-  HidingZoneFeature,
-  PlayAreaFeatureCollection,
+import {
+  CASUAL_SERVER_ID,
+  type DistanceUnit,
+  type GameDefinition,
+  type HidingZoneFeature,
+  type PlayAreaFeatureCollection,
 } from "@searchlight/shared";
 
 import type { CreatorGeometryLayer, PreservedGameMetadata } from "@/lib/creator/assemble";
@@ -17,6 +18,7 @@ import type {
 const DB_NAME = "searchlight-creator-handoff-v1";
 const STORE_NAME = "draft";
 const HANDOFF_KEY_PREFIX = "handoff:";
+const OPEN_HANDOFF_KEY_PREFIX = "open:";
 const WORKSPACE_DRAFT_KEY = "workspace-autosave";
 const MAX_DRAFT_AGE_MS = 24 * 60 * 60 * 1000;
 
@@ -24,6 +26,20 @@ export interface CreatorImportHandoff {
   fileName: string;
   definition: GameDefinition;
   createdAt: string;
+}
+
+export interface CreatorOpenHandoff {
+  mode: "edit" | "copy";
+  definition: GameDefinition;
+  /** Set ONLY when mode === "edit" and the user has update permission on /games. */
+  replaceGameId?: string;
+  sourceGameName?: string;
+  createdAt: string;
+}
+
+export interface CreatorReplaceTarget {
+  gameId: string;
+  gameName: string;
 }
 
 export interface CreatorWorkspaceDraft {
@@ -41,6 +57,7 @@ export interface CreatorWorkspaceDraft {
   playArea: PlayAreaFeatureCollection | null;
   playAreaOsmRelationId?: number | null;
   preservedMetadata: PreservedGameMetadata | null;
+  replaceTarget?: CreatorReplaceTarget | null;
   stationSource?: StationSource;
   stationTypes?: StationTypeId[];
   stationPreset?: StationPresetId;
@@ -194,6 +211,96 @@ export async function readCreatorImportHandoff(
   if (!key) return null;
   const res = await runStoreTx<unknown>("readonly", (store) => store.get(key));
   return res.ok && isValidHandoff(res.value) ? res.value : null;
+}
+
+function openHandoffStorageKey(openId?: string | null): string | null {
+  const trimmed = openId?.trim();
+  if (!trimmed || trimmed === WORKSPACE_DRAFT_KEY) return null;
+  return `${OPEN_HANDOFF_KEY_PREFIX}${trimmed}`;
+}
+
+function isValidOpenHandoff(val: unknown): val is CreatorOpenHandoff {
+  if (typeof val !== "object" || val === null) return false;
+  const h = val as CreatorOpenHandoff;
+  return (
+    (h.mode === "edit" || h.mode === "copy") &&
+    typeof h.definition === "object" &&
+    h.definition !== null &&
+    (h.replaceGameId === undefined || typeof h.replaceGameId === "string")
+  );
+}
+
+/** Stashes a GameDefinition from `/games` in IndexedDB for `/create?open=<id>`. */
+export async function saveCreatorOpenHandoff(
+  input: Omit<CreatorOpenHandoff, "createdAt">,
+): Promise<string | null> {
+  const openId = makeDraftId();
+  const storageKey = `${OPEN_HANDOFF_KEY_PREFIX}${openId}`;
+  const payload: CreatorOpenHandoff = {
+    mode: input.mode,
+    definition: input.definition,
+    // Guardrail: never persist replaceGameId for copy handoffs.
+    ...(input.mode === "edit" && input.replaceGameId && { replaceGameId: input.replaceGameId }),
+    ...(input.sourceGameName && { sourceGameName: input.sourceGameName }),
+    createdAt: new Date().toISOString(),
+  };
+  const res = await runStoreTx<void>("readwrite", (store) => {
+    store.put(payload, storageKey);
+    const cursorReq = store.openCursor();
+    const cutoff = Date.now() - MAX_DRAFT_AGE_MS;
+    cursorReq.onsuccess = () => {
+      const cursor = cursorReq.result;
+      if (!cursor) return;
+      const val = cursor.value as { createdAt?: string } | undefined;
+      const ts = val?.createdAt ? Date.parse(val.createdAt) : 0;
+      if (cursor.key !== storageKey && cursor.key !== WORKSPACE_DRAFT_KEY && (!ts || ts < cutoff)) {
+        cursor.delete();
+      }
+      cursor.continue();
+    };
+  });
+  return res.ok ? openId : null;
+}
+
+/** Reads (without deleting) a pending `/games` -> `/create` handoff. */
+export async function readCreatorOpenHandoff(
+  openId?: string | null,
+): Promise<CreatorOpenHandoff | null> {
+  const key = openHandoffStorageKey(openId);
+  if (!key) return null;
+  const res = await runStoreTx<unknown>("readonly", (store) => store.get(key));
+  return res.ok && isValidOpenHandoff(res.value) ? res.value : null;
+}
+
+/** Deletes a consumed or dismissed `/games` -> `/create` handoff. */
+export async function clearCreatorOpenHandoff(openId?: string | null): Promise<void> {
+  const key = openHandoffStorageKey(openId);
+  if (!key) return;
+  await runStoreTx<void>("readwrite", (store) => {
+    store.delete(key);
+  });
+}
+
+/**
+ * Strips server/revision/visibility/id metadata and marks a definition's name
+ * as a copy so non-editors opening a game in `/create` cannot accidentally
+ * target or replace the original hosted game.
+ */
+export function sanitizeDefinitionForCreatorCopy(definition: GameDefinition): GameDefinition {
+  const baseName = definition.name.trim() || "Untitled Game";
+  const suffix = " (Copy)";
+  const copyName = baseName.endsWith(suffix)
+    ? baseName.slice(0, 120)
+    : `${baseName.slice(0, 120 - suffix.length)}${suffix}`;
+  const copy: GameDefinition = {
+    ...definition,
+    name: copyName,
+    serverId: CASUAL_SERVER_ID,
+  };
+  delete copy.id;
+  delete copy.revision;
+  delete copy.visibility;
+  return copy;
 }
 
 /** Deletes a consumed handoff draft once the importer has accepted it. */

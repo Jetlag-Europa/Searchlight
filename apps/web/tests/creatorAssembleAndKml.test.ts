@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { compileGameDefinition } from "@/game-definition/compile";
 import { checkGameQuality } from "@/game-definition/inspect";
 import { assembleGameDefinition, validateCreatorLayers } from "@/lib/creator/assemble";
+import { sanitizeDefinitionForCreatorCopy } from "@/lib/creator/handoff";
 import { buildGameKml, hexToKmlColor, planKmlFolders } from "@/lib/creator/kml";
 import { rectanglePlayArea } from "@/lib/creator/overpass";
 
@@ -211,6 +212,8 @@ describe("assembleGameDefinition", () => {
     });
 
     expect(validateGameDefinition(def).valid).toBe(true);
+    expect(def.unit).toBe("meters");
+    expect(def.hidingZones.unit).toBe("meters");
     expect(def.serverId).toBe("server-123");
     expect(def.visibility).toEqual({
       kind: "discord-role",
@@ -243,6 +246,18 @@ describe("assembleGameDefinition", () => {
     // Numeric tier also serializes to KML ExtendedData.
     const kml = buildGameKml(def);
     expect(kml.kml).toContain('<Data name="tier"><value>1</value></Data>');
+
+    // Copy sanitization strips server/id/revision/visibility so non-editors cannot accidentally replace the original.
+    const copy = sanitizeDefinitionForCreatorCopy({
+      ...def,
+      revision: 4,
+    });
+    expect(copy.id).toBeUndefined();
+    expect(copy.revision).toBeUndefined();
+    expect(copy.visibility).toBeUndefined();
+    expect(copy.serverId).toBe("home-games");
+    expect(copy.name).toBe("Gated Game (Copy)");
+    expect(validateGameDefinition(copy).valid).toBe(true);
   });
 });
 

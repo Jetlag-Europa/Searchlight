@@ -2,6 +2,7 @@ import { useStore } from "@nanostores/react";
 import {
   CASUAL_SERVER_ID,
   type Game,
+  type GameDefinition,
   type GamesResponse,
   type GameStats,
   type GameStatsResponse,
@@ -13,6 +14,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { formatGameExportJson } from "@/game-definition/export";
 import { verifiedUserId } from "@/lib/activeSession";
+import { saveCreatorOpenHandoff } from "@/lib/creator/handoff";
 
 import { GameLinksDialog } from "./GameLinksDialog";
 import { GameSettingsDialog } from "./GameSettingsDialog";
@@ -105,6 +107,7 @@ function GameCard({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [savingListing, setSavingListing] = useState(false);
+  const [openingCreator, setOpeningCreator] = useState(false);
   const userId = useStore(verifiedUserId);
   const casual = game.serverId === CASUAL_SERVER_ID;
   const canDelete = permissions.includes("games.delete");
@@ -121,8 +124,10 @@ function GameCard({
   const canUpdate =
     ["games.edit", "server.admin"].some((p) => permissions.includes(p)) ||
     (casual && !!userId && game.createdById === userId && permissions.includes("games.create"));
-  // A settings edit needs a revision to build on.
+  // A settings edit or Creator load needs a revision to build on.
   const canEditSettings = canUpdate && !!game.currentRevisionId;
+  const canExport = canManage || !casual;
+  const canOpenInCreator = (canUpdate || canExport) && !!game.currentRevisionId;
 
   const handleToggleListed = async () => {
     setError(null);
@@ -166,6 +171,41 @@ function GameCard({
       URL.revokeObjectURL(url);
     } catch (e: unknown) {
       setError((e as Error).message);
+    }
+  };
+  const handleOpenInCreator = async () => {
+    setError(null);
+    setOpeningCreator(true);
+    try {
+      const res = await fetch(`${API_BASE}/games/${encodeURIComponent(game.id)}/export`, {
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error(`Couldn't load game definition (${res.status})`);
+      const raw = (await res.json()) as GameDefinition;
+      const definition: GameDefinition = raw.id ? raw : { id: game.gameKey, ...raw };
+      const openId = await saveCreatorOpenHandoff(
+        canUpdate
+          ? {
+              mode: "edit",
+              definition,
+              replaceGameId: game.id,
+              sourceGameName: game.name,
+            }
+          : {
+              mode: "copy",
+              definition,
+              sourceGameName: game.name,
+            },
+      );
+      if (!openId) {
+        throw new Error(
+          "Browser storage is unavailable. Export the JSON file and load it in Map Creator instead.",
+        );
+      }
+      window.location.href = `/create?open=${encodeURIComponent(openId)}`;
+    } catch (e: unknown) {
+      setError((e as Error).message);
+      setOpeningCreator(false);
     }
   };
   const handleDelete = async () => {
@@ -222,6 +262,21 @@ function GameCard({
         )}
         {canManage && <GameLinksDialog game={game} />}
         {canEditSettings && <GameSettingsDialog game={game} onUpdated={onUpdated} />}
+        {canOpenInCreator && (
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={openingCreator}
+            onClick={handleOpenInCreator}
+            title={
+              canUpdate
+                ? "Open this game in Map Creator to edit and publish a new revision"
+                : "Open a copy of this game in Map Creator (will not modify the original game)"
+            }
+          >
+            {openingCreator ? "Opening…" : canUpdate ? "Edit in Creator" : "Open in Creator"}
+          </Button>
+        )}
         {canUpdate && (
           <Button asChild size="sm" variant="outline">
             <a
@@ -232,7 +287,7 @@ function GameCard({
             </a>
           </Button>
         )}
-        {(canManage || !casual) && (
+        {canExport && (
           <Button size="sm" variant="outline" onClick={handleExport}>
             Export JSON
           </Button>

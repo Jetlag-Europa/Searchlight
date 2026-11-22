@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator";
 import type { CompiledGame } from "@/game-definition/compile";
 import { formatFileSize, type QualityIssue } from "@/game-definition/inspect";
 import type { CreatorGeometryLayer, PreservedGameMetadata } from "@/lib/creator/assemble";
+import type { CreatorReplaceTarget } from "@/lib/creator/handoff";
 import { suggestSingularLayerName } from "@/lib/creator/importFile";
 import { type KmlFolderPlanResult, MY_MAPS_MOBILE_MAX_LAYERS } from "@/lib/creator/kml";
 import { cn } from "@/lib/utils";
@@ -28,6 +29,8 @@ interface Props {
   setCustomId: (val: string) => void;
   preservedMetadata: PreservedGameMetadata | null;
   setPreservedMetadata: (val: PreservedGameMetadata | null) => void;
+  replaceTarget: CreatorReplaceTarget | null;
+  onDetachReplaceTarget: () => void;
   checkingQuality: boolean;
   qualityIssues: readonly QualityIssue[];
   handleDecodeAllEntities: () => void;
@@ -67,6 +70,8 @@ export function CreatorExportStep({
   setCustomId,
   preservedMetadata,
   setPreservedMetadata,
+  replaceTarget,
+  onDetachReplaceTarget,
   checkingQuality,
   qualityIssues,
   handleDecodeAllEntities,
@@ -154,22 +159,38 @@ export function CreatorExportStep({
                 className="mt-1 h-8 font-mono text-xs"
               />
             </div>
-            {(preservedMetadata?.visibility ||
-              (preservedMetadata?.serverId && preservedMetadata.serverId !== "home-games")) && (
-              <div className="mt-2 flex items-center justify-between gap-2 rounded border border-border bg-card px-2 py-1.5 text-[11px] text-muted-foreground">
+            {replaceTarget ? (
+              <div className="mt-2 flex items-center justify-between gap-2 rounded border border-primary/40 bg-primary/10 px-2 py-1.5 text-[11px] text-foreground">
                 <span>
-                  Preserving loaded server & access metadata ({preservedMetadata.serverId}
-                  {preservedMetadata.visibility ? `, ${preservedMetadata.visibility.kind}` : ""}
-                  ).
+                  Editing <strong>{replaceTarget.gameName}</strong>. Importing will update it as a
+                  new revision.
                 </span>
                 <button
                   type="button"
-                  onClick={() => setPreservedMetadata(null)}
+                  onClick={onDetachReplaceTarget}
                   className="shrink-0 font-medium text-primary hover:underline"
                 >
-                  Export as casual copy
+                  Save as copy
                 </button>
               </div>
+            ) : (
+              (preservedMetadata?.visibility ||
+                (preservedMetadata?.serverId && preservedMetadata.serverId !== "home-games")) && (
+                <div className="mt-2 flex items-center justify-between gap-2 rounded border border-border bg-card px-2 py-1.5 text-[11px] text-muted-foreground">
+                  <span>
+                    Preserving loaded server & access metadata ({preservedMetadata.serverId}
+                    {preservedMetadata.visibility ? `, ${preservedMetadata.visibility.kind}` : ""}
+                    ).
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPreservedMetadata(null)}
+                    className="shrink-0 font-medium text-primary hover:underline"
+                  >
+                    Export as casual copy
+                  </button>
+                </div>
+              )
             )}
           </section>
 
@@ -554,7 +575,9 @@ export function CreatorExportStep({
               <UploadCloud className="mr-2 h-4 w-4" />
               {launchingAction === "import"
                 ? "Opening Importer…"
-                : "Import to Searchlight (requires sign-in)"}
+                : replaceTarget
+                  ? `Update "${replaceTarget.gameName}" in Searchlight`
+                  : "Import to Searchlight (requires sign-in)"}
             </Button>
           </section>
         </>

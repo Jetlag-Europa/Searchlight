@@ -34,10 +34,15 @@ import {
   validateCreatorLayers,
 } from "@/lib/creator/assemble";
 import {
+  clearCreatorOpenHandoff,
   clearCreatorWorkspaceDraft,
+  type CreatorOpenHandoff,
+  type CreatorReplaceTarget,
   type CreatorWorkspaceDraft,
   flushCreatorWorkspaceDraftSync,
+  readCreatorOpenHandoff,
   readCreatorWorkspaceDraft,
+  sanitizeDefinitionForCreatorCopy,
   saveCreatorImportHandoff,
   saveCreatorWorkspaceDraft,
 } from "@/lib/creator/handoff";
@@ -123,6 +128,11 @@ export function GameCreator() {
   const [radarsText, setRadarsText] = useState(SCALE_PRESETS[DEFAULT_SCALE].radars.join(", "));
   const [thermometer, setThermometer] = useState(SCALE_PRESETS[DEFAULT_SCALE].thermometer);
   const [preservedMetadata, setPreservedMetadata] = useState<PreservedGameMetadata | null>(null);
+  const [replaceTarget, setReplaceTarget] = useState<CreatorReplaceTarget | null>(null);
+  const [pendingOpenHandoff, setPendingOpenHandoff] = useState<{
+    openId: string;
+    handoff: CreatorOpenHandoff;
+  } | null>(null);
   const [extraHidingZones, setExtraHidingZones] = useState<HidingZoneFeature[]>([]);
 
   const [playArea, setPlayArea] = useState<PlayAreaFeatureCollection | null>(null);
@@ -670,140 +680,145 @@ export function GameCreator() {
     setVisibleLayerIds((prev) => new Set(prev).add(targetId));
   }, []);
 
-  const handleLoadExistingGame = useCallback((def: GameDefinition) => {
-    skipRestoreRef.current = true;
-    playAreaGenRef.current += 1;
-    stationAbortRef.current?.abort();
-    stationAbortRef.current = null;
-    setStationBusy(null);
-    setStationError(null);
-    setDrawPoints([]);
-    setInteractionMode("browse");
+  const handleLoadExistingGame = useCallback(
+    (def: GameDefinition, options?: { replaceTarget?: CreatorReplaceTarget | null }) => {
+      skipRestoreRef.current = true;
+      playAreaGenRef.current += 1;
+      stationAbortRef.current?.abort();
+      stationAbortRef.current = null;
+      setStationBusy(null);
+      setStationError(null);
+      setDrawPoints([]);
+      setInteractionMode("browse");
+      setPendingOpenHandoff(null);
+      setReplaceTarget(options?.replaceTarget ?? null);
 
-    setGameName(def.name);
-    setCustomId(def.id ?? "");
-    setScale(def.size ?? "medium");
-    setUnit(def.unit ?? def.hidingZones.unit ?? "meters");
-    setHidingRadius(def.hidingZones.radius ?? 400);
-    setTierOverrides({ ...(def.hidingZones.tierOverrides ?? {}) });
-    if (Array.isArray(def.radars)) {
-      setRadarMode("custom");
-      setRadarsText(def.radars.join(", "));
-    } else if (def.radars === true) {
-      setRadarMode("default");
-      setRadarsText("");
-    } else {
-      setRadarMode("off");
-      setRadarsText("");
-    }
-    setThermometer(Boolean(def.thermometer));
-    setPreservedMetadata({
-      serverId: def.serverId,
-      revision: def.revision,
-      visibility: def.visibility,
-      bounds: def.map.bounds,
-      center: def.map.center,
-    });
-
-    setPlayArea(def.map.playArea);
-    setPlayAreaOsmRelationId(null);
-    setPlayAreaVersion((v) => v + 1);
-    const fitBounds =
-      tryPlayAreaBounds(def.map.playArea) ??
-      def.map.bounds ??
-      (Array.isArray(def.map.center) &&
-      Number.isFinite(def.map.center[0]) &&
-      Number.isFinite(def.map.center[1])
-        ? ([
-            def.map.center[0] - 0.05,
-            def.map.center[1] - 0.05,
-            def.map.center[0] + 0.05,
-            def.map.center[1] + 0.05,
-          ] as Bounds)
-        : null);
-    if (fitBounds) {
-      setFitTarget((prev) => ({
-        bounds: fitBounds,
-        seq: (prev?.seq ?? 0) + 1,
-      }));
-    }
-
-    const loadedStations: CreatorPointItem[] = [];
-    const loadedExtraZones: HidingZoneFeature[] = [];
-    def.hidingZones.features.features.forEach((f, idx) => {
-      if (f.geometry.type !== "Point") {
-        loadedExtraZones.push(f);
-        return;
+      setGameName(def.name);
+      setCustomId(def.id ?? "");
+      setScale(def.size ?? "medium");
+      setUnit(def.unit ?? def.hidingZones.unit ?? "meters");
+      setHidingRadius(def.hidingZones.radius ?? 400);
+      setTierOverrides({ ...(def.hidingZones.tierOverrides ?? {}) });
+      if (Array.isArray(def.radars)) {
+        setRadarMode("custom");
+        setRadarsText(def.radars.join(", "));
+      } else if (def.radars === true) {
+        setRadarMode("default");
+        setRadarsText("");
+      } else {
+        setRadarMode("off");
+        setRadarsText("");
       }
-      const rawTier = f.properties?.tier;
-      const tier =
-        typeof rawTier === "string"
-          ? rawTier
-          : typeof rawTier === "number"
-            ? String(rawTier)
-            : undefined;
-      loadedStations.push({
-        uid: `loaded-st-${Date.now()}-${idx}`,
-        name:
-          typeof f.properties?.name === "string" && f.properties.name
-            ? f.properties.name
-            : `Station ${idx + 1}`,
-        lng: f.geometry.coordinates[0],
-        lat: f.geometry.coordinates[1],
-        tier,
-        enabled: true,
-        custom: true,
-        originalId: f.id,
-        originalProperties: f.properties ? { ...f.properties } : undefined,
+      setThermometer(Boolean(def.thermometer));
+      setPreservedMetadata({
+        serverId: def.serverId,
+        revision: def.revision,
+        visibility: def.visibility,
+        bounds: def.map.bounds,
+        center: def.map.center,
       });
-    });
-    setStations(loadedStations);
-    setExtraHidingZones(loadedExtraZones);
-    setStationSummary(
-      loadedExtraZones.length > 0
-        ? `Loaded ${loadedStations.length} point station(s) + ${loadedExtraZones.length} polygon hiding zone(s) from file`
-        : `Loaded ${loadedStations.length} stations from file`,
-    );
 
-    const loadedGeoLayers: CreatorGeometryLayer[] = (def.features ?? []).map((feat, idx) => {
-      const firstType = feat.data.features[0]?.geometry.type;
-      const fam: GeometryFamily =
-        firstType === undefined || firstType === "Point"
-          ? "points"
-          : firstType === "LineString" || firstType === "MultiLineString"
-            ? "lines"
-            : "polygons";
-      const items = feat.data.features.map((f, fIdx) => ({
-        uid: `loaded-f-${idx}-${fIdx}`,
-        name:
-          typeof f.properties?.name === "string" && f.properties.name
-            ? f.properties.name
-            : `${feat.name} ${fIdx + 1}`,
-        geometry: f.geometry,
-        enabled: true,
-        originalId: f.id,
-        originalProperties: f.properties ? { ...f.properties } : undefined,
-      }));
-      return {
-        id: `loaded-layer-${Date.now()}-${idx}`,
-        name: feat.name,
-        family: fam,
-        enabledFor: [...feat.enabledFor],
-        color: feat.color ?? inferLayerColor(feat.name, idx),
-        ...(fam === "points" && {
-          icon: feat.icon ?? inferLayerIcon(feat.name),
-        }),
-        ...(feat.kmlFolder && { kmlFolder: feat.kmlFolder }),
-        selected: true,
-        noOverlaps: feat.noOverlaps === true,
-        sourceLabel: "Loaded .game.json",
-        items,
-        vertexCount: sumFeatureVertices(items),
-      };
-    });
-    setLayers(loadedGeoLayers);
-    setVisibleLayerIds(new Set(loadedGeoLayers.slice(0, 1).map((l) => l.id)));
-  }, []);
+      setPlayArea(def.map.playArea);
+      setPlayAreaOsmRelationId(null);
+      setPlayAreaVersion((v) => v + 1);
+      const fitBounds =
+        tryPlayAreaBounds(def.map.playArea) ??
+        def.map.bounds ??
+        (Array.isArray(def.map.center) &&
+        Number.isFinite(def.map.center[0]) &&
+        Number.isFinite(def.map.center[1])
+          ? ([
+              def.map.center[0] - 0.05,
+              def.map.center[1] - 0.05,
+              def.map.center[0] + 0.05,
+              def.map.center[1] + 0.05,
+            ] as Bounds)
+          : null);
+      if (fitBounds) {
+        setFitTarget((prev) => ({
+          bounds: fitBounds,
+          seq: (prev?.seq ?? 0) + 1,
+        }));
+      }
+
+      const loadedStations: CreatorPointItem[] = [];
+      const loadedExtraZones: HidingZoneFeature[] = [];
+      def.hidingZones.features.features.forEach((f, idx) => {
+        if (f.geometry.type !== "Point") {
+          loadedExtraZones.push(f);
+          return;
+        }
+        const rawTier = f.properties?.tier;
+        const tier =
+          typeof rawTier === "string"
+            ? rawTier
+            : typeof rawTier === "number"
+              ? String(rawTier)
+              : undefined;
+        loadedStations.push({
+          uid: `loaded-st-${Date.now()}-${idx}`,
+          name:
+            typeof f.properties?.name === "string" && f.properties.name
+              ? f.properties.name
+              : `Station ${idx + 1}`,
+          lng: f.geometry.coordinates[0],
+          lat: f.geometry.coordinates[1],
+          tier,
+          enabled: true,
+          custom: true,
+          originalId: f.id,
+          originalProperties: f.properties ? { ...f.properties } : undefined,
+        });
+      });
+      setStations(loadedStations);
+      setExtraHidingZones(loadedExtraZones);
+      setStationSummary(
+        loadedExtraZones.length > 0
+          ? `Loaded ${loadedStations.length} point station(s) + ${loadedExtraZones.length} polygon hiding zone(s) from file`
+          : `Loaded ${loadedStations.length} stations from file`,
+      );
+
+      const loadedGeoLayers: CreatorGeometryLayer[] = (def.features ?? []).map((feat, idx) => {
+        const firstType = feat.data.features[0]?.geometry.type;
+        const fam: GeometryFamily =
+          firstType === undefined || firstType === "Point"
+            ? "points"
+            : firstType === "LineString" || firstType === "MultiLineString"
+              ? "lines"
+              : "polygons";
+        const items = feat.data.features.map((f, fIdx) => ({
+          uid: `loaded-f-${idx}-${fIdx}`,
+          name:
+            typeof f.properties?.name === "string" && f.properties.name
+              ? f.properties.name
+              : `${feat.name} ${fIdx + 1}`,
+          geometry: f.geometry,
+          enabled: true,
+          originalId: f.id,
+          originalProperties: f.properties ? { ...f.properties } : undefined,
+        }));
+        return {
+          id: `loaded-layer-${Date.now()}-${idx}`,
+          name: feat.name,
+          family: fam,
+          enabledFor: [...feat.enabledFor],
+          color: feat.color ?? inferLayerColor(feat.name, idx),
+          ...(fam === "points" && {
+            icon: feat.icon ?? inferLayerIcon(feat.name),
+          }),
+          ...(feat.kmlFolder && { kmlFolder: feat.kmlFolder }),
+          selected: true,
+          noOverlaps: feat.noOverlaps === true,
+          sourceLabel: "Loaded .game.json",
+          items,
+          vertexCount: sumFeatureVertices(items),
+        };
+      });
+      setLayers(loadedGeoLayers);
+      setVisibleLayerIds(new Set(loadedGeoLayers.slice(0, 1).map((l) => l.id)));
+    },
+    [],
+  );
 
   const handleLoadGameFile = async (file: File) => {
     const seq = ++loadGameSeqRef.current;
@@ -1243,6 +1258,62 @@ export function GameCreator() {
     }
   };
 
+  const stripOpenQueryParam = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("open")) return;
+    params.delete("open");
+    const nextUrl = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}${window.location.hash}`;
+    window.history.replaceState({}, "", nextUrl);
+  }, []);
+
+  const applyOpenHandoff = useCallback(
+    (openId: string, handoff: CreatorOpenHandoff) => {
+      stripOpenQueryParam();
+      void clearCreatorOpenHandoff(openId);
+      setPendingOpenHandoff(null);
+      if (handoff.mode === "edit" && handoff.replaceGameId) {
+        handleLoadExistingGame(handoff.definition, {
+          replaceTarget: {
+            gameId: handoff.replaceGameId,
+            gameName: handoff.sourceGameName || handoff.definition.name,
+          },
+        });
+        toast.success(`Loaded "${handoff.definition.name}" for editing`, {
+          toastId: "creator-open-handoff",
+        });
+      } else {
+        const copyDef = sanitizeDefinitionForCreatorCopy(handoff.definition);
+        handleLoadExistingGame(copyDef, { replaceTarget: null });
+        toast.info(
+          `Opened a copy of "${handoff.sourceGameName || handoff.definition.name}" in Map Creator`,
+          { toastId: "creator-open-handoff" },
+        );
+      }
+    },
+    [handleLoadExistingGame, stripOpenQueryParam],
+  );
+
+  const handleDismissOpenHandoff = useCallback(() => {
+    if (pendingOpenHandoff) {
+      void clearCreatorOpenHandoff(pendingOpenHandoff.openId);
+    }
+    stripOpenQueryParam();
+    setPendingOpenHandoff(null);
+  }, [pendingOpenHandoff, stripOpenQueryParam]);
+
+  const handleDetachReplaceTarget = useCallback(() => {
+    setReplaceTarget(null);
+    setPreservedMetadata((prev) => (prev ? { bounds: prev.bounds, center: prev.center } : null));
+    setCustomId("");
+    setGameName((prev) => {
+      const trimmed = prev.trim();
+      if (!trimmed || trimmed.endsWith(" (Copy)")) return prev;
+      const suffix = " (Copy)";
+      return `${trimmed.slice(0, 120 - suffix.length)}${suffix}`;
+    });
+    toast.info("Detached as a new copy; importing will create a separate game");
+  }, []);
+
   const handleImportToSearchlight = async () => {
     if (!assembled.definition || !assembled.compiled || assemblyPending) return;
     const popup = window.open("about:blank", "_blank");
@@ -1257,7 +1328,11 @@ export function GameCreator() {
         );
         return;
       }
-      const targetUrl = `/games/import?from=creator&draft=${encodeURIComponent(draftId)}`;
+      const params = new URLSearchParams({ from: "creator", draft: draftId });
+      if (replaceTarget) {
+        params.set("replace", replaceTarget.gameId);
+      }
+      const targetUrl = `/games/import?${params.toString()}`;
       if (popup && !popup.closed) {
         popup.location.href = targetUrl;
       } else {
@@ -1295,6 +1370,7 @@ export function GameCreator() {
       playArea,
       playAreaOsmRelationId,
       preservedMetadata,
+      replaceTarget,
       stationSource,
       stationTypes,
       customStationFilter,
@@ -1325,6 +1401,7 @@ export function GameCreator() {
     playArea,
     playAreaOsmRelationId,
     preservedMetadata,
+    replaceTarget,
     stationSource,
     stationTypes,
     customStationFilter,
@@ -1344,83 +1421,101 @@ export function GameCreator() {
 
   latestDraftRef.current = workspaceDraft;
 
-  // Restore autosaved draft once on mount (unless user already loaded/reset).
+  // Restore autosaved draft and/or consume a `/games` -> `/create?open=<id>` handoff once on mount.
   useEffect(() => {
     let cancelled = false;
-    void readCreatorWorkspaceDraft().then((saved) => {
+    const openId = new URLSearchParams(window.location.search).get("open");
+    void Promise.all([
+      readCreatorWorkspaceDraft(),
+      openId ? readCreatorOpenHandoff(openId) : Promise.resolve(null),
+    ]).then(([saved, openHandoff]) => {
       if (cancelled) return;
-      if (
-        !skipRestoreRef.current &&
-        !latestDraftRef.current &&
+      const hasSavedProgress = Boolean(
         saved &&
-        (saved.gameName.trim() ||
-          saved.customId.trim() ||
-          (saved.playArea && saved.playArea.features.length > 0) ||
-          saved.stations.length > 0 ||
-          saved.extraHidingZones.length > 0 ||
-          saved.layers.length > 0)
-      ) {
-        setStep(saved.step);
-        setGameName(saved.gameName);
-        setCustomId(saved.customId);
-        setScale(saved.scale);
-        setUnit(saved.unit);
-        setHidingRadius(saved.hidingRadius);
-        setRadarMode(saved.radarMode);
-        setRadarsText(saved.radarsText);
-        setThermometer(saved.thermometer);
-        setPlayArea(saved.playArea);
-        setPlayAreaOsmRelationId(saved.playAreaOsmRelationId ?? null);
-        setPlayAreaVersion((v) => v + 1);
-        setPreservedMetadata(saved.preservedMetadata);
-        const isLegacyCustom =
-          !Array.isArray(saved.stationTypes) && saved.stationPreset === "custom";
-        setStationSource(isLegacyCustom ? "osm" : (saved.stationSource ?? "transitous"));
-        setStationTypes(
-          Array.isArray(saved.stationTypes)
-            ? saved.stationTypes
-            : isLegacyCustom
-              ? []
-              : stationTypesFromLegacyPreset(saved.stationPreset, saved.scale),
-        );
-        setCustomStationFilter(
-          Array.isArray(saved.stationTypes) || isLegacyCustom
-            ? (saved.customStationFilter ?? "")
-            : "",
-        );
-        setDedupeMeters(saved.dedupeMeters);
-        setPreferEnglishName(saved.preferEnglishName);
-        setStations(saved.stations);
-        setExtraHidingZones(saved.extraHidingZones);
-        setTierOverrides(saved.tierOverrides);
-        setLayers(saved.layers);
-        setVisibleLayerIds(new Set(saved.visibleLayerIds));
-        setPoiBufferKm(saved.poiBufferKm);
-        setCustomEndpoint(saved.customEndpoint);
-        setMaxKmlLayers(saved.maxKmlLayers);
-        setIncludePlayAreaKml(saved.includePlayAreaKml);
-        setIncludeCirclesKml(saved.includeCirclesKml);
+          (saved.gameName.trim() ||
+            saved.customId.trim() ||
+            (saved.playArea && saved.playArea.features.length > 0) ||
+            saved.stations.length > 0 ||
+            saved.extraHidingZones.length > 0 ||
+            saved.layers.length > 0),
+      );
 
-        const bounds =
-          (saved.playArea && tryPlayAreaBounds(saved.playArea)) ??
-          saved.preservedMetadata?.bounds ??
-          null;
-        if (bounds) {
-          setFitTarget((prev) => ({
-            bounds,
-            seq: (prev?.seq ?? 0) + 1,
-          }));
+      if (!skipRestoreRef.current && !latestDraftRef.current) {
+        if (openId && openHandoff && !hasSavedProgress) {
+          applyOpenHandoff(openId, openHandoff);
+        } else {
+          if (openId && !openHandoff) {
+            stripOpenQueryParam();
+          }
+          if (hasSavedProgress && saved) {
+            setStep(saved.step);
+            setGameName(saved.gameName);
+            setCustomId(saved.customId);
+            setScale(saved.scale);
+            setUnit(saved.unit);
+            setHidingRadius(saved.hidingRadius);
+            setRadarMode(saved.radarMode);
+            setRadarsText(saved.radarsText);
+            setThermometer(saved.thermometer);
+            setPlayArea(saved.playArea);
+            setPlayAreaOsmRelationId(saved.playAreaOsmRelationId ?? null);
+            setPlayAreaVersion((v) => v + 1);
+            setPreservedMetadata(saved.preservedMetadata);
+            setReplaceTarget(saved.replaceTarget ?? null);
+            const isLegacyCustom =
+              !Array.isArray(saved.stationTypes) && saved.stationPreset === "custom";
+            setStationSource(isLegacyCustom ? "osm" : (saved.stationSource ?? "transitous"));
+            setStationTypes(
+              Array.isArray(saved.stationTypes)
+                ? saved.stationTypes
+                : isLegacyCustom
+                  ? []
+                  : stationTypesFromLegacyPreset(saved.stationPreset, saved.scale),
+            );
+            setCustomStationFilter(
+              Array.isArray(saved.stationTypes) || isLegacyCustom
+                ? (saved.customStationFilter ?? "")
+                : "",
+            );
+            setDedupeMeters(saved.dedupeMeters);
+            setPreferEnglishName(saved.preferEnglishName);
+            setStations(saved.stations);
+            setExtraHidingZones(saved.extraHidingZones);
+            setTierOverrides(saved.tierOverrides);
+            setLayers(saved.layers);
+            setVisibleLayerIds(new Set(saved.visibleLayerIds));
+            setPoiBufferKm(saved.poiBufferKm);
+            setCustomEndpoint(saved.customEndpoint);
+            setMaxKmlLayers(saved.maxKmlLayers);
+            setIncludePlayAreaKml(saved.includePlayAreaKml);
+            setIncludeCirclesKml(saved.includeCirclesKml);
+
+            const bounds =
+              (saved.playArea && tryPlayAreaBounds(saved.playArea)) ??
+              saved.preservedMetadata?.bounds ??
+              null;
+            if (bounds) {
+              setFitTarget((prev) => ({
+                bounds,
+                seq: (prev?.seq ?? 0) + 1,
+              }));
+            }
+            if (openId && openHandoff) {
+              setPendingOpenHandoff({ openId, handoff: openHandoff });
+            } else {
+              toast.info("Restored your in-progress map draft", {
+                toastId: "creator-draft-restored",
+              });
+            }
+          }
         }
-        toast.info("Restored your in-progress map draft", {
-          toastId: "creator-draft-restored",
-        });
       }
       setDraftHydrated(true);
     });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyOpenHandoff, stripOpenQueryParam]);
 
   // Debounced IndexedDB autosave after initial hydration completes.
   // Uses a monotonic sequence so an older commit never clears a newer edit's
@@ -1504,6 +1599,8 @@ export function GameCreator() {
     setRadarsText(SCALE_PRESETS[DEFAULT_SCALE].radars.join(", "));
     setThermometer(SCALE_PRESETS[DEFAULT_SCALE].thermometer);
     setPreservedMetadata(null);
+    setReplaceTarget(null);
+    setPendingOpenHandoff(null);
     setExtraHidingZones([]);
     setPlayArea(null);
     setPlayAreaOsmRelationId(null);
@@ -1660,6 +1757,42 @@ export function GameCreator() {
 
         {/* Step Content */}
         <div className="flex-1 space-y-5 overflow-y-auto p-4">
+          {pendingOpenHandoff && (
+            <div className="space-y-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3 text-xs">
+              <p className="font-semibold text-foreground">
+                Open &ldquo;
+                {pendingOpenHandoff.handoff.sourceGameName ||
+                  pendingOpenHandoff.handoff.definition.name}
+                &rdquo; {pendingOpenHandoff.handoff.mode === "edit" ? "for editing" : "as a copy"}?
+              </p>
+              <p className="text-muted-foreground">
+                You already have an unsaved map draft
+                {gameName.trim() ? ` ("${gameName.trim()}")` : ""}. Loading this game will replace
+                your current draft.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={() =>
+                    applyOpenHandoff(pendingOpenHandoff.openId, pendingOpenHandoff.handoff)
+                  }
+                >
+                  Replace current draft
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 px-2.5 text-xs"
+                  onClick={handleDismissOpenHandoff}
+                >
+                  Keep current draft
+                </Button>
+              </div>
+            </div>
+          )}
           {/* ── STEP 1: AREA & DEFAULTS ── */}
           {step === "area" && (
             <CreatorAreaStep
@@ -1883,6 +2016,8 @@ export function GameCreator() {
               setCustomId={setCustomId}
               preservedMetadata={preservedMetadata}
               setPreservedMetadata={setPreservedMetadata}
+              replaceTarget={replaceTarget}
+              onDetachReplaceTarget={handleDetachReplaceTarget}
               checkingQuality={checkingQuality}
               qualityIssues={qualityIssues}
               handleDecodeAllEntities={handleDecodeAllEntities}

@@ -86,6 +86,10 @@ const env = vi.hoisted(() => {
 
 vi.mock("@/components/GameLinksDialog", () => ({ GameLinksDialog: () => null }));
 vi.mock("@/components/GameSettingsDialog", () => ({ GameSettingsDialog: () => null }));
+const saveCreatorOpenHandoffMock = vi.fn();
+vi.mock("@/lib/creator/handoff", () => ({
+  saveCreatorOpenHandoff: (...args: unknown[]) => saveCreatorOpenHandoffMock(...args),
+}));
 
 import { act, createElement, type ReactElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -149,6 +153,7 @@ const clickButton = async (label: string) => {
 const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
+  saveCreatorOpenHandoffMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
 });
 afterEach(async () => {
@@ -304,4 +309,63 @@ describe("games and import load errors", () => {
       expect(findButton(submitLabel)?.disabled).toBe(false);
     },
   );
+
+  it("shows 'Edit in Creator' with replaceGameId for editors and 'Open in Creator' copy-only for non-editors", async () => {
+    verifiedUserId.set("u1");
+    saveCreatorOpenHandoffMock.mockResolvedValue("open-123");
+
+    const editorServer: ServerWithPermissions = {
+      ...srv,
+      id: "srv-edit",
+      name: "Editor Server",
+      permissions: ["games.edit"],
+    };
+    const viewerServer: ServerWithPermissions = {
+      ...srv,
+      id: "srv-create",
+      name: "Create-Only Server",
+      permissions: ["games.create"],
+    };
+
+    // 1. Editor sees "Edit in Creator" and passes mode: "edit" + replaceGameId.
+    fetchMock.mockImplementation(async (u: string | URL) => {
+      const { pathname } = new URL(String(u));
+      if (pathname === "/servers") return json({ servers: [editorServer] });
+      if (pathname === "/games/g1/export") return json(def);
+      return json({ games: [{ ...game, serverId: "srv-edit" }] });
+    });
+    await render(createElement(GameManager));
+    expect(findButton("Edit in Creator")).toBeDefined();
+    expect(findButton("Open in Creator")).toBeUndefined();
+    await clickButton("Edit in Creator");
+    expect(saveCreatorOpenHandoffMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "edit",
+        replaceGameId: "g1",
+        sourceGameName: "Stockholm",
+      }),
+    );
+
+    // 2. Non-editor (games.create only on shared server) sees "Open in Creator" and NEVER gets replaceGameId.
+    await act(async () => root?.unmount());
+    root = null;
+    env.document.body.textContent = "";
+    saveCreatorOpenHandoffMock.mockClear();
+    fetchMock.mockImplementation(async (u: string | URL) => {
+      const { pathname } = new URL(String(u));
+      if (pathname === "/servers") return json({ servers: [viewerServer] });
+      if (pathname === "/games/g1/export") return json(def);
+      return json({ games: [{ ...game, serverId: "srv-create" }] });
+    });
+    await render(createElement(GameManager));
+    expect(findButton("Open in Creator")).toBeDefined();
+    expect(findButton("Edit in Creator")).toBeUndefined();
+    await clickButton("Open in Creator");
+    expect(saveCreatorOpenHandoffMock).toHaveBeenCalledWith({
+      mode: "copy",
+      definition: def,
+      sourceGameName: "Stockholm",
+    });
+    expect(saveCreatorOpenHandoffMock.mock.calls[0][0].replaceGameId).toBeUndefined();
+  });
 });

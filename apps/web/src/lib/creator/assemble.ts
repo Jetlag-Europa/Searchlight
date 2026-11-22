@@ -310,6 +310,7 @@ export function assembleGameDefinition(draft: CreatorDraftInput): GameDefinition
       visibility: draft.preservedMetadata.visibility,
     }),
     size: draft.size,
+    unit: draft.unit,
     map: {
       center,
       ...(bounds && { bounds }),
