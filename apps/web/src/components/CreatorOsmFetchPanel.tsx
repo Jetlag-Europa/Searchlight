@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { type CreatorGeometryLayer, layerSlugOf } from "@/lib/creator/assemble";
@@ -780,7 +780,7 @@ export function CreatorOsmFetchPanel({
             <Label htmlFor="creator-poi-buffer" className="text-[11px] text-muted-foreground">
               Margin (km)
             </Label>
-            <Input
+            <RawInput
               id="creator-poi-buffer"
               type="number"
               min={0}
@@ -944,13 +944,13 @@ export function CreatorOsmFetchPanel({
         >
           <p className="text-xs font-medium">Custom OSM POI query</p>
           <div className="grid grid-cols-2 gap-2">
-            <Input
+            <RawInput
               placeholder="Name (e.g. Castle)"
               value={customPoiName}
               onChange={(e) => setCustomPoiName(e.target.value)}
               className="h-8 text-xs"
             />
-            <Input
+            <RawInput
               placeholder='["historic"="castle"]'
               value={customPoiFilter}
               onChange={(e) => setCustomPoiFilter(e.target.value)}
@@ -1035,7 +1035,7 @@ export function CreatorOsmFetchPanel({
             <Label htmlFor="creator-region-name" className="text-xs">
               Layer name (singular)
             </Label>
-            <Input
+            <RawInput
               id="creator-region-name"
               value={regionName}
               onChange={(e) => setRegionName(e.target.value)}
@@ -1051,7 +1051,7 @@ export function CreatorOsmFetchPanel({
             >
               Simplify borders (m)
             </Label>
-            <Input
+            <RawInput
               id="creator-region-tol"
               type="number"
               min={0}
@@ -1162,7 +1162,7 @@ export function CreatorOsmFetchPanel({
         </div>
 
         {linePresetId === "custom" && (
-          <Input
+          <RawInput
             value={customLineFilter}
             onChange={(e) => setCustomLineFilter(e.target.value)}
             placeholder='["railway"="rail"]'
@@ -1175,7 +1175,7 @@ export function CreatorOsmFetchPanel({
             <Label htmlFor="creator-line-name" className="text-xs">
               Layer name (singular)
             </Label>
-            <Input
+            <RawInput
               id="creator-line-name"
               value={lineName}
               onChange={(e) => setLineName(e.target.value)}
@@ -1191,7 +1191,7 @@ export function CreatorOsmFetchPanel({
             >
               Simplify lines (m)
             </Label>
-            <Input
+            <RawInput
               id="creator-line-tol"
               type="number"
               min={0}
@@ -1273,7 +1273,7 @@ export function CreatorOsmFetchPanel({
         {showRawQuery && (
           <div className="space-y-2 pt-1">
             <div className="grid grid-cols-2 gap-2">
-              <Input
+              <RawInput
                 placeholder="Layer name (e.g. Park)"
                 value={rawLayerName}
                 onChange={(e) => setRawLayerName(e.target.value)}
@@ -1337,7 +1337,7 @@ export function CreatorOsmFetchPanel({
         </button>
         {showAdvancedOsm && (
           <div className="mt-2">
-            <Input
+            <RawInput
               placeholder="Default: overpass-api.de → private.coffee → kumi.systems"
               value={customEndpoint}
               onChange={(e) => setCustomEndpoint(e.target.value)}

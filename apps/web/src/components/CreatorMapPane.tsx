@@ -6,7 +6,7 @@ import type {
 } from "@searchlight/shared";
 import type * as L from "leaflet";
 import { Layers } from "lucide-react";
-import { useEffect } from "react";
+import { memo, useEffect } from "react";
 import {
   CircleMarker,
   GeoJSON,
@@ -103,7 +103,8 @@ interface Props {
   visibleLayerIds: ReadonlySet<string>;
 }
 
-export function CreatorMapPane({
+// Memoized so typing in the sidebar doesn't re-render every station marker per key.
+export const CreatorMapPane = memo(function CreatorMapPane({
   interactionMode,
   setInteractionMode,
   drawPoints,
@@ -128,7 +129,7 @@ export function CreatorMapPane({
   visibleLayerIds,
 }: Props) {
   return (
-    <div className="relative h-[55dvh] flex-1 overflow-hidden md:h-full">
+    <div className="relative h-[55dvh] overflow-hidden md:h-full md:flex-1">
       {interactionMode !== "browse" && (
         <div className="pointer-events-auto absolute left-1/2 top-3 z-[1000] flex -translate-x-1/2 items-center gap-2 rounded-full border border-primary/50 bg-background/95 px-3.5 py-1.5 text-xs shadow-lg backdrop-blur-sm">
           <Layers className="h-3.5 w-3.5 text-primary" />
@@ -404,4 +405,4 @@ export function CreatorMapPane({
       </MapContainer>
     </div>
   );
-}
+});

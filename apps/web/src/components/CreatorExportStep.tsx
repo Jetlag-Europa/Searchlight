@@ -3,7 +3,7 @@ import { AlertTriangle, Download, Play, UploadCloud } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { CompiledGame } from "@/game-definition/compile";
@@ -11,7 +11,7 @@ import { formatFileSize, type QualityIssue } from "@/game-definition/inspect";
 import type { CreatorGeometryLayer, PreservedGameMetadata } from "@/lib/creator/assemble";
 import type { CreatorReplaceTarget } from "@/lib/creator/handoff";
 import { suggestSingularLayerName } from "@/lib/creator/importFile";
-import { type KmlFolderPlanResult, MY_MAPS_MOBILE_MAX_LAYERS } from "@/lib/creator/kml";
+import type { KmlFolderPlanResult } from "@/lib/creator/kml";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -151,7 +151,7 @@ export function CreatorExportStep({
               <Label htmlFor="creator-custom-id" className="text-[11px] text-muted-foreground">
                 Game ID (filename & permanent key)
               </Label>
-              <Input
+              <RawInput
                 id="creator-custom-id"
                 placeholder={fileStem}
                 value={customId}
@@ -354,20 +354,14 @@ export function CreatorExportStep({
                   >
                     Max layers
                   </Label>
-                  <Input
+                  <RawInput
                     id="creator-kml-max-layers"
                     type="number"
                     min={1}
                     max={10}
                     value={maxKmlLayers}
-                    onChange={(e) =>
-                      setMaxKmlLayers(
-                        Math.max(
-                          1,
-                          Math.min(10, Number(e.target.value) || MY_MAPS_MOBILE_MAX_LAYERS),
-                        ),
-                      )
-                    }
+                    // Floor 0, not 1, so clearing and typing "5" gives 5, not 15; KML export clamps to 1.
+                    onChange={(e) => setMaxKmlLayers(Math.min(10, Number(e.target.value) || 0))}
                     className="h-7 w-14 text-center text-xs"
                   />
                 </div>
@@ -529,7 +523,7 @@ export function CreatorExportStep({
                                   }}
                                   className="flex items-center gap-1 pl-2"
                                 >
-                                  <Input
+                                  <RawInput
                                     autoFocus
                                     placeholder="Folder name (e.g. Provinces)"
                                     value={newFolderDraft}

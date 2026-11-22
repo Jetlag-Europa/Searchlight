@@ -5,7 +5,7 @@ import { toast } from "react-toastify";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { type CreatorGeometryLayer, layerSlugOf } from "@/lib/creator/assemble";
 import {
@@ -171,7 +171,7 @@ export function CreatorImportPanel({
     }
     const rawMatching = activeFolder.features.filter((f) => f.family === family);
     if (rawMatching.length === 0) {
-      setError(`This folder has no ${family} features.`);
+      setError(`This folder has no ${family}.`);
       return;
     }
 
@@ -211,7 +211,7 @@ export function CreatorImportPanel({
     onAddGeometryLayers([layer]);
     setImportedFolders((prev) => new Set(prev).add(folderIndex));
     toast.success(
-      `Added "${trimmed}" (${items.length} ${family} feature${items.length === 1 ? "" : "s"})`,
+      `Added "${trimmed}" (${items.length} ${family.slice(0, -1)} feature${items.length === 1 ? "" : "s"})`,
     );
   };
 
@@ -475,7 +475,7 @@ export function CreatorImportPanel({
             {splitField === "none" ? (
               <>
                 <div className="grid grid-cols-2 gap-2">
-                  <Input
+                  <RawInput
                     placeholder="Layer name (e.g. District)"
                     value={layerName}
                     onChange={(e) => setLayerName(e.target.value)}
@@ -545,7 +545,7 @@ export function CreatorImportPanel({
                           )
                         }
                       />
-                      <Input
+                      <RawInput
                         value={draft.name}
                         onChange={(e) =>
                           setSplitDrafts((prev) =>

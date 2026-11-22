@@ -104,6 +104,9 @@ export const STATION_TYPES: readonly StationTypeOption[] = [
     osmFilters: [
       '["railway"="tram_stop"]["disused"!="yes"]["abandoned"!="yes"]',
       '["railway"="station"]["station"="tram"]["disused"!="yes"]["abandoned"!="yes"]',
+      // US light rail; German S-Bahn uses the same tag, so it stays under Suburban too.
+      '["railway"="station"]["station"="light_rail"]["disused"!="yes"]["abandoned"!="yes"]',
+      '["railway"="station"]["light_rail"="yes"]["disused"!="yes"]["abandoned"!="yes"]',
     ],
   },
   {
@@ -596,7 +599,7 @@ export const LINE_LAYER_PRESETS: readonly LineLayerPreset[] = [
     label: "Rivers",
     osmFilter: '["waterway"="river"]',
     defaultEnabledFor: ["measuring"],
-    color: "#0284c7",
+    color: "#006064",
     description: "Major named rivers.",
   },
   {
@@ -618,6 +621,21 @@ export const LINE_LAYER_PRESETS: readonly LineLayerPreset[] = [
     description: "National borders (admin_level=2).",
   },
 ];
+
+const METERS_PER_UNIT: Record<DistanceUnit, number> = {
+  meters: 1,
+  kilometers: 1000,
+  miles: 1609.344,
+};
+
+/**
+ * Converts a game distance to another unit. Results involving miles are rounded
+ * to 2 significant figures (400 m → 0.25 mi, 0.25 mi → 400 m).
+ */
+export function convertDistanceUnit(value: number, from: DistanceUnit, to: DistanceUnit): number {
+  const converted = (value * METERS_PER_UNIT[from]) / METERS_PER_UNIT[to];
+  return Number(converted.toPrecision(from === "miles" || to === "miles" ? 2 : 12));
+}
 
 export function getStationPreset(id: StationPresetId): StationPreset {
   return STATION_PRESETS.find((preset) => preset.id === id) ?? STATION_PRESETS[0];

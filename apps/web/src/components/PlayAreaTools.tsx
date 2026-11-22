@@ -6,7 +6,7 @@ import { toast } from "react-toastify";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { CreatorGeometryLayer } from "@/lib/creator/assemble";
 import {
@@ -296,14 +296,15 @@ export function PlayAreaTools({ stations, layers, onSetPlayArea }: Props) {
               >
                 Margin (km)
               </Label>
-              <Input
+              <RawInput
                 id="creator-surround-margin"
                 type="number"
                 min={0.2}
                 max={50}
                 step="any"
                 value={surroundMarginKm}
-                onChange={(e) => setSurroundMarginKm(Math.max(0.2, Number(e.target.value) || 0.2))}
+                // Floor 0, not 0.2, so "0.5" can be typed; buildSurroundingPlayArea clamps to 0.2.
+                onChange={(e) => setSurroundMarginKm(Number(e.target.value) || 0)}
                 className="h-8 w-16 text-xs"
               />
               <Button

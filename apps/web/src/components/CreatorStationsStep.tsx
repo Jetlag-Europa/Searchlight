@@ -9,7 +9,7 @@ import { Code2, MapPin, RefreshCw, Trash2, X } from "lucide-react";
 import { StationFileImporter } from "@/components/StationFileImporter";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { Input, RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { CreatorPointItem } from "@/lib/creator/overpass";
@@ -65,6 +65,7 @@ interface Props {
   newTierName: string;
   setNewTierName: (val: string) => void;
   newTierRadius: string;
+  defaultTierRadius: number;
   setNewTierRadius: (val: string) => void;
   handleAddTier: (e: React.FormEvent) => void;
   stationSearch: string;
@@ -121,12 +122,17 @@ export function CreatorStationsStep({
   newTierName,
   setNewTierName,
   newTierRadius,
+  defaultTierRadius,
   setNewTierRadius,
   handleAddTier,
   stationSearch,
   setStationSearch,
   onNext,
 }: Props) {
+  // Types with no GTFS modes (e.g. bus stations) can only be fetched from OSM.
+  const stationTypeOptions = STATION_TYPES.filter(
+    (opt) => stationSource === "osm" || opt.transitousModes.length > 0,
+  );
   return (
     <>
       {!playArea && (
@@ -188,11 +194,11 @@ export function CreatorStationsStep({
           <div className="flex items-center justify-between gap-2">
             <Label className="text-xs">Transit types</Label>
             <span className="text-[11px] text-muted-foreground">
-              {stationTypes.length} selected
+              {stationTypeOptions.filter((opt) => stationTypes.includes(opt.id)).length} selected
             </span>
           </div>
           <div className="grid grid-cols-2 gap-1.5">
-            {STATION_TYPES.map((opt) => {
+            {stationTypeOptions.map((opt) => {
               const checked = stationTypes.includes(opt.id);
               const checkboxId = `creator-station-type-${opt.id}`;
               return (
@@ -230,7 +236,7 @@ export function CreatorStationsStep({
             >
               Extra OSM tag filter (optional)
             </Label>
-            <Input
+            <RawInput
               id="creator-custom-station-filter"
               value={customStationFilter}
               onChange={(e) => setCustomStationFilter(e.target.value)}
@@ -245,7 +251,7 @@ export function CreatorStationsStep({
             <Label htmlFor="creator-dedupe" className="text-xs text-muted-foreground">
               Merge same-name within (m)
             </Label>
-            <Input
+            <RawInput
               id="creator-dedupe"
               type="number"
               min={0}
@@ -262,7 +268,7 @@ export function CreatorStationsStep({
             >
               Min spacing (m)
             </Label>
-            <Input
+            <RawInput
               id="creator-min-spacing"
               type="number"
               min={0}
@@ -473,7 +479,7 @@ export function CreatorStationsStep({
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-background/40 px-2.5 py-2 text-xs">
             <div className="flex items-center gap-1.5">
               <span className="text-muted-foreground">Thin existing stops:</span>
-              <Input
+              <RawInput
                 type="number"
                 min={0}
                 max={50000}
@@ -516,7 +522,7 @@ export function CreatorStationsStep({
         {/* Optional radius tiers */}
         <div className="space-y-2 rounded-lg border border-border bg-background/40 p-2.5">
           <p className="text-xs font-medium text-muted-foreground">
-            Optional radius tiers (e.g. Outer = 600 {unit})
+            Optional radius tiers (e.g. Outer = {defaultTierRadius} {unit})
           </p>
           {tierNames.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
@@ -544,17 +550,17 @@ export function CreatorStationsStep({
             </div>
           )}
           <form className="flex gap-1.5" onSubmit={handleAddTier}>
-            <Input
+            <RawInput
               placeholder="Tier name"
               value={newTierName}
               onChange={(e) => setNewTierName(e.target.value)}
               className="h-8 text-xs"
             />
-            <Input
+            <RawInput
               type="number"
               min={1}
               step="any"
-              placeholder="Radius"
+              placeholder={String(defaultTierRadius)}
               value={newTierRadius}
               onChange={(e) => setNewTierRadius(e.target.value)}
               className="h-8 w-24 text-xs"

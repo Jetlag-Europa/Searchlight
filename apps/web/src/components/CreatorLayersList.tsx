@@ -44,7 +44,7 @@ import { toast } from "react-toastify";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { type CreatorGeometryLayer, layerSlugOf } from "@/lib/creator/assemble";
 import {
   countGeometryVertices,
@@ -502,7 +502,7 @@ export function CreatorLayersList({
               <div className="min-w-0 flex-1">
                 {renamingId === layer.id ? (
                   <div className="flex items-center gap-1">
-                    <Input
+                    <RawInput
                       autoFocus
                       value={renameDraft}
                       onChange={(e) => setRenameDraft(e.target.value)}
@@ -833,13 +833,14 @@ export function CreatorLayersList({
                   >
                     Max error (m):
                   </span>
-                  <Input
+                  <RawInput
                     type="number"
                     min={1}
                     max={500}
                     value={simplifyTolerance}
+                    // Floor 0, not 1, so clearing and typing "5" gives 5, not 15; simplify clamps to 1.
                     onChange={(e) =>
-                      setSimplifyTolerance(Math.max(1, Math.min(500, Number(e.target.value) || 1)))
+                      setSimplifyTolerance(Math.min(500, Number(e.target.value) || 0))
                     }
                     className="h-6 w-16 px-1.5 text-xs"
                   />

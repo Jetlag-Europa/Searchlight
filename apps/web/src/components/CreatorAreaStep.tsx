@@ -4,12 +4,12 @@ import { Check, PenTool, Search } from "lucide-react";
 import { PlayAreaTools } from "@/components/PlayAreaTools";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { CreatorGeometryLayer } from "@/lib/creator/assemble";
 import type { CreatorPointItem, PlaceSearchResult } from "@/lib/creator/overpass";
-import { type GameScale, SCALE_PRESETS } from "@/lib/creator/presets";
+import { convertDistanceUnit, type GameScale, SCALE_PRESETS } from "@/lib/creator/presets";
 import { cn } from "@/lib/utils";
 
 interface Props {
@@ -126,7 +126,7 @@ export function CreatorAreaStep({
       <section className="space-y-3">
         <Label className="text-xs uppercase tracking-wider text-muted-foreground">Play area</Label>
         <form className="flex gap-2" onSubmit={(e) => void handlePlaceSearch(e)}>
-          <Input
+          <RawInput
             placeholder="Search city or region (e.g. Zurich, Paris)…"
             value={placeQuery}
             onChange={(e) => setPlaceQuery(e.target.value)}
@@ -235,7 +235,7 @@ export function CreatorAreaStep({
           <Label htmlFor="creator-game-name" className="text-xs">
             Game name
           </Label>
-          <Input
+          <RawInput
             id="creator-game-name"
             maxLength={120}
             placeholder="e.g. Zurich Casual"
@@ -249,7 +249,7 @@ export function CreatorAreaStep({
             <Label htmlFor="creator-radius" className="text-xs">
               Hiding zone radius
             </Label>
-            <Input
+            <RawInput
               id="creator-radius"
               type="number"
               min={1}
@@ -293,7 +293,7 @@ export function CreatorAreaStep({
               <Label htmlFor="creator-radar-presets" className="text-xs text-muted-foreground">
                 Quick-pick radii ({unit}, comma-separated; leave blank for default)
               </Label>
-              <Input
+              <RawInput
                 id="creator-radar-presets"
                 value={radarMode === "custom" ? radarsText : ""}
                 onChange={(e) => {
@@ -301,7 +301,7 @@ export function CreatorAreaStep({
                   setRadarsText(val);
                   setRadarMode(val.trim() ? "custom" : "default");
                 }}
-                placeholder="Game default (or e.g. 250, 400, 800, 1500)"
+                placeholder={`Game default (or e.g. ${[250, 400, 800, 1500].map((m) => convertDistanceUnit(m, "meters", unit)).join(", ")})`}
               />
             </div>
           )}

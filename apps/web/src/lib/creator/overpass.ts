@@ -681,9 +681,10 @@ function pointInPlayArea(lng: number, lat: number, playArea: PlayAreaFeatureColl
 export function buildStationOverpassQuery(filters: readonly string[], bounds: Bounds): string {
   const [w, s, e, n] = bounds;
   const bbox = `${s},${w},${n},${e}`;
-  // Standard rail/subway/tram/bus stops are mapped as OSM nodes (10x faster than nwr);
+  // Tram and bus stops are mapped as OSM nodes (10x faster than nwr); stations,
   // ferry terminals and custom filters can be ways/relations and need nwr + out center.
-  const isFastNodeFilter = (f: string) => /^\["(?:railway|highway)"=/.test(f);
+  const isFastNodeFilter = (f: string) =>
+    f.startsWith('["highway"=') || f.startsWith('["railway"="tram_stop"]');
   let usesNwr = false;
   const clauses = filters.map((f) => {
     const trimmed = f.trim();
@@ -751,7 +752,13 @@ function stationModePriorityFromOsmTags(tags?: Record<string, string>): number {
   }
   if (tags.railway === "tram_stop") return 3;
   if (tags.amenity === "ferry_terminal" || tags.aerialway === "station") return 2;
-  if (tags.highway === "bus_stop" || tags.amenity === "bus_station") return 1;
+  if (
+    tags.highway === "bus_stop" ||
+    tags.amenity === "bus_station" ||
+    (tags.public_transport === "station" && tags.bus === "yes")
+  ) {
+    return 1;
+  }
   return 0;
 }
 
@@ -968,7 +975,11 @@ export async function fetchStationsFromTransitous({
       continue;
     }
     const stopKey = stop.stopId?.trim() || `${lat6},${lng},${i}`;
-    const modePriority = stationModePriorityFromTransitous(stop.modes);
+    // Grouped stops list every mode at the hub; rank by the requested ones so a
+    // bus-only fetch doesn't mark a rail station's bus stop as rail.
+    const modePriority = stationModePriorityFromTransitous(
+      stop.modes?.filter((m) => modes.includes(m)),
+    );
     inside.push({
       uid: `st-tr-${stopKey}`,
       name,

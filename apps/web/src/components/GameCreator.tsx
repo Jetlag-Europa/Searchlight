@@ -69,6 +69,7 @@ import {
   validateCustomOsmFilter,
 } from "@/lib/creator/overpass";
 import {
+  convertDistanceUnit,
   type GameScale,
   getOsmFiltersForStationTypes,
   getTransitousModesForStationTypes,
@@ -171,7 +172,7 @@ export function GameCreator() {
   const [showZoneCircles, setShowZoneCircles] = useState(true);
   const [tierOverrides, setTierOverrides] = useState<Record<string, number>>({});
   const [newTierName, setNewTierName] = useState("");
-  const [newTierRadius, setNewTierRadius] = useState("600");
+  const [newTierRadius, setNewTierRadius] = useState("");
 
   // ── Step 3: Unified Feature Layers (Points, Polygons, Lines) ────────────
   const [featureSubTab, setFeatureSubTab] = useState<FeatureSubTab>("layers");
@@ -213,6 +214,11 @@ export function GameCreator() {
   const deferredGameName = useDeferredValue(gameName);
   const deferredCustomId = useDeferredValue(customId);
   const deferredRadarsText = useDeferredValue(radarsText);
+  // Zone settings redraw every station's circle, so typing a radius renders first.
+  // Unit and tiers are deferred too: a unit change converts all three at once.
+  const deferredUnit = useDeferredValue(unit);
+  const deferredHidingRadius = useDeferredValue(hidingRadius);
+  const deferredTierOverrides = useDeferredValue(tierOverrides);
   const coreAssemblyCacheRef = useRef<{
     playArea: PlayAreaFeatureCollection | null;
     stations: CreatorPointItem[];
@@ -276,6 +282,18 @@ export function GameCreator() {
     setThermometer(preset.thermometer);
     setStationTypes([...preset.stationTypes]);
     setPoiBufferKm(preset.poiBufferKm);
+  };
+
+  // Picking another unit keeps the same distances, so convert every radius.
+  const handleUnitChange = (next: DistanceUnit) => {
+    const convert = (value: number) => convertDistanceUnit(value, unit, next);
+    setUnit(next);
+    setHidingRadius(convert(hidingRadius));
+    setRadarsText(parseRadarsText(radarsText).map(convert).join(", "));
+    setTierOverrides((prev) =>
+      Object.fromEntries(Object.entries(prev).map(([name, radius]) => [name, convert(radius)])),
+    );
+    if (Number(newTierRadius) > 0) setNewTierRadius(String(convert(Number(newTierRadius))));
   };
 
   const setPlayAreaAndFit = useCallback(
@@ -354,8 +372,14 @@ export function GameCreator() {
     setDrawPoints([]);
   };
 
-  const handleFinishDrawing = () => {
-    const result = buildValidatedDrawnPlayArea(drawPoints, gameName.trim() || "Play Area");
+  // Stable while the game name is typed, so the memoized map pane doesn't re-render.
+  const gameNameRef = useRef(gameName);
+  gameNameRef.current = gameName;
+  const handleFinishDrawing = useCallback(() => {
+    const result = buildValidatedDrawnPlayArea(
+      drawPoints,
+      gameNameRef.current.trim() || "Play Area",
+    );
     if (!result.ok) {
       toast.warn(result.error);
       return;
@@ -363,7 +387,7 @@ export function GameCreator() {
     setPlayAreaAndFit(result.playArea);
     setDrawPoints([]);
     setInteractionMode("browse");
-  };
+  }, [drawPoints, setPlayAreaAndFit]);
 
   const handleMapClick = useCallback(
     (lat: number, lng: number) => {
@@ -478,6 +502,7 @@ export function GameCreator() {
     stationAbortRef.current = controller;
     const areaGen = playAreaGenRef.current;
     setStationError(null);
+    setStationSummary(null);
     setStationBusy(
       activeSource === "transitous"
         ? "Querying Transitous (GTFS) for stations…"
@@ -898,10 +923,12 @@ export function GameCreator() {
     toast.success(`Loaded "${parsed.definition.name}" into Creator`);
   };
 
+  // An empty tier radius means 1.5x the game radius, in the game's unit.
+  const defaultTierRadius = Number((hidingRadius * 1.5).toPrecision(2));
   const handleAddTier = (e: React.FormEvent) => {
     e.preventDefault();
     const name = newTierName.trim();
-    const radius = Number(newTierRadius);
+    const radius = Number(newTierRadius || defaultTierRadius);
     if (!name || !Number.isFinite(radius) || radius <= 0) return;
     setTierOverrides((prev) => ({ ...prev, [name]: radius }));
     setNewTierName("");
@@ -925,9 +952,9 @@ export function GameCreator() {
       cached.gameName === deferredGameName &&
       cached.customId === deferredCustomId &&
       cached.scale === scale &&
-      cached.unit === unit &&
-      cached.hidingRadius === hidingRadius &&
-      cached.tierOverrides === tierOverrides &&
+      cached.unit === deferredUnit &&
+      cached.hidingRadius === deferredHidingRadius &&
+      cached.tierOverrides === deferredTierOverrides &&
       cached.radarMode === radarMode &&
       cached.radarsText === deferredRadarsText &&
       cached.thermometer === thermometer &&
@@ -1003,9 +1030,9 @@ export function GameCreator() {
         gameName: deferredGameName,
         customId: deferredCustomId,
         scale,
-        unit,
-        hidingRadius,
-        tierOverrides,
+        unit: deferredUnit,
+        hidingRadius: deferredHidingRadius,
+        tierOverrides: deferredTierOverrides,
         radarMode,
         radarsText: deferredRadarsText,
         thermometer,
@@ -1067,9 +1094,9 @@ export function GameCreator() {
       name: deferredGameName,
       id: deferredCustomId,
       size: scale,
-      unit,
-      hidingRadius,
-      tierOverrides,
+      unit: deferredUnit,
+      hidingRadius: deferredHidingRadius,
+      tierOverrides: deferredTierOverrides,
       radars: radarsValue,
       thermometer,
       playArea,
@@ -1121,9 +1148,9 @@ export function GameCreator() {
     deferredGameName,
     deferredCustomId,
     scale,
-    unit,
-    hidingRadius,
-    tierOverrides,
+    deferredUnit,
+    deferredHidingRadius,
+    deferredTierOverrides,
     radarMode,
     deferredRadarsText,
     thermometer,
@@ -1220,7 +1247,10 @@ export function GameCreator() {
   const assemblyPending =
     gameName !== deferredGameName ||
     customId !== deferredCustomId ||
-    radarsText !== deferredRadarsText;
+    radarsText !== deferredRadarsText ||
+    unit !== deferredUnit ||
+    hidingRadius !== deferredHidingRadius ||
+    tierOverrides !== deferredTierOverrides;
 
   const fileStem = assembled.definition
     ? resolveGameDefinitionId(assembled.definition)
@@ -1878,7 +1908,7 @@ export function GameCreator() {
               hidingRadius={hidingRadius}
               setHidingRadius={setHidingRadius}
               unit={unit}
-              setUnit={setUnit}
+              setUnit={handleUnitChange}
               radarMode={radarMode}
               setRadarMode={setRadarMode}
               radarsText={radarsText}
@@ -1960,6 +1990,7 @@ export function GameCreator() {
               newTierName={newTierName}
               setNewTierName={setNewTierName}
               newTierRadius={newTierRadius}
+              defaultTierRadius={defaultTierRadius}
               setNewTierRadius={setNewTierRadius}
               handleAddTier={handleAddTier}
               stationSearch={stationSearch}
@@ -2127,10 +2158,10 @@ export function GameCreator() {
         playArea={playArea}
         playAreaVersion={playAreaVersion}
         previewCircles={previewCircles}
-        hidingRadius={hidingRadius}
-        unit={unit}
+        hidingRadius={deferredHidingRadius}
+        unit={deferredUnit}
         extraHidingZones={extraHidingZones}
-        tierOverrides={tierOverrides}
+        tierOverrides={deferredTierOverrides}
         stations={stations}
         setStations={setStations}
         hideDisabledStations={hideDisabledStations}

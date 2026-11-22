@@ -22,6 +22,7 @@ import {
   validateCustomOsmFilter,
 } from "@/lib/creator/overpass";
 import {
+  convertDistanceUnit,
   getOsmFiltersForStationTypes,
   getTransitousModesForStationTypes,
 } from "@/lib/creator/presets";
@@ -498,7 +499,7 @@ describe("buildValidatedDrawnPlayArea", () => {
 describe("Transitous GTFS station fetching & station types", () => {
   const playArea = rectanglePlayArea([8.5, 47.35, 8.6, 47.42], "Zurich");
 
-  it("maps multi-selected station types to Transitous modes and Overpass queries (node for rail/subway, nwr for ferry/custom)", () => {
+  it("maps multi-selected station types to Transitous modes and Overpass queries (node for tram/bus stops, nwr for stations)", () => {
     const modes = getTransitousModesForStationTypes(["rail", "suburban", "metro", "ferry"]);
     expect(modes).toEqual([
       "HIGHSPEED_RAIL",
@@ -511,22 +512,42 @@ describe("Transitous GTFS station fetching & station types", () => {
       "FERRY",
     ]);
 
-    const railOnly = buildStationOverpassQuery(
-      getOsmFiltersForStationTypes(["metro"]),
+    const stopsOnly = buildStationOverpassQuery(
+      ['["highway"="bus_stop"]', '["railway"="tram_stop"]'],
       [8.5, 47.35, 8.6, 47.42],
     );
-    expect(railOnly).toContain("[timeout:25]");
-    expect(railOnly).toContain('node["railway"="station"]["station"="subway"]');
-    expect(railOnly).toContain("out qt;");
-    expect(railOnly).not.toContain("nwr");
+    expect(stopsOnly).toContain("[timeout:25]");
+    expect(stopsOnly).toContain('node["highway"="bus_stop"]');
+    expect(stopsOnly).toContain('node["railway"="tram_stop"]');
+    expect(stopsOnly).toContain("out qt;");
+    expect(stopsOnly).not.toContain("nwr");
 
+    // Stations can be mapped as areas (e.g. Charlotte's 7th Street), so they need nwr + center.
     const withFerry = buildStationOverpassQuery(
       getOsmFiltersForStationTypes(["metro", "ferry"]),
       [8.5, 47.35, 8.6, 47.42],
     );
-    expect(withFerry).toContain('node["railway"="station"]["station"="subway"]');
+    expect(withFerry).toContain('nwr["railway"="station"]["station"="subway"]');
     expect(withFerry).toContain('nwr["amenity"="ferry_terminal"]');
     expect(withFerry).toContain("out center tags;");
+  });
+
+  it("lists light rail under Tram", () => {
+    const tram = getOsmFiltersForStationTypes(["tram"]);
+    expect(tram).toContain(
+      '["railway"="station"]["station"="light_rail"]["disused"!="yes"]["abandoned"!="yes"]',
+    );
+    expect(tram).toContain(
+      '["railway"="station"]["light_rail"="yes"]["disused"!="yes"]["abandoned"!="yes"]',
+    );
+  });
+
+  it("converts distances between units with sensible rounding", () => {
+    expect(convertDistanceUnit(400, "meters", "miles")).toBe(0.25);
+    expect(convertDistanceUnit(3000, "meters", "miles")).toBe(1.9);
+    expect(convertDistanceUnit(0.25, "miles", "meters")).toBe(400);
+    expect(convertDistanceUnit(400, "meters", "kilometers")).toBe(0.4);
+    expect(convertDistanceUnit(1.5, "kilometers", "meters")).toBe(1500);
   });
 
   it("fetches grouped mode-filtered stops from Transitous, clips to play area, and prefers mixed-case high-importance names", async () => {
@@ -597,6 +618,34 @@ describe("Transitous GTFS station fetching & station types", () => {
       ["Zürich HB", "transitous:ch-8503000"],
       ["Zürich Stadelhofen", "transitous:ch-8503003"],
     ]);
+  });
+
+  it("ranks a hub's stop by the requested modes, so a bus-only fetch thins it like a bus stop", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { name: "Hub Station", stopId: "hub", lat: 47.38, lon: 8.54, modes: ["BUS", "TRAM"] },
+        ]),
+        { status: 200 },
+      ),
+    );
+    const { stations } = await fetchStationsFromTransitous({ modes: ["BUS"], playArea });
+    expect(stations[0].modePriority).toBe(1);
+
+    // An existing (custom) zone 50 m away now thins the fetched duplicate.
+    const existing = {
+      uid: "old",
+      name: "Hub",
+      lat: 47.3804,
+      lng: 8.54,
+      enabled: true,
+      custom: true,
+    };
+    const thinned = thinStationsBySpacing([existing, ...stations], {
+      minSpacingMeters: 400,
+      busOnly: true,
+    });
+    expect(thinned.stations.filter((s) => s.enabled).map((s) => s.uid)).toEqual(["old"]);
   });
 
   it("returns an actionable error on Transitous 422 too many stops", async () => {
