@@ -46,6 +46,8 @@ interface Props {
   playArea: PlayAreaFeatureCollection | null;
   playAreaOsmRelationId: number | null;
   playAreaGenRef: React.MutableRefObject<number>;
+  osmEngine: "qlever" | "overpass";
+  setOsmEngine: (engine: "qlever" | "overpass") => void;
   poiBufferKm: number;
   setPoiBufferKm: (km: number) => void;
   preferEnglishName: boolean;
@@ -60,6 +62,8 @@ export function CreatorOsmFetchPanel({
   playArea,
   playAreaOsmRelationId,
   playAreaGenRef,
+  osmEngine,
+  setOsmEngine,
   poiBufferKm,
   setPoiBufferKm,
   preferEnglishName,
@@ -70,7 +74,6 @@ export function CreatorOsmFetchPanel({
   onUpsertLayer,
 }: Props) {
   const hasPlayArea = Boolean(playArea && playArea.features.length > 0);
-  const [osmEngine, setOsmEngine] = useState<"qlever" | "overpass">("qlever");
 
   // ── POI fetch state (per-layer fetch so heavy tags never block others) ───
   const [notableByPreset, setNotableByPreset] = useState<Record<string, boolean>>(() => {
@@ -141,6 +144,7 @@ export function CreatorOsmFetchPanel({
     lineAbortRef.current = null;
     rawAbortRef.current?.abort();
     rawAbortRef.current = null;
+    lastPoiRequestRef.current = null;
     setFetchingPoiId(null);
     setPoiStatus(null);
     setPoiError(null);
@@ -210,6 +214,8 @@ export function CreatorOsmFetchPanel({
       if (rawFamily === "points") {
         const result = await fetchRawPoiQueryFromOsm({
           query: rawQueryText,
+          playArea,
+          bufferKm: poiBufferKm,
           preferEnglishName,
           customEndpoint: customEndpoint.trim() || undefined,
           signal: controller.signal,
@@ -425,6 +431,7 @@ export function CreatorOsmFetchPanel({
         enabled: true,
       }));
 
+      lastPoiRequestRef.current = null;
       onUpsertLayer({
         id: `osm-poi-${id}`,
         name,
@@ -436,6 +443,7 @@ export function CreatorOsmFetchPanel({
         sourceLabel: "OSM POI",
         osmFilter,
         notableOnly,
+        osmEngine: useQlever ? "qlever" : "overpass",
         kmlGroup,
         items,
         vertexCount: items.length,
@@ -479,11 +487,13 @@ export function CreatorOsmFetchPanel({
     e.preventDefault();
     const nameErr = validateNewLayerName(customPoiName);
     if (nameErr) {
+      lastPoiRequestRef.current = null;
       setPoiError(nameErr);
       return;
     }
     const check = validateCustomOsmFilter(customPoiFilter);
     if (!check.ok) {
+      lastPoiRequestRef.current = null;
       setPoiError(check.error);
       return;
     }

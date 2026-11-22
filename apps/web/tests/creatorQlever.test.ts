@@ -67,57 +67,160 @@ describe("QLever WKT parser & OSM filter converter", () => {
     const border = osmFilterToSparqlPatterns('["boundary"="administrative"]["admin_level"="2"]');
     expect(border).toContain("<https://www.openstreetmap.org/wiki/Key:admin_level> 2 .");
 
+    const notAdmin8 = osmFilterToSparqlPatterns(
+      '["boundary"="administrative"]["admin_level"!="8"]',
+    );
+    expect(notAdmin8).toContain(
+      "FILTER NOT EXISTS { ?s <https://www.openstreetmap.org/wiki/Key:admin_level> 8 . }",
+    );
+
     const negated = osmFilterToSparqlPatterns('["railway"="station"]["station"!="subway"]');
     expect(negated).toContain(
       'FILTER NOT EXISTS { ?s <https://www.openstreetmap.org/wiki/Key:station> "subway" . }',
     );
+
+    const negRegex = osmFilterToSparqlPatterns('["railway"="station"]["station"!~"subway|tram"]');
+    expect(negRegex).toContain(
+      'FILTER NOT EXISTS { ?s <https://www.openstreetmap.org/wiki/Key:station> ?_rx1 . FILTER(REGEX(STR(?_rx1), "subway|tram")) }',
+    );
+
+    // Forward slashes must not be corrupted by JS RegExp.prototype.source escaping.
+    const slashRegex = osmFilterToSparqlPatterns('["name"~"a/b"]');
+    expect(slashRegex).toContain('REGEX(STR(?_rx0), "a/b")');
   });
 });
 
 describe("QLever covering regions & layer fetchers", () => {
   const zurichPlayArea = rectanglePlayArea([8.5, 47.35, 8.6, 47.42], "Zurich");
 
-  it("resolves admin_level=4 regions plus small countries (e.g. Liechtenstein) in one query and caches by bbox", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(
+  it("resolves admin_level=4 regions plus uncovered countries (e.g. Ireland, Portugal, Liechtenstein) and caches by exact WKT", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: {
+              bindings: [
+                {
+                  // Switzerland (covered by Canton Zurich adm4)
+                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/51701" },
+                  lvl: { type: "literal", value: "2" },
+                },
+                {
+                  // Ireland (70,000+ km², no adm4) — must be retained!
+                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/62273" },
+                  lvl: { type: "literal", value: "2" },
+                },
+                {
+                  // Portugal (only ~2% adm4 area) — must be retained!
+                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/295480" },
+                  lvl: { type: "literal", value: "2" },
+                },
+                {
+                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/1690227" },
+                  lvl: { type: "literal", value: "4" },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            results: {
+              bindings: [
+                {
+                  c: { type: "uri", value: "https://www.openstreetmap.org/relation/51701" },
+                  adm4Area: { type: "literal", value: "41178000000" },
+                  cArea: { type: "literal", value: "41178000000" },
+                  inBoxCnt: { type: "literal", value: "1" },
+                },
+                {
+                  c: { type: "uri", value: "https://www.openstreetmap.org/relation/62273" },
+                  cArea: { type: "literal", value: "108260000000" },
+                  inBoxCnt: { type: "literal", value: "0" },
+                },
+                {
+                  c: { type: "uri", value: "https://www.openstreetmap.org/relation/295480" },
+                  adm4Area: { type: "literal", value: "3123000000" },
+                  cArea: { type: "literal", value: "159221000000" },
+                  inBoxCnt: { type: "literal", value: "1" },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        ),
+      );
+
+    const regions = await resolveQleverCoveringRegions([8.5, 47.35, 9.6, 47.42]);
+    expect(regions).toEqual([
+      "https://www.openstreetmap.org/relation/1690227",
+      "https://www.openstreetmap.org/relation/62273",
+      "https://www.openstreetmap.org/relation/295480",
+    ]);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+
+    // Second call for the exact same bbox hits the in-memory cache (0 extra requests).
+    const cached = await resolveQleverCoveringRegions([8.5, 47.35, 9.6, 47.42]);
+    expect(cached).toEqual(regions);
+    expect(fetchSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("falls back from direct relation shortcut when QLever lacks that relation, and falls back to ref on unnamed rail ways", async () => {
+    const queries: string[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const body = new URLSearchParams(String(init?.body ?? "")).get("query") ?? "";
+      queries.push(body);
+      if (queries.length === 1) {
+        // Direct relation query returns 0 rows (relation missing in snapshot)
+        return new Response(JSON.stringify({ results: { bindings: [] } }), { status: 200 });
+      }
+      if (queries.length === 2) {
+        // Fallback covering-region discovery returns Canton Zurich
+        return new Response(
+          JSON.stringify({
+            results: {
+              bindings: [
+                {
+                  r: { type: "uri", value: "https://www.openstreetmap.org/relation/1690227" },
+                  lvl: { type: "literal", value: "4" },
+                },
+              ],
+            },
+          }),
+          { status: 200 },
+        );
+      }
+      // Fallback line query returns an unnamed way with ref="751"
+      return new Response(
         JSON.stringify({
           results: {
             bindings: [
               {
-                // Switzerland (~41,285 km²) — skipped because adm4 regions are present.
-                r: { type: "uri", value: "https://www.openstreetmap.org/relation/51701" },
-                lvl: { type: "literal", value: "2" },
-                area: { type: "literal", value: "41285000000" },
-              },
-              {
-                // Liechtenstein (~160 km²) — kept because small countries often lack adm4.
-                r: { type: "uri", value: "https://www.openstreetmap.org/relation/1155955" },
-                lvl: { type: "literal", value: "2" },
-                area: { type: "literal", value: "160000000" },
-              },
-              {
-                r: { type: "uri", value: "https://www.openstreetmap.org/relation/1690227" },
-                lvl: { type: "literal", value: "4" },
-                area: { type: "literal", value: "1729000000" },
+                s: { type: "uri", value: "https://www.openstreetmap.org/way/500" },
+                ref: { type: "literal", value: "751" },
+                wkt: { type: "literal", value: "LINESTRING(8.52 47.37, 8.56 47.39)" },
               },
             ],
           },
         }),
         { status: 200 },
-      ),
-    );
+      );
+    });
 
-    const regions = await resolveQleverCoveringRegions([8.5, 47.35, 9.6, 47.42]);
-    expect(regions).toEqual([
-      "https://www.openstreetmap.org/relation/1690227",
-      "https://www.openstreetmap.org/relation/1155955",
-    ]);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
-
-    // Second call for the same bbox hits the in-memory cache (0 extra requests).
-    const cached = await resolveQleverCoveringRegions([8.5, 47.35, 9.6, 47.42]);
-    expect(cached).toEqual(regions);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const res = await fetchLineLayerFromQlever({
+      layerName: "Rail Line",
+      osmFilter: '["railway"="rail"]',
+      playArea: zurichPlayArea,
+      playAreaOsmRelationId: 99999999,
+      bufferKm: 0,
+      toleranceMeters: 0,
+    });
+    expect(queries).toHaveLength(3);
+    expect(res.items.map((i) => i.name)).toEqual(["751"]);
   });
 
   it("uses the play-area OSM relation directly when margin is 0, and clips POIs to the polygon (not bbox)", async () => {

@@ -39,7 +39,7 @@ import {
   Trophy,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "react-toastify";
 
 import { Button } from "@/components/ui/button";
@@ -99,6 +99,7 @@ interface Props {
   playArea: PlayAreaFeatureCollection | null;
   playAreaOsmRelationId?: number | null;
   playAreaGenRef: React.MutableRefObject<number>;
+  osmEngine: "qlever" | "overpass";
   poiBufferKm: number;
   preferEnglishName: boolean;
   customEndpoint: string;
@@ -116,6 +117,7 @@ export function CreatorLayersList({
   playArea,
   playAreaOsmRelationId = null,
   playAreaGenRef,
+  osmEngine,
   poiBufferKm,
   preferEnglishName,
   customEndpoint,
@@ -126,7 +128,8 @@ export function CreatorLayersList({
 }: Props) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [fixingOverlapId, setFixingOverlapId] = useState<string | null>(null);
-  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [refreshingIds, setRefreshingIds] = useState<Set<string>>(() => new Set());
+  const refreshControllersRef = useRef<Map<string, AbortController>>(new Map());
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [simplifyingId, setSimplifyingId] = useState<string | null>(null);
@@ -185,8 +188,17 @@ export function CreatorLayersList({
   ]);
 
   useEffect(() => {
+    for (const ctrl of refreshControllersRef.current.values()) ctrl.abort();
+    refreshControllersRef.current.clear();
+    setRefreshingIds(new Set());
+  }, [playArea]);
+
+  useEffect(() => {
+    const controllers = refreshControllersRef.current;
     return () => {
       onSimplifyPreviewChange?.(null);
+      for (const ctrl of controllers.values()) ctrl.abort();
+      controllers.clear();
     };
   }, [onSimplifyPreviewChange]);
 
@@ -243,11 +255,17 @@ export function CreatorLayersList({
 
   const handleRefreshOsmPoiLayer = async (layer: CreatorGeometryLayer) => {
     if (!hasPlayArea || !playArea || !layer.osmFilter) return;
+    refreshControllersRef.current.get(layer.id)?.abort();
+    const controller = new AbortController();
+    refreshControllersRef.current.set(layer.id, controller);
     const areaGen = playAreaGenRef.current;
-    setRefreshingId(layer.id);
+    setRefreshingIds((prev) => new Set(prev).add(layer.id));
     try {
+      const targetEngine = layer.osmEngine ?? osmEngine;
       const useQlever =
-        !customEndpoint.trim() && osmFilterToSparqlPatterns(layer.osmFilter) !== null;
+        targetEngine === "qlever" &&
+        !customEndpoint.trim() &&
+        osmFilterToSparqlPatterns(layer.osmFilter) !== null;
       const rawPts = useQlever
         ? (
             await fetchPoiLayerFromQlever({
@@ -259,6 +277,7 @@ export function CreatorLayersList({
               playAreaOsmRelationId,
               bufferKm: poiBufferKm,
               preferEnglishName,
+              signal: controller.signal,
             })
           ).items
         : ((
@@ -275,9 +294,16 @@ export function CreatorLayersList({
               bufferKm: poiBufferKm,
               preferEnglishName,
               customEndpoint: customEndpoint.trim() || undefined,
+              signal: controller.signal,
             })
           ).byLayerId[layer.id] ?? []);
       if (playAreaGenRef.current !== areaGen) return;
+      if (rawPts.length === 0) {
+        toast.error(
+          `Refresh found 0 places for "${layer.name}". Kept the existing ${layer.items.length} places.`,
+        );
+        return;
+      }
       const items = rawPts.map((pt) => ({
         uid: pt.uid,
         name: pt.name,
@@ -292,11 +318,25 @@ export function CreatorLayersList({
       );
       toast.success(`Refreshed "${layer.name}" (${items.length} places)`);
     } catch (err) {
+      if (
+        playAreaGenRef.current !== areaGen ||
+        (err instanceof DOMException && err.name === "AbortError")
+      ) {
+        return;
+      }
       toast.error(
         err instanceof Error ? err.message : `Failed to refresh "${layer.name}" from OSM.`,
       );
     } finally {
-      setRefreshingId((cur) => (cur === layer.id ? null : cur));
+      if (refreshControllersRef.current.get(layer.id) === controller) {
+        refreshControllersRef.current.delete(layer.id);
+        setRefreshingIds((prev) => {
+          if (!prev.has(layer.id)) return prev;
+          const next = new Set(prev);
+          next.delete(layer.id);
+          return next;
+        });
+      }
     }
   };
 
@@ -538,12 +578,12 @@ export function CreatorLayersList({
                 <button
                   type="button"
                   title="Refresh this layer from OpenStreetMap"
-                  disabled={!hasPlayArea || refreshingId === layer.id}
+                  disabled={!hasPlayArea || refreshingIds.has(layer.id)}
                   onClick={() => void handleRefreshOsmPoiLayer(layer)}
                   className="text-muted-foreground hover:text-foreground disabled:opacity-40"
                 >
                   <RefreshCw
-                    className={cn("h-3.5 w-3.5", refreshingId === layer.id && "animate-spin")}
+                    className={cn("h-3.5 w-3.5", refreshingIds.has(layer.id) && "animate-spin")}
                   />
                 </button>
               )}

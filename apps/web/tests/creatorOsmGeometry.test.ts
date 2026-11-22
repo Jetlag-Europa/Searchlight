@@ -7,6 +7,8 @@ import {
   assembleLineWays,
   buildAdminRegionsQuery,
   type CreatorGeoFeatureItem,
+  cropLineToPlayAreaMask,
+  cropRegionToPlayAreaMask,
   type OverpassGeomElement,
   simplifyLineLayerTopology,
   simplifyPathMeters,
@@ -475,6 +477,191 @@ describe("topology-preserving layer simplification", () => {
           turf.polygon([poly.coordinates[0]]),
         ),
       ).toBe(true);
+    }
+  });
+});
+
+describe("play-area polygon & line cropping edge cases", () => {
+  it("clips collinear border-following tails, repeated crossings, and 1-ULP triangle crossings cleanly", () => {
+    const unitSquare: PlayAreaFeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [1, 1],
+                [0, 1],
+                [0, 0],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+
+    // Collinear along x=1 then exiting to [1.5, 0.5] — tail outside x=1 must be dropped.
+    const borderExit = cropLineToPlayAreaMask(
+      {
+        type: "LineString",
+        coordinates: [
+          [0.5, 0.5],
+          [1, 0.2],
+          [1, 0.5],
+          [1, 0.8],
+          [1.5, 0.5],
+        ],
+      },
+      unitSquare,
+    );
+    expect(borderExit).not.toBeNull();
+    if (borderExit) {
+      const coords =
+        borderExit.type === "LineString" ? borderExit.coordinates : borderExit.coordinates.flat();
+      expect(Math.max(...coords.map((p) => p[0]))).toBeLessThanOrEqual(1);
+    }
+
+    // Repeated crossings at the exact same boundary coordinate [0, 0.5]
+    const repeated = cropLineToPlayAreaMask(
+      {
+        type: "LineString",
+        coordinates: [
+          [-0.5, 0.5],
+          [0.5, 0.5],
+          [-0.5, 0.5],
+          [0.5, 0.5],
+        ],
+      },
+      unitSquare,
+    );
+    expect(repeated).not.toBeNull();
+    if (repeated) {
+      const coords =
+        repeated.type === "LineString" ? repeated.coordinates : repeated.coordinates.flat();
+      expect(Math.min(...coords.map((p) => p[0]))).toBeGreaterThanOrEqual(0);
+    }
+
+    // Triangle with non-axis-aligned edges where turf.lineSplit previously dropped 1-ULP crossings
+    const triangle: PlayAreaFeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [0, 0],
+                [1, 0],
+                [0.3, 1],
+                [0, 0],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+    const triLine = cropLineToPlayAreaMask(
+      {
+        type: "LineString",
+        coordinates: [
+          [-0.1, 0.3],
+          [1.1, 0.3],
+        ],
+      },
+      triangle,
+    );
+    expect(triLine?.type).toBe("LineString");
+    if (triLine?.type === "LineString") {
+      expect(triLine.coordinates[0][0]).toBeCloseTo(0.09, 5);
+      expect(triLine.coordinates[triLine.coordinates.length - 1][0]).toBeCloseTo(0.79, 5);
+    }
+  });
+
+  it("keeps small fully-contained polygons, crops small overhangs, and handles overlapping multi-feature masks", () => {
+    const overlappingMask: PlayAreaFeatureCollection = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [8.5, 47.35],
+                [8.56, 47.35],
+                [8.56, 47.42],
+                [8.5, 47.42],
+                [8.5, 47.35],
+              ],
+            ],
+          },
+        },
+        {
+          type: "Feature",
+          properties: {},
+          geometry: {
+            type: "Polygon",
+            coordinates: [
+              [
+                [8.54, 47.35],
+                [8.6, 47.35],
+                [8.6, 47.42],
+                [8.54, 47.42],
+                [8.54, 47.35],
+              ],
+            ],
+          },
+        },
+      ],
+    };
+
+    // Tiny ~30 m² polygon completely inside must be kept
+    const tiny = cropRegionToPlayAreaMask(
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [8.55, 47.38],
+            [8.55008, 47.38],
+            [8.55008, 47.38005],
+            [8.55, 47.38005],
+            [8.55, 47.38],
+          ],
+        ],
+      },
+      overlappingMask,
+    );
+    expect(tiny).not.toBeNull();
+
+    // Polygon with a ~1.5% overhang past x=8.6 must be cropped to x<=8.6 (not returned unclipped)
+    const slightOverhang = cropRegionToPlayAreaMask(
+      {
+        type: "Polygon",
+        coordinates: [
+          [
+            [8.5, 47.36],
+            [8.6015, 47.36],
+            [8.6015, 47.41],
+            [8.5, 47.41],
+            [8.5, 47.36],
+          ],
+        ],
+      },
+      overlappingMask,
+    );
+    expect(slightOverhang?.type).toBe("Polygon");
+    if (slightOverhang?.type === "Polygon") {
+      expect(Math.max(...slightOverhang.coordinates[0].map((p) => p[0]))).toBeLessThanOrEqual(
+        8.600001,
+      );
     }
   });
 });

@@ -354,7 +354,7 @@ type TagPredicate =
   | { kind: "neq"; key: string; value: string }
   | { kind: "exists"; key: string }
   | { kind: "not-exists"; key: string }
-  | { kind: "regex"; key: string; regex: RegExp; negate: boolean };
+  | { kind: "regex"; key: string; pattern: string; regex: RegExp; negate: boolean };
 
 const CLAUSE_RE = /^\[\s*(?:(!)\s*)?["']([^"']+)["']\s*(?:(=|!=|~|!~)\s*["']([^"']*)["'])?\s*\]/;
 
@@ -390,6 +390,7 @@ export function parseSimpleOsmFilter(filter: string): TagPredicate[] | null {
         predicates.push({
           kind: "regex",
           key,
+          pattern: val,
           regex: new RegExp(val),
           negate: op === "!~",
         });
@@ -511,7 +512,7 @@ export async function runOverpassQuery(
       signal?.addEventListener("abort", onCallerAbort, { once: true });
       const timeoutMatch = query.match(/\[timeout:(\d+)\]/i);
       const attemptTimeoutMs =
-        (timeoutMatch ? Math.min(Number(timeoutMatch[1]), 60) : 25) * 1000 + 5000;
+        (timeoutMatch ? Math.min(Number(timeoutMatch[1]), 95) : 25) * 1000 + 5000;
       const timer = setTimeout(() => {
         timedOut = true;
         attemptAbort.abort();
@@ -676,8 +677,20 @@ function pointInPlayArea(lng: number, lat: number, playArea: PlayAreaFeatureColl
 export function buildStationOverpassQuery(filters: readonly string[], bounds: Bounds): string {
   const [w, s, e, n] = bounds;
   const bbox = `${s},${w},${n},${e}`;
-  const clauses = filters.map((f) => `  node${f}["name"](${bbox});`).join("\n");
-  return `[out:json][timeout:25];\n(\n${clauses}\n);\nout qt;`;
+  // Standard rail/subway/tram/bus stops are mapped as OSM nodes (10x faster than nwr);
+  // ferry terminals and custom filters can be ways/relations and need nwr + out center.
+  const isFastNodeFilter = (f: string) => /^\["(?:railway|highway)"=/.test(f);
+  let usesNwr = false;
+  const clauses = filters.map((f) => {
+    const trimmed = f.trim();
+    if (isFastNodeFilter(trimmed)) {
+      return `  node${trimmed}["name"](${bbox});`;
+    }
+    usesNwr = true;
+    return `  nwr${trimmed}["name"](${bbox});`;
+  });
+  const outClause = usesNwr ? "out center tags;" : "out qt;";
+  return `[out:json][timeout:25];\n(\n${clauses.join("\n")}\n);\n${outClause}`;
 }
 
 interface TransitousStop {
@@ -937,6 +950,41 @@ export function buildBatchedPoiOverpassQuery(
   return `[out:json][timeout:120];\n(\n${clauses.join("\n")}\n);\nout center tags;`;
 }
 
+function buildBufferedMask(
+  playArea: PlayAreaFeatureCollection,
+  bufferKm: number,
+): PlayAreaFeatureCollection {
+  if (bufferKm <= 0) return playArea;
+  return {
+    type: "FeatureCollection",
+    features: playArea.features.flatMap((f) => {
+      try {
+        const b = turf.buffer({ type: "Feature", properties: {}, geometry: f.geometry }, bufferKm, {
+          units: "kilometers",
+          steps: 12,
+        });
+        if (b?.geometry && (b.geometry.type === "Polygon" || b.geometry.type === "MultiPolygon")) {
+          return [{ ...f, geometry: b.geometry as PlayAreaGeometry }];
+        }
+      } catch {
+        // fall back to original polygon
+      }
+      return [f];
+    }),
+  };
+}
+
+function boundsFromMask(mask: PlayAreaFeatureCollection): Bounds {
+  const [w, s, e, n] = playAreaBounds(mask);
+  const eps = 1e-5;
+  return [
+    Math.max(-180, round6(w - eps)),
+    Math.max(-89.9, round6(s - eps)),
+    Math.min(180, round6(e + eps)),
+    Math.min(89.9, round6(n + eps)),
+  ];
+}
+
 /**
  * Fetches all selected POI feature layers in ONE batched Overpass query and
  * classifies returned OSM elements back into their respective layers locally.
@@ -961,31 +1009,8 @@ export async function fetchPoiLayersFromOsm({
   if (layers.length === 0) {
     return { byLayerId: {}, endpoint: "" };
   }
-  const mask: PlayAreaFeatureCollection =
-    bufferKm > 0
-      ? {
-          type: "FeatureCollection",
-          features: playArea.features.flatMap((f) => {
-            try {
-              const b = turf.buffer(
-                { type: "Feature", properties: {}, geometry: f.geometry },
-                bufferKm,
-                { units: "kilometers", steps: 12 },
-              );
-              if (
-                b?.geometry &&
-                (b.geometry.type === "Polygon" || b.geometry.type === "MultiPolygon")
-              ) {
-                return [{ ...f, geometry: b.geometry as PlayAreaGeometry }];
-              }
-            } catch {
-              // fall back to original polygon
-            }
-            return [f];
-          }),
-        }
-      : playArea;
-  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
+  const mask = buildBufferedMask(playArea, bufferKm);
+  const bounds = bufferKm > 0 ? boundsFromMask(mask) : playAreaBounds(playArea);
   const parsedLayers = layers.map((layer) => {
     const predicates = parseSimpleOsmFilter(layer.osmFilter);
     if (!predicates) {
@@ -1047,12 +1072,16 @@ export async function fetchPoiLayersFromOsm({
  */
 export async function fetchRawPoiQueryFromOsm({
   query,
+  playArea,
+  bufferKm = 0,
   preferEnglishName = false,
   customEndpoint,
   signal,
   onStatus,
 }: {
   query: string;
+  playArea?: PlayAreaFeatureCollection;
+  bufferKm?: number;
   preferEnglishName?: boolean;
   customEndpoint?: string;
   signal?: AbortSignal;
@@ -1062,6 +1091,7 @@ export async function fetchRawPoiQueryFromOsm({
   if (!trimmed) {
     throw new Error("Enter an Overpass QL query to run.");
   }
+  const mask = playArea ? buildBufferedMask(playArea, bufferKm) : null;
   onStatus?.("Running custom Overpass QL query…");
   const { elements, endpoint } = await runOverpassQuery(trimmed, {
     customEndpoint,
@@ -1072,6 +1102,7 @@ export async function fetchRawPoiQueryFromOsm({
   for (const el of elements) {
     const pt = extractElementPoint(el, preferEnglishName);
     if (!pt) continue;
+    if (mask && !pointInPlayArea(pt.lng, pt.lat, mask)) continue;
     raw.push({
       uid: `raw-poi-${pt.osmId}`,
       name: pt.name,

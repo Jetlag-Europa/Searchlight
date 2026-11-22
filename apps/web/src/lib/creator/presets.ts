@@ -67,7 +67,13 @@ export const STATION_TYPES: readonly StationTypeOption[] = [
     id: "rail",
     label: "Train / Rail",
     hint: "Regional, InterCity, high-speed",
-    transitousModes: ["HIGHSPEED_RAIL", "LONG_DISTANCE", "NIGHT_RAIL", "REGIONAL_RAIL"],
+    transitousModes: [
+      "HIGHSPEED_RAIL",
+      "LONG_DISTANCE",
+      "NIGHT_RAIL",
+      "REGIONAL_FAST_RAIL",
+      "REGIONAL_RAIL",
+    ],
     osmFilters: [
       '["railway"="station"]["station"!="subway"]["station"!="light_rail"]["station"!="tram"]["station"!="monorail"]["disused"!="yes"]["abandoned"!="yes"]',
       '["railway"="halt"]["disused"!="yes"]["abandoned"!="yes"]',

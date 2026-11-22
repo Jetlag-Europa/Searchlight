@@ -497,25 +497,35 @@ describe("buildValidatedDrawnPlayArea", () => {
 describe("Transitous GTFS station fetching & station types", () => {
   const playArea = rectanglePlayArea([8.5, 47.35, 8.6, 47.42], "Zurich");
 
-  it("maps multi-selected station types to Transitous modes and fast node-only Overpass queries", () => {
+  it("maps multi-selected station types to Transitous modes and Overpass queries (node for rail/subway, nwr for ferry/custom)", () => {
     const modes = getTransitousModesForStationTypes(["rail", "suburban", "metro", "ferry"]);
     expect(modes).toEqual([
       "HIGHSPEED_RAIL",
       "LONG_DISTANCE",
       "NIGHT_RAIL",
+      "REGIONAL_FAST_RAIL",
       "REGIONAL_RAIL",
       "SUBURBAN",
       "SUBWAY",
       "FERRY",
     ]);
 
-    const filters = getOsmFiltersForStationTypes(["metro", "ferry"]);
-    const ql = buildStationOverpassQuery(filters, [8.5, 47.35, 8.6, 47.42]);
-    expect(ql).toContain("[timeout:25]");
-    expect(ql).toContain('node["railway"="station"]["station"="subway"]');
-    expect(ql).toContain('node["amenity"="ferry_terminal"]');
-    expect(ql).toContain("out qt;");
-    expect(ql).not.toContain("nwr");
+    const railOnly = buildStationOverpassQuery(
+      getOsmFiltersForStationTypes(["metro"]),
+      [8.5, 47.35, 8.6, 47.42],
+    );
+    expect(railOnly).toContain("[timeout:25]");
+    expect(railOnly).toContain('node["railway"="station"]["station"="subway"]');
+    expect(railOnly).toContain("out qt;");
+    expect(railOnly).not.toContain("nwr");
+
+    const withFerry = buildStationOverpassQuery(
+      getOsmFiltersForStationTypes(["metro", "ferry"]),
+      [8.5, 47.35, 8.6, 47.42],
+    );
+    expect(withFerry).toContain('node["railway"="station"]["station"="subway"]');
+    expect(withFerry).toContain('nwr["amenity"="ferry_terminal"]');
+    expect(withFerry).toContain("out center tags;");
   });
 
   it("fetches grouped mode-filtered stops from Transitous, clips to play area, and prefers mixed-case high-importance names", async () => {

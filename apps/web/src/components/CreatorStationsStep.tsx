@@ -352,7 +352,7 @@ export function CreatorStationsStep({
         {stationSummary && !stationBusy && (
           <div className="space-y-1.5">
             <p className="text-xs text-emerald-500">{stationSummary}</p>
-            {stationSource === "transitous" && stations.length === 0 && (
+            {stationSource === "transitous" && !stations.some((s) => !s.custom) && (
               <Button
                 type="button"
                 size="sm"

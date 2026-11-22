@@ -10,7 +10,7 @@ import type {
 } from "@searchlight/shared";
 import * as turf from "@turf/turf";
 
-import { expandBoundsKm, playAreaBounds, runOverpassQuery } from "@/lib/creator/overpass";
+import { playAreaBounds, runOverpassQuery } from "@/lib/creator/overpass";
 
 const METERS_PER_DEGREE = (6371008.8 * Math.PI) / 180;
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -311,16 +311,58 @@ function roundPolygonGeom(
     : { type: "MultiPolygon", coordinates: polys };
 }
 
+function unionMaskFeatures(
+  features: PlayAreaFeatureCollection["features"],
+): PlayAreaFeatureCollection["features"] {
+  if (features.length <= 1) return features;
+  try {
+    const fc = turf.featureCollection(
+      features.map((f) => ({
+        type: "Feature" as const,
+        properties: {},
+        geometry: f.geometry,
+      })),
+    );
+    const merged = turf.union(fc);
+    if (
+      merged?.geometry &&
+      (merged.geometry.type === "Polygon" || merged.geometry.type === "MultiPolygon")
+    ) {
+      const rounded = roundPolygonGeom(merged.geometry as PolygonGeometry | MultiPolygonGeometry);
+      if (rounded) {
+        return [
+          {
+            type: "Feature",
+            properties: features[0].properties ?? null,
+            geometry: rounded,
+          },
+        ];
+      }
+    }
+  } catch {
+    // Fall back to keeping individual features if union fails on invalid rings.
+  }
+  return features;
+}
+
 /**
  * Returns `playArea` expanded by `bufferKm` kilometers when `bufferKm > 0`,
- * or `playArea` itself when `bufferKm <= 0`. Used to crop POIs, admin regions,
- * and lines to the exact play-area shape (+ margin) rather than its bounding box.
+ * or `playArea` itself when `bufferKm <= 0`. Unions multi-feature masks so
+ * overlapping buffered polygons never produce overlapping outputs or
+ * double-counted areas.
  */
 export function buildPlayAreaMask(
   playArea: PlayAreaFeatureCollection,
   bufferKm = 0,
 ): PlayAreaFeatureCollection {
-  if (bufferKm <= 0 || playArea.features.length === 0) return playArea;
+  if (playArea.features.length === 0) return playArea;
+  if (bufferKm <= 0) {
+    if (playArea.features.length <= 1) return playArea;
+    return {
+      type: "FeatureCollection",
+      features: unionMaskFeatures(playArea.features),
+    };
+  }
   const bufferedFeatures: PlayAreaFeatureCollection["features"] = [];
   for (const feat of playArea.features) {
     try {
@@ -349,13 +391,35 @@ export function buildPlayAreaMask(
     }
   }
   return bufferedFeatures.length > 0
-    ? { type: "FeatureCollection", features: bufferedFeatures }
+    ? { type: "FeatureCollection", features: unionMaskFeatures(bufferedFeatures) }
     : playArea;
 }
 
-interface MaskBoundaryEntry {
-  line: ReturnType<typeof turf.lineString>;
-  bbox: Bounds;
+/**
+ * Returns a query bounding box derived directly from `mask` (rounded slightly
+ * outward so features right on a buffered boundary are never excluded before
+ * polygon clipping).
+ */
+export function maskQueryBounds(mask: PlayAreaFeatureCollection): Bounds {
+  const [w, s, e, n] = playAreaBounds(mask);
+  const eps = 1e-5;
+  return [
+    Math.max(-180, round6(w - eps)),
+    Math.max(-89.9, round6(s - eps)),
+    Math.min(180, round6(e + eps)),
+    Math.min(89.9, round6(n + eps)),
+  ];
+}
+
+interface MaskEdge {
+  ax: number;
+  ay: number;
+  bx: number;
+  by: number;
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
 }
 
 interface MaskFeatureEntry {
@@ -368,11 +432,18 @@ interface MaskFeatureEntry {
   area: number;
 }
 
+const MASK_GRID_SIZE = 32;
+
 interface PlayAreaMaskIndex {
   bbox: Bounds;
   totalArea: number;
   features: MaskFeatureEntry[];
-  boundaries: MaskBoundaryEntry[];
+  edges: MaskEdge[];
+  grid: number[][];
+  cellW: number;
+  cellH: number;
+  edgeStamp: Uint32Array;
+  stampCounter: number;
 }
 
 const maskIndexCache = new WeakMap<PlayAreaFeatureCollection, PlayAreaMaskIndex>();
@@ -421,15 +492,16 @@ function getMaskIndex(mask: PlayAreaFeatureCollection): PlayAreaMaskIndex {
   const cached = maskIndexCache.get(mask);
   if (cached) return cached;
 
+  const normalizedFeatures = unionMaskFeatures(mask.features);
   let minLng = Infinity;
   let minLat = Infinity;
   let maxLng = -Infinity;
   let maxLat = -Infinity;
   let totalArea = 0;
   const features: MaskFeatureEntry[] = [];
-  const boundaries: MaskBoundaryEntry[] = [];
+  const edges: MaskEdge[] = [];
 
-  for (const pa of mask.features) {
+  for (const pa of normalizedFeatures) {
     const geom = pa.geometry;
     const feature = {
       type: "Feature" as const,
@@ -454,12 +526,43 @@ function getMaskIndex(mask: PlayAreaFeatureCollection): PlayAreaMaskIndex {
     const polys = geom.type === "Polygon" ? [geom.coordinates] : geom.coordinates;
     for (const poly of polys) {
       for (const ring of poly) {
-        if (ring.length >= 4) {
-          boundaries.push({
-            line: turf.lineString(ring),
-            bbox: computeCoordsBbox(ring),
+        for (let i = 0; i < ring.length - 1; i++) {
+          const ax = ring[i][0];
+          const ay = ring[i][1];
+          const bx = ring[i + 1][0];
+          const by = ring[i + 1][1];
+          if (ax === bx && ay === by) continue;
+          edges.push({
+            ax,
+            ay,
+            bx,
+            by,
+            minX: ax < bx ? ax : bx,
+            minY: ay < by ? ay : by,
+            maxX: ax > bx ? ax : bx,
+            maxY: ay > by ? ay : by,
           });
         }
+      }
+    }
+  }
+
+  const spanX = Math.max(1e-9, maxLng - minLng);
+  const spanY = Math.max(1e-9, maxLat - minLat);
+  const cellW = spanX / MASK_GRID_SIZE;
+  const cellH = spanY / MASK_GRID_SIZE;
+  const grid: number[][] = Array.from({ length: MASK_GRID_SIZE * MASK_GRID_SIZE }, () => []);
+
+  for (let ei = 0; ei < edges.length; ei++) {
+    const e = edges[ei];
+    const x0 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((e.minX - minLng) / cellW)));
+    const x1 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((e.maxX - minLng) / cellW)));
+    const y0 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((e.minY - minLat) / cellH)));
+    const y1 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((e.maxY - minLat) / cellH)));
+    for (let cy = y0; cy <= y1; cy++) {
+      const rowOff = cy * MASK_GRID_SIZE;
+      for (let cx = x0; cx <= x1; cx++) {
+        grid[rowOff + cx].push(ei);
       }
     }
   }
@@ -468,10 +571,55 @@ function getMaskIndex(mask: PlayAreaFeatureCollection): PlayAreaMaskIndex {
     bbox: [minLng, minLat, maxLng, maxLat],
     totalArea,
     features,
-    boundaries,
+    edges,
+    grid,
+    cellW,
+    cellH,
+    edgeStamp: new Uint32Array(edges.length),
+    stampCounter: 0,
   };
   maskIndexCache.set(mask, index);
   return index;
+}
+
+function queryMaskEdges(
+  idx: PlayAreaMaskIndex,
+  minX: number,
+  minY: number,
+  maxX: number,
+  maxY: number,
+): number[] {
+  const [bMinX, bMinY, bMaxX, bMaxY] = idx.bbox;
+  if (maxX < bMinX || minX > bMaxX || maxY < bMinY || minY > bMaxY) return [];
+  const x0 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((minX - bMinX) / idx.cellW)));
+  const x1 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((maxX - bMinX) / idx.cellW)));
+  const y0 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((minY - bMinY) / idx.cellH)));
+  const y1 = Math.max(0, Math.min(MASK_GRID_SIZE - 1, Math.floor((maxY - bMinY) / idx.cellH)));
+
+  let stamp = ++idx.stampCounter;
+  if (stamp >= 0xffff_fffe) {
+    idx.edgeStamp.fill(0);
+    idx.stampCounter = 1;
+    stamp = 1;
+  }
+
+  const hits: number[] = [];
+  for (let cy = y0; cy <= y1; cy++) {
+    const rowOff = cy * MASK_GRID_SIZE;
+    for (let cx = x0; cx <= x1; cx++) {
+      const bucket = idx.grid[rowOff + cx];
+      for (let i = 0; i < bucket.length; i++) {
+        const ei = bucket[i];
+        if (idx.edgeStamp[ei] === stamp) continue;
+        idx.edgeStamp[ei] = stamp;
+        const e = idx.edges[ei];
+        if (e.minX <= maxX && e.maxX >= minX && e.minY <= maxY && e.maxY >= minY) {
+          hits.push(ei);
+        }
+      }
+    }
+  }
+  return hits;
 }
 
 /** Fast point-in-mask check for clipping POIs to the play area (+ margin). */
@@ -508,13 +656,20 @@ function dedupeRoundedPath(coords: readonly Position[]): Position[] {
   return out;
 }
 
+function firstPolygonPoint(geom: PolygonGeometry | MultiPolygonGeometry): Position | null {
+  if (geom.type === "Polygon") return geom.coordinates[0]?.[0] ?? null;
+  return geom.coordinates[0]?.[0]?.[0] ?? null;
+}
+
 /**
  * Clips a polygon / multipolygon region against the allowed play-area mask.
- * - Drops regions that only touch the border or have negligible sliver overlap
- *   (< 100 m² or < 0.5% of the smaller of region/mask area).
- * - Keeps regions already >= 98% inside the mask untouched so internal shared
- *   borders stay topology-aligned.
- * - Crops regions that extend meaningfully outside the mask down to the mask.
+ * - Uses the mask edge grid for an O(1) interior/exterior fast-path so country-
+ *   scale municipal layers never stall calling `turf.intersect` on interior rings.
+ * - Drops border-touching neighbors and hairline slivers (< 100 m² or < 0.5%
+ *   of the smaller of region/mask area), while keeping small fully-contained
+ *   regions intact.
+ * - Keeps regions already >= 99.9% inside untouched so internal shared borders
+ *   stay topology-aligned, and crops any overhanging region down to the mask.
  */
 export function cropRegionToPlayAreaMask(
   geom: PolygonGeometry | MultiPolygonGeometry,
@@ -525,6 +680,16 @@ export function cropRegionToPlayAreaMask(
   const geomBbox = computeGeomBbox(geom);
   if (!bboxesOverlap(geomBbox, idx.bbox)) return null;
 
+  // O(1) fast-path: if zero mask boundary edges (outer or hole) enter geomBbox,
+  // geom cannot cross the mask boundary and cannot contain any part of the mask.
+  // Testing a single vertex decides strictly-inside vs strictly-outside exactly.
+  const nearbyMaskEdges = queryMaskEdges(idx, geomBbox[0], geomBbox[1], geomBbox[2], geomBbox[3]);
+  if (nearbyMaskEdges.length === 0) {
+    const sample = firstPolygonPoint(geom);
+    if (!sample) return null;
+    return pointInPlayAreaMask(sample[0], sample[1], mask) ? geom : null;
+  }
+
   const regionFeat = { type: "Feature" as const, properties: {}, geometry: geom };
   let regionArea = 0;
   try {
@@ -534,16 +699,22 @@ export function cropRegionToPlayAreaMask(
   }
   if (regionArea <= 0) return null;
 
-  const clippedPolys: Position[][][] = [];
+  const clippedFeats: Array<{
+    type: "Feature";
+    properties: Record<string, never>;
+    geometry: PolygonGeometry | MultiPolygonGeometry;
+  }> = [];
   for (const { feature: maskFeat, bbox: maskBbox } of idx.features) {
     if (!bboxesOverlap(geomBbox, maskBbox)) continue;
     try {
       const inter = turf.intersect(turf.featureCollection([regionFeat, maskFeat]));
       if (!inter?.geometry) continue;
-      if (inter.geometry.type === "Polygon") {
-        clippedPolys.push(inter.geometry.coordinates as Position[][]);
-      } else if (inter.geometry.type === "MultiPolygon") {
-        clippedPolys.push(...(inter.geometry.coordinates as Position[][][]));
+      if (inter.geometry.type === "Polygon" || inter.geometry.type === "MultiPolygon") {
+        clippedFeats.push({
+          type: "Feature",
+          properties: {},
+          geometry: inter.geometry as PolygonGeometry | MultiPolygonGeometry,
+        });
       }
     } catch {
       // Fallback: if Turf intersection fails on an invalid ring, keep only if an
@@ -559,12 +730,29 @@ export function cropRegionToPlayAreaMask(
     }
   }
 
-  if (clippedPolys.length === 0) return null;
-  const rawClipped: PolygonGeometry | MultiPolygonGeometry =
-    clippedPolys.length === 1
-      ? { type: "Polygon", coordinates: clippedPolys[0] }
-      : { type: "MultiPolygon", coordinates: clippedPolys };
-  const clipped = roundPolygonGeom(rawClipped);
+  if (clippedFeats.length === 0) return null;
+
+  let mergedGeom: PolygonGeometry | MultiPolygonGeometry;
+  if (clippedFeats.length === 1) {
+    mergedGeom = clippedFeats[0].geometry;
+  } else {
+    const unioned = unionMaskFeatures(clippedFeats);
+    if (unioned.length === 1) {
+      mergedGeom = unioned[0].geometry;
+    } else {
+      const polys: Position[][][] = [];
+      for (const f of unioned) {
+        if (f.geometry.type === "Polygon") polys.push(f.geometry.coordinates);
+        else polys.push(...f.geometry.coordinates);
+      }
+      mergedGeom =
+        polys.length === 1
+          ? { type: "Polygon", coordinates: polys[0] }
+          : { type: "MultiPolygon", coordinates: polys };
+    }
+  }
+
+  const clipped = roundPolygonGeom(mergedGeom);
   if (!clipped) return null;
 
   let clippedArea = 0;
@@ -573,6 +761,13 @@ export function cropRegionToPlayAreaMask(
   } catch {
     return null;
   }
+  if (clippedArea <= 0) return null;
+
+  // Already essentially completely inside the play area (including tiny valid
+  // contained polygons): keep original crisp geometry untouched.
+  if (clippedArea >= 0.999 * regionArea) {
+    return geom;
+  }
 
   const refArea = Math.min(regionArea, idx.totalArea > 0 ? idx.totalArea : regionArea);
   // Drop border-touching neighbors / hairline boundary jitter.
@@ -580,18 +775,54 @@ export function cropRegionToPlayAreaMask(
     return null;
   }
 
-  // Already essentially completely inside the play area: keep original crisp geometry.
-  if (clippedArea >= 0.98 * regionArea) {
-    return geom;
-  }
-
   return clipped;
 }
 
+function collectSegmentSplitParams(
+  ax: number,
+  ay: number,
+  bx: number,
+  by: number,
+  edge: MaskEdge,
+  outTs: number[],
+): void {
+  const rx = bx - ax;
+  const ry = by - ay;
+  const sx = edge.bx - edge.ax;
+  const sy = edge.by - edge.ay;
+  const denom = rx * sy - ry * sx;
+  const qpx = edge.ax - ax;
+  const qpy = edge.ay - ay;
+
+  if (Math.abs(denom) > 1e-12) {
+    const t = (qpx * sy - qpy * sx) / denom;
+    const u = (qpx * ry - qpy * rx) / denom;
+    if (t >= -1e-9 && t <= 1 + 1e-9 && u >= -1e-9 && u <= 1 + 1e-9) {
+      if (t > 1e-9 && t < 1 - 1e-9) {
+        outTs.push(t);
+      }
+    }
+    return;
+  }
+
+  // Parallel / collinear: if collinear, split at the mask edge's endpoints that
+  // project onto the interior of segment [a, b].
+  const rLenSq = rx * rx + ry * ry;
+  if (rLenSq <= 1e-20) return;
+  const cross = Math.abs(qpx * ry - qpy * rx);
+  if (cross > 1e-10 * Math.sqrt(rLenSq)) return;
+  const tc = (qpx * rx + qpy * ry) / rLenSq;
+  const td = ((edge.bx - ax) * rx + (edge.by - ay) * ry) / rLenSq;
+  if (tc > 1e-9 && tc < 1 - 1e-9) outTs.push(tc);
+  if (td > 1e-9 && td < 1 - 1e-9) outTs.push(td);
+}
+
 /**
- * Crops a LineString / MultiLineString to the allowed play-area mask.
- * Segments completely outside are dropped; segments crossing the border are
- * split at the mask boundary and only the portions inside are kept.
+ * Crops a LineString / MultiLineString to the allowed play-area mask using
+ * direct parametric 2D segment clipping against the spatial-grid-indexed mask
+ * boundary edges. Handles repeated crossings at the same coordinate, collinear
+ * border-following lines exiting the mask, holes, and country-scale layers
+ * without per-way RBush rebuilds or `turf.lineSplit` floating-point drops.
  */
 export function cropLineToPlayAreaMask(
   geom: LineStringGeometry | MultiLineStringGeometry,
@@ -604,71 +835,89 @@ export function cropLineToPlayAreaMask(
   const lines: Position[][] = geom.type === "LineString" ? [geom.coordinates] : geom.coordinates;
 
   const kept: Position[][] = [];
+
   for (const coords of lines) {
     if (coords.length < 2) continue;
     const lineBbox = computeCoordsBbox(coords);
     if (!bboxesOverlap(lineBbox, idx.bbox)) continue;
 
-    const lineFeat = turf.lineString(coords);
-    const overlappingBoundaries = idx.boundaries.filter((b) => bboxesOverlap(lineBbox, b.bbox));
-
-    // Fast path: if every vertex is inside the mask and the line doesn't cross any
-    // mask boundary ring, keep as-is without splitting.
-    const allInside = coords.every((p) => pointInPlayAreaMask(p[0], p[1], mask));
-    let crosses = false;
-    if (allInside) {
-      for (const boundary of overlappingBoundaries) {
-        try {
-          if (turf.lineIntersect(lineFeat, boundary.line).features.length > 0) {
-            crosses = true;
-            break;
-          }
-        } catch {
-          // ignore
-        }
+    // Fast path: if zero mask boundary edges enter the line's bbox, one point
+    // test decides whether the entire polyline is inside or outside in O(1).
+    if (queryMaskEdges(idx, lineBbox[0], lineBbox[1], lineBbox[2], lineBbox[3]).length === 0) {
+      if (pointInPlayAreaMask(coords[0][0], coords[0][1], mask)) {
+        const clean = dedupeRoundedPath(coords);
+        if (clean.length >= 2) kept.push(clean);
       }
-    }
-    if (allInside && !crosses) {
-      kept.push(coords);
       continue;
     }
 
-    // Split along overlapping mask boundaries and keep sub-segments whose midpoint is inside.
-    let pieces: Position[][] = [coords];
-    for (const boundary of overlappingBoundaries) {
-      const nextPieces: Position[][] = [];
-      for (const piece of pieces) {
-        if (piece.length < 2) continue;
-        try {
-          const split = turf.lineSplit(turf.lineString(piece), boundary.line);
-          if (split.features.length > 0) {
-            for (const f of split.features) {
-              const c = dedupeRoundedPath(f.geometry.coordinates as Position[]);
-              if (c.length >= 2) nextPieces.push(c);
-            }
-          } else {
-            nextPieces.push(piece);
-          }
-        } catch {
-          nextPieces.push(piece);
-        }
-      }
-      pieces = nextPieces;
-    }
+    let current: Position[] = [];
+    const flushCurrent = () => {
+      const clean = dedupeRoundedPath(current);
+      if (clean.length >= 2) kept.push(clean);
+      current = [];
+    };
 
-    for (const piece of pieces) {
-      const clean = dedupeRoundedPath(piece);
-      if (clean.length < 2) continue;
-      // Check midpoint along the piece so boundary-touching endpoints don't fool us.
-      const midIdx = Math.floor((clean.length - 1) / 2);
-      const a = clean[midIdx];
-      const b = clean[Math.min(midIdx + 1, clean.length - 1)];
-      const midLng = (a[0] + b[0]) / 2;
-      const midLat = (a[1] + b[1]) / 2;
-      if (pointInPlayAreaMask(midLng, midLat, mask)) {
-        kept.push(clean);
+    for (let i = 0; i < coords.length - 1; i++) {
+      const a = coords[i];
+      const b = coords[i + 1];
+      const ax = a[0];
+      const ay = a[1];
+      const bx = b[0];
+      const by = b[1];
+      if (ax === bx && ay === by) continue;
+
+      const sMinX = ax < bx ? ax : bx;
+      const sMaxX = ax > bx ? ax : bx;
+      const sMinY = ay < by ? ay : by;
+      const sMaxY = ay > by ? ay : by;
+
+      if (
+        sMaxX < idx.bbox[0] ||
+        sMinX > idx.bbox[2] ||
+        sMaxY < idx.bbox[1] ||
+        sMinY > idx.bbox[3]
+      ) {
+        flushCurrent();
+        continue;
+      }
+
+      const candidateEdgeIds = queryMaskEdges(idx, sMinX, sMinY, sMaxX, sMaxY);
+      const ts: number[] = [0, 1];
+      for (let ci = 0; ci < candidateEdgeIds.length; ci++) {
+        collectSegmentSplitParams(ax, ay, bx, by, idx.edges[candidateEdgeIds[ci]], ts);
+      }
+      ts.sort((p, q) => p - q);
+
+      // Deduplicate split parameters and keep sub-intervals whose midpoint is inside.
+      let prevT = ts[0];
+      for (let ti = 1; ti < ts.length; ti++) {
+        const nextT = ts[ti];
+        if (nextT - prevT <= 1e-9) continue;
+        const midT = (prevT + nextT) / 2;
+        const midLng = ax + (bx - ax) * midT;
+        const midLat = ay + (by - ay) * midT;
+        if (pointInPlayAreaMask(midLng, midLat, mask)) {
+          const p0: Position = [round6(ax + (bx - ax) * prevT), round6(ay + (by - ay) * prevT)];
+          const p1: Position = [round6(ax + (bx - ax) * nextT), round6(ay + (by - ay) * nextT)];
+          if (current.length === 0) {
+            current.push(p0, p1);
+          } else {
+            const last = current[current.length - 1];
+            if (last[0] === p0[0] && last[1] === p0[1]) {
+              current.push(p1);
+            } else {
+              flushCurrent();
+              current.push(p0, p1);
+            }
+          }
+        } else {
+          flushCurrent();
+        }
+        prevT = nextT;
       }
     }
+    flushCurrent();
   }
 
   if (kept.length === 0) return null;
@@ -841,7 +1090,7 @@ export async function fetchAdminRegionsFromOsm({
   onStatus?: (message: string) => void;
 }): Promise<RegionFetchResult> {
   const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
+  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
   const query = rawQueryOverride?.trim() || buildAdminRegionsQuery(adminLevel, bounds);
   onStatus?.(`Querying OpenStreetMap for admin_level=${adminLevel} boundaries…`);
   const { elements, endpoint } = await runOverpassQuery(query, {
@@ -899,17 +1148,38 @@ export function assembleLineWays(
       continue;
     }
     const raw: Position[] = el.geometry.map((pt) => [round6(pt.lon), round6(pt.lat)]);
-    const simplified = simplifyPathMeters(raw, toleranceMeters);
-    if (simplified.length < 2) continue;
+    if (raw.length < 2) continue;
 
-    let keptSegments: Position[][] = [simplified];
+    let keptSegments: Position[][];
     if (playArea) {
-      const cropped = cropLineToPlayAreaMask(
-        { type: "LineString", coordinates: simplified },
-        playArea,
-      );
-      if (!cropped) continue;
-      keptSegments = cropped.type === "LineString" ? [cropped.coordinates] : cropped.coordinates;
+      // Clip raw geometry before simplifying so simplification never deletes a
+      // valid crossing, then re-clip if tolerance > 0 so simplified chords can
+      // never cut outside concave notches or holes.
+      const clippedRaw = cropLineToPlayAreaMask({ type: "LineString", coordinates: raw }, playArea);
+      if (!clippedRaw) continue;
+      const rawPieces =
+        clippedRaw.type === "LineString" ? [clippedRaw.coordinates] : clippedRaw.coordinates;
+      keptSegments = [];
+      for (const piece of rawPieces) {
+        const simplified = simplifyPathMeters(piece, toleranceMeters);
+        if (simplified.length < 2) continue;
+        if (toleranceMeters > 0) {
+          const reclipped = cropLineToPlayAreaMask(
+            { type: "LineString", coordinates: simplified },
+            playArea,
+          );
+          if (!reclipped) continue;
+          if (reclipped.type === "LineString") keptSegments.push(reclipped.coordinates);
+          else keptSegments.push(...reclipped.coordinates);
+        } else {
+          keptSegments.push(simplified);
+        }
+      }
+      if (keptSegments.length === 0) continue;
+    } else {
+      const simplified = simplifyPathMeters(raw, toleranceMeters);
+      if (simplified.length < 2) continue;
+      keptSegments = [simplified];
     }
 
     const rawName = preferEnglishName
@@ -1000,7 +1270,7 @@ export async function fetchLineLayerFromOsm({
   onStatus?: (message: string) => void;
 }): Promise<LineFetchResult> {
   const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
+  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
   const query = rawQueryOverride?.trim() || buildLineLayerQuery(osmFilter, bounds);
   onStatus?.(`Querying OpenStreetMap for ${layerName}…`);
   const { elements, endpoint } = await runOverpassQuery(query, {

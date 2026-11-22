@@ -165,6 +165,7 @@ export function GameCreator() {
   const [poiBufferKm, setPoiBufferKm] = useState<number>(SCALE_PRESETS[DEFAULT_SCALE].poiBufferKm);
   const [visibleLayerIds, setVisibleLayerIds] = useState<Set<string>>(() => new Set());
   const [simplifyPreview, setSimplifyPreview] = useState<SimplifyPreviewState | null>(null);
+  const [osmEngine, setOsmEngine] = useState<"qlever" | "overpass">("qlever");
   const [customEndpoint, setCustomEndpoint] = useState("");
 
   // ── Step 4: Review & Export ──────────────────────────────────────────────
@@ -650,6 +651,7 @@ export function GameCreator() {
                 vertexCount: incoming.vertexCount,
                 osmFilter: incoming.osmFilter ?? l.osmFilter,
                 notableOnly: incoming.notableOnly ?? l.notableOnly,
+                osmEngine: incoming.osmEngine ?? l.osmEngine,
                 kmlGroup: incoming.kmlGroup ?? l.kmlGroup,
                 sourceLabel: incoming.sourceLabel,
                 selected: true,
@@ -1371,13 +1373,21 @@ export function GameCreator() {
         setPlayAreaOsmRelationId(saved.playAreaOsmRelationId ?? null);
         setPlayAreaVersion((v) => v + 1);
         setPreservedMetadata(saved.preservedMetadata);
-        setStationSource(saved.stationSource ?? "transitous");
+        const isLegacyCustom =
+          !Array.isArray(saved.stationTypes) && saved.stationPreset === "custom";
+        setStationSource(isLegacyCustom ? "osm" : (saved.stationSource ?? "transitous"));
         setStationTypes(
           Array.isArray(saved.stationTypes)
             ? saved.stationTypes
-            : stationTypesFromLegacyPreset(saved.stationPreset, saved.scale),
+            : isLegacyCustom
+              ? []
+              : stationTypesFromLegacyPreset(saved.stationPreset, saved.scale),
         );
-        setCustomStationFilter(saved.stationTypes ? (saved.customStationFilter ?? "") : "");
+        setCustomStationFilter(
+          Array.isArray(saved.stationTypes) || isLegacyCustom
+            ? (saved.customStationFilter ?? "")
+            : "",
+        );
         setDedupeMeters(saved.dedupeMeters);
         setPreferEnglishName(saved.preferEnglishName);
         setStations(saved.stations);
@@ -1797,6 +1807,7 @@ export function GameCreator() {
                   playArea={playArea}
                   playAreaOsmRelationId={playAreaOsmRelationId}
                   playAreaGenRef={playAreaGenRef}
+                  osmEngine={osmEngine}
                   poiBufferKm={poiBufferKm}
                   preferEnglishName={preferEnglishName}
                   customEndpoint={customEndpoint}
@@ -1836,11 +1847,13 @@ export function GameCreator() {
                 />
               </div>
 
-              {featureSubTab === "osm" && (
+              <div className={featureSubTab === "osm" ? "" : "hidden"}>
                 <CreatorOsmFetchPanel
                   playArea={playArea}
                   playAreaOsmRelationId={playAreaOsmRelationId}
                   playAreaGenRef={playAreaGenRef}
+                  osmEngine={osmEngine}
+                  setOsmEngine={setOsmEngine}
                   poiBufferKm={poiBufferKm}
                   setPoiBufferKm={setPoiBufferKm}
                   preferEnglishName={preferEnglishName}
@@ -1850,7 +1863,7 @@ export function GameCreator() {
                   existingLayerSlugs={existingLayerSlugs}
                   onUpsertLayer={handleUpsertOsmLayer}
                 />
-              )}
+              </div>
 
               <Button type="button" className="w-full" onClick={() => setStep("export")}>
                 Next: Review & Export →

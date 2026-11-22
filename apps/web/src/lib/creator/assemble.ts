@@ -32,6 +32,8 @@ export interface CreatorGeometryLayer {
   /** Optional OSM POI filter metadata (enables single-layer OSM refresh). */
   osmFilter?: string;
   notableOnly?: boolean;
+  /** Engine that last successfully fetched this OSM layer (preserved on refresh). */
+  osmEngine?: "qlever" | "overpass";
   /** Optional thematic group hint for Google My Maps KML auto-packing. */
   kmlGroup?: string;
   /** Explicit KML folder name persisted in `.game.json` (e.g. "Public Amenities", "Provinces"). */

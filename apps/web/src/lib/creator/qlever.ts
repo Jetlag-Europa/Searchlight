@@ -16,6 +16,7 @@ import {
   cropLineToPlayAreaMask,
   cropRegionToPlayAreaMask,
   type LineFetchResult,
+  maskQueryBounds,
   pointInPlayAreaMask,
   type RegionFetchResult,
   simplifyLineLayerTopology,
@@ -24,7 +25,6 @@ import {
 import {
   type CreatorPointItem,
   dedupePointItems,
-  expandBoundsKm,
   parseSimpleOsmFilter,
   playAreaBounds,
 } from "@/lib/creator/overpass";
@@ -36,9 +36,11 @@ const OSM_KEY_PREFIX = "https://www.openstreetmap.org/wiki/Key:";
 const OSM_NAME_EN_IRI = "<https://www.openstreetmap.org/wiki/Key:name:en>";
 const OSM2RDF_PREFIX = "https://osm2rdf.cs.uni-freiburg.de/rdf#";
 const OSM2RDF_KEY_PREFIX = "https://osm2rdf.cs.uni-freiburg.de/rdf/key#";
-// Small countries (< 15,000 km²) such as Liechtenstein, Luxembourg, Monaco,
-// Andorra, Malta, or Singapore often have no `admin_level=4` subdivisions.
-const SMALL_COUNTRY_AREA_M2 = 15_000_000_000;
+// Minimum ratio of sum(admin_level=4 child area) / country area required to
+// treat a country as covered by admin_level=4 subdivisions (countries with
+// large maritime EEZs like France sit around ~53%; partial adm4 countries like
+// Portugal sit at ~2%, and adm4-less countries like Ireland/Liechtenstein at 0%).
+const MIN_ADM4_COUNTRY_COVERAGE_RATIO = 0.35;
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6;
 
@@ -71,6 +73,14 @@ function osmKeyIri(key: string): string {
   return `<${OSM_KEY_PREFIX}${key}>`;
 }
 
+function sparqlTagLiteral(key: string, value: string): string {
+  // osm2rdf stores integer-typed tags like `admin_level` as numeric literals.
+  if (key === "admin_level" && /^\d+$/.test(value)) {
+    return String(Number(value));
+  }
+  return `"${escapeSparqlString(value)}"`;
+}
+
 function bboxToWktPolygon(bounds: Bounds): string {
   const w = Math.max(-180, Math.min(180, round6(bounds[0])));
   const s = Math.max(-89.9, Math.min(89.9, round6(bounds[1])));
@@ -101,25 +111,22 @@ export function osmFilterToSparqlPatterns(osmFilter: string): string | null {
         lines.push(`  FILTER NOT EXISTS { ?s ${pred} ?_nex${i} . }`);
         break;
       case "eq": {
-        const escaped = escapeSparqlString(p.value);
-        // osm2rdf stores integer-typed tags like `admin_level` as numeric literals.
-        if (p.key === "admin_level" && /^\d+$/.test(p.value)) {
-          lines.push(`  ?s ${pred} ${Number(p.value)} .`);
-        } else {
-          lines.push(`  ?s ${pred} "${escaped}" .`);
-        }
+        lines.push(`  ?s ${pred} ${sparqlTagLiteral(p.key, p.value)} .`);
         break;
       }
       case "neq": {
-        const escaped = escapeSparqlString(p.value);
-        lines.push(`  FILTER NOT EXISTS { ?s ${pred} "${escaped}" . }`);
+        lines.push(`  FILTER NOT EXISTS { ?s ${pred} ${sparqlTagLiteral(p.key, p.value)} . }`);
         break;
       }
       case "regex": {
-        const escaped = escapeSparqlString(p.regex.source);
-        lines.push(
-          `  ?s ${pred} ?_rx${i} . FILTER(${p.negate ? "!" : ""}REGEX(STR(?_rx${i}), "${escaped}"))`,
-        );
+        const escaped = escapeSparqlString(p.pattern);
+        if (p.negate) {
+          lines.push(
+            `  FILTER NOT EXISTS { ?s ${pred} ?_rx${i} . FILTER(REGEX(STR(?_rx${i}), "${escaped}")) }`,
+          );
+        } else {
+          lines.push(`  ?s ${pred} ?_rx${i} . FILTER(REGEX(STR(?_rx${i}), "${escaped}"))`);
+        }
         break;
       }
     }
@@ -317,21 +324,19 @@ export async function runQleverQuery(
 
 const MAX_REGION_CACHE = 16;
 const coveringRegionCache = new Map<string, string[]>();
+const missingDirectRelationIds = new Set<number>();
 
 export function clearQleverRegionCache(): void {
   coveringRegionCache.clear();
-}
-
-function bboxCacheKey(bounds: Bounds): string {
-  return bounds.map((n) => n.toFixed(4)).join(",");
+  missingDirectRelationIds.clear();
 }
 
 /**
- * Finds the minimal set of OSM administrative relations (`admin_level=4`, plus
- * any small intersecting `admin_level=2` country such as Liechtenstein or
- * Luxembourg that lacks `admin_level=4` subdivisions, or all `admin_level=2`
- * countries if no `admin_level=4` regions match) whose union covers `bounds`.
- * Runs in a single fast QLever query (~0.35s) and caches results per bbox.
+ * Finds the minimal set of OSM administrative relations (`admin_level=4` plus
+ * any intersecting `admin_level=2` country not substantially covered by
+ * `admin_level=4` subdivisions inside the bbox, e.g. Ireland, Liechtenstein,
+ * Portugal, Slovenia) whose union covers `bounds`.
+ * Uses two fast queries (~0.35s + ~0.07s) and caches results by exact WKT box.
  */
 export async function resolveQleverCoveringRegions(
   bounds: Bounds,
@@ -343,49 +348,83 @@ export async function resolveQleverCoveringRegions(
     onStatus?: (message: string) => void;
   } = {},
 ): Promise<string[]> {
-  const key = bboxCacheKey(bounds);
-  const cached = coveringRegionCache.get(key);
+  const box = bboxToWktPolygon(bounds);
+  const cached = coveringRegionCache.get(box);
   if (cached) return cached;
 
   onStatus?.("Resolving covering regions in QLever…");
-  const box = bboxToWktPolygon(bounds);
   const findQuery = `PREFIX osmkey: <${OSM_KEY_PREFIX}>
 PREFIX osm: <https://www.openstreetmap.org/>
-PREFIX osm2rdf: <${OSM2RDF_PREFIX}>
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
-SELECT DISTINCT ?r ?lvl ?area WHERE {
+SELECT DISTINCT ?r ?lvl WHERE {
   ?r a osm:relation ;
      osmkey:type "boundary" ;
      osmkey:boundary "administrative" ;
      osmkey:admin_level ?lvl ;
      geo:hasGeometry/geo:asWKT ?wkt .
   VALUES ?lvl { 2 4 }
-  OPTIONAL { ?r osm2rdf:area ?area . }
   FILTER(geof:sfIntersects(?wkt, "${box}"^^geo:wktLiteral))
 }`;
 
   const rows = await runQleverQuery(findQuery, { signal, timeoutMs: 20_000 });
-  const adm2 = new Map<string, number>();
+  const adm2 = new Set<string>();
   const adm4 = new Set<string>();
   for (const row of rows) {
     const uri = row.r?.value;
     const lvl = row.lvl?.value;
     if (!uri) continue;
     if (lvl === "4") adm4.add(uri);
-    else if (lvl === "2") {
-      const area = Number(row.area?.value);
-      adm2.set(uri, Number.isFinite(area) ? area : Infinity);
-    }
+    else if (lvl === "2") adm2.add(uri);
   }
 
   let includedCountries: string[];
-  if (adm4.size === 0) {
-    includedCountries = [...adm2.keys()];
+  if (adm4.size === 0 || adm2.size === 0) {
+    includedCountries = [...adm2];
   } else {
-    includedCountries = [...adm2.entries()]
-      .filter(([, area]) => area < SMALL_COUNTRY_AREA_M2)
-      .map(([uri]) => uri);
+    // Check which intersecting countries are actually covered by admin_level=4
+    // subdivisions in this bbox (constraining ?sub to admin_level=4 keeps this
+    // query around ~70ms on QLever). Any country with 0 in-bbox adm4 children
+    // or < 35% adm4 area coverage (e.g. Ireland, Portugal, Liechtenstein) stays.
+    const cVals = [...adm2].map((u) => `<${u}>`).join(" ");
+    const rList = [...adm4].map((u) => `<${u}>`).join(", ");
+    const coverageQuery = `PREFIX osmkey: <${OSM_KEY_PREFIX}>
+PREFIX osm: <https://www.openstreetmap.org/>
+PREFIX osm2rdf: <${OSM2RDF_PREFIX}>
+PREFIX ogc: <http://www.opengis.net/rdf#>
+SELECT ?c (SUM(?a) AS ?adm4Area) (SAMPLE(?ca) AS ?cArea) (COUNT(?inBox) AS ?inBoxCnt) WHERE {
+  VALUES ?c { ${cVals} }
+  OPTIONAL { ?c osm2rdf:area ?ca . }
+  OPTIONAL {
+    ?sub a osm:relation ;
+         osmkey:type "boundary" ;
+         osmkey:boundary "administrative" ;
+         osmkey:admin_level 4 ;
+         osm2rdf:area ?a .
+    ?c ogc:sfCovers ?sub .
+    BIND(IF(?sub IN (${rList}), 1, ?unbound) AS ?inBox)
+  }
+} GROUP BY ?c`;
+    const covRows = await runQleverQuery(coverageQuery, { signal, timeoutMs: 15_000 });
+    const coveredCountries = new Set<string>();
+    for (const row of covRows) {
+      const uri = row.c?.value;
+      if (!uri) continue;
+      const inBoxCnt = Number(row.inBoxCnt?.value);
+      const adm4Area = Number(row.adm4Area?.value);
+      const cArea = Number(row.cArea?.value);
+      if (
+        Number.isFinite(inBoxCnt) &&
+        inBoxCnt > 0 &&
+        Number.isFinite(cArea) &&
+        cArea > 0 &&
+        Number.isFinite(adm4Area) &&
+        adm4Area / cArea >= MIN_ADM4_COUNTRY_COVERAGE_RATIO
+      ) {
+        coveredCountries.add(uri);
+      }
+    }
+    includedCountries = [...adm2].filter((uri) => !coveredCountries.has(uri));
   }
 
   const regions = [...adm4, ...includedCountries];
@@ -393,7 +432,7 @@ SELECT DISTINCT ?r ?lvl ?area WHERE {
     const oldest = coveringRegionCache.keys().next().value;
     if (oldest !== undefined) coveringRegionCache.delete(oldest);
   }
-  coveringRegionCache.set(key, regions);
+  coveringRegionCache.set(box, regions);
   return regions;
 }
 
@@ -432,9 +471,10 @@ export function buildQleverPoiQuery({
   if (!tagPatterns) return null;
 
   const [w, s, e, n] = bounds.map(round6) as Bounds;
+  const irisList = regionIris.map((u) => `<${u}>`).join(" ");
   const regionClause =
     regionIris.length > 0
-      ? `  VALUES ?region { ${regionIris.map((u) => `<${u}>`).join(" ")} }\n  ?s ogc:sfIntersects ?region .\n`
+      ? `  {\n    VALUES ?region { ${irisList} }\n    ?s ogc:sfIntersects ?region .\n  } UNION {\n    VALUES ?s { ${irisList} }\n  }\n`
       : "";
   const notableClause = notableOnly
     ? `  OPTIONAL { ?s <${OSM2RDF_KEY_PREFIX}wikidata> ?_wd . }\n  OPTIONAL { ?s <${OSM2RDF_KEY_PREFIX}wikipedia> ?_wp . }\n  FILTER(BOUND(?_wd) || BOUND(?_wp))\n`
@@ -479,24 +519,51 @@ export async function fetchPoiLayerFromQlever({
   onStatus?: (message: string) => void;
 }): Promise<{ items: CreatorPointItem[]; endpoint: string }> {
   const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
-  const regionIris =
-    playAreaOsmRelationId && bufferKm <= 0
-      ? [`https://www.openstreetmap.org/relation/${playAreaOsmRelationId}`]
-      : await resolveQleverCoveringRegions(bounds, { signal, onStatus });
-  const query = buildQleverPoiQuery({
-    osmFilter,
-    bounds,
-    regionIris,
-    notableOnly,
-    preferEnglishName,
-  });
-  if (!query) {
-    throw new Error(`Unsupported OSM filter for QLever: ${osmFilter}`);
-  }
+  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
+  const useDirectRelation =
+    Boolean(playAreaOsmRelationId) &&
+    bufferKm <= 0 &&
+    !missingDirectRelationIds.has(playAreaOsmRelationId!);
 
-  onStatus?.(`Querying QLever for ${name}…`);
-  const rows = await runQleverQuery(query, { signal, timeoutMs: 25_000 });
+  const runWithRegions = async (regionIris: readonly string[]) => {
+    if (regionIris.length === 0) {
+      throw new Error(
+        "No enclosing OSM boundary found in QLever for this area. Switch to Overpass or expand the play area.",
+      );
+    }
+    const query = buildQleverPoiQuery({
+      osmFilter,
+      bounds,
+      regionIris,
+      notableOnly,
+      preferEnglishName,
+    });
+    if (!query) {
+      throw new Error(`Unsupported OSM filter for QLever: ${osmFilter}`);
+    }
+    onStatus?.(`Querying QLever for ${name}…`);
+    return runQleverQuery(query, { signal, timeoutMs: 25_000 });
+  };
+
+  let rows: Array<Record<string, SparqlBindingValue | undefined>>;
+  if (useDirectRelation) {
+    const directIris = [`https://www.openstreetmap.org/relation/${playAreaOsmRelationId}`];
+    rows = await runWithRegions(directIris);
+    if (rows.length === 0) {
+      // Fallback once in case Nominatim's relation ID is missing/unindexed in QLever's snapshot.
+      const fallbackIris = await resolveQleverCoveringRegions(bounds, { signal, onStatus });
+      if (fallbackIris.length > 0 && !fallbackIris.includes(directIris[0])) {
+        const fallbackRows = await runWithRegions(fallbackIris);
+        if (fallbackRows.length > 0) {
+          missingDirectRelationIds.add(playAreaOsmRelationId!);
+          rows = fallbackRows;
+        }
+      }
+    }
+  } else {
+    const regionIris = await resolveQleverCoveringRegions(bounds, { signal, onStatus });
+    rows = await runWithRegions(regionIris);
+  }
   const raw: CreatorPointItem[] = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -572,7 +639,7 @@ export async function fetchAdminRegionsFromQlever({
   onStatus?: (message: string) => void;
 }): Promise<RegionFetchResult> {
   const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
+  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
   const query = buildQleverAdminRegionsQuery({ adminLevel, bounds, preferEnglishName });
   onStatus?.(`Querying QLever for admin_level=${adminLevel} boundaries…`);
   const rows = await runQleverQuery(query, { signal, timeoutMs: 30_000 });
@@ -647,11 +714,12 @@ PREFIX osm: <https://www.openstreetmap.org/>
 PREFIX geo: <http://www.opengis.net/ont/geosparql#>
 PREFIX geof: <http://www.opengis.net/def/function/geosparql/>
 PREFIX ogc: <http://www.opengis.net/rdf#>
-SELECT DISTINCT ?s ?name${enSelect} ?wkt WHERE {
+SELECT DISTINCT ?s ?name${enSelect} ?ref ?wkt WHERE {
 ${regionClause}  ?s a osm:way .
 ${tagPatterns}
   ?s geo:hasGeometry/geo:asWKT ?wkt .
   OPTIONAL { ?s osmkey:name ?name . }
+  OPTIONAL { ?s osmkey:ref ?ref . }
 ${enOptional}  FILTER(geof:sfIntersects(?wkt, "${box}"^^geo:wktLiteral))
 }`;
 }
@@ -680,18 +748,44 @@ export async function fetchLineLayerFromQlever({
   onStatus?: (message: string) => void;
 }): Promise<LineFetchResult> {
   const mask = buildPlayAreaMask(playArea, bufferKm);
-  const bounds = expandBoundsKm(playAreaBounds(playArea), bufferKm);
-  const regionIris =
-    playAreaOsmRelationId && bufferKm <= 0
-      ? [`https://www.openstreetmap.org/relation/${playAreaOsmRelationId}`]
-      : await resolveQleverCoveringRegions(bounds, { signal, onStatus });
-  const query = buildQleverLineQuery({ osmFilter, bounds, regionIris, preferEnglishName });
-  if (!query) {
-    throw new Error(`Unsupported OSM filter for QLever: ${osmFilter}`);
-  }
+  const bounds = bufferKm > 0 ? maskQueryBounds(mask) : playAreaBounds(playArea);
+  const useDirectRelation =
+    Boolean(playAreaOsmRelationId) &&
+    bufferKm <= 0 &&
+    !missingDirectRelationIds.has(playAreaOsmRelationId!);
 
-  onStatus?.(`Querying QLever for ${layerName}…`);
-  const rows = await runQleverQuery(query, { signal, timeoutMs: 30_000 });
+  const runWithRegions = async (regionIris: readonly string[]) => {
+    if (regionIris.length === 0) {
+      throw new Error(
+        "No enclosing OSM boundary found in QLever for this area. Switch to Overpass or expand the play area.",
+      );
+    }
+    const query = buildQleverLineQuery({ osmFilter, bounds, regionIris, preferEnglishName });
+    if (!query) {
+      throw new Error(`Unsupported OSM filter for QLever: ${osmFilter}`);
+    }
+    onStatus?.(`Querying QLever for ${layerName}…`);
+    return runQleverQuery(query, { signal, timeoutMs: 30_000 });
+  };
+
+  let rows: Array<Record<string, SparqlBindingValue | undefined>>;
+  if (useDirectRelation) {
+    const directIris = [`https://www.openstreetmap.org/relation/${playAreaOsmRelationId}`];
+    rows = await runWithRegions(directIris);
+    if (rows.length === 0) {
+      const fallbackIris = await resolveQleverCoveringRegions(bounds, { signal, onStatus });
+      if (fallbackIris.length > 0 && !fallbackIris.includes(directIris[0])) {
+        const fallbackRows = await runWithRegions(fallbackIris);
+        if (fallbackRows.length > 0) {
+          missingDirectRelationIds.add(playAreaOsmRelationId!);
+          rows = fallbackRows;
+        }
+      }
+    }
+  } else {
+    const regionIris = await resolveQleverCoveringRegions(bounds, { signal, onStatus });
+    rows = await runWithRegions(regionIris);
+  }
 
   onStatus?.("Cropping and simplifying line features…");
   const seenIds = new Set<string>();
@@ -711,7 +805,7 @@ export async function fetchLineLayerFromQlever({
     if (!cropped) continue;
 
     seenIds.add(osmId);
-    const label = pickBindingName(row, preferEnglishName) || layerName;
+    const label = pickBindingName(row, preferEnglishName) || row.ref?.value?.trim() || layerName;
     const lines = cropped.type === "LineString" ? [cropped.coordinates] : cropped.coordinates;
     rawSegments.push({ id: osmId, name: label, lines });
   }
@@ -748,12 +842,25 @@ export async function fetchLineLayerFromQlever({
   }
 
   const simplified = simplifyLineLayerTopology(items, toleranceMeters);
-  const vertexCount = simplified.items.reduce(
+  const finalItems: CreatorGeoFeatureItem[] = [];
+  for (const item of simplified.items) {
+    if (
+      toleranceMeters > 0 &&
+      (item.geometry.type === "LineString" || item.geometry.type === "MultiLineString")
+    ) {
+      const reclipped = cropLineToPlayAreaMask(item.geometry, mask);
+      if (!reclipped) continue;
+      finalItems.push({ ...item, geometry: reclipped });
+    } else {
+      finalItems.push(item);
+    }
+  }
+  const vertexCount = finalItems.reduce(
     (sum, item) => sum + countGeometryVertices(item.geometry),
     0,
   );
   return {
-    items: simplified.items,
+    items: finalItems,
     vertexCount,
     endpoint: QLEVER_OSM_ENDPOINT,
   };
