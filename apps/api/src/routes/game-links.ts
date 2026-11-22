@@ -199,6 +199,11 @@ export async function gameLinkRoutes(app: FastifyInstance) {
       if (!link || !revision) {
         throw notFound("Link is invalid or has been revoked");
       }
+      // Only /local fetches this, once per game it opens from the link.
+      await prisma.gameLink.update({
+        where: { id: link.id },
+        data: { localOpens: { increment: 1 } },
+      });
 
       const etag = `"${revision.checksum}"`;
       if (matchesETag(req.headers["if-none-match"], etag)) {

@@ -382,6 +382,9 @@ describe("unlisted games and game links", () => {
     });
     expect(cached.statusCode).toBe(304);
     expect(cached.headers["cache-control"]).toBe("no-cache");
+    // Both downloads count as local opens.
+    const { localOpens } = await prisma.gameLink.findUniqueOrThrow({ where: { id: link.id } });
+    expect(localOpens).toBe(2);
 
     // Revoking the link stops definition downloads immediately.
     await app.inject({

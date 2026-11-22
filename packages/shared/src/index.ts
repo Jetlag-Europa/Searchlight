@@ -168,6 +168,8 @@ export interface GameStats {
   players: number;
   /** Questions across all sessions. */
   questions: number;
+  /** Times the game was opened locally from one of its game links. */
+  localOpens: number;
   /** When a session of the game was last created or changed. */
   lastActivityAt: string | null;
 }
@@ -192,6 +194,8 @@ export const USAGE_EVENTS = [
   "creator:opened",
   "creator:export-json",
   "creator:export-kml",
+  "creator:test-locally",
+  "creator:import",
 ] as const;
 
 export type UsageEvent = (typeof USAGE_EVENTS)[number];

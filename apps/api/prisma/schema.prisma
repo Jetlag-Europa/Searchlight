@@ -142,6 +142,8 @@ model GameLink {
   createdById String
   revokedAt   DateTime?
   createdAt   DateTime  @default(now())
+  // Games opened locally from the link (GET /game-links/:token/definition).
+  localOpens  Int       @default(0)
 
   game      Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
   createdBy User          @relation("CreatedGameLinks", fields: [createdById], references: [discordId])

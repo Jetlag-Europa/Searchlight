@@ -158,6 +158,7 @@ export async function gameRoutes(app: FastifyInstance) {
                 totalSessions: Type.Integer(),
                 players: Type.Integer(),
                 questions: Type.Integer(),
+                localOpens: Type.Integer(),
                 lastActivityAt: Type.Union([Type.String(), Type.Null()]),
               }),
             ),
@@ -246,6 +247,7 @@ export async function gameRoutes(app: FastifyInstance) {
             totalSessions: 0,
             players: 0,
             questions: 0,
+            localOpens: 0,
             lastActivityAt: null as string | null,
           },
         ]),
@@ -259,6 +261,12 @@ export async function gameRoutes(app: FastifyInstance) {
         entry.lastActivityAt = row.lastActivityAt?.toISOString() ?? null;
       }
       for (const row of playerRows) stats.get(row.gameId)!.players = row.players;
+      const linkRows = await prisma.gameLink.groupBy({
+        by: ["gameId"],
+        where: { gameId: { in: gameIds } },
+        _sum: { localOpens: true },
+      });
+      for (const row of linkRows) stats.get(row.gameId)!.localOpens = row._sum.localOpens ?? 0;
       for (const session of liveSessions) {
         const viewers = new Set(session.participants.map((p) => p.userId));
         const players = connected.get(session.id)!.filter((userId) => !viewers.has(userId));
