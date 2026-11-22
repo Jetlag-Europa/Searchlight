@@ -200,7 +200,10 @@ describe("/audit-log", () => {
     const filters = await read(SERVER_ADMIN, `/filters?serverId=${SERVER_ID}`);
     expect(filters.statusCode).toBe(200);
     const { servers, actors, games } = filters.json() as AuditLogFilters;
-    expect(servers).toEqual([{ id: SERVER_ID, name: "Audit Server" }]);
+    // Only the global log picks a server.
+    expect(servers).toEqual([]);
+    const global = (await read(GLOBAL_ADMIN, "/filters")).json() as AuditLogFilters;
+    expect(global.servers).toContainEqual({ id: SERVER_ID, name: "Audit Server" });
     expect(actors).toHaveLength(2);
     expect(actors).toEqual(
       expect.arrayContaining([

@@ -6,8 +6,9 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 ## Audit log for admins (2026-11-22)
 
-- `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries under **Activity** in its expanded card; global admins also get an **Audit log** of every server, Casual Games included. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".
+- `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".
 - Changes made before this update aren't in the log.
+- `/admin` is tidier: each server card has **Roles** and **Activity** tabs, permissions have readable names, and the page fits a phone screen.
 
 ## Discord login on iPhone (2026-11-19)
 

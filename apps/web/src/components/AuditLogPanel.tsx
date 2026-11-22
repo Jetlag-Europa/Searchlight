@@ -63,6 +63,8 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
         Object.entries({ ...filter, serverId: serverId ?? filter.serverId }).filter(([, v]) => v),
       );
       if (before) params.set("before", before);
+      // A new first page drops the old cursor, so "Load older" can't mix them.
+      else setNextCursor(null);
       const request = ++latest.current;
       setLoading(true);
       fetch(`${API_BASE}/audit-log?${params}`, { credentials: "include" })
@@ -78,7 +80,9 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
           setNextCursor(data.nextCursor);
         })
         .catch(() => {})
-        .finally(() => setLoading(false));
+        .finally(() => {
+          if (request === latest.current) setLoading(false);
+        });
     },
     [serverId, filter],
   );
@@ -100,9 +104,9 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
   if (!entries) return null;
 
   const serverNames = new Map(options?.servers.map((s) => [s.id, s.name ?? s.id]));
-  const select = (key: keyof Filter, any: string, choices: [string, string][]) => (
+  const select = (key: keyof Filter, label: string, any: string, choices: [string, string][]) => (
     <select
-      aria-label={any}
+      aria-label={label}
       className="min-w-0 max-w-full border border-input rounded-md px-2 py-1 text-sm bg-background"
       value={filter[key]}
       // Another server's games don't match, so a new server clears the game.
@@ -124,15 +128,17 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
       {!serverId && <h2 className="text-lg font-semibold mb-3">Audit log</h2>}
       {options && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {select("action", "All changes", Object.entries(LABELS))}
+          {select("action", "Change", "All changes", Object.entries(LABELS))}
           {select(
             "actorId",
+            "User",
             "All users",
             options.actors.map((a): [string, string] => [a.id, a.name ?? a.id]).sort(byName),
           )}
-          {!serverId && select("serverId", "All servers", [...serverNames].sort(byName))}
+          {!serverId && select("serverId", "Server", "All servers", [...serverNames].sort(byName))}
           {select(
             "targetId",
+            "Game",
             "All games",
             options.games
               .filter((g) => !filter.serverId || g.serverId === filter.serverId)

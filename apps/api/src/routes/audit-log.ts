@@ -1,6 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { Type } from "@sinclair/typebox";
 import type { AuditAction, AuditLogFilters, AuditLogResponse } from "@searchlight/shared";
+import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, isAdmin } from "../lib/permissions.js";
@@ -116,27 +117,19 @@ export async function auditLogRoutes(app: FastifyInstance) {
       const { serverId } = req.query as { serverId?: string };
       await assertCanRead(req, serverId);
 
+      // Grouped in the database: the log is kept forever.
       const [serverIds, actorIds, games] = await Promise.all([
-        prisma.auditLog.findMany({
-          where: { serverId },
-          distinct: ["serverId"],
-          select: { serverId: true },
-        }),
-        prisma.auditLog.findMany({
-          where: { serverId, actorId: { not: null } },
-          distinct: ["actorId"],
-          select: { actorId: true },
-        }),
-        // Newest first, so each game comes with its latest name.
-        prisma.auditLog.findMany({
-          where: {
-            serverId,
-            OR: [{ action: { startsWith: "game." } }, { action: { startsWith: "link." } }],
-          },
-          distinct: ["targetId"],
-          orderBy: { createdAt: "desc" },
-          select: { targetId: true, targetName: true, serverId: true },
-        }),
+        // Only the global log lets you pick a server.
+        serverId ? [] : prisma.auditLog.groupBy({ by: ["serverId"] }),
+        prisma.auditLog.groupBy({ by: ["actorId"], where: { serverId, actorId: { not: null } } }),
+        // Each game by the name of its latest entry.
+        prisma.$queryRaw<AuditLogFilters["games"]>`
+          SELECT DISTINCT ON ("targetId") "targetId" AS id, "targetName" AS name, "serverId"
+          FROM "AuditLog"
+          WHERE (action LIKE 'game.%' OR action LIKE 'link.%')
+            ${serverId ? Prisma.sql`AND "serverId" = ${serverId}` : Prisma.empty}
+          ORDER BY "targetId", "createdAt" DESC, id DESC
+        `,
       ]);
       const [servers, users] = await Promise.all([
         prisma.server.findMany({
@@ -156,7 +149,7 @@ export async function auditLogRoutes(app: FastifyInstance) {
         actors: actorIds.flatMap(({ actorId: id }) =>
           id ? [{ id, name: userNames.get(id) ?? null }] : [],
         ),
-        games: games.map((g) => ({ id: g.targetId, name: g.targetName, serverId: g.serverId })),
+        games,
       };
     },
   );
