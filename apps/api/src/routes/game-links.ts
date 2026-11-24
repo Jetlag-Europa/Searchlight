@@ -6,6 +6,7 @@ import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
 import { assertCanManageGame, findActiveLink } from "../lib/game-access.js";
 import { notFound } from "../lib/http-errors.js";
+import { assertWithinWriteLimit } from "../lib/write-limit.js";
 import { createSession } from "./sessions.js";
 
 // A game link lets whoever holds it start sessions of the game: it stands in
@@ -57,9 +58,10 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     { compress: false, schema: { params: Type.Object({ gameId: Type.String() }) } },
     async (req, reply) => {
       const { user } = await resolveSession(req);
+      assertWithinWriteLimit(user.discordId);
       const { gameId } = req.params as { gameId: string };
       const game = await prisma.game.findUnique({ where: { id: gameId } });
-      if (!game) throw notFound("Game not found");
+      if (!game || game.archivedAt) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 
       const link = await prisma.$transaction(async (tx) => {
@@ -101,6 +103,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
+      assertWithinWriteLimit(user.discordId);
       const { gameId, linkId } = req.params as { gameId: string; linkId: string };
       const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw notFound("Game not found");

@@ -99,7 +99,7 @@ every update. Keep API changes working with it.
 
 ## Roll back
 
-Going back to an older version works like any update, except across three
+Going back to an older version works like any update, except across four
 changes that older versions can't handle.
 
 **The installable app** (`e29c68aa6`, #81; releases up to 2.0.0 are older). Once a browser has opened a version with it, it keeps that version's
@@ -184,6 +184,21 @@ WHERE "serverId" = 'home-games' AND "createdById" IS NOT NULL AND "ownerScope" =
 CREATE UNIQUE INDEX "Game_serverId_ownerScope_gameKey_key" ON "Game"("serverId", "ownerScope", "gameKey");
 DROP INDEX "Game_gameKey_key";
 COMMIT;
+```
+
+**Deleting games with sessions** (after 2.2.0). Deleting a game that still has
+sessions now keeps it as an archived row (`Game.archivedAt` set, no current
+revision, unlisted, `ownerScope` `archived:<id>`) until its last session is
+deleted. Older APIs don't filter archived games: they list them on `/games`
+again, unlisted and for game managers only, with no revision, so they can't be
+exported, changed or started, but a manager on an official server could **Make
+listed** one. Casual revisions deleted as unused don't come back; the backup
+taken before the update has them. Roll back to a build that knows archived
+games where you can. Before going back further, see which games would show
+again:
+
+```sql
+SELECT id, "serverId", name FROM "Game" WHERE "archivedAt" IS NOT NULL;
 ```
 
 ### Going back to before the installable app, with these compose files

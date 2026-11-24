@@ -12,6 +12,8 @@ const game: Game = {
   unlisted: false,
   currentRevisionId: "r1",
   createdById: null,
+  createdByName: null,
+  updatedAt: null,
 };
 
 describe("gameSettingsUpdate", () => {

@@ -5,6 +5,7 @@ import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { assertGameAccess, isUnlisted } from "../lib/game-access.js";
 import { badRequest, forbidden, notFound } from "../lib/http-errors.js";
+import { pruneGame } from "../games/import-service.js";
 import {
   broadcast,
   closeUserStreams,
@@ -778,8 +779,16 @@ export async function sessionRoutes(app: FastifyInstance) {
       const { isCreator } = await resolveParticipant(sessionId, user.discordId);
       if (!isCreator) throw forbidden("Only the creator can delete the session");
 
-      await prisma.gameSession.delete({ where: { id: sessionId } });
+      const { gameId } = await prisma.gameSession.delete({
+        where: { id: sessionId },
+        select: { gameId: true },
+      });
       closeSessionStreams(sessionId);
+      // A deleted game goes with its last session. Best effort: the session is
+      // gone either way, and the Casual storage cap prunes what is left.
+      await prisma
+        .$transaction((tx) => pruneGame(tx, gameId))
+        .catch((err: unknown) => req.log.warn({ err, gameId }, "[sessions] prune failed"));
       return reply.status(204).send();
     },
   );

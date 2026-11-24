@@ -7,6 +7,7 @@ import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
 import {
   getUserPermissions,
+  isAdmin,
   userPassesDiscordRoleGate,
   assertServerMembership,
 } from "../lib/permissions.js";
@@ -17,8 +18,10 @@ import {
   isOwnCasualGame,
   isUnlisted,
 } from "../lib/game-access.js";
+import { forbidden, notFound } from "../lib/http-errors.js";
 import { connectedUserIds } from "../lib/broadcaster.js";
-import { ImportValidationError, updateGameSettings } from "../games/import-service.js";
+import { acquireUploadSlot, assertWithinWriteLimit } from "../lib/write-limit.js";
+import { ImportValidationError, pruneGame, updateGameSettings } from "../games/import-service.js";
 
 const gameShape = Type.Object({
   id: Type.String(),
@@ -30,10 +33,24 @@ const gameShape = Type.Object({
   currentRevisionId: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   archivedAt: Type.Optional(Type.Union([Type.String(), Type.Null()])),
   createdById: Type.Union([Type.String(), Type.Null()]),
+  createdByName: Type.Union([Type.String(), Type.Null()]),
+  updatedAt: Type.Union([Type.String(), Type.Null()]),
 });
 
-function serializeGame(game: Prisma.GameGetPayload<{}>) {
-  return {
+// What serializeGames needs besides the game.
+const withRevisionTime = { currentRevision: { select: { createdAt: true } } } as const;
+
+// "updatedAt" is the current revision's upload: Game.updatedAt also moves on
+// local opens.
+async function serializeGames(
+  games: Prisma.GameGetPayload<{ include: typeof withRevisionTime }>[],
+) {
+  const users = await prisma.user.findMany({
+    where: { discordId: { in: games.flatMap((game) => game.createdById ?? []) } },
+    select: { discordId: true, displayName: true },
+  });
+  const names = new Map(users.map((u) => [u.discordId, u.displayName]));
+  return games.map((game) => ({
     id: game.id,
     gameKey: game.gameKey,
     serverId: game.serverId,
@@ -43,7 +60,9 @@ function serializeGame(game: Prisma.GameGetPayload<{}>) {
     currentRevisionId: game.currentRevisionId,
     archivedAt: game.archivedAt?.toISOString() ?? null,
     createdById: game.createdById,
-  };
+    createdByName: (game.createdById && names.get(game.createdById)) ?? null,
+    updatedAt: game.currentRevision?.createdAt.toISOString() ?? null,
+  }));
 }
 
 export async function gameRoutes(app: FastifyInstance) {
@@ -76,30 +95,37 @@ export async function gameRoutes(app: FastifyInstance) {
       if (!server) throw Object.assign(new Error("Server not found"), { statusCode: 404 });
 
       // Virtual servers (e.g. Casual Games) have no Discord guild — skip the
-      // membership check; their games are gated individually below.
+      // membership check; each of their games is listed for its creator only.
       if (!VIRTUAL_SERVER_IDS.has(serverId)) {
         await assertServerMembership(user.discordId, serverId, req.log);
       }
 
+      const casual = serverId === CASUAL_SERVER_ID;
+      if (casual && !includeUnlisted) return { games: [] };
       let games = await prisma.game.findMany({
-        where: { serverId },
+        where: {
+          serverId,
+          archivedAt: null,
+          // A Casual game is listed for its creator (see canManageGame).
+          ...(casual && !isAdmin(user.discordId) && { createdById: user.discordId }),
+        },
+        include: withRevisionTime,
         orderBy: { name: "asc" },
       });
       if (!includeUnlisted) {
         games = games.filter((game) => !isUnlisted(game));
-      } else if (serverId === CASUAL_SERVER_ID) {
-        const shown = [];
-        for (const game of games) {
-          if (await canManageGame(user.discordId, game, req.log)) shown.push(game);
-        }
-        games = shown;
       } else if (
+        !casual &&
         games.some((game) => game.unlisted) &&
         // Elsewhere managing games is per server, whoever created them.
         !(await canManageGame(user.discordId, { serverId, createdById: null }, req.log))
       ) {
         games = games.filter((game) => !game.unlisted);
       }
+
+      // Every gate passes for the viewer: their own Casual games, or a global
+      // admin. Reading `visibility` detoasts each definition.
+      if (casual || isAdmin(user.discordId)) return { games: await serializeGames(games) };
 
       // Only `visibility` is needed here; loading every multi-MB definition
       // made listing a server's games pull its whole game catalogue.
@@ -121,7 +147,7 @@ export async function gameRoutes(app: FastifyInstance) {
         const visibility = game.currentRevisionId
           ? visibilityByRevision.get(game.currentRevisionId)
           : undefined;
-        if (visibility?.kind === "discord-role" && !isOwnCasualGame(user.discordId, game)) {
+        if (visibility?.kind === "discord-role") {
           const passes = await userPassesDiscordRoleGate(
             user.discordId,
             visibility.guildId,
@@ -132,9 +158,9 @@ export async function gameRoutes(app: FastifyInstance) {
             continue;
           }
         }
-        visible.push(serializeGame(game));
+        visible.push(game);
       }
-      return { games: visible };
+      return { games: await serializeGames(visible) };
     },
   );
 
@@ -178,7 +204,7 @@ export async function gameRoutes(app: FastifyInstance) {
         throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
 
       const games = await prisma.game.findMany({
-        where: { serverId },
+        where: { serverId, archivedAt: null },
         select: { id: true, localOpens: true },
       });
       const gameIds = games.map((game) => game.id);
@@ -300,7 +326,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const { unlisted } = req.body as { unlisted: boolean };
 
       const game = await prisma.game.findUnique({ where: { id: gameId } });
-      if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      if (!game || game.archivedAt) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
       if (!unlisted && game.serverId === CASUAL_SERVER_ID) {
         throw Object.assign(new Error("Casual games are always unlisted"), { statusCode: 400 });
@@ -309,7 +335,7 @@ export async function gameRoutes(app: FastifyInstance) {
       const updated = await prisma.$transaction(async (tx) => {
         // Conditional, so a repeat (or a concurrent duplicate) changes and logs nothing.
         const { count } = await tx.game.updateMany({
-          where: { id: game.id, unlisted: !unlisted },
+          where: { id: game.id, unlisted: !unlisted, archivedAt: null },
           data: { unlisted },
         });
         if (count > 0) {
@@ -322,13 +348,19 @@ export async function gameRoutes(app: FastifyInstance) {
             details: { unlisted },
           });
         }
-        return tx.game.findUniqueOrThrow({ where: { id: game.id } });
+        // Deleted meanwhile: listing it would bring it back to the session picker.
+        const current = await tx.game.findUnique({
+          where: { id: game.id },
+          include: withRevisionTime,
+        });
+        if (!current || current.archivedAt) throw notFound("Game not found");
+        return current;
       });
       req.log.info(
         { gameId: game.id, unlisted, userId: user.discordId },
         "[games] listing changed",
       );
-      return serializeGame(updated);
+      return (await serializeGames([updated]))[0];
     },
   );
 
@@ -367,9 +399,10 @@ export async function gameRoutes(app: FastifyInstance) {
       const { user } = await resolveSession(req);
       const { gameId } = req.params as { gameId: string };
       const body = req.body as GameSettingsUpdate;
+      assertWithinWriteLimit(user.discordId);
 
       const game = await prisma.game.findUnique({ where: { id: gameId } });
-      if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      if (!game || game.archivedAt) throw notFound("Game not found");
       // Checked before the definition, which can be several MB, is loaded.
       const perms = await getUserPermissions(user.discordId, game.serverId, true, req.log);
       const canEdit = perms.has("games.edit") || perms.has("server.admin");
@@ -390,6 +423,8 @@ export async function gameRoutes(app: FastifyInstance) {
       }
 
       let result;
+      // Held until the work is done: it loads and validates the whole definition.
+      const releaseUploadSlot = acquireUploadSlot(user.discordId);
       try {
         result = await updateGameSettings({
           game,
@@ -414,10 +449,15 @@ export async function gameRoutes(app: FastifyInstance) {
           });
         }
         throw err;
+      } finally {
+        releaseUploadSlot();
       }
 
-      const updated = await prisma.game.findUnique({ where: { id: game.id } });
-      if (!updated) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      const updated = await prisma.game.findUnique({
+        where: { id: game.id },
+        include: withRevisionTime,
+      });
+      if (!updated || updated.archivedAt) throw notFound("Game not found");
       req.log.info(
         {
           gameId: game.id,
@@ -427,11 +467,19 @@ export async function gameRoutes(app: FastifyInstance) {
         },
         "[games] settings changed",
       );
-      return { status: result.status, revision: result.revision, game: serializeGame(updated) };
+      return {
+        status: result.status,
+        revision: result.revision,
+        game: (await serializeGames([updated]))[0],
+      };
     },
   );
 
-  // DELETE /games/:gameId — delete a game (requires games.delete in the game's server)
+  // DELETE /games/:gameId — delete a game (games.delete on its server; a
+  // Casual game's creator too, also after leaving every server). It leaves
+  // the games list, its game links are revoked and nobody can start sessions
+  // of it; sessions already started keep their revision. The game is kept,
+  // archived, until its last session is deleted (see pruneGame).
   app.delete(
     "/:gameId",
     {
@@ -444,31 +492,47 @@ export async function gameRoutes(app: FastifyInstance) {
       const { gameId } = req.params as { gameId: string };
 
       const game = await prisma.game.findUnique({ where: { id: gameId } });
-      if (!game) throw Object.assign(new Error("Game not found"), { statusCode: 404 });
+      if (!game || game.archivedAt) throw notFound("Game not found");
 
-      const perms = await getUserPermissions(user.discordId, game.serverId, true, req.log);
-      if (!perms.has("games.delete")) {
-        throw Object.assign(new Error("Forbidden"), { statusCode: 403 });
-      }
-
-      const sessionCount = await prisma.gameSession.count({ where: { gameId: game.id } });
-      if (sessionCount > 0) {
-        throw Object.assign(
-          new Error("Cannot delete a game that has sessions. Delete all sessions first."),
-          { statusCode: 409 },
-        );
+      // The creator's check first: it needs no Discord lookup.
+      if (
+        !isOwnCasualGame(user.discordId, game) &&
+        !(await getUserPermissions(user.discordId, game.serverId, true, req.log)).has(
+          "games.delete",
+        )
+      ) {
+        throw forbidden();
       }
 
       await prisma.$transaction(async (tx) => {
-        await tx.game.delete({ where: { id: game.id } });
+        const now = new Date();
+        // Conditional, so a concurrent second delete finds nothing. No current
+        // revision and unlisted close every way to it but sessions'; the
+        // ownerScope frees its id for a new game.
+        const { count } = await tx.game.updateMany({
+          where: { id: game.id, archivedAt: null },
+          data: {
+            archivedAt: now,
+            currentRevisionId: null,
+            unlisted: true,
+            ownerScope: `archived:${game.id}`,
+          },
+        });
+        if (count === 0) throw notFound("Game not found");
+        await tx.gameLink.updateMany({
+          where: { gameId: game.id, revokedAt: null },
+          data: { revokedAt: now },
+        });
+        const sessions = await tx.gameSession.count({ where: { gameId: game.id } });
         await audit(tx, {
           serverId: game.serverId,
           actorId: user.discordId,
           action: "game.delete",
           targetId: game.id,
           targetName: game.name,
-          details: {},
+          details: sessions > 0 ? { sessions } : {},
         });
+        await pruneGame(tx, game.id);
       });
       return reply.status(204).send();
     },

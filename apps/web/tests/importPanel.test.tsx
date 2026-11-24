@@ -150,3 +150,27 @@ test("sends expectedCurrentRevisionId on confirm for an unchanged plain import p
     undefined,
   );
 });
+
+test.each([
+  ["CASUAL_GAME_LIMIT", true],
+  ["CASUAL_STORAGE_LIMIT", false],
+])("a preview refused with %s disables Import: %s", async (code, disabled) => {
+  apiMocks.importGameDefinitionAPI.mockRejectedValueOnce(
+    Object.assign(new Error("You already have 20 Casual games."), { code }),
+  );
+
+  await act(async () =>
+    root!.render(
+      <ImportPanel
+        definition={definition}
+        noServer={false}
+        busy={false}
+        blocked={null}
+        replaceGameId={null}
+      />,
+    ),
+  );
+  await settle();
+
+  expect(submitButton().disabled).toBe(disabled);
+});

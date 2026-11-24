@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import {
+  CASUAL_GAME_LIMIT,
   CASUAL_SERVER_ID,
+  CASUAL_STORAGE_LIMIT_MB,
   computeGameDefinitionChecksum,
   type ExistingGameComparison,
   type GameDefinition,
@@ -12,6 +14,7 @@ import {
 import prisma from "../lib/prisma.js";
 import { audit } from "../lib/audit.js";
 import { broadcast } from "../lib/broadcaster.js";
+import { isAdmin } from "../lib/permissions.js";
 import { compareWithExisting } from "./compare-games.js";
 
 // GameRevision.revision is a PostgreSQL integer.
@@ -107,8 +110,6 @@ interface ImportContext {
   // revision once the game is locked: the revision an import previewed, or
   // the one a settings edit started from.
   expectedCurrentRevisionId?: string;
-  // Imports un-archive the game; a settings edit leaves that alone.
-  keepArchived?: boolean;
 }
 
 function isUniqueViolation(err: unknown): boolean {
@@ -126,6 +127,112 @@ function concurrentImport(err: unknown): never {
     );
   }
   throw err;
+}
+
+// Casual games are open to anyone in one of the registered servers, so each
+// creator's share is capped (global admins aren't). Tests lower these.
+export const CASUAL_LIMITS = {
+  games: CASUAL_GAME_LIMIT,
+  bytes: CASUAL_STORAGE_LIMIT_MB * 1024 * 1024,
+};
+
+// Whose Casual limits a change to a game on this server counts against, if anyone's.
+function limitedUser(serverId: string, actor: ImportActor | undefined): string | null {
+  return serverId === CASUAL_SERVER_ID && actor && !isAdmin(actor.userId) ? actor.userId : null;
+}
+
+// Serializes a user's Casual writes, so two of them can't both pass the
+// limits. NO KEY UPDATE: inserts referencing the user (sessions, events) take
+// KEY SHARE, which FOR UPDATE would block or deadlock with.
+async function lockUser(tx: Prisma.TransactionClient, userId: string): Promise<void> {
+  await tx.$queryRaw`SELECT 1 FROM "User" WHERE "discordId" = ${userId} FOR NO KEY UPDATE`;
+}
+
+// The user's Casual games that aren't deleted, and the bytes as stored of all
+// their revisions, deleted games' included (else create, play, delete, repeat
+// would evade the cap).
+async function casualUsage(
+  db: Prisma.TransactionClient,
+  userId: string,
+): Promise<{ games: number; bytes: number }> {
+  const [row] = await db.$queryRaw<{ games: number; bytes: bigint }[]>`
+    SELECT COUNT(DISTINCT g.id) FILTER (WHERE g."archivedAt" IS NULL)::int AS games,
+      COALESCE(SUM(pg_column_size(r.definition)), 0)::bigint AS bytes
+    FROM "Game" g LEFT JOIN "GameRevision" r ON r."gameId" = g.id
+    WHERE g."serverId" = ${CASUAL_SERVER_ID} AND g."createdById" = ${userId}
+  `;
+  return { games: row.games, bytes: Number(row.bytes) };
+}
+
+function casualGameLimit(): ImportConflictError {
+  return new ImportConflictError(
+    `You already have ${CASUAL_LIMITS.games} Casual games. Delete one to upload another.`,
+    "CASUAL_GAME_LIMIT",
+  );
+}
+
+/**
+ * Throws unless the user's Casual games, with this transaction's change, stay
+ * within the limits. Under lockUser. `createsGame` also checks the game count.
+ */
+async function assertCasualLimits(
+  tx: Prisma.TransactionClient,
+  userId: string,
+  createsGame: boolean,
+): Promise<void> {
+  let usage = await casualUsage(tx, userId);
+  if (createsGame && usage.games > CASUAL_LIMITS.games) throw casualGameLimit();
+  if (usage.bytes <= CASUAL_LIMITS.bytes) return;
+  // Revisions whose last user went without a prune (it is best effort after a
+  // session delete, and absent after upgrades and fork revokes) still count:
+  // prune them all before refusing.
+  const games = await tx.game.findMany({
+    where: { serverId: CASUAL_SERVER_ID, createdById: userId },
+    select: { id: true },
+  });
+  for (const { id } of games) await pruneGame(tx, id);
+  usage = await casualUsage(tx, userId);
+  if (usage.bytes > CASUAL_LIMITS.bytes) {
+    const mb = (bytes: number) => Math.ceil(bytes / (1024 * 1024));
+    throw Object.assign(
+      new Error(
+        `This would bring your Casual games to ${mb(usage.bytes)} MB, over the ${mb(CASUAL_LIMITS.bytes)} MB allowed. Versions that existing sessions still use count toward it. Try a smaller file, or delete a game nobody is playing.`,
+      ),
+      { statusCode: 413, code: "CASUAL_STORAGE_LIMIT" },
+    );
+  }
+}
+
+/**
+ * Deletes the revisions of a Casual or deleted game that nothing uses: not
+ * current, no session or active fork link on them, and while the game lives,
+ * not its highest (that number must not come back with other content). A
+ * deleted game goes with its last session. Official games keep every
+ * revision: their managers re-activate old files.
+ */
+export async function pruneGame(tx: Prisma.TransactionClient, gameId: string): Promise<void> {
+  // Serializes with imports, which could otherwise make a revision current
+  // while it is deleted here.
+  await tx.$queryRaw`SELECT 1 FROM "Game" WHERE id = ${gameId} FOR UPDATE`;
+  // SKIP LOCKED: a session being created on a revision holds a lock on it.
+  await tx.$executeRaw`
+    DELETE FROM "GameRevision" WHERE id IN (
+      SELECT r.id FROM "GameRevision" r JOIN "Game" g ON g.id = r."gameId"
+      WHERE r."gameId" = ${gameId}
+        AND (g."serverId" = ${CASUAL_SERVER_ID} OR g."archivedAt" IS NOT NULL)
+        AND r.id IS DISTINCT FROM g."currentRevisionId"
+        AND (g."archivedAt" IS NOT NULL
+          OR r.revision < (SELECT max(revision) FROM "GameRevision" WHERE "gameId" = ${gameId}))
+        AND NOT EXISTS (SELECT 1 FROM "GameSession" s WHERE s."gameRevisionId" = r.id)
+        AND NOT EXISTS (
+          SELECT 1 FROM "LinkSnapshot" l JOIN "SessionLink" sl ON sl.id = l."linkId"
+          WHERE l."gameRevisionId" = r.id AND sl."revokedAt" IS NULL)
+      FOR UPDATE OF r SKIP LOCKED)
+  `;
+  await tx.$executeRaw`
+    DELETE FROM "Game" WHERE id = ${gameId} AND "archivedAt" IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM "GameSession" WHERE "gameId" = ${gameId})
+  `;
 }
 
 /**
@@ -269,6 +376,11 @@ async function importDefinition(
     );
   }
 
+  const limited = limitedUser(def.serverId, actor);
+  if (limited && (await casualUsage(prisma, limited)).games >= CASUAL_LIMITS.games) {
+    throw casualGameLimit();
+  }
+
   if (dryRun) {
     return {
       status: "created",
@@ -283,6 +395,7 @@ async function importDefinition(
 
   try {
     return await prisma.$transaction(async (tx) => {
+      if (limited) await lockUser(tx, limited);
       const game = await tx.game.create({
         data: {
           gameKey,
@@ -312,6 +425,7 @@ async function importDefinition(
         where: { id: game.id },
         data: { currentRevisionId: rev.id },
       });
+      if (limited) await assertCasualLimits(tx, limited, true);
       await audit(tx, {
         serverId: def.serverId,
         actorId: actor?.userId ?? null,
@@ -380,10 +494,13 @@ async function importRevision(
   const { def, gameKey, checksum, warnings, source, actor } = ctx;
 
   await assertCanUpdate(ctx, game);
+  const limited = ctx.dryRun ? null : limitedUser(game.serverId, actor);
 
   // The game's sessions, told once the new current revision is committed.
   let announce: (() => void) | undefined;
   const imported = await prisma.$transaction(async (tx) => {
+    // Before the game: lockUser's order everywhere.
+    if (limited) await lockUser(tx, limited);
     // Serialize imports of this game, so the checks and the revision number
     // below see every revision committed before this one. The current
     // revision's name and play area are read for the comparison with the
@@ -395,18 +512,19 @@ async function importRevision(
         name: string;
         size: string;
         createdById: string | null;
+        archivedAt: Date | null;
         bounds: unknown;
         center: unknown;
       }[]
     >`
       SELECT g."currentRevisionId", g."preloadChecksum", g.name, g.size, g."createdById",
-        r.definition->'map'->'bounds' AS bounds, r.definition->'map'->'center' AS center
+        g."archivedAt", r.definition->'map'->'bounds' AS bounds, r.definition->'map'->'center' AS center
       FROM "Game" g
       LEFT JOIN "GameRevision" r ON r.id = g."currentRevisionId"
       WHERE g.id = ${game.id}
       FOR UPDATE OF g
     `;
-    if (!locked) {
+    if (!locked || locked.archivedAt) {
       throw new ImportConflictError("The game was deleted during the import", "GAME_DELETED");
     }
     // An import committed since the caller previewed the game or read the
@@ -477,9 +595,9 @@ async function importRevision(
       );
     }
 
-    // C. Content identical to an older revision re-activates that revision;
-    // new content becomes the next one. Existing revisions are never rewritten:
-    // sessions are pinned to them.
+    // C. Content identical to an older revision still stored (see pruneGame)
+    // re-activates that revision; new content becomes the next one. Existing
+    // revisions are never rewritten: sessions are pinned to them.
     const previous = await tx.gameRevision.findUnique({
       where: { gameId_checksum: { gameId: game.id, checksum } },
       select: { id: true, revision: true },
@@ -538,10 +656,11 @@ async function importRevision(
         name: def.name,
         size,
         currentRevisionId: revId,
-        archivedAt: ctx.keepArchived ? undefined : null,
         preloadChecksum,
       },
     });
+    await pruneGame(tx, game.id);
+    if (limited) await assertCasualLimits(tx, limited, false);
     await audit(tx, {
       serverId: game.serverId,
       actorId: actor?.userId ?? null,
@@ -692,7 +811,6 @@ export async function updateGameSettings(
       dryRun: false,
       allowUpdate: true,
       expectedCurrentRevisionId: baseRevisionId,
-      keepArchived: true,
     },
     game,
   );

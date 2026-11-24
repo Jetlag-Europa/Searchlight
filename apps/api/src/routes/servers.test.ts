@@ -29,6 +29,7 @@ const OTHER_SERVER_ID = "test-servers-other";
 const SESSION_SERVER_ID = "test-servers-session";
 const TEST_SERVER_IDS = [MEMBER_SERVER_ID, OTHER_SERVER_ID, SESSION_SERVER_ID];
 const GAME_ID = "test-servers-game";
+const CASUAL_GAME_ID = "test-servers-casual-game";
 const SESSION_ID = "test-servers-session-1";
 
 async function buildTestApp() {
@@ -46,7 +47,7 @@ function signedCookie(app: Awaited<ReturnType<typeof buildTestApp>>, value: stri
 async function cleanup() {
   await prisma.gameSession.deleteMany({ where: { id: SESSION_ID } });
   await prisma.gameRevision.deleteMany({ where: { gameId: GAME_ID } });
-  await prisma.game.deleteMany({ where: { id: GAME_ID } });
+  await prisma.game.deleteMany({ where: { id: { in: [GAME_ID, CASUAL_GAME_ID] } } });
   await prisma.authSession.deleteMany({ where: { id: AUTH_SESSION_ID } });
   await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
   await prisma.server.deleteMany({ where: { id: { in: TEST_SERVER_IDS } } });
@@ -127,18 +128,80 @@ describe("GET /servers", () => {
       headers: { cookie: signedCookie(app, AUTH_SESSION_ID) },
     });
     expect(res.statusCode).toBe(200);
-    return res.json().servers as { id: string; permissions: string[]; isMember: boolean }[];
+    return res.json().servers as {
+      id: string;
+      permissions: string[];
+      isMember: boolean;
+      hasSessions: boolean;
+      hasOwnGames: boolean;
+    }[];
   }
 
-  test("leaves out Casual Games for a user without sessions or permissions there", async () => {
-    const ids = (await listServers()).map((s) => s.id);
-    expect(ids).not.toContain(CASUAL_GAMES_ID);
+  // Answers "not a member" for every server, as for someone who left them all.
+  async function inNoServer<T>(run: () => Promise<T>): Promise<T> {
+    await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+    const answerMembership = mockGetMember.getMockImplementation();
+    mockGetMember.mockImplementation(async (serverId: string) => {
+      if (!serverId.startsWith("test-servers-")) throw new Error("Not this file's server");
+      return null;
+    });
+    try {
+      return await run();
+    } finally {
+      mockGetMember.mockImplementation(answerMembership!);
+      await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+    }
+  }
+
+  test("lists Casual Games last, with games.create for someone in a server, on the first load", async () => {
+    await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
+    const servers = await listServers();
+    expect(servers.at(-1)).toEqual({
+      id: CASUAL_GAMES_ID,
+      name: "Casual Games",
+      iconUrl: null,
+      permissions: ["games.create"],
+      isMember: true,
+      hasSessions: false,
+      hasOwnGames: false,
+    });
+    expect(servers.find((s) => s.id === MEMBER_SERVER_ID)).toMatchObject({ hasSessions: false });
+    expect(servers.find((s) => s.id === SESSION_SERVER_ID)).toMatchObject({ hasSessions: true });
     // It has no guild to look up.
     expect(mockGetMember).not.toHaveBeenCalledWith(
       CASUAL_GAMES_ID,
       expect.anything(),
       expect.anything(),
     );
+  });
+
+  test("leaves out Casual Games for someone in no server without sessions or games there", async () => {
+    const ids = (await inNoServer(listServers)).map((s) => s.id);
+    expect(ids).toContain(SESSION_SERVER_ID);
+    expect(ids).not.toContain(CASUAL_GAMES_ID);
+  });
+
+  test("lists Casual Games for the creator of a game there who left every server, unless it was deleted", async () => {
+    await prisma.game.create({
+      data: {
+        id: CASUAL_GAME_ID,
+        serverId: CASUAL_GAMES_ID,
+        name: "Own Casual Game",
+        gameKey: CASUAL_GAME_ID,
+        ownerScope: USER_ID,
+        createdById: USER_ID,
+        unlisted: true,
+        archivedAt: new Date(),
+      },
+    });
+    try {
+      expect((await inNoServer(listServers)).map((s) => s.id)).not.toContain(CASUAL_GAMES_ID);
+      await prisma.game.update({ where: { id: CASUAL_GAME_ID }, data: { archivedAt: null } });
+      const casual = (await inNoServer(listServers)).find((s) => s.id === CASUAL_GAMES_ID);
+      expect(casual).toMatchObject({ permissions: [], isMember: true, hasOwnGames: true });
+    } finally {
+      await prisma.game.delete({ where: { id: CASUAL_GAME_ID } });
+    }
   });
 
   test("lists servers the user is in and leaves out the ones they aren't", async () => {

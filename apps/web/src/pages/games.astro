@@ -21,16 +21,16 @@ import { GameManager } from "@/components/GameManager";
 
     <AuthGuard client:only="react" />
 
-    <main class="container mx-auto max-w-4xl p-8">
+    <main class="container mx-auto max-w-4xl px-4 py-6 sm:p-8">
         <a href="/map" class="inline-block text-xs text-muted-foreground underline mb-2">
             ← Back to map
         </a>
         <h1 class="text-2xl font-bold mb-2">Game Management</h1>
         <p class="text-sm text-muted-foreground mb-8">
-            Manage game definitions for each JetLag server.
-            Only servers where you hold <code>games.create</code>, <code>games.edit</code>,
-            <code>games.delete</code> or <code>server.admin</code> permissions are shown.
-            Server admins also see how much each game is played.
+            Upload and manage the games you can start sessions with. You see Casual Games,
+            where anyone in one of the JetLag Discord servers can upload their own, plus every
+            server where you have a game role. Server admins also see how much each game is
+            played.
         </p>
         <GameManager client:only="react" />
     </main>

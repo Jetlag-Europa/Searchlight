@@ -4,6 +4,16 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Anyone can upload Casual games, delete games, and a tidier /games (2026-11-25)
+
+- Everyone in one of the JetLag Discord servers that use Searchlight can now upload Casual games, on `/games` or from Map Creator, without a role. The **Create Casual games** role on `/admin` is gone. Casual games stay unlisted: only their creator and the Searchlight admins see them on `/games`, and others play them through game links. If you leave all of those servers, you keep your Casual games: you can still export them, manage their links and delete them, but not change them.
+- Each player can have up to 20 Casual games, using up to 100 MB in total. Older versions that sessions still use count too. The Casual Games section on `/games` says how many of your 20 you have. Uploading, previewing and changing games or game links is limited to 60 times in 10 minutes per player, and to 2 uploads at a time. Searchlight admins have no limits.
+- You can now delete your own Casual games. Games with sessions can now be deleted too, on every server: the game disappears from `/games` and from the games offered for new sessions, and its game links stop working at once. Sessions already started keep working until their creators delete them. Importing a file with the same id afterwards adds a new game. The confirm suggests **Export JSON** first, as there is no undo.
+- Casual games now keep only the versions still in use: the current one, the newest, and those sessions still play. The others are deleted when the game gets a new version or is deleted. Games on the JetLag servers keep all their versions, as before.
+- `/games` shows each game as a row with who uploaded it and when it was last updated. Click a row for its details and buttons. A server with more than 10 games starts with its rows closed, lists the most recently updated first, shows 20 at a time and has a search by game or uploader. Each section heading says how many games it has. Casual Games comes last, with a link to jump to it.
+- **History** on each game shows who uploaded each version and when, and who created or revoked its game links. Everyone who manages the game sees it, Casual creators included, and it goes back to each game's first upload, from before the audit log existed.
+- The session picker on `/map` no longer lists Casual Games when you have no sessions there, so players in one JetLag server get their server picked again. Its Casual note links to `/games` to upload your own.
+
 ## Safer role permissions on /admin (2026-11-25)
 
 - Unticking **Server admin** for a role now asks first, since everyone whose admin access comes only from that role loses it, possibly you too. If you lose admin access to a server, its card now says so instead of showing the old permissions.

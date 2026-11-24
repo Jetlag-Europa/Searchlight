@@ -42,7 +42,8 @@ export async function serverRoutes(app: FastifyInstance) {
   // have sessions without being in the guild, e.g. sessions started from a
   // game link. Each comes with the user's permissions there. Virtual servers
   // (Casual Games) are listed for those with sessions, games they created
-  // (which they keep without the role) or permissions there.
+  // (which they keep after leaving every server) or permissions there, after
+  // the real servers.
   // `recheck=true` asks Discord again about the servers the user wasn't in a
   // minute or more ago, for someone who just joined one.
   app.get(
@@ -61,6 +62,8 @@ export async function serverRoutes(app: FastifyInstance) {
                 iconUrl: Type.Union([Type.String(), Type.Null()]),
                 permissions: Type.Array(Type.String()),
                 isMember: Type.Boolean(),
+                hasSessions: Type.Boolean(),
+                hasOwnGames: Type.Boolean(),
               }),
             ),
           }),
@@ -79,7 +82,11 @@ export async function serverRoutes(app: FastifyInstance) {
           distinct: ["serverId"],
         }),
         prisma.game.findMany({
-          where: { serverId: { in: [...VIRTUAL_SERVER_IDS] }, createdById: user.discordId },
+          where: {
+            serverId: { in: [...VIRTUAL_SERVER_IDS] },
+            createdById: user.discordId,
+            archivedAt: null,
+          },
           select: { serverId: true },
           distinct: ["serverId"],
         }),
@@ -87,41 +94,58 @@ export async function serverRoutes(app: FastifyInstance) {
       const hasSessions = new Set(sessionServers.map((s) => s.serverId));
       const hasOwnGames = new Set(ownGameServers.map((g) => g.serverId));
 
-      const settled = await Promise.allSettled(
-        servers.map(async (server) => {
-          let access: { isMember: boolean; permissions: Set<string> };
-          try {
-            access = await getListingAccess(user.discordId, server.id, recheck, req.log);
-          } catch (err) {
-            // Sessions don't need Discord, so keep them reachable.
-            if (!hasSessions.has(server.id)) throw err;
-            req.log.warn(
-              { serverId: server.id, err },
-              "Could not check server membership — listing for sessions only",
-            );
-            access = { isMember: false, permissions: new Set() };
-          }
-          const { isMember, permissions: perms } = access;
-          if (!isMember && !hasSessions.has(server.id)) return null;
-          if (
-            VIRTUAL_SERVER_IDS.has(server.id) &&
-            perms.size === 0 &&
-            !hasSessions.has(server.id) &&
-            !hasOwnGames.has(server.id)
-          ) {
-            return null;
-          }
-          return {
-            id: server.id,
-            name: server.name,
-            iconUrl: server.iconUrl,
-            permissions: [...perms],
-            isMember,
-          };
-        }),
+      const list = (listed: typeof servers, memberSomewhere = false) =>
+        Promise.allSettled(
+          listed.map(async (server) => {
+            let access: { isMember: boolean; permissions: Set<string> };
+            try {
+              access = await getListingAccess(
+                user.discordId,
+                server.id,
+                recheck,
+                req.log,
+                memberSomewhere,
+              );
+            } catch (err) {
+              // Sessions don't need Discord, so keep them reachable.
+              if (!hasSessions.has(server.id)) throw err;
+              req.log.warn(
+                { serverId: server.id, err },
+                "Could not check server membership — listing for sessions only",
+              );
+              access = { isMember: false, permissions: new Set() };
+            }
+            const { isMember, permissions: perms } = access;
+            if (!isMember && !hasSessions.has(server.id)) return null;
+            if (
+              VIRTUAL_SERVER_IDS.has(server.id) &&
+              perms.size === 0 &&
+              !hasSessions.has(server.id) &&
+              !hasOwnGames.has(server.id)
+            ) {
+              return null;
+            }
+            return {
+              id: server.id,
+              name: server.name,
+              iconUrl: server.iconUrl,
+              permissions: [...perms],
+              isMember,
+              hasSessions: hasSessions.has(server.id),
+              hasOwnGames: hasOwnGames.has(server.id),
+            };
+          }),
+        );
+
+      // Real servers first: whether the user is in one of them decides what
+      // they may do on the virtual ones, also on their first visit.
+      const real = await list(servers.filter((server) => !VIRTUAL_SERVER_IDS.has(server.id)));
+      const virtual = await list(
+        servers.filter((server) => VIRTUAL_SERVER_IDS.has(server.id)),
+        real.some((r) => r.status === "fulfilled" && r.value?.isMember),
       );
 
-      const result = settled.flatMap((r) => {
+      const result = [...real, ...virtual].flatMap((r) => {
         if (r.status === "rejected") {
           req.log.warn(
             { reason: String(r.reason) },

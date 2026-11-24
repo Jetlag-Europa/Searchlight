@@ -293,6 +293,17 @@ describe("GET /games/stats", () => {
     }
   });
 
+  test("leaves out a deleted game", async () => {
+    await prisma.game.update({ where: { id: QUIET_GAME_ID }, data: { archivedAt: new Date() } });
+    try {
+      const stats = (await getStats(ADMIN_ID)).json().stats as { gameId: string }[];
+      expect(stats.map((s) => s.gameId)).not.toContain(QUIET_GAME_ID);
+      expect(stats.map((s) => s.gameId)).toContain(BUSY_GAME_ID);
+    } finally {
+      await prisma.game.update({ where: { id: QUIET_GAME_ID }, data: { archivedAt: null } });
+    }
+  });
+
   test("refuses game managers without server.admin and players", async () => {
     expect((await getStats(MANAGER_ID)).statusCode).toBe(403);
     expect((await getStats(PLAYER_A)).statusCode).toBe(403);

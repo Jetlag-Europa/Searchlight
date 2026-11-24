@@ -5,14 +5,16 @@ vi.mock("./discord-client.js", () => ({
   discord: { getGuildMember: vi.fn() },
 }));
 
+import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "./prisma.js";
+import { env } from "./env.js";
 import { discord } from "./discord-client.js";
 import {
   assertServerMembership,
   getListingAccess,
   getUserPermissions,
   getUserRoleIds,
-  hasPermissionOnSomeServer,
+  isMemberOfSomeServer,
   userPassesDiscordRoleGate,
 } from "./permissions.js";
 
@@ -170,14 +172,23 @@ describe("assertServerMembership — cached membership", () => {
   });
 });
 
-describe("hasPermissionOnSomeServer", () => {
-  const ROLE_ID = "test-perm-ttl-importer";
+describe("isMemberOfSomeServer", () => {
+  const OTHER_SERVER_ID = "test-perm-ttl-server-2";
+  const HOUR = 60 * 60 * 1000;
+
+  async function cache(serverId: string, isMember: boolean, ageMs: number) {
+    const row = { isMember, roles: [], cachedAt: new Date(Date.now() - ageMs) };
+    await prisma.serverMembershipCache.upsert({
+      where: { userId_serverId: { userId: USER_ID, serverId } },
+      update: row,
+      create: { userId: USER_ID, serverId, ...row },
+    });
+  }
 
   beforeAll(async () => {
     await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
-    await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
     await prisma.user.deleteMany({ where: { discordId: USER_ID } });
-    await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+    await prisma.server.deleteMany({ where: { id: { in: [SERVER_ID, OTHER_SERVER_ID] } } });
 
     await prisma.user.create({
       data: {
@@ -190,55 +201,99 @@ describe("hasPermissionOnSomeServer", () => {
         discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
       },
     });
-    await prisma.server.create({ data: { id: SERVER_ID, name: "Perm TTL Server" } });
-    await prisma.rolePermission.create({
-      data: { serverId: SERVER_ID, discordRoleId: ROLE_ID, permission: "games.create" },
+    await prisma.server.createMany({
+      data: [
+        { id: SERVER_ID, name: "Perm TTL Server" },
+        { id: OTHER_SERVER_ID, name: "Perm TTL Server 2" },
+      ],
     });
+    // It asks about every registered server: only this file's are its to ask about.
+    const findServers = prisma.server.findMany.bind(prisma.server);
+    vi.spyOn(prisma.server, "findMany").mockImplementation(((args: { where?: object }) =>
+      findServers({
+        ...args,
+        where: { AND: [args?.where ?? {}, { id: { in: [SERVER_ID, OTHER_SERVER_ID] } }] },
+      })) as never);
   });
 
   afterAll(async () => {
+    vi.mocked(prisma.server.findMany).mockRestore();
     await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
-    await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
     await prisma.user.deleteMany({ where: { discordId: USER_ID } });
-    await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+    await prisma.server.deleteMany({ where: { id: { in: [SERVER_ID, OTHER_SERVER_ID] } } });
   });
 
   beforeEach(async () => {
     await prisma.serverMembershipCache.deleteMany({ where: { userId: USER_ID } });
     mockGetMember.mockReset();
+    mockGetMember.mockResolvedValue(null);
   });
 
-  test("finds a permission held through a cached member's role", async () => {
-    await setCache([ROLE_ID], 10 * 1000);
-    expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(true);
-    expect(await hasPermissionOnSomeServer(USER_ID, ["server.admin"])).toBe(false);
+  test("asks a server the cache says they're in first, without calling Discord", async () => {
+    await cache(OTHER_SERVER_ID, true, 30 * 60 * 1000);
+    expect(await isMemberOfSomeServer(USER_ID)).toBe(true);
     expect(mockGetMember).not.toHaveBeenCalled();
   });
 
-  test("re-checks the roles of a membership cached over a minute ago", async () => {
-    await setCache([ROLE_ID], 2 * 60 * 1000);
-    mockGetMember.mockResolvedValue({ roles: [], nick: null });
-    expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(false);
+  test("re-checks a membership cached over an hour ago: someone who left is no member", async () => {
+    await cache(SERVER_ID, true, 2 * HOUR);
+    await cache(OTHER_SERVER_ID, false, 10 * 1000);
+    expect(await isMemberOfSomeServer(USER_ID)).toBe(false);
     expect(mockGetMember).toHaveBeenCalledOnce();
   });
 
-  test("doesn't look up servers the user has no cached membership on", async () => {
-    expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(false);
+  test("asks Discord about servers never checked", async () => {
+    mockGetMember.mockImplementation(async (serverId: string) =>
+      serverId === OTHER_SERVER_ID ? { roles: [], nick: null } : null,
+    );
+    expect(await isMemberOfSomeServer(USER_ID)).toBe(true);
+  });
+
+  test("a failed lookup doesn't matter once another server says yes", async () => {
+    mockGetMember.mockImplementation(async (serverId: string) => {
+      if (serverId === SERVER_ID) throw new Error("Discord unavailable");
+      return { roles: [], nick: null };
+    });
+    expect(await isMemberOfSomeServer(USER_ID)).toBe(true);
+  });
+
+  test("throws when a lookup failed and no server said yes", async () => {
+    await cache(OTHER_SERVER_ID, false, 10 * 1000);
+    mockGetMember.mockRejectedValue(new Error("Discord unavailable"));
+    await expect(isMemberOfSomeServer(USER_ID)).rejects.toThrow("Discord unavailable");
+  });
+
+  test("global admins count as members without a lookup", async () => {
+    const previousAdmins = env.ADMIN_DISCORD_IDS;
+    env.ADMIN_DISCORD_IDS = USER_ID;
+    try {
+      expect(await isMemberOfSomeServer(USER_ID)).toBe(true);
+    } finally {
+      env.ADMIN_DISCORD_IDS = previousAdmins;
+    }
     expect(mockGetMember).not.toHaveBeenCalled();
   });
 
-  test("serves a recently cached non-member without calling Discord", async () => {
-    await setNonMemberCache(10 * 1000);
-    mockGetMember.mockResolvedValue({ roles: [ROLE_ID], nick: null });
-    expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(false);
-    expect(mockGetMember).not.toHaveBeenCalled();
+  test("gives games.create on Casual Games to members of some server only", async () => {
+    await cache(SERVER_ID, true, 10 * 1000);
+    expect([...(await getUserPermissions(USER_ID, CASUAL_SERVER_ID, true))]).toEqual([
+      "games.create",
+    ]);
+    await cache(SERVER_ID, false, 10 * 1000);
+    await cache(OTHER_SERVER_ID, false, 10 * 1000);
+    expect(await getUserPermissions(USER_ID, CASUAL_SERVER_ID, true)).toEqual(new Set());
   });
 
-  test("re-checks a non-member cached over a minute ago, so a new role takes effect", async () => {
-    await setNonMemberCache(30 * 60 * 1000);
-    mockGetMember.mockResolvedValue({ roles: [ROLE_ID], nick: null });
-    expect(await hasPermissionOnSomeServer(USER_ID, ["games.create"])).toBe(true);
-    expect(mockGetMember).toHaveBeenCalledOnce();
+  test("the listing gives games.create on Casual Games when told they're in a server", async () => {
+    expect(await getListingAccess(USER_ID, CASUAL_SERVER_ID, false, undefined, true)).toEqual({
+      isMember: true,
+      permissions: new Set(["games.create"]),
+    });
+    expect(await getListingAccess(USER_ID, CASUAL_SERVER_ID, false)).toEqual({
+      isMember: true,
+      permissions: new Set(),
+    });
+    expect(mockGetMember).not.toHaveBeenCalled();
   });
 });
 

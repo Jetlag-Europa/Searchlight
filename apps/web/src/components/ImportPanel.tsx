@@ -60,6 +60,8 @@ export function ImportPanel({
   const [servers, setServers] = useState<ServerOption[] | null>(null);
   const [serversError, setServersError] = useState<string | null>(null);
   const [serversRefresh, setServersRefresh] = useState(0);
+  // Check again asks Discord again, for someone who just joined a server.
+  const recheckServers = useRef(false);
   // The file's own server comes first, as it did in the import dialog,
   // then the one the games page sent the user here for.
   const [serverId, setServerId] = useState<string>(
@@ -88,7 +90,9 @@ export function ImportPanel({
     if (!userId || replaceGameId) return;
     let cancelled = false;
     setServersError(null);
-    fetch(`${API_BASE}/servers`, { credentials: "include" })
+    fetch(`${API_BASE}/servers${recheckServers.current ? "?recheck=true" : ""}`, {
+      credentials: "include",
+    })
       .then(async (r) => {
         if (!r.ok) {
           if (!cancelled) {
@@ -105,6 +109,7 @@ export function ImportPanel({
       .catch(() => {
         if (!cancelled) setServersError("Couldn't load your servers");
       });
+    recheckServers.current = false;
     return () => {
       cancelled = true;
     };
@@ -242,7 +247,23 @@ export function ImportPanel({
       ) : servers === null ? (
         <p className="text-xs text-muted-foreground">Loading your servers…</p>
       ) : servers.length === 0 && !unknownServer ? (
-        <p className="text-xs text-destructive">You can&apos;t import games to any server.</p>
+        <div className="space-y-2">
+          <p className="text-xs text-destructive">
+            To upload games, join one of the JetLag Discord servers that use Searchlight.
+          </p>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              recheckServers.current = true;
+              setServers(null);
+              setServersRefresh((n) => n + 1);
+            }}
+          >
+            Check again
+          </Button>
+        </div>
       ) : (
         <div>
           <label
@@ -452,6 +473,7 @@ export function ImportPanel({
             previewing ||
             needsConfirm ||
             previewCode === "GAME_ID_TAKEN" ||
+            previewCode === "CASUAL_GAME_LIMIT" ||
             (!!replaceGameId && dryRun?.gameId !== replaceGameId)
           }
         >
