@@ -82,6 +82,13 @@ export const parseCoordinatesFromText = (
   return { lat: null, lng: null };
 };
 
+// -0 is the S/W side of 0: typing "0.07" over a W value passes through "0" and must stay W.
+const isSouthOrWest = (value: number) => value < 0 || Object.is(value, -0);
+
+/** A typed latitude or longitude: a negative one as typed, a positive one on the field's side. */
+export const typedCoordinate = (typed: number, current: number): number =>
+  typed < 0 ? typed : isSouthOrWest(current) ? -typed : typed;
+
 export interface LocalLocation {
   name: string;
   lat: number;
@@ -239,15 +246,12 @@ const LatLngEditForm = ({
           onPaste={pasteCoordinates}
           onChange={(e) => {
             if (isNaN(parseFloat(e.target.value))) return;
-            onChange(
-              parseFloat(e.target.value) * (latitude !== 0 ? Math.sign(latitude) : -1),
-              null,
-            );
+            onChange(typedCoordinate(parseFloat(e.target.value), latitude), null);
           }}
           disabled={disabled}
         />
         <Button variant="outline" onClick={() => onChange(-latitude, null)} disabled={disabled}>
-          {latitude > 0 ? "N" : "S"}
+          {isSouthOrWest(latitude) ? "S" : "N"}
         </Button>
       </div>
       <div className="flex gap-2 items-center">
@@ -260,15 +264,12 @@ const LatLngEditForm = ({
           onPaste={pasteCoordinates}
           onChange={(e) => {
             if (isNaN(parseFloat(e.target.value))) return;
-            onChange(
-              null,
-              parseFloat(e.target.value) * (longitude !== 0 ? Math.sign(longitude) : -1),
-            );
+            onChange(null, typedCoordinate(parseFloat(e.target.value), longitude));
           }}
           disabled={disabled}
         />
         <Button variant="outline" onClick={() => onChange(null, -longitude)} disabled={disabled}>
-          {longitude > 0 ? "E" : "W"}
+          {isSouthOrWest(longitude) ? "W" : "E"}
         </Button>
       </div>
 

@@ -4,6 +4,13 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Question card fixes (2026-11-25)
+
+- Tapping the answer that is already selected (a new card's Inside, Warmer or Hider Closer) keeps it. Before, it switched to the opposite answer and removed the hider's real zone.
+- A negative latitude or longitude typed into a card, such as Google Maps' `-0.12395`, is used as typed. Before, a card already west of Greenwich turned it east.
+- Loading a custom preset, or applying one from the clipboard, changes only the question's places or points. Before, it also moved the question and changed its answer and colour.
+- Auto zoom no longer moves the map for other players' changes, while you drag a marker, or while you place a custom question's points.
+
 ## Audit log for admins (2026-11-22)
 
 - `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".

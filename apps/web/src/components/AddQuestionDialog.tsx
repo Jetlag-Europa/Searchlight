@@ -21,7 +21,12 @@ import {
   leafletMapContext,
 } from "@/lib/context";
 import { newQuestionPosition, newThermometerData } from "@/lib/questionPosition";
+import { questionCardToShow } from "@/lib/questionSidebarTab";
 import { newQuestionKey } from "@/maps/schema";
+
+// The sidebar scrolls to the new card, which is added last, out of view.
+const add = (question: Parameters<typeof addQuestion>[0]) =>
+  questionCardToShow.set(addQuestion(question));
 
 // New questions start at the seeker while Follow Me knows where they are, so
 // they don't have to tap "Set to current location" on every card. Uses the
@@ -52,7 +57,7 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   const runAddRadius = () => {
     const center = startPosition();
     if (!center) return false;
-    addQuestion({
+    add({
       id: "radius",
       data: {
         lat: center.lat,
@@ -65,14 +70,14 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   const runAddThermometer = () => {
     const center = startPosition();
     if (!center) return false;
-    addQuestion({ id: "thermometer", data: newThermometerData(center) });
+    add({ id: "thermometer", data: newThermometerData(center) });
     return true;
   };
 
   const runAddTentacles = () => {
     const center = startPosition();
     if (!center) return false;
-    addQuestion({
+    add({
       id: "tentacles",
       data: defaultCustomQuestions.get()
         ? {
@@ -89,7 +94,7 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   const runAddMatching = () => {
     const center = startPosition();
     if (!center) return false;
-    addQuestion({
+    add({
       id: "matching",
       data: defaultCustomQuestions.get()
         ? { lat: center.lat, lng: center.lng, type: "custom-points" }
@@ -101,7 +106,7 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   const runAddMeasuring = () => {
     const center = startPosition();
     if (!center) return false;
-    addQuestion({
+    add({
       id: "measuring",
       data: defaultCustomQuestions.get()
         ? { lat: center.lat, lng: center.lng, type: "custom-measure" }
@@ -112,7 +117,7 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   // A curse that resizes the hiding zones, cast now: it applies to the
   // questions asked after it, which are added below it.
   const runAddZoneSize = () => {
-    addQuestion({ id: "zone-size", data: {} });
+    add({ id: "zone-size", data: {} });
     return true;
   };
 
@@ -130,7 +135,7 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
           ? { ...parsed, key: newQuestionKey() }
           : parsed;
 
-      addQuestion(question);
+      add(question);
     } catch {
       toast.error("No valid question found in the pasted text", {
         autoClose: 1000,

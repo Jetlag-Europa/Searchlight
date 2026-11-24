@@ -9,6 +9,7 @@ import { sessionReadOnly } from "@/lib/activeSession";
 import {
   autoSave,
   hiderMode,
+  markerDragged,
   questionModified,
   questions,
   save,
@@ -97,6 +98,7 @@ const ColoredMarker = ({
             isDragging = true;
           },
           dragend: (x) => {
+            markerDragged.set(true);
             onChange(x);
             setTimeout(() => {
               isDragging = false;

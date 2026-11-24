@@ -43,7 +43,8 @@ const playerCustomData = (family: string): Record<string, unknown> =>
   family === "tentacle"
     ? { locationType: "custom", places: [] }
     : { type: family === "matching" ? "custom-points" : "custom-measure" };
-export const addQuestion = (question: DeepPartial<Question>) => {
+/** Adds a question to the board, last; returns its key. */
+export const addQuestion = (question: DeepPartial<Question>): number => {
   if (sessionReadOnly.get()) {
     throw new Error("Spectators can't add questions");
   }
@@ -99,6 +100,7 @@ export const addQuestion = (question: DeepPartial<Question>) => {
     throw new Error("This question is not part of the active game");
   }
   questionModified(questions.get().push(parsed));
+  return parsed.key;
 };
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const questionModified = (..._: any[]) => {
@@ -229,6 +231,10 @@ export const deleteCustomPreset = (id: string) => {
 export const gameDefinitionReady = atom<boolean>(false);
 
 export const drawingQuestionKey = atom<number>(-1);
+// Whether the map's Menu (bottom right) is open: the pen toolbar would cover it.
+export const mapMenuOpen = atom<boolean>(false);
+// Set by a marker drag: the map refresh it causes keeps the view (no auto zoom).
+export const markerDragged = atom<boolean>(false);
 // ID of the single hiding-zone the user has focused via a "View" button,
 // or "" for the all-zones overview. Lifted to a shared atom so the
 // bottom-bar "All Zones" button can clear it from outside the sidebar.

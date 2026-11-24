@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseCoordinatesFromText } from "@/components/LatLngPicker";
+import { parseCoordinatesFromText, typedCoordinate } from "@/components/LatLngPicker";
 
 const none = { lat: null, lng: null };
 
@@ -62,5 +62,17 @@ describe("parseCoordinatesFromText", () => {
     expect(parseCoordinatesFromText("Zurich main station")).toEqual(none);
     // Space-separated numbers aren't read as a pair.
     expect(parseCoordinatesFromText("47.5 8.2")).toEqual(none);
+  });
+});
+
+describe("typedCoordinate", () => {
+  it("takes a typed negative as is and a positive on the field's side", () => {
+    // Google Maps' "-0.12395" on a card already west of Greenwich stays west.
+    expect(typedCoordinate(-0.12395, -0.1)).toBe(-0.12395);
+    expect(typedCoordinate(0.07, -0.1)).toBe(-0.07);
+    // A field at 0 doesn't flip a positive value; one typed to 0 from west stays west.
+    expect(typedCoordinate(0.07, 0)).toBe(0.07);
+    expect(typedCoordinate(0, -0.1)).toBe(-0);
+    expect(typedCoordinate(0.07, -0)).toBe(-0.07);
   });
 });

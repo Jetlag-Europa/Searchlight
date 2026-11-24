@@ -42,17 +42,19 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
     toast.success(`Saved preset "${p.name}"`);
   };
 
-  const handleLoad = (preset: CustomPreset) => {
-    // copy fields from preset.data into the question data so user can deviate
-    const src = safeClone(preset.data);
-    // The question keeps its own name, and what it was restored from.
-    delete src.name;
-    delete src.restoredFrom;
-    Object.keys(src).forEach((k) => {
-      (data as any)[k] = src[k];
-    });
-    // ensure nested objects replaced where appropriate (geo etc)
+  // A preset gives the question its drawn places or points only: the
+  // question keeps its own position, answer, colour and name.
+  const applyGeometry = (src: any): boolean => {
+    if ((src?.type ?? src?.locationType) !== (data.type ?? data.locationType)) return false;
+    for (const key of ["geo", "places"]) {
+      if (key in src) data[key] = safeClone(src[key]);
+    }
     questionModified();
+    return true;
+  };
+
+  const handleLoad = (preset: CustomPreset) => {
+    if (!applyGeometry(preset.data)) return;
     toast.info(`Loaded preset "${preset.name}"`);
   };
 
@@ -96,13 +98,10 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
         toast.error("Pasted JSON is not a preset (missing data)");
         return;
       }
-      const src = safeClone(payload.data);
-      // A shared question's too: what it was restored from is its own.
-      delete src.restoredFrom;
-      Object.keys(src).forEach((k) => {
-        (data as any)[k] = src[k];
-      });
-      questionModified();
+      if (!applyGeometry(payload.data)) {
+        toast.error("This preset is for another kind of question");
+        return;
+      }
       toast.info(`Applied preset "${payload.name ?? "from clipboard"}"`);
     } catch {
       toast.error("Could not parse the pasted JSON");

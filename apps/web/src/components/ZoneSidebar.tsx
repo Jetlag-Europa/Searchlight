@@ -139,6 +139,12 @@ const ZoneSidebarContent = () => {
   const map = useStore(leafletMapContext);
   const stations = useStore(trainStations);
   const $disabledStations = useStore(disabledStations);
+  // The list shows the live zones first, then the disabled ones, each by name.
+  const listedStations = useMemo(() => {
+    const disabled = new Set($disabledStations);
+    const isDisabled = (zone: StationCircle) => Number(disabled.has(zone.properties.properties.id));
+    return [...stations].sort((a, b) => isDisabled(a) - isDisabled(b));
+  }, [stations, $disabledStations]);
   // A spectator's board follows the session's disabled zones.
   const $readOnly = useStore(sessionReadOnly);
   const $compiledGame = useStore(compiledGameAtom);
@@ -576,7 +582,7 @@ const ZoneSidebarContent = () => {
                   <CommandList className="max-h-full">
                     <CommandEmpty>No hiding zones found.</CommandEmpty>
                     <CommandGroup>
-                      {stations.map((station) => (
+                      {listedStations.map((station) => (
                         <CommandItem
                           key={station.properties.properties.id}
                           data-station-id={station.properties.properties.id}
