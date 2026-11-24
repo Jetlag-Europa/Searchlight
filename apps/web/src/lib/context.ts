@@ -119,11 +119,9 @@ export const defaultUnit = persistentAtom<Units>("defaultUnit", "kilometers", {
 export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
 // Auto save off: the board holds edits made in place that Save hasn't set yet.
-// Any new question list or hider location (Save, a load, a teammate's change)
-// replaces them.
+// Any new question list (Save, a load, a teammate's change) replaces them.
 export const unsavedChanges = atom(false);
 questions.listen(() => unsavedChanges.set(false));
-hiderMode.listen(() => unsavedChanges.set(false));
 export const displayHidingZones = persistentAtom<boolean>(
   boardStorageKey("displayHidingZones"),
   false,

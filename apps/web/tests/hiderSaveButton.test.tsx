@@ -63,6 +63,9 @@ describe("unsaved changes with auto-save off", () => {
     autoSave.set(false);
     questionModified();
     expect(unsavedChanges.get()).toBe(true);
+    // A hider position (a teammate's, or Hider mode toggled) doesn't save the answers.
+    hiderMode.set({ latitude: 52, longitude: 4 });
+    expect(unsavedChanges.get()).toBe(true);
     save();
     expect(unsavedChanges.get()).toBe(false);
   });
