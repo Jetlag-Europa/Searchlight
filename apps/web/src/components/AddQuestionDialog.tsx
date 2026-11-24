@@ -24,10 +24,6 @@ import { newQuestionPosition, newThermometerData } from "@/lib/questionPosition"
 import { questionCardToShow } from "@/lib/questionSidebarTab";
 import { newQuestionKey } from "@/maps/schema";
 
-// The sidebar scrolls to the new card, which is added last, out of view.
-const add = (question: Parameters<typeof addQuestion>[0]) =>
-  questionCardToShow.set(addQuestion(question));
-
 // New questions start at the seeker while Follow Me knows where they are, so
 // they don't have to tap "Set to current location" on every card. Uses the
 // watch's last fix: adding never waits on (or prompts for) a new one.
@@ -42,6 +38,12 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   const compiled = useStore(compiledGameAtom);
   const [open, setOpen] = React.useState(false);
   const { readPaste, pasteDialog } = usePasteText();
+  // The new card, added last and out of view: the sidebar scrolls to it and
+  // focuses it once the dialog has closed (which would take the focus back).
+  const added = React.useRef<number | null>(null);
+  const add = (question: Parameters<typeof addQuestion>[0]) => {
+    added.current = addQuestion(question);
+  };
 
   // Questions come from the game: nothing can be added until it has loaded.
   const disabled = $isLoading || !compiled;
@@ -150,7 +152,14 @@ export const AddQuestionDialog = ({ children }: { children: React.ReactNode }) =
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent>
+      <DialogContent
+        onCloseAutoFocus={(event) => {
+          if (added.current === null) return;
+          event.preventDefault();
+          questionCardToShow.set(added.current);
+          added.current = null;
+        }}
+      >
         <DialogTitle>Add Question</DialogTitle>
         <DialogDescription>
           {compiled
