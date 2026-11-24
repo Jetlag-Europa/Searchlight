@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CASUAL_SERVER_ID } from "@searchlight/shared";
+import { type AnySSEEvent, subscribe } from "../lib/broadcaster.js";
 import prisma from "../lib/prisma.js";
 import {
   ImportConflictError,
@@ -16,6 +17,7 @@ import { preloadGameDefinitions } from "./preload.js";
 const SERVER_ID = "test-import-svc-server";
 const OTHER_SERVER_ID = "test-import-svc-other";
 const KEY_PREFIX = "test-import-svc-";
+const USER_ID = "test-import-svc-user";
 
 function definition(id: string, name: string, serverId = SERVER_ID) {
   return {
@@ -78,9 +80,11 @@ async function cleanup() {
   const ids = (await prisma.game.findMany({ where: games, select: { id: true } })).map((g) => g.id);
   await prisma.auditLog.deleteMany({ where: { targetId: { in: ids } } });
   await prisma.game.updateMany({ where: games, data: { currentRevisionId: null } });
+  await prisma.gameSession.deleteMany({ where: { game: games } });
   await prisma.gameRevision.deleteMany({ where: { game: games } });
   await prisma.game.deleteMany({ where: games });
   await prisma.server.deleteMany({ where: { id: { in: [SERVER_ID, OTHER_SERVER_ID] } } });
+  await prisma.user.deleteMany({ where: { discordId: USER_ID } });
 }
 
 describe("importGameDefinition revisions", () => {
@@ -93,6 +97,17 @@ describe("importGameDefinition revisions", () => {
       ],
     });
     await ensureCasualServer();
+    await prisma.user.create({
+      data: {
+        discordId: USER_ID,
+        username: "import-svc",
+        displayName: "Import Svc",
+        avatarUrl: "",
+        discordAccessToken: "tok",
+        discordRefreshToken: "ref",
+        discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
   });
 
   afterAll(cleanup);
@@ -116,6 +131,27 @@ describe("importGameDefinition revisions", () => {
     const after = await revisionsOf(key);
     expect(after.map((r) => r.revision)).toEqual([1, 2, 3]);
     expect(after[1]).toEqual(rev2);
+  });
+
+  test("tells the game's open sessions when its current revision changes", async () => {
+    const key = `${KEY_PREFIX}announce`;
+    const { gameId } = await importGameDefinition({ raw: definition(key, "A") });
+    const [rev1] = await revisionsOf(key);
+    const session = await prisma.gameSession.create({
+      data: { gameId, serverId: SERVER_ID, creatorId: USER_ID, name: "S", gameRevisionId: rev1.id },
+    });
+    const events: AnySSEEvent[] = [];
+    const unsubscribe = subscribe(session.id, (event) => events.push(event));
+    try {
+      await importGameDefinition({ raw: definition(key, "A"), allowUpdate: true });
+      await importGameDefinition({ raw: definition(key, "B"), allowUpdate: true });
+    } finally {
+      unsubscribe();
+    }
+    const [, rev2] = await revisionsOf(key);
+    expect(events).toEqual([
+      { type: "game.revision-changed", payloadJson: { gameRevisionId: rev2.id, revision: 2 } },
+    ]);
   });
 
   test("concurrent updates each add their own revision and never rewrite one", async () => {

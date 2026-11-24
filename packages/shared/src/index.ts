@@ -363,6 +363,13 @@ export interface SessionRevisionUpgradedEvent {
   };
 }
 
+// Sent live (not stored) to every session of a game whose current revision
+// changed, so open boards offer the update (or stop offering it).
+export interface GameRevisionChangedEvent {
+  type: "game.revision-changed";
+  payloadJson: { gameRevisionId: string; revision: number };
+}
+
 // Sent live (not stored) when the creator makes a participant a member or a
 // viewer, so that participant's open boards reload with their new role.
 export interface ParticipantRoleChangedEvent {

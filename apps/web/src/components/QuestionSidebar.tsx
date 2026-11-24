@@ -32,6 +32,7 @@ import {
   save,
   sessionPickerOpen,
   triggerLocalRefresh,
+  unsavedChanges,
   warningAlarm,
 } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
@@ -46,6 +47,7 @@ export const QuestionSidebar = () => {
   useStore(triggerLocalRefresh);
   const $questions = useStore(questions);
   const $autoSave = useStore(autoSave);
+  const $unsaved = useStore(unsavedChanges);
   const $isLoading = useStore(isLoading);
   const $warningAlarm = useStore(warningAlarm);
   const $readOnly = useStore(sessionReadOnly);
@@ -111,6 +113,14 @@ export const QuestionSidebar = () => {
       stopAlarm();
     }
   }, [$readOnly, pickerOpen, sidebar.openMobile, sidebar.isMobile]);
+
+  // Leaving (a reload, /games) would drop what Save hasn't set yet.
+  useEffect(() => {
+    if (!$unsaved || $autoSave) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [$unsaved, $autoSave]);
 
   return (
     <>
@@ -200,7 +210,7 @@ export const QuestionSidebar = () => {
                         onClick={save}
                         disabled={$isLoading}
                       >
-                        Save
+                        {$unsaved ? "Save · unsaved changes" : "Save"}
                       </SidebarMenuButton>
                     </SidebarMenuItem>
                   )}

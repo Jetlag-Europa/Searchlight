@@ -20,18 +20,22 @@ export async function meRoute(app: FastifyInstance) {
     "/me/preferences",
     {
       schema: {
-        body: Type.Any(),
+        body: Type.Record(Type.String(), Type.Unknown()),
         response: { 204: Type.Null() },
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
       app.log.info({ userId: user.discordId }, "[searchlight:prefs] saving preferences");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await prisma.user.update({
-        where: { discordId: user.discordId },
-        data: { preferences: req.body } as any,
-      });
+      // Merged in one statement: a device sends only the keys it changed, and
+      // two devices saving at once both keep theirs.
+      await prisma.$executeRaw`
+        UPDATE "User"
+        SET preferences = (CASE WHEN jsonb_typeof(preferences) = 'object' THEN preferences
+            ELSE '{}'::jsonb END) || ${JSON.stringify(req.body)}::jsonb,
+          "updatedAt" = now()
+        WHERE "discordId" = ${user.discordId}
+      `;
       return reply.status(204).send();
     },
   );

@@ -22,7 +22,7 @@ vi.mock("@/components/ui/dialog", async (importOriginal) => ({
 }));
 
 import { OptionDrawers } from "@/components/OptionDrawers";
-import { autoSave, hiderMode } from "@/lib/context";
+import { autoSave, hiderMode, questionModified, save, unsavedChanges } from "@/lib/context";
 
 const renderOptions = () => {
   const html = renderToStaticMarkup(<OptionDrawers />);
@@ -53,5 +53,22 @@ describe("hider location Save button", () => {
   it("hides outside hider mode", () => {
     autoSave.set(false);
     expect(renderOptions()).toEqual({ editor: false, saveButtons: 0 });
+  });
+});
+
+describe("unsaved changes with auto-save off", () => {
+  afterEach(() => autoSave.set(true));
+
+  it("are marked by an edit and cleared by Save", () => {
+    autoSave.set(false);
+    questionModified();
+    expect(unsavedChanges.get()).toBe(true);
+    save();
+    expect(unsavedChanges.get()).toBe(false);
+  });
+
+  it("aren't marked with auto-save on", () => {
+    questionModified();
+    expect(unsavedChanges.get()).toBe(false);
   });
 });

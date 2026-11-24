@@ -1,5 +1,5 @@
 import { useStore } from "@nanostores/react";
-import type { MeResponse } from "@searchlight/shared";
+import type { MeResponse, UserPreferences } from "@searchlight/shared";
 import { useEffect, useRef } from "react";
 
 import { verifiedUserId } from "@/lib/activeSession";
@@ -12,22 +12,36 @@ export function PreferencesSync() {
   const userId = useStore(verifiedUserId);
   const suppressSave = useRef(true);
   const pendingTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Only what this device changed: the server merges it, so another device's
+  // changes aren't undone by this one's stale values.
+  const changed = useRef(new Set<keyof UserPreferences>());
 
   useEffect(() => {
     const doSave = (keepalive = false) => {
       clearTimeout(pendingTimer.current);
       pendingTimer.current = undefined;
+      const keys = [...changed.current];
+      changed.current.clear();
       fetch(`${API_BASE}/me/preferences`, {
         method: "PATCH",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(collectPreferences()),
+        body: JSON.stringify(collectPreferences(keys)),
         keepalive,
-      }).catch((e) => console.warn("[searchlight:prefs] save failed", e));
+      })
+        .then((r) => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        })
+        .catch((e) => {
+          // The next save sends them again.
+          for (const key of keys) changed.current.add(key);
+          console.warn("[searchlight:prefs] save failed", e);
+        });
     };
 
-    const schedSave = () => {
+    const schedSave = (key: keyof UserPreferences) => {
       if (suppressSave.current) return;
+      changed.current.add(key);
       clearTimeout(pendingTimer.current);
       pendingTimer.current = setTimeout(() => doSave(), 500);
     };
@@ -40,7 +54,7 @@ export function PreferencesSync() {
     window.addEventListener("pagehide", onUnload);
 
     // Listen for changes (fires on change only, not on initial subscribe)
-    const unlisteners = PREF_ENTRIES.map(({ atom }) => atom.listen(schedSave));
+    const unlisteners = PREF_ENTRIES.map(({ key, atom }) => atom.listen(() => schedSave(key)));
 
     return () => {
       unlisteners.forEach((u) => u());

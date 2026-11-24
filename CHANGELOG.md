@@ -4,6 +4,13 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Live boards and saving (2026-11-25)
+
+- When a game maker updates a game (import, **Settings**, **Replace with file…**), boards that are already open now show "Game update available" within a second, instead of only after a reload. A board that was offline catches up when it reconnects.
+- The **Live** chip and your teammates' avatars no longer disappear after your first save. They stay while the board is connected.
+- Changing an option on one device no longer undoes options changed on another: each device now saves only the options it changed. The other device shows the change after a reload.
+- With Auto save off, the Save button says "unsaved changes" while there are changes to save, and reloading or leaving the page asks first (except on iPhone, where browsers don't ask). As before, the map updates when you press Save.
+
 ## Audit log for admins (2026-11-22)
 
 - `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".

@@ -95,6 +95,11 @@ describe("collectPreferences()", () => {
     expect((prefs as any).followMe).toBeUndefined();
   });
 
+  test("returns only the keys asked for", () => {
+    defaultUnit.set("miles");
+    expect(collectPreferences(["defaultUnit"])).toEqual({ defaultUnit: "miles" });
+  });
+
   test("includes all PREF_ENTRIES keys", () => {
     const prefs = collectPreferences();
     for (const { key } of PREF_ENTRIES) {
