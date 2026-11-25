@@ -165,16 +165,6 @@ const PointMarker = ({
   );
 };
 
-// A point keeps its marker, and so an open coordinate dialog, while its
-// coordinates are typed: they change in place, in the same geometry object
-// (which turf.flatten keeps). Redrawing makes new points.
-const markerKeys = new WeakMap<object, number>();
-let lastMarkerKey = 0;
-const markerKey = (point: object) => {
-  if (!markerKeys.has(point)) markerKeys.set(point, ++lastMarkerKey);
-  return markerKeys.get(point);
-};
-
 export const PolygonDraw = () => {
   const $drawingQuestionKey = useStore(drawingQuestionKey);
   const $questions = useStore(questions);
@@ -310,12 +300,14 @@ export const PolygonDraw = () => {
       {question &&
         question.id === "tentacles" &&
         question.data.locationType === "custom" &&
-        question.data.places?.map((x) => <TentacleMarker key={markerKey(x.geometry)} point={x} />)}
+        question.data.places?.map((x) => (
+          <TentacleMarker key={x.geometry.coordinates.join(",")} point={x} />
+        ))}
       {question &&
         question.id === "matching" &&
         question.data.type === "custom-points" &&
         ((question.data as CustomMatchingQuestion).geo ?? []).map((x: any) => (
-          <PointMarker key={markerKey(x.geometry)} point={x} />
+          <PointMarker key={x.geometry.coordinates.join(",")} point={x} />
         ))}
       {question &&
         question.id === "measuring" &&
@@ -323,7 +315,7 @@ export const PolygonDraw = () => {
         turf
           .flatten(measuringGeo)
           .features.filter((x: any) => turf.getType(x) === "Point")
-          .map((x: any) => <PointMarker key={markerKey(x.geometry)} point={x} />)}
+          .map((x: any) => <PointMarker key={x.geometry.coordinates.join(",")} point={x} />)}
       {question &&
         question.id === "measuring" &&
         question.data.type === "custom-measure" &&
