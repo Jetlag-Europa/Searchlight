@@ -116,7 +116,7 @@ describe("GET /me and PATCH /me/preferences", () => {
     expect(body.preferences.baseTileLayer).toBe("dark");
   });
 
-  test("PATCH /me/preferences overwrites previous preferences", async () => {
+  test("PATCH /me/preferences merges into the stored preferences", async () => {
     await app.inject({
       method: "PATCH",
       url: "/me/preferences",
@@ -124,7 +124,7 @@ describe("GET /me and PATCH /me/preferences", () => {
         cookie: signedCookie(app, AUTH_SESSION_ID),
         "content-type": "application/json",
       },
-      body: JSON.stringify({ defaultUnit: "miles", autoZoom: true }),
+      body: JSON.stringify({ defaultUnit: "miles", autoZoom: true, notAPreference: "x" }),
     });
 
     const res = await app.inject({
@@ -134,8 +134,26 @@ describe("GET /me and PATCH /me/preferences", () => {
     });
 
     const body = res.json();
-    expect(body.preferences.defaultUnit).toBe("miles");
-    expect(body.preferences.autoZoom).toBe(true);
+    expect(body.preferences).toMatchObject({
+      defaultUnit: "miles",
+      autoZoom: true,
+      warningAlarm: true,
+      baseTileLayer: "dark",
+    });
+    expect(body.preferences).not.toHaveProperty("notAPreference");
+  });
+
+  test("PATCH /me/preferences refuses a body that isn't an object", async () => {
+    const res = await app.inject({
+      method: "PATCH",
+      url: "/me/preferences",
+      headers: {
+        cookie: signedCookie(app, AUTH_SESSION_ID),
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(["miles"]),
+    });
+    expect(res.statusCode).toBe(400);
   });
 
   test("GET /me returns 401 without a session cookie", async () => {

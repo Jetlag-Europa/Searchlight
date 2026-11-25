@@ -39,9 +39,11 @@ export const PREF_ENTRIES: { key: keyof UserPreferences; atom: WritableAtom<any>
   { key: "autoLockQuestions", atom: autoLockQuestions },
 ];
 
-export function collectPreferences(): UserPreferences {
+export function collectPreferences(
+  keys: (keyof UserPreferences)[] = PREF_ENTRIES.map(({ key }) => key),
+): UserPreferences {
   return Object.fromEntries(
-    PREF_ENTRIES.map(({ key, atom }) => [key, atom.get()]),
+    PREF_ENTRIES.filter(({ key }) => keys.includes(key)).map(({ key, atom }) => [key, atom.get()]),
   ) as UserPreferences;
 }
 

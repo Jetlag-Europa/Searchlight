@@ -89,9 +89,15 @@ describe("skipping a map refresh", () => {
 });
 
 describe("planning outlines", () => {
-  it("are only drawn in planning mode", () => {
-    expect(planningPreviewKey([radius(1, 4.3, true)], false)).toBe("");
+  it("are drawn in planning mode, and for a question waiting for its answer", () => {
+    expect(planningPreviewKey([radius(1, 4.3, true)], false)).toBe(planningPreviewKey([], false));
     expect(planningPreviewKey([radius(1, 4.3, true)], true)).not.toBe(planningPreviewKey([], true));
+    const waiting = radius(1, 4.3);
+    delete waiting.data.within;
+    expect(planningPreviewKey([waiting], false)).not.toBe(planningPreviewKey([], false));
+    // Answering it takes its outline away.
+    waiting.data.within = false;
+    expect(planningPreviewKey([waiting], false)).toBe(planningPreviewKey([], false));
   });
 
   it("don't change with an unlocked question's name or colours", () => {

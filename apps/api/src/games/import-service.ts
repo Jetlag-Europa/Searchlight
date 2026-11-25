@@ -11,6 +11,7 @@ import {
 } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { audit } from "../lib/audit.js";
+import { broadcast } from "../lib/broadcaster.js";
 import { compareWithExisting } from "./compare-games.js";
 
 // GameRevision.revision is a PostgreSQL integer.
@@ -380,7 +381,9 @@ async function importRevision(
 
   await assertCanUpdate(ctx, game);
 
-  return prisma.$transaction(async (tx) => {
+  // The game's sessions, told once the new current revision is committed.
+  let announce: (() => void) | undefined;
+  const imported = await prisma.$transaction(async (tx) => {
     // Serialize imports of this game, so the checks and the revision number
     // below see every revision committed before this one. The current
     // revision's name and play area are read for the comparison with the
@@ -552,9 +555,23 @@ async function importRevision(
         ...(locked.size !== size && { size: { from: locked.size, to: size } }),
       },
     });
+    const sessions = await tx.gameSession.findMany({
+      where: { gameId: game.id },
+      select: { id: true },
+    });
+    announce = () => {
+      for (const { id } of sessions) {
+        broadcast(id, {
+          type: "game.revision-changed",
+          payloadJson: { gameRevisionId: revId, revision: targetRevision },
+        });
+      }
+    };
 
     return result;
   });
+  announce?.();
+  return imported;
 }
 
 function gameChanged(): ImportConflictError {

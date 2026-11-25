@@ -38,6 +38,7 @@ import { isLoading, questions } from "@/lib/context";
 import { deleteQuestionsWithUndo } from "@/lib/deleteQuestionsWithUndo";
 import { normalizeQuestionName, QUESTION_NAME_MAX_LENGTH } from "@/lib/questionNames";
 import { cn } from "@/lib/utils";
+import { isUnanswered } from "@/maps/schema";
 
 export const QuestionCard = ({
   children,
@@ -73,6 +74,8 @@ export const QuestionCard = ({
   const copyButtonRef = useRef<HTMLButtonElement>(null);
 
   const deleteTarget = name ? `"${name}"` : "the question";
+  const question = $questions.find((q) => q.key === questionKey);
+  const waiting = !!question && isUnanswered(question);
 
   const toggleCollapse = () => {
     if (setCollapsed) {
@@ -124,6 +127,7 @@ export const QuestionCard = ({
               </>
             )}
           </SidebarGroupLabel>
+          {waiting && <p className="ml-10 text-xs text-orange-500">Waiting for answer</p>}
           <SidebarGroupContent
             className={cn(
               "overflow-hidden transition-all duration-1000 max-h-[100rem]", // 100rem is arbitrary

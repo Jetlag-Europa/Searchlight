@@ -6,7 +6,13 @@ import {
   offlineUserId,
   verifiedUserId,
 } from "@/lib/activeSession";
-import { gameDefinitionReady, pendingEventCount, questions, syncStatus } from "@/lib/context";
+import {
+  gameDefinitionReady,
+  pendingEventCount,
+  questions,
+  streamLive,
+  syncStatus,
+} from "@/lib/context";
 import { zonesDeltaOf } from "@/lib/disabledZones";
 import {
   advanceBoardBase,
@@ -609,7 +615,7 @@ export function refreshSyncCounts(sessionId: string): void {
   const remaining = getPendingEvents(sessionId).length;
   pendingEventCount.set(remaining);
   if (remaining === 0) {
-    syncStatus.set("synced");
+    syncStatus.set(streamLive.get() ? "live" : "synced");
     if (sessionId === activeSessionId.get()) cancelRetry();
   }
 }

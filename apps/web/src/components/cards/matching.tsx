@@ -25,6 +25,7 @@ import {
   triggerLocalRefresh,
 } from "@/lib/context";
 import { defaultQuestionLabel, questionName, setQuestionName } from "@/lib/questionNames";
+import { nameLength, nearestZone, STATION_NAME_LENGTH } from "@/lib/stationNameLength";
 import { cn } from "@/lib/utils";
 import { matchingTarget } from "@/maps";
 import { customSwitchStart, determineMatchingBoundary } from "@/maps/questions/matching";
@@ -72,6 +73,11 @@ export const MatchingQuestionComponent = ({
   const prefillSeqRef = React.useRef(0);
   const prefillScope = React.useMemo(() => Symbol("matching-prefill"), []);
   const closest = useClosestName(data);
+  // The station whose name's length the seekers ask about: the zone nearest the pin.
+  const seekersStation =
+    data.type === STATION_NAME_LENGTH
+      ? nearestZone(compiled?.hidingZones.stations ?? [], data.lat, data.lng)
+      : undefined;
 
   React.useEffect(() => {
     return () => {
@@ -147,7 +153,10 @@ export const MatchingQuestionComponent = ({
       label={label}
       name={questionName(data)}
       setName={(name) => questionModified(setQuestionName(data, name))}
-      sub={compiled?.questionMap.get(data.type)?.label ?? sub}
+      sub={
+        compiled?.questionMap.get(data.type)?.label ??
+        (data.type === STATION_NAME_LENGTH ? "Station Name Length" : sub)
+      }
       collapsed={data.collapsed}
       setCollapsed={(collapsed) => {
         data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified
@@ -183,6 +192,10 @@ export const MatchingQuestionComponent = ({
                 "custom-points": "Custom Points",
                 "custom-zone": "Custom Zone",
               },
+            },
+            Stations: {
+              disabled: false,
+              options: { [STATION_NAME_LENGTH]: "Station Name Length" },
             },
           }}
           value={data.type}
@@ -230,6 +243,12 @@ export const MatchingQuestionComponent = ({
           Closest: <span className="font-medium text-foreground">{closest}</span>
         </p>
       )}
+      {seekersStation && (
+        <p className="px-2 text-sm text-muted-foreground">
+          Your station: <span className="font-medium text-foreground">{seekersStation.name}</span> (
+          {nameLength(seekersStation.name)} characters)
+        </p>
+      )}
       <div className="flex gap-2 items-center p-2">
         <Label className={cn("font-semibold text-lg", $isLoading && "text-muted-foreground")}>
           Result
@@ -237,7 +256,8 @@ export const MatchingQuestionComponent = ({
         <ToggleGroup
           className="grow"
           type="single"
-          value={data.same ? "same" : "different"}
+          // Nothing pressed while it waits for its answer, which a locked card still takes.
+          value={data.same === undefined ? "" : data.same ? "same" : "different"}
           onValueChange={(value) => {
             if (value === "same") {
               questionModified((data.same = true));
@@ -245,13 +265,16 @@ export const MatchingQuestionComponent = ({
               questionModified((data.same = false));
             }
           }}
-          disabled={!!$hiderMode || !data.drag || $isLoading}
+          disabled={!!$hiderMode || (!data.drag && data.same !== undefined) || $isLoading}
         >
           <ToggleGroupItem value="different">Different</ToggleGroupItem>
           <ToggleGroupItem value="same">Same</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <AnswerSplitPreview questionKey={questionKey} data={data} />
+      {/* The split counts zones by area; a name length answer rules them out by name. */}
+      {data.type !== STATION_NAME_LENGTH && (
+        <AnswerSplitPreview questionKey={questionKey} data={data} />
+      )}
     </QuestionCard>
   );
 };

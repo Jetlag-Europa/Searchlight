@@ -9,11 +9,13 @@ import { sessionReadOnly } from "@/lib/activeSession";
 import {
   autoSave,
   hiderMode,
+  markerDragged,
   questionModified,
   questions,
   save,
   trainStations,
   triggerLocalRefresh,
+  unsavedChanges,
 } from "@/lib/context";
 import { questionName } from "@/lib/questionNames";
 import { isZoneSizeChange } from "@/lib/zoneSize";
@@ -97,6 +99,7 @@ const ColoredMarker = ({
             isDragging = true;
           },
           dragend: (x) => {
+            markerDragged.set(true);
             onChange(x);
             setTimeout(() => {
               isDragging = false;
@@ -131,9 +134,11 @@ const ColoredMarker = ({
                 localLocations={hiderLocalLocations}
                 onResultSelect={() => setOpen(false)}
                 onChange={(latitude, longitude) => {
+                  // The current position: both fields can send at once when the dialog closes.
+                  const current = hiderMode.get() || $hiderMode;
                   hiderMode.set({
-                    latitude: latitude ?? $hiderMode.latitude,
-                    longitude: longitude ?? $hiderMode.longitude,
+                    latitude: latitude ?? current.latitude,
+                    longitude: longitude ?? current.longitude,
                   });
                 }}
                 label="Hider Location"
@@ -195,6 +200,7 @@ export const DraggableMarkers = () => {
               });
             } else {
               triggerLocalRefresh.set(Math.random());
+              unsavedChanges.set(true);
             }
           }}
         />

@@ -43,7 +43,8 @@ const playerCustomData = (family: string): Record<string, unknown> =>
   family === "tentacle"
     ? { locationType: "custom", places: [] }
     : { type: family === "matching" ? "custom-points" : "custom-measure" };
-export const addQuestion = (question: DeepPartial<Question>) => {
+/** Adds a question to the board, last; returns its key. */
+export const addQuestion = (question: DeepPartial<Question>): number => {
   if (sessionReadOnly.get()) {
     throw new Error("Spectators can't add questions");
   }
@@ -99,6 +100,7 @@ export const addQuestion = (question: DeepPartial<Question>) => {
     throw new Error("This question is not part of the active game");
   }
   questionModified(questions.get().push(parsed));
+  return parsed.key;
 };
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export const questionModified = (..._: any[]) => {
@@ -106,6 +108,7 @@ export const questionModified = (..._: any[]) => {
     questions.set([...questions.get()]);
   } else {
     triggerLocalRefresh.set(Math.random());
+    unsavedChanges.set(true);
   }
 };
 
@@ -117,6 +120,10 @@ export const defaultUnit = persistentAtom<Units>("defaultUnit", "kilometers", {
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).
 export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
+// Auto save off: the board holds edits made in place that Save hasn't set yet.
+// Any new question list (Save, a load, a teammate's change) replaces them.
+export const unsavedChanges = atom(false);
+questions.listen(() => unsavedChanges.set(false));
 export const displayHidingZones = persistentAtom<boolean>(
   boardStorageKey("displayHidingZones"),
   false,
@@ -182,6 +189,10 @@ export const save = () => {
     hiderMode.set({ ...$hiderMode });
   }
 };
+// Turning Auto save on saves what the board holds, as it would have at once.
+autoSave.listen((on) => {
+  if (on && unsavedChanges.get() && !sessionReadOnly.get()) save();
+});
 
 /* Presets for custom questions (savable / sharable / editable) */
 export type CustomPreset = {
@@ -229,6 +240,10 @@ export const deleteCustomPreset = (id: string) => {
 export const gameDefinitionReady = atom<boolean>(false);
 
 export const drawingQuestionKey = atom<number>(-1);
+// Whether the map's Menu (bottom right) is open: the pen toolbar would cover it.
+export const mapMenuOpen = atom<boolean>(false);
+// Set by a marker drag: the map refresh it causes keeps the view (no auto zoom).
+export const markerDragged = atom<boolean>(false);
 // ID of the single hiding-zone the user has focused via a "View" button,
 // or "" for the all-zones overview. Lifted to a shared atom so the
 // bottom-bar "All Zones" button can clear it from outside the sidebar.
@@ -362,6 +377,8 @@ export const sidebarContextR = atom<SidebarContextType>({
 
 export type SyncStatus = "synced" | "syncing" | "offline" | "live";
 export const syncStatus = atom<SyncStatus>("synced");
+// The session's stream is open and caught up, whatever the saves do.
+export const streamLive = atom(false);
 export const pendingEventCount = atom<number>(0);
 
 // ── Presence ─────────────────────────────────────────────────────────────────
