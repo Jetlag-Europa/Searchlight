@@ -56,6 +56,7 @@ import {
   thunderforestApiKey,
   trainStations,
   triggerLocalRefresh,
+  unsavedChanges,
   warningAlarm,
 } from "@/lib/context";
 import {
@@ -749,6 +750,7 @@ export const OptionDrawers = () => {
                             });
                           } else {
                             triggerLocalRefresh.set(Math.random());
+                            unsavedChanges.set(true);
                           }
                         }}
                         label="Hider Location"

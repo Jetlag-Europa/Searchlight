@@ -108,6 +108,7 @@ export const questionModified = (..._: any[]) => {
     questions.set([...questions.get()]);
   } else {
     triggerLocalRefresh.set(Math.random());
+    unsavedChanges.set(true);
   }
 };
 
@@ -119,6 +120,10 @@ export const defaultUnit = persistentAtom<Units>("defaultUnit", "kilometers", {
 // Not persisted to localStorage — the DB is the source of truth (restored on session load).
 export const hiderMode = atom<false | { latitude: number; longitude: number }>(false);
 export const triggerLocalRefresh = atom<number>(0);
+// Auto save off: the board holds edits made in place that Save hasn't set yet.
+// Any new question list (Save, a load, a teammate's change) replaces them.
+export const unsavedChanges = atom(false);
+questions.listen(() => unsavedChanges.set(false));
 export const displayHidingZones = persistentAtom<boolean>(
   boardStorageKey("displayHidingZones"),
   false,
@@ -184,6 +189,10 @@ export const save = () => {
     hiderMode.set({ ...$hiderMode });
   }
 };
+// Turning Auto save on saves what the board holds, as it would have at once.
+autoSave.listen((on) => {
+  if (on && unsavedChanges.get() && !sessionReadOnly.get()) save();
+});
 
 /* Presets for custom questions (savable / sharable / editable) */
 export type CustomPreset = {
@@ -368,6 +377,8 @@ export const sidebarContextR = atom<SidebarContextType>({
 
 export type SyncStatus = "synced" | "syncing" | "offline" | "live";
 export const syncStatus = atom<SyncStatus>("synced");
+// The session's stream is open and caught up, whatever the saves do.
+export const streamLive = atom(false);
 export const pendingEventCount = atom<number>(0);
 
 // ── Presence ─────────────────────────────────────────────────────────────────

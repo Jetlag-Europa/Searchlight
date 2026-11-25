@@ -4,6 +4,13 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Live boards and saving (2026-11-25)
+
+- When a game maker updates a game (import, **Settings**, **Replace with file…**), boards that are already open now show "Game update available" within a second, instead of only after a reload. A board that was offline catches up when it reconnects.
+- The **Live** chip and your teammates' avatars no longer disappear after your first save. They stay while the board is connected.
+- Changing an option on one device no longer undoes options changed on another: each device now saves only the options it changed. The other device shows the change after a reload.
+- With Auto save off, the Save button says "unsaved changes" while there are changes to save, and reloading or leaving the page asks first (except on iPhone, where browsers don't ask). Turning Auto save back on saves them. As before, the map updates when you press Save.
+
 ## New questions wait for an answer (2026-11-25)
 
 - A new question no longer removes zones before the hiders have answered. Its shape is drawn dashed, its card says "Waiting for answer" with no answer selected, and the zones left stay as they are until someone taps an answer. Auto zoom doesn't move the map for it either. A locked card still takes its first answer from a tap. Hider mode answers waiting questions that aren't locked, as it does other questions.

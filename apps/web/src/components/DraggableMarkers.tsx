@@ -15,6 +15,7 @@ import {
   save,
   trainStations,
   triggerLocalRefresh,
+  unsavedChanges,
 } from "@/lib/context";
 import { questionName } from "@/lib/questionNames";
 import { isZoneSizeChange } from "@/lib/zoneSize";
@@ -199,6 +200,7 @@ export const DraggableMarkers = () => {
               });
             } else {
               triggerLocalRefresh.set(Math.random());
+              unsavedChanges.set(true);
             }
           }}
         />
