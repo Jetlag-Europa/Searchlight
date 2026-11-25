@@ -165,6 +165,16 @@ const PointMarker = ({
   );
 };
 
+// A marker keeps its first key while its point's coordinates are typed (they
+// change in place), so its coordinate dialog stays open. Points that come back
+// as new objects (a teammate's save, a redraw) are keyed by their coordinates,
+// so unchanged ones keep their markers, which Leaflet Draw's edit mode needs.
+const markerKeys = new WeakMap<object, string>();
+const markerKey = (geometry: { coordinates: number[] }) => {
+  if (!markerKeys.has(geometry)) markerKeys.set(geometry, geometry.coordinates.join(","));
+  return markerKeys.get(geometry);
+};
+
 export const PolygonDraw = () => {
   const $drawingQuestionKey = useStore(drawingQuestionKey);
   const $questions = useStore(questions);
@@ -310,14 +320,12 @@ export const PolygonDraw = () => {
       {question &&
         question.id === "tentacles" &&
         question.data.locationType === "custom" &&
-        question.data.places?.map((x) => (
-          <TentacleMarker key={x.geometry.coordinates.join(",")} point={x} />
-        ))}
+        question.data.places?.map((x) => <TentacleMarker key={markerKey(x.geometry)} point={x} />)}
       {question &&
         question.id === "matching" &&
         question.data.type === "custom-points" &&
         ((question.data as CustomMatchingQuestion).geo ?? []).map((x: any) => (
-          <PointMarker key={x.geometry.coordinates.join(",")} point={x} />
+          <PointMarker key={markerKey(x.geometry)} point={x} />
         ))}
       {question &&
         question.id === "measuring" &&
@@ -325,7 +333,7 @@ export const PolygonDraw = () => {
         turf
           .flatten(measuringGeo)
           .features.filter((x: any) => turf.getType(x) === "Point")
-          .map((x: any) => <PointMarker key={x.geometry.coordinates.join(",")} point={x} />)}
+          .map((x: any) => <PointMarker key={markerKey(x.geometry)} point={x} />)}
       {question &&
         question.id === "measuring" &&
         question.data.type === "custom-measure" &&
