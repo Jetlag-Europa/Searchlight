@@ -227,8 +227,20 @@ export async function serverRoutes(app: FastifyInstance) {
         );
       }
 
+      const guildId = await rolesGuildId(serverId);
+      if (!guildId) {
+        throw Object.assign(new Error("This server has no Discord roles"), { statusCode: 400 });
+      }
+      const roles = await discord.getGuildRoles(guildId, env.DISCORD_BOT_TOKEN, req.log);
+      const role = roles.find((r) => r.id === discordRoleId);
+      // @everyone (the guild's id) never appears in a member's roles, so it couldn't grant anything.
+      if (!role || role.id === guildId) {
+        throw Object.assign(new Error("Not a role of this server that can be given permissions"), {
+          statusCode: 400,
+        });
+      }
+
       const { user } = await resolveSession(req);
-      const targetName = await roleName(serverId, discordRoleId, req.log);
       return prisma.$transaction(async (tx) => {
         // Skips an existing grant, so only new ones are logged.
         const { count } = await tx.rolePermission.createMany({
@@ -241,7 +253,7 @@ export async function serverRoutes(app: FastifyInstance) {
             actorId: user.discordId,
             action: "role.grant",
             targetId: discordRoleId,
-            targetName,
+            targetName: role.name,
             details: { permission },
           });
         }

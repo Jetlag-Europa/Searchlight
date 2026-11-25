@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Safer role permissions on /admin (2026-11-25)
+
+- Unticking **Server admin** for a role now asks first, since everyone whose admin access comes only from that role loses it, possibly you too. If you lose admin access to a server, its card now says so instead of showing the old permissions.
+- Permissions can only be given to the server's own Discord roles. Permissions of roles since deleted in Discord, which `/admin` didn't show, now appear as "Deleted role" rows, where you can untick them.
+
 ## Audit log for admins (2026-11-22)
 
 - `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".
