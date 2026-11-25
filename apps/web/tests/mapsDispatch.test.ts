@@ -409,10 +409,15 @@ describe("maps dispatch and hider regression suite", () => {
     try {
       await hiderifyQuestion(customPoints);
       expect(customPoints.data.same).toBe(false);
-      // One still waiting for its answer gets it too.
+      // One still waiting for its answer gets it too, even locked.
       delete customPoints.data.same;
+      customPoints.data.drag = false;
       await hiderifyQuestion(customPoints);
       expect(customPoints.data.same).toBe(false);
+      // A locked one with an answer keeps it.
+      customPoints.data.same = true;
+      await hiderifyQuestion(customPoints);
+      expect(customPoints.data.same).toBe(true);
     } finally {
       mapGeoJSON.set(null);
     }

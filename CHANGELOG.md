@@ -7,9 +7,9 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## New questions wait for an answer (2026-11-25)
 
 - A new question no longer removes zones before the hiders have answered. Its shape is drawn dashed, its card says "Waiting for answer" with no answer selected, and the zones left stay as they are until someone taps an answer. Auto zoom doesn't move the map for it either. A locked card still takes its first answer, and hider mode answers waiting questions as usual.
-- Questions already in a session keep their answers. An older version of the app still open on another device shows a waiting question with a guessed answer until it updates; an answer given there reaches everyone.
+- Questions already in a session keep their answers.
 - Matching has a new **Station Name Length** question: is the hider's station name as long as the seekers'? Every character counts, as the game map spells it. The seekers' station is the zone nearest the question's pin; the card shows its name and how many characters it has. The answer crosses out the zones that don't fit in the zone list, lists them after the live ones and leaves them out of the zones left.
-- Devices still on an older version of the app remove Station Name Length questions when they save, so make sure every device has updated first. History can restore a removed question.
+- Make sure every device has updated before the next game. An older version of the app shows a waiting question with a guessed answer, which for some questions isn't the answer its map uses, and removes Station Name Length questions when it saves (History can restore them).
 
 ## Question card fixes (2026-11-25)
 
