@@ -339,7 +339,11 @@ export function ImportPanel({
               size="sm"
               variant="outline"
               className="mt-2"
-              onClick={() => setServerId(CASUAL_SERVER_ID)}
+              onClick={() => {
+                setServerId(CASUAL_SERVER_ID);
+                // The button goes with the warning; keep keyboard focus on the choice.
+                serverRef.current?.focus();
+              }}
               disabled={importing}
             >
               Upload it as a Casual game instead

@@ -167,7 +167,7 @@ export async function auditLogRoutes(app: FastifyInstance) {
         // re-import would otherwise read the same.
         prisma.$queryRaw<AuditLogFilters["games"]>`
           SELECT DISTINCT ON ("targetId") "targetId" AS id,
-            CASE WHEN action = 'game.delete' THEN "targetName" || ' (deleted)'
+            CASE WHEN action = 'game.delete' THEN "targetName" || ', deleted'
                  ELSE "targetName" END AS name,
             "serverId"
           FROM "AuditLog"
