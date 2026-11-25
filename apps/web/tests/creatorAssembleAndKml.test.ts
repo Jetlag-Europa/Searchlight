@@ -254,6 +254,15 @@ describe("assembleGameDefinition", () => {
     );
     // Polygon zones have no radius.
     expect(kml.kml.match(/name="radius_m"/g)).toHaveLength(3);
+    // A miles game's radius is written exactly.
+    const miles = buildGameKml({
+      ...def,
+      unit: "miles",
+      hidingZones: { ...def.hidingZones, unit: "miles", radius: 1.5 },
+    });
+    expect(miles.kml).toContain(
+      '<Data name="tier"><value>DisplayOnly</value></Data><Data name="radius_m"><value>2414.016</value></Data>',
+    );
 
     // Copy sanitization strips server/id/revision/visibility so non-editors cannot accidentally replace the original.
     const copy = sanitizeDefinitionForCreatorCopy({
