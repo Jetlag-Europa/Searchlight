@@ -64,7 +64,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
       hasIt &&
       permission === "server.admin" &&
       !confirm(
-        `Untick Server admin for ${roleName}? Everyone whose admin access comes only from this role loses it, you too if it's yours, and only another admin can give it back.`,
+        `Untick Server admin for ${roleName}? Anyone who is admin only through this role loses admin access, maybe you. Only another admin can give it back.`,
       )
     ) {
       return;
