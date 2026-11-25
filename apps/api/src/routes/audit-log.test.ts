@@ -189,7 +189,11 @@ describe("/audit-log", () => {
     ]);
     // Not a role of the server, and @everyone (the guild's id): refused, stored and logged nowhere.
     expect([await grant("1999999999999999999"), await grant(SERVER_ID)]).toEqual([400, 400]);
-    expect(await prisma.rolePermission.count({ where: { serverId: SERVER_ID } })).toBe(1);
+    expect(
+      await prisma.rolePermission.count({
+        where: { serverId: SERVER_ID, discordRoleId: { in: ["1999999999999999999", SERVER_ID] } },
+      }),
+    ).toBe(0);
 
     const deleted = await app.inject({
       method: "DELETE",
