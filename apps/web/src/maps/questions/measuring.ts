@@ -57,7 +57,7 @@ export const adjustPerMeasuring = async (question: MeasuringQuestion, mapData: a
 
   if (buffer === false) return mapData;
 
-  return modifyMapData(mapData, buffer, question.hiderCloser);
+  return modifyMapData(mapData, buffer, !!question.hiderCloser);
 };
 
 export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
@@ -65,6 +65,9 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
   if ($hiderMode === false) {
     return question;
   }
+  // Worked out from an answer to start from: a waiting question has none.
+  const start = question.hiderCloser ?? true;
+  const asked = { ...question, hiderCloser: start };
 
   const $mapGeoJSON = mapGeoJSON.get();
   if ($mapGeoJSON === null) return question;
@@ -72,10 +75,13 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
   let feature = null;
 
   try {
-    feature = holedMask((await adjustPerMeasuring(question, $mapGeoJSON))!);
+    const adjusted = await adjustPerMeasuring(asked, $mapGeoJSON);
+    // Nothing drawn yet: nothing to answer from.
+    if (adjusted === $mapGeoJSON) return question;
+    feature = holedMask(adjusted!);
   } catch {
     try {
-      feature = await adjustPerMeasuring(question, {
+      feature = await adjustPerMeasuring(asked, {
         type: "FeatureCollection",
         features: [holedMask($mapGeoJSON)],
       });
@@ -88,9 +94,7 @@ export const hiderifyMeasuring = async (question: MeasuringQuestion) => {
 
   const hiderPoint = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
 
-  if (turf.booleanPointInPolygon(hiderPoint, feature)) {
-    question.hiderCloser = !question.hiderCloser;
-  }
+  question.hiderCloser = turf.booleanPointInPolygon(hiderPoint, feature) ? !start : start;
 
   return question;
 };

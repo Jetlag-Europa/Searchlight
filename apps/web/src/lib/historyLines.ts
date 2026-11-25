@@ -10,8 +10,7 @@ import {
   questionTypeLabel,
   summarizeQuestion,
 } from "@/lib/questionSummary";
-import { SPLIT_ANSWERS } from "@/maps/answerSplit";
-import type { Units } from "@/maps/schema";
+import { ANSWER_FIELDS, type Units } from "@/maps/schema";
 
 // A question a line deleted, as needed to put it back.
 export interface RemovedQuestion {
@@ -50,15 +49,6 @@ const COALESCE_WINDOW_MS = 90_000;
 // A save adding (or deleting) this many questions, such as a preset, a copied
 // session's first save or Delete All, is one line.
 const GROUP_AT = 3;
-
-// The field holding each question type's answer: the one its answer toggle
-// sets, and the tentacle's chosen place.
-const ANSWER_FIELDS: Partial<Record<string, string>> = {
-  ...Object.fromEntries(
-    Object.entries(SPLIT_ANSWERS).map(([id, answers]) => [id, Object.keys(answers![0].data)[0]]),
-  ),
-  tentacles: "location",
-};
 
 const PIN_COORDINATES = new Set(PIN_FIELDS.flatMap(([lat, lng]) => [lat, lng]));
 

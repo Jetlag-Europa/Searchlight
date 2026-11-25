@@ -133,7 +133,7 @@ describe("summarizing a question", () => {
         },
         { kindLabel },
       ),
-    ).toBe("Museums 2 km: None chosen");
+    ).toBe("Museums 2 km");
   });
 
   test("reads a radius saved without its unit in the player's unit", () => {
