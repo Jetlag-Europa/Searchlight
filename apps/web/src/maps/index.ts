@@ -220,8 +220,9 @@ function questionStatus(question: any): "ready" | "pending" | "unsupported" {
 export const hiderifyQuestion = async (question: Question) => {
   if (question.data.enabled === false) return null;
   if (isZoneSizeChange(question)) return question;
-  // A locked question still waiting for its answer gets one, as a tap would give it.
-  if (question.data.drag || isUnanswered(question)) {
+  // Locked questions keep what they have, also "waiting": the hider may not
+  // have set their position yet, and a lock would keep a wrong answer.
+  if (question.data.drag) {
     if (questionStatus(question) !== "ready") return question;
     const compiled = compiledGameAtom.get()!;
     const questionDef = resolveCompiledQuestion(question, compiled);
