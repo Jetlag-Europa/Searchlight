@@ -201,8 +201,8 @@ SELECT id, "serverId", name FROM "Game" WHERE "archivedAt" IS NOT NULL;
 ```
 
 While the older API runs, tell game managers not to use **Make listed** or
-**Replace with file…** on those games. Replace brings one back as a live game
-that keeps its `archived:` owner scope, so after going forward an import of its
+**Replace with file…** on those games. Replace brings one back as a live (but
+still unlisted) game that keeps its `archived:` owner scope, so after going forward an import of its
 file adds a second game instead of updating it. And when the older API deletes
 an archived game's last session, the game stays behind. Before starting the
 newer API again:
