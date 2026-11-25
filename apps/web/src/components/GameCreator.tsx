@@ -49,6 +49,7 @@ import {
 import {
   decodeImportedText,
   type GeometryFamily,
+  type ImportedStations,
   parseJsonImportText,
   suggestSingularLayerName,
   sumFeatureVertices,
@@ -927,7 +928,7 @@ export function GameCreator() {
   const handleImportStations = (
     imported: CreatorPointItem[],
     replace: boolean,
-    tierRadiiMeters: Record<string, number> = {},
+    { tierRadiiMeters, baseTier }: Omit<ImportedStations, "stations"> = { tierRadiiMeters: {} },
   ) => {
     if (replace) {
       stationAbortRef.current?.abort();
@@ -935,17 +936,22 @@ export function GameCreator() {
       setStationBusy(null);
       setExtraHidingZones([]);
     }
+    const toUnit = (m: number) => convertDistanceUnit(m, "meters", unit);
+    const fileTiers = { ...tierRadiiMeters };
+    // A new list takes the file's base radius; added stations keep it as a
+    // tier so the stations already listed keep theirs.
+    if (baseTier && (replace || stations.length === 0)) {
+      setHidingRadius(toUnit(fileTiers[baseTier]));
+      delete fileTiers[baseTier];
+      imported = imported.map((s) => (s.tier === baseTier ? { ...s, tier: undefined } : s));
+    }
     setStations((prev) => (replace ? imported : [...prev, ...imported]));
-    // The file's tier radii fill in tiers the game doesn't have yet.
-    setTierOverrides((prev) => ({
-      ...Object.fromEntries(
-        Object.entries(tierRadiiMeters).map(([name, m]) => [
-          name,
-          convertDistanceUnit(m, "meters", unit),
-        ]),
-      ),
-      ...prev,
-    }));
+    const converted = Object.fromEntries(
+      Object.entries(fileTiers).map(([name, m]) => [name, toUnit(m)]),
+    );
+    // Replacing the list takes the file's radius for a tier it shares with the
+    // game; adding stations leaves the game's tiers alone.
+    setTierOverrides((prev) => (replace ? { ...prev, ...converted } : { ...converted, ...prev }));
     setStationSummary(
       replace
         ? `Loaded ${imported.length} stations from file`

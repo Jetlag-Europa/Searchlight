@@ -1004,6 +1004,12 @@ export function buildSurroundingPlayArea(
   };
 }
 
+export interface ImportedStations {
+  stations: CreatorPointItem[];
+  tierRadiiMeters: Record<string, number>;
+  baseTier?: string;
+}
+
 const radiusMetersOf = (f: ImportedRawFeature): number | undefined => {
   const r = Number(f.attributes?.radius_m);
   return Number.isFinite(r) && r > 0 ? r : undefined;
@@ -1013,11 +1019,12 @@ const radiusMetersOf = (f: ImportedRawFeature): number | undefined => {
  * Stations from a file's points. A station's zone radius, from its own
  * `radius_m` or that of a same-named shape (a zone circle) in `fileFeatures`,
  * becomes the radius of its tier, named "<r> m" when the file gives none.
+ * `baseTier` is the most used of those "<r> m" tiers: the file's base radius.
  */
 export function importedFeaturesToStations(
   features: readonly ImportedRawFeature[],
   fileFeatures: readonly ImportedRawFeature[] = features,
-): { stations: CreatorPointItem[]; tierRadiiMeters: Record<string, number> } {
+): ImportedStations {
   const circleRadii = new Map<string, number>();
   for (const f of fileFeatures) {
     const r = radiusMetersOf(f);
@@ -1025,10 +1032,12 @@ export function importedFeaturesToStations(
   }
   const stations: CreatorPointItem[] = [];
   const tierRadiiMeters: Record<string, number> = {};
+  const radiusTierCounts = new Map<string, number>();
   for (const f of features) {
     if (f.geometry.type !== "Point") continue;
     const radius = radiusMetersOf(f) ?? circleRadii.get(f.name);
     const tier = f.tier ?? (radius ? `${radius} m` : undefined);
+    if (!f.tier && tier) radiusTierCounts.set(tier, (radiusTierCounts.get(tier) ?? 0) + 1);
     if (tier && radius && !Object.prototype.hasOwnProperty.call(tierRadiiMeters, tier)) {
       tierRadiiMeters[tier] = radius;
     }
@@ -1042,7 +1051,11 @@ export function importedFeaturesToStations(
       custom: true,
     });
   }
-  return { stations, tierRadiiMeters };
+  let baseTier: string | undefined;
+  for (const [tier, count] of radiusTierCounts) {
+    if (!baseTier || count > radiusTierCounts.get(baseTier)!) baseTier = tier;
+  }
+  return { stations, tierRadiiMeters, baseTier };
 }
 
 export function sumFeatureVertices(

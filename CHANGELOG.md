@@ -6,9 +6,9 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 
 ## Map Creator imports keep zone radii (2026-11-25)
 
-- Stations imported into the Map Creator from a My Maps file keep their hiding zone radius when the file gives one: a `radius_m` on the station, or on a zone circle with the same name, as in the Luxembourg map. Each radius becomes a tier, such as "750 m" and "1000 m", so a map with mixed radii comes in right without setting stations one by one.
-- The Creator's `.kml (My Maps)` export now includes each station's radius, so importing it again gives the same zones.
-- When you import a file's "Hiding Zones" folder as a layer, the Creator says you don't need it: Searchlight draws the circles itself, and as a layer it would add a "Distance to …" question.
+- Stations imported into the Map Creator from a My Maps file keep their hiding zone radius when the file gives one: a `radius_m` on the station, or on a zone circle with the same name, as in the Luxembourg map. A station whose file names a tier gets that tier with the radius. When you load stations into an empty list or replace the list, the radius most stations without a tier share becomes the game's hiding zone radius, and other radii become tiers named after them, such as "1000 m". So a map with mixed radii comes in right without setting stations one by one.
+- The Creator's `.kml (My Maps)` export now includes each station's radius, so importing it again gives the same zones and hiding zone radius.
+- Picking a file's "Hiding Zones" folder under Layers → Import File now says you don't need it as a layer: Searchlight draws the circles itself, and as a layer it would add a "Distance to …" question.
 - **Import to Searchlight** in the Creator now opens the import page on a server you can import to, instead of Casual Games.
 
 ## Audit log for admins (2026-11-22)

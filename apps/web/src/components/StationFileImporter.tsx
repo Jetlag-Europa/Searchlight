@@ -9,6 +9,7 @@ import {
   importedFeaturesToStations,
   type ImportedFolder,
   type ImportedRawFeature,
+  type ImportedStations,
   parseImportedFileText,
 } from "@/lib/creator/importFile";
 import type { CreatorPointItem } from "@/lib/creator/overpass";
@@ -35,7 +36,7 @@ interface Props {
   onImportStations: (
     stations: CreatorPointItem[],
     replace: boolean,
-    tierRadiiMeters?: Record<string, number>,
+    radii?: Omit<ImportedStations, "stations">,
   ) => void;
   onLoadGameDefinition: (def: GameDefinition) => void;
 }
@@ -124,11 +125,11 @@ export function StationFileImporter({
 
     // Single-folder CSV/KML/GeoJSON when station list is empty: import immediately!
     if (pointFolders.length === 1 && existingStationCount === 0) {
-      const { stations: pts, tierRadiiMeters } = importedFeaturesToStations(
+      const { stations: pts, ...radii } = importedFeaturesToStations(
         pointFolders[0].features,
         fileFeatures,
       );
-      onImportStations(pts, true, tierRadiiMeters);
+      onImportStations(pts, true, radii);
       setPending(null);
       toast.success(
         `Imported ${pts.length} station${pts.length === 1 ? "" : "s"} from ${file.name}`,
@@ -150,11 +151,11 @@ export function StationFileImporter({
 
   const commitFolder = (replace: boolean) => {
     if (!activeFolder || pending?.kind !== "folders") return;
-    const { stations: pts, tierRadiiMeters } = importedFeaturesToStations(
+    const { stations: pts, ...radii } = importedFeaturesToStations(
       activeFolder.features,
       pending.fileFeatures,
     );
-    onImportStations(pts, replace, tierRadiiMeters);
+    onImportStations(pts, replace, radii);
     toast.success(
       `${replace ? "Loaded" : "Added"} ${pts.length} station${pts.length === 1 ? "" : "s"} from ${pending.fileName}`,
     );

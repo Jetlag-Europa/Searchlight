@@ -12,6 +12,7 @@ import {
   detectFolderSplitFields,
   type GeometryFamily,
   importedFeaturesToStations,
+  type ImportedStations,
   mergeImportedByName,
   type ParsedImportFile,
   parseImportedFileText,
@@ -30,7 +31,7 @@ interface Props {
   onImportStations: (
     stations: CreatorPointItem[],
     replace: boolean,
-    tierRadiiMeters?: Record<string, number>,
+    radii?: Omit<ImportedStations, "stations">,
   ) => void;
   onAddGeometryLayers: (layers: CreatorGeometryLayer[]) => void;
   onLoadGameDefinition: (def: GameDefinition) => void;
@@ -429,11 +430,11 @@ export function CreatorImportPanel({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  const { stations: pts, tierRadiiMeters } = importedFeaturesToStations(
+                  const { stations: pts, ...radii } = importedFeaturesToStations(
                     activeFolder.features,
                     parsed.folders.flatMap((f) => f.features),
                   );
-                  onImportStations(pts, false, tierRadiiMeters);
+                  onImportStations(pts, false, radii);
                   setImportedFolders((prev) => new Set(prev).add(folderIndex));
                   toast.success(`Added ${pts.length} station${pts.length === 1 ? "" : "s"}`);
                 }}
@@ -445,11 +446,11 @@ export function CreatorImportPanel({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  const { stations: pts, tierRadiiMeters } = importedFeaturesToStations(
+                  const { stations: pts, ...radii } = importedFeaturesToStations(
                     activeFolder.features,
                     parsed.folders.flatMap((f) => f.features),
                   );
-                  onImportStations(pts, true, tierRadiiMeters);
+                  onImportStations(pts, true, radii);
                   setImportedFolders((prev) => new Set(prev).add(folderIndex));
                   toast.success(
                     `Replaced stations with ${pts.length} pin${pts.length === 1 ? "" : "s"}`,

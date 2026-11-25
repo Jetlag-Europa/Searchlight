@@ -113,6 +113,8 @@ describe("importedFeaturesToStations", () => {
       point("Gare", { radius_m: "1000" }, "Outer"),
       point("Ahn"),
       point("Elsewhere"),
+      point("Kirchberg", { radius_m: "1000" }),
+      point("Bonnevoie", { radius_m: "750" }),
     ];
     const circle = {
       name: "Ahn",
@@ -127,8 +129,16 @@ describe("importedFeaturesToStations", () => {
       attributes: { radius_m: "750.0" },
     };
     const result = importedFeaturesToStations(stations, [...stations, circle]);
-    expect(result.stations.map((s) => s.tier)).toEqual(["Outer", "750 m", undefined]);
-    expect(result.tierRadiiMeters).toEqual({ Outer: 1000, "750 m": 750 });
+    expect(result.stations.map((s) => s.tier)).toEqual([
+      "Outer",
+      "750 m",
+      undefined,
+      "1000 m",
+      "750 m",
+    ]);
+    expect(result.tierRadiiMeters).toEqual({ Outer: 1000, "750 m": 750, "1000 m": 1000 });
+    // The most used radius without a tier name of its own is the file's base radius.
+    expect(result.baseTier).toBe("750 m");
   });
 });
 
