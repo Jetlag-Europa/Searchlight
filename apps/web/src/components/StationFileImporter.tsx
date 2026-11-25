@@ -8,6 +8,8 @@ import { Label } from "@/components/ui/label";
 import {
   importedFeaturesToStations,
   type ImportedFolder,
+  type ImportedRawFeature,
+  type ImportedStations,
   parseImportedFileText,
 } from "@/lib/creator/importFile";
 import type { CreatorPointItem } from "@/lib/creator/overpass";
@@ -20,6 +22,7 @@ type PendingStationImport =
       fileName: string;
       format: "kml" | "geojson" | "csv";
       folders: ImportedFolder[];
+      fileFeatures: ImportedRawFeature[];
     }
   | {
       kind: "game-definition";
@@ -30,7 +33,11 @@ type PendingStationImport =
 
 interface Props {
   existingStationCount: number;
-  onImportStations: (stations: CreatorPointItem[], replace: boolean) => void;
+  onImportStations: (
+    stations: CreatorPointItem[],
+    replace: boolean,
+    radii?: Omit<ImportedStations, "stations">,
+  ) => void;
   onLoadGameDefinition: (def: GameDefinition) => void;
 }
 
@@ -109,6 +116,7 @@ export function StationFileImporter({
     }
 
     const pointFolders = parsed.folders.filter((f) => f.counts.points > 0);
+    const fileFeatures = parsed.folders.flatMap((f) => f.features);
     if (pointFolders.length === 0) {
       setPending(null);
       setError("No point features (stations) found in that file.");
@@ -117,8 +125,11 @@ export function StationFileImporter({
 
     // Single-folder CSV/KML/GeoJSON when station list is empty: import immediately!
     if (pointFolders.length === 1 && existingStationCount === 0) {
-      const pts = importedFeaturesToStations(pointFolders[0].features);
-      onImportStations(pts, true);
+      const { stations: pts, ...radii } = importedFeaturesToStations(
+        pointFolders[0].features,
+        fileFeatures,
+      );
+      onImportStations(pts, true, radii);
       setPending(null);
       toast.success(
         `Imported ${pts.length} station${pts.length === 1 ? "" : "s"} from ${file.name}`,
@@ -131,6 +142,7 @@ export function StationFileImporter({
       fileName: file.name,
       format: parsed.format,
       folders: pointFolders,
+      fileFeatures,
     });
     setFolderIdx(defaultStationFolderIndex(pointFolders));
   };
@@ -138,9 +150,12 @@ export function StationFileImporter({
   const activeFolder = pending?.kind === "folders" ? pending.folders[folderIdx] : null;
 
   const commitFolder = (replace: boolean) => {
-    if (!activeFolder || !pending) return;
-    const pts = importedFeaturesToStations(activeFolder.features);
-    onImportStations(pts, replace);
+    if (!activeFolder || pending?.kind !== "folders") return;
+    const { stations: pts, ...radii } = importedFeaturesToStations(
+      activeFolder.features,
+      pending.fileFeatures,
+    );
+    onImportStations(pts, replace, radii);
     toast.success(
       `${replace ? "Loaded" : "Added"} ${pts.length} station${pts.length === 1 ? "" : "s"} from ${pending.fileName}`,
     );

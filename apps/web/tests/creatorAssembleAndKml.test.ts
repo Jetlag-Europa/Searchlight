@@ -243,9 +243,26 @@ describe("assembleGameDefinition", () => {
       id: 91,
       properties: { name: "Main", code: "UL" },
     });
-    // Numeric tier also serializes to KML ExtendedData.
+    // Numeric tier also serializes to KML ExtendedData, and each station's
+    // radius goes with it so a re-import keeps it.
     const kml = buildGameKml(def);
-    expect(kml.kml).toContain('<Data name="tier"><value>1</value></Data>');
+    expect(kml.kml).toContain(
+      '<Data name="tier"><value>1</value></Data><Data name="radius_m"><value>900</value></Data>',
+    );
+    expect(kml.kml).toContain(
+      '<Data name="tier"><value>DisplayOnly</value></Data><Data name="radius_m"><value>400</value></Data>',
+    );
+    // Polygon zones have no radius.
+    expect(kml.kml.match(/name="radius_m"/g)).toHaveLength(3);
+    // A miles game's radius is written exactly.
+    const miles = buildGameKml({
+      ...def,
+      unit: "miles",
+      hidingZones: { ...def.hidingZones, unit: "miles", radius: 1.5 },
+    });
+    expect(miles.kml).toContain(
+      '<Data name="tier"><value>DisplayOnly</value></Data><Data name="radius_m"><value>2414.016</value></Data>',
+    );
 
     // Copy sanitization strips server/id/revision/visibility so non-editors cannot accidentally replace the original.
     const copy = sanitizeDefinitionForCreatorCopy({

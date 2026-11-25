@@ -528,6 +528,8 @@ export function buildGameKml(
     });
   }
 
+  const compiled = compileGameDefinition(definition);
+
   // 2. Hiding zones (stations) folder
   if (wantFolder("Stations") && definition.hidingZones.features.features.length > 0) {
     const hasPointZones = definition.hidingZones.features.features.some(
@@ -552,6 +554,12 @@ export function buildGameKml(
         if (rawTier !== undefined && rawTier !== null && String(rawTier).trim() !== "") {
           extra.tier = String(rawTier).trim();
         }
+        // The radius goes with each station, so re-importing the file keeps it.
+        const radius = compiled.hidingZones.stations?.[i]?.radius;
+        if (f.geometry.type === "Point" && radius) {
+          // Exact: convertDistanceUnit rounds miles to 2 significant figures.
+          extra.radius_m = String(turf.convertLength(radius.value, radius.unit, "meters"));
+        }
         const styleId = f.geometry.type === "Point" ? stationStyleId : polyZoneStyleId;
         return placemarkXml(name, styleId, f.geometry, extra);
       }),
@@ -565,7 +573,6 @@ export function buildGameKml(
     definition.hidingZones.features.features.length > 0
   ) {
     const zoneCircleStyleId = ensureStyle(lineStyleXml("#1A237E", 1.5));
-    const compiled = compileGameDefinition(definition);
     const circles = hidingZoneCircles(compiled);
     const circlePlacemarks: string[] = [];
     for (const circle of circles) {

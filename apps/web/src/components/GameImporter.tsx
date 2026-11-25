@@ -2,6 +2,7 @@ import "leaflet/dist/leaflet.css";
 
 import { useStore } from "@nanostores/react";
 import {
+  CASUAL_SERVER_ID,
   formatGameDefinitionJson,
   type GameDefinition,
   resolveGameDefinitionId,
@@ -325,11 +326,14 @@ export function GameImporter() {
           return;
         }
         const text = formatGameDefinitionJson(handoff.definition);
+        // The Creator names Casual Games when the maker picked no server, so
+        // this page picks one they can import to.
+        const noServer = !replaceGameId && handoff.definition.serverId === CASUAL_SERVER_ID;
         const result = await inspectDefinition(
           handoff.definition,
           handoff.fileName,
           new TextEncoder().encode(text).byteLength,
-          false,
+          noServer,
           false,
           "  ",
         );
@@ -352,7 +356,7 @@ export function GameImporter() {
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [userId, replaceGameId]);
 
   const loadFile = async (file: File) => {
     const load = ++latestLoad.current;

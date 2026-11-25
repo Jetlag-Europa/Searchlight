@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input, RawInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import type { ImportedStations } from "@/lib/creator/importFile";
 import type { CreatorPointItem } from "@/lib/creator/overpass";
 import { STATION_TYPES, type StationSource, type StationTypeId } from "@/lib/creator/presets";
 import { cn } from "@/lib/utils";
@@ -51,7 +52,11 @@ interface Props {
   filteredStations: CreatorPointItem[];
   activeStationCount: number;
   extraHidingZones: HidingZoneFeature[];
-  onImportStations: (imported: CreatorPointItem[], replace: boolean) => void;
+  onImportStations: (
+    imported: CreatorPointItem[],
+    replace: boolean,
+    radii?: Omit<ImportedStations, "stations">,
+  ) => void;
   onClearStations: () => void;
   onLoadGameDefinition: (def: GameDefinition) => void;
   interactionMode: "browse" | "draw-area" | "add-station";
