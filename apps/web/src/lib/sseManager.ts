@@ -1,10 +1,14 @@
-import type { EventRecord, ParticipantRoleChangedEvent } from "@searchlight/shared";
+import type {
+  EventRecord,
+  GameRevisionChangedEvent,
+  ParticipantRoleChangedEvent,
+} from "@searchlight/shared";
 
 import { strokes } from "@/annotations/hooks/useAnnotationStore";
 import { isStrokeTombstoned, recordStrokeTombstone } from "@/annotations/storage/serverStore";
 import { isStrokeLike } from "@/annotations/types";
 import { compiledGameAtom, filterSupportedQuestions } from "@/game-definition/store";
-import { isSessionReadOnly } from "@/lib/activeSession";
+import { activeSessionData, isSessionReadOnly, setCurrentRevision } from "@/lib/activeSession";
 import { RETRY_MAX_MS, RETRY_MIN_MS } from "@/lib/backoffRetry";
 import type { PresenceUser } from "@/lib/context";
 import {
@@ -12,6 +16,7 @@ import {
   hiderMode,
   planningModeEnabled,
   questions,
+  streamLive,
   syncStatus,
 } from "@/lib/context";
 import {
@@ -530,10 +535,12 @@ async function gapFill(sessionId: string, generation: number, attempt: number): 
   } else if (complete) {
     replayRetryDelay = RETRY_MIN_MS;
     syncStatus.set("live");
+    streamLive.set(true);
     isGapFilling = false;
     drainBufferedEvents(sessionId, generation);
   } else {
     syncStatus.set("offline");
+    streamLive.set(false);
     const delay = replayRetryDelay;
     replayRetryDelay = Math.min(delay * 2, RETRY_MAX_MS);
     replayRetry = setTimeout(() => {
@@ -556,6 +563,7 @@ function drainBufferedEvents(sessionId: string, generation: number): void {
       liveEventBuffer = buffered.slice(index);
       isGapFilling = true;
       syncStatus.set("offline");
+      streamLive.set(false);
       replayRetry = setTimeout(() => {
         if (currentGeneration === generation && currentSessionId === sessionId) {
           startReplay(sessionId, generation);
@@ -673,6 +681,13 @@ function openStream(sessionId: string, generation: number): void {
         handleRoleChangedEvent(sessionId, parsed.payloadJson);
         return;
       }
+      if (parsed.type === "game.revision-changed") {
+        const { gameRevisionId, revision } =
+          parsed.payloadJson as GameRevisionChangedEvent["payloadJson"];
+        const onIt = activeSessionData.get()?.gameRevisionId === gameRevisionId;
+        setCurrentRevision(sessionId, revision, !onIt);
+        return;
+      }
       const record = parsed as unknown as EventRecord;
       const seq =
         "sequence" in record && typeof record.sequence === "number" ? record.sequence : undefined;
@@ -704,6 +719,7 @@ function openStream(sessionId: string, generation: number): void {
     }
     console.warn("[searchlight:sse] connection error, readyState:", source.readyState, e);
     // The next onopen starts a fresh replay attempt.
+    streamLive.set(false);
     if (syncStatus.get() === "live") {
       syncStatus.set("synced");
       console.info("[searchlight:sse] status reverted to synced");
@@ -735,6 +751,7 @@ export function stopSSE(): void {
   replayAttempt++;
   liveEventBuffer = [];
   isGapFilling = false;
+  streamLive.set(false);
   if (syncStatus.get() === "live") syncStatus.set("synced");
   connectedUsers.set([]);
   currentSessionId = null;

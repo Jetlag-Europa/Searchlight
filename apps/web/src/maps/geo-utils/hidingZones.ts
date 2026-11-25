@@ -1,8 +1,14 @@
 import * as turf from "@turf/turf";
 import type { Feature, FeatureCollection, MultiPolygon, Polygon } from "geojson";
 
-import type { CompiledGame } from "@/game-definition/compile";
+import type { CompiledGame, CompiledHidingZone } from "@/game-definition/compile";
 import type { StationCircle, StationPlace } from "@/maps/api";
+
+/** A zone's id, as the zone list and the disabled zones know it. */
+export const zoneId = (zone: Pick<CompiledHidingZone, "id" | "coordinates">) => {
+  const [lng, lat] = zone.coordinates;
+  return String(zone.id) || `${lat},${lng}`;
+};
 
 /**
  * The game's hiding zones as the zone sidebar draws them. A station's zone is
@@ -18,9 +24,8 @@ export function hidingZoneCircles(
   const { stations = [] } = compiled.hidingZones;
 
   return stations.map((zone) => {
-    const [lng, lat] = zone.coordinates;
     const place: StationPlace = turf.point(zone.coordinates, {
-      id: String(zone.id) || `${lat},${lng}`,
+      id: zoneId(zone),
       name: zone.name,
       ...(zone.tier ? { tier: zone.tier } : {}),
     });

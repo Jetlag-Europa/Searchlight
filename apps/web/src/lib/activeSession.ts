@@ -64,6 +64,23 @@ export function setActiveSession(session: GameSessionSummary): void {
   activeSessionData.set(session);
 }
 
+/** The game's current revision changed: the board offers it while the session is on another. */
+export function setCurrentRevision(
+  sessionId: string,
+  currentRevision: number | null | undefined,
+  hasNewerRevision: boolean | undefined,
+): void {
+  const session = activeSessionData.get();
+  if (session?.id !== sessionId) return;
+  if (
+    session.currentRevision === currentRevision &&
+    session.hasNewerRevision === hasNewerRevision
+  ) {
+    return;
+  }
+  activeSessionData.set({ ...session, currentRevision, hasNewerRevision });
+}
+
 export function clearActiveSession(): void {
   // An empty marker keeps this tab cleared even if another tab selects later.
   writeStorage("sessionStorage", SS_KEY, "");

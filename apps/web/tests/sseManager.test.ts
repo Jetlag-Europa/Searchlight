@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import type { EventRecord } from "@searchlight/shared";
+import type { EventRecord, GameSessionSummary } from "@searchlight/shared";
 
 // ── localStorage mock (same as eventQueue.test.ts) ───────────────────────────
 const store = new Map<string, string>();
@@ -47,6 +47,7 @@ vi.stubGlobal("fetch", mockFetch);
 
 // ── Imports (after globals are stubbed) ───────────────────────────────────────
 import { startSSE, stopSSE } from "@/lib/sseManager";
+import { activeSessionData } from "@/lib/activeSession";
 import {
   cancelPendingDisabledZonesSave,
   cancelPendingQuestionSave,
@@ -66,7 +67,7 @@ import {
   setCachedSession,
   getCachedSession,
 } from "@/lib/eventQueue";
-import { onQuestionsSaved, type QuestionsSaved } from "@/lib/syncManager";
+import { onQuestionsSaved, type QuestionsSaved, refreshSyncCounts } from "@/lib/syncManager";
 import type { StrokeFeature } from "@/annotations/types";
 import type { Questions } from "@/maps/schema";
 
@@ -204,11 +205,55 @@ describe("startSSE / stopSSE", () => {
     );
   });
 
+  test("stays live after a save while the stream is open, not after it drops", async () => {
+    mockFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ events: [], nextAfter: null }),
+    });
+    startSSE(SID);
+    const es = MockEventSource._last!;
+    es.onopen!(new Event("open"));
+    await settle();
+    syncStatus.set("syncing");
+    refreshSyncCounts(SID);
+    expect(syncStatus.get()).toBe("live");
+
+    es.onerror!(new Event("error"));
+    syncStatus.set("syncing");
+    refreshSyncCounts(SID);
+    expect(syncStatus.get()).toBe("synced");
+  });
+
   test("stopSSE reverts live status to synced", () => {
     startSSE(SID);
     MockEventSource._last!.onopen!(new Event("open"));
     stopSSE();
     expect(syncStatus.get()).toBe("synced");
+  });
+});
+
+describe("game.revision-changed", () => {
+  test("offers the game's new revision, and stops once the session is on it", () => {
+    activeSessionData.set({
+      id: SID,
+      gameRevisionId: "rev-1",
+      currentRevision: 1,
+      hasNewerRevision: false,
+    } as GameSessionSummary);
+    startSSE(SID);
+    const send = (gameRevisionId: string, revision: number) =>
+      MockEventSource._last!.onmessage!({
+        data: JSON.stringify({
+          type: "game.revision-changed",
+          payloadJson: { gameRevisionId, revision },
+        }),
+      } as MessageEvent);
+
+    send("rev-2", 2);
+    expect(activeSessionData.get()).toMatchObject({ currentRevision: 2, hasNewerRevision: true });
+    send("rev-1", 1);
+    expect(activeSessionData.get()).toMatchObject({ currentRevision: 1, hasNewerRevision: false });
+    activeSessionData.set(null);
   });
 });
 

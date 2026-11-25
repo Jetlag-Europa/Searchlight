@@ -40,6 +40,7 @@ import {
   offlineUserId,
   sessionReadOnly,
   setActiveSession,
+  setCurrentRevision,
   verifiedUserId,
 } from "@/lib/activeSession";
 import { createBackoffRetry } from "@/lib/backoffRetry";
@@ -1854,6 +1855,11 @@ export function SessionManager() {
     }
     if (details.kind !== "ready" || isLoadingSession()) return;
     applyServerRole(details.session);
+    // An update announced while the stream was down; not from before an upgrade.
+    const fresh = details.session;
+    if (fresh.gameRevisionId === activeSessionData.get()?.gameRevisionId) {
+      setCurrentRevision(id, fresh.currentRevision, fresh.hasNewerRevision);
+    }
   };
 
   // A question list saved here was merged with changes made elsewhere:

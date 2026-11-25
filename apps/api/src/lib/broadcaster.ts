@@ -1,6 +1,7 @@
 import type { Event } from "@prisma/client";
 import type {
   EventRecord,
+  GameRevisionChangedEvent,
   PresenceEvent,
   HiderUpdateEvent,
   PlanningToggleEvent,
@@ -17,7 +18,8 @@ export type AnySSEEvent =
   | PlanningToggleEvent
   | ZonesDisabledEvent
   | SessionRevisionUpgradedEvent
-  | ParticipantRoleChangedEvent;
+  | ParticipantRoleChangedEvent
+  | GameRevisionChangedEvent;
 type Listener = (event: AnySSEEvent) => void;
 
 const listeners = new Map<string, Set<Listener>>();

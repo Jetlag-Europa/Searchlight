@@ -46,6 +46,7 @@ import {
   hideGooglePlaces,
   hiderMode,
   hidingZoneFocusedStationID,
+  mapMenuOpen,
   permanentOverlay,
   planningModeEnabled,
   questions,
@@ -55,6 +56,7 @@ import {
   thunderforestApiKey,
   trainStations,
   triggerLocalRefresh,
+  unsavedChanges,
   warningAlarm,
 } from "@/lib/context";
 import {
@@ -137,7 +139,8 @@ export const OptionDrawers = () => {
   const $localSession = useStore(activeLocalSession);
   const googleMapsEnabled = googleMapsAvailable && !$isLocalBoard;
   const [isOptionsOpen, setOptionsOpen] = useState(false);
-  const [isNavOpen, setNavOpen] = useState(false);
+  const isNavOpen = useStore(mapMenuOpen);
+  const setNavOpen = (open: boolean) => mapMenuOpen.set(open);
   const { readPaste, pasteDialog } = usePasteText();
   const $session = useStore(activeSessionData);
   const $exportSession = $isLocalBoard
@@ -747,6 +750,7 @@ export const OptionDrawers = () => {
                             });
                           } else {
                             triggerLocalRefresh.set(Math.random());
+                            unsavedChanges.set(true);
                           }
                         }}
                         label="Hider Location"
@@ -770,7 +774,7 @@ export const OptionDrawers = () => {
         </div>
       </div>
 
-      <Button className="w-32 shadow-md" onClick={() => setNavOpen((v) => !v)}>
+      <Button className="w-32 shadow-md" onClick={() => setNavOpen(!isNavOpen)}>
         {isNavOpen ? (
           <ChevronDown className="mr-2 h-4 w-4" />
         ) : (

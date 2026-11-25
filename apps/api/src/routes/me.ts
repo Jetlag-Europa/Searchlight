@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { Type } from "@sinclair/typebox";
-import type { MeResponse, UserPreferences } from "@searchlight/shared";
+import { type MeResponse, USER_PREFERENCE_KEYS, type UserPreferences } from "@searchlight/shared";
 import { resolveSession } from "../lib/session.js";
 import prisma from "../lib/prisma.js";
 
@@ -20,18 +20,29 @@ export async function meRoute(app: FastifyInstance) {
     "/me/preferences",
     {
       schema: {
-        body: Type.Any(),
+        body: Type.Record(Type.String(), Type.Unknown()),
         response: { 204: Type.Null() },
       },
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
       app.log.info({ userId: user.discordId }, "[searchlight:prefs] saving preferences");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await prisma.user.update({
-        where: { discordId: user.discordId },
-        data: { preferences: req.body } as any,
-      });
+      // Only known keys, so the merged object can't grow without bound (older
+      // apps' unknown keys are dropped). Merged in one statement: a device
+      // sends only the keys it changed, and two devices saving at once both
+      // keep theirs.
+      const preferences = Object.fromEntries(
+        Object.entries(req.body as Record<string, unknown>).filter(([key]) =>
+          (USER_PREFERENCE_KEYS as string[]).includes(key),
+        ),
+      );
+      await prisma.$executeRaw`
+        UPDATE "User"
+        SET preferences = (CASE WHEN jsonb_typeof(preferences) = 'object' THEN preferences
+            ELSE '{}'::jsonb END) || ${JSON.stringify(preferences)}::jsonb,
+          "updatedAt" = now()
+        WHERE "discordId" = ${user.discordId}
+      `;
       return reply.status(204).send();
     },
   );

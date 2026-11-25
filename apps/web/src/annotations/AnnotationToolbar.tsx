@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { sessionReadOnly } from "@/lib/activeSession";
+import { mapMenuOpen } from "@/lib/context";
 import { cn } from "@/lib/utils";
 
 const tapStyle = { touchAction: "manipulation" as const };
@@ -89,10 +90,12 @@ export function AnnotationToolbar() {
   const $visible = useStore(penToolbarVisible);
   const $penEraser = useStore(penEraserActive);
   const $readOnly = useStore(sessionReadOnly);
+  const $menuOpen = useStore(mapMenuOpen);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Spectators can't draw.
-  if (!$visible || $readOnly) return null;
+  // Spectators can't draw. On a phone the open Menu reaches up to the
+  // toolbar, which would cover its buttons.
+  if (!$visible || $readOnly || $menuOpen) return null;
 
   const setTool = (t: AnnotationTool) => toolStore.set(t);
   const setWidth = (w: StrokeWidthPreset) => widthPresetStore.set(w);
