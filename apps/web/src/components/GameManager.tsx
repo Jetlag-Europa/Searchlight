@@ -489,7 +489,7 @@ function ServerSection({
 
   return (
     <section id={casual ? "casual-games" : undefined} className="mb-10">
-      <div className="flex flex-wrap items-end justify-between gap-2 mb-3">
+      <div className="flex flex-wrap sm:flex-nowrap items-end justify-between gap-2 mb-3">
         <div className="min-w-0">
           <h2 ref={headingRef} tabIndex={-1} className="text-lg font-semibold focus:outline-none">
             {server.name}
@@ -512,7 +512,9 @@ function ServerSection({
             <p className="text-xs text-muted-foreground mt-1">
               You have {games.length} of {CASUAL_GAME_LIMIT} Casual games.
               {/* A creator who left every server keeps their games. */}
-              {!canCreate && " Join one of the JetLag Discord servers to upload or change them."}
+              {!canCreate
+                ? " Join one of the JetLag Discord servers to upload or change them."
+                : games.length >= CASUAL_GAME_LIMIT && " Delete one to upload another."}
             </p>
           )}
           {casual && games && !canCreate && !isServerAdmin && (
@@ -522,7 +524,7 @@ function ServerSection({
           )}
         </div>
         {canImport && (
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" className="shrink-0">
             <a href={`/games/import?server=${encodeURIComponent(server.id)}`}>Import JSON Game</a>
           </Button>
         )}

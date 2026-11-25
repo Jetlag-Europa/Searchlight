@@ -485,6 +485,9 @@ export function SessionPickerOverlay({
   const pickerServers = servers?.filter(inPicker);
   // The same permissions that put a server on the /games page, or own Casual
   // games: their creator may delete them even after leaving every server.
+  const canUploadCasual = servers?.some(
+    (s) => s.id === CASUAL_SERVER_ID && s.permissions.includes("games.create"),
+  );
   const canManageGames = servers?.some(
     (server) =>
       server.hasOwnGames ||
@@ -676,12 +679,17 @@ export function SessionPickerOverlay({
 
             {selectedIsCasual ? (
               <p className="text-xs text-muted-foreground">
-                Casual games start from a game link. Ask the game’s creator for one. Or upload your
-                own on the{" "}
-                <a href="/games" className="underline">
-                  games page
-                </a>
-                .
+                Casual games start from a game link. Ask the game’s creator for one.
+                {canUploadCasual && (
+                  <>
+                    {" "}
+                    Or upload your own on the{" "}
+                    <a href="/games" className="underline">
+                      games page
+                    </a>
+                    .
+                  </>
+                )}
               </p>
             ) : !selectedIsMember ? (
               <p className="text-xs text-muted-foreground">

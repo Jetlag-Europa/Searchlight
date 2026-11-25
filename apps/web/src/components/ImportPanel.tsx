@@ -332,6 +332,19 @@ export function ImportPanel({
               game permissions there.
             </p>
           )}
+          {/* Game files name their server, and most players may only use Casual. */}
+          {unknownServer && servers.some((s) => s.id === CASUAL_SERVER_ID) && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => setServerId(CASUAL_SERVER_ID)}
+              disabled={importing}
+            >
+              Upload it as a Casual game instead
+            </Button>
+          )}
         </div>
       )}
 
@@ -519,6 +532,7 @@ export function ImportPanel({
             previewing ||
             needsConfirm ||
             previewCode === "GAME_ID_TAKEN" ||
+            previewCode === "FORBIDDEN" ||
             previewCode === "CASUAL_GAME_LIMIT" ||
             (!!replaceGameId && dryRun?.gameId !== replaceGameId)
           }

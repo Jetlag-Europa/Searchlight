@@ -302,3 +302,72 @@ test("a new preview cancels the one it replaces", async () => {
   const signals = apiMocks.importGameDefinitionAPI.mock.calls.map((c) => c[6] as AbortSignal);
   expect(signals.map((s) => s.aborted)).toEqual([true, false]);
 });
+
+test("a file naming a server the user can't import to offers Casual Games, and a refusal blocks Import", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        servers: [
+          {
+            id: "home-games",
+            name: "Casual Games",
+            iconUrl: null,
+            isMember: true,
+            permissions: ["games.create"],
+          },
+        ],
+      }),
+    })),
+  );
+  apiMocks.importGameDefinitionAPI.mockImplementation(async (def: GameDefinition) => {
+    if (def.serverId === "server-1") {
+      throw Object.assign(new Error("You do not have permission to import games on this server"), {
+        code: "FORBIDDEN",
+      });
+    }
+    return {
+      status: "created",
+      gameId: "g",
+      gameKey: "london-2026",
+      revision: 1,
+      checksum: "c",
+      errors: [],
+      warnings: [],
+    } satisfies GameImportResponse;
+  });
+
+  await act(async () =>
+    root!.render(
+      <ImportPanel
+        definition={definition}
+        noServer={false}
+        busy={false}
+        blocked={null}
+        replaceGameId={null}
+      />,
+    ),
+  );
+  await settle();
+
+  expect(submitButton().disabled).toBe(true);
+  const offer = ui.buttons.findLast((b) => b.children === "Upload it as a Casual game instead");
+  expect(offer).toBeDefined();
+  ui.buttons = [];
+  await act(async () => {
+    await offer!.onClick!();
+  });
+  await settle();
+
+  expect(apiMocks.importGameDefinitionAPI).toHaveBeenLastCalledWith(
+    { ...definition, serverId: "home-games" },
+    true,
+    true,
+    false,
+    undefined,
+    undefined,
+    expect.anything(),
+  );
+  expect(submitButton().disabled).toBe(false);
+});

@@ -1,9 +1,10 @@
 import { useStore } from "@nanostores/react";
-import type {
-  AuditAction,
-  AuditLogEntry,
-  AuditLogFilters,
-  AuditLogResponse,
+import {
+  type AuditAction,
+  type AuditLogEntry,
+  type AuditLogFilters,
+  type AuditLogResponse,
+  CASUAL_SERVER_ID,
 } from "@searchlight/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -155,7 +156,15 @@ export function AuditLogPanel({ serverId, gameId }: { serverId?: string; gameId?
       {!serverId && <h2 className="text-lg font-semibold mb-3">Audit log</h2>}
       {options && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {select("action", "Change", "All changes", Object.entries(LABELS))}
+          {select(
+            "action",
+            "Change",
+            "All changes",
+            // Casual Games has no roles to grant.
+            Object.entries(LABELS).filter(
+              ([action]) => serverId !== CASUAL_SERVER_ID || !action.startsWith("role."),
+            ),
+          )}
           {select(
             "actorId",
             "User",

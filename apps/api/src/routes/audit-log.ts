@@ -163,9 +163,13 @@ export async function auditLogRoutes(app: FastifyInstance) {
         // Only the global log lets you pick a server.
         serverId ? [] : prisma.auditLog.groupBy({ by: ["serverId"] }),
         prisma.auditLog.groupBy({ by: ["actorId"], where: { serverId, actorId: { not: null } } }),
-        // Each game by the name of its latest entry.
+        // Each game by the name of its latest entry; a deleted one and its
+        // re-import would otherwise read the same.
         prisma.$queryRaw<AuditLogFilters["games"]>`
-          SELECT DISTINCT ON ("targetId") "targetId" AS id, "targetName" AS name, "serverId"
+          SELECT DISTINCT ON ("targetId") "targetId" AS id,
+            CASE WHEN action = 'game.delete' THEN "targetName" || ' (deleted)'
+                 ELSE "targetName" END AS name,
+            "serverId"
           FROM "AuditLog"
           WHERE (action LIKE 'game.%' OR action LIKE 'link.%')
             ${serverId ? Prisma.sql`AND "serverId" = ${serverId}` : Prisma.empty}

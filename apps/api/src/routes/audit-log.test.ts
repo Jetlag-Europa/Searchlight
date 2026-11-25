@@ -234,7 +234,9 @@ describe("/audit-log", () => {
       ]),
     );
     // The deleted game, by its latest name.
-    expect(games).toEqual([{ id: expect.any(String), name: "Second", serverId: SERVER_ID }]);
+    expect(games).toEqual([
+      { id: expect.any(String), name: "Second (deleted)", serverId: SERVER_ID },
+    ]);
 
     const actions = async (query: string) =>
       (
