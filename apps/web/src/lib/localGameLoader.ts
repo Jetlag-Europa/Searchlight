@@ -6,7 +6,7 @@ import {
 
 import { compileGameDefinition } from "@/game-definition/compile";
 
-/** Same 50 MB upper bound as the API's game import endpoint. */
+/** Upper bound for files read in the browser only; the API's game import limit is 10 MB. */
 export const MAX_LOCAL_GAME_BYTES = 50 * 1024 * 1024;
 const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
 

@@ -148,7 +148,7 @@ describe("checkGameQuality", () => {
     const def: Record<string, unknown> = game();
     delete def.thermometer;
     // Sized as compact JSON, as the import page sends it.
-    (def.map as any).playArea.features[0].properties.note = "x".repeat(11 * 1024 * 1024);
+    (def.map as any).playArea.features[0].properties.note = "x".repeat(6 * 1024 * 1024);
     const issues = await checkGameQuality(def);
     expect(issues.map((i) => [i.level, i.code])).toEqual([
       ["warning", "large-file"],

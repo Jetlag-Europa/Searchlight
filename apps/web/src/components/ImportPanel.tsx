@@ -84,6 +84,12 @@ export function ImportPanel({
   // Bumped to redo the preview for the same file and server.
   const [previewRefresh, setPreviewRefresh] = useState(0);
   const latestDryRun = useRef(0);
+  // Check again's button goes while it checks, so focus is put back after.
+  const refocus = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const serverRef = useRef<HTMLSelectElement>(null);
+  const checkAgainRef = useRef<HTMLButtonElement>(null);
+  const importRef = useRef<HTMLButtonElement>(null);
 
   // Load once AuthGuard has verified the login.
   useEffect(() => {
@@ -122,6 +128,8 @@ export function ImportPanel({
 
   // A plain import goes to a server from the list, so it waits for it.
   const waitingForServers = !replaceGameId && servers === null;
+  // In no server Searchlight knows: the import would only be refused.
+  const noTarget = !replaceGameId && servers?.length === 0;
 
   // What importing would do, redone whenever the file or server change.
   // It may update, so an existing game is reported rather than refused.
@@ -135,7 +143,7 @@ export function ImportPanel({
     setPreviewCode(null);
     // Redone once Check again has reloaded the list: someone who just
     // joined a server may only now be allowed to import.
-    if (waitingForServers) {
+    if (waitingForServers || noTarget) {
       setPreviewing(false);
       return;
     }
@@ -169,6 +177,13 @@ export function ImportPanel({
     return () => controller.abort();
     // toSend changes with definition and serverId.
   }, [userId, definition, serverId, replaceGameId, previewRefresh, servers]);
+
+  useEffect(() => {
+    if (!refocus.current || waitingForServers || previewing) return;
+    refocus.current = false;
+    const target = checkAgainRef.current ?? serverRef.current ?? importRef.current;
+    (target && !target.disabled ? target : headingRef.current)?.focus();
+  }, [servers, previewing]);
 
   const casual = serverId === CASUAL_SERVER_ID;
   const updating = dryRun?.status === "updated";
@@ -223,13 +238,12 @@ export function ImportPanel({
   // anyway so the selector matches where the import is sent.
   const unknownServer =
     servers && serverId && !servers.some((s) => s.id === serverId) ? serverId : null;
-  // In no server Searchlight knows: the import would only be refused.
-  const noTarget = !replaceGameId && servers?.length === 0;
-
   return (
     <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{replaceGameId ? "Replace" : "Import"}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="text-base font-semibold focus:outline-none">
+          {replaceGameId ? "Replace" : "Import"}
+        </h2>
         {dryRun && !imported && (
           <span
             className={`rounded px-2 py-0.5 text-xs font-semibold uppercase ${
@@ -269,11 +283,13 @@ export function ImportPanel({
             To upload games, join one of the JetLag Discord servers that use Searchlight.
           </p>
           <Button
+            ref={checkAgainRef}
             type="button"
             size="sm"
             variant="outline"
             onClick={() => {
               recheckServers.current = true;
+              refocus.current = true;
               setServers(null);
               setServersRefresh((n) => n + 1);
             }}
@@ -290,6 +306,7 @@ export function ImportPanel({
             Server
           </label>
           <select
+            ref={serverRef}
             id="import-server"
             className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
             value={serverId}
@@ -448,17 +465,25 @@ export function ImportPanel({
         </p>
       )}
 
-      {/* A replace has no server to change, so nothing else would
-                redo a preview that failed. */}
-      {replaceGameId && userId && !dryRun && !previewing && !imported && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setPreviewRefresh((n) => n + 1)}
-        >
-          Check again
-        </Button>
-      )}
+      {/* Nothing else would redo the preview: a replace has no server to
+                change, and a game deleted in another tab frees a slot. */}
+      {(replaceGameId || previewCode === "CASUAL_GAME_LIMIT") &&
+        userId &&
+        !dryRun &&
+        !previewing &&
+        !imported && (
+          <Button
+            ref={checkAgainRef}
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              refocus.current = true;
+              setPreviewRefresh((n) => n + 1);
+            }}
+          >
+            Check again
+          </Button>
+        )}
 
       {imported ? (
         <p className="rounded-md border border-emerald-500/50 bg-emerald-500/10 p-2 text-xs text-emerald-700 dark:text-emerald-300">
@@ -473,6 +498,7 @@ export function ImportPanel({
         </p>
       ) : (
         <Button
+          ref={importRef}
           className="w-full"
           onClick={handleImport}
           // A failed preview doesn't stop the import: as with the

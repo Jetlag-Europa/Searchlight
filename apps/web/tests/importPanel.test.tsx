@@ -15,6 +15,7 @@ const ui = vi.hoisted(() => {
     removeAttribute() {},
     addEventListener() {},
     removeEventListener() {},
+    focus() {},
   });
   const document = {
     ...node(),
@@ -191,6 +192,34 @@ test.each([
   expect(submitButton().disabled).toBe(disabled);
 });
 
+test("Check again redoes a preview refused at the game cap", async () => {
+  apiMocks.importGameDefinitionAPI
+    .mockRejectedValueOnce(
+      Object.assign(new Error("You already have 20 Casual games."), { code: "CASUAL_GAME_LIMIT" }),
+    )
+    .mockResolvedValueOnce({
+      status: "created",
+      gameId: "game-1",
+      gameKey: "london-2026",
+      revision: 1,
+      checksum: "abc",
+      errors: [],
+      warnings: [],
+    } satisfies GameImportResponse);
+  await renderPanel();
+  await settle();
+  expect(submitButton().disabled).toBe(true);
+
+  // A game was deleted in another tab.
+  const checkAgain = ui.buttons.findLast((b) => b.children === "Check again")!;
+  await act(async () => {
+    checkAgain.onClick!();
+  });
+  await settle();
+  expect(apiMocks.importGameDefinitionAPI).toHaveBeenCalledTimes(2);
+  expect(submitButton().disabled).toBe(false);
+});
+
 test("someone in no server gets the join message and no Import, also with a Casual file", async () => {
   vi.stubGlobal(
     "fetch",
@@ -217,9 +246,11 @@ test("someone in no server gets the join message and no Import, also with a Casu
 
   expect(ui.buttons.some((b) => b.children === "Check again")).toBe(true);
   expect(submitButton().disabled).toBe(true);
+  // Nowhere to import to: no preview upload.
+  expect(apiMocks.importGameDefinitionAPI).not.toHaveBeenCalled();
 });
 
-test("a plain import previews once its servers are in, and again after Check again", async () => {
+test("a plain import previews once it has a server to import to, after Check again", async () => {
   let servers: unknown[] = [];
   let listed!: () => void;
   const serversIn = new Promise<void>((resolve) => (listed = resolve));
@@ -230,21 +261,15 @@ test("a plain import previews once its servers are in, and again after Check aga
       return { ok: true, json: async () => ({ servers }) };
     }),
   );
-  apiMocks.importGameDefinitionAPI
-    .mockRejectedValueOnce(
-      Object.assign(new Error("To upload games, join one of the JetLag Discord servers."), {
-        code: "FORBIDDEN",
-      }),
-    )
-    .mockResolvedValueOnce({
-      status: "created",
-      gameId: "game-1",
-      gameKey: "london-2026",
-      revision: 1,
-      checksum: "abc",
-      errors: [],
-      warnings: [],
-    } satisfies GameImportResponse);
+  apiMocks.importGameDefinitionAPI.mockResolvedValueOnce({
+    status: "created",
+    gameId: "game-1",
+    gameKey: "london-2026",
+    revision: 1,
+    checksum: "abc",
+    errors: [],
+    warnings: [],
+  } satisfies GameImportResponse);
 
   await renderPanel({ ...definition, serverId: "home-games" });
   await settle();
@@ -253,7 +278,7 @@ test("a plain import previews once its servers are in, and again after Check aga
 
   listed();
   await settle();
-  expect(apiMocks.importGameDefinitionAPI).toHaveBeenCalledTimes(1);
+  expect(apiMocks.importGameDefinitionAPI).not.toHaveBeenCalled();
 
   // The player joined a server: Casual is now theirs to upload to.
   servers = [{ id: "home-games", name: "Casual Games" }];
@@ -262,7 +287,7 @@ test("a plain import previews once its servers are in, and again after Check aga
     checkAgain.onClick!();
   });
   await settle();
-  expect(apiMocks.importGameDefinitionAPI).toHaveBeenCalledTimes(2);
+  expect(apiMocks.importGameDefinitionAPI).toHaveBeenCalledTimes(1);
   expect(submitButton().children).toBe("Import game");
   expect(submitButton().disabled).toBe(false);
 });

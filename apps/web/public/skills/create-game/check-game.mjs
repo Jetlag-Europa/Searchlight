@@ -240,7 +240,9 @@ const formatRadius = (value, unit) =>
 
 const MB = 1024 * 1024;
 // The API's body limit for POST /games/import, in MB.
-const IMPORT_LIMIT_MB = 50;
+const IMPORT_LIMIT_MB = 10;
+// Prod's largest game is about 5 MB; warn before a file nears the limit.
+const LARGE_FILE_MB = 5;
 
 /** A string's length in UTF-8 bytes, without encoding it. */
 function utf8Length(text) {
@@ -1069,7 +1071,7 @@ export function checkGame(def, { fileSize } = {}) {
       "/",
       `${mb.toFixed(1)} MB as compact JSON, over the ${IMPORT_LIMIT_MB} MB import limit; simplify boundaries and drop unused properties`,
     );
-  } else if (mb > 10) {
+  } else if (mb > LARGE_FILE_MB) {
     warn(
       "/",
       `${mb.toFixed(1)} MB as compact JSON; simplify boundaries and drop unused properties (import limit ${IMPORT_LIMIT_MB} MB)`,

@@ -9,16 +9,17 @@ import {
   replaceGameDefinition,
 } from "../games/import-service.js";
 import { assertGameAccess } from "../lib/game-access.js";
-import { notFound } from "../lib/http-errors.js";
+import { badRequest, notFound } from "../lib/http-errors.js";
 import { getUserPermissions, isMemberOfSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { listedSessionsWhere } from "../lib/session-access.js";
 import { acquireUploadSlot, assertWithinWriteLimit } from "../lib/write-limit.js";
 
-// Game definitions embed full GeoJSON boundaries; real ones reach ~2 MB,
-// well past Fastify's 1 MiB default.
-const MAX_GAME_IMPORT_BYTES = 50 * 1024 * 1024;
+// Game definitions embed full GeoJSON boundaries; real ones reach ~5 MB,
+// past Fastify's 1 MiB default. Much larger ones stall the event loop while
+// parsed and time out the import transaction.
+const MAX_GAME_IMPORT_BYTES = 10 * 1024 * 1024;
 // A broken multi-MB definition can produce an issue per feature; the message
 // still states the total.
 const MAX_REPORTED_ISSUES = 100;
@@ -42,7 +43,10 @@ export async function resolveImportActor(req: FastifyRequest): Promise<ImportAct
   // after its body; onRequestAbort frees it for a client gone before that.
   req.releaseUploadSlot = acquireUploadSlot(user.discordId);
   // A client gone during resolveSession already had its onRequestAbort.
-  if (req.raw.aborted) req.releaseUploadSlot();
+  if (req.raw.aborted) {
+    req.releaseUploadSlot();
+    throw badRequest("The upload was cancelled");
+  }
   assertWithinWriteLimit(user.discordId);
   if (!(await isMemberOfSomeServer(user.discordId, req.log, true))) {
     throw new ImportForbiddenError(

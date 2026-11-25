@@ -18,7 +18,7 @@ vi.mock("../lib/discord-client.js", () => ({
   },
 }));
 
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import { request } from "node:http";
@@ -26,7 +26,7 @@ import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import { discord } from "../lib/discord-client.js";
-import { CASUAL_LIMITS } from "../games/import-service.js";
+import { CASUAL_LIMITS, pruneGame } from "../games/import-service.js";
 import { acquireUploadSlot, resetWriteLimits, WRITE_LIMIT } from "../lib/write-limit.js";
 import { gameRoutes } from "./games.js";
 import { gameImportRoutes } from "./game-imports.js";
@@ -733,6 +733,62 @@ describe("Casual Games", () => {
       });
       expect(session.statusCode).toBe(201);
     });
+
+    test("a link start waiting on an upload that prunes the revision it read pins the new one", async () => {
+      const created = await importAs(CREATOR, definition(`${KEY_PREFIX}link-start`, "Earlier"));
+      expect(created.statusCode).toBe(201);
+      const id = created.json().gameId;
+      const link = await app.inject({
+        method: "POST",
+        url: `/games/${id}/links`,
+        headers: as(CREATOR),
+      });
+      expect(link.statusCode).toBe(201);
+
+      let start: Promise<LightMyRequestResponse> | undefined;
+      let newRevisionId = "";
+      // What an upload does, holding the game lock until the start waits on it.
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Game" WHERE id = ${id} FOR UPDATE`;
+        const next = await tx.gameRevision.create({
+          data: {
+            gameId: id,
+            revision: 2,
+            checksum: `${KEY_PREFIX}link-start-2`,
+            definition: definition(`${KEY_PREFIX}link-start`, "Later"),
+          },
+        });
+        newRevisionId = next.id;
+        await tx.game.update({
+          where: { id },
+          data: { currentRevisionId: next.id, name: "Later" },
+        });
+        await pruneGame(tx, id);
+        start = app.inject({
+          method: "POST",
+          url: `/game-links/${link.json().token}/sessions`,
+          headers: as(PLAYER),
+          payload: { name: "During the upload", visibility: "private" },
+        });
+        await vi.waitFor(async () => {
+          const [{ waiting }] = await prisma.$queryRaw<{ waiting: number }[]>`
+            SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%"archivedAt" IS NULL FOR SHARE%'`;
+          expect(waiting).toBeGreaterThan(0);
+        });
+      });
+
+      const res = await start!;
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({
+        gameName: "Later",
+        gameRevisionId: newRevisionId,
+        sessionRevision: 2,
+        currentRevision: 2,
+        hasNewerRevision: false,
+      });
+    });
   });
 
   describe("limits", () => {
@@ -1071,8 +1127,10 @@ describe("Casual Games", () => {
       }
     });
 
-    test("a client gone while its login is checked doesn't keep a slot", async () => {
+    test("a client gone while its login is checked doesn't keep a slot or use a request", async () => {
+      resetWriteLimits();
       WRITE_LIMIT.inFlightPerUser = 1;
+      WRITE_LIMIT.requests = 1;
       const findSession = prisma.authSession.findUnique.bind(prisma.authSession);
       let resolving = false;
       const spy = vi.spyOn(prisma.authSession, "findUnique").mockImplementation(((
@@ -1107,6 +1165,7 @@ describe("Casual Games", () => {
       } finally {
         spy.mockRestore();
         WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
+        WRITE_LIMIT.requests = saved.requests;
       }
     });
   });

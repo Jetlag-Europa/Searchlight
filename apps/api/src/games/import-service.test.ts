@@ -10,6 +10,7 @@ import {
   ImportForbiddenError,
   importGameDefinition,
   ImportValidationError,
+  pruneGame,
   replaceGameDefinition,
 } from "./import-service.js";
 import { preloadGameDefinitions } from "./preload.js";
@@ -426,6 +427,9 @@ describe("revision pruning", () => {
       for (const name of ["A", "B", "C"]) {
         await importGameDefinition({ raw: definition(key, name), allowUpdate: true });
       }
+      // As after a session delete.
+      const { id } = await gameOf(key);
+      await prisma.$transaction((tx) => pruneGame(tx, id));
       expect(executeRaw).not.toHaveBeenCalled();
     } finally {
       executeRaw.mockRestore();

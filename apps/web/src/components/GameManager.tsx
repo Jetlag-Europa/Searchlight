@@ -262,7 +262,7 @@ function GameRow({
   };
 
   const uploader = ownGame ? "you" : game.createdByName;
-  const updatedAt = game.currentRevisionId ? game.updatedAt : null;
+  const { updatedAt } = game;
 
   return (
     <details
@@ -407,9 +407,9 @@ function ServerSection({
   const [shownCount, setShownCount] = useState(PAGE_SIZE);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const summaries = useRef(new Map<string, HTMLElement>());
-  // Where focus goes once a deleted game's row is gone: another row's id,
+  // Where focus goes once the rows change (a delete, Show more): a row's id,
   // or "" for the heading.
-  const focusAfterDelete = useRef<string | null>(null);
+  const focusRow = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -441,11 +441,11 @@ function ServerSection({
   }, [games, onGamesLoaded]);
 
   useEffect(() => {
-    const target = focusAfterDelete.current;
+    const target = focusRow.current;
     if (target === null) return;
-    focusAfterDelete.current = null;
+    focusRow.current = null;
     (summaries.current.get(target) ?? headingRef.current)?.focus();
-  }, [games]);
+  }, [games, shownCount]);
 
   useEffect(() => {
     if (!isServerAdmin) return;
@@ -483,7 +483,7 @@ function ServerSection({
 
   const handleDeleted = (id: string) => {
     const i = listed.findIndex((g) => g.id === id);
-    focusAfterDelete.current = (listed[i + 1] ?? listed[i - 1])?.id ?? "";
+    focusRow.current = (listed[i + 1] ?? listed[i - 1])?.id ?? "";
     setGames((prev) => (prev ?? []).filter((x) => x.id !== id));
   };
 
@@ -577,7 +577,15 @@ function ServerSection({
             />
           ))}
           {left > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setShownCount((n) => n + PAGE_SIZE)}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // The new rows come before this button, so Tab would skip them.
+                focusRow.current = listed[shown.length].id;
+                setShownCount((n) => n + PAGE_SIZE);
+              }}
+            >
               Show {Math.min(PAGE_SIZE, left)} more ({left} left)
             </Button>
           )}
@@ -600,6 +608,8 @@ export function GameManager() {
   const lastCasualGames = useRef<number | null>(null);
   const emptyRef = useRef<HTMLParagraphElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
+  // Check again replaces the page while it checks: focus goes back after.
+  const refocus = useRef(false);
 
   // Load once AuthGuard has verified the login, which waits out a server
   // that was down when the page opened.
@@ -634,8 +644,15 @@ export function GameManager() {
     lastCasualGames.current = casualGames;
   }, [casualGames]);
 
+  useEffect(() => {
+    if (!servers || !refocus.current) return;
+    refocus.current = false;
+    (emptyRef.current ?? headingRef.current)?.focus();
+  }, [servers]);
+
   const checkAgain = () => {
     recheck.current = true;
+    refocus.current = true;
     setServers(null);
     setLoadAttempt((n) => n + 1);
   };

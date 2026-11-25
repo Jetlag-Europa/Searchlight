@@ -213,8 +213,12 @@ async function assertCasualLimits(
  */
 export async function pruneGame(tx: Prisma.TransactionClient, gameId: string): Promise<void> {
   // Serializes with imports, which could otherwise make a revision current
-  // while it is deleted here.
-  await tx.$queryRaw`SELECT 1 FROM "Game" WHERE id = ${gameId} FOR UPDATE`;
+  // while it is deleted here. A live official game keeps everything; an
+  // archive that commits later prunes it then.
+  const locked = await tx.$queryRaw<unknown[]>`
+    SELECT 1 FROM "Game" WHERE id = ${gameId}
+      AND ("serverId" = ${CASUAL_SERVER_ID} OR "archivedAt" IS NOT NULL) FOR UPDATE`;
+  if (locked.length === 0) return;
   // SKIP LOCKED: a session being created on a revision holds a lock on it.
   await tx.$executeRaw`
     DELETE FROM "GameRevision" WHERE id IN (

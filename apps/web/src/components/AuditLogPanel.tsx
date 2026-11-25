@@ -43,8 +43,9 @@ export function summarizeDetails(details: Record<string, unknown>): string {
     .join(", ");
 }
 
-// Ids and upload channels mean nothing to the players reading a game's history.
-const HIDDEN_IN_GAME_HISTORY = ["linkId", "source"];
+// Ids and upload channels mean nothing to the players reading a game's
+// history; listing changes are said in words there.
+const HIDDEN_IN_GAME_HISTORY = ["linkId", "source", "unlisted"];
 
 /**
  * Audit log of one server, or of all servers without `serverId`. Renders
@@ -184,13 +185,16 @@ export function AuditLogPanel({ serverId, gameId }: { serverId?: string; gameId?
             <li key={e.id} className="py-2 border-b border-border/50">
               <div className="flex flex-wrap gap-x-2">
                 <span className="font-medium">{LABELS[e.action] ?? e.action}</span>
-                <span className="break-words">{e.targetName}</span>
+                <span className="min-w-0 break-words">{e.targetName}</span>
               </div>
               <div className="text-xs text-muted-foreground break-words">
                 {[
                   new Date(e.createdAt).toLocaleString(),
                   e.actorId ? (e.actorName ?? e.actorId) : "System",
                   !serverId && (e.serverName ?? e.serverId),
+                  gameId &&
+                    typeof e.details.unlisted === "boolean" &&
+                    (e.details.unlisted ? "made unlisted" : "made listed"),
                   summarizeDetails(
                     gameId
                       ? Object.fromEntries(

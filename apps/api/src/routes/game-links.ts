@@ -278,7 +278,6 @@ export async function gameLinkRoutes(app: FastifyInstance) {
 
       const session = await createSession({
         game,
-        revision: game.currentRevision,
         creatorId: user.discordId,
         name,
         visibility,

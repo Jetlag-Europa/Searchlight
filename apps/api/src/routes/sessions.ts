@@ -92,8 +92,9 @@ async function assertUpgradeAccess(
 }
 
 /**
- * Creates a session pinned to `revision` with its creator as participant and
- * returns its summary. Callers check access to the game first.
+ * Creates a session pinned to `revision` (default: the game's current one,
+ * read under the lock) with its creator as participant and returns its
+ * summary. Callers check access to the game first.
  */
 export async function createSession({
   game,
@@ -103,21 +104,22 @@ export async function createSession({
   visibility,
   gameLinkId,
 }: {
-  game: {
-    id: string;
-    serverId: string;
-    name: string;
-    currentRevisionId: string | null;
-    currentRevision: { revision: number } | null;
-  };
-  revision: { id: string; revision: number };
+  game: { id: string; serverId: string };
+  revision?: { id: string; revision: number };
   creatorId: string;
   name: string;
   visibility: "private" | "shared";
   gameLinkId?: string;
 }) {
-  const session = await prisma.$transaction(async (tx) => {
+  const { session, pinned, latest } = await prisma.$transaction(async (tx) => {
     await lockLiveGame(tx, game.id);
+    // An upload that held the lock may have pruned the revision read before it.
+    const latest = await tx.game.findUniqueOrThrow({
+      where: { id: game.id },
+      select: { name: true, currentRevision: { select: { id: true, revision: true } } },
+    });
+    const pinned = revision ?? latest.currentRevision;
+    if (!pinned) throw notFound("This game has no published revision");
     const s = await tx.gameSession.create({
       data: {
         gameId: game.id,
@@ -125,7 +127,7 @@ export async function createSession({
         creatorId,
         name,
         visibility,
-        gameRevisionId: revision.id,
+        gameRevisionId: pinned.id,
         gameLinkId,
       },
     });
@@ -137,13 +139,13 @@ export async function createSession({
         acceptedAt: new Date(),
       },
     });
-    return s;
+    return { session: s, pinned, latest };
   });
 
   return {
     id: session.id,
     gameId: session.gameId,
-    gameName: game.name,
+    gameName: latest.name,
     serverId: session.serverId,
     name: session.name,
     visibility: session.visibility,
@@ -155,9 +157,9 @@ export async function createSession({
     disabledZoneIds: [],
     disabledZonesSequence: session.eventSequence,
     gameRevisionId: session.gameRevisionId,
-    sessionRevision: revision.revision,
-    currentRevision: game.currentRevision?.revision ?? null,
-    hasNewerRevision: Boolean(game.currentRevisionId && revision.id !== game.currentRevisionId),
+    sessionRevision: pinned.revision,
+    currentRevision: latest.currentRevision?.revision ?? null,
+    hasNewerRevision: Boolean(latest.currentRevision && pinned.id !== latest.currentRevision.id),
   };
 }
 

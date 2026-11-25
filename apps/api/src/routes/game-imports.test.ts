@@ -415,6 +415,19 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.statusCode).toBe(400);
     });
 
+    test("refuses a body over 10 MiB with 413", async () => {
+      const post = (bytes: number) =>
+        app.inject({
+          method: "POST",
+          url: "/games/import?dryRun=true",
+          headers: { cookie: signedCookie(app, AUTH_CREATOR), "content-type": "application/json" },
+          // `{"padding":""}` is 14 bytes.
+          payload: JSON.stringify({ padding: "x".repeat(bytes - 14) }),
+        });
+      expect((await post(10 * 1024 * 1024)).statusCode).toBe(400);
+      expect((await post(10 * 1024 * 1024 + 1)).statusCode).toBe(413);
+    });
+
     test("rejects callers without import permission on the target server before validating", async () => {
       // USER_CREATOR may import on server A only.
       const res = await app.inject({

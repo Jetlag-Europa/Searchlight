@@ -191,8 +191,7 @@ sessions now keeps it as an archived row (`Game.archivedAt` set, no current
 revision, unlisted, `ownerScope` `archived:<id>`) until its last session is
 deleted. Older APIs don't filter archived games: they list them on `/games`
 again, unlisted and for game managers only, with no revision, so they can't be
-exported or started. A manager on an official server could still **Make listed**
-one, and **Replace with file…** brings one back as a live game. Casual revisions deleted as unused don't come back; the backup
+exported or started. Casual revisions deleted as unused don't come back; the backup
 taken before the update has them. Roll back to a build that knows archived
 games where you can. Before going back further, see which games would show
 again:
@@ -200,6 +199,45 @@ again:
 ```sql
 SELECT id, "serverId", name FROM "Game" WHERE "archivedAt" IS NOT NULL;
 ```
+
+While the older API runs, tell game managers not to use **Make listed** or
+**Replace with file…** on those games. Replace brings one back as a live game
+that keeps its `archived:` owner scope, so after going forward an import of its
+file adds a second game instead of updating it. And when the older API deletes
+an archived game's last session, the game stays behind. Before starting the
+newer API again:
+
+1. Stop the older API.
+2. See which games Replace brought back:
+
+   ```sql
+   SELECT id, "serverId", "gameKey", name FROM "Game"
+   WHERE "archivedAt" IS NULL AND "ownerScope" LIKE 'archived:%';
+   ```
+
+3. Run, in one transaction. It gives those games their usual owner scope back
+   where no other game took their id meanwhile, unlists archived games again,
+   and removes archived games without sessions (with their revisions and links),
+   as the newer API would have:
+
+   ```sql
+   BEGIN;
+   UPDATE "Game" g SET "ownerScope" = s.scope
+   FROM (SELECT id, CASE WHEN "serverId" = 'home-games' THEN coalesce("createdById", '') ELSE '' END AS scope
+         FROM "Game" WHERE "archivedAt" IS NULL AND "ownerScope" LIKE 'archived:%') s
+   WHERE g.id = s.id AND NOT EXISTS (
+     SELECT 1 FROM "Game" o
+     WHERE o."serverId" = g."serverId" AND o."ownerScope" = s.scope AND o."gameKey" = g."gameKey");
+   UPDATE "Game" SET unlisted = true WHERE "archivedAt" IS NOT NULL AND NOT unlisted;
+   DELETE FROM "Game" g WHERE "archivedAt" IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM "GameSession" s WHERE s."gameId" = g.id);
+   COMMIT;
+   ```
+
+4. Run step 2's query again. Any game it still returns shares its id with a
+   game imported meanwhile, and both are live: after starting the newer API,
+   delete the one you don't want on `/games`.
+5. Start the newer API.
 
 ### Going back to before the installable app, with these compose files
 

@@ -462,6 +462,8 @@ describe("/games rows", () => {
     expect(rowNames()).toHaveLength(20);
     await clickButton("Show 5 more (5 left)");
     expect(rowNames()).toHaveLength(25);
+    // On the first row it revealed, which Tab from the button would skip.
+    expect(env.focused.node).toBe(nodes("SUMMARY")[20]);
     expect(pageText()).not.toContain("Show");
   });
 
@@ -602,10 +604,14 @@ describe("/games rows", () => {
     serve([], {});
     await render(createElement(GameManager));
     expect(pageText()).toContain("join one of the JetLag Discord servers");
+    // Focus doesn't drop to the page while it checks.
+    await clickButton("Check again");
+    expect(env.focused.node?.textContent).toMatch(/^To upload Casual games/);
     serve([casualSrv], { [CASUAL_SERVER_ID]: [] });
     await clickButton("Check again");
     expect(String(fetchMock.mock.calls.at(-2)?.[0])).toContain("/servers?recheck=true");
     expect(pageText()).toContain("Casual Games · 0 games");
+    expect(env.focused.node?.textContent).toBe("Games & Maps");
   });
 
   it("ImportPanel asks Discord again when there is no server to import to", async () => {
@@ -622,12 +628,44 @@ describe("/games rows", () => {
     expect(pageText()).toContain(
       "To upload games, join one of the JetLag Discord servers that use Searchlight.",
     );
+    await clickButton("Check again");
+    expect(env.focused.node).toBe(findButton("Check again"));
     serve([srv], {});
     await clickButton("Check again");
     expect(fetchMock.mock.calls.map(([u]) => String(u))).toContainEqual(
       expect.stringContaining("/servers?recheck=true"),
     );
     expect(pageText()).toContain("JetLag Server (srv-1)");
+    expect(env.focused.node?.nodeName).toBe("SELECT");
+  });
+
+  it("ImportPanel checks the game cap again, keeping focus", async () => {
+    const answers = [
+      json({ message: "You already have 20 Casual games.", code: "CASUAL_GAME_LIMIT" }, 409),
+      json({ message: "You already have 20 Casual games.", code: "CASUAL_GAME_LIMIT" }, 409),
+      json({ status: "created", gameId: "g2", gameKey: "stockholm", revision: 1 }, 201),
+    ];
+    fetchMock.mockImplementation(async (u: string | URL) =>
+      new URL(String(u)).pathname === "/servers" ? json({ servers: [casualSrv] }) : answers.shift(),
+    );
+    await render(
+      createElement(ImportPanel, {
+        definition: { ...def, serverId: CASUAL_SERVER_ID },
+        noServer: false,
+        busy: false,
+        blocked: null,
+        replaceGameId: null,
+      }),
+    );
+    expect(pageText()).toContain("You already have 20 Casual games.");
+    expect(findButton("Import game")?.disabled).toBe(true);
+    await clickButton("Check again");
+    expect(env.focused.node).toBe(findButton("Check again"));
+    await clickButton("Check again");
+    expect(answers).toHaveLength(0);
+    expect(findButton("Check again")).toBeUndefined();
+    expect(findButton("Import game")?.disabled).toBe(false);
+    expect(env.focused.node?.nodeName).toBe("SELECT");
   });
 });
 
@@ -648,12 +686,14 @@ describe("a game's history", () => {
     }) satisfies AuditLogEntry;
   const panel = () => createElement(AuditLogPanel, { serverId: "srv-1", gameId: "g1" });
 
-  it("asks for that game's entries only, and leaves out ids and upload channels", async () => {
+  it("asks for that game's entries only, leaves out ids and upload channels, says listing in words", async () => {
     fetchMock.mockResolvedValue(
       json({
         entries: [
           entry("link.create", { linkId: "cl_secret" }),
           entry("game.revision", { revision: 3, source: "web", name: { from: "A", to: "B" } }),
+          { ...entry("game.listing", { unlisted: true }), id: "l1" },
+          { ...entry("game.listing", { unlisted: false }), id: "l2" },
         ],
         nextCursor: null,
       }),
@@ -666,6 +706,9 @@ describe("a game's history", () => {
     expect(pageText()).toContain("revision: 3, name: A → B");
     expect(pageText()).not.toContain("cl_secret");
     expect(pageText()).not.toContain("source");
+    expect(pageText()).toContain("Alice · made unlisted");
+    expect(pageText()).toContain("Alice · made listed");
+    expect(pageText()).not.toContain("unlisted:");
   });
 
   it("says it is loading, and when it was refused", async () => {
