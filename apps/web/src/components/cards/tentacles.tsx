@@ -40,6 +40,8 @@ export const TentacleQuestionComponent = ({
   questionKey: number;
   sub?: string;
 }) => {
+  // Hider mode and Auto save off answer in place: show it (and the lock).
+  useStore(triggerLocalRefresh);
   const $questions = useStore(questions);
   const $drawingQuestionKey = useStore(drawingQuestionKey);
   const $isLoading = useStore(isLoading);

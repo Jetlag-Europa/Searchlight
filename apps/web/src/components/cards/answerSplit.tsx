@@ -38,7 +38,7 @@ export const AnswerSplitPreview = ({
   const ready = useStore(gameDefinitionReady);
   const $resultsPending = useStore(resultsPending);
   const $perQuestionMapData = useStore(perQuestionMapData);
-  const $disabledStations = useStore(ruledOutZones);
+  const $ruledOut = useStore(ruledOutZones);
   const $polyGeoJSON = useStore(polyGeoJSON);
   const $mapGeoJSON = useStore(mapGeoJSON);
   const boundary = $polyGeoJSON ?? $mapGeoJSON;
@@ -82,7 +82,7 @@ export const AnswerSplitPreview = ({
   const inputs = shown
     ? JSON.stringify([question.id, splitInputs(question), zoneScaleAfter($questions, position)])
     : "";
-  const basis = [inputs, answered.current, $disabledStations, compiled, boundary];
+  const basis = [inputs, answered.current, $ruledOut, compiled, boundary];
   const current =
     split?.basis.length === basis.length &&
     split.basis.every((value, index) => value === basis[index]);
@@ -100,7 +100,7 @@ export const AnswerSplitPreview = ({
             $questions,
             compiled,
             answered.current,
-            $disabledStations,
+            $ruledOut,
             boundary,
             filterZoneIndexes,
             isCurrent,
@@ -130,16 +130,7 @@ export const AnswerSplitPreview = ({
       clearTimeout(timer);
       task.cancel();
     };
-  }, [
-    inputs,
-    answered.current,
-    $disabledStations,
-    compiled,
-    boundary,
-    shown,
-    $resultsPending,
-    current,
-  ]);
+  }, [inputs, answered.current, $ruledOut, compiled, boundary, shown, $resultsPending, current]);
 
   if (!shown || (current && !split.answers)) return null;
   return (

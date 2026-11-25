@@ -153,7 +153,10 @@ export const MatchingQuestionComponent = ({
       label={label}
       name={questionName(data)}
       setName={(name) => questionModified(setQuestionName(data, name))}
-      sub={compiled?.questionMap.get(data.type)?.label ?? sub}
+      sub={
+        compiled?.questionMap.get(data.type)?.label ??
+        (data.type === STATION_NAME_LENGTH ? "Station Name Length" : sub)
+      }
       collapsed={data.collapsed}
       setCollapsed={(collapsed) => {
         data.collapsed = collapsed; // Doesn't trigger a re-render so no need for questionModified
@@ -268,7 +271,10 @@ export const MatchingQuestionComponent = ({
           <ToggleGroupItem value="same">Same</ToggleGroupItem>
         </ToggleGroup>
       </div>
-      <AnswerSplitPreview questionKey={questionKey} data={data} />
+      {/* The split counts zones by area; a name length answer rules them out by name. */}
+      {data.type !== STATION_NAME_LENGTH && (
+        <AnswerSplitPreview questionKey={questionKey} data={data} />
+      )}
     </QuestionCard>
   );
 };

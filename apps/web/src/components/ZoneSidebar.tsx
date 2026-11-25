@@ -39,7 +39,7 @@ import {
 } from "@/lib/context";
 import { zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
-import { ruledOutZones } from "@/lib/stationNameLength";
+import { ruledOutZones, zonesRuledOutByName } from "@/lib/stationNameLength";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
 import { hidingZonesCalculated, zonesLeft } from "@/lib/zonesLeft";
@@ -142,14 +142,16 @@ const ZoneSidebarContent = () => {
   const $disabledStations = useStore(disabledStations);
   // Disabled by hand, or by a station name length answer.
   const $ruledOut = useStore(ruledOutZones);
+  const $ruledOutByName = useStore(zonesRuledOutByName);
   // The list shows the live zones first, then the disabled ones, each by
-  // name. Sorted only when the zones are worked out again: a zone tapped to
-  // disable stays under the finger, so the next tap hits the row it meant.
+  // name. Sorted only when the zones are worked out again or an answer rules
+  // zones out by name: a zone tapped to disable stays under the finger, so
+  // the next tap hits the row it meant.
   const listedStations = useMemo(() => {
     const disabled = new Set(ruledOutZones.get());
     const isDisabled = (zone: StationCircle) => Number(disabled.has(zone.properties.properties.id));
     return [...stations].sort((a, b) => isDisabled(a) - isDisabled(b));
-  }, [stations]);
+  }, [stations, $ruledOutByName]);
   // A spectator's board follows the session's disabled zones.
   const $readOnly = useStore(sessionReadOnly);
   const $compiledGame = useStore(compiledGameAtom);
@@ -607,6 +609,11 @@ const ZoneSidebarContent = () => {
                                 return;
                               }
                               if (activeSessionId.get() !== sessionId) {
+                                return;
+                              }
+                              // Its answer rules it out, not a hand: a tap can't bring it back.
+                              if (disable && zonesRuledOutByName.get().includes(id)) {
+                                toast.info("Ruled out by a Station Name Length answer");
                                 return;
                               }
 

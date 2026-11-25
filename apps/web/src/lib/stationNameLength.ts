@@ -4,7 +4,7 @@ import { computed } from "nanostores";
 import type { CompiledHidingZone } from "@/game-definition/compile";
 import { compiledGameAtom } from "@/game-definition/store";
 import { planningModeEnabled, questions, triggerLocalRefresh } from "@/lib/context";
-import { disabledStations } from "@/lib/disabledZones";
+import { disabledStations, sameZoneIds } from "@/lib/disabledZones";
 import { zoneId } from "@/maps/geo-utils/hidingZones";
 
 // The matching question "is your station's name as long as ours?". The rules
@@ -13,6 +13,10 @@ import { zoneId } from "@/maps/geo-utils/hidingZones";
 export const STATION_NAME_LENGTH = "station-name-length";
 
 export const nameLength = (name: string) => Array.from(name).length;
+
+/** A Station Name Length question: it rules out zones by name, never map area. */
+export const isStationNameLength = (question: { id: string; data: object }) =>
+  question.id === "matching" && (question.data as { type?: unknown }).type === STATION_NAME_LENGTH;
 
 /** The game's zone nearest a point: the seekers' station for their pin, or the hider's. */
 export function nearestZone(
@@ -29,11 +33,15 @@ export function nearestZone(
   return nearest;
 }
 
+let lastRuledOut: string[] = [];
+
 /**
  * The zones the answered station name length questions rule out. Hider mode
- * writes its answers into the cards in place, hence triggerLocalRefresh.
+ * writes its answers into the cards in place, hence triggerLocalRefresh. The
+ * same array while the zones are the same, so the zones aren't redrawn for
+ * every edit.
  */
-const zonesRuledOutByName = computed(
+export const zonesRuledOutByName = computed(
   [questions, triggerLocalRefresh, compiledGameAtom, planningModeEnabled],
   (list, _refresh, compiled, planning): string[] => {
     const zones = compiled?.hidingZones.stations ?? [];
@@ -49,11 +57,17 @@ const zonesRuledOutByName = computed(
         if ((nameLength(zone.name) === length) !== data.same) out.add(zoneId(zone));
       }
     }
-    return [...out];
+    const ids = [...out];
+    if (!sameZoneIds(ids, lastRuledOut)) lastRuledOut = ids;
+    return lastRuledOut;
   },
 );
 
-/** The zones out of play besides those the map rules out: disabled by hand, or by name length. */
+/**
+ * All zones out of play besides those the map rules out: disabled by hand, or
+ * by name length. Kept here, not in disabledZones.ts, which can't import the
+ * questions.
+ */
 export const ruledOutZones = computed(
   [disabledStations, zonesRuledOutByName],
   (disabled, byName): string[] =>

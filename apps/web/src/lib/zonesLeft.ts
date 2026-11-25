@@ -1,8 +1,8 @@
 import { atom, computed } from "nanostores";
 
 import { compiledGameAtom } from "@/game-definition/store";
-import { displayHidingZones, trainStations } from "@/lib/context";
-import { ruledOutZones } from "@/lib/stationNameLength";
+import { disabledStations, displayHidingZones, trainStations } from "@/lib/context";
+import { zonesRuledOutByName } from "@/lib/stationNameLength";
 
 /**
  * Whether trainStations holds the zones worked out for the game on the
@@ -31,13 +31,26 @@ export function countZonesLeft(
   return { left: survivingIds.length - disabled, total, disabled };
 }
 
-/** The zones left, or null while they are hidden or not worked out yet. */
+/**
+ * The zones left, or null while they are hidden or not worked out yet. Those
+ * a station name length answer rules out are gone like any ruled out by an
+ * answer, not "disabled by hand".
+ */
 export const zonesLeft = computed(
-  [hidingZonesCalculated, displayHidingZones, compiledGameAtom, trainStations, ruledOutZones],
-  (calculated, display, game, stations, disabled): ZonesLeft | null =>
+  [
+    hidingZonesCalculated,
+    displayHidingZones,
+    compiledGameAtom,
+    trainStations,
+    disabledStations,
+    zonesRuledOutByName,
+  ],
+  (calculated, display, game, stations, disabled, byName): ZonesLeft | null =>
     calculated && display && game
       ? countZonesLeft(
-          stations.map((zone) => zone.properties.properties.id),
+          stations
+            .map((zone) => zone.properties.properties.id)
+            .filter((id) => !byName.includes(id)),
           disabled,
           game.hidingZones.stations?.length ?? 0,
         )
