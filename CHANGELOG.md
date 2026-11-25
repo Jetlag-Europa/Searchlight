@@ -21,7 +21,8 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 ## Question card fixes (2026-11-25)
 
 - Tapping the answer that is already selected (a new card's Inside, Warmer or Hider Closer) keeps it. Before, it switched to the opposite answer and removed the hider's real zone.
-- A negative latitude or longitude typed into a card or a custom point, such as Google Maps' `-0.12395`, is used as typed. Before, a card already west of Greenwich turned it east, and a custom point's coordinate couldn't be typed through 0.
+- A negative latitude or longitude typed into a card, such as Google Maps' `-0.12395`, is used as typed, and a coordinate typed right before closing its dialog is kept. Before, a card already west of Greenwich turned it east, and closing within half a second kept only part of the value (51.0 for 51.4876).
+- Moving or deleting the points of a custom question no longer changes the points of other custom questions drawn earlier on the same page. Before, deleting one point could empty another question's points for everyone.
 - Loading a custom preset, or applying one from the clipboard, changes only the question's places or points. Before, it also moved the question and changed its answer and colour.
 - Auto zoom no longer moves the map right after you drag a marker. While a custom question's drawing is on, it waits.
 

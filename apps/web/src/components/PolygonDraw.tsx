@@ -5,7 +5,7 @@ import * as turf from "@turf/turf";
 // The default import is Leaflet's own object, which leaflet-draw extends with
 // drawLocal. A namespace import is a copy made before leaflet-draw runs.
 import L from "leaflet";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FeatureGroup, Marker, Polygon, Polyline } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
 
@@ -82,10 +82,10 @@ const TentacleMarker = ({ point }: { point: CustomTentacleQuestion["places"][num
               longitude={point.geometry.coordinates[0]}
               inlineEdit
               onChange={(lat, lng) => {
-                if (lat !== null) {
+                if (lat) {
                   point.geometry.coordinates[1] = lat;
                 }
-                if (lng !== null) {
+                if (lng) {
                   point.geometry.coordinates[0] = lng;
                 }
 
@@ -138,10 +138,10 @@ const PointMarker = ({
               longitude={point.geometry.coordinates[0]}
               inlineEdit
               onChange={(lat, lng) => {
-                if (lat !== null) {
+                if (lat) {
                   point.geometry.coordinates[1] = lat;
                 }
-                if (lng !== null) {
+                if (lng) {
                   point.geometry.coordinates[0] = lng;
                 }
 
@@ -165,16 +165,6 @@ const PointMarker = ({
   );
 };
 
-// A point keeps its marker, and so an open coordinate dialog, while its
-// coordinates are typed: they change in place, in the same geometry object
-// (which turf.flatten keeps). Redrawing makes new points.
-const markerKeys = new WeakMap<object, number>();
-let lastMarkerKey = 0;
-const markerKey = (point: object) => {
-  if (!markerKeys.has(point)) markerKeys.set(point, ++lastMarkerKey);
-  return markerKeys.get(point);
-};
-
 export const PolygonDraw = () => {
   const $drawingQuestionKey = useStore(drawingQuestionKey);
   const $questions = useStore(questions);
@@ -192,11 +182,11 @@ export const PolygonDraw = () => {
     question = $questions.find((q) => q.key === $drawingQuestionKey);
 
     if (question && isZoneSizeChange(question)) question = undefined;
-    // Locked, or switched to a type that isn't drawn (which would also keep
-    // auto zoom waiting): the drawing ends.
+    // Locked, deleted, or switched to a type that isn't drawn (which would
+    // also keep auto zoom waiting): the drawing ends.
     const data = question?.data as { type?: unknown; locationType?: unknown } | undefined;
     const drawn = data?.locationType === "custom" || String(data?.type).startsWith("custom-");
-    if (question?.data.drag === false || (question && !drawn)) {
+    if (question?.data.drag === false || !drawn) {
       drawingQuestionKey.set(-1);
     }
     if (question?.id === "matching") {
@@ -295,6 +285,16 @@ export const PolygonDraw = () => {
     }
   };
 
+  // react-leaflet-draw's EditControl adds edit and delete handlers whenever its
+  // callbacks change and never removes them, so handlers of every earlier render
+  // kept writing into the question drawn then. One stable callback calls the
+  // current onChange.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  const onDrawChange = useCallback(() => onChangeRef.current(), []);
+
   useEffect(() => {
     if (featureRef.current && $drawingQuestionKey === -1) {
       featureRef.current.clearLayers();
@@ -310,12 +310,14 @@ export const PolygonDraw = () => {
       {question &&
         question.id === "tentacles" &&
         question.data.locationType === "custom" &&
-        question.data.places?.map((x) => <TentacleMarker key={markerKey(x.geometry)} point={x} />)}
+        question.data.places?.map((x) => (
+          <TentacleMarker key={x.geometry.coordinates.join(",")} point={x} />
+        ))}
       {question &&
         question.id === "matching" &&
         question.data.type === "custom-points" &&
         ((question.data as CustomMatchingQuestion).geo ?? []).map((x: any) => (
-          <PointMarker key={markerKey(x.geometry)} point={x} />
+          <PointMarker key={x.geometry.coordinates.join(",")} point={x} />
         ))}
       {question &&
         question.id === "measuring" &&
@@ -323,7 +325,7 @@ export const PolygonDraw = () => {
         turf
           .flatten(measuringGeo)
           .features.filter((x: any) => turf.getType(x) === "Point")
-          .map((x: any) => <PointMarker key={markerKey(x.geometry)} point={x} />)}
+          .map((x: any) => <PointMarker key={x.geometry.coordinates.join(",")} point={x} />)}
       {question &&
         question.id === "measuring" &&
         question.data.type === "custom-measure" &&
@@ -378,6 +380,8 @@ export const PolygonDraw = () => {
         ))}
       {question && (
         <EditControl
+          // Its toolbar is rebuilt only on a new mount now that the callback is stable.
+          key={`${question.key}:${String((question.data as { type?: unknown }).type)}`}
           position="bottomleft"
           draw={{
             rectangle: false,
@@ -398,9 +402,9 @@ export const PolygonDraw = () => {
                     shapeOptions: { fillOpacity: 0 },
                   },
           }}
-          onCreated={onChange}
-          onEdited={onChange}
-          onDeleted={onChange}
+          onCreated={onDrawChange}
+          onEdited={onDrawChange}
+          onDeleted={onDrawChange}
         />
       )}
     </FeatureGroup>

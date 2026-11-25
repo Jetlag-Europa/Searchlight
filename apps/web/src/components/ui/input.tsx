@@ -44,6 +44,18 @@ const Input = React.forwardRef<HTMLInputElement, DebouncedInputProps>(
       setInternalValue(value ?? "");
     }, [value]);
 
+    // Closing a dialog right after typing (Done, ×) unmounts the field before
+    // the debounce fires: send what is still pending then.
+    const flush = React.useRef<(() => void) | undefined>(undefined);
+    React.useEffect(() => {
+      flush.current =
+        onChange && internalValue !== value && internalValue !== debouncedValue
+          ? () =>
+              onChange({ target: { value: internalValue } } as React.ChangeEvent<HTMLInputElement>)
+          : undefined;
+    });
+    React.useEffect(() => () => flush.current?.(), []);
+
     return (
       <RawInput
         {...props}
