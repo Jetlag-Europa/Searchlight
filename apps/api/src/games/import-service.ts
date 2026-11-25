@@ -189,6 +189,7 @@ async function assertCasualLimits(
   const games = await tx.game.findMany({
     where: { serverId: CASUAL_SERVER_ID, createdById: userId },
     select: { id: true },
+    orderBy: { id: "asc" },
   });
   for (const { id } of games) await pruneGame(tx, id);
   usage = await casualUsage(tx, userId);
@@ -659,7 +660,8 @@ async function importRevision(
         preloadChecksum,
       },
     });
-    await pruneGame(tx, game.id);
+    // Official games keep every revision while they live (see pruneGame).
+    if (game.serverId === CASUAL_SERVER_ID) await pruneGame(tx, game.id);
     if (limited) await assertCasualLimits(tx, limited, false);
     await audit(tx, {
       serverId: game.serverId,

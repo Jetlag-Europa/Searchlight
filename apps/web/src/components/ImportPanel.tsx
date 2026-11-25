@@ -120,6 +120,9 @@ export function ImportPanel({
 
   useEffect(() => setImportError(null), [definition, serverId]);
 
+  // A plain import goes to a server from the list, so it waits for it.
+  const waitingForServers = !replaceGameId && servers === null;
+
   // What importing would do, redone whenever the file or server change.
   // It may update, so an existing game is reported rather than refused.
   useEffect(() => {
@@ -130,8 +133,24 @@ export function ImportPanel({
     setDryRun(null);
     setError(null);
     setPreviewCode(null);
+    // Redone once Check again has reloaded the list: someone who just
+    // joined a server may only now be allowed to import.
+    if (waitingForServers) {
+      setPreviewing(false);
+      return;
+    }
     setPreviewing(true);
-    importGameDefinitionAPI(toSend, true, true, false, undefined, replaceGameId ?? undefined)
+    // A superseded preview is cancelled, so it doesn't keep an upload slot.
+    const controller = new AbortController();
+    importGameDefinitionAPI(
+      toSend,
+      true,
+      true,
+      false,
+      undefined,
+      replaceGameId ?? undefined,
+      controller.signal,
+    )
       .then((result) => {
         if (run !== latestDryRun.current) return;
         setDryRun(result);
@@ -140,15 +159,16 @@ export function ImportPanel({
         setError(null);
       })
       .catch((err: Error & { code?: string }) => {
-        if (run !== latestDryRun.current) return;
+        if (run !== latestDryRun.current || controller.signal.aborted) return;
         setError(err.message);
         setPreviewCode(err.code ?? null);
       })
       .finally(() => {
         if (run === latestDryRun.current) setPreviewing(false);
       });
+    return () => controller.abort();
     // toSend changes with definition and serverId.
-  }, [userId, definition, serverId, replaceGameId, previewRefresh]);
+  }, [userId, definition, serverId, replaceGameId, previewRefresh, servers]);
 
   const casual = serverId === CASUAL_SERVER_ID;
   const updating = dryRun?.status === "updated";
@@ -236,12 +256,7 @@ export function ImportPanel({
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => {
-              setServersRefresh((n) => n + 1);
-              if (serverId && !dryRun && !previewing) {
-                setPreviewRefresh((n) => n + 1);
-              }
-            }}
+            onClick={() => setServersRefresh((n) => n + 1)}
           >
             Retry
           </Button>
@@ -469,6 +484,7 @@ export function ImportPanel({
           // address reaches the plain import).
           disabled={
             !userId ||
+            waitingForServers ||
             noTarget ||
             (!serverId && !replaceGameId) ||
             importing ||

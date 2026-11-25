@@ -3,7 +3,7 @@ import { Type } from "@sinclair/typebox";
 import { randomBytes, randomUUID } from "crypto";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
-import { assertGameAccess, isUnlisted } from "../lib/game-access.js";
+import { assertGameAccess, isUnlisted, lockLiveGame } from "../lib/game-access.js";
 import { badRequest, forbidden, notFound } from "../lib/http-errors.js";
 import { pruneGame } from "../games/import-service.js";
 import {
@@ -117,6 +117,7 @@ export async function createSession({
   gameLinkId?: string;
 }) {
   const session = await prisma.$transaction(async (tx) => {
+    await lockLiveGame(tx, game.id);
     const s = await tx.gameSession.create({
       data: {
         gameId: game.id,

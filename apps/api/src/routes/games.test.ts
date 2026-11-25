@@ -3,6 +3,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { discord } from "../lib/discord-client.js";
 import { gameRoutes } from "./games.js";
 import { gameImportRoutes } from "./game-imports.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./game-links.js";
@@ -297,6 +298,23 @@ describe("DELETE /games/:gameId — archive", () => {
   const del = (gameId: string, userId = MANAGER) =>
     app.inject({ method: "DELETE", url: `/games/${gameId}`, headers: as(userId) });
 
+  // Holds the user's next Discord lookup, as after their cache expired, until resume().
+  async function pauseLookup(userId: string, roles: string[]) {
+    await prisma.serverMembershipCache.update({
+      where: { userId_serverId: { userId, serverId: SERVER_ID } },
+      data: { cachedAt: new Date(0) },
+    });
+    let waiting = false;
+    let resume = () => {};
+    const resumed = new Promise<void>((resolve) => (resume = resolve));
+    vi.spyOn(discord, "getGuildMember").mockImplementationOnce(async () => {
+      waiting = true;
+      await resumed;
+      return { roles, nick: null };
+    });
+    return { waiting: () => waiting, resume };
+  }
+
   async function cleanup() {
     const games = { gameKey: { startsWith: KEY_PREFIX } };
     await prisma.gameSession.deleteMany({ where: { serverId: SERVER_ID } });
@@ -385,6 +403,55 @@ describe("DELETE /games/:gameId — archive", () => {
       createdByName: `${MANAGER} name`,
       updatedAt: current.createdAt.toISOString(),
     });
+  });
+
+  test("a session start waiting on Discord while the game is deleted is refused", async () => {
+    const game = await createGame(`${KEY_PREFIX}starting`);
+    await sessionOn(game.id, 1);
+    const lookup = await pauseLookup(PLAYER, []);
+    const start = app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: as(PLAYER),
+      payload: { gameId: game.id, name: "Started during the delete" },
+    });
+    try {
+      await vi.waitFor(() => expect(lookup.waiting()).toBe(true));
+      expect((await del(game.id)).statusCode).toBe(204);
+      lookup.resume();
+      expect((await start).statusCode).toBe(404);
+      expect(await prisma.gameSession.count({ where: { gameId: game.id } })).toBe(1);
+    } finally {
+      lookup.resume();
+      await start;
+      vi.restoreAllMocks();
+    }
+  });
+
+  test("a link made while its game is deleted is refused", async () => {
+    const game = await createGame(`${KEY_PREFIX}linking`);
+    await sessionOn(game.id, 1);
+    const lookup = await pauseLookup(MANAGER, [MANAGER_ROLE]);
+    const create = app.inject({
+      method: "POST",
+      url: `/games/${game.id}/links`,
+      headers: as(MANAGER),
+    });
+    try {
+      await vi.waitFor(() => expect(lookup.waiting()).toBe(true));
+      await prisma.serverMembershipCache.update({
+        where: { userId_serverId: { userId: MANAGER, serverId: SERVER_ID } },
+        data: { cachedAt: new Date() },
+      });
+      expect((await del(game.id)).statusCode).toBe(204);
+      lookup.resume();
+      expect((await create).statusCode).toBe(404);
+      expect(await prisma.gameLink.count({ where: { gameId: game.id } })).toBe(0);
+    } finally {
+      lookup.resume();
+      await create;
+      vi.restoreAllMocks();
+    }
   });
 
   test("a game without sessions goes with its revisions and links", async () => {

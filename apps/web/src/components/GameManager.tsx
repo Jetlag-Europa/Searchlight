@@ -293,7 +293,7 @@ function GameRow({
         </h3>
         {(uploader || updatedAt) && (
           <span className="col-start-2 mt-0.5 text-xs text-muted-foreground">
-            {uploader && `by ${uploader}`}
+            {uploader && `added by ${uploader}`}
             {uploader && updatedAt && " · "}
             {updatedAt && (
               <span title={new Date(updatedAt).toLocaleString()}>updated {timeAgo(updatedAt)}</span>
@@ -383,9 +383,12 @@ const byLastUpdate = (a: Game, b: Game) =>
 function ServerSection({
   server,
   onGamesLoaded,
+  onRecheck,
 }: {
   server: ServerWithPermissions;
   onGamesLoaded?: (count: number) => void;
+  /** Asks Discord again, for a Casual creator who left every server. */
+  onRecheck?: () => void;
 }) {
   const casual = server.id === CASUAL_SERVER_ID;
   const canCreate = server.permissions.includes("games.create");
@@ -512,6 +515,11 @@ function ServerSection({
               {!canCreate && " Join one of the JetLag Discord servers to upload or change them."}
             </p>
           )}
+          {casual && games && !canCreate && !isServerAdmin && (
+            <Button size="sm" variant="outline" className="mt-2" onClick={onRecheck}>
+              Check again
+            </Button>
+          )}
         </div>
         {canImport && (
           <Button asChild variant="outline" size="sm">
@@ -589,6 +597,9 @@ export function GameManager() {
   // How many Casual games are listed for the user, for when they have no
   // permission there: creators keep their games after leaving every server.
   const [casualGames, setCasualGames] = useState<number | null>(null);
+  const lastCasualGames = useRef<number | null>(null);
+  const emptyRef = useRef<HTMLParagraphElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Load once AuthGuard has verified the login, which waits out a server
   // that was down when the page opened.
@@ -613,6 +624,22 @@ export function GameManager() {
     };
   }, [userId, loadAttempt]);
 
+  // Deleting the last game of a Casual section without permissions removes
+  // the section, and maybe the page: focus goes to what replaces it.
+  useEffect(() => {
+    const casual = servers?.find((s) => s.id === CASUAL_SERVER_ID);
+    if (casualGames === 0 && lastCasualGames.current && casual && !hasGamePermission(casual)) {
+      (emptyRef.current ?? headingRef.current)?.focus();
+    }
+    lastCasualGames.current = casualGames;
+  }, [casualGames]);
+
+  const checkAgain = () => {
+    recheck.current = true;
+    setServers(null);
+    setLoadAttempt((n) => n + 1);
+  };
+
   if (error) {
     return (
       <div className="flex items-center gap-3">
@@ -627,7 +654,9 @@ export function GameManager() {
 
   // Casual is listed for its creators even without a permission there; its
   // section hides itself if they have no games after all.
-  const adminServers = servers.filter((s) => hasGamePermission(s) || s.id === CASUAL_SERVER_ID);
+  const adminServers = servers.filter(
+    (s) => hasGamePermission(s) || (s.id === CASUAL_SERVER_ID && s.hasOwnGames !== false),
+  );
   const casualServer = adminServers.find((s) => s.id === CASUAL_SERVER_ID);
   const casualShown = !!casualServer && (hasGamePermission(casualServer) || casualGames !== 0);
   const importableServers = servers.filter((s) =>
@@ -637,18 +666,10 @@ export function GameManager() {
   if (!servers.some(hasGamePermission) && !casualShown) {
     return (
       <div className="space-y-3">
-        <p className="text-muted-foreground">
+        <p ref={emptyRef} tabIndex={-1} className="text-muted-foreground focus:outline-none">
           To upload Casual games, join one of the JetLag Discord servers that use Searchlight.
         </p>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            recheck.current = true;
-            setServers(null);
-            setLoadAttempt((n) => n + 1);
-          }}
-        >
+        <Button size="sm" variant="outline" onClick={checkAgain}>
           Check again
         </Button>
       </div>
@@ -658,9 +679,11 @@ export function GameManager() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 mb-6 border-b border-border">
         <div>
-          <h2 className="text-xl font-bold">Games & Maps</h2>
+          <h2 ref={headingRef} tabIndex={-1} className="text-xl font-bold focus:outline-none">
+            Games & Maps
+          </h2>
           <p className="text-xs text-muted-foreground mt-1">
-            Import or export versioned game definitions as JSON, or manage server maps.
+            Upload a game file, or build one in Map Creator.
           </p>
           {casualShown && adminServers.length > 1 && (
             <a href="#casual-games" className="mt-1 inline-block text-xs underline">
@@ -684,6 +707,7 @@ export function GameManager() {
           key={s.id}
           server={s}
           onGamesLoaded={s.id === CASUAL_SERVER_ID ? setCasualGames : undefined}
+          onRecheck={checkAgain}
         />
       ))}
     </div>

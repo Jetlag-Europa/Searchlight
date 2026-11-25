@@ -1,5 +1,4 @@
-// ImportPanel pins plain imports to the previewed currentRevisionId even when
-// the preview status is "unchanged".
+// ImportPanel's preview and import calls.
 import type { GameDefinition, GameImportResponse } from "@searchlight/shared";
 import { act, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -8,6 +7,7 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 const ui = vi.hoisted(() => {
   const node = (): Record<string, unknown> => ({
     style: {},
+    options: [],
     appendChild: (c: unknown) => c,
     insertBefore: (c: unknown) => c,
     removeChild: (c: unknown) => c,
@@ -91,13 +91,29 @@ const settle = () =>
 
 const submitButton = () => ui.buttons[ui.buttons.length - 1]!;
 
+const renderPanel = (def: GameDefinition = definition) =>
+  act(async () =>
+    root!.render(
+      <ImportPanel
+        definition={def}
+        noServer={false}
+        busy={false}
+        blocked={null}
+        replaceGameId={null}
+      />,
+    ),
+  );
+
 beforeEach(() => {
   ui.buttons = [];
   apiMocks.importGameDefinitionAPI.mockReset();
   verifiedUserId.set("u1");
   vi.stubGlobal(
     "fetch",
-    vi.fn(() => new Promise(() => {})),
+    vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ servers: [{ id: "server-1", name: "Server 1" }] }),
+    })),
   );
   root = createRoot(ui.container as unknown as Element);
 });
@@ -201,4 +217,63 @@ test("someone in no server gets the join message and no Import, also with a Casu
 
   expect(ui.buttons.some((b) => b.children === "Check again")).toBe(true);
   expect(submitButton().disabled).toBe(true);
+});
+
+test("a plain import previews once its servers are in, and again after Check again", async () => {
+  let servers: unknown[] = [];
+  let listed!: () => void;
+  const serversIn = new Promise<void>((resolve) => (listed = resolve));
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => {
+      await serversIn;
+      return { ok: true, json: async () => ({ servers }) };
+    }),
+  );
+  apiMocks.importGameDefinitionAPI
+    .mockRejectedValueOnce(
+      Object.assign(new Error("To upload games, join one of the JetLag Discord servers."), {
+        code: "FORBIDDEN",
+      }),
+    )
+    .mockResolvedValueOnce({
+      status: "created",
+      gameId: "game-1",
+      gameKey: "london-2026",
+      revision: 1,
+      checksum: "abc",
+      errors: [],
+      warnings: [],
+    } satisfies GameImportResponse);
+
+  await renderPanel({ ...definition, serverId: "home-games" });
+  await settle();
+  expect(apiMocks.importGameDefinitionAPI).not.toHaveBeenCalled();
+  expect(submitButton().disabled).toBe(true);
+
+  listed();
+  await settle();
+  expect(apiMocks.importGameDefinitionAPI).toHaveBeenCalledTimes(1);
+
+  // The player joined a server: Casual is now theirs to upload to.
+  servers = [{ id: "home-games", name: "Casual Games" }];
+  const checkAgain = ui.buttons.findLast((b) => b.children === "Check again")!;
+  await act(async () => {
+    checkAgain.onClick!();
+  });
+  await settle();
+  expect(apiMocks.importGameDefinitionAPI).toHaveBeenCalledTimes(2);
+  expect(submitButton().children).toBe("Import game");
+  expect(submitButton().disabled).toBe(false);
+});
+
+test("a new preview cancels the one it replaces", async () => {
+  apiMocks.importGameDefinitionAPI.mockReturnValue(new Promise(() => {}));
+  await renderPanel();
+  await settle();
+  await renderPanel({ ...definition, name: "London 2027" });
+  await settle();
+
+  const signals = apiMocks.importGameDefinitionAPI.mock.calls.map((c) => c[6] as AbortSignal);
+  expect(signals.map((s) => s.aborted)).toEqual([true, false]);
 });

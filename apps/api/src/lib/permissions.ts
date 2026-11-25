@@ -27,7 +27,9 @@ export async function getUserPermissions(
   }
   // Virtual servers have no guild: being in one of the servers is what counts.
   if (VIRTUAL_SERVER_IDS.has(serverId)) {
-    return new Set((await isMemberOfSomeServer(userId, logger)) ? VIRTUAL_SERVER_PERMISSIONS : []);
+    return new Set(
+      (await isMemberOfSomeServer(userId, logger, privileged)) ? VIRTUAL_SERVER_PERMISSIONS : [],
+    );
   }
 
   return permissionsForRoles(serverId, await getUserRoleIds(userId, serverId, privileged, logger));
@@ -136,6 +138,7 @@ export async function isServerMember(
   userId: string,
   serverId: string,
   logger?: FastifyBaseLogger,
+  privileged = false,
 ): Promise<boolean> {
   if (isAdmin(userId)) {
     return true;
@@ -143,11 +146,11 @@ export async function isServerMember(
 
   // Membership is cached like roles for normal reads, but a cached "not a
   // member" expires after a minute so someone who just joined the server
-  // isn't locked out for an hour.
+  // isn't locked out for an hour. `privileged` treats a "member" so too.
   const cached = await prisma.serverMembershipCache.findUnique({
     where: { userId_serverId: { userId, serverId } },
   });
-  const ttl = cached?.isMember ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
+  const ttl = cached?.isMember && !privileged ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
   return cached && Date.now() - cached.cachedAt.getTime() < ttl
     ? cached.isMember
     : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
@@ -158,10 +161,12 @@ export async function isServerMember(
  * creating Casual games takes. Servers the cache says they're in are asked
  * first, so the usual answer takes no Discord call. Throws when a lookup
  * failed and no server said yes: that is "couldn't tell", not "no".
+ * `privileged` (for writes) accepts a cached "member" for a minute only.
  */
 export async function isMemberOfSomeServer(
   userId: string,
   logger?: FastifyBaseLogger,
+  privileged = false,
 ): Promise<boolean> {
   if (isAdmin(userId)) return true;
   const servers = await prisma.server.findMany({
@@ -174,7 +179,7 @@ export async function isMemberOfSomeServer(
   let failure: unknown;
   for (const { id } of servers) {
     try {
-      if (await isServerMember(userId, id, logger)) return true;
+      if (await isServerMember(userId, id, logger, privileged)) return true;
     } catch (err) {
       failure = err;
     }

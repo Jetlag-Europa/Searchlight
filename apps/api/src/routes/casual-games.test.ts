@@ -322,6 +322,30 @@ describe("Casual Games", () => {
       expect(res.statusCode).toBe(403);
     });
 
+    test("uploads and changes recheck a membership cached over a minute ago", async () => {
+      const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+      const writes = [
+        () =>
+          importAs(CREATOR, definition(GAME_KEY, "London 2026"), "?dryRun=true&allowUpdate=true"),
+        () =>
+          app.inject({
+            method: "PATCH",
+            url: `/games/${gameId}/settings`,
+            headers: as(CREATOR),
+            payload: { baseRevisionId: game.currentRevisionId, name: "London 2026" },
+          }),
+      ];
+      for (const write of writes) {
+        await prisma.serverMembershipCache.update({
+          where: { userId_serverId: { userId: CREATOR, serverId: EU_SERVER_ID } },
+          data: { isMember: true, cachedAt: new Date(Date.now() - 2 * 60_000) },
+        });
+        // Left the server since.
+        vi.mocked(discord.getGuildMember).mockResolvedValueOnce(null);
+        expect((await write()).statusCode).toBe(403);
+      }
+    });
+
     test("a global admin's import of a creator's id makes the admin's own game", async () => {
       const res = await importAs(
         ADMIN,
@@ -985,6 +1009,64 @@ describe("Casual Games", () => {
         await vi.waitFor(() => expect(slotTaken()).toBe(false));
         expect((await preview()).statusCode).toBe(201);
       } finally {
+        WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
+      }
+    });
+
+    test("a client gone after sending its whole body frees the slot once the upload ends", async () => {
+      WRITE_LIMIT.inFlightPerUser = 1;
+      const findServer = prisma.server.findUnique.bind(prisma.server);
+      let handling = false;
+      let proceed = () => {};
+      const paused = new Promise<void>((resolve) => (proceed = resolve));
+      // The import's first query, so the handler waits with the body read.
+      const spy = vi.spyOn(prisma.server, "findUnique").mockImplementationOnce(((
+        args: Parameters<typeof findServer>[0],
+      ) => {
+        handling = true;
+        return paused.then(() => findServer(args));
+      }) as never);
+      const body = JSON.stringify(definition(limitedKey("complete"), "Complete"));
+      if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+      const { port } = app.server.address() as { port: number };
+      let raw: { complete: boolean; aborted: boolean; closed: boolean } | undefined;
+      app.server.once("request", (req, res) => {
+        res.once(
+          "close",
+          () => (raw = { complete: req.complete, aborted: req.aborted, closed: true }),
+        );
+      });
+      const gone = request({
+        host: "127.0.0.1",
+        port,
+        method: "POST",
+        path: "/games/import?dryRun=true",
+        headers: {
+          ...as(LIMITED),
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+        },
+      });
+      gone.on("error", () => {});
+      gone.end(body);
+      try {
+        await vi.waitFor(() => expect(handling).toBe(true));
+        gone.destroy();
+        await vi.waitFor(() =>
+          expect(raw).toEqual({ complete: true, aborted: false, closed: true }),
+        );
+        proceed();
+        await vi.waitFor(async () => {
+          const res = await importAs(
+            LIMITED,
+            definition(limitedKey("next"), "Next"),
+            "?dryRun=true",
+          );
+          expect(res.statusCode).toBe(201);
+        });
+      } finally {
+        proceed();
+        spy.mockRestore();
         WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
       }
     });

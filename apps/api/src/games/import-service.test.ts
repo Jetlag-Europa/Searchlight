@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -418,10 +418,17 @@ describe("revision pruning", () => {
     expect(await numbers(key)).toEqual([1, 2, 5]);
   });
 
-  test("an official game keeps every revision", async () => {
+  test("an official game keeps every revision, with no prune run", async () => {
     const key = `${KEY_PREFIX}prune-official`;
-    for (const name of ["A", "B", "C"]) {
-      await importGameDefinition({ raw: definition(key, name), allowUpdate: true });
+    // The prune's deletes, also within a transaction.
+    const executeRaw = vi.spyOn(prisma, "$executeRaw");
+    try {
+      for (const name of ["A", "B", "C"]) {
+        await importGameDefinition({ raw: definition(key, name), allowUpdate: true });
+      }
+      expect(executeRaw).not.toHaveBeenCalled();
+    } finally {
+      executeRaw.mockRestore();
     }
     expect(await numbers(key)).toEqual([1, 2, 3]);
   });

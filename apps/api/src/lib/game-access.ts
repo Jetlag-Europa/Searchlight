@@ -2,6 +2,7 @@ import type { FastifyBaseLogger } from "fastify";
 import { Prisma } from "@prisma/client";
 import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "./prisma.js";
+import { notFound } from "./http-errors.js";
 import {
   assertServerMembership,
   getUserPermissions,
@@ -24,6 +25,15 @@ export async function findActiveLink(token: string) {
     },
   });
   return link && !link.revokedAt ? link : null;
+}
+
+// First in a create's transaction: the game may have been deleted while the
+// request was authorized (which can wait on Discord), and the lock holds off a
+// delete until the commit.
+export async function lockLiveGame(tx: Prisma.TransactionClient, gameId: string): Promise<void> {
+  const rows = await tx.$queryRaw<unknown[]>`
+    SELECT 1 FROM "Game" WHERE id = ${gameId} AND "archivedAt" IS NULL FOR SHARE`;
+  if (rows.length === 0) throw notFound("Game not found");
 }
 
 // Any of these on a game's server lets a user see its unlisted games on the

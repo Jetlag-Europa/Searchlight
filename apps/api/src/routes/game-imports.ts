@@ -37,14 +37,14 @@ export async function resolveImportActor(req: FastifyRequest): Promise<ImportAct
   // Session cookie auth
   const { user } = await resolveSession(req);
   // Turn away floods and users who can't import anywhere before the body is
-  // parsed; the import checks the target server. The route's onResponse and
-  // onRequestAbort free the slot, also when this throws.
+  // parsed; the import checks the target server. The route's onSend frees the
+  // slot once there is a reply, also when this throws or the client left
+  // after its body; onRequestAbort frees it for a client gone before that.
   req.releaseUploadSlot = acquireUploadSlot(user.discordId);
-  // A client gone during resolveSession already had its onRequestAbort, and
-  // gets no onResponse.
+  // A client gone during resolveSession already had its onRequestAbort.
   if (req.raw.aborted) req.releaseUploadSlot();
   assertWithinWriteLimit(user.discordId);
-  if (!(await isMemberOfSomeServer(user.discordId, req.log))) {
+  if (!(await isMemberOfSomeServer(user.discordId, req.log, true))) {
     throw new ImportForbiddenError(
       "To upload games, join one of the JetLag Discord servers that use Searchlight.",
     );
@@ -189,7 +189,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
       onRequest: async (req) => {
         req.importActor = await resolveImportActor(req);
       },
-      onResponse: releaseUploadSlot,
+      onSend: releaseUploadSlot,
       onRequestAbort: releaseUploadSlot,
       schema: {
         querystring: Type.Object({
@@ -253,7 +253,7 @@ export async function gameImportRoutes(app: FastifyInstance) {
       onRequest: async (req) => {
         req.importActor = await resolveImportActor(req);
       },
-      onResponse: releaseUploadSlot,
+      onSend: releaseUploadSlot,
       onRequestAbort: releaseUploadSlot,
       schema: {
         params: Type.Object({ gameId: Type.String() }),

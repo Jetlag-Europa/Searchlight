@@ -4,7 +4,7 @@ import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
-import { assertCanManageGame, findActiveLink } from "../lib/game-access.js";
+import { assertCanManageGame, findActiveLink, lockLiveGame } from "../lib/game-access.js";
 import { notFound } from "../lib/http-errors.js";
 import { assertWithinWriteLimit } from "../lib/write-limit.js";
 import { createSession } from "./sessions.js";
@@ -65,6 +65,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
       await assertCanManageGame(user.discordId, game, req.log);
 
       const link = await prisma.$transaction(async (tx) => {
+        await lockLiveGame(tx, game.id);
         const created = await tx.gameLink.create({
           data: {
             token: randomBytes(16).toString("hex"),

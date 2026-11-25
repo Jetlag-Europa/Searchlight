@@ -251,9 +251,8 @@ describe("games and import load errors", () => {
       fetchMock.mockImplementation(async (u: string | URL) => {
         const { pathname } = new URL(String(u));
         if (pathname === "/servers") return ++serverCalls === 1 ? fail() : json({ servers: [srv] });
-        return ++dryRunCalls === 1
-          ? json({ message: "Unavailable" }, 503)
-          : json({ status: "created", gameId: "g1", gameKey: "stockholm", revision: 1 });
+        ++dryRunCalls;
+        return json({ status: "created", gameId: "g1", gameKey: "stockholm", revision: 1 });
       });
       await render(
         createElement(ImportPanel, {
@@ -266,8 +265,10 @@ describe("games and import load errors", () => {
       );
       expect(pageText()).toContain(expected);
       expect(pageText()).not.toContain("You can't import games to any server.");
+      // No preview until the import has a server to go to.
+      expect(dryRunCalls).toBe(0);
       await clickButton("Retry");
-      expect([serverCalls, dryRunCalls]).toEqual([2, 2]);
+      expect([serverCalls, dryRunCalls]).toEqual([2, 1]);
       expect(pageText()).toContain("JetLag Server (srv-1)");
       expect(pageText()).toContain("New game");
     },
@@ -445,7 +446,7 @@ describe("/games rows", () => {
     expect(nodes("DETAILS").every(isOpen)).toBe(true);
     expect(rowNames()).toEqual(["Stockholm", "Zurich"]);
     const [own, unknown] = nodes("SUMMARY");
-    expect(own.textContent).toMatch(/^Stockholmby you · updated /);
+    expect(own.textContent).toMatch(/^Stockholmadded by you · updated /);
     // No uploader on record and no revision: no meta line.
     expect(unknown.textContent).toBe("Zurich");
     expect(findButton("History of Stockholm")).toBeDefined();
@@ -527,6 +528,46 @@ describe("/games rows", () => {
     expect(pageText()).toContain(
       "To upload Casual games, join one of the JetLag Discord servers that use Searchlight.",
     );
+    expect(env.focused.node?.textContent).toMatch(/^To upload Casual games/);
+  });
+
+  it("moves focus to the page heading when a creator's Casual section goes", async () => {
+    vi.stubGlobal(
+      "confirm",
+      vi.fn(() => true),
+    );
+    const own = { ...game, id: "g9", serverId: CASUAL_SERVER_ID, name: "My Casual" };
+    serve([srv, { ...casualSrv, permissions: [] }], {
+      "srv-1": [game],
+      [CASUAL_SERVER_ID]: [own],
+    });
+    await render(createElement(GameManager));
+    await clickButton("Delete");
+    expect(pageText()).not.toContain("My Casual");
+    expect(env.focused.node?.textContent).toBe("Games & Maps");
+  });
+
+  it("lets a creator who left every server ask Discord again", async () => {
+    const own = { ...game, serverId: CASUAL_SERVER_ID, name: "My Casual" };
+    serve([{ ...casualSrv, permissions: [] }], { [CASUAL_SERVER_ID]: [own] });
+    await render(createElement(GameManager));
+    expect(pageText()).toContain(
+      "Join one of the JetLag Discord servers to upload or change them.",
+    );
+    serve([casualSrv], { [CASUAL_SERVER_ID]: [own] });
+    await clickButton("Check again");
+    expect(fetchMock.mock.calls.map(([u]) => String(u))).toContainEqual(
+      expect.stringContaining("/servers?recheck=true"),
+    );
+    expect(pageText()).toContain("You have 1 of 20 Casual games.");
+    expect(pageText()).not.toContain("Join one of");
+  });
+
+  it("goes straight to the empty page for someone with only Casual sessions", async () => {
+    serve([{ ...casualSrv, permissions: [], hasSessions: true, hasOwnGames: false }], {});
+    await render(createElement(GameManager));
+    expect(pageText()).toContain("join one of the JetLag Discord servers");
+    expect(fetchMock.mock.calls.map(([u]) => new URL(String(u)).pathname)).toEqual(["/servers"]);
   });
 
   it("offers no Delete or History on someone else's Casual game without games.delete", async () => {

@@ -28,7 +28,13 @@ export function GameHistoryDialog({ game }: { game: Game }) {
             Who uploaded each version and when, and who created or revoked game links.
           </DialogDescription>
         </DialogHeader>
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* A tab stop, so the keyboard can scroll it too. */}
+        <div
+          role="region"
+          aria-label="History entries"
+          tabIndex={0}
+          className="min-h-0 flex-1 overflow-y-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
           <AuditLogPanel serverId={game.serverId} gameId={game.id} />
         </div>
       </DialogContent>

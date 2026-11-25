@@ -419,6 +419,7 @@ describe("/audit-log", () => {
       // First imported as revision 3.
       const [r3, r4] = [await revision(3, 1), await revision(4, 2)];
       await revision(5, 3);
+      const r6 = await revision(6, 4);
       const logged = (revision: number, createdAt: Date) =>
         tx.auditLog.create({
           data: {
@@ -434,6 +435,8 @@ describe("/audit-log", () => {
       // Revision 5's upload was logged; revision 3 was re-activated weeks later.
       const upload = await logged(5, new Date(at(3).getTime() + 50));
       const reactivation = await logged(3, at(30));
+      // Uploaded just before audit logging went live, re-activated just after.
+      const quick = await logged(6, new Date(at(4).getTime() + 30_000));
 
       await tx.$executeRawUnsafe(sql);
       await tx.$executeRawUnsafe(sql);
@@ -445,6 +448,8 @@ describe("/audit-log", () => {
         [`backfill_${r3.id}`, "game.create", at(1), { revision: 3, source: "web" }],
         [`backfill_${r4.id}`, "game.revision", at(2), { revision: 4, source: "web" }],
         [upload.id, "game.revision", upload.createdAt, upload.details],
+        [`backfill_${r6.id}`, "game.revision", at(4), { revision: 6, source: "web" }],
+        [quick.id, "game.revision", quick.createdAt, quick.details],
         [reactivation.id, "game.revision", at(30), reactivation.details],
       ]);
       expect(entries[0]).toMatchObject({ actorId: MEMBER, targetName: "Rev 3" });

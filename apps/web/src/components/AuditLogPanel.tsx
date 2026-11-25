@@ -184,7 +184,7 @@ export function AuditLogPanel({ serverId, gameId }: { serverId?: string; gameId?
             <li key={e.id} className="py-2 border-b border-border/50">
               <div className="flex flex-wrap gap-x-2">
                 <span className="font-medium">{LABELS[e.action] ?? e.action}</span>
-                <span className="break-all">{e.targetName}</span>
+                <span className="break-words">{e.targetName}</span>
               </div>
               <div className="text-xs text-muted-foreground break-words">
                 {[
