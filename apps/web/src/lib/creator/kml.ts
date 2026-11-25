@@ -3,7 +3,6 @@ import * as turf from "@turf/turf";
 
 import { compileGameDefinition } from "@/game-definition/compile";
 import {
-  convertDistanceUnit,
   FEATURE_ICON_META,
   inferLayerColor,
   inferLayerIcon,
@@ -558,7 +557,8 @@ export function buildGameKml(
         // The radius goes with each station, so re-importing the file keeps it.
         const radius = compiled.hidingZones.stations?.[i]?.radius;
         if (f.geometry.type === "Point" && radius) {
-          extra.radius_m = String(convertDistanceUnit(radius.value, radius.unit, "meters"));
+          // Exact: convertDistanceUnit rounds miles to 2 significant figures.
+          extra.radius_m = String(turf.convertLength(radius.value, radius.unit, "meters"));
         }
         const styleId = f.geometry.type === "Point" ? stationStyleId : polyZoneStyleId;
         return placemarkXml(name, styleId, f.geometry, extra);
