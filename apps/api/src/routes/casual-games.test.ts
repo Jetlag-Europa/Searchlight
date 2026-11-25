@@ -789,6 +789,48 @@ describe("Casual Games", () => {
         hasNewerRevision: false,
       });
     });
+
+    test("a local open waiting on an upload that prunes the revision serves the new one", async () => {
+      const created = await importAs(CREATOR, definition(`${KEY_PREFIX}local-open`, "Earlier"));
+      expect(created.statusCode).toBe(201);
+      const id = created.json().gameId;
+      const link = await app.inject({
+        method: "POST",
+        url: `/games/${id}/links`,
+        headers: as(CREATOR),
+      });
+      expect(link.statusCode).toBe(201);
+
+      let open: Promise<LightMyRequestResponse> | undefined;
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Game" WHERE id = ${id} FOR UPDATE`;
+        const next = await tx.gameRevision.create({
+          data: {
+            gameId: id,
+            revision: 2,
+            checksum: `${KEY_PREFIX}local-open-2`,
+            definition: definition(`${KEY_PREFIX}local-open`, "Later"),
+          },
+        });
+        await tx.game.update({
+          where: { id },
+          data: { currentRevisionId: next.id, name: "Later" },
+        });
+        await pruneGame(tx, id);
+        open = app.inject({ method: "GET", url: `/game-links/${link.json().token}/definition` });
+        await vi.waitFor(async () => {
+          const [{ waiting }] = await prisma.$queryRaw<{ waiting: number }[]>`
+            SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%UPDATE%localOpens%'`;
+          expect(waiting).toBeGreaterThan(0);
+        });
+      });
+
+      const res = await open!;
+      expect(res.statusCode).toBe(200);
+      expect(res.json().name).toBe("Later");
+    });
   });
 
   describe("limits", () => {

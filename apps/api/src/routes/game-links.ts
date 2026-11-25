@@ -220,17 +220,22 @@ export async function gameLinkRoutes(app: FastifyInstance) {
     { schema: { params: Type.Object({ token: Type.String({ minLength: 1, maxLength: 128 }) }) } },
     async (req, reply) => {
       const { token } = req.params as { token: string };
+      // Only /local fetches this, once per game it opens from a link. Counted
+      // before the lookup: it waits out an upload holding the game lock, which
+      // may prune the revision an earlier lookup would serve. Counting never
+      // fails the download.
+      if (req.method === "GET") {
+        await prisma.game
+          .updateMany({
+            where: { links: { some: { token, revokedAt: null } } },
+            data: { localOpens: { increment: 1 } },
+          })
+          .catch((err) => req.log.warn({ err }, "Couldn't count a local open"));
+      }
       const link = await findActiveLink(token);
       const revision = link?.game.currentRevision;
       if (!link || !revision) {
         throw notFound("Link is invalid or has been revoked");
-      }
-      // Only /local fetches this, once per game it opens from a link. Counting
-      // never fails the download, even if the game was deleted meanwhile.
-      if (req.method === "GET") {
-        await prisma.game
-          .updateMany({ where: { id: link.gameId }, data: { localOpens: { increment: 1 } } })
-          .catch((err) => req.log.warn({ err }, "Couldn't count a local open"));
       }
 
       const etag = `"${revision.checksum}"`;
