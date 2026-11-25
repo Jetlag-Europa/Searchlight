@@ -988,6 +988,45 @@ describe("Casual Games", () => {
         WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
       }
     });
+
+    test("a client gone while its login is checked doesn't keep a slot", async () => {
+      WRITE_LIMIT.inFlightPerUser = 1;
+      const findSession = prisma.authSession.findUnique.bind(prisma.authSession);
+      let resolving = false;
+      const spy = vi.spyOn(prisma.authSession, "findUnique").mockImplementation(((
+        args: Parameters<typeof findSession>[0],
+      ) => {
+        resolving = true;
+        return new Promise((resolve) => setTimeout(resolve, 200)).then(() => findSession(args));
+      }) as never);
+      try {
+        if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+        const { port } = app.server.address() as { port: number };
+        const gone = request({
+          host: "127.0.0.1",
+          port,
+          method: "POST",
+          path: "/games/import?dryRun=true",
+          headers: {
+            ...as(LIMITED),
+            "content-type": "application/json",
+            "content-length": "100000",
+          },
+        });
+        gone.on("error", () => {});
+        gone.write("{");
+        await vi.waitFor(() => expect(resolving).toBe(true));
+        gone.destroy();
+        // Past the session lookup, which then takes the slot.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        spy.mockRestore();
+        const res = await importAs(LIMITED, definition(limitedKey("gone"), "Gone"), "?dryRun=true");
+        expect(res.statusCode).toBe(201);
+      } finally {
+        spy.mockRestore();
+        WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
+      }
+    });
   });
 
   describe("servers", () => {

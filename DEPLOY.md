@@ -191,8 +191,8 @@ sessions now keeps it as an archived row (`Game.archivedAt` set, no current
 revision, unlisted, `ownerScope` `archived:<id>`) until its last session is
 deleted. Older APIs don't filter archived games: they list them on `/games`
 again, unlisted and for game managers only, with no revision, so they can't be
-exported, changed or started, but a manager on an official server could **Make
-listed** one. Casual revisions deleted as unused don't come back; the backup
+exported or started. A manager on an official server could still **Make listed**
+one, and **Replace with file…** brings one back as a live game. Casual revisions deleted as unused don't come back; the backup
 taken before the update has them. Roll back to a build that knows archived
 games where you can. Before going back further, see which games would show
 again:

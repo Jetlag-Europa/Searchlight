@@ -40,6 +40,9 @@ export async function resolveImportActor(req: FastifyRequest): Promise<ImportAct
   // parsed; the import checks the target server. The route's onResponse and
   // onRequestAbort free the slot, also when this throws.
   req.releaseUploadSlot = acquireUploadSlot(user.discordId);
+  // A client gone during resolveSession already had its onRequestAbort, and
+  // gets no onResponse.
+  if (req.raw.aborted) req.releaseUploadSlot();
   assertWithinWriteLimit(user.discordId);
   if (!(await isMemberOfSomeServer(user.discordId, req.log))) {
     throw new ImportForbiddenError(

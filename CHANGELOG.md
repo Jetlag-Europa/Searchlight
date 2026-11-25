@@ -12,7 +12,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Casual games now keep only the versions still in use: the current one, the newest, and those sessions still play. The others are deleted when the game gets a new version or is deleted. Games on the JetLag servers keep all their versions, as before.
 - `/games` shows each game as a row with who uploaded it and when it was last updated. Click a row for its details and buttons. A server with more than 10 games starts with its rows closed, lists the most recently updated first, shows 20 at a time and has a search by game or uploader. Each section heading says how many games it has. Casual Games comes last, with a link to jump to it.
 - **History** on each game shows who uploaded each version and when, and who created or revoked its game links. Everyone who manages the game sees it, Casual creators included, and it goes back to each game's first upload, from before the audit log existed.
-- The session picker on `/map` no longer lists Casual Games when you have no sessions there, so players in one JetLag server get their server picked again. Its Casual note links to `/games` to upload your own.
+- The session picker on `/map` no longer lists Casual Games when you have no sessions there, so players in one JetLag server get it picked for them. Its Casual note links to `/games` to upload your own.
 
 ## Safer role permissions on /admin (2026-11-25)
 
