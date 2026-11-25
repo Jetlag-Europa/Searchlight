@@ -4,6 +4,7 @@ import type { Feature, FeatureCollection, Point } from "geojson";
 
 import { compiledGameAtom, isQuestionSupported } from "@/game-definition/store";
 import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
+import { isStationNameLength } from "@/lib/stationNameLength";
 import { isZoneSizeChange, zoneScaleAfter } from "@/lib/zoneSize";
 
 import {
@@ -46,13 +47,14 @@ import {
   tentaclesPlanningPolygon,
 } from "./questions/tentacles";
 import { hiderifyThermometer, thermometerPlanningPolygon } from "./questions/thermometer";
-import type {
-  CustomMatchingQuestion,
-  MatchingQuestion,
-  MeasuringQuestion,
-  Question,
-  Questions,
-  TentacleQuestion,
+import {
+  type CustomMatchingQuestion,
+  isUnanswered,
+  type MatchingQuestion,
+  type MeasuringQuestion,
+  type Question,
+  type Questions,
+  type TentacleQuestion,
 } from "./schema";
 
 interface CompiledFeatureQuestionData {
@@ -218,6 +220,8 @@ function questionStatus(question: any): "ready" | "pending" | "unsupported" {
 export const hiderifyQuestion = async (question: Question) => {
   if (question.data.enabled === false) return null;
   if (isZoneSizeChange(question)) return question;
+  // Locked questions keep what they have, also "waiting": the hider may not
+  // have set their position yet, and a lock would keep a wrong answer.
   if (question.data.drag) {
     if (questionStatus(question) !== "ready") return question;
     const compiled = compiledGameAtom.get()!;
@@ -261,7 +265,8 @@ export const determinePlanningPolygon = async (
 ) => {
   if (question.data.enabled === false) return undefined;
   if (isZoneSizeChange(question)) return undefined;
-  if (planningModeEnabled && question.data.drag) {
+  // Planning mode outlines unlocked questions; a waiting one is always outlined.
+  if ((planningModeEnabled && question.data.drag) || isUnanswered(question)) {
     if (questionStatus(question) !== "ready") return undefined;
     const compiled = compiledGameAtom.get()!;
     const questionDef = resolveCompiledQuestion(question, compiled);
@@ -473,6 +478,9 @@ export async function computePerQuestionRegions(
     // zones the questions below it are tested against.
     if (isZoneSizeChange(question)) continue;
     if (planningModeEnabled && question.data.drag) continue;
+    // A question waiting for its answer rules nothing out yet; a station
+    // name length answer rules zones out by name, not area.
+    if (isUnanswered(question) || isStationNameLength(question)) continue;
 
     const key = JSON.stringify([question.id, regionData(question)]);
     let region = cache.get(key);

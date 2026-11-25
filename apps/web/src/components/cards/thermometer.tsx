@@ -110,11 +110,12 @@ export const ThermometerQuestionComponent = ({
         <ToggleGroup
           className="grow"
           type="single"
-          value={data.warmer ? "warmer" : "colder"}
+          // Nothing pressed while it waits for its answer, which a locked card still takes.
+          value={data.warmer === undefined ? "" : data.warmer ? "warmer" : "colder"}
           onValueChange={(value: "warmer" | "colder") =>
             questionModified((data.warmer = value === "warmer"))
           }
-          disabled={!!$hiderMode || !data.drag || $isLoading}
+          disabled={!!$hiderMode || (!data.drag && data.warmer !== undefined) || $isLoading}
         >
           <ToggleGroupItem color="red" value="colder">
             Colder

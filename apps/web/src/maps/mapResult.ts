@@ -1,7 +1,7 @@
 import { isZoneSizeChange } from "@/lib/zoneSize";
 
 import { regionData } from ".";
-import type { Questions } from "./schema";
+import { isUnanswered, type Questions } from "./schema";
 
 /** Each question's region, as perQuestionMapData publishes them. */
 type Answered = readonly {
@@ -22,16 +22,17 @@ export interface MapResult {
 }
 
 /**
- * The questions planning mode outlines on the map, by what their outlines
- * depend on. Empty outside planning mode.
+ * The questions outlined on the map, by what their outlines depend on: those
+ * waiting for an answer, and in planning mode the unlocked ones.
  */
 export function planningPreviewKey(questions: Questions, planning: boolean): string {
-  if (!planning) return "";
   return JSON.stringify(
     questions
       .filter(
         (question) =>
-          !isZoneSizeChange(question) && question.data.enabled !== false && question.data.drag,
+          !isZoneSizeChange(question) &&
+          question.data.enabled !== false &&
+          ((planning && question.data.drag) || isUnanswered(question)),
       )
       .map((question) => [question.key, question.id, regionData(question)]),
   );
