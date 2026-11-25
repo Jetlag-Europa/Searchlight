@@ -182,7 +182,11 @@ export const PolygonDraw = () => {
     question = $questions.find((q) => q.key === $drawingQuestionKey);
 
     if (question && isZoneSizeChange(question)) question = undefined;
-    if (question?.data.drag === false) {
+    // Locked, or switched to a type that isn't drawn (which would also keep
+    // auto zoom waiting): the drawing ends.
+    const data = question?.data as { type?: unknown; locationType?: unknown } | undefined;
+    const drawn = data?.locationType === "custom" || String(data?.type).startsWith("custom-");
+    if (question?.data.drag === false || (question && !drawn)) {
       drawingQuestionKey.set(-1);
     }
     if (question?.id === "matching") {
