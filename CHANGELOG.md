@@ -11,6 +11,20 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Changing an option on one device no longer undoes options changed on another: each device now saves only the options it changed. The other device shows the change after a reload.
 - With Auto save off, the Save button says "unsaved changes" while there are changes to save, and reloading or leaving the page asks first (except on iPhone, where browsers don't ask). As before, the map updates when you press Save.
 
+## New questions wait for an answer (2026-11-25)
+
+- A new question no longer removes zones before the hiders have answered. Its shape is drawn dashed, its card says "Waiting for answer" with no answer selected, and the zones left stay as they are until someone taps an answer. Auto zoom doesn't move the map for it either. A locked card still takes its first answer, and hider mode answers waiting questions as usual.
+- Questions already in a session keep their answers. An older version of the app still open on another device shows a waiting question with a guessed answer until it updates; an answer given there reaches everyone.
+- Matching has a new **Station Name Length** question: is the hider's station name as long as the seekers'? Every character counts, as the game map spells it. The seekers' station is the zone nearest the question's pin; the card shows its name and how many characters it has. The answer crosses out the zones that don't fit in the zone list, lists them after the live ones and leaves them out of the zones left.
+- Devices still on an older version of the app remove Station Name Length questions when they save, so make sure every device has updated first. History can restore a removed question.
+
+## Question card fixes (2026-11-25)
+
+- Tapping the answer that is already selected (a new card's Inside, Warmer or Hider Closer) keeps it. Before, it switched to the opposite answer and removed the hider's real zone.
+- A negative latitude or longitude typed into a card or a custom point, such as Google Maps' `-0.12395`, is used as typed. Before, a card already west of Greenwich turned it east, and a custom point's coordinate couldn't be typed through 0.
+- Loading a custom preset, or applying one from the clipboard, changes only the question's places or points. Before, it also moved the question and changed its answer and colour.
+- Auto zoom no longer moves the map right after you drag a marker. While a custom question's drawing is on, it waits.
+
 ## Audit log for admins (2026-11-22)
 
 - `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".

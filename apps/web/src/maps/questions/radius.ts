@@ -13,7 +13,7 @@ export const adjustPerRadius = async (question: RadiusQuestion, mapData: any) =>
   const point = turf.point([question.lng, question.lat]);
   const circle = await arcBuffer(turf.featureCollection([point]), question.radius, question.unit);
 
-  return modifyMapData(mapData, circle, question.within);
+  return modifyMapData(mapData, circle, !!question.within);
 };
 
 export const hiderifyRadius = (question: RadiusQuestion) => {

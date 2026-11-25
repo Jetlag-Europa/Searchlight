@@ -25,7 +25,7 @@ function canonicalQuestionId(question: any): {
 
 // Player-drawn questions carry their own geometry and never query OSM.
 export const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
-  matching: ["custom-zone", "custom-points"],
+  matching: ["custom-zone", "custom-points", "station-name-length"],
   measuring: ["custom-measure"],
   tentacle: ["custom"],
 };

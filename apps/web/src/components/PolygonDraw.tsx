@@ -82,10 +82,10 @@ const TentacleMarker = ({ point }: { point: CustomTentacleQuestion["places"][num
               longitude={point.geometry.coordinates[0]}
               inlineEdit
               onChange={(lat, lng) => {
-                if (lat) {
+                if (lat !== null) {
                   point.geometry.coordinates[1] = lat;
                 }
-                if (lng) {
+                if (lng !== null) {
                   point.geometry.coordinates[0] = lng;
                 }
 
@@ -138,10 +138,10 @@ const PointMarker = ({
               longitude={point.geometry.coordinates[0]}
               inlineEdit
               onChange={(lat, lng) => {
-                if (lat) {
+                if (lat !== null) {
                   point.geometry.coordinates[1] = lat;
                 }
-                if (lng) {
+                if (lng !== null) {
                   point.geometry.coordinates[0] = lng;
                 }
 

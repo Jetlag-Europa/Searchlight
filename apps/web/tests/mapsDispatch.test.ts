@@ -21,6 +21,7 @@ import {
   hiderifyQuestion,
   determinePlanningPolygon,
   adjustMapGeoDataForQuestion,
+  computePerQuestionRegions,
   matchingTarget,
   measuringDistance,
 } from "@/maps";
@@ -408,9 +409,29 @@ describe("maps dispatch and hider regression suite", () => {
     try {
       await hiderifyQuestion(customPoints);
       expect(customPoints.data.same).toBe(false);
+      // One still waiting for its answer gets it too.
+      delete customPoints.data.same;
+      await hiderifyQuestion(customPoints);
+      expect(customPoints.data.same).toBe(false);
     } finally {
       mapGeoJSON.set(null);
     }
+  });
+
+  it("leaves out a question waiting for its answer", async () => {
+    const zone = {
+      id: "matching" as const,
+      key: 41,
+      data: matchingQuestionSchema.parse({
+        type: "custom-zone",
+        geo: turf.bboxPolygon([139.5, 35.5, 139.75, 36.0]),
+        lat: 35.65,
+        lng: 139.62,
+      }),
+    };
+    expect(await computePerQuestionRegions([zone], playArea, false)).toEqual([]);
+    zone.data.same = true;
+    expect(await computePerQuestionRegions([zone], playArea, false)).toHaveLength(1);
   });
 
   it("eliminates nothing for custom questions with nothing drawn yet", async () => {
@@ -479,8 +500,8 @@ describe("maps dispatch and hider regression suite", () => {
         expect(JSON.stringify(question.data)).toBe(before);
       }
 
-      // A blank custom tentacle, as "Add Tentacles" makes one, is
-      // answered "Not Within": it removes the seeker's circle.
+      // A blank custom tentacle, as "Add Tentacles" makes one, answered
+      // "Not Within": it removes the seeker's circle.
       const blankTentacle = {
         id: "tentacles" as const,
         key: 35,
@@ -491,9 +512,9 @@ describe("maps dispatch and hider regression suite", () => {
           unit: "kilometers",
           lat: 35.65,
           lng: 139.62,
+          location: false,
         }),
       };
-      expect(blankTentacle.data.location).toBe(false);
       const region = await adjustMapGeoDataForQuestion(blankTentacle, playArea);
       expect(inside(region, 139.62, 35.65)).toBe(false);
       expect(inside(region, 139.9, 35.9)).toBe(true);

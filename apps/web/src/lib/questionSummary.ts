@@ -67,11 +67,12 @@ function tidyKind(kind: string, prefix: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : kind;
 }
 
-const CUSTOM_KINDS: Record<string, string> = {
+export const CUSTOM_KINDS: Record<string, string> = {
   custom: "Custom locations",
   "custom-zone": "Custom zone",
   "custom-points": "Custom points",
   "custom-measure": "Custom measure",
+  "station-name-length": "Station name length",
 };
 
 function kindLabel(kind: unknown, prefix: string, options: SummaryOptions): string | undefined {
@@ -87,9 +88,10 @@ function kindLabel(kind: unknown, prefix: string, options: SummaryOptions): stri
 }
 
 // The card's words: "Not Within" when the hider is near none of them, and
-// "Location" for a place without a name.
-function tentacleChoice(data: Fields): string {
+// "Location" for a place without a name. None while it waits for its answer.
+function tentacleChoice(data: Fields): string | undefined {
   const location = data.location;
+  if (location === undefined) return undefined;
   if (location === false) return "Not Within";
   if (!isRecord(location)) return "None chosen";
   const name = fieldsOf(location.properties).name;

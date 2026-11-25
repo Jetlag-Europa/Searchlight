@@ -39,6 +39,7 @@ import {
 } from "@/lib/context";
 import { zoneLabelMinZoom } from "@/lib/games";
 import { createLatestTask } from "@/lib/latestTask";
+import { ruledOutZones, zonesRuledOutByName } from "@/lib/stationNameLength";
 import { cn } from "@/lib/utils";
 import { formatMultiplier } from "@/lib/zoneSize";
 import { hidingZonesCalculated, zonesLeft } from "@/lib/zonesLeft";
@@ -139,6 +140,18 @@ const ZoneSidebarContent = () => {
   const map = useStore(leafletMapContext);
   const stations = useStore(trainStations);
   const $disabledStations = useStore(disabledStations);
+  // Disabled by hand, or by a station name length answer.
+  const $ruledOut = useStore(ruledOutZones);
+  const $ruledOutByName = useStore(zonesRuledOutByName);
+  // The list shows the live zones first, then the disabled ones, each by
+  // name. Sorted only when the zones are worked out again or an answer rules
+  // zones out by name: a zone tapped to disable stays under the finger, so
+  // the next tap hits the row it meant.
+  const listedStations = useMemo(() => {
+    const disabled = new Set(ruledOutZones.get());
+    const isDisabled = (zone: StationCircle) => Number(disabled.has(zone.properties.properties.id));
+    return [...stations].sort((a, b) => isDisabled(a) - isDisabled(b));
+  }, [stations, $ruledOutByName]);
   // A spectator's board follows the session's disabled zones.
   const $readOnly = useStore(sessionReadOnly);
   const $compiledGame = useStore(compiledGameAtom);
@@ -380,7 +393,7 @@ const ZoneSidebarContent = () => {
 
     if ($displayHidingZones && !hidingZoneModeStationID) {
       const activeStations = stations.filter(
-        (x) => !$disabledStations.includes(x.properties.properties.id),
+        (x) => !$ruledOut.includes(x.properties.properties.id),
       );
       if ($displayHidingZonesStyle === "no-overlap" && activeStations.length > 1) {
         const last = lastOutline.current;
@@ -441,7 +454,7 @@ const ZoneSidebarContent = () => {
     }
   }, [
     map,
-    $disabledStations,
+    $ruledOut,
     $displayHidingZones,
     $displayHidingZonesStyle,
     $showZoneNames,
@@ -576,13 +589,12 @@ const ZoneSidebarContent = () => {
                   <CommandList className="max-h-full">
                     <CommandEmpty>No hiding zones found.</CommandEmpty>
                     <CommandGroup>
-                      {stations.map((station) => (
+                      {listedStations.map((station) => (
                         <CommandItem
                           key={station.properties.properties.id}
                           data-station-id={station.properties.properties.id}
                           className={cn(
-                            $disabledStations.includes(station.properties.properties.id) &&
-                              "line-through",
+                            $ruledOut.includes(station.properties.properties.id) && "line-through",
                           )}
                           onSelect={async () => {
                             if (!map) return;
@@ -597,6 +609,11 @@ const ZoneSidebarContent = () => {
                                 return;
                               }
                               if (activeSessionId.get() !== sessionId) {
+                                return;
+                              }
+                              // Its answer rules it out, not a hand: a tap can't bring it back.
+                              if (disable && zonesRuledOutByName.get().includes(id)) {
+                                toast.info("Ruled out by a Station Name Length answer");
                                 return;
                               }
 

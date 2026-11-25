@@ -150,11 +150,12 @@ export const RadiusQuestionComponent = ({
         <ToggleGroup
           className="grow"
           type="single"
-          value={data.within ? "inside" : "outside"}
+          // Nothing pressed while it waits for its answer, which a locked card still takes.
+          value={data.within === undefined ? "" : data.within ? "inside" : "outside"}
           onValueChange={(value: "inside" | "outside") =>
             questionModified((data.within = value === "inside"))
           }
-          disabled={!!$hiderMode || !data.drag || $isLoading}
+          disabled={!!$hiderMode || (!data.drag && data.within !== undefined) || $isLoading}
         >
           <ToggleGroupItem value="outside">Outside</ToggleGroupItem>
           <ToggleGroupItem value="inside">Inside</ToggleGroupItem>

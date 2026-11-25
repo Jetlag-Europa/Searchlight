@@ -65,7 +65,9 @@ describe("question schema", () => {
       id: "tentacles",
       data: { lat: 0, lng: 0, locationType: "tentacle-museums" },
     });
-    expect(tentacle.data).toMatchObject({ radius: 15, location: false });
+    expect(tentacle.data).toMatchObject({ radius: 15 });
+    // Waiting for its answer.
+    expect((tentacle.data as { location?: unknown }).location).toBeUndefined();
     for (const data of [
       { type: "matching-zones" },
       { type: "custom-zone", geo: null },
