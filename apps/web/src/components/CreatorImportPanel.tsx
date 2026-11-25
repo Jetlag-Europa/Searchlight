@@ -12,6 +12,7 @@ import {
   detectFolderSplitFields,
   type GeometryFamily,
   importedFeaturesToStations,
+  type ImportedStations,
   mergeImportedByName,
   type ParsedImportFile,
   parseImportedFileText,
@@ -27,7 +28,11 @@ import { cn } from "@/lib/utils";
 interface Props {
   existingLayerSlugs: ReadonlySet<string>;
   geometryLayerCount: number;
-  onImportStations: (stations: CreatorPointItem[], replace: boolean) => void;
+  onImportStations: (
+    stations: CreatorPointItem[],
+    replace: boolean,
+    radii?: Omit<ImportedStations, "stations">,
+  ) => void;
   onAddGeometryLayers: (layers: CreatorGeometryLayer[]) => void;
   onLoadGameDefinition: (def: GameDefinition) => void;
   onDoneImporting?: () => void;
@@ -425,8 +430,11 @@ export function CreatorImportPanel({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  const pts = importedFeaturesToStations(activeFolder.features);
-                  onImportStations(pts, false);
+                  const { stations: pts, ...radii } = importedFeaturesToStations(
+                    activeFolder.features,
+                    parsed.folders.flatMap((f) => f.features),
+                  );
+                  onImportStations(pts, false, radii);
                   setImportedFolders((prev) => new Set(prev).add(folderIndex));
                   toast.success(`Added ${pts.length} station${pts.length === 1 ? "" : "s"}`);
                 }}
@@ -438,8 +446,11 @@ export function CreatorImportPanel({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  const pts = importedFeaturesToStations(activeFolder.features);
-                  onImportStations(pts, true);
+                  const { stations: pts, ...radii } = importedFeaturesToStations(
+                    activeFolder.features,
+                    parsed.folders.flatMap((f) => f.features),
+                  );
+                  onImportStations(pts, true, radii);
                   setImportedFolders((prev) => new Set(prev).add(folderIndex));
                   toast.success(
                     `Replaced stations with ${pts.length} pin${pts.length === 1 ? "" : "s"}`,
@@ -453,6 +464,14 @@ export function CreatorImportPanel({
 
           {/* Add as feature layer(s) — supports single layer OR splitting grouped My Maps folders */}
           <div className="space-y-2.5 border-t border-border pt-2.5">
+            {activeFolder.counts.points === 0 &&
+              /hiding.?zone|zone.?circle/i.test(activeFolder.name) && (
+                <p className="rounded-md border border-amber-500/50 bg-amber-500/10 p-2 text-amber-700 dark:text-amber-300">
+                  These look like hiding zone circles. Searchlight draws each station&apos;s circle
+                  from its radius, so you don&apos;t need them as a layer: as one, they would add a
+                  &quot;Distance to …&quot; question.
+                </p>
+              )}
             <div className="flex items-center justify-between gap-2">
               <p className="font-medium text-muted-foreground">Add to My Layers</p>
               {splitOptions.length > 0 && (

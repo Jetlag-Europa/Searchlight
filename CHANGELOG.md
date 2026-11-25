@@ -25,6 +25,13 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - Loading a custom preset, or applying one from the clipboard, changes only the question's places or points. Before, it also moved the question and changed its answer and colour.
 - Auto zoom no longer moves the map right after you drag a marker. While a custom question's drawing is on, it waits.
 
+## Map Creator imports keep zone radii (2026-11-25)
+
+- Stations imported into the Map Creator from a My Maps file keep their hiding zone radius when the file gives one: a `radius_m` on the station, or on a zone circle with the same name, as in the Luxembourg map. A station whose file names a tier gets that tier with the radius. When you load stations into an empty list or replace the list, the radius most stations without a tier share becomes the game's hiding zone radius, and other radii become tiers named after them, such as "1000 m". So a map with mixed radii comes in right without setting stations one by one.
+- The Creator's `.kml (My Maps)` export now includes each station's radius, so importing it again gives the same zones and hiding zone radius.
+- Picking a file's "Hiding Zones" folder under Layers → Import File now says you don't need it as a layer: Searchlight draws the circles itself, and as a layer it would add a "Distance to …" question.
+- **Import to Searchlight** in the Creator now opens the import page on a server you can import to, instead of Casual Games.
+
 ## Audit log for admins (2026-11-22)
 
 - `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".
