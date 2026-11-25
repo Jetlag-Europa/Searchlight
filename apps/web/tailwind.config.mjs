@@ -1,6 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   darkMode: ["class"],
+  // Touch screens keep :hover on the last tapped spot, which made an unpressed toggle look pressed.
+  future: { hoverOnlyWhenSupported: true },
   content: ["./src/**/*.{astro,html,js,jsx,md,mdx,svelte,ts,tsx,vue}"],
   theme: {
     extend: {
