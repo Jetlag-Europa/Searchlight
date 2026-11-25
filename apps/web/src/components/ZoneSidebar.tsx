@@ -139,6 +139,14 @@ const ZoneSidebarContent = () => {
   const map = useStore(leafletMapContext);
   const stations = useStore(trainStations);
   const $disabledStations = useStore(disabledStations);
+  // The list shows the live zones first, then the disabled ones, each by
+  // name. Sorted only when the zones are worked out again: a zone tapped to
+  // disable stays under the finger, so the next tap hits the row it meant.
+  const listedStations = useMemo(() => {
+    const disabled = new Set(disabledStations.get());
+    const isDisabled = (zone: StationCircle) => Number(disabled.has(zone.properties.properties.id));
+    return [...stations].sort((a, b) => isDisabled(a) - isDisabled(b));
+  }, [stations]);
   // A spectator's board follows the session's disabled zones.
   const $readOnly = useStore(sessionReadOnly);
   const $compiledGame = useStore(compiledGameAtom);
@@ -483,11 +491,15 @@ const ZoneSidebarContent = () => {
                   <span className="font-semibold font-poppins">
                     {$zonesLeft.left} of {$zonesLeft.total} hiding zones left
                   </span>
-                  {$zonesLeft.disabled > 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      Not counting {$zonesLeft.disabled} disabled by hand
-                    </span>
-                  )}
+                  {/* Kept in the layout at 0, so the first zone disabled doesn't move the list. */}
+                  <span
+                    className={cn(
+                      "text-sm text-muted-foreground",
+                      $zonesLeft.disabled === 0 && "invisible",
+                    )}
+                  >
+                    Not counting {$zonesLeft.disabled} disabled by hand
+                  </span>
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem className={cn(MENU_ITEM_CLASSNAME, "text-orange-500")}>
@@ -536,21 +548,22 @@ const ZoneSidebarContent = () => {
                   })()}
                 </SidebarMenuItem>
               )}
-              {$displayHidingZones &&
-                !$readOnly &&
-                stations.some((station) =>
-                  $disabledStations.includes(station.properties.properties.id),
-                ) && (
-                  <SidebarMenuItem
-                    className={ZONE_BUTTON_CLASSNAME}
-                    onClick={() => {
-                      setDisabledStations([]);
-                    }}
-                    disabled={$isLoading}
-                  >
-                    Clear Disabled
-                  </SidebarMenuItem>
-                )}
+              {$displayHidingZones && !$readOnly && (
+                <SidebarMenuItem
+                  className={ZONE_BUTTON_CLASSNAME}
+                  onClick={() => {
+                    setDisabledStations([]);
+                  }}
+                  disabled={
+                    $isLoading ||
+                    !stations.some((station) =>
+                      $disabledStations.includes(station.properties.properties.id),
+                    )
+                  }
+                >
+                  Clear Disabled
+                </SidebarMenuItem>
+              )}
               {$displayHidingZones && !$readOnly && (
                 <SidebarMenuItem
                   className={ZONE_BUTTON_CLASSNAME}
@@ -576,7 +589,7 @@ const ZoneSidebarContent = () => {
                   <CommandList className="max-h-full">
                     <CommandEmpty>No hiding zones found.</CommandEmpty>
                     <CommandGroup>
-                      {stations.map((station) => (
+                      {listedStations.map((station) => (
                         <CommandItem
                           key={station.properties.properties.id}
                           data-station-id={station.properties.properties.id}

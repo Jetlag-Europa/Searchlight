@@ -226,6 +226,7 @@ const SidebarMenuItem = React.forwardRef<
   <li
     ref={ref}
     data-sidebar="menu-item"
+    aria-disabled={disabled || undefined}
     className={cn(
       "group/menu-item relative",
       disabled && "pointer-events-none opacity-50",

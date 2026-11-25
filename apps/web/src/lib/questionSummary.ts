@@ -67,7 +67,7 @@ function tidyKind(kind: string, prefix: string): string {
   return words ? words[0].toUpperCase() + words.slice(1) : kind;
 }
 
-const CUSTOM_KINDS: Record<string, string> = {
+export const CUSTOM_KINDS: Record<string, string> = {
   custom: "Custom locations",
   "custom-zone": "Custom zone",
   "custom-points": "Custom points",

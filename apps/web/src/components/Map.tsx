@@ -22,6 +22,7 @@ import {
   animateMapMovements,
   autoZoom,
   baseTileLayer,
+  drawingQuestionKey,
   followMe,
   gameDefinitionReady,
   hiderMode,
@@ -29,6 +30,7 @@ import {
   lastGpsFix,
   leafletMapContext,
   mapGeoJSON,
+  markerDragged,
   permanentOverlay,
   perQuestionMapData,
   planningModeEnabled,
@@ -49,6 +51,7 @@ import {
 import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
+import { questionCardToShow } from "@/lib/questionSidebarTab";
 import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
 import { cn } from "@/lib/utils";
@@ -190,7 +193,7 @@ const getTileLayer = (tileLayer: string, thunderforestApiKey: string) => {
 // The game may not have loaded, or may not offer the requested question type.
 const addQuestionFromMenu = (question: Parameters<typeof addQuestion>[0]) => {
   try {
-    addQuestion(question);
+    questionCardToShow.set(addQuestion(question));
   } catch (error) {
     toast.error((error as Error).message);
   }
@@ -313,6 +316,8 @@ export const Map = ({ className }: { className?: string }) => {
     if (!map) return;
 
     const sourceQuestions = questions.get();
+    const dragged = markerDragged.get();
+    markerDragged.set(false);
     const planning = planningModeEnabled.get();
     const compiled = compiledGameAtom.get();
     const hider = hiderMode.get();
@@ -453,7 +458,9 @@ export const Map = ({ className }: { className?: string }) => {
         previews,
       };
 
-      if (autoZoom.get()) {
+      // Not under the player's hands: after a marker drag, or while a
+      // custom question's points or zone are being drawn.
+      if (autoZoom.get() && !dragged && drawingQuestionKey.get() === -1) {
         if (!remaining.features.length) return;
         const bbox = turf.bbox(remaining);
         const bounds: L.LatLngBoundsExpression = [
@@ -472,6 +479,7 @@ export const Map = ({ className }: { className?: string }) => {
         // This refresh reused cached geometry an obsolete refresh had
         // requested, and a newer position replaced it. The cache has
         // dropped it, so start over.
+        if (dragged) markerDragged.set(true);
         void refreshQueue.request(refreshQuestions);
         return;
       }
