@@ -133,12 +133,13 @@ export const TentacleQuestionComponent = ({
                     name: x.properties?.["name:en"] ?? x.properties?.name,
                   },
                 }));
-                data.location = false;
+                // A new kind of place: the question waits for its answer again.
+                data.location = undefined;
               } finally {
                 setScopedLoading(prefillScope, false);
               }
             } else {
-              data.location = false;
+              data.location = undefined;
               data.locationType = value;
             }
             if (prefillSeqRef.current === currentSeq) {
@@ -211,7 +212,8 @@ export const TentacleQuestionComponent = ({
           <TentacleLocationSelector
             data={data}
             promise={locationsPromise}
-            disabled={!data.drag || $isLoading}
+            // A locked card still takes its first answer.
+            disabled={(!data.drag && data.location !== undefined) || $isLoading}
           />
         </Suspense>
       </SidebarMenuItem>
@@ -266,13 +268,14 @@ const TentacleLocationSelector = ({
     });
   })();
 
-  // If the currently selected location is no longer within radius, clear it.
+  // If the currently selected location is no longer within radius, the
+  // question waits for its answer again.
   if (
     locationsKnown &&
     data.location &&
     !filteredFeatures.some((f) => featuresMatch(f, data.location))
   ) {
-    data.location = false;
+    data.location = undefined;
     questionModified();
   }
 
@@ -314,7 +317,9 @@ const TentacleLocationSelector = ({
     ? getFeatureKey(currentMatched)
     : savedAnswer
       ? getFeatureKey(savedAnswer)
-      : "false";
+      : data.location === false
+        ? "false"
+        : "";
 
   return (
     <Select

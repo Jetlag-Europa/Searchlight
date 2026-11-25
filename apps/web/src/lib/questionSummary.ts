@@ -72,6 +72,7 @@ export const CUSTOM_KINDS: Record<string, string> = {
   "custom-zone": "Custom zone",
   "custom-points": "Custom points",
   "custom-measure": "Custom measure",
+  "station-name-length": "Station name length",
 };
 
 function kindLabel(kind: unknown, prefix: string, options: SummaryOptions): string | undefined {

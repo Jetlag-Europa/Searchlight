@@ -1,7 +1,8 @@
 import { atom, computed } from "nanostores";
 
 import { compiledGameAtom } from "@/game-definition/store";
-import { disabledStations, displayHidingZones, trainStations } from "@/lib/context";
+import { displayHidingZones, trainStations } from "@/lib/context";
+import { ruledOutZones } from "@/lib/stationNameLength";
 
 /**
  * Whether trainStations holds the zones worked out for the game on the
@@ -32,7 +33,7 @@ export function countZonesLeft(
 
 /** The zones left, or null while they are hidden or not worked out yet. */
 export const zonesLeft = computed(
-  [hidingZonesCalculated, displayHidingZones, compiledGameAtom, trainStations, disabledStations],
+  [hidingZonesCalculated, displayHidingZones, compiledGameAtom, trainStations, ruledOutZones],
   (calculated, display, game, stations, disabled): ZonesLeft | null =>
     calculated && display && game
       ? countZonesLeft(

@@ -60,7 +60,7 @@ const thermometerQuestionSchema = z
       .number()
       .min(-180, "Longitude must not overlap with the antemeridian")
       .max(180, "Longitude must not overlap with the antemeridian"),
-    warmer: z.boolean().default(true),
+    warmer: z.boolean().optional(),
     colorA: iconColorSchema.default(() => randomColorExcluding(["green"])),
     colorB: iconColorSchema.default(() => randomColorExcluding(["green"])),
     /** Note that drag is now synonymous with unlocked */
@@ -107,7 +107,7 @@ const getDefaultUnit = () => {
 const radiusQuestionSchema = baseQuestionSchema.extend({
   radius: z.number().min(0, "You cannot have a negative radius").default(50),
   unit: unitsSchema.default(getDefaultUnit),
-  within: z.boolean().default(true),
+  within: z.boolean().optional(),
 });
 
 const baseTentacleQuestionSchema = baseQuestionSchema.extend({
@@ -128,7 +128,7 @@ const baseTentacleQuestionSchema = baseQuestionSchema.extend({
       }),
       z.literal(false),
     ])
-    .default(false),
+    .optional(),
 });
 const customTentacleQuestionSchema = baseTentacleQuestionSchema.extend({
   locationType: z.literal("custom"),
@@ -157,11 +157,16 @@ export const tentacleQuestionSchema = z.union([
 ]);
 
 const baseMatchingQuestionSchema = baseQuestionSchema.extend({
-  same: z.boolean().default(true),
+  same: z.boolean().optional(),
 });
 
 const customMatchingQuestionSchema = baseMatchingQuestionSchema.extend({
-  type: z.union([z.literal("custom-zone"), z.literal("custom-points")]),
+  // Station name length needs no drawing, but like the custom types it fits every game.
+  type: z.union([
+    z.literal("custom-zone"),
+    z.literal("custom-points"),
+    z.literal("station-name-length"),
+  ]),
   geo: z.any(),
 });
 
@@ -177,7 +182,7 @@ export const matchingQuestionSchema = z.union([
 ]);
 
 const baseMeasuringQuestionSchema = baseQuestionSchema.extend({
-  hiderCloser: z.boolean().default(true),
+  hiderCloser: z.boolean().optional(),
 });
 
 const customMeasuringQuestionSchema = baseMeasuringQuestionSchema.extend({
@@ -250,6 +255,21 @@ export const questionSchema = z.union([
 ]);
 
 export const questionsSchema = z.array(questionSchema);
+
+/** The field holding each question type's answer, absent until someone answers. */
+export const ANSWER_FIELDS: Partial<Record<string, string>> = {
+  radius: "within",
+  thermometer: "warmer",
+  tentacles: "location",
+  matching: "same",
+  measuring: "hiderCloser",
+};
+
+/** A question nobody has answered yet: drawn on the map, but it rules nothing out. */
+export const isUnanswered = (question: { id: string; data: object }): boolean => {
+  const field = ANSWER_FIELDS[question.id];
+  return field !== undefined && (question.data as Record<string, unknown>)[field] === undefined;
+};
 
 export type Units = z.infer<typeof unitsSchema>;
 export type RadiusQuestion = z.infer<typeof radiusQuestionSchema>;

@@ -72,6 +72,7 @@ import {
   standingResult,
   writeBackAnswers,
 } from "@/maps/mapResult";
+import { isUnanswered } from "@/maps/schema";
 
 import { DraggableMarkers } from "./DraggableMarkers";
 import { GoogleBasemap } from "./GoogleBasemap";
@@ -402,6 +403,9 @@ export const Map = ({ className }: { className?: string }) => {
         hidingZoneScale.set(zoneScaleAfter(snapshot));
         return;
       }
+      // Only a changed answer moves the view: an outline alone (a question
+      // waiting for its answer, or one planned) leaves it.
+      const answersChanged = !shown || !sameResult(shown, perQuestionRegions, shown.previewKey);
 
       // Build the replacement off-map. Never clear the visible result
       // while awaiting geometry, or let an obsolete refresh publish layers.
@@ -413,7 +417,11 @@ export const Map = ({ className }: { className?: string }) => {
           const geometry = await determinePlanningPolygon(question, planning);
           if (!isCurrent()) return;
           if (!geometry) continue;
-          const layer = L.geoJSON(geometry);
+          // A question waiting for its answer is dashed.
+          const layer = L.geoJSON(
+            geometry,
+            isUnanswered(question) ? { style: { dashArray: "6 4" } } : undefined,
+          );
           Object.assign(layer, { questionKey: question.key });
           previews.push(layer);
         }
@@ -460,7 +468,7 @@ export const Map = ({ className }: { className?: string }) => {
 
       // Not under the player's hands: after a marker drag, or while a
       // custom question's points or zone are being drawn.
-      if (autoZoom.get() && !dragged && drawingQuestionKey.get() === -1) {
+      if (autoZoom.get() && answersChanged && !dragged && drawingQuestionKey.get() === -1) {
         if (!remaining.features.length) return;
         const bbox = turf.bbox(remaining);
         const bounds: L.LatLngBoundsExpression = [

@@ -4,6 +4,12 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## New questions wait for an answer (2026-11-25)
+
+- A new question no longer removes zones before the hiders have answered. Its shape is drawn dashed, its card says "Waiting for answer" with no answer selected, and the zones left stay as they are until someone taps an answer. Auto zoom doesn't move the map for it either. A locked card still takes its first answer, and hider mode answers waiting questions as usual.
+- Questions already in a session keep their answers. An older version of the app still open on another device shows a waiting question with a guessed answer until it updates; an answer given there reaches everyone.
+- Matching has a new **Station Name Length** question: is the hider's station name as long as the seekers'? Every character counts, as the game map spells it. The seekers' station is the zone nearest the question's pin; the card shows its name and how many characters it has. The answer crosses out the zones that don't fit in the zone list and leaves them out of the zones left, like zones disabled by hand.
+
 ## Question card fixes (2026-11-25)
 
 - Tapping the answer that is already selected (a new card's Inside, Warmer or Hider Closer) keeps it. Before, it switched to the opposite answer and removed the hider's real zone.

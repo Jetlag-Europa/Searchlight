@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { compiledGameAtom } from "@/game-definition/store";
 import { resultsPending } from "@/lib/calculating";
 import {
-  disabledStations,
   gameDefinitionReady,
   hiderMode,
   mapGeoJSON,
@@ -14,6 +13,7 @@ import {
   questions,
 } from "@/lib/context";
 import { createLatestTask } from "@/lib/latestTask";
+import { ruledOutZones } from "@/lib/stationNameLength";
 import { zoneScaleAfter } from "@/lib/zoneSize";
 import { type AnswerSplit, answerSplit, splitInputs } from "@/maps/answerSplit";
 import { filterZoneIndexes, SupersededError } from "@/maps/geo-utils/geometryClient";
@@ -38,7 +38,7 @@ export const AnswerSplitPreview = ({
   const ready = useStore(gameDefinitionReady);
   const $resultsPending = useStore(resultsPending);
   const $perQuestionMapData = useStore(perQuestionMapData);
-  const $disabledStations = useStore(disabledStations);
+  const $disabledStations = useStore(ruledOutZones);
   const $polyGeoJSON = useStore(polyGeoJSON);
   const $mapGeoJSON = useStore(mapGeoJSON);
   const boundary = $polyGeoJSON ?? $mapGeoJSON;

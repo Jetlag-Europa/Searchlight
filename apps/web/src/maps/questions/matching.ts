@@ -1,6 +1,8 @@
 import * as turf from "@turf/turf";
 
+import { compiledGameAtom } from "@/game-definition/store";
 import { hiderMode, mapGeoJSON, polyGeoJSON } from "@/lib/context";
+import { nameLength, nearestZone, STATION_NAME_LENGTH } from "@/lib/stationNameLength";
 import {
   geoSpatialVoronoiSafe,
   holedMask,
@@ -106,7 +108,7 @@ export const adjustPerMatching = async (question: MatchingQuestion, mapData: any
   // Nothing drawn yet: nothing to compare against.
   if (!boundary) return mapData;
 
-  return modifyMapData(mapData, boundary, question.same);
+  return modifyMapData(mapData, boundary, !!question.same);
 };
 
 export const hiderifyMatching = async (question: MatchingQuestion) => {
@@ -115,16 +117,30 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
     return question;
   }
 
+  if (question.type === STATION_NAME_LENGTH) {
+    const zones = compiledGameAtom.get()?.hidingZones.stations ?? [];
+    const seekers = nearestZone(zones, question.lat, question.lng);
+    const hiders = nearestZone(zones, $hiderMode.latitude, $hiderMode.longitude);
+    if (seekers && hiders) question.same = nameLength(seekers.name) === nameLength(hiders.name);
+    return question;
+  }
+  // Worked out from an answer to start from: a waiting question has none.
+  const start = question.same ?? true;
+  const asked = { ...question, same: start };
+
   const $mapGeoJSON = mapGeoJSON.get();
   if ($mapGeoJSON === null) return question;
 
   let feature = null;
 
   try {
-    feature = holedMask((await adjustPerMatching(question, $mapGeoJSON))!);
+    const adjusted = await adjustPerMatching(asked, $mapGeoJSON);
+    // Nothing drawn yet: nothing to answer from.
+    if (adjusted === $mapGeoJSON) return question;
+    feature = holedMask(adjusted!);
   } catch {
     try {
-      feature = await adjustPerMatching(question, {
+      feature = await adjustPerMatching(asked, {
         type: "FeatureCollection",
         features: [holedMask($mapGeoJSON)],
       });
@@ -137,9 +153,7 @@ export const hiderifyMatching = async (question: MatchingQuestion) => {
 
   const hiderPoint = turf.point([$hiderMode.longitude, $hiderMode.latitude]);
 
-  if (turf.booleanPointInPolygon(hiderPoint, feature)) {
-    question.same = !question.same;
-  }
+  question.same = turf.booleanPointInPolygon(hiderPoint, feature) ? !start : start;
 
   return question;
 };

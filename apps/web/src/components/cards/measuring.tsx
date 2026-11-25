@@ -221,11 +221,12 @@ export const MeasuringQuestionComponent = ({
         <ToggleGroup
           className="grow"
           type="single"
-          value={data.hiderCloser ? "closer" : "further"}
+          // Nothing pressed while it waits for its answer, which a locked card still takes.
+          value={data.hiderCloser === undefined ? "" : data.hiderCloser ? "closer" : "further"}
           onValueChange={(value: "closer" | "further") =>
             questionModified((data.hiderCloser = value === "closer"))
           }
-          disabled={!!$hiderMode || !data.drag || $isLoading}
+          disabled={!!$hiderMode || (!data.drag && data.hiderCloser !== undefined) || $isLoading}
         >
           <ToggleGroupItem value="further">Hider Further</ToggleGroupItem>
           <ToggleGroupItem value="closer">Hider Closer</ToggleGroupItem>
