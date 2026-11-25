@@ -4,6 +4,11 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Safer role permissions on /admin (2026-11-25)
+
+- Unticking **Server admin** for a role now asks first, since everyone whose admin access comes only from that role loses it, possibly you too. If you lose admin access to a server, its card now says so instead of showing the old permissions.
+- Permissions can only be given to the server's own Discord roles. Permissions of roles since deleted in Discord, which `/admin` didn't show, now appear as "Deleted role" rows, where you can untick them.
+
 ## Map Creator imports keep zone radii (2026-11-25)
 
 - Stations imported into the Map Creator from a My Maps file keep their hiding zone radius when the file gives one: a `radius_m` on the station, or on a zone circle with the same name, as in the Luxembourg map. A station whose file names a tier gets that tier with the radius. When you load stations into an empty list or replace the list, the radius most stations without a tier share becomes the game's hiding zone radius, and other radii become tiers named after them, such as "1000 m". So a map with mixed radii comes in right without setting stations one by one.

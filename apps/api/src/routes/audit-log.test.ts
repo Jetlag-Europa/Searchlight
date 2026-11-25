@@ -4,7 +4,10 @@ import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 vi.mock("../lib/discord-client.js", () => ({
   discord: {
     getGuildMember: vi.fn().mockResolvedValue(null),
-    getGuildRoles: vi.fn().mockResolvedValue([{ id: "r1", name: "Mods" }]),
+    getGuildRoles: vi.fn().mockResolvedValue([
+      { id: "r1", name: "Mods" },
+      { id: "test-audit-server", name: "@everyone" },
+    ]),
   },
 }));
 
@@ -147,13 +150,13 @@ describe("/audit-log", () => {
     await importGameDefinition({ raw: definition("Second"), actor, allowUpdate: true });
 
     const headers = { cookie: cookies[SERVER_ADMIN] };
-    const grant = async () =>
+    const grant = async (discordRoleId = "r1") =>
       (
         await app.inject({
           method: "POST",
           url: `/servers/${SERVER_ID}/roles`,
           headers,
-          payload: { discordRoleId: "r1", permission: "games.create" },
+          payload: { discordRoleId, permission: "games.create" },
         })
       ).statusCode;
     const revoke = async () =>
@@ -168,6 +171,9 @@ describe("/audit-log", () => {
     expect([await grant(), await grant(), await revoke(), await revoke()]).toEqual([
       200, 200, 204, 204,
     ]);
+    // Not a role of the server, and @everyone (the guild's id): refused, stored and logged nowhere.
+    expect([await grant("1999999999999999999"), await grant(SERVER_ID)]).toEqual([400, 400]);
+    expect(await prisma.rolePermission.count({ where: { serverId: SERVER_ID } })).toBe(1);
 
     const deleted = await app.inject({
       method: "DELETE",
