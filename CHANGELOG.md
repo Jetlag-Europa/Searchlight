@@ -9,7 +9,7 @@ Lines marked **Upgrading** are for whoever runs a Searchlight server.
 - When a game maker updates a game (import, **Settings**, **Replace with file…**), boards that are already open now show "Game update available" within a second, instead of only after a reload. A board that was offline catches up when it reconnects.
 - The **Live** chip and your teammates' avatars no longer disappear after your first save. They stay while the board is connected.
 - Changing an option on one device no longer undoes options changed on another: each device now saves only the options it changed. The other device shows the change after a reload.
-- With Auto save off, the Save button says "unsaved changes" while there are changes to save, and reloading or leaving the page asks first (except on iPhone, where browsers don't ask). As before, the map updates when you press Save.
+- With Auto save off, the Save button says "unsaved changes" while there are changes to save, and reloading or leaving the page asks first (except on iPhone, where browsers don't ask). Turning Auto save back on saves them. As before, the map updates when you press Save.
 
 ## Audit log for admins (2026-11-22)
 
