@@ -496,11 +496,15 @@ const ZoneSidebarContent = () => {
                   <span className="font-semibold font-poppins">
                     {$zonesLeft.left} of {$zonesLeft.total} hiding zones left
                   </span>
-                  {$zonesLeft.disabled > 0 && (
-                    <span className="text-sm text-muted-foreground">
-                      Not counting {$zonesLeft.disabled} disabled by hand
-                    </span>
-                  )}
+                  {/* Kept in the layout at 0, so the first zone disabled doesn't move the list. */}
+                  <span
+                    className={cn(
+                      "text-sm text-muted-foreground",
+                      $zonesLeft.disabled === 0 && "invisible",
+                    )}
+                  >
+                    Not counting {$zonesLeft.disabled} disabled by hand
+                  </span>
                 </SidebarMenuItem>
               )}
               <SidebarMenuItem className={cn(MENU_ITEM_CLASSNAME, "text-orange-500")}>
@@ -549,21 +553,22 @@ const ZoneSidebarContent = () => {
                   })()}
                 </SidebarMenuItem>
               )}
-              {$displayHidingZones &&
-                !$readOnly &&
-                stations.some((station) =>
-                  $disabledStations.includes(station.properties.properties.id),
-                ) && (
-                  <SidebarMenuItem
-                    className={ZONE_BUTTON_CLASSNAME}
-                    onClick={() => {
-                      setDisabledStations([]);
-                    }}
-                    disabled={$isLoading}
-                  >
-                    Clear Disabled
-                  </SidebarMenuItem>
-                )}
+              {$displayHidingZones && !$readOnly && (
+                <SidebarMenuItem
+                  className={ZONE_BUTTON_CLASSNAME}
+                  onClick={() => {
+                    setDisabledStations([]);
+                  }}
+                  disabled={
+                    $isLoading ||
+                    !stations.some((station) =>
+                      $disabledStations.includes(station.properties.properties.id),
+                    )
+                  }
+                >
+                  Clear Disabled
+                </SidebarMenuItem>
+              )}
               {$displayHidingZones && !$readOnly && (
                 <SidebarMenuItem
                   className={ZONE_BUTTON_CLASSNAME}
