@@ -5,7 +5,7 @@ import * as turf from "@turf/turf";
 // The default import is Leaflet's own object, which leaflet-draw extends with
 // drawLocal. A namespace import is a copy made before leaflet-draw runs.
 import L from "leaflet";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FeatureGroup, Marker, Polygon, Polyline } from "react-leaflet";
 import { EditControl } from "react-leaflet-draw";
 
@@ -82,10 +82,10 @@ const TentacleMarker = ({ point }: { point: CustomTentacleQuestion["places"][num
               longitude={point.geometry.coordinates[0]}
               inlineEdit
               onChange={(lat, lng) => {
-                if (lat !== null) {
+                if (lat) {
                   point.geometry.coordinates[1] = lat;
                 }
-                if (lng !== null) {
+                if (lng) {
                   point.geometry.coordinates[0] = lng;
                 }
 
@@ -138,10 +138,10 @@ const PointMarker = ({
               longitude={point.geometry.coordinates[0]}
               inlineEdit
               onChange={(lat, lng) => {
-                if (lat !== null) {
+                if (lat) {
                   point.geometry.coordinates[1] = lat;
                 }
-                if (lng !== null) {
+                if (lng) {
                   point.geometry.coordinates[0] = lng;
                 }
 
@@ -285,6 +285,16 @@ export const PolygonDraw = () => {
     }
   };
 
+  // react-leaflet-draw's EditControl adds edit and delete handlers whenever its
+  // callbacks change and never removes them, so handlers of every earlier render
+  // kept writing into the question drawn then. One stable callback calls the
+  // current onChange.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  const onDrawChange = useCallback(() => onChangeRef.current(), []);
+
   useEffect(() => {
     if (featureRef.current && $drawingQuestionKey === -1) {
       featureRef.current.clearLayers();
@@ -390,9 +400,9 @@ export const PolygonDraw = () => {
                     shapeOptions: { fillOpacity: 0 },
                   },
           }}
-          onCreated={onChange}
-          onEdited={onChange}
-          onDeleted={onChange}
+          onCreated={onDrawChange}
+          onEdited={onDrawChange}
+          onDeleted={onDrawChange}
         />
       )}
     </FeatureGroup>
