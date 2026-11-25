@@ -165,6 +165,17 @@ const PointMarker = ({
   );
 };
 
+// Leaflet Draw's edit mode ends by disabling dragging on every marker it was
+// editing, which throws, and blanks the map, for a marker React removed in the
+// meantime (a teammate's save, switching or deleting the card).
+const editToolbar = (L as unknown as { EditToolbar: { Edit: { prototype: any } } }).EditToolbar;
+const disableLayerEdit = editToolbar.Edit.prototype._disableLayerEdit;
+editToolbar.Edit.prototype._disableLayerEdit = function (e: any) {
+  const layer = e.layer || e.target || e;
+  if (layer instanceof L.Marker && !layer.dragging) return;
+  disableLayerEdit.call(this, e);
+};
+
 // A marker keeps its first key while its point's coordinates are typed (they
 // change in place), so its coordinate dialog stays open. Points that come back
 // as new objects (a teammate's save, a redraw) are keyed by their coordinates,
