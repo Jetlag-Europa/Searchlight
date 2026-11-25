@@ -189,6 +189,10 @@ export const save = () => {
     hiderMode.set({ ...$hiderMode });
   }
 };
+// Turning Auto save on saves what the board holds, as it would have at once.
+autoSave.listen((on) => {
+  if (on && unsavedChanges.get()) save();
+});
 
 /* Presets for custom questions (savable / sharable / editable) */
 export type CustomPreset = {

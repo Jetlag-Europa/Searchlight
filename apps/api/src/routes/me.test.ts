@@ -124,7 +124,7 @@ describe("GET /me and PATCH /me/preferences", () => {
         cookie: signedCookie(app, AUTH_SESSION_ID),
         "content-type": "application/json",
       },
-      body: JSON.stringify({ defaultUnit: "miles", autoZoom: true }),
+      body: JSON.stringify({ defaultUnit: "miles", autoZoom: true, notAPreference: "x" }),
     });
 
     const res = await app.inject({
@@ -140,6 +140,7 @@ describe("GET /me and PATCH /me/preferences", () => {
       warningAlarm: true,
       baseTileLayer: "dark",
     });
+    expect(body.preferences).not.toHaveProperty("notAPreference");
   });
 
   test("PATCH /me/preferences refuses a body that isn't an object", async () => {

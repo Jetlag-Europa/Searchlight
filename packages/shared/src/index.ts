@@ -30,6 +30,27 @@ export interface UserPreferences {
   autoLockQuestions?: boolean;
 }
 
+// Every preference key, for the API to store only these.
+const PREFERENCE_KEYS: Record<keyof UserPreferences, true> = {
+  defaultUnit: true,
+  customInitPreference: true,
+  baseTileLayer: true,
+  googleMapType: true,
+  showGoogleTransit: true,
+  hideGooglePlaces: true,
+  thunderforestApiKey: true,
+  animateMapMovements: true,
+  autoSave: true,
+  warningAlarm: true,
+  autoZoom: true,
+  defaultCustomQuestions: true,
+  allowGooglePlusCodes: true,
+  penToolbarVisible: true,
+  showZoneNames: true,
+  autoLockQuestions: true,
+};
+export const USER_PREFERENCE_KEYS = Object.keys(PREFERENCE_KEYS) as (keyof UserPreferences)[];
+
 export interface MeResponse {
   user: User;
   preferences: UserPreferences;
