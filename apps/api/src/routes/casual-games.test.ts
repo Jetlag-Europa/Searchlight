@@ -10,7 +10,10 @@ vi.mock("../lib/discord-client.js", () => ({
     }),
     getGuildRoles: vi.fn(async (guildId: string) => {
       if (guildId !== "1190673594649415730") throw new Error("Discord /guilds/roles failed: 404");
-      return [{ id: "test-casual-creator-role", name: "Creator", color: 0, position: 1 }];
+      return [
+        { id: "test-casual-creator-role", name: "Creator", color: 0, position: 1 },
+        { id: "test-casual-mapped-role", name: "Mapped", color: 0, position: 2 },
+      ];
     }),
   },
 }));
@@ -711,7 +714,10 @@ describe("Casual Games", () => {
         expect.anything(),
         expect.anything(),
       );
-      expect(res.json().roles.map((r: { id: string }) => r.id)).toEqual([CREATOR_ROLE]);
+      expect(res.json().roles.map((r: { id: string }) => r.id)).toEqual([
+        CREATOR_ROLE,
+        MAPPED_ROLE,
+      ]);
 
       const creator = await app.inject({
         method: "GET",

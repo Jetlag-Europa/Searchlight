@@ -1,8 +1,6 @@
 import { useStore } from "@nanostores/react";
 import {
   CASUAL_SERVER_ID,
-  type DiscordRole,
-  type RolePermissionEntry,
   type ServerRolesResponse,
   type ServersResponse,
   type ServerWithPermissions,
@@ -40,6 +38,10 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/servers/${server.id}/roles`, { credentials: "include" });
+      if (res.status === 403) {
+        setRolesData(null);
+        throw new Error(`You no longer administer ${server.name}.`);
+      }
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? `Failed to load roles: ${res.status}`);
@@ -50,9 +52,23 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
     } finally {
       setLoading(false);
     }
-  }, [server.id]);
+  }, [server.id, server.name]);
 
-  const togglePermission = async (roleId: string, permission: string, hasIt: boolean) => {
+  const togglePermission = async (
+    roleId: string,
+    roleName: string,
+    permission: string,
+    hasIt: boolean,
+  ) => {
+    if (
+      hasIt &&
+      permission === "server.admin" &&
+      !confirm(
+        `Untick Server admin for ${roleName}? Anyone who is admin only through this role loses admin access, maybe you. Only another admin can give it back.`,
+      )
+    ) {
+      return;
+    }
     let failure: string | null = null;
     try {
       const res = hasIt
@@ -69,7 +85,8 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ discordRoleId: roleId, permission }),
           });
-      if (!res.ok) {
+      // On a 403 the reload below says that admin access is gone.
+      if (!res.ok && res.status !== 403) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         failure = data.message ?? `Failed to change permission: ${res.status}`;
       }
@@ -81,6 +98,27 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
     await loadRoles();
     if (failure) setError(failure);
   };
+
+  const roles = rolesData?.roles ?? [];
+  const shownRoles = roles
+    .filter((r) => r.name !== "@everyone")
+    .sort((a, b) => b.position - a.position);
+  // Mappings for roles deleted in Discord (or @everyone) get rows too, so they can be removed.
+  const goneRoleIds = new Set(
+    (rolesData?.mappings ?? [])
+      .filter((m) => (permissions as readonly string[]).includes(m.permission))
+      .map((m) => m.discordRoleId)
+      .filter((id) => !shownRoles.some((r) => r.id === id)),
+  );
+  const rows = [
+    ...shownRoles.map((r) => ({ ...r, gone: false })),
+    ...[...goneRoleIds].map((id) => ({
+      id,
+      name: roles.find((r) => r.id === id)?.name ?? "Deleted role",
+      color: 0,
+      gone: true,
+    })),
+  ];
 
   const handleToggleExpand = () => {
     const next = !expanded;
@@ -130,7 +168,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
           {tab === "roles" &&
             rolesData &&
             !loading &&
-            (rolesData.roles.length === 0 ? (
+            (rows.length === 0 ? (
               <p className="text-sm text-muted-foreground">No roles found in this server.</p>
             ) : (
               <div className="overflow-x-auto">
@@ -146,39 +184,40 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
                     </tr>
                   </thead>
                   <tbody>
-                    {(rolesData.roles as DiscordRole[])
-                      .filter((r) => r.name !== "@everyone")
-                      .sort((a, b) => b.position - a.position)
-                      .map((role) => (
-                        <tr key={role.id} className="border-b border-border/50 hover:bg-muted/30">
-                          <td className="py-2 pr-2 break-words">
-                            <span
-                              className="inline-block w-3 h-3 rounded-full mr-2 align-middle"
-                              style={{
-                                backgroundColor: role.color
-                                  ? `#${role.color.toString(16).padStart(6, "0")}`
-                                  : "#888",
-                              }}
-                            />
-                            {role.name}
-                          </td>
-                          {permissions.map((perm) => {
-                            const hasIt = (rolesData.mappings as RolePermissionEntry[]).some(
-                              (m) => m.discordRoleId === role.id && m.permission === perm,
-                            );
-                            return (
-                              <td key={perm} className="text-center py-2 px-1">
-                                <input
-                                  type="checkbox"
-                                  checked={hasIt}
-                                  onChange={() => togglePermission(role.id, perm, hasIt)}
-                                  className="cursor-pointer"
-                                />
-                              </td>
-                            );
-                          })}
-                        </tr>
-                      ))}
+                    {rows.map((role) => (
+                      <tr key={role.id} className="border-b border-border/50 hover:bg-muted/30">
+                        <td
+                          className={`py-2 pr-2 break-words ${role.gone ? "italic text-muted-foreground" : ""}`}
+                          title={role.gone ? role.id : undefined}
+                        >
+                          <span
+                            className="inline-block w-3 h-3 rounded-full mr-2 align-middle"
+                            style={{
+                              backgroundColor: role.color
+                                ? `#${role.color.toString(16).padStart(6, "0")}`
+                                : "#888",
+                            }}
+                          />
+                          {role.name}
+                        </td>
+                        {permissions.map((perm) => {
+                          const hasIt = rolesData.mappings.some(
+                            (m) => m.discordRoleId === role.id && m.permission === perm,
+                          );
+                          return (
+                            <td key={perm} className="text-center py-2 px-1">
+                              <input
+                                type="checkbox"
+                                checked={hasIt}
+                                disabled={role.gone && !hasIt}
+                                onChange={() => togglePermission(role.id, role.name, perm, hasIt)}
+                                className="cursor-pointer disabled:cursor-not-allowed"
+                              />
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
