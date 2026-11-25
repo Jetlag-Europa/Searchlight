@@ -23,7 +23,8 @@ function canonicalQuestionId(question: any): {
   return { family: question.id, id: undefined };
 }
 
-// Player-drawn questions carry their own geometry and never query OSM.
+// Questions every game offers: player-drawn ones carry their own geometry,
+// Station Name Length uses the game's zones. None query OSM.
 export const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
   matching: ["custom-zone", "custom-points", "station-name-length"],
   measuring: ["custom-measure"],
