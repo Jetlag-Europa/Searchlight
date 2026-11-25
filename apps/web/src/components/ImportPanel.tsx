@@ -203,6 +203,8 @@ export function ImportPanel({
   // anyway so the selector matches where the import is sent.
   const unknownServer =
     servers && serverId && !servers.some((s) => s.id === serverId) ? serverId : null;
+  // In no server Searchlight knows: the import would only be refused.
+  const noTarget = !replaceGameId && servers?.length === 0;
 
   return (
     <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
@@ -246,7 +248,7 @@ export function ImportPanel({
         </div>
       ) : servers === null ? (
         <p className="text-xs text-muted-foreground">Loading your servers…</p>
-      ) : servers.length === 0 && !unknownServer ? (
+      ) : noTarget ? (
         <div className="space-y-2">
           <p className="text-xs text-destructive">
             To upload games, join one of the JetLag Discord servers that use Searchlight.
@@ -390,7 +392,7 @@ export function ImportPanel({
 
       {/* Listing applies to new games; existing ones change it on the
                 games page. Casual games are always unlisted. */}
-      {replaceGameId ? null : casual ? (
+      {replaceGameId || noTarget ? null : casual ? (
         <p className="text-xs text-muted-foreground">
           Only you and global admins see Casual games, and an import here only updates your own.
           Sessions start from a game link you create on the games page.
@@ -415,14 +417,15 @@ export function ImportPanel({
         )
       )}
 
-      {errors.map((e) => (
-        <p
-          key={e}
-          className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive"
-        >
-          {e}
-        </p>
-      ))}
+      {!noTarget &&
+        errors.map((e) => (
+          <p
+            key={e}
+            className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive"
+          >
+            {e}
+          </p>
+        ))}
 
       {blocked && (
         <p className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
@@ -466,6 +469,7 @@ export function ImportPanel({
           // address reaches the plain import).
           disabled={
             !userId ||
+            noTarget ||
             (!serverId && !replaceGameId) ||
             importing ||
             busy ||

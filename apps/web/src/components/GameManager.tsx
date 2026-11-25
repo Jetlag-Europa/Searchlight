@@ -508,6 +508,8 @@ function ServerSection({
           {casual && games && !isServerAdmin && (
             <p className="text-xs text-muted-foreground mt-1">
               You have {games.length} of {CASUAL_GAME_LIMIT} Casual games.
+              {/* A creator who left every server keeps their games. */}
+              {!canCreate && " Join one of the JetLag Discord servers to upload or change them."}
             </p>
           )}
         </div>

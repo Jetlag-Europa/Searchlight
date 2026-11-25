@@ -174,3 +174,31 @@ test.each([
 
   expect(submitButton().disabled).toBe(disabled);
 });
+
+test("someone in no server gets the join message and no Import, also with a Casual file", async () => {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => ({ ok: true, json: async () => ({ servers: [] }) })),
+  );
+  apiMocks.importGameDefinitionAPI.mockRejectedValue(
+    Object.assign(new Error("To upload games, join one of the JetLag Discord servers."), {
+      code: "FORBIDDEN",
+    }),
+  );
+
+  await act(async () =>
+    root!.render(
+      <ImportPanel
+        definition={{ ...definition, serverId: "home-games" }}
+        noServer={false}
+        busy={false}
+        blocked={null}
+        replaceGameId={null}
+      />,
+    ),
+  );
+  await settle();
+
+  expect(ui.buttons.some((b) => b.children === "Check again")).toBe(true);
+  expect(submitButton().disabled).toBe(true);
+});
