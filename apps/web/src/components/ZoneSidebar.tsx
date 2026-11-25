@@ -139,12 +139,14 @@ const ZoneSidebarContent = () => {
   const map = useStore(leafletMapContext);
   const stations = useStore(trainStations);
   const $disabledStations = useStore(disabledStations);
-  // The list shows the live zones first, then the disabled ones, each by name.
+  // The list shows the live zones first, then the disabled ones, each by
+  // name. Sorted only when the zones are worked out again: a zone tapped to
+  // disable stays under the finger, so the next tap hits the row it meant.
   const listedStations = useMemo(() => {
-    const disabled = new Set($disabledStations);
+    const disabled = new Set(disabledStations.get());
     const isDisabled = (zone: StationCircle) => Number(disabled.has(zone.properties.properties.id));
     return [...stations].sort((a, b) => isDisabled(a) - isDisabled(b));
-  }, [stations, $disabledStations]);
+  }, [stations]);
   // A spectator's board follows the session's disabled zones.
   const $readOnly = useStore(sessionReadOnly);
   const $compiledGame = useStore(compiledGameAtom);

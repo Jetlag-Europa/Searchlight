@@ -51,7 +51,6 @@ import {
 import { googleMapsAvailable, googleMapsProblem } from "@/lib/googleMaps";
 import { createLatestTask } from "@/lib/latestTask";
 import { geoErrorAction, newThermometerData } from "@/lib/questionPosition";
-import { isQuestionSaveSuppressed } from "@/lib/questionSaveSuppress";
 import { questionCardToShow } from "@/lib/questionSidebarTab";
 import { retryTilesWhenOnline } from "@/lib/retryTiles";
 import { installTestHook } from "@/lib/testHook";
@@ -459,14 +458,9 @@ export const Map = ({ className }: { className?: string }) => {
         previews,
       };
 
-      // Only after your own answers: not while you drag a marker or place
-      // points, or for another player's change (lists from the stream).
-      if (
-        autoZoom.get() &&
-        !dragged &&
-        drawingQuestionKey.get() === -1 &&
-        !isQuestionSaveSuppressed(sourceQuestions)
-      ) {
+      // Not under the player's hands: after a marker drag, or while a
+      // custom question's points or zone are being drawn.
+      if (autoZoom.get() && !dragged && drawingQuestionKey.get() === -1) {
         if (!remaining.features.length) return;
         const bbox = turf.bbox(remaining);
         const bounds: L.LatLngBoundsExpression = [

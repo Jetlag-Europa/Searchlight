@@ -12,6 +12,7 @@ import {
   updateCustomPreset,
 } from "@/lib/context";
 import { questionModified } from "@/lib/context";
+import { CUSTOM_KINDS } from "@/lib/questionSummary";
 
 type Props = {
   data: any;
@@ -99,7 +100,8 @@ const CustomPresets: React.FC<Props> = ({ data, presetTypeHint }) => {
         return;
       }
       if (!applyGeometry(payload.data)) {
-        toast.error("This preset is for another kind of question");
+        const kind = CUSTOM_KINDS[payload.data.type ?? payload.data.locationType];
+        toast.error(`This preset is for ${kind ? `"${kind}"` : "another kind of"} questions`);
         return;
       }
       toast.info(`Applied preset "${payload.name ?? "from clipboard"}"`);

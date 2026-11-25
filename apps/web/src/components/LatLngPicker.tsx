@@ -87,7 +87,7 @@ const isSouthOrWest = (value: number) => value < 0 || Object.is(value, -0);
 
 /** A typed latitude or longitude: a negative one as typed, a positive one on the field's side. */
 export const typedCoordinate = (typed: number, current: number): number =>
-  typed < 0 ? typed : isSouthOrWest(current) ? -typed : typed;
+  isSouthOrWest(typed) ? typed : isSouthOrWest(current) ? -typed : typed;
 
 export interface LocalLocation {
   name: string;

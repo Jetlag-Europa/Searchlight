@@ -74,5 +74,7 @@ describe("typedCoordinate", () => {
     expect(typedCoordinate(0.07, 0)).toBe(0.07);
     expect(typedCoordinate(0, -0.1)).toBe(-0);
     expect(typedCoordinate(0.07, -0)).toBe(-0.07);
+    // "-0" on the way to "-0.07" stays west.
+    expect(typedCoordinate(-0, 0.1)).toBe(-0);
   });
 });
