@@ -4,6 +4,13 @@ Notable changes for players, game managers and server admins, newest first.
 Lines marked **Upgrading** are for whoever runs a Searchlight server.
 [Releases](https://github.com/Jetlag-Europa/Searchlight/releases) sum these entries up a few at a time.
 
+## Map Creator imports keep zone radii (2026-11-25)
+
+- Stations imported into the Map Creator from a My Maps file keep their hiding zone radius when the file gives one: a `radius_m` on the station, or on a zone circle with the same name, as in the Luxembourg map. Each radius becomes a tier, such as "750 m" and "1000 m", so a map with mixed radii comes in right without setting stations one by one.
+- The Creator's `.kml (My Maps)` export now includes each station's radius, so importing it again gives the same zones.
+- When you import a file's "Hiding Zones" folder as a layer, the Creator says you don't need it: Searchlight draws the circles itself, and as a layer it would add a "Distance to …" question.
+- **Import to Searchlight** in the Creator now opens the import page on a server you can import to, instead of Casual Games.
+
 ## Audit log for admins (2026-11-22)
 
 - `/admin` now records who changed what: game imports and updates (including name and size changes), listing changes, deleted games, game links created or revoked, and Discord role permissions granted or revoked. Server admins see their server's entries on the **Activity** tab of its card; global admins also get an **Audit log** of every server, Casual Games included. Both can be filtered by type of change, user and game, and the global log by server. Entries are kept, and still read the same, after a game is deleted. Games preloaded at startup show as "System".

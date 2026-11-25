@@ -51,7 +51,11 @@ interface Props {
   filteredStations: CreatorPointItem[];
   activeStationCount: number;
   extraHidingZones: HidingZoneFeature[];
-  onImportStations: (imported: CreatorPointItem[], replace: boolean) => void;
+  onImportStations: (
+    imported: CreatorPointItem[],
+    replace: boolean,
+    tierRadiiMeters?: Record<string, number>,
+  ) => void;
   onClearStations: () => void;
   onLoadGameDefinition: (def: GameDefinition) => void;
   interactionMode: "browse" | "draw-area" | "add-station";

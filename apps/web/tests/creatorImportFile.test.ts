@@ -40,7 +40,7 @@ describe("parseCsvText", () => {
       polygons: 0,
     });
 
-    const stations = importedFeaturesToStations(result.folders[0].features);
+    const { stations } = importedFeaturesToStations(result.folders[0].features);
     expect(stations).toHaveLength(2);
     expect(stations[0]).toMatchObject({
       name: "Zürich, HB",
@@ -63,7 +63,7 @@ describe("parseCsvText", () => {
     const wktRes = parseCsvText(myMapsCsv, "mymaps-stations.csv");
     expect(wktRes.ok).toBe(true);
     if (!wktRes.ok || wktRes.kind !== "folders") return;
-    const wktStations = importedFeaturesToStations(wktRes.folders[0].features);
+    const { stations: wktStations } = importedFeaturesToStations(wktRes.folders[0].features);
     expect(wktStations).toHaveLength(2);
     expect(wktStations[0]).toMatchObject({
       name: "Zürich HB",
@@ -80,7 +80,7 @@ describe("parseCsvText", () => {
     const semiRes = parseCsvText(semiCsv, "ch-stops.csv");
     expect(semiRes.ok).toBe(true);
     if (!semiRes.ok || semiRes.kind !== "folders") return;
-    expect(importedFeaturesToStations(semiRes.folders[0].features)[0]).toMatchObject({
+    expect(importedFeaturesToStations(semiRes.folders[0].features).stations[0]).toMatchObject({
       name: "Basel SBB",
       lat: 47.5474,
       lng: 7.5896,
@@ -97,6 +97,38 @@ describe("parseCsvText", () => {
     if (!unclosed.ok) {
       expect(unclosed.error).toContain("unclosed quote");
     }
+  });
+});
+
+describe("importedFeaturesToStations", () => {
+  it("takes zone radii from the station or a same-named zone circle as tier radii", () => {
+    const point = (name: string, attributes?: Record<string, string>, tier?: string) => ({
+      name,
+      tier,
+      family: "points" as const,
+      geometry: { type: "Point" as const, coordinates: [6.13, 49.6] as [number, number] },
+      ...(attributes && { attributes }),
+    });
+    const stations = [
+      point("Gare", { radius_m: "1000" }, "Outer"),
+      point("Ahn"),
+      point("Elsewhere"),
+    ];
+    const circle = {
+      name: "Ahn",
+      family: "lines" as const,
+      geometry: {
+        type: "LineString" as const,
+        coordinates: [
+          [6.12, 49.6],
+          [6.14, 49.6],
+        ] as [number, number][],
+      },
+      attributes: { radius_m: "750.0" },
+    };
+    const result = importedFeaturesToStations(stations, [...stations, circle]);
+    expect(result.stations.map((s) => s.tier)).toEqual(["Outer", "750 m", undefined]);
+    expect(result.tierRadiiMeters).toEqual({ Outer: 1000, "750 m": 750 });
   });
 });
 

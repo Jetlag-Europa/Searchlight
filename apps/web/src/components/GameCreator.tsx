@@ -924,6 +924,35 @@ export function GameCreator() {
     toast.success(`Loaded "${parsed.definition.name}" into Creator`);
   };
 
+  const handleImportStations = (
+    imported: CreatorPointItem[],
+    replace: boolean,
+    tierRadiiMeters: Record<string, number> = {},
+  ) => {
+    if (replace) {
+      stationAbortRef.current?.abort();
+      stationAbortRef.current = null;
+      setStationBusy(null);
+      setExtraHidingZones([]);
+    }
+    setStations((prev) => (replace ? imported : [...prev, ...imported]));
+    // The file's tier radii fill in tiers the game doesn't have yet.
+    setTierOverrides((prev) => ({
+      ...Object.fromEntries(
+        Object.entries(tierRadiiMeters).map(([name, m]) => [
+          name,
+          convertDistanceUnit(m, "meters", unit),
+        ]),
+      ),
+      ...prev,
+    }));
+    setStationSummary(
+      replace
+        ? `Loaded ${imported.length} stations from file`
+        : `Added ${imported.length} stations from file`,
+    );
+  };
+
   // An empty tier radius means 1.5x the game radius, in the game's unit.
   const defaultTierRadius = Number((hidingRadius * 1.5).toPrecision(2));
   const handleAddTier = (e: React.FormEvent) => {
@@ -1962,20 +1991,7 @@ export function GameCreator() {
               filteredStations={filteredStations}
               activeStationCount={activeStationCount}
               extraHidingZones={extraHidingZones}
-              onImportStations={(imported, replace) => {
-                if (replace) {
-                  stationAbortRef.current?.abort();
-                  stationAbortRef.current = null;
-                  setStationBusy(null);
-                  setExtraHidingZones([]);
-                }
-                setStations((prev) => (replace ? imported : [...prev, ...imported]));
-                setStationSummary(
-                  replace
-                    ? `Loaded ${imported.length} stations from file`
-                    : `Added ${imported.length} stations from file`,
-                );
-              }}
+              onImportStations={handleImportStations}
               onClearStations={() => {
                 stationAbortRef.current?.abort();
                 stationAbortRef.current = null;
@@ -2056,20 +2072,7 @@ export function GameCreator() {
                 <CreatorImportPanel
                   existingLayerSlugs={existingLayerSlugs}
                   geometryLayerCount={layers.length}
-                  onImportStations={(imported, replace) => {
-                    if (replace) {
-                      stationAbortRef.current?.abort();
-                      stationAbortRef.current = null;
-                      setStationBusy(null);
-                      setExtraHidingZones([]);
-                    }
-                    setStations((prev) => (replace ? imported : [...prev, ...imported]));
-                    setStationSummary(
-                      replace
-                        ? `Loaded ${imported.length} stations from file`
-                        : `Added ${imported.length} stations from file`,
-                    );
-                  }}
+                  onImportStations={handleImportStations}
                   onAddGeometryLayers={(incoming) => {
                     setLayers((prev) => [...prev, ...incoming]);
                     if (incoming[0]) {
