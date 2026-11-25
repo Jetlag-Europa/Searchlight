@@ -22,7 +22,14 @@ vi.mock("@/components/ui/dialog", async (importOriginal) => ({
 }));
 
 import { OptionDrawers } from "@/components/OptionDrawers";
-import { autoSave, hiderMode, questionModified, save, unsavedChanges } from "@/lib/context";
+import {
+  autoSave,
+  hiderMode,
+  questionModified,
+  questions,
+  save,
+  unsavedChanges,
+} from "@/lib/context";
 
 const renderOptions = () => {
   const html = renderToStaticMarkup(<OptionDrawers />);
@@ -67,6 +74,15 @@ describe("unsaved changes with auto-save off", () => {
     hiderMode.set({ latitude: 52, longitude: 4 });
     expect(unsavedChanges.get()).toBe(true);
     save();
+    expect(unsavedChanges.get()).toBe(false);
+  });
+
+  it("are saved by turning auto-save on", () => {
+    autoSave.set(false);
+    questionModified();
+    const held = questions.get();
+    autoSave.set(true);
+    expect(questions.get()).not.toBe(held);
     expect(unsavedChanges.get()).toBe(false);
   });
 
