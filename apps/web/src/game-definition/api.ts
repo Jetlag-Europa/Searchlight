@@ -28,6 +28,7 @@ export async function importGameDefinitionAPI(
   // Replace this game (POST /games/:gameId/import), whatever the file's id
   // and serverId; allowUpdate and unlisted don't apply there.
   replaceGameId?: string,
+  signal?: AbortSignal,
 ): Promise<GameImportResponse> {
   const url = buildApiUrl(
     replaceGameId ? `/games/${encodeURIComponent(replaceGameId)}/import` : "/games/import",
@@ -51,6 +52,7 @@ export async function importGameDefinitionAPI(
     },
     credentials: "include",
     body: typeof raw === "string" ? raw : JSON.stringify(raw),
+    signal,
   });
 
   if (!res.ok) {

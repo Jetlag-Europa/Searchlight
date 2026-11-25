@@ -1,9 +1,13 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import Fastify from "fastify";
+import { afterAll, beforeAll, beforeEach, describe, expect, test, vi } from "vitest";
+import Fastify, { type FastifyInstance } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
+import { discord } from "../lib/discord-client.js";
 import { gameRoutes } from "./games.js";
+import { gameImportRoutes } from "./game-imports.js";
+import { gameLinkManagementRoutes, gameLinkRoutes } from "./game-links.js";
+import { sessionRoutes } from "./sessions.js";
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -211,5 +215,376 @@ describe("GET /games — Casual Games and per-game visibility gates", () => {
     expect(res.statusCode).toBe(200);
     const gameKeys = res.json().games.map((g: any) => g.gameKey ?? g.id);
     expect(gameKeys).toContain(EU_NONGATED_KEY);
+  });
+});
+
+describe("DELETE /games/:gameId — archive", () => {
+  const SERVER_ID = "test-games-del-server";
+  const MANAGER = "test-games-del-manager"; // games.delete + games.edit
+  const PLAYER = "test-games-del-player"; // member, no roles
+  const USERS = [MANAGER, PLAYER];
+  const MANAGER_ROLE = "test-games-del-role";
+  const KEY_PREFIX = "test-games-del-";
+  let app: FastifyInstance;
+  const cookies: Record<string, string> = {};
+  const as = (userId: string) => ({ cookie: cookies[userId] });
+
+  function definition(id: string, name: string) {
+    return {
+      id,
+      name,
+      serverId: SERVER_ID,
+      map: {
+        center: [0.5, 0.5],
+        playArea: {
+          type: "FeatureCollection",
+          features: [
+            {
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates: [
+                  [
+                    [0, 0],
+                    [1, 0],
+                    [1, 1],
+                    [0, 1],
+                    [0, 0],
+                  ],
+                ],
+              },
+            },
+          ],
+        },
+      },
+      hidingZones: {
+        features: {
+          type: "FeatureCollection",
+          features: [{ type: "Feature", geometry: { type: "Point", coordinates: [0.5, 0.5] } }],
+        },
+      },
+    };
+  }
+
+  // A game with revisions 1..count by MANAGER, the last current.
+  async function createGame(key: string, count = 1) {
+    let gameId = "";
+    for (let n = 1; n <= count; n++) {
+      const res = await app.inject({
+        method: "POST",
+        url: "/games/import?allowUpdate=true",
+        headers: as(MANAGER),
+        payload: definition(key, `Game ${n}`),
+      });
+      expect(res.statusCode).toBeLessThan(300);
+      gameId = res.json().gameId;
+    }
+    return prisma.game.findUniqueOrThrow({ where: { id: gameId }, include: { revisions: true } });
+  }
+
+  async function sessionOn(gameId: string, revision: number) {
+    const rev = await prisma.gameRevision.findFirstOrThrow({ where: { gameId, revision } });
+    return prisma.gameSession.create({
+      data: {
+        gameId,
+        serverId: SERVER_ID,
+        creatorId: PLAYER,
+        name: "Started before the delete",
+        gameRevisionId: rev.id,
+      },
+    });
+  }
+
+  const del = (gameId: string, userId = MANAGER) =>
+    app.inject({ method: "DELETE", url: `/games/${gameId}`, headers: as(userId) });
+
+  // Holds the user's next Discord lookup, as after their cache expired, until resume().
+  async function pauseLookup(userId: string, roles: string[]) {
+    await prisma.serverMembershipCache.update({
+      where: { userId_serverId: { userId, serverId: SERVER_ID } },
+      data: { cachedAt: new Date(0) },
+    });
+    let waiting = false;
+    let resume = () => {};
+    const resumed = new Promise<void>((resolve) => (resume = resolve));
+    vi.spyOn(discord, "getGuildMember").mockImplementationOnce(async () => {
+      waiting = true;
+      await resumed;
+      return { roles, nick: null };
+    });
+    return { waiting: () => waiting, resume };
+  }
+
+  async function cleanup() {
+    const games = { gameKey: { startsWith: KEY_PREFIX } };
+    await prisma.gameSession.deleteMany({ where: { serverId: SERVER_ID } });
+    await prisma.game.updateMany({ where: games, data: { currentRevisionId: null } });
+    await prisma.game.deleteMany({ where: games });
+    await prisma.auditLog.deleteMany({ where: { serverId: SERVER_ID } });
+    await prisma.rolePermission.deleteMany({ where: { serverId: SERVER_ID } });
+    await prisma.serverMembershipCache.deleteMany({ where: { userId: { in: USERS } } });
+    await prisma.authSession.deleteMany({ where: { userId: { in: USERS } } });
+    await prisma.server.deleteMany({ where: { id: SERVER_ID } });
+    await prisma.user.deleteMany({ where: { discordId: { in: USERS } } });
+  }
+
+  beforeAll(async () => {
+    await cleanup();
+    app = Fastify({ logger: false }).withTypeProvider<TypeBoxTypeProvider>();
+    await app.register(fastifyCookie, { secret: process.env["SESSION_COOKIE_SECRET"]! });
+    await app.register(gameRoutes, { prefix: "/games" });
+    await app.register(gameImportRoutes, { prefix: "/games" });
+    await app.register(gameLinkManagementRoutes, { prefix: "/games" });
+    await app.register(gameLinkRoutes, { prefix: "/game-links" });
+    await app.register(sessionRoutes, { prefix: "/sessions" });
+    await app.ready();
+
+    await prisma.server.create({ data: { id: SERVER_ID, name: "Games Delete Server" } });
+    await prisma.rolePermission.createMany({
+      data: ["games.delete", "games.edit", "games.create", "server.admin"].map((permission) => ({
+        serverId: SERVER_ID,
+        discordRoleId: MANAGER_ROLE,
+        permission,
+      })),
+    });
+    for (const discordId of USERS) {
+      await prisma.user.create({
+        data: {
+          discordId,
+          username: discordId,
+          displayName: `${discordId} name`,
+          avatarUrl: "https://example.com/a.png",
+          discordAccessToken: "tok",
+          discordRefreshToken: "ref",
+          discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+        },
+      });
+      const auth = await prisma.authSession.create({
+        data: {
+          id: `${discordId}-auth`,
+          userId: discordId,
+          expiresAt: new Date(Date.now() + 86_400_000),
+        },
+      });
+      cookies[discordId] = `session=${app.signCookie(auth.id)}`;
+    }
+  });
+
+  // Fresh caches, so no request reaches Discord.
+  beforeEach(async () => {
+    for (const [userId, roles] of [
+      [MANAGER, [MANAGER_ROLE]],
+      [PLAYER, []],
+    ] as const) {
+      const row = { isMember: true, roles: [...roles], cachedAt: new Date() };
+      await prisma.serverMembershipCache.upsert({
+        where: { userId_serverId: { userId, serverId: SERVER_ID } },
+        update: row,
+        create: { userId, serverId: SERVER_ID, ...row },
+      });
+    }
+  });
+
+  afterAll(async () => {
+    await app?.close();
+    await cleanup();
+  });
+
+  test("lists each game's uploader and the current revision's upload time", async () => {
+    const game = await createGame(`${KEY_PREFIX}listed`, 2);
+    const res = await app.inject({
+      method: "GET",
+      url: `/games?serverId=${SERVER_ID}`,
+      headers: as(PLAYER),
+    });
+    const current = game.revisions.find((r) => r.id === game.currentRevisionId)!;
+    expect(res.json().games.find((g: { id: string }) => g.id === game.id)).toMatchObject({
+      createdById: MANAGER,
+      createdByName: `${MANAGER} name`,
+      updatedAt: current.createdAt.toISOString(),
+    });
+  });
+
+  test("a session start waiting on Discord while the game is deleted is refused", async () => {
+    const game = await createGame(`${KEY_PREFIX}starting`);
+    await sessionOn(game.id, 1);
+    const lookup = await pauseLookup(PLAYER, []);
+    const start = app.inject({
+      method: "POST",
+      url: "/sessions",
+      headers: as(PLAYER),
+      payload: { gameId: game.id, name: "Started during the delete" },
+    });
+    try {
+      await vi.waitFor(() => expect(lookup.waiting()).toBe(true));
+      expect((await del(game.id)).statusCode).toBe(204);
+      lookup.resume();
+      expect((await start).statusCode).toBe(404);
+      expect(await prisma.gameSession.count({ where: { gameId: game.id } })).toBe(1);
+    } finally {
+      lookup.resume();
+      await start;
+      vi.restoreAllMocks();
+    }
+  });
+
+  test("a link made while its game is deleted is refused", async () => {
+    const game = await createGame(`${KEY_PREFIX}linking`);
+    await sessionOn(game.id, 1);
+    const lookup = await pauseLookup(MANAGER, [MANAGER_ROLE]);
+    const create = app.inject({
+      method: "POST",
+      url: `/games/${game.id}/links`,
+      headers: as(MANAGER),
+    });
+    try {
+      await vi.waitFor(() => expect(lookup.waiting()).toBe(true));
+      await prisma.serverMembershipCache.update({
+        where: { userId_serverId: { userId: MANAGER, serverId: SERVER_ID } },
+        data: { cachedAt: new Date() },
+      });
+      expect((await del(game.id)).statusCode).toBe(204);
+      lookup.resume();
+      expect((await create).statusCode).toBe(404);
+      expect(await prisma.gameLink.count({ where: { gameId: game.id } })).toBe(0);
+    } finally {
+      lookup.resume();
+      await create;
+      vi.restoreAllMocks();
+    }
+  });
+
+  test("a game without sessions goes with its revisions and links", async () => {
+    const game = await createGame(`${KEY_PREFIX}unplayed`, 2);
+    await prisma.gameLink.create({
+      data: { token: `${KEY_PREFIX}unplayed`, gameId: game.id, createdById: MANAGER },
+    });
+    expect((await del(game.id, PLAYER)).statusCode).toBe(403);
+
+    expect((await del(game.id)).statusCode).toBe(204);
+    expect(await prisma.game.findUnique({ where: { id: game.id } })).toBeNull();
+    expect(await prisma.gameRevision.count({ where: { gameId: game.id } })).toBe(0);
+    expect(await prisma.gameLink.count({ where: { gameId: game.id } })).toBe(0);
+    const entry = await prisma.auditLog.findFirstOrThrow({
+      where: { targetId: game.id, action: "game.delete" },
+    });
+    expect(entry).toMatchObject({ actorId: MANAGER, details: {} });
+  });
+
+  test("a game with sessions leaves every list and route but theirs, until its last session goes", async () => {
+    const key = `${KEY_PREFIX}played`;
+    const game = await createGame(key, 3);
+    const session = await sessionOn(game.id, 1);
+    const link = await prisma.gameLink.create({
+      data: { token: `${KEY_PREFIX}played`, gameId: game.id, createdById: MANAGER },
+    });
+
+    expect((await del(game.id)).statusCode).toBe(204);
+
+    // Revisions 2 and 3: nothing uses them.
+    const archived = await prisma.game.findUniqueOrThrow({
+      where: { id: game.id },
+      include: { revisions: true },
+    });
+    expect(archived).toMatchObject({
+      currentRevisionId: null,
+      unlisted: true,
+      ownerScope: `archived:${game.id}`,
+    });
+    expect(archived.archivedAt).not.toBeNull();
+    expect(archived.revisions.map((r) => r.revision)).toEqual([1]);
+    expect(
+      (await prisma.gameLink.findUniqueOrThrow({ where: { id: link.id } })).revokedAt,
+    ).not.toBeNull();
+    const entry = await prisma.auditLog.findFirstOrThrow({
+      where: { targetId: game.id, action: "game.delete" },
+    });
+    expect(entry.details).toEqual({ sessions: 1 });
+
+    for (const query of ["", "&includeUnlisted=true"]) {
+      const list = await app.inject({
+        method: "GET",
+        url: `/games?serverId=${SERVER_ID}${query}`,
+        headers: as(MANAGER),
+      });
+      expect(list.json().games.map((g: { id: string }) => g.id)).not.toContain(game.id);
+    }
+    const stats = await app.inject({
+      method: "GET",
+      url: `/games/stats?serverId=${SERVER_ID}`,
+      headers: as(MANAGER),
+    });
+    expect(stats.json().stats.map((s: { gameId: string }) => s.gameId)).not.toContain(game.id);
+    expect((await app.inject({ method: "GET", url: `/game-links/${link.token}` })).json()).toEqual({
+      valid: false,
+    });
+
+    // Its session plays on.
+    const own = await app.inject({
+      method: "GET",
+      url: `/sessions/${session.id}`,
+      headers: as(PLAYER),
+    });
+    expect(own.statusCode).toBe(200);
+    expect(own.json()).toMatchObject({ currentRevision: null, hasNewerRevision: false });
+
+    // Not found for anything else.
+    const requests = [
+      { method: "DELETE", url: `/games/${game.id}` },
+      { method: "PATCH", url: `/games/${game.id}`, payload: { unlisted: false } },
+      {
+        method: "PATCH",
+        url: `/games/${game.id}/settings`,
+        payload: { baseRevisionId: game.currentRevisionId, name: "Back" },
+      },
+      { method: "POST", url: `/games/${game.id}/links` },
+      { method: "POST", url: `/games/${game.id}/import`, payload: definition(key, "Back") },
+    ] as const;
+    for (const request of requests) {
+      const res = await app.inject({ ...request, headers: as(MANAGER) });
+      expect(res.statusCode, `${request.method} ${request.url}`).toBe(404);
+    }
+
+    // The file's id makes a new game; the session stays with the old one.
+    const again = await app.inject({
+      method: "POST",
+      url: "/games/import",
+      headers: as(MANAGER),
+      payload: definition(key, "Again"),
+    });
+    expect(again.statusCode).toBe(201);
+    expect(again.json().gameId).not.toBe(game.id);
+
+    const gone = await app.inject({
+      method: "DELETE",
+      url: `/sessions/${session.id}`,
+      headers: as(PLAYER),
+    });
+    expect(gone.statusCode).toBe(204);
+    expect(await prisma.game.findUnique({ where: { id: game.id } })).toBeNull();
+    expect(await prisma.gameRevision.count({ where: { gameId: game.id } })).toBe(0);
+  });
+
+  test("a listing change racing a delete doesn't bring the game back", async () => {
+    const game = await createGame(`${KEY_PREFIX}race`);
+    await sessionOn(game.id, 1);
+    expect((await del(game.id)).statusCode).toBe(204);
+    // The PATCH read the game just before the delete committed.
+    vi.spyOn(prisma.game, "findUnique").mockResolvedValueOnce(game);
+
+    const res = await app.inject({
+      method: "PATCH",
+      url: `/games/${game.id}`,
+      headers: as(MANAGER),
+      payload: { unlisted: false },
+    });
+    vi.restoreAllMocks();
+    expect(res.statusCode).toBe(404);
+    expect(await prisma.game.findUniqueOrThrow({ where: { id: game.id } })).toMatchObject({
+      unlisted: true,
+    });
+    expect(
+      await prisma.auditLog.count({ where: { targetId: game.id, action: "game.listing" } }),
+    ).toBe(0);
   });
 });

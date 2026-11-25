@@ -1,0 +1,43 @@
+import type { Game } from "@searchlight/shared";
+
+import { AuditLogPanel } from "@/components/AuditLogPanel";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+
+/** A game's audit log, for whoever manages the game. */
+export function GameHistoryDialog({ game }: { game: Game }) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          History
+        </Button>
+      </DialogTrigger>
+      {/* The title stays put while the entries scroll. */}
+      <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-[calc(100vw-2rem)] flex-col rounded-lg sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="break-words pr-6">History of {game.name}</DialogTitle>
+          <DialogDescription>
+            Who uploaded each version and when, and who created or revoked game links.
+          </DialogDescription>
+        </DialogHeader>
+        {/* A tab stop, so the keyboard can scroll it too. */}
+        <div
+          role="region"
+          aria-label="History entries"
+          tabIndex={0}
+          className="min-h-0 flex-1 overflow-y-auto rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+        >
+          <AuditLogPanel serverId={game.serverId} gameId={game.id} />
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}

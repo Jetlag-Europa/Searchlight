@@ -4,6 +4,7 @@ import {
   type Game,
   type GameSessionSummary,
   type ServersResponse,
+  type ServerWithPermissions,
   type SessionsResponse,
 } from "@searchlight/shared";
 import { EyeIcon, HardDrive, Settings, TriangleAlert } from "lucide-react";
@@ -122,6 +123,11 @@ const ROW_ACTION_CLASS =
   "shrink-0 px-3 py-1 mr-1 rounded-md text-xs transition-colors [@media(any-pointer:coarse)]:my-1 [@media(any-pointer:coarse)]:min-h-11 [@media(any-pointer:coarse)]:self-stretch";
 const ROW_ACTION_HIDDEN_CLASS =
   "text-muted-foreground hover:text-destructive opacity-0 group-hover/row:opacity-100 group-focus-within/row:opacity-100 [@media(any-pointer:coarse)]:opacity-100";
+
+// Casual Games is listed for everyone who may upload there. Without sessions
+// there it would be an empty choice, and it would cost single-server players
+// their auto-pick: new Casual sessions start from game links.
+const inPicker = (s: ServerWithPermissions) => s.id !== CASUAL_SERVER_ID || s.hasSessions !== false;
 
 // Sessions this tab asked the server to delete: their own stream's 404 later
 // isn't news, even when the delete's reply was lost.
@@ -305,12 +311,9 @@ export function SessionPickerOverlay({
       if (reqId !== loadServersReqRef.current) return;
       setServers(data.servers);
       // A server of its own is picked, one no longer listed isn't.
+      const pickable = data.servers.filter(inPicker);
       setSelectedServerId((id) =>
-        data.servers.length === 1
-          ? data.servers[0].id
-          : data.servers.some((s) => s.id === id)
-            ? id
-            : "",
+        pickable.length === 1 ? pickable[0].id : pickable.some((s) => s.id === id) ? id : "",
       );
     } catch (e: unknown) {
       if (reqId !== loadServersReqRef.current) return;
@@ -479,11 +482,18 @@ export function SessionPickerOverlay({
     }
   };
 
-  // The same permissions that put a server on the /games page.
-  const canManageGames = servers?.some((server) =>
-    server.permissions.some((p) =>
-      ["games.create", "games.edit", "games.delete", "server.admin"].includes(p),
-    ),
+  const pickerServers = servers?.filter(inPicker);
+  // The same permissions that put a server on the /games page, or own Casual
+  // games: their creator may delete them even after leaving every server.
+  const canUploadCasual = servers?.some(
+    (s) => s.id === CASUAL_SERVER_ID && s.permissions.includes("games.create"),
+  );
+  const canManageGames = servers?.some(
+    (server) =>
+      server.hasOwnGames ||
+      server.permissions.some((p) =>
+        ["games.create", "games.edit", "games.delete", "server.admin"].includes(p),
+      ),
   );
 
   // Taking taps over a dialog or a phone's sheet open underneath, which
@@ -548,7 +558,7 @@ export function SessionPickerOverlay({
 
         {loadingServers && <p className="text-sm text-muted-foreground">Loading servers…</p>}
 
-        {servers && servers.length > 1 && (
+        {pickerServers && pickerServers.length > 1 && (
           <div className="mb-4">
             <label className="text-sm font-medium block mb-1">Server</label>
             <select
@@ -557,7 +567,7 @@ export function SessionPickerOverlay({
               onChange={(e) => setSelectedServerId(e.target.value)}
             >
               <option value="">— pick a server —</option>
-              {servers.map((s) => (
+              {pickerServers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
                 </option>
@@ -670,6 +680,16 @@ export function SessionPickerOverlay({
             {selectedIsCasual ? (
               <p className="text-xs text-muted-foreground">
                 Casual games start from a game link. Ask the game’s creator for one.
+                {canUploadCasual && (
+                  <>
+                    {" "}
+                    Or upload your own on the{" "}
+                    <a href="/games" className="underline">
+                      games page
+                    </a>
+                    .
+                  </>
+                )}
               </p>
             ) : !selectedIsMember ? (
               <p className="text-xs text-muted-foreground">

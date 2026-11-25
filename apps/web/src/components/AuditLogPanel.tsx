@@ -1,9 +1,10 @@
 import { useStore } from "@nanostores/react";
-import type {
-  AuditAction,
-  AuditLogEntry,
-  AuditLogFilters,
-  AuditLogResponse,
+import {
+  type AuditAction,
+  type AuditLogEntry,
+  type AuditLogFilters,
+  type AuditLogResponse,
+  CASUAL_SERVER_ID,
 } from "@searchlight/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -43,12 +44,19 @@ export function summarizeDetails(details: Record<string, unknown>): string {
     .join(", ");
 }
 
+// Ids and upload channels mean nothing to the players reading a game's
+// history; listing changes are said in words there.
+const HIDDEN_IN_GAME_HISTORY = ["linkId", "source", "unlisted"];
+
 /**
  * Audit log of one server, or of all servers without `serverId`. Renders
  * nothing when the API refuses (non-global admins for the global log).
+ * With `gameId`, the history of that one game for whoever manages it: no
+ * filters, and it says when it is loading or refused.
  */
-export function AuditLogPanel({ serverId }: { serverId?: string }) {
+export function AuditLogPanel({ serverId, gameId }: { serverId?: string; gameId?: string }) {
   const [entries, setEntries] = useState<AuditLogEntry[] | null>(null);
+  const [failed, setFailed] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [filter, setFilter] = useState(NO_FILTER);
@@ -60,11 +68,18 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
   const load = useCallback(
     (before?: string) => {
       const params = new URLSearchParams(
-        Object.entries({ ...filter, serverId: serverId ?? filter.serverId }).filter(([, v]) => v),
+        Object.entries({
+          ...filter,
+          serverId: serverId ?? filter.serverId,
+          targetId: gameId ?? filter.targetId,
+        }).filter(([, v]) => v),
       );
       if (before) params.set("before", before);
       // A new first page drops the old cursor, so "Load older" can't mix them.
-      else setNextCursor(null);
+      else {
+        setNextCursor(null);
+        setFailed(false);
+      }
       const request = ++latest.current;
       setLoading(true);
       fetch(`${API_BASE}/audit-log?${params}`, { credentials: "include" })
@@ -73,18 +88,23 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
           if (request !== latest.current) return;
           if (!data) {
             // A refused first page hides the panel, e.g. after switching accounts.
-            if (!before) setEntries(null);
+            if (!before) {
+              setEntries(null);
+              setFailed(true);
+            }
             return;
           }
           setEntries((prev) => [...(before ? (prev ?? []) : []), ...data.entries]);
           setNextCursor(data.nextCursor);
         })
-        .catch(() => {})
+        .catch(() => {
+          if (!before && request === latest.current) setFailed(true);
+        })
         .finally(() => {
           if (request === latest.current) setLoading(false);
         });
     },
-    [serverId, filter],
+    [serverId, gameId, filter],
   );
 
   useEffect(() => {
@@ -92,16 +112,24 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
   }, [userId, load]);
 
   useEffect(() => {
-    if (!userId) return;
+    // Only admins may list the filters; a game's history needs none.
+    if (!userId || gameId) return;
     fetch(`${API_BASE}/audit-log/filters${serverId ? `?serverId=${serverId}` : ""}`, {
       credentials: "include",
     })
       .then((res) => (res.ok ? res.json() : null))
       .then(setOptions)
       .catch(() => {});
-  }, [userId, serverId]);
+  }, [userId, serverId, gameId]);
 
-  if (!entries) return null;
+  if (!entries) {
+    if (!gameId) return null;
+    return (
+      <p className="text-sm text-muted-foreground">
+        {failed ? "Couldn't load the history." : "Loading…"}
+      </p>
+    );
+  }
 
   const serverNames = new Map(options?.servers.map((s) => [s.id, s.name ?? s.id]));
   const select = (key: keyof Filter, label: string, any: string, choices: [string, string][]) => (
@@ -128,7 +156,15 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
       {!serverId && <h2 className="text-lg font-semibold mb-3">Audit log</h2>}
       {options && (
         <div className="flex flex-wrap gap-2 mb-3">
-          {select("action", "Change", "All changes", Object.entries(LABELS))}
+          {select(
+            "action",
+            "Change",
+            "All changes",
+            // Casual Games has no roles to grant.
+            Object.entries(LABELS).filter(
+              ([action]) => serverId !== CASUAL_SERVER_ID || !action.startsWith("role."),
+            ),
+          )}
           {select(
             "actorId",
             "User",
@@ -158,14 +194,25 @@ export function AuditLogPanel({ serverId }: { serverId?: string }) {
             <li key={e.id} className="py-2 border-b border-border/50">
               <div className="flex flex-wrap gap-x-2">
                 <span className="font-medium">{LABELS[e.action] ?? e.action}</span>
-                <span className="break-all">{e.targetName}</span>
+                <span className="min-w-0 break-words">{e.targetName}</span>
               </div>
               <div className="text-xs text-muted-foreground break-words">
                 {[
                   new Date(e.createdAt).toLocaleString(),
                   e.actorId ? (e.actorName ?? e.actorId) : "System",
                   !serverId && (e.serverName ?? e.serverId),
-                  summarizeDetails(e.details),
+                  gameId &&
+                    typeof e.details.unlisted === "boolean" &&
+                    (e.details.unlisted ? "made unlisted" : "made listed"),
+                  summarizeDetails(
+                    gameId
+                      ? Object.fromEntries(
+                          Object.entries(e.details).filter(
+                            ([k]) => !HIDDEN_IN_GAME_HISTORY.includes(k),
+                          ),
+                        )
+                      : e.details,
+                  ),
                 ]
                   .filter(Boolean)
                   .join(" · ")}

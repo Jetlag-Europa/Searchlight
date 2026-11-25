@@ -17,7 +17,7 @@ export interface QualityIssue {
  * the play-quality checks the validator doesn't do. The checker loads on
  * first use, so pages only download it once they check a file. Its errors
  * mirror the validator's, so a valid file has none, except one over the
- * import's 50 MB limit, which the validator doesn't check but the API
+ * import's 10 MB limit, which the validator doesn't check but the API
  * refuses. The file's own size doesn't matter here: the import page sends it
  * as compact JSON, which is what the checker sizes.
  */

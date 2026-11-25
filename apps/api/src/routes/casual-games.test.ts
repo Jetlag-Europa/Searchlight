@@ -18,13 +18,16 @@ vi.mock("../lib/discord-client.js", () => ({
   },
 }));
 
-import Fastify, { type FastifyInstance } from "fastify";
+import Fastify, { type FastifyInstance, type LightMyRequestResponse } from "fastify";
 import fastifyCookie from "@fastify/cookie";
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
+import { request } from "node:http";
 import { CASUAL_SERVER_ID } from "@searchlight/shared";
 import prisma from "../lib/prisma.js";
 import { env } from "../lib/env.js";
 import { discord } from "../lib/discord-client.js";
+import { CASUAL_LIMITS, pruneGame } from "../games/import-service.js";
+import { acquireUploadSlot, resetWriteLimits, WRITE_LIMIT } from "../lib/write-limit.js";
 import { gameRoutes } from "./games.js";
 import { gameImportRoutes } from "./game-imports.js";
 import { gameLinkManagementRoutes, gameLinkRoutes } from "./game-links.js";
@@ -36,10 +39,12 @@ const CREATOR_ROLE = "test-casual-creator-role";
 const MAPPED_ROLE = "test-casual-mapped-role";
 
 const ADMIN = "test-casual-admin";
-const CREATOR = "test-casual-creator"; // holds the creator role in JetLag EU
-const RIVAL = "test-casual-rival"; // holds it too, but didn't create the game
-const PLAYER = "test-casual-player"; // in JetLag EU without the role
-const USERS = [ADMIN, CREATOR, RIVAL, PLAYER];
+const CREATOR = "test-casual-creator"; // in JetLag EU
+const RIVAL = "test-casual-rival"; // in it too, but didn't create the game
+const PLAYER = "test-casual-player"; // in it too
+const OUTSIDER = "test-casual-outsider"; // in no server
+const LIMITED = "test-casual-limited"; // in JetLag EU, for the limits
+const USERS = [ADMIN, CREATOR, RIVAL, PLAYER, OUTSIDER, LIMITED];
 
 const KEY_PREFIX = "test-casual-";
 const GAME_KEY = `${KEY_PREFIX}london`;
@@ -102,6 +107,7 @@ function definition(id: string, name: string, bounds = [-0.5, 51.3, 0.3, 51.7]) 
 async function cleanup() {
   const games = { gameKey: { startsWith: KEY_PREFIX } };
   const sessions = { game: games };
+  await prisma.auditLog.deleteMany({ where: { actorId: { in: USERS } } });
   await prisma.sessionParticipant.deleteMany({ where: { session: sessions } });
   await prisma.gameSession.deleteMany({ where: sessions });
   await prisma.gameLink.deleteMany({ where: { game: games } });
@@ -144,17 +150,26 @@ describe("Casual Games", () => {
     return res.json().games as { id: string; gameKey: string; createdById: string | null }[];
   };
 
-  const setEuRoles = (userId: string, roles: string[]) =>
+  // In JetLag EU or not, freshly cached, so no request reaches Discord.
+  const setEuMember = (userId: string, isMember = true) =>
     prisma.serverMembershipCache.upsert({
       where: { userId_serverId: { userId, serverId: EU_SERVER_ID } },
-      update: { isMember: true, roles, cachedAt: new Date() },
-      create: { userId, serverId: EU_SERVER_ID, isMember: true, roles, cachedAt: new Date() },
+      update: { isMember, roles: [], cachedAt: new Date() },
+      create: { userId, serverId: EU_SERVER_ID, isMember, roles: [], cachedAt: new Date() },
     });
 
   beforeAll(async () => {
     await cleanup();
     env.ADMIN_DISCORD_IDS = ADMIN;
     app = await buildTestApp();
+    // Imports ask about every registered server: other test files' aren't
+    // this file's to cache memberships on.
+    const findServers = prisma.server.findMany.bind(prisma.server);
+    vi.spyOn(prisma.server, "findMany").mockImplementation(((args: { where?: object }) =>
+      findServers({
+        ...args,
+        where: { AND: [args?.where ?? {}, { id: { in: [EU_SERVER_ID, CASUAL_SERVER_ID] } }] },
+      })) as never);
 
     for (const discordId of USERS) {
       await prisma.user.create({
@@ -182,38 +197,36 @@ describe("Casual Games", () => {
       data: [{ id: EU_SERVER_ID, name: "JetLag EU" }],
       skipDuplicates: true,
     });
+    // The role routes still use the management guild (kept for rolling back).
     await prisma.server.upsert({
       where: { id: CASUAL_SERVER_ID },
       update: { managementGuildId: EU_SERVER_ID },
       create: { id: CASUAL_SERVER_ID, name: "Casual Games", managementGuildId: EU_SERVER_ID },
     });
-    await prisma.rolePermission.create({
-      data: { serverId: CASUAL_SERVER_ID, discordRoleId: CREATOR_ROLE, permission: "games.create" },
-    });
 
-    await setEuRoles(CREATOR, [CREATOR_ROLE]);
-    await setEuRoles(RIVAL, [CREATOR_ROLE]);
-    await setEuRoles(PLAYER, []);
+    for (const userId of [CREATOR, RIVAL, PLAYER, LIMITED]) await setEuMember(userId);
+    await setEuMember(OUTSIDER, false);
     const res = await importAs(CREATOR, definition(GAME_KEY, "London 2026"), "?unlisted=false");
     expect(res.statusCode).toBe(201);
     gameId = res.json().gameId;
   });
 
-  // Fresh caches for every test, so roles always come from them.
+  // Fresh caches for every test, so memberships always come from them.
   beforeEach(async () => {
-    await setEuRoles(CREATOR, [CREATOR_ROLE]);
-    await setEuRoles(RIVAL, [CREATOR_ROLE]);
-    await setEuRoles(PLAYER, []);
+    for (const userId of [CREATOR, RIVAL, PLAYER, LIMITED]) await setEuMember(userId);
+    await setEuMember(OUTSIDER, false);
+    resetWriteLimits();
   });
 
   afterAll(async () => {
+    vi.mocked(prisma.server.findMany).mockRestore();
     env.ADMIN_DISCORD_IDS = previousAdmins;
     await app?.close();
     await cleanup();
   });
 
   describe("importing", () => {
-    test("a holder of the mapped JetLag EU role creates unlisted games, recorded as theirs", async () => {
+    test("anyone in one of the servers creates unlisted games, recorded as theirs", async () => {
       const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
       expect(game).toMatchObject({
         serverId: CASUAL_SERVER_ID,
@@ -222,14 +235,18 @@ describe("Casual Games", () => {
       });
     });
 
-    test("someone without the role can't import there", async () => {
-      const res = await importAs(
-        PLAYER,
-        definition(`${KEY_PREFIX}player`, "Player Game"),
-        "?dryRun=true",
-      );
+    test("someone in no server can't import, before the body is read", async () => {
+      const res = await app.inject({
+        method: "POST",
+        url: "/games/import?dryRun=true",
+        headers: { ...as(OUTSIDER), "content-type": "application/json" },
+        payload: "{ not json",
+      });
       expect(res.statusCode).toBe(403);
-      expect(res.json().code).toBe("FORBIDDEN");
+      expect(res.json()).toMatchObject({
+        code: "FORBIDDEN",
+        message: "To upload games, join one of the JetLag Discord servers that use Searchlight.",
+      });
     });
 
     test("an update shows the game it would replace, also on a dry run", async () => {
@@ -262,7 +279,7 @@ describe("Casual Games", () => {
       ]);
     });
 
-    test("another role holder importing the same id gets a game of their own", async () => {
+    test("another creator importing the same id gets a game of their own", async () => {
       const preview = await importAs(
         RIVAL,
         definition(GAME_KEY, "Rival 2026"),
@@ -295,14 +312,38 @@ describe("Casual Games", () => {
       await prisma.game.delete({ where: { id: rivalId } });
     });
 
-    test("the creator can't update their game without the role any more", async () => {
-      await setEuRoles(CREATOR, []);
+    test("the creator can't update their game after leaving every server", async () => {
+      await setEuMember(CREATOR, false);
       const res = await importAs(
         CREATOR,
         definition(GAME_KEY, "London 2026 v2"),
         "?dryRun=true&allowUpdate=true",
       );
       expect(res.statusCode).toBe(403);
+    });
+
+    test("uploads and changes recheck a membership cached over a minute ago", async () => {
+      const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+      const writes = [
+        () =>
+          importAs(CREATOR, definition(GAME_KEY, "London 2026"), "?dryRun=true&allowUpdate=true"),
+        () =>
+          app.inject({
+            method: "PATCH",
+            url: `/games/${gameId}/settings`,
+            headers: as(CREATOR),
+            payload: { baseRevisionId: game.currentRevisionId, name: "London 2026" },
+          }),
+      ];
+      for (const write of writes) {
+        await prisma.serverMembershipCache.update({
+          where: { userId_serverId: { userId: CREATOR, serverId: EU_SERVER_ID } },
+          data: { isMember: true, cachedAt: new Date(Date.now() - 2 * 60_000) },
+        });
+        // Left the server since.
+        vi.mocked(discord.getGuildMember).mockResolvedValueOnce(null);
+        expect((await write()).statusCode).toBe(403);
+      }
     });
 
     test("a global admin's import of a creator's id makes the admin's own game", async () => {
@@ -361,7 +402,7 @@ describe("Casual Games", () => {
       expect((await replaceAs(CREATOR, "does-not-exist", def, "?dryRun=true")).statusCode).toBe(
         404,
       );
-      await setEuRoles(CREATOR, []);
+      await setEuMember(CREATOR, false);
       expect((await replaceAs(CREATOR, gameId, def, "?dryRun=true")).statusCode).toBe(403);
     });
 
@@ -561,14 +602,21 @@ describe("Casual Games", () => {
       expect((await exportAs(RIVAL)).statusCode).toBe(403);
     });
 
-    test("the creator keeps access to their game after losing the role", async () => {
-      await setEuRoles(CREATOR, []);
+    test("the creator keeps their game after leaving every server: list, export, links", async () => {
+      await setEuMember(CREATOR, false);
+      expect((await listGames(CREATOR, true)).map((g) => g.id)).toContain(gameId);
       const res = await app.inject({
         method: "GET",
         url: `/games/${gameId}/export`,
         headers: as(CREATOR),
       });
       expect(res.statusCode).toBe(200);
+      const link = await app.inject({
+        method: "POST",
+        url: `/games/${gameId}/links`,
+        headers: as(CREATOR),
+      });
+      expect(link.statusCode).toBe(201);
     });
   });
 
@@ -586,7 +634,7 @@ describe("Casual Games", () => {
       }
     });
 
-    test("another role holder can't manage the creator's game", async () => {
+    test("another creator can't manage the creator's game", async () => {
       const patch = await app.inject({
         method: "PATCH",
         url: `/games/${gameId}`,
@@ -608,7 +656,7 @@ describe("Casual Games", () => {
       expect(del.statusCode).toBe(403);
     });
 
-    test("the creator renames their game while they hold the role; others can't", async () => {
+    test("the creator renames their game while in a server; others can't", async () => {
       const created = await importAs(CREATOR, definition(`${KEY_PREFIX}settings`, "Settings 2026"));
       expect(created.statusCode).toBe(201);
       const settingsGameId = created.json().gameId;
@@ -625,9 +673,9 @@ describe("Casual Games", () => {
       for (const userId of [RIVAL, PLAYER]) {
         expect((await rename(userId, "Not Yours 2026")).statusCode).toBe(403);
       }
-      await setEuRoles(CREATOR, []);
-      expect((await rename(CREATOR, "Without The Role 2026")).statusCode).toBe(403);
-      await setEuRoles(CREATOR, [CREATOR_ROLE]);
+      await setEuMember(CREATOR, false);
+      expect((await rename(CREATOR, "After Leaving 2026")).statusCode).toBe(403);
+      await setEuMember(CREATOR);
 
       const own = await rename(CREATOR, "Settings 2026 Renamed");
       expect(own.statusCode).toBe(200);
@@ -643,13 +691,23 @@ describe("Casual Games", () => {
       });
     });
 
-    test("the creator can't delete their game; that's for global admins", async () => {
-      const res = await app.inject({
-        method: "DELETE",
-        url: `/games/${gameId}`,
-        headers: as(CREATOR),
-      });
-      expect(res.statusCode).toBe(403);
+    test("the creator deletes their game, also after leaving every server, as do global admins", async () => {
+      const del = async (userId: string, suffix: string) => {
+        const created = await importAs(CREATOR, definition(`${KEY_PREFIX}${suffix}`, "Doomed"));
+        expect(created.statusCode).toBe(201);
+        if (suffix === "deleted-after-leaving") await setEuMember(CREATOR, false);
+        const res = await app.inject({
+          method: "DELETE",
+          url: `/games/${created.json().gameId}`,
+          headers: as(userId),
+        });
+        await setEuMember(CREATOR);
+        return res.statusCode;
+      };
+      expect(await del(CREATOR, "deleted")).toBe(204);
+      expect(await del(CREATOR, "deleted-after-leaving")).toBe(204);
+      expect(await del(ADMIN, "deleted-by-admin")).toBe(204);
+      expect(await del(RIVAL, "not-deleted")).toBe(403);
     });
 
     test("the creator starts sessions from a game link, not directly", async () => {
@@ -675,6 +733,483 @@ describe("Casual Games", () => {
       });
       expect(session.statusCode).toBe(201);
     });
+
+    test("a link start waiting on an upload that prunes the revision it read pins the new one", async () => {
+      const created = await importAs(CREATOR, definition(`${KEY_PREFIX}link-start`, "Earlier"));
+      expect(created.statusCode).toBe(201);
+      const id = created.json().gameId;
+      const link = await app.inject({
+        method: "POST",
+        url: `/games/${id}/links`,
+        headers: as(CREATOR),
+      });
+      expect(link.statusCode).toBe(201);
+
+      let start: Promise<LightMyRequestResponse> | undefined;
+      let newRevisionId = "";
+      // What an upload does, holding the game lock until the start waits on it.
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Game" WHERE id = ${id} FOR UPDATE`;
+        const next = await tx.gameRevision.create({
+          data: {
+            gameId: id,
+            revision: 2,
+            checksum: `${KEY_PREFIX}link-start-2`,
+            definition: definition(`${KEY_PREFIX}link-start`, "Later"),
+          },
+        });
+        newRevisionId = next.id;
+        await tx.game.update({
+          where: { id },
+          data: { currentRevisionId: next.id, name: "Later" },
+        });
+        await pruneGame(tx, id);
+        start = app.inject({
+          method: "POST",
+          url: `/game-links/${link.json().token}/sessions`,
+          headers: as(PLAYER),
+          payload: { name: "During the upload", visibility: "private" },
+        });
+        await vi.waitFor(async () => {
+          const [{ waiting }] = await prisma.$queryRaw<{ waiting: number }[]>`
+            SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%"archivedAt" IS NULL FOR SHARE%'`;
+          expect(waiting).toBeGreaterThan(0);
+        });
+      });
+
+      const res = await start!;
+      expect(res.statusCode).toBe(201);
+      expect(res.json()).toMatchObject({
+        gameName: "Later",
+        gameRevisionId: newRevisionId,
+        sessionRevision: 2,
+        currentRevision: 2,
+        hasNewerRevision: false,
+      });
+    });
+
+    test("a local open waiting on an upload that prunes the revision serves the new one", async () => {
+      const created = await importAs(CREATOR, definition(`${KEY_PREFIX}local-open`, "Earlier"));
+      expect(created.statusCode).toBe(201);
+      const id = created.json().gameId;
+      const link = await app.inject({
+        method: "POST",
+        url: `/games/${id}/links`,
+        headers: as(CREATOR),
+      });
+      expect(link.statusCode).toBe(201);
+
+      let open: Promise<LightMyRequestResponse> | undefined;
+      await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT 1 FROM "Game" WHERE id = ${id} FOR UPDATE`;
+        const next = await tx.gameRevision.create({
+          data: {
+            gameId: id,
+            revision: 2,
+            checksum: `${KEY_PREFIX}local-open-2`,
+            definition: definition(`${KEY_PREFIX}local-open`, "Later"),
+          },
+        });
+        await tx.game.update({
+          where: { id },
+          data: { currentRevisionId: next.id, name: "Later" },
+        });
+        await pruneGame(tx, id);
+        open = app.inject({ method: "GET", url: `/game-links/${link.json().token}/definition` });
+        await vi.waitFor(async () => {
+          const [{ waiting }] = await prisma.$queryRaw<{ waiting: number }[]>`
+            SELECT count(*)::int AS waiting FROM pg_stat_activity
+            WHERE datname = current_database() AND wait_event_type = 'Lock'
+              AND query LIKE '%UPDATE%localOpens%'`;
+          expect(waiting).toBeGreaterThan(0);
+        });
+      });
+
+      const res = await open!;
+      expect(res.statusCode).toBe(200);
+      expect(res.json().name).toBe("Later");
+    });
+  });
+
+  describe("limits", () => {
+    const saved = { ...CASUAL_LIMITS, ...WRITE_LIMIT };
+    const limitedKey = (suffix: string) => `${KEY_PREFIX}limited-${suffix}`;
+    // A definition about `points` hiding zones big, which compression can't shrink.
+    const sized = (id: string, name: string, points: number) => {
+      const def = definition(id, name);
+      def.hidingZones.features.features = Array.from({ length: points }, () => ({
+        type: "Feature",
+        geometry: {
+          type: "Point",
+          coordinates: [-0.5 + Math.random() * 0.8, 51.3 + Math.random() * 0.4],
+        },
+      }));
+      return def;
+    };
+    const create = async (suffix: string, def = definition(limitedKey(suffix), suffix)) => {
+      const res = await importAs(LIMITED, def);
+      expect(res.statusCode, res.body).toBe(201);
+      return res.json().gameId as string;
+    };
+    const storedBytes = async () => {
+      const [{ bytes }] = await prisma.$queryRaw<{ bytes: bigint }[]>`
+        SELECT COALESCE(SUM(pg_column_size(r.definition)), 0)::bigint AS bytes
+        FROM "GameRevision" r JOIN "Game" g ON g.id = r."gameId"
+        WHERE g."serverId" = ${CASUAL_SERVER_ID} AND g."createdById" = ${LIMITED}`;
+      return Number(bytes);
+    };
+    const sessionOn = async (gameId: string, revision = 1) =>
+      prisma.gameSession.create({
+        data: {
+          gameId,
+          serverId: CASUAL_SERVER_ID,
+          creatorId: LIMITED,
+          name: "Pinning",
+          gameRevisionId: (
+            await prisma.gameRevision.findFirstOrThrow({ where: { gameId, revision } })
+          ).id,
+        },
+      });
+
+    beforeEach(async () => {
+      const where = { createdById: LIMITED };
+      await prisma.gameSession.deleteMany({ where: { game: where } });
+      await prisma.game.updateMany({ where, data: { currentRevisionId: null } });
+      await prisma.game.deleteMany({ where });
+    });
+
+    afterAll(() => {
+      Object.assign(CASUAL_LIMITS, { games: saved.games, bytes: saved.bytes });
+      Object.assign(WRITE_LIMIT, {
+        requests: saved.requests,
+        inFlightPerUser: saved.inFlightPerUser,
+        inFlightTotal: saved.inFlightTotal,
+      });
+    });
+
+    test("the game cap refuses a new game, on the preview too, but not an update or a deleted game's place", async () => {
+      CASUAL_LIMITS.games = 2;
+      try {
+        const first = await create("a");
+        await create("b");
+        for (const query of ["?dryRun=true", ""]) {
+          const res = await importAs(LIMITED, definition(limitedKey("c"), "C"), query);
+          expect(res.statusCode).toBe(409);
+          expect(res.json()).toMatchObject({
+            code: "CASUAL_GAME_LIMIT",
+            message: "You already have 2 Casual games. Delete one to upload another.",
+          });
+        }
+        const update = await importAs(
+          LIMITED,
+          definition(limitedKey("a"), "A v2"),
+          "?allowUpdate=true",
+        );
+        expect(update.statusCode).toBe(200);
+
+        // A deleted game stops counting, also while a session keeps it.
+        await sessionOn(first, 2);
+        expect(
+          (await app.inject({ method: "DELETE", url: `/games/${first}`, headers: as(LIMITED) }))
+            .statusCode,
+        ).toBe(204);
+        const [c, d] = await Promise.all(
+          ["c", "d"].map((suffix) =>
+            importAs(LIMITED, definition(limitedKey(suffix), suffix.toUpperCase())),
+          ),
+        );
+        expect([c.statusCode, d.statusCode].sort()).toEqual([201, 409]);
+        expect(await prisma.game.count({ where: { createdById: LIMITED, archivedAt: null } })).toBe(
+          2,
+        );
+      } finally {
+        CASUAL_LIMITS.games = saved.games;
+      }
+    });
+
+    test("the storage cap counts deleted games' revisions sessions still use, and refuses with nothing written", async () => {
+      const doomed = await create("doomed");
+      const session = await sessionOn(doomed);
+      await app.inject({ method: "DELETE", url: `/games/${doomed}`, headers: as(LIMITED) });
+      const kept = await create("kept");
+      CASUAL_LIMITS.bytes = await storedBytes();
+      try {
+        const writes = [
+          () => importAs(LIMITED, definition(limitedKey("new"), "New")),
+          () => replaceAs(LIMITED, kept, sized(limitedKey("kept"), "Kept", 50)),
+          async () =>
+            app.inject({
+              method: "PATCH",
+              url: `/games/${kept}/settings`,
+              headers: as(LIMITED),
+              payload: {
+                baseRevisionId: (await prisma.game.findUniqueOrThrow({ where: { id: kept } }))
+                  .currentRevisionId,
+                name: "Kept, with a longer name",
+              },
+            }),
+        ];
+        for (const write of writes) {
+          const res = await write();
+          expect(res.statusCode).toBe(413);
+          expect(res.json().code).toBe("CASUAL_STORAGE_LIMIT");
+          expect(res.json().message).toMatch(
+            /^This would bring your Casual games to \d+ MB, over the \d+ MB allowed\. Versions that existing sessions still use count toward it\./,
+          );
+        }
+        expect(await prisma.game.count({ where: { createdById: LIMITED } })).toBe(2);
+        expect(await prisma.gameRevision.count({ where: { gameId: kept } })).toBe(1);
+        expect(
+          await prisma.auditLog.count({ where: { targetId: kept, action: "game.revision" } }),
+        ).toBe(0);
+
+        // Global admins aren't capped.
+        const byAdmin = await replaceAs(ADMIN, kept, sized(limitedKey("kept"), "Kept", 50));
+        expect(byAdmin.statusCode).toBe(200);
+
+        // The session's end frees the deleted game's bytes.
+        expect(
+          (
+            await app.inject({
+              method: "DELETE",
+              url: `/sessions/${session.id}`,
+              headers: as(LIMITED),
+            })
+          ).statusCode,
+        ).toBe(204);
+        expect(await prisma.game.findUnique({ where: { id: doomed } })).toBeNull();
+        CASUAL_LIMITS.bytes = (await storedBytes()) + 1024;
+        await create("new");
+      } finally {
+        CASUAL_LIMITS.bytes = saved.bytes;
+      }
+    });
+
+    test("a revision no session uses any more is freed when the cap would refuse another game", async () => {
+      const first = await create("stale", sized(limitedKey("stale"), "Stale", 200));
+      const session = await sessionOn(first);
+      await importAs(LIMITED, definition(limitedKey("stale"), "Stale v2"), "?allowUpdate=true");
+      // Its session went without a prune (e.g. that prune failed).
+      await prisma.gameSession.delete({ where: { id: session.id } });
+      expect(await prisma.gameRevision.count({ where: { gameId: first } })).toBe(2);
+
+      CASUAL_LIMITS.bytes = await storedBytes();
+      try {
+        await create("other");
+      } finally {
+        CASUAL_LIMITS.bytes = saved.bytes;
+      }
+      const left = await prisma.gameRevision.findMany({ where: { gameId: first } });
+      expect(left.map((r) => r.revision)).toEqual([2]);
+    });
+
+    test("global admins have no game cap", async () => {
+      CASUAL_LIMITS.games = 0;
+      try {
+        const res = await importAs(ADMIN, definition(limitedKey("admin"), "Admin"), "?dryRun=true");
+        expect(res.statusCode).toBe(201);
+      } finally {
+        CASUAL_LIMITS.games = saved.games;
+      }
+    });
+
+    test("uploads, previews, renames and link changes share a rate limit; global admins have none", async () => {
+      const gameIdOfLimited = await create("rated");
+      WRITE_LIMIT.requests = 2;
+      try {
+        const preview = () =>
+          importAs(LIMITED, definition(limitedKey("rated-2"), "Rated"), "?dryRun=true");
+        expect((await preview()).statusCode).toBe(201);
+        const refused = [
+          await preview(),
+          await app.inject({
+            method: "POST",
+            url: `/games/${gameIdOfLimited}/links`,
+            headers: as(LIMITED),
+          }),
+          await app.inject({
+            method: "PATCH",
+            url: `/games/${gameIdOfLimited}/settings`,
+            headers: as(LIMITED),
+            payload: { baseRevisionId: "any", name: "Renamed" },
+          }),
+          await app.inject({
+            method: "DELETE",
+            url: `/games/${gameIdOfLimited}/links/any`,
+            headers: as(LIMITED),
+          }),
+        ];
+        for (const res of refused) {
+          expect(res.statusCode).toBe(429);
+          expect(res.json()).toMatchObject({
+            code: "RATE_LIMITED",
+            message: "Too many uploads or changes in a short time. Try again in 10 minutes.",
+          });
+        }
+        for (let i = 0; i < 3; i++) {
+          const res = await importAs(ADMIN, definition(limitedKey("admin"), "A"), "?dryRun=true");
+          expect(res.statusCode).toBe(201);
+        }
+      } finally {
+        WRITE_LIMIT.requests = saved.requests;
+      }
+    });
+
+    test("an upload in progress holds a slot until it ends, also by a parse error or an abort", async () => {
+      WRITE_LIMIT.inFlightPerUser = 1;
+      try {
+        const preview = () =>
+          importAs(LIMITED, definition(limitedKey("slot"), "Slot"), "?dryRun=true");
+        const broken = await app.inject({
+          method: "POST",
+          url: "/games/import?dryRun=true",
+          headers: { ...as(LIMITED), "content-type": "application/json" },
+          payload: "{ not json",
+        });
+        expect(broken.statusCode).toBe(400);
+        expect((await preview()).statusCode).toBe(201);
+
+        await app.listen({ port: 0, host: "127.0.0.1" });
+        const { port } = app.server.address() as { port: number };
+        // Headers sent, body still coming.
+        const slow = request({
+          host: "127.0.0.1",
+          port,
+          method: "POST",
+          path: "/games/import?dryRun=true",
+          headers: {
+            ...as(LIMITED),
+            "content-type": "application/json",
+            "content-length": "100000",
+          },
+        });
+        slow.on("error", () => {});
+        slow.write("{");
+        // Synchronous, so it can't take the slot from the request.
+        const slotTaken = () => {
+          try {
+            acquireUploadSlot(LIMITED)();
+            return false;
+          } catch {
+            return true;
+          }
+        };
+        await vi.waitFor(() => expect(slotTaken()).toBe(true));
+        const res = await preview();
+        expect(res.statusCode).toBe(429);
+        expect(res.json()).toMatchObject({
+          code: "RATE_LIMITED",
+          message: "Another upload is still being processed. Wait for it to finish and try again.",
+        });
+        slow.destroy();
+        await vi.waitFor(() => expect(slotTaken()).toBe(false));
+        expect((await preview()).statusCode).toBe(201);
+      } finally {
+        WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
+      }
+    });
+
+    test("a client gone after sending its whole body frees the slot once the upload ends", async () => {
+      WRITE_LIMIT.inFlightPerUser = 1;
+      const findServer = prisma.server.findUnique.bind(prisma.server);
+      let handling = false;
+      let proceed = () => {};
+      const paused = new Promise<void>((resolve) => (proceed = resolve));
+      // The import's first query, so the handler waits with the body read.
+      const spy = vi.spyOn(prisma.server, "findUnique").mockImplementationOnce(((
+        args: Parameters<typeof findServer>[0],
+      ) => {
+        handling = true;
+        return paused.then(() => findServer(args));
+      }) as never);
+      const body = JSON.stringify(definition(limitedKey("complete"), "Complete"));
+      if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+      const { port } = app.server.address() as { port: number };
+      let raw: { complete: boolean; aborted: boolean; closed: boolean } | undefined;
+      app.server.once("request", (req, res) => {
+        res.once(
+          "close",
+          () => (raw = { complete: req.complete, aborted: req.aborted, closed: true }),
+        );
+      });
+      const gone = request({
+        host: "127.0.0.1",
+        port,
+        method: "POST",
+        path: "/games/import?dryRun=true",
+        headers: {
+          ...as(LIMITED),
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+        },
+      });
+      gone.on("error", () => {});
+      gone.end(body);
+      try {
+        await vi.waitFor(() => expect(handling).toBe(true));
+        gone.destroy();
+        await vi.waitFor(() =>
+          expect(raw).toEqual({ complete: true, aborted: false, closed: true }),
+        );
+        proceed();
+        await vi.waitFor(async () => {
+          const res = await importAs(
+            LIMITED,
+            definition(limitedKey("next"), "Next"),
+            "?dryRun=true",
+          );
+          expect(res.statusCode).toBe(201);
+        });
+      } finally {
+        proceed();
+        spy.mockRestore();
+        WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
+      }
+    });
+
+    test("a client gone while its login is checked doesn't keep a slot or use a request", async () => {
+      resetWriteLimits();
+      WRITE_LIMIT.inFlightPerUser = 1;
+      WRITE_LIMIT.requests = 1;
+      const findSession = prisma.authSession.findUnique.bind(prisma.authSession);
+      let resolving = false;
+      const spy = vi.spyOn(prisma.authSession, "findUnique").mockImplementation(((
+        args: Parameters<typeof findSession>[0],
+      ) => {
+        resolving = true;
+        return new Promise((resolve) => setTimeout(resolve, 200)).then(() => findSession(args));
+      }) as never);
+      try {
+        if (!app.server.listening) await app.listen({ port: 0, host: "127.0.0.1" });
+        const { port } = app.server.address() as { port: number };
+        const gone = request({
+          host: "127.0.0.1",
+          port,
+          method: "POST",
+          path: "/games/import?dryRun=true",
+          headers: {
+            ...as(LIMITED),
+            "content-type": "application/json",
+            "content-length": "100000",
+          },
+        });
+        gone.on("error", () => {});
+        gone.write("{");
+        await vi.waitFor(() => expect(resolving).toBe(true));
+        gone.destroy();
+        // Past the session lookup, which then takes the slot.
+        await new Promise((resolve) => setTimeout(resolve, 400));
+        spy.mockRestore();
+        const res = await importAs(LIMITED, definition(limitedKey("gone"), "Gone"), "?dryRun=true");
+        expect(res.statusCode).toBe(201);
+      } finally {
+        spy.mockRestore();
+        WRITE_LIMIT.inFlightPerUser = saved.inFlightPerUser;
+        WRITE_LIMIT.requests = saved.requests;
+      }
+    });
   });
 
   describe("servers", () => {
@@ -684,21 +1219,23 @@ describe("Casual Games", () => {
       return res.json().servers as { id: string; permissions: string[]; isMember: boolean }[];
     };
 
-    test("Casual is listed for role holders, with games.create only", async () => {
+    test("Casual is listed for anyone in a server, with games.create only", async () => {
       const casual = (await listServers(RIVAL)).find((s) => s.id === CASUAL_SERVER_ID);
       expect(casual).toEqual(
         expect.objectContaining({ permissions: ["games.create"], isMember: true }),
       );
     });
 
-    test("Casual stays listed for a creator of Casual games without the role", async () => {
-      await setEuRoles(CREATOR, []);
+    test("Casual stays listed for a creator of Casual games who left every server", async () => {
+      await setEuMember(CREATOR, false);
       const casual = (await listServers(CREATOR)).find((s) => s.id === CASUAL_SERVER_ID);
-      expect(casual).toEqual(expect.objectContaining({ permissions: [], isMember: true }));
+      expect(casual).toEqual(
+        expect.objectContaining({ permissions: [], isMember: true, hasOwnGames: true }),
+      );
     });
 
-    test("Casual is hidden from someone without permissions, sessions or games there", async () => {
-      expect((await listServers(PLAYER)).map((s) => s.id)).not.toContain(CASUAL_SERVER_ID);
+    test("Casual is hidden from someone in no server without sessions or games there", async () => {
+      expect((await listServers(OUTSIDER)).map((s) => s.id)).not.toContain(CASUAL_SERVER_ID);
     });
 
     test("the role routes use the management guild's roles, for global admins only", async () => {

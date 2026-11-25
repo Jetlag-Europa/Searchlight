@@ -84,6 +84,10 @@ export interface ServerWithPermissions extends Server {
    * guild: its game catalog is closed to them, so they can't start sessions.
    */
   isMember: boolean;
+  /** The user has sessions there. Optional: older APIs don't send it. */
+  hasSessions?: boolean;
+  /** The user created games there that aren't deleted (Casual Games). Optional: older APIs don't send it. */
+  hasOwnGames?: boolean;
 }
 
 export interface ServersResponse {
@@ -100,10 +104,15 @@ export interface ServerRolesResponse {
 /**
  * Casual Games (formerly Home Games), a server with no Discord guild of its
  * own. Its games are always unlisted and visible only to their creator and
- * global admins; sessions of them start from game links. Who may create them
- * comes from roles in its management guild (JetLag EU), mapped on /admin.
+ * global admins; sessions of them start from game links. Anyone in one of the
+ * registered Discord servers may create them, within the limits below.
  */
 export const CASUAL_SERVER_ID = "home-games";
+
+/** Casual games one player may have (deleted ones don't count). Global admins have no limit. */
+export const CASUAL_GAME_LIMIT = 20;
+/** Storage one player's Casual games may use, in MiB as stored, incl. older versions sessions still use. */
+export const CASUAL_STORAGE_LIMIT_MB = 100;
 
 export interface Game {
   id: string;
@@ -117,6 +126,10 @@ export interface Game {
   archivedAt?: string | null;
   /** Discord id of whoever first imported it; null for preloaded and older games. */
   createdById: string | null;
+  /** Display name of createdById's user; null when not recorded or unknown. */
+  createdByName: string | null;
+  /** When the current revision was uploaded; null without a current revision. */
+  updatedAt: string | null;
 }
 
 export interface GameImportResponse {

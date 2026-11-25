@@ -6,6 +6,7 @@ import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox";
 import prisma from "../lib/prisma.js";
 import { gameRoutes } from "./games.js";
 import { importGameDefinition, updateGameSettings } from "../games/import-service.js";
+import { WRITE_LIMIT } from "../lib/write-limit.js";
 
 // ── IDs scoped to this test suite ───────────────────────────────────────────
 const EDITOR_ID = "test-gsettings-editor"; // games.edit
@@ -325,12 +326,11 @@ describe("PATCH /games/:gameId/settings", () => {
     expect(missing.json()).toMatchObject({ message: "Game not found" });
   });
 
-  test("keeps the game archived and its preload checksum", async () => {
-    const game = await createGame("Test GSettings Archived");
-    const archivedAt = new Date("2026-01-02T03:04:05.000Z");
+  test("keeps the preload checksum and answers with the new revision's upload time", async () => {
+    const game = await createGame("Test GSettings Preloaded");
     await prisma.game.update({
       where: { id: game.id },
-      data: { archivedAt, preloadChecksum: "preloaded-file-checksum" },
+      data: { preloadChecksum: "preloaded-file-checksum" },
     });
 
     const res = await patch(EDITOR_ID, game.id, {
@@ -338,10 +338,44 @@ describe("PATCH /games/:gameId/settings", () => {
       size: "large",
     });
     expect(res.statusCode).toBe(200);
-    expect(res.json().game.archivedAt).toBe(archivedAt.toISOString());
-    const after = await prisma.game.findUniqueOrThrow({ where: { id: game.id } });
-    expect(after.archivedAt).toEqual(archivedAt);
+    const after = await prisma.game.findUniqueOrThrow({
+      where: { id: game.id },
+      include: { currentRevision: true },
+    });
     expect(after.preloadChecksum).toBe("preloaded-file-checksum");
+    // Preloaded: nobody recorded as its creator.
+    expect(res.json().game).toMatchObject({
+      createdByName: null,
+      updatedAt: after.currentRevision!.createdAt.toISOString(),
+    });
+  });
+
+  test("frees its upload slot when done, also after a refusal", async () => {
+    const game = await createGame("Test GSettings Slot");
+    const saved = WRITE_LIMIT.inFlightPerUser;
+    WRITE_LIMIT.inFlightPerUser = 1;
+    try {
+      const stale = await patch(EDITOR_ID, game.id, { baseRevisionId: "stale", size: "large" });
+      expect(stale.statusCode).toBe(409);
+      const res = await patch(EDITOR_ID, game.id, {
+        baseRevisionId: game.currentRevisionId,
+        size: "large",
+      });
+      expect(res.statusCode).toBe(200);
+    } finally {
+      WRITE_LIMIT.inFlightPerUser = saved;
+    }
+  });
+
+  test("a deleted game is not found", async () => {
+    const game = await createGame("Test GSettings Deleted");
+    await prisma.game.update({ where: { id: game.id }, data: { archivedAt: new Date() } });
+    const res = await patch(EDITOR_ID, game.id, {
+      baseRevisionId: game.currentRevisionId,
+      size: "large",
+    });
+    expect(res.statusCode).toBe(404);
+    expect((await revisionsOf(game.id)).length).toBe(1);
   });
 
   test("reverting an edit re-activates the old revision", async () => {

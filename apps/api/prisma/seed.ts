@@ -12,8 +12,9 @@ const SERVERS: { id: string; name: string; managementGuildId?: string }[] = [
   { id: "1458858559952523305", name: "JetLag CH" },
   { id: "1376560872029290708", name: "JetLag Nordics" },
   // Virtual server, no Discord guild of its own (see VIRTUAL_SERVER_IDS). Its
-  // games are unlisted and each is its creator's; who may create them comes
-  // from JetLag EU's roles, mapped to games.create on it on /admin.
+  // games are unlisted and each is its creator's; anyone in a registered server
+  // may create them (see VIRTUAL_SERVER_PERMISSIONS). /admin lists JetLag EU's
+  // roles for its mappings, which no longer grant anything there.
   { id: CASUAL_SERVER_ID, name: "Casual Games", managementGuildId: JETLAG_EU_ID },
 ];
 

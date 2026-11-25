@@ -2,7 +2,7 @@
 // the values a session load just showed, and gets over a load that fails.
 // Rendered with React into a minimal stand-in for the DOM (there is no DOM
 // library here); the server is a fake fetch, and the saves are spies.
-import type { Game, GameSessionSummary } from "@searchlight/shared";
+import { CASUAL_SERVER_ID, type Game, type GameSessionSummary } from "@searchlight/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => {
@@ -1260,6 +1260,53 @@ describe("the session picker", () => {
       key.startsWith("__reactProps$"),
     )![1] as { value: string };
     expect(props.value).toBe("server-1");
+  });
+
+  // Everyone in a server may upload Casual games, so /servers lists Casual
+  // for them too, last.
+  const withCasual = (casual: Record<string, unknown>) => async (input: string | URL) =>
+    new URL(String(input)).pathname === "/servers"
+      ? json({
+          servers: [
+            { id: "server-1", name: "Server", isMember: true, permissions: [] },
+            {
+              id: CASUAL_SERVER_ID,
+              name: "Casual Games",
+              isMember: true,
+              permissions: [],
+              ...casual,
+            },
+          ],
+        })
+      : defaultFetch(input);
+  const manageGamesLink = () =>
+    [...env.document.body.walk()].find((n) => n.getAttribute("aria-label") === "Manage games");
+
+  it("leaves Casual out of the picker without sessions there, so the only server is picked", async () => {
+    server = { a: session("a") };
+    fetchMock.mockImplementation(
+      withCasual({ permissions: ["games.create"], hasSessions: false, hasOwnGames: false }),
+    );
+    await reload("");
+    expect(pageText()).toContain("Session a");
+    expect([...env.document.body.walk()].some((n) => n.nodeName === "SELECT")).toBe(false);
+    expect(manageGamesLink()).toBeDefined();
+  });
+
+  it("lists Casual with sessions there, and links the games page for own games alone", async () => {
+    server = { a: session("a") };
+    fetchMock.mockImplementation(withCasual({ hasSessions: true, hasOwnGames: true }));
+    await reload("");
+    const select = [...env.document.body.walk()].find((n) => n.nodeName === "SELECT");
+    expect(select?.textContent).toContain("Casual Games");
+    expect(manageGamesLink()).toBeDefined();
+
+    await act(async () => root?.unmount());
+    root = null;
+    env.document.body.textContent = "";
+    fetchMock.mockImplementation(withCasual({ hasSessions: true, hasOwnGames: false }));
+    await reload("");
+    expect(manageGamesLink()).toBeUndefined();
   });
 
   it("still offers Try again for the sessions after a recheck", async () => {

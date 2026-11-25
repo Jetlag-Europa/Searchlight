@@ -117,8 +117,11 @@ model Game {
   // on a real server, the creator's Discord id on Casual Games, where each
   // creator's games have their own ids. "" on a Casual game whose creator
   // isn't recorded: no import finds it; global admins replace it from the
-  // games page.
+  // games page. "archived:<id>" once deleted, so a new game can take its id.
   ownerScope        String         @default("")
+  // When it was deleted (DELETE /games/:id): hidden from game lists, links
+  // revoked, no current revision, kept only for the sessions already started
+  // and removed with the last of them (pruneGame in import-service.ts).
   archivedAt        DateTime?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt

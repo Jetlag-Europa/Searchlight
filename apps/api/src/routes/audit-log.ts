@@ -5,20 +5,63 @@ import { Prisma } from "@prisma/client";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { getUserPermissions, isAdmin } from "../lib/permissions.js";
+import { canManageGame } from "../lib/game-access.js";
+import { VIRTUAL_SERVER_IDS } from "../lib/virtual-servers.js";
 import { badRequest, forbidden } from "../lib/http-errors.js";
 
-// A server's log is for its server admins, every server's (no serverId) for
-// global admins. Nobody holds server.admin on Casual Games (virtual-servers.ts),
-// so only global admins see its entries.
-async function assertCanRead(req: FastifyRequest, serverId: string | undefined) {
+// What a game's history (GET /games' History) shows.
+const GAME_ACTIONS: AuditAction[] = [
+  "game.create",
+  "game.revision",
+  "game.listing",
+  "game.delete",
+  "link.create",
+  "link.revoke",
+];
+
+/**
+ * Every server's log (no serverId) is for global admins, a server's for its
+ * server admins: null then, the request's own filters apply. A game's
+ * managers (e.g. a Casual game's creator) read that game's entries, given its
+ * targetId: the returned filter then applies to the cursor and the rows alike.
+ */
+async function readableEntries(
+  req: FastifyRequest,
+  serverId: string | undefined,
+  targetId?: string,
+  action?: string,
+): Promise<Prisma.AuditLogWhereInput | null> {
   const { user } = await resolveSession(req);
-  const allowed =
-    isAdmin(user.discordId) ||
-    (serverId !== undefined &&
-      // An unregistered server has no roles to look up.
-      (await prisma.server.count({ where: { id: serverId } })) > 0 &&
-      (await getUserPermissions(user.discordId, serverId, true, req.log)).has("server.admin"));
-  if (!allowed) throw forbidden();
+  if (isAdmin(user.discordId)) return null;
+  if (
+    serverId !== undefined &&
+    // Nobody but global admins holds server.admin there (virtual-servers.ts).
+    !VIRTUAL_SERVER_IDS.has(serverId) &&
+    // An unregistered server has no roles to look up.
+    (await prisma.server.count({ where: { id: serverId } })) > 0 &&
+    (await getUserPermissions(user.discordId, serverId, true, req.log)).has("server.admin")
+  ) {
+    return null;
+  }
+  if (targetId !== undefined) {
+    const game = await prisma.game.findUnique({
+      where: { id: targetId },
+      select: { id: true, serverId: true, createdById: true },
+    });
+    if (
+      game &&
+      (serverId === undefined || serverId === game.serverId) &&
+      (await canManageGame(user.discordId, game, req.log))
+    ) {
+      return {
+        serverId: game.serverId,
+        targetId: game.id,
+        // Role entries could share the id: AuditLog targets are untyped.
+        action: { in: GAME_ACTIONS.filter((a) => action === undefined || a === action) },
+      };
+    }
+  }
+  throw forbidden();
 }
 
 export async function auditLogRoutes(app: FastifyInstance) {
@@ -48,11 +91,11 @@ export async function auditLogRoutes(app: FastifyInstance) {
         before?: string;
         limit: number;
       };
-      await assertCanRead(req, serverId);
+      const scope = await readableEntries(req, serverId, targetId, action);
 
       const cursor = before
-        ? await prisma.auditLog.findUnique({
-            where: { id: before, serverId },
+        ? await prisma.auditLog.findFirst({
+            where: { id: before, ...(scope ?? { serverId }) },
             select: { id: true, createdAt: true },
           })
         : null;
@@ -60,10 +103,8 @@ export async function auditLogRoutes(app: FastifyInstance) {
 
       const rows = await prisma.auditLog.findMany({
         where: {
-          serverId,
-          action,
+          ...(scope ?? { serverId, action, targetId }),
           actorId,
-          targetId,
           ...(cursor && {
             OR: [
               { createdAt: { lt: cursor.createdAt } },
@@ -115,16 +156,20 @@ export async function auditLogRoutes(app: FastifyInstance) {
     },
     async (req): Promise<AuditLogFilters> => {
       const { serverId } = req.query as { serverId?: string };
-      await assertCanRead(req, serverId);
+      await readableEntries(req, serverId);
 
       // Grouped in the database: the log is kept forever.
       const [serverIds, actorIds, games] = await Promise.all([
         // Only the global log lets you pick a server.
         serverId ? [] : prisma.auditLog.groupBy({ by: ["serverId"] }),
         prisma.auditLog.groupBy({ by: ["actorId"], where: { serverId, actorId: { not: null } } }),
-        // Each game by the name of its latest entry.
+        // Each game by the name of its latest entry; a deleted one and its
+        // re-import would otherwise read the same.
         prisma.$queryRaw<AuditLogFilters["games"]>`
-          SELECT DISTINCT ON ("targetId") "targetId" AS id, "targetName" AS name, "serverId"
+          SELECT DISTINCT ON ("targetId") "targetId" AS id,
+            CASE WHEN action = 'game.delete' THEN "targetName" || ', deleted'
+                 ELSE "targetName" END AS name,
+            "serverId"
           FROM "AuditLog"
           WHERE (action LIKE 'game.%' OR action LIKE 'link.%')
             ${serverId ? Prisma.sql`AND "serverId" = ${serverId}` : Prisma.empty}

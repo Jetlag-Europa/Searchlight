@@ -9,36 +9,49 @@ import {
   replaceGameDefinition,
 } from "../games/import-service.js";
 import { assertGameAccess } from "../lib/game-access.js";
-import { notFound } from "../lib/http-errors.js";
-import { getUserPermissions, hasPermissionOnSomeServer } from "../lib/permissions.js";
+import { badRequest, notFound } from "../lib/http-errors.js";
+import { getUserPermissions, isMemberOfSomeServer } from "../lib/permissions.js";
 import prisma from "../lib/prisma.js";
 import { resolveSession } from "../lib/session.js";
 import { listedSessionsWhere } from "../lib/session-access.js";
+import { acquireUploadSlot, assertWithinWriteLimit } from "../lib/write-limit.js";
 
-// Game definitions embed full GeoJSON boundaries; real ones reach ~2 MB,
-// well past Fastify's 1 MiB default.
-const MAX_GAME_IMPORT_BYTES = 50 * 1024 * 1024;
+// Game definitions embed full GeoJSON boundaries; real ones reach ~5 MB,
+// past Fastify's 1 MiB default. Much larger ones stall the event loop while
+// parsed and time out the import transaction.
+const MAX_GAME_IMPORT_BYTES = 10 * 1024 * 1024;
 // A broken multi-MB definition can produce an issue per feature; the message
 // still states the total.
 const MAX_REPORTED_ISSUES = 100;
-// What canCreateGames and canEditGames accept from a logged-in user.
-const IMPORT_PERMISSIONS = ["games.create", "games.edit", "server.admin"];
 
 declare module "fastify" {
   interface FastifyRequest {
     // Set by the onRequest hooks of POST /games/import and
     // POST /games/:gameId/import.
     importActor: ImportActor | null;
+    // Frees the request's upload slot (see resolveImportActor).
+    releaseUploadSlot: (() => void) | null;
   }
 }
 
 export async function resolveImportActor(req: FastifyRequest): Promise<ImportActor> {
   // Session cookie auth
   const { user } = await resolveSession(req);
-  // Turn away users who can't import anywhere before the body is parsed; the
-  // import checks the target server.
-  if (!(await hasPermissionOnSomeServer(user.discordId, IMPORT_PERMISSIONS, req.log))) {
-    throw new ImportForbiddenError("You do not have permission to import games");
+  // Turn away floods and users who can't import anywhere before the body is
+  // parsed; the import checks the target server. The route's onSend frees the
+  // slot once there is a reply, also when this throws or the client left
+  // after its body; onRequestAbort frees it for a client gone before that.
+  req.releaseUploadSlot = acquireUploadSlot(user.discordId);
+  // A client gone during resolveSession already had its onRequestAbort.
+  if (req.raw.aborted) {
+    req.releaseUploadSlot();
+    throw badRequest("The upload was cancelled");
+  }
+  assertWithinWriteLimit(user.discordId);
+  if (!(await isMemberOfSomeServer(user.discordId, req.log, true))) {
+    throw new ImportForbiddenError(
+      "To upload games, join one of the JetLag Discord servers that use Searchlight.",
+    );
   }
   return {
     userId: user.discordId,
@@ -162,8 +175,13 @@ function sendImportError(reply: FastifyReply, err: unknown) {
   throw err;
 }
 
+async function releaseUploadSlot(req: FastifyRequest) {
+  req.releaseUploadSlot?.();
+}
+
 export async function gameImportRoutes(app: FastifyInstance) {
   app.decorateRequest("importActor", null);
+  app.decorateRequest("releaseUploadSlot", null);
 
   // POST /games/import
   app.post(
@@ -175,6 +193,8 @@ export async function gameImportRoutes(app: FastifyInstance) {
       onRequest: async (req) => {
         req.importActor = await resolveImportActor(req);
       },
+      onSend: releaseUploadSlot,
+      onRequestAbort: releaseUploadSlot,
       schema: {
         querystring: Type.Object({
           dryRun: Type.Optional(Type.Boolean()),
@@ -237,6 +257,8 @@ export async function gameImportRoutes(app: FastifyInstance) {
       onRequest: async (req) => {
         req.importActor = await resolveImportActor(req);
       },
+      onSend: releaseUploadSlot,
+      onRequestAbort: releaseUploadSlot,
       schema: {
         params: Type.Object({ gameId: Type.String() }),
         querystring: Type.Object({
@@ -254,9 +276,9 @@ export async function gameImportRoutes(app: FastifyInstance) {
       const body = readImportBody(req.body, expectedCurrentRevisionId);
       const game = await prisma.game.findUnique({
         where: { id: gameId },
-        select: { id: true, gameKey: true, serverId: true, createdById: true },
+        select: { id: true, gameKey: true, serverId: true, createdById: true, archivedAt: true },
       });
-      if (!game) throw notFound("Game not found");
+      if (!game || game.archivedAt) throw notFound("Game not found");
       try {
         const result = await replaceGameDefinition({
           game,
@@ -281,7 +303,11 @@ export async function gameImportRoutes(app: FastifyInstance) {
       // The web build before ids became per server exports by the file's
       // id, and browsers keep it until reloaded: honour that while the id
       // names one game. Remove in the release after the one with this change.
-      const byKey = await prisma.game.findMany({ where: { gameKey: gameId }, include, take: 2 });
+      const byKey = await prisma.game.findMany({
+        where: { gameKey: gameId, archivedAt: null },
+        include,
+        take: 2,
+      });
       if (byKey.length === 1) game = byKey[0];
     }
 
@@ -353,10 +379,13 @@ export async function gameImportRoutes(app: FastifyInstance) {
         return reply.status(304).send();
       }
 
+      // Gone if the revision was pruned since it was looked up.
+      const definition = await loadDefinition(rev.id);
+      if (!definition) return reply.status(404).send({ error: "Revision not found" });
       return reply
         .header("Content-Type", "application/json; charset=utf-8")
         .header("ETag", etag)
-        .send(JSON.stringify(await loadDefinition(rev.id)));
+        .send(JSON.stringify(definition));
     },
   );
 
@@ -429,10 +458,13 @@ export async function gameImportRoutes(app: FastifyInstance) {
         return reply.status(304).send();
       }
 
+      // Gone if the revision was pruned since it was looked up.
+      const definition = await loadDefinition(rev.id);
+      if (!definition) return reply.status(404).send({ error: "Revision not found" });
       return reply
         .header("Content-Type", "application/json; charset=utf-8")
         .header("ETag", etag)
-        .send(JSON.stringify(await loadDefinition(rev.id)));
+        .send(JSON.stringify(definition));
     },
   );
 }

@@ -4,8 +4,9 @@ import { randomBytes } from "crypto";
 import prisma from "../lib/prisma.js";
 import { audit } from "../lib/audit.js";
 import { resolveSession } from "../lib/session.js";
-import { assertCanManageGame, findActiveLink } from "../lib/game-access.js";
+import { assertCanManageGame, findActiveLink, lockLiveGame } from "../lib/game-access.js";
 import { notFound } from "../lib/http-errors.js";
+import { assertWithinWriteLimit } from "../lib/write-limit.js";
 import { createSession } from "./sessions.js";
 
 // A game link lets whoever holds it start sessions of the game: it stands in
@@ -57,12 +58,14 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     { compress: false, schema: { params: Type.Object({ gameId: Type.String() }) } },
     async (req, reply) => {
       const { user } = await resolveSession(req);
+      assertWithinWriteLimit(user.discordId);
       const { gameId } = req.params as { gameId: string };
       const game = await prisma.game.findUnique({ where: { id: gameId } });
-      if (!game) throw notFound("Game not found");
+      if (!game || game.archivedAt) throw notFound("Game not found");
       await assertCanManageGame(user.discordId, game, req.log);
 
       const link = await prisma.$transaction(async (tx) => {
+        await lockLiveGame(tx, game.id);
         const created = await tx.gameLink.create({
           data: {
             token: randomBytes(16).toString("hex"),
@@ -101,6 +104,7 @@ export async function gameLinkManagementRoutes(app: FastifyInstance) {
     },
     async (req, reply) => {
       const { user } = await resolveSession(req);
+      assertWithinWriteLimit(user.discordId);
       const { gameId, linkId } = req.params as { gameId: string; linkId: string };
       const game = await prisma.game.findUnique({ where: { id: gameId } });
       if (!game) throw notFound("Game not found");
@@ -216,17 +220,22 @@ export async function gameLinkRoutes(app: FastifyInstance) {
     { schema: { params: Type.Object({ token: Type.String({ minLength: 1, maxLength: 128 }) }) } },
     async (req, reply) => {
       const { token } = req.params as { token: string };
+      // Only /local fetches this, once per game it opens from a link. Counted
+      // before the lookup: it waits out an upload holding the game lock, which
+      // may prune the revision an earlier lookup would serve. Counting never
+      // fails the download.
+      if (req.method === "GET") {
+        await prisma.game
+          .updateMany({
+            where: { links: { some: { token, revokedAt: null } } },
+            data: { localOpens: { increment: 1 } },
+          })
+          .catch((err) => req.log.warn({ err }, "Couldn't count a local open"));
+      }
       const link = await findActiveLink(token);
       const revision = link?.game.currentRevision;
       if (!link || !revision) {
         throw notFound("Link is invalid or has been revoked");
-      }
-      // Only /local fetches this, once per game it opens from a link. Counting
-      // never fails the download, even if the game was deleted meanwhile.
-      if (req.method === "GET") {
-        await prisma.game
-          .updateMany({ where: { id: link.gameId }, data: { localOpens: { increment: 1 } } })
-          .catch((err) => req.log.warn({ err }, "Couldn't count a local open"));
       }
 
       const etag = `"${revision.checksum}"`;
@@ -274,7 +283,6 @@ export async function gameLinkRoutes(app: FastifyInstance) {
 
       const session = await createSession({
         game,
-        revision: game.currentRevision,
         creatorId: user.discordId,
         name,
         visibility,

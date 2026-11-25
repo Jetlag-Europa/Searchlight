@@ -170,6 +170,14 @@ describe("Game Definition Access & Revision Security", () => {
 
     // Clean previous test fixtures with strictly scoped IDs
     await cleanupFixtures();
+    // Imports ask about every registered server (isMemberOfSomeServer): only
+    // this file's are its to cache memberships on.
+    const findServers = prisma.server.findMany.bind(prisma.server);
+    vi.spyOn(prisma.server, "findMany").mockImplementation(((args: { where?: object }) =>
+      findServers({
+        ...args,
+        where: { AND: [args?.where ?? {}, { id: { in: FIXTURE_SERVERS } }] },
+      })) as never);
 
     // Create servers
     await prisma.server.createMany({
@@ -383,15 +391,18 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.statusCode).toBe(401);
     });
 
-    test("rejects users who can't import on any server before parsing the body", async () => {
+    test("rejects users who aren't in any server before parsing the body", async () => {
       const res = await app.inject({
         method: "POST",
         url: "/games/import?dryRun=true",
-        headers: { cookie: signedCookie(app, AUTH_MEMBER), "content-type": "application/json" },
+        headers: { cookie: signedCookie(app, AUTH_NONMEMBER), "content-type": "application/json" },
         payload: "{ not json",
       });
       expect(res.statusCode).toBe(403);
-      expect(res.json().code).toBe("FORBIDDEN");
+      expect(res.json()).toMatchObject({
+        code: "FORBIDDEN",
+        message: "To upload games, join one of the JetLag Discord servers that use Searchlight.",
+      });
     });
 
     test("parses the body of a user who can import on some server", async () => {
@@ -402,6 +413,19 @@ describe("Game Definition Access & Revision Security", () => {
         payload: "{ not json",
       });
       expect(res.statusCode).toBe(400);
+    });
+
+    test("refuses a body over 10 MiB with 413", async () => {
+      const post = (bytes: number) =>
+        app.inject({
+          method: "POST",
+          url: "/games/import?dryRun=true",
+          headers: { cookie: signedCookie(app, AUTH_CREATOR), "content-type": "application/json" },
+          // `{"padding":""}` is 14 bytes.
+          payload: JSON.stringify({ padding: "x".repeat(bytes - 14) }),
+        });
+      expect((await post(10 * 1024 * 1024)).statusCode).toBe(400);
+      expect((await post(10 * 1024 * 1024 + 1)).statusCode).toBe(413);
     });
 
     test("rejects callers without import permission on the target server before validating", async () => {
@@ -455,23 +479,21 @@ describe("Game Definition Access & Revision Security", () => {
       expect(res.json().errors[0].code).toBe("SERVER_NOT_FOUND");
     });
 
-    test("returns 403 for a user without a Casual Games role importing there, without looking up its id", async () => {
+    test("lets a member of some server import to Casual Games, without looking up its id", async () => {
       await prisma.server.createMany({
         data: [{ id: "home-games", name: "Casual Games" }],
         skipDuplicates: true,
       });
       const getGuildMember = discord.getGuildMember as unknown as ReturnType<typeof vi.fn>;
       getGuildMember.mockClear();
-      // Its roles come from its management guild, if it has role mappings.
-      getGuildMember.mockRejectedValueOnce(new Error("Discord guild lookup failed: 400"));
 
       const res = await app.inject({
         method: "POST",
         url: "/games/import?dryRun=true",
-        headers: { cookie: signedCookie(app, AUTH_CREATOR) },
+        headers: { cookie: signedCookie(app, AUTH_NO_ROLE) },
         payload: importableDefinition("home-games"),
       });
-      expect(res.statusCode).toBe(403);
+      expect(res.statusCode).toBe(201);
       // The virtual server's id is no Discord guild id.
       expect(getGuildMember).not.toHaveBeenCalledWith(
         "home-games",
@@ -704,6 +726,27 @@ describe("Game Definition Access & Revision Security", () => {
       expect(data.name).toBe("Test Game A");
     });
 
+    test("a revision deleted while it is being read is not found, not an empty 200", async () => {
+      const findRevision = prisma.gameRevision.findUnique.bind(prisma.gameRevision);
+      // Gone between the lookup and the definition's load, as by a prune.
+      const spy = vi
+        .spyOn(prisma.gameRevision, "findUnique")
+        .mockImplementation(((args: { select?: { definition?: boolean } }) =>
+          args.select?.definition ? Promise.resolve(null) : findRevision(args as never)) as never);
+      try {
+        for (const url of [`/games/revisions/${gameARev2Id}`, `/games/${gameAId}/revisions/2`]) {
+          const res = await app.inject({
+            method: "GET",
+            url,
+            headers: { cookie: signedCookie(app, AUTH_MEMBER) },
+          });
+          expect(res.statusCode, url).toBe(404);
+        }
+      } finally {
+        spy.mockRestore();
+      }
+    });
+
     test("GET /games/revisions/:revisionId returns 401 for anonymous caller", async () => {
       const res = await app.inject({
         method: "GET",
@@ -844,6 +887,22 @@ describe("Game Definition Access & Revision Security", () => {
         expect((await exportByKey(GAME_A_KEY)).statusCode).toBe(404);
       } finally {
         await prisma.game.delete({ where: { id: twin.id } });
+      }
+    });
+
+    test("leaves out a deleted game with the same id", async () => {
+      const deleted = await prisma.game.create({
+        data: {
+          gameKey: GAME_A_KEY,
+          serverId: TEST_SERVER_B,
+          name: "Deleted Twin",
+          archivedAt: new Date(),
+        },
+      });
+      try {
+        expect((await exportByKey(GAME_A_KEY)).statusCode).toBe(200);
+      } finally {
+        await prisma.game.delete({ where: { id: deleted.id } });
       }
     });
 

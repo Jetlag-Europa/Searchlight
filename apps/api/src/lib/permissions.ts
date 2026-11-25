@@ -25,59 +25,14 @@ export async function getUserPermissions(
   if (isAdmin(userId)) {
     return new Set(ALL_PERMISSIONS);
   }
-  // Virtual servers have no Discord guild to look roles up in.
+  // Virtual servers have no guild: being in one of the servers is what counts.
   if (VIRTUAL_SERVER_IDS.has(serverId)) {
-    return virtualServerPermissions(
-      serverId,
-      (guildId) => getUserRoleIds(userId, guildId, privileged, logger),
-      logger,
+    return new Set(
+      (await isMemberOfSomeServer(userId, logger, privileged)) ? VIRTUAL_SERVER_PERMISSIONS : [],
     );
   }
 
   return permissionsForRoles(serverId, await getUserRoleIds(userId, serverId, privileged, logger));
-}
-
-/**
- * A virtual server borrows the roles of its management guild (Casual Games:
- * JetLag EU's), mapped through its own role permissions, of which only
- * VIRTUAL_SERVER_PERMISSIONS count. Without a management guild, mappings or a
- * way to read the roles, nobody holds anything there but global admins.
- */
-async function virtualServerPermissions(
-  serverId: string,
-  rolesInGuild: (guildId: string) => Promise<string[]>,
-  logger?: FastifyBaseLogger,
-): Promise<Set<string>> {
-  const server = await prisma.server.findUnique({
-    where: { id: serverId },
-    select: {
-      managementGuildId: true,
-      rolePermissions: {
-        where: { permission: { in: VIRTUAL_SERVER_PERMISSIONS } },
-        select: { discordRoleId: true, permission: true },
-      },
-    },
-  });
-  const guildId = server?.managementGuildId;
-  if (!guildId || server.rolePermissions.length === 0) return new Set();
-  // Roles are cached per registered server: an unregistered guild has nowhere
-  // to cache them (the cache's foreign key).
-  if (!(await prisma.server.findUnique({ where: { id: guildId }, select: { id: true } }))) {
-    return new Set();
-  }
-
-  let roles: string[];
-  try {
-    roles = await rolesInGuild(guildId);
-  } catch (error) {
-    logger?.warn({ serverId, guildId, err: error }, "Could not read roles in a management guild");
-    return new Set();
-  }
-  return new Set(
-    server.rolePermissions
-      .filter((rp) => roles.includes(rp.discordRoleId))
-      .map((rp) => rp.permission),
-  );
 }
 
 async function permissionsForRoles(serverId: string, roleIds: string[]): Promise<Set<string>> {
@@ -89,70 +44,6 @@ async function permissionsForRoles(serverId: string, roleIds: string[]): Promise
   });
 
   return new Set(rows.map((r) => r.permission));
-}
-
-// Whether the user holds any of `permissions` on at least one server.
-export async function hasPermissionOnSomeServer(
-  userId: string,
-  permissions: string[],
-  logger?: FastifyBaseLogger,
-): Promise<boolean> {
-  if (isAdmin(userId)) {
-    return true;
-  }
-
-  // Others only get permissions through role mappings, on servers they are in.
-  // Only servers with a cached membership are checked (GET /servers caches
-  // every server): the user's, and those where a "not a member" has expired
-  // as in assertServerMembership, so someone who just joined isn't refused
-  // for an hour. Roles are refreshed as for any permission-gated request.
-  const memberships = await prisma.serverMembershipCache.findMany({
-    where: {
-      userId,
-      OR: [{ isMember: true }, { cachedAt: { lt: new Date(Date.now() - PRIVILEGED_TTL_MS) } }],
-      server: { rolePermissions: { some: { permission: { in: permissions } } } },
-    },
-    select: { serverId: true },
-  });
-
-  // Virtual servers grant permissions through their management guild's roles,
-  // so they are checked when that guild's membership is cached, likewise.
-  const virtualServers = await prisma.server.findMany({
-    where: {
-      id: { in: [...VIRTUAL_SERVER_IDS] },
-      managementGuildId: { not: null },
-      rolePermissions: { some: { permission: { in: permissions } } },
-    },
-    select: { id: true, managementGuildId: true },
-  });
-  const cachedGuilds = new Set(
-    (
-      await prisma.serverMembershipCache.findMany({
-        where: {
-          userId,
-          serverId: { in: virtualServers.map((server) => server.managementGuildId!) },
-          OR: [{ isMember: true }, { cachedAt: { lt: new Date(Date.now() - PRIVILEGED_TTL_MS) } }],
-        },
-        select: { serverId: true },
-      })
-    ).map((membership) => membership.serverId),
-  );
-
-  const serverIds = [
-    ...memberships.map((membership) => membership.serverId),
-    ...virtualServers
-      .filter((server) => cachedGuilds.has(server.managementGuildId!))
-      .map((server) => server.id),
-  ];
-  for (const serverId of serverIds) {
-    try {
-      const perms = await getUserPermissions(userId, serverId, true, logger);
-      if (permissions.some((permission) => perms.has(permission))) return true;
-    } catch (error) {
-      logger?.warn({ serverId, userId, err: error }, "Could not check permissions on a server");
-    }
-  }
-  return false;
 }
 
 export async function userPassesDiscordRoleGate(
@@ -247,6 +138,7 @@ export async function isServerMember(
   userId: string,
   serverId: string,
   logger?: FastifyBaseLogger,
+  privileged = false,
 ): Promise<boolean> {
   if (isAdmin(userId)) {
     return true;
@@ -254,14 +146,46 @@ export async function isServerMember(
 
   // Membership is cached like roles for normal reads, but a cached "not a
   // member" expires after a minute so someone who just joined the server
-  // isn't locked out for an hour.
+  // isn't locked out for an hour. `privileged` treats a "member" so too.
   const cached = await prisma.serverMembershipCache.findUnique({
     where: { userId_serverId: { userId, serverId } },
   });
-  const ttl = cached?.isMember ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
+  const ttl = cached?.isMember && !privileged ? DEFAULT_TTL_MS : PRIVILEGED_TTL_MS;
   return cached && Date.now() - cached.cachedAt.getTime() < ttl
     ? cached.isMember
     : (await fetchAndCacheMembership(userId, serverId, logger)).isMember;
+}
+
+/**
+ * Whether the user is in one of the registered Discord servers, which is what
+ * creating Casual games takes. Servers the cache says they're in are asked
+ * first, so the usual answer takes no Discord call. Throws when a lookup
+ * failed and no server said yes: that is "couldn't tell", not "no".
+ * `privileged` (for writes) accepts a cached "member" for a minute only.
+ */
+export async function isMemberOfSomeServer(
+  userId: string,
+  logger?: FastifyBaseLogger,
+  privileged = false,
+): Promise<boolean> {
+  if (isAdmin(userId)) return true;
+  const servers = await prisma.server.findMany({
+    where: { id: { notIn: [...VIRTUAL_SERVER_IDS] } },
+    select: { id: true, membershipCaches: { where: { userId }, select: { isMember: true } } },
+  });
+  servers.sort(
+    (a, b) => Number(!!b.membershipCaches[0]?.isMember) - Number(!!a.membershipCaches[0]?.isMember),
+  );
+  let failure: unknown;
+  for (const { id } of servers) {
+    try {
+      if (await isServerMember(userId, id, logger, privileged)) return true;
+    } catch (err) {
+      failure = err;
+    }
+  }
+  if (failure) throw failure;
+  return false;
 }
 
 // Listing servers asks about every server, and most users are in only a few,
@@ -275,26 +199,23 @@ const LISTING_NON_MEMBER_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours
  * cache whenever there is an entry and refreshes an expired one in the
  * background: it waits on Discord only for a server it has never checked.
  * With `recheck`, it waits for a fresh answer for each "not a member" cached
- * over a minute ago.
+ * over a minute ago. A virtual server's permissions are those of someone in
+ * one of the servers when `memberSomewhere`.
  */
 export async function getListingAccess(
   userId: string,
   serverId: string,
   recheck: boolean,
   logger?: FastifyBaseLogger,
+  memberSomewhere = false,
 ): Promise<{ isMember: boolean; permissions: Set<string> }> {
   if (isAdmin(userId)) return { isMember: true, permissions: new Set(ALL_PERMISSIONS) };
-  // No guild to be a member of; permissions come from the management guild.
+  // No guild to be a member of.
   if (VIRTUAL_SERVER_IDS.has(serverId)) {
-    const permissions = await virtualServerPermissions(
-      serverId,
-      async (guildId) => {
-        const membership = await getListingMembership(userId, guildId, recheck, logger);
-        return membership.isMember ? membership.roles : [];
-      },
-      logger,
-    );
-    return { isMember: true, permissions };
+    return {
+      isMember: true,
+      permissions: new Set(memberSomewhere ? VIRTUAL_SERVER_PERMISSIONS : []),
+    };
   }
 
   const { isMember, roles } = await getListingMembership(userId, serverId, recheck, logger);

@@ -19,19 +19,16 @@ const PERMISSION_LABELS: Record<string, string> = {
   "games.delete": "Delete games",
   "server.admin": "Server admin",
 };
-// Casual Games borrows JetLag EU's roles, and they can only grant creating
-// Casual games: managing them is up to each game's creator and global admins.
-const CASUAL_PERMISSIONS = ["games.create"] as const;
 
 function ServerCard({ server }: { server: ServerWithPermissions }) {
   const isAdmin = server.permissions.includes("server.admin");
+  // Casual Games has no roles: anyone in a registered server may create there.
   const casual = server.id === CASUAL_SERVER_ID;
-  const permissions = casual ? CASUAL_PERMISSIONS : PERMISSIONS;
   const [expanded, setExpanded] = useState(false);
   const [rolesData, setRolesData] = useState<ServerRolesResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<"roles" | "activity">("roles");
+  const [tab, setTab] = useState<"roles" | "activity">(casual ? "activity" : "roles");
 
   const loadRoles = useCallback(async () => {
     setLoading(true);
@@ -106,7 +103,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
   // Mappings for roles deleted in Discord (or @everyone) get rows too, so they can be removed.
   const goneRoleIds = new Set(
     (rolesData?.mappings ?? [])
-      .filter((m) => (permissions as readonly string[]).includes(m.permission))
+      .filter((m) => (PERMISSIONS as readonly string[]).includes(m.permission))
       .map((m) => m.discordRoleId)
       .filter((id) => !shownRoles.some((r) => r.id === id)),
   );
@@ -123,7 +120,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
   const handleToggleExpand = () => {
     const next = !expanded;
     setExpanded(next);
-    if (next && !rolesData) loadRoles();
+    if (next && !rolesData && !casual) loadRoles();
   };
 
   return (
@@ -144,23 +141,20 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
 
       {expanded && isAdmin && (
         <div className="mt-3">
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            value={tab}
-            onValueChange={(v) => v && setTab(v as typeof tab)}
-            className="justify-start mb-3"
-          >
-            <ToggleGroupItem value="roles">Roles</ToggleGroupItem>
-            <ToggleGroupItem value="activity">Activity</ToggleGroupItem>
-          </ToggleGroup>
-          {tab === "activity" && <AuditLogPanel serverId={server.id} />}
-          {tab === "roles" && casual && (
-            <p className="text-xs text-muted-foreground mb-2">
-              These are JetLag EU&apos;s Discord roles.
-            </p>
+          {!casual && (
+            <ToggleGroup
+              type="single"
+              variant="outline"
+              size="sm"
+              value={tab}
+              onValueChange={(v) => v && setTab(v as typeof tab)}
+              className="justify-start mb-3"
+            >
+              <ToggleGroupItem value="roles">Roles</ToggleGroupItem>
+              <ToggleGroupItem value="activity">Activity</ToggleGroupItem>
+            </ToggleGroup>
           )}
+          {tab === "activity" && <AuditLogPanel serverId={server.id} />}
           {tab === "roles" && loading && (
             <p className="text-sm text-muted-foreground">Loading roles…</p>
           )}
@@ -176,9 +170,9 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
                   <thead>
                     <tr className="border-b border-border">
                       <th className="text-left py-2 pr-2 font-medium">Role</th>
-                      {permissions.map((p) => (
+                      {PERMISSIONS.map((p) => (
                         <th key={p} title={p} className="text-center py-2 px-1 font-medium text-xs">
-                          {casual ? "Create Casual games" : PERMISSION_LABELS[p]}
+                          {PERMISSION_LABELS[p]}
                         </th>
                       ))}
                     </tr>
@@ -200,7 +194,7 @@ function ServerCard({ server }: { server: ServerWithPermissions }) {
                           />
                           {role.name}
                         </td>
-                        {permissions.map((perm) => {
+                        {PERMISSIONS.map((perm) => {
                           const hasIt = rolesData.mappings.some(
                             (m) => m.discordRoleId === role.id && m.permission === perm,
                           );

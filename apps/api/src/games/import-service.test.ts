@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test, vi } from "vitest";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -10,6 +10,7 @@ import {
   ImportForbiddenError,
   importGameDefinition,
   ImportValidationError,
+  pruneGame,
   replaceGameDefinition,
 } from "./import-service.js";
 import { preloadGameDefinitions } from "./preload.js";
@@ -233,7 +234,8 @@ describe("importGameDefinition revisions", () => {
     const games = await prisma.game.findMany({ where: { gameKey: key } });
     expect(games).toHaveLength(1);
     expect(games[0].ownerScope).toBe(user);
-    expect((await revisionsOf(key)).map((r) => r.revision)).toEqual([1, 2]);
+    // Revision 1 went: nothing uses it.
+    expect((await revisionsOf(key)).map((r) => r.revision)).toEqual([2]);
   });
 
   test("two Casual creators can use the same id", async () => {
@@ -329,6 +331,138 @@ describe("importGameDefinition revisions", () => {
         }
       }
     });
+  });
+});
+
+describe("revision pruning", () => {
+  const USER = `${KEY_PREFIX}pruner`;
+  const casual = (key: string, name: string) => ({
+    raw: definition(key, name, CASUAL_SERVER_ID),
+    actor: actorFor(USER),
+    allowUpdate: true,
+  });
+  const gameOf = (key: string) =>
+    prisma.game.findFirstOrThrow({ where: { gameKey: key }, include: { revisions: true } });
+  const numbers = async (key: string) => (await revisionsOf(key)).map((r) => r.revision);
+
+  async function sessionOn(key: string, revision: number) {
+    const game = await gameOf(key);
+    return prisma.gameSession.create({
+      data: {
+        gameId: game.id,
+        serverId: game.serverId,
+        creatorId: USER,
+        name: "Pinning",
+        gameRevisionId: game.revisions.find((r) => r.revision === revision)!.id,
+      },
+    });
+  }
+
+  // A fork link of the session, its snapshot on the given revision.
+  async function forkLinkOn(key: string, sessionId: string, revision: number, revoked = false) {
+    const game = await gameOf(key);
+    await prisma.sessionLink.create({
+      data: {
+        token: `${KEY_PREFIX}${key}-${revision}`,
+        sessionId,
+        createdById: USER,
+        linkType: "fork",
+        revokedAt: revoked ? new Date() : null,
+        snapshot: {
+          create: {
+            questions: [],
+            gameRevisionId: game.revisions.find((r) => r.revision === revision)!.id,
+          },
+        },
+      },
+    });
+  }
+
+  async function cleanupPruning() {
+    await prisma.gameSession.deleteMany({ where: { creatorId: USER } });
+    await cleanup();
+    await prisma.user.deleteMany({ where: { discordId: USER } });
+  }
+
+  beforeAll(async () => {
+    await cleanupPruning();
+    await prisma.server.createMany({ data: [{ id: SERVER_ID, name: "Import Service Server" }] });
+    await ensureCasualServer();
+    await prisma.user.create({
+      data: {
+        discordId: USER,
+        username: USER,
+        displayName: USER,
+        avatarUrl: "https://example.com/a.png",
+        discordAccessToken: "tok",
+        discordRefreshToken: "ref",
+        discordTokenExpiresAt: new Date(Date.now() + 86_400_000),
+      },
+    });
+  });
+
+  afterAll(cleanupPruning);
+
+  test("an update of a Casual game deletes the older revisions nothing uses", async () => {
+    const key = `${KEY_PREFIX}prune-casual`;
+    await importGameDefinition(casual(key, "R1"));
+    const session = await sessionOn(key, 1);
+    await importGameDefinition(casual(key, "R2"));
+    await forkLinkOn(key, session.id, 2);
+    await importGameDefinition(casual(key, "R3"));
+    await forkLinkOn(key, session.id, 3, true);
+    await importGameDefinition(casual(key, "R4"));
+    expect(await numbers(key)).toEqual([1, 2, 4]);
+
+    await importGameDefinition(casual(key, "R5"));
+    // 1: a session's; 2: an active fork link's; 3 (a revoked link's) and 4: unused.
+    expect(await numbers(key)).toEqual([1, 2, 5]);
+  });
+
+  test("an official game keeps every revision, with no prune run", async () => {
+    const key = `${KEY_PREFIX}prune-official`;
+    // The prune's deletes, also within a transaction.
+    const executeRaw = vi.spyOn(prisma, "$executeRaw");
+    try {
+      for (const name of ["A", "B", "C"]) {
+        await importGameDefinition({ raw: definition(key, name), allowUpdate: true });
+      }
+      // As after a session delete.
+      const { id } = await gameOf(key);
+      await prisma.$transaction((tx) => pruneGame(tx, id));
+      expect(executeRaw).not.toHaveBeenCalled();
+    } finally {
+      executeRaw.mockRestore();
+    }
+    expect(await numbers(key)).toEqual([1, 2, 3]);
+  });
+
+  test("a re-activated revision keeps the highest, so its number isn't used again", async () => {
+    const key = `${KEY_PREFIX}prune-numbers`;
+    const first = await importGameDefinition(casual(key, "A"));
+    await sessionOn(key, 1);
+    await importGameDefinition(casual(key, "B"));
+    const again = await importGameDefinition(casual(key, "A"));
+    expect(again).toMatchObject({ revision: 1, checksum: first.checksum });
+    expect(await numbers(key)).toEqual([1, 2]);
+
+    expect(await importGameDefinition(casual(key, "C"))).toMatchObject({ revision: 3 });
+    expect(await numbers(key)).toEqual([1, 3]);
+  });
+
+  test("an update of a deleted game is GAME_DELETED, before a stale preview's GAME_CHANGED", async () => {
+    const key = `${KEY_PREFIX}prune-deleted`;
+    const { gameId } = await importGameDefinition(casual(key, "A"));
+    await prisma.game.update({ where: { id: gameId }, data: { archivedAt: new Date() } });
+    const game = await prisma.game.findUniqueOrThrow({ where: { id: gameId } });
+    await expect(
+      replaceGameDefinition({
+        game,
+        raw: definition(key, "B", CASUAL_SERVER_ID),
+        actor: actorFor(USER),
+        expectedCurrentRevisionId: "not-current",
+      }),
+    ).rejects.toMatchObject({ code: "GAME_DELETED", statusCode: 409 });
   });
 });
 

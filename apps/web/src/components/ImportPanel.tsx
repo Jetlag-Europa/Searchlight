@@ -60,6 +60,8 @@ export function ImportPanel({
   const [servers, setServers] = useState<ServerOption[] | null>(null);
   const [serversError, setServersError] = useState<string | null>(null);
   const [serversRefresh, setServersRefresh] = useState(0);
+  // Check again asks Discord again, for someone who just joined a server.
+  const recheckServers = useRef(false);
   // The file's own server comes first, as it did in the import dialog,
   // then the one the games page sent the user here for.
   const [serverId, setServerId] = useState<string>(
@@ -82,13 +84,21 @@ export function ImportPanel({
   // Bumped to redo the preview for the same file and server.
   const [previewRefresh, setPreviewRefresh] = useState(0);
   const latestDryRun = useRef(0);
+  // Check again's button goes while it checks, so focus is put back after.
+  const refocus = useRef(false);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const serverRef = useRef<HTMLSelectElement>(null);
+  const checkAgainRef = useRef<HTMLButtonElement>(null);
+  const importRef = useRef<HTMLButtonElement>(null);
 
   // Load once AuthGuard has verified the login.
   useEffect(() => {
     if (!userId || replaceGameId) return;
     let cancelled = false;
     setServersError(null);
-    fetch(`${API_BASE}/servers`, { credentials: "include" })
+    fetch(`${API_BASE}/servers${recheckServers.current ? "?recheck=true" : ""}`, {
+      credentials: "include",
+    })
       .then(async (r) => {
         if (!r.ok) {
           if (!cancelled) {
@@ -105,6 +115,7 @@ export function ImportPanel({
       .catch(() => {
         if (!cancelled) setServersError("Couldn't load your servers");
       });
+    recheckServers.current = false;
     return () => {
       cancelled = true;
     };
@@ -114,6 +125,11 @@ export function ImportPanel({
   const toSend = replaceGameId ? definition : { ...definition, serverId };
 
   useEffect(() => setImportError(null), [definition, serverId]);
+
+  // A plain import goes to a server from the list, so it waits for it.
+  const waitingForServers = !replaceGameId && servers === null;
+  // In no server Searchlight knows: the import would only be refused.
+  const noTarget = !replaceGameId && servers?.length === 0;
 
   // What importing would do, redone whenever the file or server change.
   // It may update, so an existing game is reported rather than refused.
@@ -125,8 +141,24 @@ export function ImportPanel({
     setDryRun(null);
     setError(null);
     setPreviewCode(null);
+    // Redone once Check again has reloaded the list: someone who just
+    // joined a server may only now be allowed to import.
+    if (waitingForServers || noTarget) {
+      setPreviewing(false);
+      return;
+    }
     setPreviewing(true);
-    importGameDefinitionAPI(toSend, true, true, false, undefined, replaceGameId ?? undefined)
+    // A superseded preview is cancelled, so it doesn't keep an upload slot.
+    const controller = new AbortController();
+    importGameDefinitionAPI(
+      toSend,
+      true,
+      true,
+      false,
+      undefined,
+      replaceGameId ?? undefined,
+      controller.signal,
+    )
       .then((result) => {
         if (run !== latestDryRun.current) return;
         setDryRun(result);
@@ -135,15 +167,23 @@ export function ImportPanel({
         setError(null);
       })
       .catch((err: Error & { code?: string }) => {
-        if (run !== latestDryRun.current) return;
+        if (run !== latestDryRun.current || controller.signal.aborted) return;
         setError(err.message);
         setPreviewCode(err.code ?? null);
       })
       .finally(() => {
         if (run === latestDryRun.current) setPreviewing(false);
       });
+    return () => controller.abort();
     // toSend changes with definition and serverId.
-  }, [userId, definition, serverId, replaceGameId, previewRefresh]);
+  }, [userId, definition, serverId, replaceGameId, previewRefresh, servers]);
+
+  useEffect(() => {
+    if (!refocus.current || waitingForServers || previewing) return;
+    refocus.current = false;
+    const target = checkAgainRef.current ?? serverRef.current ?? importRef.current;
+    (target && !target.disabled ? target : headingRef.current)?.focus();
+  }, [servers, previewing]);
 
   const casual = serverId === CASUAL_SERVER_ID;
   const updating = dryRun?.status === "updated";
@@ -198,11 +238,12 @@ export function ImportPanel({
   // anyway so the selector matches where the import is sent.
   const unknownServer =
     servers && serverId && !servers.some((s) => s.id === serverId) ? serverId : null;
-
   return (
     <section className="space-y-3 rounded-lg border border-border p-3 text-sm">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">{replaceGameId ? "Replace" : "Import"}</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="text-base font-semibold focus:outline-none">
+          {replaceGameId ? "Replace" : "Import"}
+        </h2>
         {dryRun && !imported && (
           <span
             className={`rounded px-2 py-0.5 text-xs font-semibold uppercase ${
@@ -229,20 +270,33 @@ export function ImportPanel({
             type="button"
             size="sm"
             variant="outline"
-            onClick={() => {
-              setServersRefresh((n) => n + 1);
-              if (serverId && !dryRun && !previewing) {
-                setPreviewRefresh((n) => n + 1);
-              }
-            }}
+            onClick={() => setServersRefresh((n) => n + 1)}
           >
             Retry
           </Button>
         </div>
       ) : servers === null ? (
         <p className="text-xs text-muted-foreground">Loading your servers…</p>
-      ) : servers.length === 0 && !unknownServer ? (
-        <p className="text-xs text-destructive">You can&apos;t import games to any server.</p>
+      ) : noTarget ? (
+        <div className="space-y-2">
+          <p className="text-xs text-destructive">
+            To upload games, join one of the JetLag Discord servers that use Searchlight.
+          </p>
+          <Button
+            ref={checkAgainRef}
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              recheckServers.current = true;
+              refocus.current = true;
+              setServers(null);
+              setServersRefresh((n) => n + 1);
+            }}
+          >
+            Check again
+          </Button>
+        </div>
       ) : (
         <div>
           <label
@@ -252,6 +306,7 @@ export function ImportPanel({
             Server
           </label>
           <select
+            ref={serverRef}
             id="import-server"
             className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-sm"
             value={serverId}
@@ -276,6 +331,23 @@ export function ImportPanel({
               Not one of the servers you can import to. The import will be refused unless you have
               game permissions there.
             </p>
+          )}
+          {/* Game files name their server, and most players may only use Casual. */}
+          {unknownServer && servers.some((s) => s.id === CASUAL_SERVER_ID) && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="mt-2"
+              onClick={() => {
+                setServerId(CASUAL_SERVER_ID);
+                // The button goes with the warning; keep keyboard focus on the choice.
+                serverRef.current?.focus();
+              }}
+              disabled={importing}
+            >
+              Upload it as a Casual game instead
+            </Button>
           )}
         </div>
       )}
@@ -369,7 +441,7 @@ export function ImportPanel({
 
       {/* Listing applies to new games; existing ones change it on the
                 games page. Casual games are always unlisted. */}
-      {replaceGameId ? null : casual ? (
+      {replaceGameId || noTarget ? null : casual ? (
         <p className="text-xs text-muted-foreground">
           Only you and global admins see Casual games, and an import here only updates your own.
           Sessions start from a game link you create on the games page.
@@ -394,14 +466,15 @@ export function ImportPanel({
         )
       )}
 
-      {errors.map((e) => (
-        <p
-          key={e}
-          className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive"
-        >
-          {e}
-        </p>
-      ))}
+      {!noTarget &&
+        errors.map((e) => (
+          <p
+            key={e}
+            className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive"
+          >
+            {e}
+          </p>
+        ))}
 
       {blocked && (
         <p className="rounded-md border border-destructive/50 bg-destructive/10 p-2 text-xs text-destructive">
@@ -409,17 +482,25 @@ export function ImportPanel({
         </p>
       )}
 
-      {/* A replace has no server to change, so nothing else would
-                redo a preview that failed. */}
-      {replaceGameId && userId && !dryRun && !previewing && !imported && (
-        <Button
-          variant="outline"
-          className="w-full"
-          onClick={() => setPreviewRefresh((n) => n + 1)}
-        >
-          Check again
-        </Button>
-      )}
+      {/* Nothing else would redo the preview: a replace has no server to
+                change, and a game deleted in another tab frees a slot. */}
+      {(replaceGameId || previewCode === "CASUAL_GAME_LIMIT") &&
+        userId &&
+        !dryRun &&
+        !previewing &&
+        !imported && (
+          <Button
+            ref={checkAgainRef}
+            variant="outline"
+            className="w-full"
+            onClick={() => {
+              refocus.current = true;
+              setPreviewRefresh((n) => n + 1);
+            }}
+          >
+            Check again
+          </Button>
+        )}
 
       {imported ? (
         <p className="rounded-md border border-emerald-500/50 bg-emerald-500/10 p-2 text-xs text-emerald-700 dark:text-emerald-300">
@@ -434,6 +515,7 @@ export function ImportPanel({
         </p>
       ) : (
         <Button
+          ref={importRef}
           className="w-full"
           onClick={handleImport}
           // A failed preview doesn't stop the import: as with the
@@ -445,6 +527,8 @@ export function ImportPanel({
           // address reaches the plain import).
           disabled={
             !userId ||
+            waitingForServers ||
+            noTarget ||
             (!serverId && !replaceGameId) ||
             importing ||
             busy ||
@@ -452,6 +536,8 @@ export function ImportPanel({
             previewing ||
             needsConfirm ||
             previewCode === "GAME_ID_TAKEN" ||
+            previewCode === "FORBIDDEN" ||
+            previewCode === "CASUAL_GAME_LIMIT" ||
             (!!replaceGameId && dryRun?.gameId !== replaceGameId)
           }
         >
