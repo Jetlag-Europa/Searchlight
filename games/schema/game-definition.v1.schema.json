@@ -521,6 +521,9 @@
     "thermometer": {
       "type": "boolean"
     },
+    "stationNameLength": {
+      "type": "boolean"
+    },
     "features": {
       "type": "array",
       "items": {

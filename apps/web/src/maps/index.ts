@@ -69,6 +69,8 @@ interface CompiledFeatureQuestionData {
 
 export function resolveCompiledQuestion(question: any, compiled: any): any {
   if (!compiled || !question) return undefined;
+  // Answered from the zones' names, not by an operator (stationNameLength.ts).
+  if (isStationNameLength(question)) return undefined;
   const family = question.id === "tentacles" ? "tentacle" : question.id;
   // Radar and thermometer questions carry no definition ID: a game compiles
   // at most one of each, under the family's name.

@@ -55,6 +55,7 @@ describe("Game Definition Validation", () => {
     const result = validateGameDefinition(def);
     expect(result.valid).toBe(true);
     expect(result.errors).toEqual([]);
+    expect(validateGameDefinition({ ...def, stationNameLength: true }).valid).toBe(true);
   });
 
   it("fails if center coordinates are invalid", () => {

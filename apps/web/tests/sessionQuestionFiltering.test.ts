@@ -35,6 +35,11 @@ describe("session question support filtering", () => {
     expect(isQuestionSupported(thermometer, compiled(["thermometer", "thermometer"]))).toBe(true);
   });
 
+  it("keeps a Station Name Length question the game doesn't declare", () => {
+    const stationName = { id: "matching", data: { type: "station-name-length", lat: 1, lng: 2 } };
+    expect(isQuestionSupported(stationName, compiled())).toBe(true);
+  });
+
   it("never falls back to generic OSM-backed questions, even while the definition is loading", () => {
     expect(isQuestionSupported(genericMatching, null)).toBe(false);
     expect(isQuestionSupported(genericTentacle, null)).toBe(false);

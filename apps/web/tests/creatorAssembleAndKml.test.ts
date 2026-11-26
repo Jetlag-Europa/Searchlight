@@ -20,6 +20,7 @@ describe("assembleGameDefinition", () => {
       tierOverrides: { Outer: 600, Unused: 900 },
       radars: [250, 400, 800],
       thermometer: true,
+      stationNameLength: true,
       playArea,
       stations: [
         {
@@ -86,6 +87,7 @@ describe("assembleGameDefinition", () => {
       warnings: [],
     });
     const compiled = compileGameDefinition(def);
+    expect(compiled.questionMap.get("station-name-length")?.family).toBe("matching");
     expect(compiled.hidingZones.features.features).toHaveLength(2);
     expect(def.hidingZones.features.features.map((f) => f.id)).toEqual(["central", "central-2"]);
     // Only referenced tiers are emitted.
@@ -211,6 +213,8 @@ describe("assembleGameDefinition", () => {
       ],
     });
 
+    // Left out when off, not written as false.
+    expect(def).not.toHaveProperty("stationNameLength");
     expect(validateGameDefinition(def).valid).toBe(true);
     expect(def.unit).toBe("meters");
     expect(def.hidingZones.unit).toBe("meters");

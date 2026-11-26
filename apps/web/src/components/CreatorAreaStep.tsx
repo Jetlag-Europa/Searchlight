@@ -48,6 +48,8 @@ interface Props {
   setRadarsText: (val: string) => void;
   thermometer: boolean;
   setThermometer: (val: boolean) => void;
+  stationNameLength: boolean;
+  setStationNameLength: (val: boolean) => void;
   onNext: () => void;
 }
 
@@ -84,6 +86,8 @@ export function CreatorAreaStep({
   setRadarsText,
   thermometer,
   setThermometer,
+  stationNameLength,
+  setStationNameLength,
   onNext,
 }: Props) {
   const playAreaName =
@@ -313,6 +317,16 @@ export function CreatorAreaStep({
             />
             <label htmlFor="creator-thermometer" className="cursor-pointer text-sm">
               Enable Thermometer questions
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="creator-station-name-length"
+              checked={stationNameLength}
+              onCheckedChange={(v) => setStationNameLength(v === true)}
+            />
+            <label htmlFor="creator-station-name-length" className="cursor-pointer text-sm">
+              Enable Station Name Length questions
             </label>
           </div>
         </div>

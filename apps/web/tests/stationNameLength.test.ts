@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { compiledGameAtom, setActiveGameDefinition } from "@/game-definition/store";
 import { hiderMode, questions } from "@/lib/context";
 import { nameLength, ruledOutZones, STATION_NAME_LENGTH } from "@/lib/stationNameLength";
-import { hiderifyMatching } from "@/maps/questions/matching";
+import { hiderifyQuestion } from "@/maps";
 
 afterEach(() => {
   questions.set([]);
@@ -14,10 +14,13 @@ afterEach(() => {
   setActiveGameDefinition(null);
 });
 
-const game = () => {
-  setActiveGameDefinition(
-    JSON.parse(readFileSync(resolve("tests/fixtures/games/south-limburg-2026.game.json"), "utf8")),
-  );
+const game = (extra = {}) => {
+  setActiveGameDefinition({
+    ...JSON.parse(
+      readFileSync(resolve("tests/fixtures/games/south-limburg-2026.game.json"), "utf8"),
+    ),
+    ...extra,
+  });
   return compiledGameAtom.get()!.hidingZones.stations!;
 };
 
@@ -37,14 +40,20 @@ describe("station name length", () => {
     expect(ruledOutZones.get()).not.toContain(String(zones[0].id));
   });
 
-  it("is answered in hider mode from the zone nearest the hider", async () => {
-    const zones = game();
+  it("is answered in hider mode from the zone nearest the hider, also when declared", async () => {
+    const zones = game({ stationNameLength: true });
     const [lng, lat] = zones[0].coordinates;
     const other = zones.find((zone) => nameLength(zone.name) !== nameLength(zones[0].name))!;
-    const question: any = { type: STATION_NAME_LENGTH, lat, lng, drag: true };
+    const question: any = {
+      id: "matching",
+      key: 1,
+      data: { type: STATION_NAME_LENGTH, lat, lng, drag: true },
+    };
     hiderMode.set({ latitude: other.coordinates[1], longitude: other.coordinates[0] });
-    expect((await hiderifyMatching(question)).same).toBe(false);
+    await hiderifyQuestion(question);
+    expect(question.data.same).toBe(false);
     hiderMode.set({ latitude: lat, longitude: lng });
-    expect((await hiderifyMatching(question)).same).toBe(true);
+    await hiderifyQuestion(question);
+    expect(question.data.same).toBe(true);
   });
 });

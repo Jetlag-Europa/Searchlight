@@ -23,10 +23,10 @@ function canonicalQuestionId(question: any): {
   return { family: question.id, id: undefined };
 }
 
-// Questions every game offers: player-drawn ones carry their own geometry,
-// Station Name Length uses the game's zones. None query OSM.
+// Questions every game offers: player-drawn ones carry their own geometry.
+// None query OSM.
 export const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
-  matching: ["custom-zone", "custom-points", "station-name-length"],
+  matching: ["custom-zone", "custom-points"],
   measuring: ["custom-measure"],
   tentacle: ["custom"],
 };
@@ -71,7 +71,9 @@ export function isQuestionSupported(
     return compiled.questionMap.get(id)?.family === family;
   }
 
-  if (!PLAYER_CUSTOM_TYPES[family].includes(id)) return false;
+  // A game offers Station Name Length only if it declares it, but a session
+  // keeps one anyway: it needs only the zones.
+  if (!PLAYER_CUSTOM_TYPES[family].includes(id) && id !== "station-name-length") return false;
 
   // A player-drawn question must match its schema branch.
   return questionSchema.safeParse(question).success;

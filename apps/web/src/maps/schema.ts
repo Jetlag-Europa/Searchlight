@@ -161,7 +161,7 @@ const baseMatchingQuestionSchema = baseQuestionSchema.extend({
 });
 
 const customMatchingQuestionSchema = baseMatchingQuestionSchema.extend({
-  // Station name length needs no drawing, but like the custom types it fits every game.
+  // Station name length needs no drawing, but has no layer either: it shares this branch.
   type: z.union([
     z.literal("custom-zone"),
     z.literal("custom-points"),
