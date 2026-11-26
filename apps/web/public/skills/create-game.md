@@ -312,7 +312,7 @@ A game dev imports into the Discord server where their role has game permissions
 
 ## 5. Questions
 
-The Add Question buttons for radar and thermometer are disabled when the game doesn't declare them. Players can always draw their own custom matching, measuring and tentacle questions, so when the game has no layer for one of those families its button adds a custom question instead. Each picker lists only the game's own questions plus those custom ones. Questions pasted from other games are rejected if this game doesn't define them.
+The Add Question buttons for radar and thermometer are disabled when the game doesn't declare them. Players can always draw their own custom matching, measuring and tentacle questions, so when the game has no layer for one of those families its button adds a custom question instead. Each picker lists only the game's own questions plus those custom ones. Questions pasted from other games are rejected if this game doesn't define them, except Station Name Length, which needs only the zone names.
 
 ### 5.1 Radar, thermometer and station name length
 

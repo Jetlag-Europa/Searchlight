@@ -37,8 +37,9 @@ export const PLAYER_CUSTOM_TYPES: Record<string, readonly string[]> = {
  * Every question belongs to a game. Once its definition is ready, a game
  * offers only what it declares: radar and thermometer when its definition
  * enables them, its compiled feature questions, and player-drawn custom
- * questions. Anything else, such as a question from the retired built-in
- * catalogue still stored in an older session, is never supported.
+ * questions. Station Name Length is kept, declared or not. Anything else,
+ * such as a question from the retired built-in catalogue still stored in an
+ * older session, is never supported.
  *
  * While the definition is loading (`compiled` is null), the questions a game
  * could support are retained: radar, thermometer, canonical feature IDs and

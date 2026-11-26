@@ -40,7 +40,7 @@ describe("station name length", () => {
     expect(ruledOutZones.get()).not.toContain(String(zones[0].id));
   });
 
-  it("is answered in hider mode from the zone nearest the hider, also when declared", async () => {
+  it("is answered in hider mode from the zone nearest the hider, when the game declares it", async () => {
     const zones = game({ stationNameLength: true });
     const [lng, lat] = zones[0].coordinates;
     const other = zones.find((zone) => nameLength(zone.name) !== nameLength(zones[0].name))!;
