@@ -296,6 +296,7 @@ export function checkGame(def, { fileSize } = {}) {
     "hidingZones",
     "radars",
     "thermometer",
+    "stationNameLength",
     "features",
   ];
   for (const key of Object.keys(def)) {
@@ -346,6 +347,8 @@ export function checkGame(def, { fileSize } = {}) {
   }
   if (def.thermometer !== undefined && typeof def.thermometer !== "boolean")
     err("/thermometer", "must be boolean");
+  if (def.stationNameLength !== undefined && typeof def.stationNameLength !== "boolean")
+    err("/stationNameLength", "must be boolean");
   if (
     def.radars !== undefined &&
     typeof def.radars !== "boolean" &&
@@ -1057,6 +1060,9 @@ export function checkGame(def, { fileSize } = {}) {
           id: `${kind}-${slug(name)}`,
         });
       }
+    }
+    if (def.stationNameLength === true) {
+      questions.push({ kind: "matching", label: "Station Name Length", id: "station-name-length" });
     }
   }
 

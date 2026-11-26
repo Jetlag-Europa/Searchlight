@@ -104,6 +104,19 @@ describe("check-game.mjs", () => {
     ]);
   });
 
+  it("lists Station Name Length like the app, only when declared", () => {
+    const def = game({ stationNameLength: true });
+    const app = compileGameDefinition(def as unknown as GameDefinition).questionMap.get(
+      "station-name-length",
+    );
+    expect(checkGame(def).questions.at(-1)).toEqual({
+      kind: app?.family,
+      label: app?.label,
+      id: app?.id,
+    });
+    expect(checkGame(game()).questions.some((q) => q.id === "station-name-length")).toBe(false);
+  });
+
   it("lists one radar, at any radius, with its presets", () => {
     const radar = (overrides: Record<string, unknown>) =>
       checkGame(game(overrides)).questions.find((q) => q.kind === "radar")?.label;

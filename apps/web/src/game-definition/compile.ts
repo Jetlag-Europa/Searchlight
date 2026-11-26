@@ -167,8 +167,9 @@ export function compileGameDefinition(definition: GameDefinition): CompiledGame 
     }
   });
 
-  // 3. Synthesize Questions from radars, thermometer, and features. A game
-  // offers only the questions it declares; nothing is enabled by default.
+  // 3. Synthesize Questions from radars, thermometer, features and station
+  // name length. A game offers only the questions it declares; nothing is
+  // enabled by default.
   const questions: QuestionDefinition[] = [];
 
   // Radar: one question, asked at any radius. The declared radii (or the base
@@ -264,6 +265,16 @@ export function compileGameDefinition(definition: GameDefinition): CompiledGame 
         });
       }
     }
+  }
+
+  // Station Name Length: answered from the zones' names (stationNameLength.ts).
+  if (definition.stationNameLength === true) {
+    questions.push({
+      id: "station-name-length",
+      family: "matching",
+      label: "Station Name Length",
+      evaluator: { operator: "station-name-length" },
+    });
   }
 
   const questionMap = new Map<string, QuestionDefinition>();

@@ -59,6 +59,7 @@ export interface CreatorDraftInput {
   tierOverrides: Record<string, number>;
   radars: boolean | number[];
   thermometer: boolean;
+  stationNameLength?: boolean;
   playArea: PlayAreaFeatureCollection;
   stations: readonly CreatorPointItem[];
   /** Non-point hiding zone features (e.g. Polygon zones) preserved from a loaded .game.json. */
@@ -331,6 +332,8 @@ export function assembleGameDefinition(draft: CreatorDraftInput): GameDefinition
       ? draft.radars.filter((r) => Number.isFinite(r) && r > 0)
       : Boolean(draft.radars),
     thermometer: Boolean(draft.thermometer),
+    // Only when on: validators from before the flag reject the key.
+    ...(draft.stationNameLength && { stationNameLength: true }),
     ...(features.length > 0 && { features }),
   };
 

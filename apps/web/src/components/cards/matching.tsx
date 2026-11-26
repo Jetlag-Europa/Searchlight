@@ -183,7 +183,13 @@ export const MatchingQuestionComponent = ({
       <SidebarMenuItem className={MENU_ITEM_CLASSNAME}>
         <Select
           trigger="Matching Type"
-          options={Object.fromEntries(compiledMatching.map((q) => [q.id, q.label]))}
+          options={{
+            ...Object.fromEntries(compiledMatching.map((q) => [q.id, q.label])),
+            // Kept by a session whose game doesn't declare it (isQuestionSupported).
+            ...(data.type === STATION_NAME_LENGTH && {
+              [STATION_NAME_LENGTH]: "Station Name Length",
+            }),
+          }}
           hints={askedHints($questions, "matching", questionKey)}
           groups={{
             Custom: {
@@ -192,10 +198,6 @@ export const MatchingQuestionComponent = ({
                 "custom-points": "Custom Points",
                 "custom-zone": "Custom Zone",
               },
-            },
-            Stations: {
-              disabled: false,
-              options: { [STATION_NAME_LENGTH]: "Station Name Length" },
             },
           }}
           value={data.type}

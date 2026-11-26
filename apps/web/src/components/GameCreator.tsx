@@ -131,6 +131,7 @@ export function GameCreator() {
   const [radarMode, setRadarMode] = useState<"off" | "default" | "custom">("custom");
   const [radarsText, setRadarsText] = useState(SCALE_PRESETS[DEFAULT_SCALE].radars.join(", "));
   const [thermometer, setThermometer] = useState(SCALE_PRESETS[DEFAULT_SCALE].thermometer);
+  const [stationNameLength, setStationNameLength] = useState(false);
   const [preservedMetadata, setPreservedMetadata] = useState<PreservedGameMetadata | null>(null);
   const [replaceTarget, setReplaceTarget] = useState<CreatorReplaceTarget | null>(null);
   const [pendingOpenHandoff, setPendingOpenHandoff] = useState<{
@@ -235,6 +236,7 @@ export function GameCreator() {
     radarMode: "off" | "default" | "custom";
     radarsText: string;
     thermometer: boolean;
+    stationNameLength: boolean;
     layerSnapshots: Array<{
       id: string;
       name: string;
@@ -785,6 +787,7 @@ export function GameCreator() {
         setRadarsText("");
       }
       setThermometer(Boolean(def.thermometer));
+      setStationNameLength(Boolean(def.stationNameLength));
       setPreservedMetadata({
         serverId: def.serverId,
         revision: def.revision,
@@ -994,6 +997,7 @@ export function GameCreator() {
       cached.radarMode === radarMode &&
       cached.radarsText === deferredRadarsText &&
       cached.thermometer === thermometer &&
+      cached.stationNameLength === stationNameLength &&
       cached.layerSnapshots.length === layers.length &&
       cached.layerSnapshots.every((snap, idx) => {
         const l = layers[idx];
@@ -1072,6 +1076,7 @@ export function GameCreator() {
         radarMode,
         radarsText: deferredRadarsText,
         thermometer,
+        stationNameLength,
         layerSnapshots: layers.map((l) => ({
           id: l.id,
           name: l.name,
@@ -1135,6 +1140,7 @@ export function GameCreator() {
       tierOverrides: deferredTierOverrides,
       radars: radarsValue,
       thermometer,
+      stationNameLength,
       playArea,
       stations,
       extraHidingZones,
@@ -1190,6 +1196,7 @@ export function GameCreator() {
     radarMode,
     deferredRadarsText,
     thermometer,
+    stationNameLength,
     layers,
   ]);
 
@@ -1486,6 +1493,7 @@ export function GameCreator() {
       radarMode,
       radarsText,
       thermometer,
+      stationNameLength,
       playArea,
       playAreaOsmRelationId,
       preservedMetadata,
@@ -1519,6 +1527,7 @@ export function GameCreator() {
     radarMode,
     radarsText,
     thermometer,
+    stationNameLength,
     playArea,
     playAreaOsmRelationId,
     preservedMetadata,
@@ -1580,6 +1589,7 @@ export function GameCreator() {
             setRadarMode(saved.radarMode);
             setRadarsText(saved.radarsText);
             setThermometer(saved.thermometer);
+            setStationNameLength(saved.stationNameLength ?? false);
             setPlayArea(saved.playArea);
             setPlayAreaOsmRelationId(saved.playAreaOsmRelationId ?? null);
             setPlayAreaVersion((v) => v + 1);
@@ -1723,6 +1733,7 @@ export function GameCreator() {
     setRadarMode("custom");
     setRadarsText(SCALE_PRESETS[DEFAULT_SCALE].radars.join(", "));
     setThermometer(SCALE_PRESETS[DEFAULT_SCALE].thermometer);
+    setStationNameLength(false);
     setPreservedMetadata(null);
     setReplaceTarget(null);
     setPendingOpenHandoff(null);
@@ -1956,6 +1967,8 @@ export function GameCreator() {
               setRadarsText={setRadarsText}
               thermometer={thermometer}
               setThermometer={setThermometer}
+              stationNameLength={stationNameLength}
+              setStationNameLength={setStationNameLength}
               onNext={() => setStep("stations")}
             />
           )}

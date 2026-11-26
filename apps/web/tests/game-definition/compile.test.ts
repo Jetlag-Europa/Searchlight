@@ -328,19 +328,21 @@ describe("Runtime Compiler and Operator Dispatch", () => {
     expect(families({})).toEqual([]);
 
     // Explicitly false -> none
-    expect(families({ radars: false, thermometer: false })).toEqual([]);
+    expect(families({ radars: false, thermometer: false, stationNameLength: false })).toEqual([]);
 
     // Explicitly true -> one radar at the hiding radius, plus the thermometer
     const compiledTrue = compileGameDefinition({
       ...baseGame,
       radars: true,
       thermometer: true,
+      stationNameLength: true,
     } as unknown as GameDefinition);
     const trueRadar = compiledTrue.questions.find((q) => q.family === "radius");
     expect(trueRadar?.id).toBe("radius");
     expect(trueRadar?.label).toBe("Radar: any radius (starts at 350 m)");
     expect(trueRadar?.defaults?.radii).toEqual([{ value: 350, unit: "meters" }]);
     expect(compiledTrue.questionMap.get("thermometer")?.family).toBe("thermometer");
+    expect(compiledTrue.questionMap.get("station-name-length")?.family).toBe("matching");
 
     // A list of radii -> one radar, with the radii as its presets
     const listed = compileGameDefinition({

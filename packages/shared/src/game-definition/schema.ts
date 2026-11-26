@@ -232,6 +232,7 @@ export const GameDefinitionSchema = Type.Object(
       ]),
     ),
     thermometer: Type.Optional(Type.Boolean()),
+    stationNameLength: Type.Optional(Type.Boolean()),
     features: Type.Optional(Type.Array(GameFeatureSchema)),
   },
   { additionalProperties: false },

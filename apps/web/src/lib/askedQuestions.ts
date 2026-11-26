@@ -31,11 +31,8 @@ const askedVariant = (question: Question): string | undefined => {
         question.id === "tentacles"
           ? ["tentacle", question.data.locationType]
           : [question.id, question.data.type];
-      // Drawing a player-drawn question doesn't use anything up; Station
-      // Name Length (offered like them) is a question from the rules.
-      return PLAYER_CUSTOM_TYPES[family].includes(variant) && variant !== "station-name-length"
-        ? undefined
-        : variant;
+      // Drawing a player-drawn question doesn't use anything up.
+      return PLAYER_CUSTOM_TYPES[family].includes(variant) ? undefined : variant;
     }
     case "radius":
       return storedRadarVariant(question.data.radius, question.data.unit);
